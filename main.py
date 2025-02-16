@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 import yaml
-from sqlalchemy import create_engine
-from alembic import command, config
-
-app_config = yaml.load(open('config.yaml'), Loader=yaml.SafeLoader)
-engine = create_engine(
-    f"mysql+pymysql://{app_config['database']['username']}:{app_config['database']['password']}@{app_config['database']['host']}/{app_config['database']['dbname']}",
-    echo=True
-)
-
-cfg = config.Config('alembic.ini')
-
-with engine.connect() as connection:
-    cfg.attributes['connection'] = connection
-    command.upgrade(cfg, 'head')
-
+from tortoise import Tortoise
 from fastapi import FastAPI
 import frontend
 import api
+from contextlib import asynccontextmanager
+from migrations.tortoise_config import TORTOISE_ORM
 
-app = FastAPI()
+async def init_db():
+    await Tortoise.init(config=TORTOISE_ORM)
+    await Tortoise.generate_schemas()
+
+async def close_db():
+    await Tortoise.close_connections()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+    await close_db()
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(
     api.router,
     prefix='/api',
