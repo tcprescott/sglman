@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-import yaml
 from tortoise import Tortoise
 from fastapi import FastAPI
 import frontend
 import api
 from contextlib import asynccontextmanager
 from migrations.tortoise_config import TORTOISE_ORM
+from aerich import Command
 
 async def init_db():
+    command = Command(tortoise_config=TORTOISE_ORM, app='models', location='./migrations')
+    await command.init()
+    await command.upgrade()
     await Tortoise.init(config=TORTOISE_ORM)
-    await Tortoise.generate_schemas()
 
 async def close_db():
     await Tortoise.close_connections()

@@ -1,11 +1,11 @@
 import urllib.parse
 import yaml
 
-app_config = yaml.load(open('config.yaml'), Loader=yaml.SafeLoader)
+import config
 
 TORTOISE_ORM = {
     "connections": {
-        "default": f"mysql://{app_config['database']['username']}:{urllib.parse.quote_plus(app_config['database']['password'])}@{app_config['database']['host']}:{app_config['database']['port']}/{app_config['database']['dbname']}"
+        "default": f"mysql://{config.DATABASE['username']}:{urllib.parse.quote_plus(config.DATABASE['password'])}@{config.DATABASE['host']}:{config.DATABASE['port']}/{config.DATABASE['dbname']}"
     },
     "apps": {
         "models": {
