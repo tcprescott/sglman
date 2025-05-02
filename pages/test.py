@@ -1,4 +1,5 @@
-from nicegui import ui, events
+from nicegui import ui, events, app
+import nicegui.elements.table
 from theme import theme
 
 from models import TestModel
@@ -26,9 +27,23 @@ def create() -> None:
         async def delete_row(e: events.GenericEventArguments) -> None:
             row_id = e.args['key']
             await TestModel.filter(id=row_id).delete()
-            ui.notify(f"Deleted row {row_id}")
-            table.rows = await get_table_data()
-            table.update()
+            tabledata = await get_table_data()
+            # Emit an event to notify other viewers
+            for client in app.clients('/test'):
+                with client:
+                    # Notify other clients about the deletion
+                    ui.notify(f"Row {row_id} deleted")
+                    # Find the client's table element
+                    client_table = next(
+                        (element for element in client.elements.values() if isinstance(element, nicegui.elements.table.Table)),
+                        None
+                    )
+                    if client_table:
+                        client_table.rows = tabledata
+                        client_table.update()
+
+            # table.rows = tabledata
+            # table.update()
 
         async def refresh_table() -> None:
             table.rows = await get_table_data()
@@ -47,6 +62,7 @@ def create() -> None:
                 ],
                 rows=await get_table_data(),
                 row_key='id',
+                # title='main-table'
             )
             table.add_slot(f'body-cell-actions', """
                 <q-td :props="props">
@@ -55,6 +71,7 @@ def create() -> None:
             """)
             with table.add_slot('top-right'):
                 ui.button(on_click=refresh_table, icon='refresh').props('flat')
+                ui.button('Add Row (test)', on_click=add_row).props('flat')
             with table.add_slot('top-left'):
                 # label = ui.label()
                 ui.timer(60, refresh_table)
