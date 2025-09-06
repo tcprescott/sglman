@@ -49,7 +49,7 @@ def create() -> None:
             table.rows = await get_table_data()
             ui.notify('Refreshed table')
             table.update()
-
+        ui.label(f'Hello {app.storage.user.get("username", "Guest")}!').classes('text-2xl')
         rows = await TestModel.all()
         with theme.frame('Home'):
             table = ui.table(

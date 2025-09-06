@@ -13,6 +13,7 @@ from migrations.tortoise_config import TORTOISE_ORM
 from aerich import Command
 from typing import AsyncGenerator
 
+
 async def init_db() -> None:
     """
     Initialize the database using Aerich migrations and Tortoise ORM.
