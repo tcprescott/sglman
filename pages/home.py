@@ -21,7 +21,7 @@ config = {
 
 discordClient = APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
 
-unrestricted_page_routes = {'/login', '/oauth/callback'}
+unrestricted_page_routes = {'/login', '/oauth/callback', '/api'}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
