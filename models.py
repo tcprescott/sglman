@@ -1,8 +1,8 @@
 from tortoise import fields, models
 from tortoise.models import Model
-from enum import Enum
+from enum import IntEnum
 
-class Permissions(Enum):
+class Permissions(IntEnum):
     USER = 0
     TOURNAMENT_ADMIN = 1
     SUPERADMIN = 2
@@ -44,6 +44,8 @@ class Match(Model):
     score1 = fields.IntField(null=True)
     score2 = fields.IntField(null=True)
     scheduled_at = fields.DatetimeField(null=True)
+    started_at = fields.DatetimeField(null=True)
+    generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -87,3 +89,10 @@ class AuditLog(Model):
     action = fields.CharField(max_length=255)
     details = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
+
+class GeneratedSeeds(Model):
+    id = fields.IntField(pk=True)
+    seed_url = fields.CharField(max_length=255)
+    seed_info = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
