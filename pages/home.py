@@ -68,6 +68,7 @@ def create() -> None:
 
             app.storage.user.update({
                 'username': current_user.username,
+                'avatar': current_user.avatar_url,
                 'authenticated': True,
                 'discord_id': str(current_user.id),
                 'discord_email': current_user.email

@@ -1,12 +1,23 @@
-from tortoise import fields
+from tortoise import fields, models
 from tortoise.models import Model
+from enum import Enum
+
+class Permissions(Enum):
+    USER = 0
+    TOURNAMENT_ADMIN = 1
+    SUPERADMIN = 2
 
 class User(Model):
     id = fields.IntField(pk=True)
     discord_id = fields.BigIntField(unique=True)
-    discord_token = fields.CharField(max_length=255, null=True)
+    access_token = fields.CharField(max_length=255, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+    username = fields.CharField(max_length=150, unique=True)
+    email = fields.CharField(max_length=255, unique=True)
+    is_active = fields.BooleanField(default=True)
+    is_superuser = fields.BooleanField(default=False)
+    permission = fields.IntEnumField(Permissions, default=Permissions.USER)
 
 class TestModel(Model):
     id = fields.IntField(pk=True)
@@ -14,5 +25,41 @@ class TestModel(Model):
     description = fields.TextField()
     value = fields.IntField()
     somethingelse = fields.CharField(max_length=255)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+class Tournament(Model):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+class Match(Model):
+    id = fields.IntField(pk=True)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='matches')
+    stream_room = fields.ForeignKeyField('models.StreamRoom', related_name='matches', null=True)
+    player1 = fields.ForeignKeyField('models.User', related_name='matches_as_player1')
+    player2 = fields.ForeignKeyField('models.User', related_name='matches_as_player2')
+    player3 = fields.ForeignKeyField('models.User', related_name='matches_as_player3', null=True)
+    player4 = fields.ForeignKeyField('models.User', related_name='matches_as_player4', null=True)
+    score1 = fields.IntField(null=True)
+    score2 = fields.IntField(null=True)
+    scheduled_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+class MatchConfirmations(Model):
+    id = fields.IntField(pk=True)
+    match = fields.ForeignKeyField('models.Match', related_name='confirmations')
+    user = fields.ForeignKeyField('models.User', related_name='match_confirmations')
+    confirmed = fields.BooleanField(default=False)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+class StreamRoom(Model):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255, unique=True)
+    stream_url = fields.CharField(max_length=255, null=True)
+    is_active = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
