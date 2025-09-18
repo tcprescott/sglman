@@ -13,7 +13,31 @@ def create() -> None:
 
         with ui.card().style('width: 100%; max-width: 1100px; margin: 0 auto; padding: 0;'):
             with ui.column().style('width: 100%;'):
-                show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=True)
+                async def refresh():
+                    now = datetime.now()
+                    match_query = Match.all()
+                    if show_upcoming_checkbox.value:
+                        match_query = match_query.filter(finished_at__isnull=True)
+                    all_matches = await match_query.prefetch_related(
+                        'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
+                    ).order_by('scheduled_at')
+                    rows = []
+                    for m in all_matches:
+                        player_names = ', '.join([p.user.username for p in m.players])
+                        rows.append({
+                            'id': m.id,
+                            'tournament': m.tournament.name,
+                            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else None,
+                            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else None,
+                            'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else None,
+                            'players': player_names,
+                            'stream_room': m.stream_room.name if m.stream_room else None,
+                            'seed': m.generated_seed.seed_url if m.generated_seed else None,
+                            'actions': ''  # Placeholder for action buttons
+                        })
+                    table.rows = rows
+                    table.update()
+                show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=True, on_change=refresh)
 
                 async def submit_admin_match():
                     async def after_submit(_):
@@ -69,32 +93,11 @@ def create() -> None:
                     await match.save()
                     await refresh()
 
-                async def refresh():
-                    now = datetime.now()
-                    match_query = Match.all()
-                    if show_upcoming_checkbox.value:
-                        match_query = match_query.filter(scheduled_at__gte=now - timedelta(minutes=30))
-                    all_matches = await match_query.prefetch_related(
-                        'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
-                    ).order_by('scheduled_at')
-                    rows = []
-                    for m in all_matches:
-                        player_names = ', '.join([p.user.username for p in m.players])
-                        rows.append({
-                            'id': m.id,
-                            'tournament': m.tournament.name,
-                            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else None,
-                            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else None,
-                            'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else None,
-                            'players': player_names,
-                            'stream_room': m.stream_room.name if m.stream_room else None,
-                            'seed': m.generated_seed.seed_url if m.generated_seed else None,
-                            'actions': ''  # Placeholder for action buttons
-                        })
-                    table.rows = rows
-                    table.update()
 
-                show_upcoming_checkbox.on('change', lambda e: asyncio.create_task(refresh()))
+
+                async def on_upcoming_change(e):
+                    await refresh()
+                show_upcoming_checkbox.on('change', on_upcoming_change)
 
                 with ui.row().style('width: 100%;'):
                     ui.button('Submit Match', on_click=submit_admin_match)

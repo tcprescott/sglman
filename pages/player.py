@@ -26,7 +26,7 @@ def create() -> None:
                     now = datetime.now()
                     match_query = Match.filter(players__user__discord_id=discord_id)
                     if show_upcoming_checkbox.value:
-                        match_query = match_query.filter(scheduled_at__gte=now - timedelta(minutes=30))
+                        match_query = match_query.filter(finished_at__isnull=True)
                     all_matches = await match_query.prefetch_related(
                         'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
                     ).order_by('scheduled_at')
