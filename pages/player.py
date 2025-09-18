@@ -1,3 +1,4 @@
+from theme.match_table import MatchTable
 
 from nicegui import ui, events, app
 from models import Match
@@ -36,7 +37,7 @@ def create() -> None:
                             'id': m.id,
                             'tournament': m.tournament.name if m.tournament else '',
                             'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-                            'started_at': m.started_at.strftime('%Y-%m-%d %H:%M') if m.started_at else '',
+                            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
                             'players': player_names,
                             'stream_room': m.stream_room.name if m.stream_room else '',
                             'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
@@ -53,22 +54,19 @@ def create() -> None:
                 with ui.row().style('width: 100%;'):
                     ui.button('Submit Match', on_click=submit_match)
                     ui.button(on_click=refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
-                table = ui.table(
-                    columns=[
-                        {'name': 'id', 'label': 'ID', 'field': 'id'},
-                        {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
-                        {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
-                        {'name': 'started_at', 'label': 'Started At', 'field': 'started_at'},
-                        {'name': 'players', 'label': 'Players', 'field': 'players'},
-                        {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
-                        {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
-                    ],
-                    rows=[],
-                    row_key='id'
-                ).style('margin-top: 1em; width: 100%;')
+                columns = [
+                    {'name': 'id', 'label': 'ID', 'field': 'id'},
+                    {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
+                    {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
+                    {'name': 'seated', 'label': 'Seated', 'field': 'seated'},
+                    {'name': 'players', 'label': 'Players', 'field': 'players'},
+                    {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
+                    {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+                ]
+                match_table = MatchTable(columns=columns)
+                table = match_table.render()
 
                 # Refresh table on page load
-                asyncio.create_task(refresh())
                 asyncio.create_task(refresh())
 
         # Refresh table on page load
