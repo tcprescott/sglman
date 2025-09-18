@@ -46,6 +46,7 @@ class Match(Model):
     stream_room = fields.ForeignKeyField('models.StreamRoom', related_name='matches', null=True)
     scheduled_at = fields.DatetimeField(null=True)
     started_at = fields.DatetimeField(null=True)
+    comment = fields.TextField(null=True)
     generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

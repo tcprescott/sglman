@@ -1,7 +1,9 @@
+
 from nicegui import ui, events, app
-from models import Match, User, Tournament, MatchPlayers
+from models import Match
+from pages.dialogues import MatchSubmissionDialog
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def create() -> None:
     @ui.page('/player')
@@ -14,94 +16,62 @@ def create() -> None:
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
             return
 
-        # get matches for the logged-in player
-        async def refresh():
-            matches = await Match.filter(players__user__discord_id=discord_id).prefetch_related('tournament', 'players', 'players__user', 'stream_room', 'generated_seed').order_by('scheduled_at')
-            rows = []
-            for m in matches:
-                player_names = ', '.join([p.user.username for p in m.players])
-                rows.append({
-                    'id': m.id,
-                    'tournament': m.tournament.name if m.tournament else '',
-                    'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-                    'players': player_names,
-                    'stream_room': m.stream_room.name if m.stream_room else '',
-                    'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
-                })
-            table.rows = rows
-            table.update()
 
-        async def submit_match():
-            # Fetch users and tournaments for dropdowns
-            users = await User.all().order_by('username')
-            tournaments = await Tournament.all().order_by('name')
+        with ui.card().style('width: 100%; max-width: 900px; margin: 0 auto; padding: 0;'):
+            with ui.column().style('width: 100%;'):
+                show_upcoming_checkbox = ui.checkbox('Show only upcoming races', value=True)
 
-            now = datetime.now()
-            default_date = now.strftime('%Y-%m-%d')
-            default_time = now.strftime('%H:%M')
+                async def refresh():
+                    now = datetime.now()
+                    match_query = Match.filter(players__user__discord_id=discord_id)
+                    if show_upcoming_checkbox.value:
+                        match_query = match_query.filter(scheduled_at__gte=now - timedelta(minutes=30))
+                    all_matches = await match_query.prefetch_related(
+                        'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
+                    ).order_by('scheduled_at')
+                    rows = []
+                    for m in all_matches:
+                        player_names = ', '.join([p.user.username for p in m.players])
+                        rows.append({
+                            'id': m.id,
+                            'tournament': m.tournament.name if m.tournament else '',
+                            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
+                            'started_at': m.started_at.strftime('%Y-%m-%d %H:%M') if m.started_at else '',
+                            'players': player_names,
+                            'stream_room': m.stream_room.name if m.stream_room else '',
+                            'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
+                        })
+                    table.rows = rows
+                    table.update()
 
-            with ui.dialog() as dialog, ui.card():
-                # tournament selection
-                selected_tournament = ui.select(label='Tournament', options={t.id: t.name for t in tournaments}, with_input=True)
-                selected_opponent = ui.select(label='Opponent', options={u.id: u.username for u in users}, with_input=True)
+                show_upcoming_checkbox.on('change', lambda e: asyncio.create_task(refresh()))
 
-                with ui.row().classes('justify-between items-center').style('margin-bottom: 1em;'):
-                    with ui.input('Date', value=default_date) as date:
-                        with ui.menu().props('no-parent-event') as menu:
-                            with ui.date(value=default_date).bind_value(date):
-                                with ui.row().classes('justify-end'):
-                                    ui.button('Close', on_click=menu.close).props('flat')
-                        with date.add_slot('append'):
-                            ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
+                async def submit_match():
+                    dialog = MatchSubmissionDialog(discord_id)
+                    await dialog.open()
 
-                    with ui.input('Time', value=default_time) as time:
-                        with ui.menu().props('no-parent-event') as menu:
-                            with ui.time(value=default_time).bind_value(time):
-                                with ui.row().classes('justify-end'):
-                                    ui.button('Close', on_click=menu.close).props('flat')
-                        with time.add_slot('append'):
-                            ui.icon('access_time').on('click', menu.open).classes('cursor-pointer')
+                with ui.row().style('width: 100%;'):
+                    ui.button('Submit Match', on_click=submit_match)
+                    ui.button(on_click=refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+                table = ui.table(
+                    columns=[
+                        {'name': 'id', 'label': 'ID', 'field': 'id'},
+                        {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
+                        {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
+                        {'name': 'started_at', 'label': 'Started At', 'field': 'started_at'},
+                        {'name': 'players', 'label': 'Players', 'field': 'players'},
+                        {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
+                        {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+                    ],
+                    rows=[],
+                    row_key='id'
+                ).style('margin-top: 1em; width: 100%;')
 
-                async def submit():
-                    opponent_id = selected_opponent.value
-                    tournament_id = selected_tournament.value
-                    date_value = date.value
-                    time_value = time.value
-                    # Validate all fields are filled
-                    if not (opponent_id and tournament_id and date_value and time_value):
-                        ui.notify('All fields are required.', color='warning')
-                        return
-                    # Convert YYYY-MM-DD and HH:SS to datetime
-                    match_time = datetime.strptime(f"{date_value} {time_value}", "%Y-%m-%d %H:%M")
-                    match = await Match.create(
-                        tournament_id=tournament_id,
-                        scheduled_at=match_time
-                    )
-                    await MatchPlayers.create(match=match, user=await User.get(discord_id=discord_id))
-                    await MatchPlayers.create(match=match, user=await User.get(id=opponent_id))
-                    ui.notify(f'Match submitted: Opponent={opponent_id}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
-                    dialog.close()
+                # Refresh table on page load
+                asyncio.create_task(refresh())
+                asyncio.create_task(refresh())
 
-                ui.button('Submit', on_click=submit)
-                ui.button('Cancel', on_click=dialog.close)
-
-            dialog.open()
-
-        with ui.row():
-            ui.button('Refresh', on_click=refresh)
-            ui.button('Submit Match', on_click=submit_match)
-        table = ui.table(
-            columns=[
-                {'name': 'id', 'label': 'ID', 'field': 'id'},
-                {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
-                {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
-                {'name': 'players', 'label': 'Players', 'field': 'players'},
-                {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
-                {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
-            ],
-            rows=[],
-            row_key='id'
-        ).style('margin-top: 1em;')
-
+        # Refresh table on page load
+        asyncio.create_task(refresh())
         # Refresh table on page load
         asyncio.create_task(refresh())
