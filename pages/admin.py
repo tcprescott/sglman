@@ -51,6 +51,24 @@ def create() -> None:
                     await match.save()
                     await refresh()
 
+                async def finish_match(event):
+                    row_id = event.args['key']
+                    match = await Match.get(id=row_id).prefetch_related('players', 'players__user')
+                    player_names = ', '.join([p.user.username for p in match.players])
+                    async def handle_confirm(_):
+                        dialog.dialog.close()
+                        await confirm_finishing(match)
+                    dialog = ConfirmationDialog(
+                        message=f'Are you sure you want to mark the following players as finished for match ID {match.id}?\n\n{player_names}',
+                        on_confirm=handle_confirm
+                    )
+                    dialog.open()
+
+                async def confirm_finishing(match: Match):
+                    match.finished_at = datetime.now()
+                    await match.save()
+                    await refresh()
+
                 async def refresh():
                     now = datetime.now()
                     match_query = Match.all()
@@ -67,6 +85,7 @@ def create() -> None:
                             'tournament': m.tournament.name,
                             'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else None,
                             'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else None,
+                            'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else None,
                             'players': player_names,
                             'stream_room': m.stream_room.name if m.stream_room else None,
                             'seed': m.generated_seed.seed_url if m.generated_seed else None,
@@ -85,6 +104,7 @@ def create() -> None:
                     {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
                     {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
                     {'name': 'seated', 'label': 'Seated', 'field': 'seated'},
+                    {'name': 'finished', 'label': 'Finished', 'field': 'finished'},
                     {'name': 'players', 'label': 'Players', 'field': 'players'},
                     {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                     {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
@@ -112,7 +132,15 @@ def create() -> None:
                     'body-cell-seated',
                     '''<q-td :props="props">
                         <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)" icon="chair" flat />
-                        <span v-else>{{ props.value }}</span><q-btn v-if="props.value" @click="$parent.$emit('undo_seat', props)" icon="close" flat />
+                        <span v-else>{{ props.value }}</span>
+                    </q-td>'''
+                )
+
+                match_table.table.add_slot(
+                    'body-cell-finished',
+                    '''<q-td :props="props">
+                        <q-btn v-if="!props.value" @click="$parent.$emit('finish', props)" icon="check" flat />
+                        <span v-else>{{ props.value }}</span>
                     </q-td>'''
                 )
 
@@ -120,6 +148,7 @@ def create() -> None:
                 match_table.table.on('edit', edit_row)
                 match_table.table.on('roll', roll_seed)
                 match_table.table.on('seat', seat_players)
+                match_table.table.on('finish', finish_match)
 
 
                 # Initial table load

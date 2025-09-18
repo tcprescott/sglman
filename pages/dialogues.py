@@ -25,6 +25,8 @@ class MatchDialog:
         self.dialog = None
         self.select_multiple = select_multiple
         self.is_edit = is_edit
+        self._clear_seated = False
+        self._clear_finished = False
 
     async def open(self):
         users = await User.all().order_by('username')
@@ -71,6 +73,23 @@ class MatchDialog:
 
             comment_input = ui.textarea(label='Comment (optional)', value=comment_value, placeholder='Add any notes or comments about this match...').style('width: 100%')
 
+            if self.is_edit:
+                def make_clear_button(label, attr_flag, match_attr):
+                    def clear():
+                        setattr(self, attr_flag, True)
+                        btn.disable()
+                        btn.props('outline color=gray')
+                    btn_disabled = getattr(self.match, match_attr) is None
+                    btn_color = 'gray' if btn_disabled else 'negative'
+                    btn = ui.button(label, on_click=clear).props(f'outline color={btn_color}').style('margin-left: 1em;')
+                    if btn_disabled:
+                        btn.disable()
+                    return btn
+
+                with ui.row().classes('items-center'):
+                    make_clear_button('Clear Seated', '_clear_seated', 'seated_at')
+                    make_clear_button('Clear Finish', '_clear_finished', 'finished_at')
+
             async def submit():
                 tournament_id = selected_tournament.value
                 date_value = date.value
@@ -86,6 +105,10 @@ class MatchDialog:
                         self.match.tournament_id = tournament_id
                         self.match.scheduled_at = match_time
                         self.match.comment = comment_value
+                        if hasattr(self, '_clear_seated') and self._clear_seated:
+                            self.match.seated_at = None
+                        if hasattr(self, '_clear_finished') and self._clear_finished:
+                            self.match.finished_at = None
                         await self.match.save()
                         # Update players
                         await MatchPlayers.filter(match=self.match).delete()
