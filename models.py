@@ -68,6 +68,13 @@ class MatchPlayers(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+class TournamentPlayers(Model):
+    id = fields.IntField(pk=True)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='players')
+    user = fields.ForeignKeyField('models.User', related_name='tournament_players')
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
 class StreamRoom(Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=255, unique=True)

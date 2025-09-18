@@ -2,7 +2,7 @@ from theme.match_table import MatchTable
 
 from nicegui import ui, events, app
 from models import Match
-from pages.dialogues import MatchSubmissionDialog
+from pages.dialogues import MatchDialog
 import asyncio
 from datetime import datetime, timedelta
 
@@ -48,7 +48,7 @@ def create() -> None:
                 show_upcoming_checkbox.on('change', lambda e: asyncio.create_task(refresh()))
 
                 async def submit_match():
-                    dialog = MatchSubmissionDialog(discord_id)
+                    dialog = MatchDialog(discord_id)
                     await dialog.open()
 
                 with ui.row().style('width: 100%;'):

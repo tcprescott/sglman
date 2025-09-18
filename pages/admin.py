@@ -3,7 +3,7 @@ from models import Match
 from theme.match_table import MatchTable
 import asyncio
 from datetime import datetime, timedelta
-from pages.dialogues import MatchSubmissionDialog, ConfirmationDialog, MatchEditDialog
+from pages.dialogues import MatchDialog, ConfirmationDialog
 
 def create() -> None:
     @ui.page('/admin')
@@ -18,15 +18,15 @@ def create() -> None:
                 async def submit_admin_match():
                     async def after_submit(_):
                         await refresh()
-                    dialog = MatchSubmissionDialog(select_multiple=True, on_submit=after_submit)
-                    dialog.open()
+                    dialog = MatchDialog(select_multiple=True, on_submit=after_submit)
+                    await dialog.open()
 
                 async def edit_row(event):
                     row_id = event.args['key']
                     match = await Match.get(id=row_id)
                     async def after_edit(_):
                         await refresh()
-                    dialog = MatchEditDialog(match=match, on_submit=after_edit)
+                    dialog = MatchDialog(match=match, is_edit=True, on_submit=after_edit)
                     await dialog.open()
 
                 async def roll_seed(event):
@@ -104,7 +104,7 @@ def create() -> None:
                     'body-cell-generated_seed',
                     '''<q-td :props="props">
                         <q-btn v-if="!props.value" @click="$parent.$emit('roll', props)" icon="casino" flat />
-                        <span v-else>{{ props.value }}</span>
+                        <span v-else>{{ props.value }}</span><q-btn v-if="props.value" @click="$parent.$emit('undo_roll', props)" icon="close" flat />
                     </q-td>'''
                 )
 
@@ -112,7 +112,7 @@ def create() -> None:
                     'body-cell-seated',
                     '''<q-td :props="props">
                         <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)" icon="chair" flat />
-                        <span v-else>{{ props.value }}</span>
+                        <span v-else>{{ props.value }}</span><q-btn v-if="props.value" @click="$parent.$emit('undo_seat', props)" icon="close" flat />
                     </q-td>'''
                 )
 
