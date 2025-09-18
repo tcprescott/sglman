@@ -20,40 +20,6 @@ def create() -> None:
 
         with ui.card().style('width: 100%; max-width: 900px; margin: 0 auto; padding: 0;'):
             with ui.column().style('width: 100%;'):
-                show_upcoming_checkbox = ui.checkbox('Show only upcoming races', value=True)
-
-                async def refresh():
-                    now = datetime.now()
-                    match_query = Match.filter(players__user__discord_id=discord_id)
-                    if show_upcoming_checkbox.value:
-                        match_query = match_query.filter(finished_at__isnull=True)
-                    all_matches = await match_query.prefetch_related(
-                        'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
-                    ).order_by('scheduled_at')
-                    rows = []
-                    for m in all_matches:
-                        player_names = ', '.join([p.user.username for p in m.players])
-                        rows.append({
-                            'id': m.id,
-                            'tournament': m.tournament.name if m.tournament else '',
-                            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-                            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
-                            'players': player_names,
-                            'stream_room': m.stream_room.name if m.stream_room else '',
-                            'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
-                        })
-                    table.rows = rows
-                    table.update()
-
-                show_upcoming_checkbox.on('change', lambda e: asyncio.create_task(refresh()))
-
-                async def submit_match():
-                    dialog = MatchDialog(discord_id)
-                    await dialog.open()
-
-                with ui.row().style('width: 100%;'):
-                    ui.button('Submit Match', on_click=submit_match)
-                    ui.button(on_click=refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
                 columns = [
                     {'name': 'id', 'label': 'ID', 'field': 'id'},
                     {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
@@ -63,13 +29,18 @@ def create() -> None:
                     {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                     {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
                 ]
-                match_table = MatchTable(columns=columns)
-                table = match_table.render()
+                from pages.match_table_common import render_match_table
+                async def submit_match():
+                    dialog = MatchDialog(discord_id)
+                    await dialog.open()
+                def get_query():
+                    return Match.filter(players__user__discord_id=discord_id)
+                table, refresh = render_match_table(
+                    columns=columns,
+                    get_query=get_query,
+                    admin_controls=False,
+                    submit_match_callback=submit_match
+                )
 
                 # Refresh table on page load
                 asyncio.create_task(refresh())
-
-        # Refresh table on page load
-        asyncio.create_task(refresh())
-        # Refresh table on page load
-        asyncio.create_task(refresh())
