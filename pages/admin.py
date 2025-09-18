@@ -16,8 +16,10 @@ def create() -> None:
                 show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=True)
 
                 async def submit_admin_match():
-                    dialog = MatchSubmissionDialog(select_both_players=True)
-                    await dialog.open()
+                    async def after_submit(_):
+                        await refresh()
+                    dialog = MatchSubmissionDialog(select_multiple=True, on_submit=after_submit)
+                    dialog.open()
 
                 async def edit_row(event):
                     row_id = event.args['key']
@@ -30,6 +32,24 @@ def create() -> None:
                 async def roll_seed(event):
                     row_id = event.args['key']
                     print(f'Roll seed for row with ID: {row_id}')
+
+                async def seat_players(event):
+                    row_id = event.args['key']
+                    match = await Match.get(id=row_id).prefetch_related('players', 'players__user')
+                    player_names = ', '.join([p.user.username for p in match.players])
+                    async def handle_confirm(_):
+                        dialog.dialog.close()
+                        await confirm_seating(match)
+                    dialog = ConfirmationDialog(
+                        message=f'Are you sure you want to mark the following players as seated for match ID {match.id}?\n\n{player_names}',
+                        on_confirm=handle_confirm
+                    )
+                    dialog.open()
+
+                async def confirm_seating(match: Match):
+                    match.seated_at = datetime.now()
+                    await match.save()
+                    await refresh()
 
                 async def refresh():
                     now = datetime.now()
@@ -44,12 +64,12 @@ def create() -> None:
                         player_names = ', '.join([p.user.username for p in m.players])
                         rows.append({
                             'id': m.id,
-                            'tournament': m.tournament.name if m.tournament else '',
-                            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-                            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
+                            'tournament': m.tournament.name,
+                            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else None,
+                            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else None,
                             'players': player_names,
-                            'stream_room': m.stream_room.name if m.stream_room else '',
-                            'seed': m.generated_seed.seed_url if m.generated_seed else '',
+                            'stream_room': m.stream_room.name if m.stream_room else None,
+                            'seed': m.generated_seed.seed_url if m.generated_seed else None,
                             'actions': ''  # Placeholder for action buttons
                         })
                     table.rows = rows
@@ -88,9 +108,18 @@ def create() -> None:
                     </q-td>'''
                 )
 
+                match_table.table.add_slot(
+                    'body-cell-seated',
+                    '''<q-td :props="props">
+                        <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)" icon="chair" flat />
+                        <span v-else>{{ props.value }}</span>
+                    </q-td>'''
+                )
+
                 # Listen for the custom 'action' event and call your dialog logic
                 match_table.table.on('edit', edit_row)
                 match_table.table.on('roll', roll_seed)
+                match_table.table.on('seat', seat_players)
 
 
                 # Initial table load

@@ -46,10 +46,19 @@ class Match(Model):
     stream_room = fields.ForeignKeyField('models.StreamRoom', related_name='matches', null=True)
     scheduled_at = fields.DatetimeField(null=True)
     seated_at = fields.DatetimeField(null=True)
+    finished_at = fields.DatetimeField(null=True)
     comment = fields.TextField(null=True)
     generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+    @property
+    def is_seated(self) -> bool:
+        return self.seated_at is not None
+
+    @property
+    def is_finished(self) -> bool:
+        return self.finished_at is not None
 
 class MatchPlayers(Model):
     id = fields.IntField(pk=True)

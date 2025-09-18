@@ -104,32 +104,12 @@ class MatchEditDialog:
                 ui.button('Delete', color='negative', on_click=confirm_delete)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
         dialog.open()
-class ConfirmationDialog:
-    def __init__(self, message: str = "Are you sure?", on_confirm=None, confirm_text="Confirm", cancel_text="Cancel"):
-        self.message = message
-        self.on_confirm = on_confirm
-        self.confirm_text = confirm_text
-        self.cancel_text = cancel_text
-        self.dialog = None
-
-    def open(self):
-        with ui.dialog() as dialog, ui.card():
-            self.dialog = dialog
-            ui.label(self.message).style('font-size: 1.1em; margin-bottom: 1em;')
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
-                if self.on_confirm:
-                    ui.button(self.confirm_text, color='negative', on_click=self.on_confirm)
-                else:
-                    ui.button(self.confirm_text, color='negative', on_click=dialog.close)
-                ui.button(self.cancel_text, color='gray', on_click=dialog.close)
-        dialog.open()
-
 class MatchSubmissionDialog:
-    def __init__(self, discord_id=None, on_submit=None, select_both_players=False):
+    def __init__(self, discord_id=None, on_submit=None, select_multiple=False):
         self.discord_id = discord_id
         self.on_submit = on_submit
         self.dialog = None
-        self.select_both_players = select_both_players
+        self.select_multiple = select_multiple
 
     async def open(self):
         users = await User.all().order_by('username')
@@ -141,7 +121,7 @@ class MatchSubmissionDialog:
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
             selected_tournament = ui.select(label='Tournament', options={t.id: t.name for t in tournaments}, with_input=True)
-            if self.select_both_players:
+            if self.select_multiple:
                 selected_players = ui.select(label='Players', options={u.id: u.username for u in users}, multiple=True, with_input=True)
             else:
                 selected_opponent = ui.select(label='Opponent', options={u.id: u.username for u in users}, with_input=True)
@@ -170,7 +150,8 @@ class MatchSubmissionDialog:
                 date_value = date.value
                 time_value = time.value
                 comment_value = comment_input.value
-                if self.select_both_players:
+                if self.select_multiple:
+                    # Only use selected_players if it was defined above
                     player_ids = selected_players.value if isinstance(selected_players.value, list) else [selected_players.value]
                     if not (player_ids and len(player_ids) >= 2 and tournament_id and date_value and time_value):
                         ui.notify('Please select at least two players and fill all fields.', color='warning')
@@ -184,6 +165,7 @@ class MatchSubmissionDialog:
                     )
                     ui.notify(f'Match submitted: Players={player_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
                 else:
+                    # Only use selected_opponent if it was defined above
                     opponent_id = selected_opponent.value
                     if not (opponent_id and tournament_id and date_value and time_value):
                         ui.notify('All fields are required.', color='warning')
@@ -205,4 +187,24 @@ class MatchSubmissionDialog:
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
                 ui.button('Submit', on_click=submit)
                 ui.button('Cancel', on_click=dialog.close)
+        dialog.open()
+
+class ConfirmationDialog:
+    def __init__(self, message: str = "Are you sure?", on_confirm=None, confirm_text="Confirm", cancel_text="Cancel"):
+        self.message = message
+        self.on_confirm = on_confirm
+        self.confirm_text = confirm_text
+        self.cancel_text = cancel_text
+        self.dialog = None
+
+    def open(self):
+        with ui.dialog() as dialog, ui.card():
+            self.dialog = dialog
+            ui.label(self.message).style('font-size: 1.1em; margin-bottom: 1em;')
+            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+                if self.on_confirm:
+                    ui.button(self.confirm_text, color='negative', on_click=self.on_confirm)
+                else:
+                    ui.button(self.confirm_text, color='negative', on_click=dialog.close)
+                ui.button(self.cancel_text, color='gray', on_click=dialog.close)
         dialog.open()
