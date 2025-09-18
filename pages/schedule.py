@@ -1,8 +1,5 @@
 from nicegui import ui
-from models import Match, Tournament, User, StreamRoom
-import asyncio
-
-
+from models import Match
 
 def create() -> None:
     @ui.page('/schedule')

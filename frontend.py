@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from nicegui import app, ui
 
-from pages import home, schedule, test
+from pages import home, schedule, player
 
 def init(fastapi_app: FastAPI) -> None:
     """
@@ -17,7 +17,7 @@ def init(fastapi_app: FastAPI) -> None:
         fastapi_app (FastAPI): The FastAPI application instance to integrate with NiceGUI.
     """
     home.create()
-    test.create()
+    player.create()
     schedule.create()
     # auth.create()
     ui.run_with(

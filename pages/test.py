@@ -1,6 +1,5 @@
 from nicegui import ui, events, app
 import nicegui.elements.table
-from theme import theme
 
 from models import TestModel
 
@@ -51,31 +50,30 @@ def create() -> None:
             table.update()
         ui.label(f'Hello {app.storage.user.get("username", "Guest")}!').classes('text-2xl')
         rows = await TestModel.all()
-        with theme.frame('Home'):
-            table = ui.table(
-                columns=[
-                    {'name': 'name', 'label': 'Name', 'field': 'name'},
-                    {'name': 'description', 'label': 'Description', 'field': 'description'},
-                    {'name': 'value', 'label': 'Value', 'field': 'value'},
-                    {'name': 'somethingelse', 'label': 'Something Else', 'field': 'somethingelse'},
-                    {'name': 'actions', 'label': 'Actions'},
-                ],
-                rows=await get_table_data(),
-                row_key='id',
-                # title='main-table'
-            )
-            table.add_slot(f'body-cell-actions', """
-                <q-td :props="props">
-                    <q-btn @click="$parent.$emit('roll', props)" icon="casino" flat />
-                </q-td>
-            """)
-            with table.add_slot('top-right'):
-                ui.button(on_click=refresh_table, icon='refresh').props('flat')
-                ui.button('Add Row (test)', on_click=add_row).props('flat')
-            with table.add_slot('top-left'):
-                # label = ui.label()
-                ui.timer(60, refresh_table)
-            # table.on('delete', delete_row)
+        table = ui.table(
+            columns=[
+                {'name': 'name', 'label': 'Name', 'field': 'name'},
+                {'name': 'description', 'label': 'Description', 'field': 'description'},
+                {'name': 'value', 'label': 'Value', 'field': 'value'},
+                {'name': 'somethingelse', 'label': 'Something Else', 'field': 'somethingelse'},
+                {'name': 'actions', 'label': 'Actions'},
+            ],
+            rows=await get_table_data(),
+            row_key='id',
+            # title='main-table'
+        )
+        table.add_slot(f'body-cell-actions', """
+            <q-td :props="props">
+                <q-btn @click="$parent.$emit('roll', props)" icon="casino" flat />
+            </q-td>
+        """)
+        with table.add_slot('top-right'):
+            ui.button(on_click=refresh_table, icon='refresh').props('flat')
+            ui.button('Add Row (test)', on_click=add_row).props('flat')
+        with table.add_slot('top-left'):
+            # label = ui.label()
+            ui.timer(60, refresh_table)
+        # table.on('delete', delete_row)
 
-            # create a button to perform an action on a row when clicked
-            table.on('roll', delete_row)
+        # create a button to perform an action on a row when clicked
+        table.on('roll', delete_row)

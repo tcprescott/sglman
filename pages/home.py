@@ -8,7 +8,7 @@ from nicegui import Client, app, ui
 from starlette.middleware.base import BaseHTTPMiddleware
 from zenora import APIClient
 
-from theme import theme
+from models import User
 
 config = {
     "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
@@ -40,20 +40,17 @@ def create() -> None:
             app.storage.user.clear()
             ui.navigate.to('/login')
 
-        with theme.frame('Home'):
-            theme.message('This is the home page.').classes('font-bold')
-            ui.label(f'Hello {app.storage.user.get("username", "Guest")}!').classes('text-2xl')
-            ui.button(on_click=logout, icon='logout').props('outline round')
+        ui.label(f'Hello {app.storage.user.get("username", "Guest")}!').classes('text-2xl')
+        ui.button(on_click=logout, icon='logout').props('outline round')
 
     @ui.page('/login')
     def login() -> Optional[RedirectResponse]:
-        with theme.frame('Login'):
-            if app.storage.user.get('authenticated', False):
-                return RedirectResponse('/')
-            with ui.card().classes('absolute-center'):
-                with ui.link(target=config["OAUTH_URL"]):
-                    ui.button('Login with Discord', icon='login')
-            return None
+        if app.storage.user.get('authenticated', False):
+            return RedirectResponse('/')
+        with ui.card().classes('absolute-center'):
+            with ui.link(target=config["OAUTH_URL"]):
+                ui.button('Login with Discord', icon='login')
+        return None
 
     @ui.page('/oauth/callback')
     async def oauth_callback(client: Client):
@@ -70,9 +67,17 @@ def create() -> None:
                 'username': current_user.username,
                 'avatar': current_user.avatar_url,
                 'authenticated': True,
-                'discord_id': str(current_user.id),
-                'discord_email': current_user.email
+                'discord_id': str(current_user.id)
             })
+
+            user, created = await User.get_or_create(discord_id=current_user.id, defaults={
+                'username': current_user.username,
+                'access_token': access_token
+            })
+            if not created:
+                user.username = current_user.username
+                user.access_token = access_token
+                await user.save()
 
             ui.navigate.to(app.storage.user.get('referrer_path', '/'))
         except Exception as e:

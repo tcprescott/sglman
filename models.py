@@ -14,8 +14,16 @@ class User(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
     username = fields.CharField(max_length=150)
+    display_name = fields.CharField(max_length=150, null=True)
     is_active = fields.BooleanField(default=True)
     permission = fields.IntEnumField(Permissions, default=Permissions.USER.value)
+
+class UserTeams(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='teams')
+    team = fields.ForeignKeyField('models.Team', related_name='members')
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
 
 class TestModel(Model):
     id = fields.IntField(pk=True)
@@ -36,23 +44,16 @@ class Match(Model):
     id = fields.IntField(pk=True)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='matches')
     stream_room = fields.ForeignKeyField('models.StreamRoom', related_name='matches', null=True)
-    player_count = fields.IntField(default=2)  # 2 for singles, 4 for doubles
-    player1 = fields.ForeignKeyField('models.User', related_name='matches_as_player1')
-    player2 = fields.ForeignKeyField('models.User', related_name='matches_as_player2')
-    player3 = fields.ForeignKeyField('models.User', related_name='matches_as_player3', null=True)
-    player4 = fields.ForeignKeyField('models.User', related_name='matches_as_player4', null=True)
-    score1 = fields.IntField(null=True)
-    score2 = fields.IntField(null=True)
     scheduled_at = fields.DatetimeField(null=True)
     started_at = fields.DatetimeField(null=True)
     generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
-class MatchConfirmations(Model):
+class MatchPlayers(Model):
     id = fields.IntField(pk=True)
-    match = fields.ForeignKeyField('models.Match', related_name='confirmations')
-    user = fields.ForeignKeyField('models.User', related_name='match_confirmations')
+    match = fields.ForeignKeyField('models.Match', related_name='players')
+    user = fields.ForeignKeyField('models.User', related_name='match_players')
     confirmed = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -80,6 +81,13 @@ class Tracker(Model):
     match = fields.ForeignKeyField('models.Match', related_name='trackers')
     approved = fields.BooleanField(default=False)
     approved_by = fields.ForeignKeyField('models.User', related_name='approved_trackers', null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+class Team(Model):
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='teams')
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
