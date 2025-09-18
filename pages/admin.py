@@ -3,7 +3,7 @@ from models import Match
 from theme.match_table import MatchTable
 import asyncio
 from datetime import datetime, timedelta
-from pages.dialogues import MatchSubmissionDialog, ConfirmationDialog
+from pages.dialogues import MatchSubmissionDialog, ConfirmationDialog, MatchEditDialog
 
 def create() -> None:
     @ui.page('/admin')
@@ -18,6 +18,18 @@ def create() -> None:
                 async def submit_admin_match():
                     dialog = MatchSubmissionDialog(select_both_players=True)
                     await dialog.open()
+
+                async def edit_row(event):
+                    row_id = event.args['key']
+                    match = await Match.get(id=row_id)
+                    async def after_edit(_):
+                        await refresh()
+                    dialog = MatchEditDialog(match=match, on_submit=after_edit)
+                    await dialog.open()
+
+                async def roll_seed(event):
+                    row_id = event.args['key']
+                    print(f'Roll seed for row with ID: {row_id}')
 
                 async def refresh():
                     now = datetime.now()
@@ -38,6 +50,7 @@ def create() -> None:
                             'players': player_names,
                             'stream_room': m.stream_room.name if m.stream_room else '',
                             'seed': m.generated_seed.seed_url if m.generated_seed else '',
+                            'actions': ''  # Placeholder for action buttons
                         })
                     table.rows = rows
                     table.update()
@@ -55,36 +68,30 @@ def create() -> None:
                     {'name': 'players', 'label': 'Players', 'field': 'players'},
                     {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                     {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
+                    {'name': 'actions', 'label': 'Actions', 'field': 'actions'},
                 ]
-                match_table = MatchTable(columns=columns)
+                match_table = MatchTable(columns=columns, admin_controls=True)
                 table = match_table.render()
-                match_table.table.add_slot('header', '''
-                    <q-tr :props="props">
-                        <q-th auto-width />
-                        <q-th v-for="col in props.cols" :key="col.name" :props="props">
-                            {{ col.label }}
-                        </q-th>
-                    </q-tr>
-                ''')
-                match_table.table.add_slot('body', '''
-                    <q-tr :props="props">
-                        <q-td auto-width>
-                            <q-btn size="sm" color="accent" round dense
-                                @click="props.expand = !props.expand"
-                                :icon="props.expand ? 'remove' : 'add'" />
-                        </q-td>
-                        <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                            {{ col.value }}
-                        </q-td>
-                    </q-tr>
-                    <q-tr v-show="props.expand" :props="props">
-                        <q-td colspan="100%">
-                            <div class="text-left">This is {{ props.row.id }}.</div>
-                        </q-td>
-                    </q-tr>
-                ''')
-                match_table.table.on('approve', lambda e: ui.notify(f'Approved match ID {e.props.row.id}', color='positive'))
-                match_table.table.on('deny', lambda e: ui.notify(f'Denied match ID {e.props.row.id}', color='negative'))
+                # Add slot for actions column using a Vue template string
+                match_table.table.add_slot(
+                    'body-cell-actions',
+                    '''<q-td :props="props">
+                        <q-btn @click="$parent.$emit('edit', props)" icon="edit" flat />
+                    </q-td>'''
+                )
+
+                match_table.table.add_slot(
+                    'body-cell-generated_seed',
+                    '''<q-td :props="props">
+                        <q-btn v-if="!props.value" @click="$parent.$emit('roll', props)" icon="casino" flat />
+                        <span v-else>{{ props.value }}</span>
+                    </q-td>'''
+                )
+
+                # Listen for the custom 'action' event and call your dialog logic
+                match_table.table.on('edit', edit_row)
+                match_table.table.on('roll', roll_seed)
+
 
                 # Initial table load
                 asyncio.create_task(refresh())
