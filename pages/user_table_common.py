@@ -1,8 +1,10 @@
 from nicegui import ui
 import asyncio
 
+
 class UserTableView:
     """Encapsulates the user table UI and logic for admin/player dashboards."""
+
     def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None):
         self.columns = columns
         self.get_query = get_query
@@ -15,7 +17,8 @@ class UserTableView:
         with ui.row().style('width: 100%;'):
             if self.submit_user_callback:
                 ui.button('Add User', on_click=self.submit_user_callback)
-            ui.button('Refresh', on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+            ui.button('Refresh', on_click=self.refresh).props(
+                'icon=refresh').style('min-width: 0; margin-left: auto;')
 
         ui.add_head_html("""
         <style>
@@ -58,6 +61,7 @@ class UserTableView:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
         # Handler for editing a user
+
         async def handle_edit_user(event):
             row = event.args['row'] if 'row' in event.args else event.args
             user_id = row['id']
@@ -97,7 +101,8 @@ class UserTableView:
         """
         Update a single row in the table by its user ID, only if the row is currently visible.
         """
-        idx = next((i for i, row in enumerate(self.table.rows) if row.get('id') == user_id), None)
+        idx = next((i for i, row in enumerate(self.table.rows)
+                   if row.get('id') == user_id), None)
         if idx is None:
             return  # Row not visible, do nothing
         user_query = self.get_query()

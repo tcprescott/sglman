@@ -41,7 +41,13 @@ class TestModel(Model):
 class Tournament(Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=255)
+    description = fields.TextField(null=True)
     seed_generator = fields.CharField(max_length=255, null=True)
+    is_active = fields.BooleanField(default=True)
+    players_per_match = fields.IntField(default=2)
+    team_size = fields.IntField(default=1)
+    admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
+    staff_administered = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
