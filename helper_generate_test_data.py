@@ -9,7 +9,7 @@ from random import randint, choice
 from datetime import datetime, timedelta
 from faker import Faker
 from tortoise import Tortoise, run_async
-from models import User, Tournament, StreamRoom, Match, MatchConfirmations, Commentator, Tracker, AuditLog, TestModel, Permissions
+from models import User, Tournament, StreamRoom, Match, Commentator, Tracker, AuditLog, TestModel
 
 fake = Faker()
 
@@ -18,7 +18,6 @@ async def generate_test_data(
     num_tournaments=2,
     num_streamrooms=2,
     num_matches=2,
-    num_confirmations=2,
     num_commentators=1,
     num_trackers=1,
     num_auditlogs=2,
@@ -68,14 +67,6 @@ async def generate_test_data(
             scheduled_at=(datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d %H:%M:%S'),
         )
         matches.append(match)
-
-    # MatchConfirmations
-    for i in range(num_confirmations):
-        await MatchConfirmations.create(
-            match=choice(matches),
-            user=choice(users),
-            confirmed=choice([True, False])
-        )
 
     # Commentators
     for i in range(num_commentators):
@@ -144,7 +135,6 @@ async def main():
         num_tournaments=args.tournaments,
         num_streamrooms=args.streamrooms,
         num_matches=args.matches,
-        num_confirmations=args.confirmations,
         num_commentators=args.commentators,
         num_trackers=args.trackers,
         num_auditlogs=args.auditlogs,

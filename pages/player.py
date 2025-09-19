@@ -1,9 +1,8 @@
 
-from nicegui import ui, events, app
+from nicegui import ui, app
 from models import Match
 from pages.dialogues import MatchDialog
 import asyncio
-from datetime import datetime, timedelta
 from theme.tables.match import MatchTableView
 
 def create() -> None:
