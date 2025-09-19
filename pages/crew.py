@@ -1,7 +1,7 @@
 from nicegui import ui
 from models import Match
 import asyncio
-from pages.match_table_common import MatchTableView
+from theme.tables.match import MatchTableView
 
 def create() -> None:
     @ui.page('/crew')

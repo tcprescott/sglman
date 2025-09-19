@@ -103,7 +103,7 @@ class TournamentTableView:
         if not t:
             ui.notify('Tournament not found.', color='warning')
             return
-        from pages.dialogues import TournamentEditDialog
-        dialog = TournamentEditDialog(t)
+        from theme.dialog import TournamentDialog
+        dialog = TournamentDialog(t)
         await dialog.open()
         # You may want to call self.refresh() or self.update_row_by_id(t.id) after editing

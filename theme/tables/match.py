@@ -20,7 +20,7 @@ class MatchTableView:
     def _setup_ui(self):
         with ui.row().style('width: 100%;'):
             if self.submit_match_callback:
-                ui.button('Add Match', on_click=self.submit_match_callback)
+                ui.button('Create Match' if self.admin_controls else 'Request Match', on_click=self.submit_match_callback)
             self.show_upcoming_checkbox = ui.checkbox(
                 'Show only upcoming matches', value=True, on_change=self.refresh)
             ui.button('Refresh', on_click=self.refresh).props(
@@ -89,9 +89,9 @@ class MatchTableView:
             if not m or idx >= len(m.players):
                 ui.notify('Player not found.', color='warning')
                 return
-            from pages.dialogues import UserEditDialog
+            from theme.dialog import UserDialog
             user = m.players[idx].user
-            dialog = UserEditDialog(user)
+            dialog = UserDialog(user)
             await dialog.open()
         self.table.on('edit_player', handle_edit_player)
 

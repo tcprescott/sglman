@@ -70,8 +70,8 @@ class UserTableView:
             if not u:
                 ui.notify('User not found.', color='warning')
                 return
-            from pages.dialogues import UserEditDialog
-            dialog = UserEditDialog(u)
+            from theme.dialog import UserDialog
+            dialog = UserDialog(u)
             await dialog.open()
         self.table.on('edit_user', handle_edit_user)
 

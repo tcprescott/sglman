@@ -5,7 +5,7 @@ from datetime import datetime
 from nicegui import ui
 
 from models import GeneratedSeeds, Match, Tournament, User
-from pages.dialogues import ConfirmationDialog, MatchDialog, TournamentEditDialog, UserEditDialog
+from theme.dialog import ConfirmationDialog, MatchDialog, TournamentDialog, UserDialog
 from theme.tables.match import MatchTableView
 from theme.tables.tournament import TournamentTableView
 from theme.tables.user import UserTableView
@@ -59,7 +59,7 @@ def create() -> None:
         async def add_user():
             async def after_submit(_):
                 await table_view.refresh()
-            dialog = UserEditDialog(on_submit=after_submit)
+            dialog = UserDialog(on_submit=after_submit)
             await dialog.open()
 
         table_view = UserTableView(
@@ -77,7 +77,7 @@ def create() -> None:
         async def add_tournament():
             async def after_submit(_):
                 await table_view.refresh()
-            dialog = TournamentEditDialog(on_submit=after_submit)
+            dialog = TournamentDialog(on_submit=after_submit)
             await dialog.open()
 
         def get_query():
