@@ -115,7 +115,8 @@ class MatchTableView:
                 'players': player_names,
                 'stream_room': m.stream_room.name if m.stream_room else '',
                 'seed': m.generated_seed.seed_url if m.generated_seed else '',
-                'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
+                'generated_seed': m.generated_seed.seed_url if m.generated_seed else '',
+                'tournament_seed_generator': m.tournament.seed_generator if m.tournament else None,
             }
             if self.admin_controls:
                 row['actions'] = ''
@@ -157,7 +158,8 @@ class MatchTableView:
             'players': player_names,
             'stream_room': m.stream_room.name if m.stream_room else '',
             'seed': m.generated_seed.seed_url if m.generated_seed else '',
-            'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
+            'generated_seed': m.generated_seed.seed_url if m.generated_seed else '',
+            'tournament_seed_generator': m.tournament.seed_generator if m.tournament else None,
         }
         if self.admin_controls:
             row['actions'] = ''

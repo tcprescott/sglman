@@ -14,14 +14,15 @@ class MatchDialog:
         self.dialog = None
         self._clear_seated = False
         self._clear_finished = False
+        self._clear_seed = False
         self._initial_updated_at = match.updated_at if match else None
 
     async def open(self):
+        from models import TournamentPlayers, Tournament
         users = await User.all().order_by('username')
         stream_rooms = await StreamRoom.all().order_by('name')
         if self.discord_id is not None:
             user = await User.get(discord_id=self.discord_id)
-            from models import TournamentPlayers, Tournament
             user_tournament_links = await TournamentPlayers.filter(user=user)
             tournament_ids = [tp.tournament_id for tp in user_tournament_links]
             tournaments = await Tournament.filter(id__in=tournament_ids).order_by('name')
@@ -114,6 +115,7 @@ class MatchDialog:
                 with ui.row().classes('items-center'):
                     make_clear_button('Clear Seated', '_clear_seated', 'seated_at')
                     make_clear_button('Clear Finish', '_clear_finished', 'finished_at')
+                    make_clear_button('Clear Seed', '_clear_seed', 'generated_seed')
 
             async def submit():
                 tournament_id = selected_tournament.value
@@ -161,6 +163,8 @@ class MatchDialog:
                         self.match.seated_at = None
                     if hasattr(self, '_clear_finished') and self._clear_finished:
                         self.match.finished_at = None
+                    if hasattr(self, '_clear_seed') and self._clear_seed:
+                        self.match.generated_seed = None
                     await self.match.save()
                     # Update players
                     await MatchPlayers.filter(match=self.match).delete()

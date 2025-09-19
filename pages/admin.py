@@ -104,7 +104,7 @@ def create() -> None:
                 {'name': 'players', 'label': 'Players',
                     'field': 'players', 'filterable': True},
                 {'name': 'stream_room', 'label': 'Stream Room',
-                    'field': 'stream_room', 'sortable': True, 'filterable': True},
+                    'field': 'stream_room', 'sortable': True, 'filterable': True, 'clickable': True},
                 {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
             ]
 
@@ -115,8 +115,8 @@ def create() -> None:
                     <q-btn @click="$parent.$emit('edit', props)" icon="edit" flat />
                 </q-td>''',
                 'body-cell-generated_seed': '''<q-td :props="props">
-                    <q-btn v-if="!props.value" @click="$parent.$emit('roll', props)" icon="casino" flat />
-                    <span v-else>
+                    <q-btn v-if="props.row.tournament_seed_generator && !props.value" @click="$parent.$emit('roll', props)" icon="casino" flat />
+                    <span v-if="props.value">
                         <template v-if="/^https?:\/\//.test(props.value)">
                             <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
                         </template>
@@ -136,7 +136,19 @@ def create() -> None:
                         <q-icon name="flag" color="green" size="md" />
                     </div>
                 </q-td>''',
+                'body-cell-stream_room': '''<q-td :props="props">
+                    <q-btn v-if="!props.value" @click="$parent.$emit('edit-stream-room', props)" icon="movie" flat />
+                    <template v-else>{{ props.value }}</template>
+                </q-td>''',
             }
+            async def edit_stream_room(event):
+                row_id = event.args['key']
+                match = await Match.get(id=row_id)
+                from theme.dialog.stream_room_dialog import StreamRoomDialog
+                async def after_edit(_):
+                    await table_view.update_row_by_id(row_id)
+                dialog = StreamRoomDialog(match=match, on_submit=after_edit)
+                await dialog.open()
 
             async def submit_admin_match():
                 async def after_submit(_):
@@ -218,6 +230,7 @@ def create() -> None:
             table_view.table.on('roll', roll_seed)
             table_view.table.on('seat', seat_players)
             table_view.table.on('finish', finish_match)
+            table_view.table.on('edit-stream-room', edit_stream_room)
 
             # Initial table load
             asyncio.create_task(table_view.refresh())
