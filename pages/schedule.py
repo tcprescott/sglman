@@ -1,44 +1,32 @@
+
 from nicegui import ui
 from models import Match
+import asyncio
+from pages.match_table_common import MatchTableView
 
 def create() -> None:
     @ui.page('/schedule')
-    async def schedule():
+    def schedule():
         ui.label('Scheduled Matches').style('font-size: 2em; margin-bottom: 1em;')
 
-        async def refresh():
-            matches = await Match.all().prefetch_related('tournament', 'player1', 'player2', 'player3', 'player4', 'stream_room', 'generated_seed').order_by('scheduled_at')
-            rows = []
-            for m in matches:
-                rows.append({
-                    'id': m.id,
-                    'tournament': m.tournament.name if m.tournament else '',
-                    'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-                    'player1': m.player1.username if m.player1 else '',
-                    'player2': m.player2.username if m.player2 else '',
-                    'player3': m.player3.username if m.player3 else '',
-                    'player4': m.player4.username if m.player4 else '',
-                    'stream_room': m.stream_room.name if m.stream_room else '',
-                    'generated_seed': m.generated_seed.seed_url if m.generated_seed else ''
-                })
-            table.rows = rows
-            table.update()
+        columns = [
+            {'name': 'id', 'label': 'ID', 'field': 'id'},
+            {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True, 'filterable': True},
+            {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at', 'sortable': True, 'filterable': True},
+            {'name': 'players', 'label': 'Players', 'field': 'players', 'filterable': True},
+            {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room', 'sortable': True, 'filterable': True},
+            {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+        ]
 
-        ui.button('Refresh', on_click=refresh).style('margin-bottom: 1em;')
-        table = ui.table(
-            columns=[
-                {'name': 'id', 'label': 'ID', 'field': 'id'},
-                {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
-                {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
-                {'name': 'player1', 'label': 'Player 1', 'field': 'player1'},
-                {'name': 'player2', 'label': 'Player 2', 'field': 'player2'},
-                {'name': 'player3', 'label': 'Player 3', 'field': 'player3'},
-                {'name': 'player4', 'label': 'Player 4', 'field': 'player4'},
-                {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
-                {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
-            ],
-            rows=[],
-            row_key='id'
-        ).style('margin-top: 1em;')
+        def get_query():
+            return Match.all().prefetch_related('tournament', 'players', 'stream_room', 'generated_seed').order_by('scheduled_at')
 
-        await refresh()
+        # No admin controls or extra slots for schedule view
+        table_view = MatchTableView(
+            columns=columns,
+            get_query=get_query,
+            admin_controls=False
+        )
+
+        # Initial table load
+        asyncio.create_task(table_view.refresh())

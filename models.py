@@ -18,6 +18,10 @@ class User(Model):
     is_active = fields.BooleanField(default=True)
     permission = fields.IntEnumField(Permissions, default=Permissions.USER.value)
 
+    @property
+    def preferred_name(self) -> str:
+        return self.display_name if self.display_name else self.username
+
 class UserTeams(Model):
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField('models.User', related_name='teams')
@@ -37,6 +41,7 @@ class TestModel(Model):
 class Tournament(Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=255)
+    seed_generator = fields.CharField(max_length=255, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

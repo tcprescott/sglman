@@ -1,10 +1,10 @@
-from theme.match_table import MatchTable
 
 from nicegui import ui, events, app
 from models import Match
 from pages.dialogues import MatchDialog
 import asyncio
 from datetime import datetime, timedelta
+from pages.match_table_common import MatchTableView
 
 def create() -> None:
     @ui.page('/player')
@@ -29,13 +29,13 @@ def create() -> None:
                     {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                     {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
                 ]
-                from pages.match_table_common import render_match_table
+
                 async def submit_match():
                     dialog = MatchDialog(discord_id)
                     await dialog.open()
                 def get_query():
                     return Match.filter(players__user__discord_id=discord_id)
-                table, refresh = render_match_table(
+                table_view = MatchTableView(
                     columns=columns,
                     get_query=get_query,
                     admin_controls=False,
@@ -43,4 +43,4 @@ def create() -> None:
                 )
 
                 # Refresh table on page load
-                asyncio.create_task(refresh())
+                asyncio.create_task(table_view.refresh())
