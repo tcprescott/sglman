@@ -24,15 +24,14 @@ async def create_match(tournament_id, date_value, time_value, comment_value, pla
 
 
 class MatchDialog:
-    def __init__(self, match: Match = None, discord_id=None, on_submit=None, select_multiple=False, is_edit=False):
+    def __init__(self, match: Match = None, discord_id=None, on_submit=None):
         self.match = match
         self.discord_id = discord_id
         self.on_submit = on_submit
         self.dialog = None
-        self.select_multiple = select_multiple
-        self.is_edit = is_edit
         self._clear_seated = False
         self._clear_finished = False
+        self._initial_updated_at = match.updated_at if match else None
 
     async def open(self):
         users = await User.all().order_by('username')
@@ -40,7 +39,7 @@ class MatchDialog:
         stream_rooms = await StreamRoom.all().order_by('name')
         now = datetime.now()
         # Pre-fill values for edit mode
-        if self.is_edit and self.match:
+        if self.match:
             default_tournament = self.match.tournament_id if self.match.tournament_id else None
             default_date = self.match.scheduled_at.strftime(
                 '%Y-%m-%d') if self.match.scheduled_at else now.strftime('%Y-%m-%d')
@@ -66,7 +65,7 @@ class MatchDialog:
             selected_stream_room = ui.select(
                 label='Stream Room', options=stream_room_options, value=default_stream_room, with_input=True)
 
-            if self.select_multiple or self.is_edit:
+            if self.discord_id is None:
                 selected_players = ui.select(label='Players', options={
                                              u.id: u.preferred_name for u in users}, value=player_ids, multiple=True, with_input=True)
             else:
@@ -97,7 +96,7 @@ class MatchDialog:
             comment_input = ui.textarea(label='Comment (optional)', value=comment_value,
                                         placeholder='Add any notes or comments about this match...').style('width: 100%')
 
-            if self.is_edit:
+            if self.match:
                 def make_clear_button(label, attr_flag, match_attr):
                     def clear():
                         setattr(self, attr_flag, True)
@@ -124,7 +123,7 @@ class MatchDialog:
                 time_value = time.value
                 comment_value = comment_input.value
                 # Determine player IDs
-                if self.select_multiple or self.is_edit:
+                if self.discord_id is None:
                     new_player_ids = selected_players.value if isinstance(
                         selected_players.value, list) else [selected_players.value]
                 else:
@@ -134,7 +133,7 @@ class MatchDialog:
                         user.id, opponent_id] if opponent_id else []
 
                 # Validation
-                if self.is_edit:
+                if self.match:
                     if not (new_player_ids and tournament_id and date_value and time_value):
                         with self.dialog:
                             ui.notify('All fields are required.',
@@ -148,7 +147,14 @@ class MatchDialog:
                         return
 
                 # Create or update match
-                if self.is_edit:
+                if self.match:
+                    # Fetch latest match from DB to check updated_at
+                    latest_match = await Match.get(id=self.match.id)
+                    if latest_match.updated_at != self._initial_updated_at:
+                        with self.dialog:
+                            ui.notify(
+                                'This match has been modified by another admin. Please reload and try again.', color='warning')
+                        return
                     match_time = datetime.strptime(
                         f"{date_value} {time_value}", "%Y-%m-%d %H:%M")
                     self.match.tournament_id = tournament_id
@@ -180,7 +186,7 @@ class MatchDialog:
                         player_ids=new_player_ids
                     )
                     with self.dialog:
-                        if self.select_multiple:
+                        if self.discord_id is None:
                             ui.notify(
                                 f'Match submitted: Players={new_player_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
                         else:
@@ -211,7 +217,7 @@ class MatchDialog:
                     await self.on_submit(None)
 
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
-                if self.is_edit:
+                if self.match:
                     ui.button('Save', color='green', on_click=submit)
                     ui.button('Delete', color='negative',
                               on_click=confirm_delete)
@@ -232,6 +238,7 @@ class UserEditDialog:
         self.user = user
         self.on_submit = on_submit
         self.dialog = None
+        self._initial_updated_at = user.updated_at if user else None
 
     async def open(self):
         with ui.dialog() as dialog, ui.card():
@@ -252,6 +259,13 @@ class UserEditDialog:
 
             async def submit():
                 if self.user:
+                    # Fetch latest user from DB to check updated_at
+                    latest_user = await User.get(id=self.user.id)
+                    if latest_user.updated_at != self._initial_updated_at:
+                        with self.dialog:
+                            ui.notify(
+                                'This user has been modified by another admin. Please reload and try again.', color='warning')
+                        return
                     with self.dialog:
                         self.user.display_name = display_name_input.value
                         self.user.is_active = is_active_checkbox.value

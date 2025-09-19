@@ -4,7 +4,7 @@ from models import Match
 from pages.dialogues import MatchDialog
 import asyncio
 from datetime import datetime, timedelta
-from pages.match_table_common import MatchTableView
+from theme.tables.match import MatchTableView
 
 def create() -> None:
     @ui.page('/player')
@@ -31,7 +31,7 @@ def create() -> None:
                 ]
 
                 async def submit_match():
-                    dialog = MatchDialog(discord_id)
+                    dialog = MatchDialog(discord_id=discord_id)
                     await dialog.open()
                 def get_query():
                     return Match.filter(players__user__discord_id=discord_id)

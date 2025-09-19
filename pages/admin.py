@@ -6,9 +6,9 @@ from nicegui import ui
 
 from models import GeneratedSeeds, Match, Tournament, User
 from pages.dialogues import ConfirmationDialog, MatchDialog, TournamentEditDialog, UserEditDialog
-from pages.match_table_common import MatchTableView
-from pages.tournament_table_common import TournamentTableView
-from pages.user_table_common import UserTableView
+from theme.tables.match import MatchTableView
+from theme.tables.tournament import TournamentTableView
+from theme.tables.user import UserTableView
 
 
 def create() -> None:
@@ -141,8 +141,7 @@ def create() -> None:
             async def submit_admin_match():
                 async def after_submit(_):
                     await table_view.refresh()
-                dialog = MatchDialog(
-                    select_multiple=True, on_submit=after_submit)
+                dialog = MatchDialog(on_submit=after_submit)
                 await dialog.open()
 
             async def edit_row(event):
@@ -151,8 +150,7 @@ def create() -> None:
 
                 async def after_edit(_):
                     await table_view.update_row_by_id(row_id)
-                dialog = MatchDialog(
-                    match=match, is_edit=True, on_submit=after_edit)
+                dialog = MatchDialog(match=match, on_submit=after_edit)
                 await dialog.open()
 
             async def roll_seed(event):
