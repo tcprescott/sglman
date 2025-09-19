@@ -65,15 +65,20 @@ def create() -> None:
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
 
-        ui.label('Player Opt-In Tournaments').style('margin-top: 1em; font-weight: bold;')
-        for t in player_tournaments:
-            checked = t.id in selected_tournament_ids
-            tournament_checkboxes[t.id] = ui.checkbox(t.name, value=checked)
+        def render_tournament_grid(tournament_list, label, columns=4):
+            ui.label(label).style('margin-top: 1em; font-weight: bold;')
+            rows = [tournament_list[i:i+columns] for i in range(0, len(tournament_list), columns)]
+            for row in rows:
+                with ui.row():
+                    for t in row:
+                        checked = t.id in selected_tournament_ids
+                        tournament_checkboxes[t.id] = ui.checkbox(t.name, value=checked)
+                    # Fill empty cells if less than columns
+                    for _ in range(columns - len(row)):
+                        ui.label('')
 
-        ui.label('Staff Administered Tournaments').style('margin-top: 1em; font-weight: bold;')
-        for t in staff_tournaments:
-            checked = t.id in selected_tournament_ids
-            tournament_checkboxes[t.id] = ui.checkbox(t.name, value=checked)
+        render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', columns=4)
+        render_tournament_grid(player_tournaments, 'Community Tournaments', columns=4)
 
         async def save_info():
             user.display_name = display_name_input.value.strip()

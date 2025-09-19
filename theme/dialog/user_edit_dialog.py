@@ -13,6 +13,7 @@ class UserDialog:
         self._initial_updated_at = user.updated_at if user else None
 
     async def open(self):
+        from models import Tournament, TournamentPlayers
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
             username_input = ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
@@ -20,6 +21,20 @@ class UserDialog:
             is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
             discord_id_input = ui.input('Discord ID', value=self.user.discord_id if self.user else '') if not self.user else None
             permission_select = ui.select(label='Permission', options={0: 'User', 1: 'Tournament Admin', 2: 'Superadmin'}, value=self.user.permission if self.user else 0)
+
+            # Tournament multi-select
+            tournaments = await Tournament.filter(is_active=True)
+            user_tournaments = []
+            if self.user:
+                user_tournaments = await TournamentPlayers.filter(user=self.user)
+            selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
+            tournament_options = {str(t.id): t.name for t in tournaments}
+            tournament_multiselect = ui.select(
+                label='Tournaments',
+                options=tournament_options,
+                value=[str(tid) for tid in selected_tournament_ids],
+                multiple=True
+            )
 
             async def submit():
                 if self.user:
@@ -33,6 +48,19 @@ class UserDialog:
                         self.user.is_active = is_active_checkbox.value
                         self.user.permission = permission_select.value
                         await self.user.save()
+                        # Update tournaments
+                        selected_ids = set(map(int, tournament_multiselect.value))
+                        current_ids = set(selected_tournament_ids)
+                        # Remove deselected
+                        for tp in user_tournaments:
+                            if tp.tournament_id not in selected_ids:
+                                await tp.delete()
+                        # Add newly selected
+                        for tid in selected_ids:
+                            if tid not in current_ids:
+                                tournament = next((t for t in tournaments if t.id == tid), None)
+                                if tournament:
+                                    await TournamentPlayers.create(user=self.user, tournament=tournament)
                         ui.notify('User updated.', color='positive')
                         dialog.close()
                         if self.on_submit:
@@ -55,6 +83,12 @@ class UserDialog:
                         permission=permission,
                         discord_id=discord_id
                     )
+                    # Add tournaments for new user
+                    selected_ids = set(map(int, tournament_multiselect.value))
+                    for tid in selected_ids:
+                        tournament = next((t for t in tournaments if t.id == tid), None)
+                        if tournament:
+                            await TournamentPlayers.create(user=new_user, tournament=tournament)
                     with self.dialog:
                         ui.notify('User created.', color='positive')
                         dialog.close()
