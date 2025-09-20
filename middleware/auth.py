@@ -22,33 +22,8 @@ config = {
 }
 
 discordClient = APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
-unrestricted_page_routes = {'/login', '/oauth/callback', '/api'}
 
-
-import os
-from typing import Optional
-from urllib.parse import parse_qs, urlparse
-
-from fastapi import Request
-from fastapi.responses import RedirectResponse
-from nicegui import Client, app, ui
-from starlette.middleware.base import BaseHTTPMiddleware
-from zenora import APIClient
-
-from models import User
-
-config = {
-    "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
-    "DISCORD_CLIENT_SECRET": os.getenv("DISCORD_CLIENT_SECRET"),
-    "REDIRECT_URL": os.getenv("REDIRECT_URL"),
-    "DISCORD_CLIENT_ID": os.getenv("DISCORD_CLIENT_ID"),
-    "OAUTH_URL": os.getenv("OAUTH_URL"),
-    "STORAGE_SECRET": os.getenv("STORAGE_SECRET")
-}
-
-discordClient = APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
-
-unrestricted_page_routes = {'/login', '/oauth/callback', '/api'}
+unrestricted_page_routes = {'/login', '/oauth/callback', '/api', '/'}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -67,6 +42,11 @@ def create() -> None:
             with ui.link(target=config["OAUTH_URL"]):
                 ui.button('Login with Discord', icon='login')
         return None
+
+    @ui.page('/logout')
+    def logout(client: Client) -> Optional[RedirectResponse]:
+        app.storage.user.clear()
+        return RedirectResponse('/')
 
     @ui.page('/oauth/callback')
     async def oauth_callback(client: Client):

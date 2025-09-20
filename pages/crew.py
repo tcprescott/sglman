@@ -1,4 +1,5 @@
 from nicegui import ui
+from theme.base import BaseLayout
 from models import Match
 import asyncio
 from theme.tables.match import MatchTableView
@@ -6,6 +7,7 @@ from theme.tables.match import MatchTableView
 def create() -> None:
     @ui.page('/crew')
     def crew():
+        BaseLayout()
         ui.label('Crew Management').style('font-size: 2em; margin-bottom: 1em;')
 
         columns = [

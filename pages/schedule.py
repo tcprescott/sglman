@@ -1,5 +1,6 @@
 
 from nicegui import ui
+from theme.base import BaseLayout
 from models import Match
 import asyncio
 from theme.tables.match import MatchTableView
@@ -7,6 +8,7 @@ from theme.tables.match import MatchTableView
 def create() -> None:
     @ui.page('/schedule')
     def schedule():
+        BaseLayout()
         ui.label('Scheduled Matches').style('font-size: 2em; margin-bottom: 1em;')
 
         columns = [

@@ -1,5 +1,6 @@
 
 from nicegui import ui, app
+from theme.base import BaseLayout
 from models import Match
 from theme.dialog import MatchDialog
 import asyncio
@@ -8,20 +9,24 @@ from theme.tables.match import MatchTableView
 def create() -> None:
     @ui.page('/player')
     async def player_page() -> None:
+        BaseLayout().create()
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
             return
 
-        with ui.tabs().style('width: 100%; max-width: 900px; margin: 0 auto;') as panels:
+        with ui.tabs(on_change=on_tab_change).style('width: 100%; max-width: 900px; margin: 0 auto;') as panels:
             ui.tab('Schedule')
             ui.tab('Edit Info')
-        with ui.tab_panels(panels, value='Schedule'):
+        with ui.tab_panels(panels, value=app.storage.user.get('player_selected_tab', 'Schedule')):
             with ui.tab_panel('Schedule'):
                 render_player_dashboard(discord_id)
 
             with ui.tab_panel('Edit Info'):
                 await render_edit_info_tab(discord_id)
+
+    def on_tab_change(event) -> None:
+        app.storage.user['player_selected_tab'] = event.value
 
     def render_player_dashboard(discord_id):
         ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')

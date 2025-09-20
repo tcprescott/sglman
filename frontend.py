@@ -24,7 +24,6 @@ def init(fastapi_app: FastAPI) -> None:
     home.create()
     player.create()
     schedule.create()
-    admin.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

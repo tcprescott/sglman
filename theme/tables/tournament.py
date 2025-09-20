@@ -68,6 +68,14 @@ class TournamentTableView:
             row = {
                 'id': t.id,
                 'name': t.name,
+                'description': t.description,
+                'seed_generator': t.seed_generator,
+                'is_active': t.is_active,
+                'players_per_match': t.players_per_match,
+                'team_size': t.team_size,
+                'staff_administered': t.staff_administered,
+                # 'created_at': t.created_at,  # excluded
+                # 'updated_at': t.updated_at,  # excluded
             }
             rows.append(row)
         self.table.rows = rows
