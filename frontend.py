@@ -5,9 +5,13 @@ Sets up NiceGUI pages and integrates them with the FastAPI app.
 
 from fastapi import FastAPI
 
-from nicegui import ui
+from nicegui import ui, app
 
 from pages import home, schedule, player, admin
+
+from middleware.auth import AuthMiddleware, create as auth_create
+
+app.add_middleware(AuthMiddleware)
 
 def init(fastapi_app: FastAPI) -> None:
     """
@@ -16,11 +20,11 @@ def init(fastapi_app: FastAPI) -> None:
     Args:
         fastapi_app (FastAPI): The FastAPI application instance to integrate with NiceGUI.
     """
+    auth_create()
     home.create()
     player.create()
     schedule.create()
     admin.create()
-    # auth.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

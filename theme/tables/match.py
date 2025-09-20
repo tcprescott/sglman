@@ -1,4 +1,4 @@
-from nicegui import ui
+from nicegui import ui, app
 import asyncio
 
 # TODO: Implement server-side pagination, sorting, and filtering for large datasets
@@ -17,14 +17,19 @@ class MatchTableView:
         self.show_upcoming_checkbox = None
         self._setup_ui()
 
+    def _on_upcoming_change(self, *args, **kwargs):
+        app.storage.show_only_upcoming_matches = self.show_upcoming_checkbox.value
+        asyncio.create_task(self.refresh())
+
     def _setup_ui(self):
         with ui.row().style('width: 100%;'):
             if self.submit_match_callback:
                 ui.button('Create Match' if self.admin_controls else 'Request Match', on_click=self.submit_match_callback)
+            # Use app.storage to persist checkbox state
+            default_value = getattr(app.storage, 'show_only_upcoming_matches', True)
             self.show_upcoming_checkbox = ui.checkbox(
-                'Show only upcoming matches', value=True, on_change=self.refresh)
-            ui.button('Refresh', on_click=self.refresh).props(
-                'icon=refresh').style('min-width: 0; margin-left: auto;')
+                'Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
+            ui.button('Refresh', on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
 
         ui.add_head_html("""
         <style>

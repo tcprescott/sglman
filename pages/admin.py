@@ -2,7 +2,7 @@ import asyncio
 import random
 from datetime import datetime
 
-from nicegui import ui
+from nicegui import ui, app
 
 from models import GeneratedSeeds, Match, Tournament, User
 from theme.dialog import ConfirmationDialog, MatchDialog, TournamentDialog, UserDialog
@@ -14,6 +14,10 @@ from theme.tables.user import UserTableView
 def create() -> None:
     @ui.page('/admin')
     def admin_dashboard_page() -> None:
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
+            return
         with ui.tabs().style('width: 100%; max-width: margin: 0 auto;') as panels:
             ui.tab('Schedule')
             ui.tab('Users')
