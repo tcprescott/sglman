@@ -18,8 +18,9 @@ class TournamentDialog:
             with ui.row():
                 players_per_match_input = ui.number('Players per Match', value=self.tournament.players_per_match if self.tournament else 2, min=1, max=100)
                 team_size_input = ui.number('Team Size', value=self.tournament.team_size if self.tournament else 1, min=1, max=100)
-            staff_administered_checkbox = ui.checkbox('Staff Administered', value=self.tournament.staff_administered if self.tournament else False)
-            is_active_checkbox = ui.checkbox('Active', value=self.tournament.is_active if self.tournament else True)
+            with ui.row():
+                staff_administered_checkbox = ui.checkbox('Staff Administered', value=self.tournament.staff_administered if self.tournament else False)
+                is_active_checkbox = ui.checkbox('Active', value=self.tournament.is_active if self.tournament else True)
 
             async def submit():
                 if self.tournament:

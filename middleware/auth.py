@@ -63,7 +63,7 @@ def create() -> None:
                 'username': current_user.username,
                 'avatar': current_user.avatar_url,
                 'authenticated': True,
-                'discord_id': str(current_user.id)
+                'discord_id': current_user.id
             })
 
             user, created = await User.get_or_create(discord_id=current_user.id, defaults={

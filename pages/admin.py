@@ -4,7 +4,7 @@ from datetime import datetime
 
 from nicegui import ui, app
 
-from models import GeneratedSeeds, Match, Tournament, User
+from models import GeneratedSeeds, Match, Tournament, User, Permissions
 from theme.dialog import ConfirmationDialog, MatchDialog, TournamentDialog, UserDialog
 from theme.tables.match import MatchTableView
 from theme.tables.tournament import TournamentTableView
@@ -15,22 +15,26 @@ from theme.base import BaseLayout
 def create() -> None:
     @ui.page('/admin')
     async def admin_dashboard_page() -> None:
-        BaseLayout().render()
-
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
             return
 
+        user = await User.get(discord_id=discord_id)
+        if user.permission < Permissions.TOURNAMENT_ADMIN:
+            await BaseLayout(page_name='admin2').render()
+            ui.label('You do not have permission to view this page.').style('color: red; font-weight: bold;')
+            return
+
         # Define tab data model: label and content function
         tabs = [
-            {'label': 'Schedule', 'content': admin_schedule_page},
-            {'label': 'Users', 'content': admin_users_page},
+            {'label': 'Schedule Management', 'content': admin_schedule_page},
+            {'label': 'Players', 'content': admin_users_page},
             {'label': 'Tournaments', 'content': admin_tournaments_page},
             {'label': 'Settings', 'content': admin_settings_page},
         ]
 
-        await BaseLayout(tabs=tabs).render()
+        await BaseLayout(tabs=tabs, page_name='admin').render()
 
     def on_tab_change(event) -> None:
         app.storage.user['admin_selected_tab'] = event.value
@@ -81,6 +85,7 @@ def create() -> None:
             {'name': 'players_per_match', 'label': 'Players/Match', 'field': 'players_per_match'},
             {'name': 'team_size', 'label': 'Team Size', 'field': 'team_size'},
             {'name': 'staff_administered', 'label': 'Staff Administered', 'field': 'staff_administered'},
+            {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count'},
         ]
 
         async def add_tournament():

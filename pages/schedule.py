@@ -7,8 +7,8 @@ from theme.tables.match import MatchTableView
 
 def create() -> None:
     @ui.page('/schedule')
-    def schedule():
-        BaseLayout()
+    async def schedule():
+        await BaseLayout(page_name='schedule').render()
         ui.label('Scheduled Matches').style('font-size: 2em; margin-bottom: 1em;')
 
         columns = [
@@ -31,4 +31,5 @@ def create() -> None:
         )
 
         # Initial table load
-        asyncio.create_task(table_view.refresh())
+        await table_view.refresh()
+        await BaseLayout(page_name='schedule').render()

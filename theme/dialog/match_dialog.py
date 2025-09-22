@@ -7,7 +7,7 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from app_logic.match import create_match
 
 class MatchDialog:
-    def __init__(self, match: Match = None, discord_id=None, on_submit=None):
+    def __init__(self, match: Match = None, discord_id: int=None, on_submit=None):
         self.match = match
         self.discord_id = discord_id
         self.on_submit = on_submit
@@ -49,6 +49,9 @@ class MatchDialog:
             self.dialog = dialog
             if self.discord_id is not None and not tournaments:
                 ui.label('You have not opted into any tournaments. Please opt in before submitting a match.').style('color: red; font-weight: bold; margin-bottom: 1em;')
+                ui.button('Close', color='gray', on_click=dialog.close)
+                dialog.open()
+                return
             selected_tournament = ui.select(label='Tournament', options={t.id: t.name for t in tournaments}, value=default_tournament, with_input=True)
             if self.discord_id is None:
                 stream_room_options = {None: '(None)'}
@@ -56,22 +59,52 @@ class MatchDialog:
                 selected_stream_room = ui.select(label='Stream Room', options=stream_room_options, value=default_stream_room, with_input=True)
 
             if self.discord_id is None:
-                selected_players = ui.select(label='Players', options={u.id: u.preferred_name for u in users}, value=player_ids, multiple=True, with_input=True)
+                from models import TournamentPlayers
+                async def get_opted_in_users(tournament_id):
+                    links = await TournamentPlayers.filter(tournament_id=tournament_id)
+                    user_ids = [tp.user_id for tp in links]
+                    return [u for u in users if u.id in user_ids]
+
+                with ui.row().classes('items-center').style('margin-top: 1em;'):
+                    selected_players = ui.select(label='Players', options={}, value=player_ids, multiple=True, with_input=True)
+                    selected_players.disable()
+                    choose_any_players = ui.checkbox('Choose any players', value=False)
+
+                async def update_player_options(e):
+                    tournament_id = selected_tournament.value
+                    if choose_any_players.value and tournament_id:
+                        selected_players.disable()
+                        selected_players.options = {u.id: u.preferred_name for u in users}
+                        selected_players.enable()
+                    elif tournament_id:
+                        selected_players.disable()
+                        opted_in_users = await get_opted_in_users(tournament_id)
+                        selected_players.options = {u.id: u.preferred_name for u in opted_in_users}
+                        selected_players.enable()
+                    else:
+                        selected_players.options = {}
+                        selected_players.disable()
+                    print(selected_players.options)
+                selected_tournament.on('update:model-value', lambda e: asyncio.create_task(update_player_options(e)))
+                choose_any_players.on('update:model-value', lambda e: asyncio.create_task(update_player_options(e)))
             else:
                 # Only show users who have opted into the selected tournament
                 from models import TournamentPlayers
                 async def get_opted_in_users(tournament_id):
                     links = await TournamentPlayers.filter(tournament_id=tournament_id)
-                    user_ids = [tp.user_id for tp in links]
-                    return [u for u in users if u.id in user_ids and u.discord_id != self.discord_id]
+                    players = [tp.user_id for tp in links]
+                    # Exclude the current user from the list
+                    return [u for u in users if u.id in players and u.discord_id != self.discord_id]
 
-                opponent_options = {}
-                selected_opponent = ui.select(label='Opponent', options=opponent_options, with_input=True)
-                selected_opponent.disable()
+                with ui.row().classes('items-center').style('margin-top: 1em;'):
+                    opponent_options = {}
+                    selected_opponent = ui.select(label='Opponent', options=opponent_options, with_input=True)
+                    selected_opponent.disable()
 
                 async def update_opponent_options(e):
                     tournament_id = selected_tournament.value
                     if tournament_id:
+                        selected_opponent.disable()
                         opted_in_users = await get_opted_in_users(tournament_id)
                         selected_opponent.options = {u.id: u.preferred_name for u in opted_in_users}
                         selected_opponent.enable()
@@ -147,6 +180,16 @@ class MatchDialog:
                         return
 
                 # Create or update match
+                from models import TournamentPlayers, Tournament
+                # Ensure all submitted players are enrolled in TournamentPlayers for this tournament
+                existing_links = await TournamentPlayers.filter(tournament_id=tournament_id)
+                existing_player_ids = {tp.user_id for tp in existing_links}
+                for pid in new_player_ids:
+                    if pid not in existing_player_ids:
+                        tournament = await Tournament.get(id=tournament_id)
+                        user = await User.get(id=pid)
+                        await TournamentPlayers.create(user=user, tournament=tournament)
+
                 if self.match:
                     # Fetch latest match from DB to check updated_at
                     latest_match = await Match.get(id=self.match.id)

@@ -15,13 +15,10 @@ def create() -> None:
             return
 
         tabs = [
-            {'label': 'Schedule', 'content': lambda: render_player_dashboard(discord_id)},
+            {'label': 'Schedule', 'content': (render_player_dashboard, None, {'discord_id': discord_id})},
             {'label': 'Edit Info', 'content': (render_edit_info_tab, None, {'discord_id': discord_id})},
         ]
-        await BaseLayout(tabs=tabs).render()
-
-    def on_tab_change(event) -> None:
-        app.storage.user['player_selected_tab'] = event.value
+        await BaseLayout(tabs=tabs, page_name='player').render()
 
     def render_player_dashboard(discord_id):
         ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')

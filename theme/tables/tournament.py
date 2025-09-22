@@ -54,14 +54,19 @@ class TournamentTableView:
         self.table.add_slot('body-cell-name', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_tournament', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
         </q-td>''')
+        # Add slot for clickable player count
+        self.table.add_slot('body-cell-player_count', '''<q-td :props="props">
+            <a href="#" @click="$parent.$emit('show_players', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+        </q-td>''')
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
         # Register edit_tournament event handler immediately after table creation
         self.table.on('edit_tournament', self.handle_edit_tournament)
+        self.table.on('show_players', self.handle_show_players)
 
     async def refresh(self, *args, **kwargs):
-        tournament_query = self.get_query()
+        tournament_query = self.get_query().prefetch_related('players')
         all_tournaments = await tournament_query.order_by('name')
         rows = []
         for t in all_tournaments:
@@ -74,8 +79,7 @@ class TournamentTableView:
                 'players_per_match': t.players_per_match,
                 'team_size': t.team_size,
                 'staff_administered': t.staff_administered,
-                # 'created_at': t.created_at,  # excluded
-                # 'updated_at': t.updated_at,  # excluded
+                'player_count': len(t.players),  # Changed to use prefetch_related data
             }
             rows.append(row)
         self.table.rows = rows
@@ -115,3 +119,15 @@ class TournamentTableView:
         dialog = TournamentDialog(t)
         await dialog.open()
         # You may want to call self.refresh() or self.update_row_by_id(t.id) after editing
+
+    async def handle_show_players(self, event):
+        row = event.args['row'] if hasattr(event, 'args') and 'row' in event.args else event.args if hasattr(event, 'args') else event
+        tournament_id = row['id']
+        tournament_query = self.get_query()
+        t = await tournament_query.filter(id=tournament_id).first()
+        if not t:
+            ui.notify('Tournament not found.', color='warning')
+            return
+        from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
+        dialog = TournamentPlayersDialog(t)
+        await dialog.open()
