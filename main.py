@@ -7,7 +7,7 @@ Initializes the database, sets up API and frontend routes, and manages applicati
 from tortoise import Tortoise
 from fastapi import FastAPI
 import frontend
-import api
+# import api
 from contextlib import asynccontextmanager
 from migrations.tortoise_config import TORTOISE_ORM
 from aerich import Command
@@ -40,11 +40,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_db()
 
 app: FastAPI = FastAPI(lifespan=lifespan)
-app.include_router(
-    api.router,
-    prefix='/api',
-    tags=['api'],
-)
+# app.include_router(
+#     api.router,
+#     prefix='/api',
+#     tags=['api'],
+# )
 
 frontend.init(app)
 
