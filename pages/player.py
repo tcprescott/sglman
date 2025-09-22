@@ -1,7 +1,7 @@
 
 from nicegui import ui, app
 from theme.base import BaseLayout
-from models import Match
+from models import Match, User, Permissions
 from theme.dialog import MatchDialog
 import asyncio
 from theme.tables.match import MatchTableView
@@ -14,11 +14,13 @@ def create() -> None:
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
             return
 
+        user = await User.get(discord_id=discord_id)
+
         tabs = [
             {'label': 'Schedule', 'content': (render_player_dashboard, None, {'discord_id': discord_id})},
             {'label': 'Edit Info', 'content': (render_edit_info_tab, None, {'discord_id': discord_id})},
         ]
-        await BaseLayout(tabs=tabs, page_name='player').render()
+        await BaseLayout(tabs=tabs, page_name='player', is_admin=user.permission >= Permissions.TOURNAMENT_ADMIN).render()
 
     def render_player_dashboard(discord_id):
         ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')
@@ -60,7 +62,6 @@ def create() -> None:
         with ui.card().style('padding: 1em;'):
             display_name_hint = f"(default: {user.username})" if not user.display_name else ""
             display_name_input = ui.input('Display Name', value=user.display_name or '', placeholder=display_name_hint)
-        ui.separator()
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
@@ -77,10 +78,11 @@ def create() -> None:
                     for _ in range(columns - len(row)):
                         ui.label('')
 
-        with ui.card().style('padding: 1em;'):
-            render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', columns=4)
-        with ui.card().style('padding: 1em;'):
-            render_tournament_grid(player_tournaments, 'Community Tournaments', columns=4)
+        with ui.row().style('margin-top: 1em;'):
+            with ui.card().style('padding: 1em;'):
+                render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', columns=4)
+            with ui.card().style('padding: 1em;'):
+                render_tournament_grid(player_tournaments, 'Community Tournaments', columns=4)
 
         async def save_info():
             user.display_name = display_name_input.value.strip()
@@ -100,5 +102,6 @@ def create() -> None:
                         await TournamentPlayers.create(user=user, tournament=tournament)
             ui.notify('Information updated.', color='positive')
 
-        ui.button('Save', color='green', on_click=save_info)
+        with ui.row().style('margin-top: 1em;'):
+            ui.button('Save', color='green', on_click=save_info)
 

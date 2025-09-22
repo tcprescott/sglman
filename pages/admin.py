@@ -34,7 +34,7 @@ def create() -> None:
             {'label': 'Settings', 'content': admin_settings_page},
         ]
 
-        await BaseLayout(tabs=tabs, page_name='admin').render()
+        await BaseLayout(tabs=tabs, page_name='admin', is_admin=user.permission >= Permissions.TOURNAMENT_ADMIN).render()
 
     def on_tab_change(event) -> None:
         app.storage.user['admin_selected_tab'] = event.value

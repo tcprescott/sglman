@@ -1,14 +1,14 @@
 
-from nicegui import ui
+from nicegui import app, ui
 from theme.base import BaseLayout
-from models import Match
-import asyncio
+from models import Match, User, Permissions
 from theme.tables.match import MatchTableView
 
 def create() -> None:
     @ui.page('/schedule')
     async def schedule():
-        await BaseLayout(page_name='schedule').render()
+        discord_id = app.storage.user.get('discord_id', None)
+        user = await User.get_or_none(discord_id=discord_id) if discord_id else None
         ui.label('Scheduled Matches').style('font-size: 2em; margin-bottom: 1em;')
 
         columns = [
@@ -23,6 +23,9 @@ def create() -> None:
         def get_query():
             return Match.all().prefetch_related('tournament', 'players', 'stream_room', 'generated_seed').order_by('scheduled_at')
 
+        discord_id = app.storage.user.get('discord_id', None)
+        user = await User.get_or_none(discord_id=discord_id) if discord_id else None
+
         # No admin controls or extra slots for schedule view
         table_view = MatchTableView(
             columns=columns,
@@ -32,4 +35,4 @@ def create() -> None:
 
         # Initial table load
         await table_view.refresh()
-        await BaseLayout(page_name='schedule').render()
+        await BaseLayout(page_name='schedule', is_admin=user and user.permission >= Permissions.TOURNAMENT_ADMIN).render()

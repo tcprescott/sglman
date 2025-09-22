@@ -58,20 +58,26 @@ class MatchDialog:
                 stream_room_options.update({s.id: s.name for s in stream_rooms})
                 selected_stream_room = ui.select(label='Stream Room', options=stream_room_options, value=default_stream_room, with_input=True)
 
-            if self.discord_id is None:
-                from models import TournamentPlayers
-                async def get_opted_in_users(tournament_id):
-                    links = await TournamentPlayers.filter(tournament_id=tournament_id)
-                    user_ids = [tp.user_id for tp in links]
-                    return [u for u in users if u.id in user_ids]
+            from models import TournamentPlayers
+            async def get_opted_in_users(tournament_id):
+                links = await TournamentPlayers.filter(tournament_id=tournament_id)
+                user_ids = [tp.user_id for tp in links]
+                # Exclude self if discord_id is set
+                return [u for u in users if u.id in user_ids and (self.discord_id is None or u.discord_id != self.discord_id)]
 
-                with ui.row().classes('items-center').style('margin-top: 1em;'):
+            with ui.row().classes('items-center').style('margin-top: 1em;'):
+                if self.discord_id is None:
                     selected_players = ui.select(label='Players', options={}, value=player_ids, multiple=True, with_input=True)
                     selected_players.disable()
                     choose_any_players = ui.checkbox('Choose any players', value=False)
+                else:
+                    opponent_options = {}
+                    selected_opponent = ui.select(label='Opponent', options=opponent_options, with_input=True)
+                    selected_opponent.disable()
 
-                async def update_player_options(e):
-                    tournament_id = selected_tournament.value
+            async def update_selection_options(e):
+                tournament_id = selected_tournament.value
+                if self.discord_id is None:
                     if choose_any_players.value and tournament_id:
                         selected_players.disable()
                         selected_players.options = {u.id: u.preferred_name for u in users}
@@ -84,25 +90,7 @@ class MatchDialog:
                     else:
                         selected_players.options = {}
                         selected_players.disable()
-                    print(selected_players.options)
-                selected_tournament.on('update:model-value', lambda e: asyncio.create_task(update_player_options(e)))
-                choose_any_players.on('update:model-value', lambda e: asyncio.create_task(update_player_options(e)))
-            else:
-                # Only show users who have opted into the selected tournament
-                from models import TournamentPlayers
-                async def get_opted_in_users(tournament_id):
-                    links = await TournamentPlayers.filter(tournament_id=tournament_id)
-                    players = [tp.user_id for tp in links]
-                    # Exclude the current user from the list
-                    return [u for u in users if u.id in players and u.discord_id != self.discord_id]
-
-                with ui.row().classes('items-center').style('margin-top: 1em;'):
-                    opponent_options = {}
-                    selected_opponent = ui.select(label='Opponent', options=opponent_options, with_input=True)
-                    selected_opponent.disable()
-
-                async def update_opponent_options(e):
-                    tournament_id = selected_tournament.value
+                else:
                     if tournament_id:
                         selected_opponent.disable()
                         opted_in_users = await get_opted_in_users(tournament_id)
@@ -111,7 +99,9 @@ class MatchDialog:
                     else:
                         selected_opponent.options = {}
                         selected_opponent.disable()
-                selected_tournament.on('update:model-value', lambda e: asyncio.create_task(update_opponent_options(e)))
+            selected_tournament.on('update:model-value', lambda e: asyncio.create_task(update_selection_options(e)))
+            if self.discord_id is None:
+                choose_any_players.on('update:model-value', lambda e: asyncio.create_task(update_selection_options(e)))
 
             with ui.row().classes('justify-between items-center').style('margin-bottom: 1em;'):
                 with ui.input('Date (YYYY-MM-DD)', value=default_date) as date:

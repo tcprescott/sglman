@@ -2,18 +2,26 @@ from nicegui import ui, app
 from typing import Callable as func
 
 class BaseLayout:
-    def __init__(self, page_name, site_name: str = "SpeedGaming Live Administration System", logo_url: str = None, copyright_text: str = "© 2025 SGLMan", tabs: list = None):
+    def __init__(self, page_name, site_name: str = "SpeedGaming Live Administration System", logo_url: str = None, copyright_text: str = "© 2025 SGLMan", tabs: list = None, is_admin: bool = False):
         self.site_name = site_name
         self.logo_url = logo_url
         self.copyright_text = copyright_text
         self.tabs = tabs
         self.page_name = page_name
-        self.top_menu: list[tuple[str, str]] = [
-            ('Home', '/'),
-            ('Schedule', '/schedule'),
-            ('Player', '/player'),
-            ('Admin', '/admin'),
-        ]
+
+        if is_admin:
+            self.top_menu: list[tuple[str, str]] = [
+                ('Home', '/'),
+                ('Schedule', '/schedule'),
+                ('Player', '/player'),
+                ('Admin', '/admin'),
+            ]
+        else:
+            self.top_menu: list[tuple[str, str]] = [
+                ('Home', '/'),
+                ('Schedule', '/schedule'),
+                ('Player', '/player'),
+            ]
 
     async def render(self) -> None:
         with ui.header().classes(replace='row items-center') as header:
