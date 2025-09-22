@@ -2,21 +2,25 @@ from nicegui import ui, app
 from typing import Callable as func
 
 class BaseLayout:
-    def __init__(self, site_name: str = "SpeedGaming Live Administration System", logo_url: str = None, copyright_text: str = "© 2025 SGLMan", top_menu: list[tuple[str, func]] = None):
+    def __init__(self, site_name: str = "SpeedGaming Live Administration System", logo_url: str = None, copyright_text: str = "© 2025 SGLMan", tabs: list = None):
         self.site_name = site_name
         self.logo_url = logo_url
         self.copyright_text = copyright_text
-        self.top_menu = top_menu
+        self.tabs = tabs
+        self.top_menu: list[tuple[str, str]] = [
+            ('Home', '/'),
+            ('Schedule', '/schedule'),
+            ('Player', '/player'),
+            ('Admin', '/admin'),
+        ]
 
+    async def render(self) -> None:
         with ui.header().classes(replace='row items-center') as header:
-            ui.button(on_click=lambda: left_drawer.toggle(), icon='menu').props('flat color=white')
             if self.top_menu:
-                with ui.tabs() as tabs:
-                    for label, _ in self.top_menu:
-                        ui.tab(label).props('flat color=white')
+                for label, action in self.top_menu:
+                    ui.button(label, on_click=lambda a=action: ui.navigate.to(a)).props('flat color=white')
             else:
-                with ui.tabs() as tabs:
-                    ui.tab('Default').props('flat color=white')
+                ui.button('Default', on_click=lambda: None).props('flat color=white')
 
             if app.storage.user.get('authenticated', False):
                 ui.label(f'Hello, {app.storage.user.get("username", "User")}!').classes('text-lg').style('margin-left: auto;')
@@ -27,18 +31,43 @@ class BaseLayout:
         with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md') as footer:
             ui.label(self.copyright_text).classes('text-caption')
 
-        with ui.left_drawer().classes('bg-blue-100') as left_drawer:
-            ui.label('Side menu')
-
         with ui.page_sticky(position='bottom-right', x_offset=20, y_offset=20):
             ui.button(on_click=footer.toggle, icon='contact_support').props('fab')
 
-        with ui.tab_panels(tabs, value='A').classes('w-full'):
-            if self.top_menu:
-                for label, action in self.top_menu:
-                    with ui.tab_panel(label):
-                        action()
-            else:
-                with ui.tab_panel('Default'):
-                    ui.label('No top menu defined.')
+        if self.tabs:
+            await self.render_tabbed_page(self.tabs)
+
+    async def render_tabbed_page(self, tabs):
+        import inspect
+        def on_tab_change(event):
+            if app.storage.user.get('selected_tab') is None:
+                app.storage.user['selected_tab'] = {}
+            # slugify page path as the key
+            app.storage.user['selected_tab'][event.client.page.path] = event.value
+        with ui.splitter(value=10, limits=(10, 10)).classes('w-full h-full') as splitter:
+            with splitter.before:
+                with ui.tabs(on_change=on_tab_change).props('vertical').classes('w-full') as panels:
+                    for tab in tabs:
+                        ui.tab(tab['label'])
+            with splitter.after:
+                selected_tab = app.storage.user.get('admin_selected_tab', tabs[0]['label'])
+                with ui.tab_panels(panels, value=selected_tab):
+                    for tab in tabs:
+                        with ui.tab_panel(tab['label']):
+                            with ui.row().classes('justify-center').style('width: 100%;'):
+                                # Combine tuple and non-tuple logic for tab['content']
+                                content = tab['content']
+                                if isinstance(content, tuple):
+                                    # Unpack tuple: (func,), (func, args), (func, args, kwargs)
+                                    content_func = content[0]
+                                    args = content[1] if len(content) > 1 and content[1] is not None else ()
+                                    kwargs = content[2] if len(content) > 2 and content[2] is not None else {}
+                                else:
+                                    content_func = content
+                                    args = ()
+                                    kwargs = {}
+                                if inspect.iscoroutinefunction(content_func):
+                                    await content_func(*args, **kwargs)
+                                else:
+                                    content_func(*args, **kwargs)
 

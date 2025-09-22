@@ -9,21 +9,16 @@ from theme.tables.match import MatchTableView
 def create() -> None:
     @ui.page('/player')
     async def player_page() -> None:
-        BaseLayout().create()
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
             return
 
-        with ui.tabs(on_change=on_tab_change).style('width: 100%; max-width: 900px; margin: 0 auto;') as panels:
-            ui.tab('Schedule')
-            ui.tab('Edit Info')
-        with ui.tab_panels(panels, value=app.storage.user.get('player_selected_tab', 'Schedule')):
-            with ui.tab_panel('Schedule'):
-                render_player_dashboard(discord_id)
-
-            with ui.tab_panel('Edit Info'):
-                await render_edit_info_tab(discord_id)
+        tabs = [
+            {'label': 'Schedule', 'content': lambda: render_player_dashboard(discord_id)},
+            {'label': 'Edit Info', 'content': (render_edit_info_tab, None, {'discord_id': discord_id})},
+        ]
+        await BaseLayout(tabs=tabs).render()
 
     def on_tab_change(event) -> None:
         app.storage.user['player_selected_tab'] = event.value
@@ -58,14 +53,17 @@ def create() -> None:
 
     async def render_edit_info_tab(discord_id):
         ui.label('Edit Your Information').style('font-size: 2em; margin-bottom: 1em;')
+        ui.separator()
         from models import User, Tournament, TournamentPlayers
         user = await User.get(discord_id=discord_id)
         tournaments = await Tournament.filter(is_active=True)
         user_tournaments = await TournamentPlayers.filter(user=user)
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
-        display_name_hint = f"(default: {user.username})" if not user.display_name else ""
-        display_name_input = ui.input('Display Name', value=user.display_name or '', placeholder=display_name_hint)
+        with ui.card().style('padding: 1em;'):
+            display_name_hint = f"(default: {user.username})" if not user.display_name else ""
+            display_name_input = ui.input('Display Name', value=user.display_name or '', placeholder=display_name_hint)
+        ui.separator()
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
@@ -82,8 +80,10 @@ def create() -> None:
                     for _ in range(columns - len(row)):
                         ui.label('')
 
-        render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', columns=4)
-        render_tournament_grid(player_tournaments, 'Community Tournaments', columns=4)
+        with ui.card().style('padding: 1em;'):
+            render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', columns=4)
+        with ui.card().style('padding: 1em;'):
+            render_tournament_grid(player_tournaments, 'Community Tournaments', columns=4)
 
         async def save_info():
             user.display_name = display_name_input.value.strip()

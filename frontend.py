@@ -21,6 +21,7 @@ def init(fastapi_app: FastAPI) -> None:
         fastapi_app (FastAPI): The FastAPI application instance to integrate with NiceGUI.
     """
     auth_create()
+    admin.create()
     home.create()
     player.create()
     schedule.create()

@@ -6,8 +6,8 @@ from theme.tables.match import MatchTableView
 
 def create() -> None:
     @ui.page('/crew')
-    def crew():
-        BaseLayout()
+    async def crew():
+        await BaseLayout().render()
         ui.label('Crew Management').style('font-size: 2em; margin-bottom: 1em;')
 
         columns = [
