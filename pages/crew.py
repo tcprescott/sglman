@@ -6,7 +6,8 @@ import asyncio
 from theme.tables.match import MatchTableView
 
 def render_crew_dashboard():
-    ui.label('Available Matches for Crew Signup').style('font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('Available Matches for Crew Signup').style('font-size: 2em; margin-bottom: 1em;')
     discord_id = app.storage.user.get('discord_id', None)
     if not discord_id:
         with ui.row():

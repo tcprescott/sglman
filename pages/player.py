@@ -7,10 +7,12 @@ import asyncio
 from theme.tables.match import MatchTableView
 
 def render_player_dashboard():
-    ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')
     discord_id = app.storage.user.get('discord_id', None)
     if not discord_id:
-        ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
+        with ui.row():
+            ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
         return
 
     with ui.column().style('width: 100%;'):
@@ -39,7 +41,8 @@ def render_player_dashboard():
 
 
 async def render_edit_info_tab():
-    ui.label('Edit Your Information').style('font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('Edit Your Information').style('font-size: 2em; margin-bottom: 1em;')
     ui.separator()
     from models import User, Tournament, TournamentPlayers
     discord_id = app.storage.user.get('discord_id', None)

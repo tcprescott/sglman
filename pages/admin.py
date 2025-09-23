@@ -30,21 +30,24 @@ def create() -> None:
 
         # Define tab data model: label and content function
         tabs = [
-            {'label': 'Schedule Management', 'content': admin_schedule_page},
-            {'label': 'Players', 'content': admin_users_page},
+            {'label': 'Schedule', 'content': admin_schedule_page},
+            {'label': 'Users', 'content': admin_users_page},
             {'label': 'Tournaments', 'content': admin_tournaments_page},
+            {'label': 'Reports', 'content': lambda: ui.label('Reports section is under construction.').style('color: red; font-weight: bold;')},
             {'label': 'Settings', 'content': admin_settings_page},
         ]
 
         await BaseLayout(tabs=tabs, page_name='admin', user=user).render()
 
 def admin_settings_page() -> None:
-    ui.label('Settings Management').style('font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('Event Settings').style('font-size: 2em; margin-bottom: 1em;')
     ui.label('This section is under construction.').style(
         'color: red; font-weight: bold;')
 
 def admin_users_page() -> None:
-    ui.label('User Management').style('font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('User Management').style('font-size: 2em; margin-bottom: 1em;')
     columns = [
         {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
         {'name': 'username', 'label': 'Username', 'field': 'username'},
@@ -70,7 +73,8 @@ def admin_users_page() -> None:
     asyncio.create_task(table_view.refresh())
 
 def admin_tournaments_page() -> None:
-    ui.label('Tournament Management').style('font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('Tournament Management').style('font-size: 2em; margin-bottom: 1em;')
     columns = [
         {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
         {'name': 'name', 'label': 'Name', 'field': 'name'},
@@ -96,8 +100,8 @@ def admin_tournaments_page() -> None:
     asyncio.create_task(table_view.refresh())
 
 def admin_schedule_page() -> None:
-    ui.label('Schedule Management').style(
-        'font-size: 2em; margin-bottom: 1em;')
+    with ui.row().style('width: 100%;'):
+        ui.label('Schedule Management').style('font-size: 2em; margin-bottom: 1em;')
     with ui.column().style('width: 100%;'):
         columns = [
             {'name': 'edit', 'label': 'Edit', 'field': 'edit'},
