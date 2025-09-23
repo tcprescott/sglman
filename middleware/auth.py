@@ -38,10 +38,7 @@ def create() -> None:
     def login(client: Client) -> Optional[RedirectResponse]:
         if app.storage.user.get('authenticated', False):
             return RedirectResponse('/')
-        with ui.card().classes('absolute-center'):
-            with ui.link(target=config["OAUTH_URL"]):
-                ui.button('Login with Discord', icon='login')
-        return None
+        return RedirectResponse(config["OAUTH_URL"])
 
     @ui.page('/logout')
     def logout(client: Client) -> Optional[RedirectResponse]:

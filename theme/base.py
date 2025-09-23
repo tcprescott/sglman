@@ -14,17 +14,11 @@ class BaseLayout:
         if user and user.permission >= Permissions.TOURNAMENT_ADMIN:
             self.top_menu: list[tuple[str, str]] = [
                 ('Home', '/'),
-                ('Schedule', '/schedule'),
-                ('Player', '/player'),
-                ('Crew', '/crew'),
                 ('Admin', '/admin'),
             ]
         else:
             self.top_menu: list[tuple[str, str]] = [
                 ('Home', '/'),
-                ('Schedule', '/schedule'),
-                ('Player', '/player'),
-                ('Crew', '/crew'),
             ]
 
     async def render(self) -> None:
@@ -37,9 +31,9 @@ class BaseLayout:
 
             if app.storage.user.get('authenticated', False):
                 ui.label(f'Hello, {app.storage.user.get("username", "User")}!').classes('text-lg').style('margin-left: auto;')
-                ui.button(on_click=lambda: app.storage.user.clear() or ui.navigate.to('/logout'), icon='logout')
+                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout')
             else:
-                ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login').style('margin-left: auto;')
+                ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
 
         with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md') as footer:
             ui.label(self.copyright_text).classes('text-caption')
@@ -57,7 +51,7 @@ class BaseLayout:
             if app.storage.user.get('selected_tab') is None:
                 app.storage.user['selected_tab'] = {}
             app.storage.user['selected_tab'][self.page_name] = event.value
-        default_tab = app.storage.user.get('selected_tab', {}).get(self.page_name)
+        default_tab = app.storage.user.get('selected_tab', {}).get(self.page_name, tabs[0]['label'])
         with ui.splitter(value=10, limits=(10, 10)).classes('w-full h-full') as splitter:
             with splitter.before:
                 with ui.tabs(on_change=on_tab_change).props('vertical').classes('w-full') as panels:
