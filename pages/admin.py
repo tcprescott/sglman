@@ -113,7 +113,7 @@ def create() -> None:
                     'field': 'finished', 'filterable': True},
                 {'name': 'players', 'label': 'Players',
                     'field': 'players', 'filterable': True},
-                {'name': 'stream_room', 'label': 'Stream Room',
+                {'name': 'stream_room', 'label': 'Stage',
                     'field': 'stream_room', 'sortable': True, 'filterable': True, 'clickable': True},
                 {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
             ]

@@ -56,7 +56,7 @@ class MatchDialog:
             if self.discord_id is None:
                 stream_room_options = {None: '(None)'}
                 stream_room_options.update({s.id: s.name for s in stream_rooms})
-                selected_stream_room = ui.select(label='Stream Room', options=stream_room_options, value=default_stream_room, with_input=True)
+                selected_stream_room = ui.select(label='Stage', options=stream_room_options, value=default_stream_room, with_input=True)
 
             from models import TournamentPlayers
             async def get_opted_in_users(tournament_id):

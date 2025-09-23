@@ -14,7 +14,7 @@ class StreamRoomDialog(MatchDialog):
             stream_room_options = {None: '(None)'}
             stream_room_options.update({s.id: s.name for s in stream_rooms})
             selected_stream_room = ui.select(
-                label='Stream Room', options=stream_room_options, value=default_stream_room, with_input=True)
+                label='Stage', options=stream_room_options, value=default_stream_room, with_input=True)
 
             async def submit():
                 stream_room_id = selected_stream_room.value
@@ -22,7 +22,7 @@ class StreamRoomDialog(MatchDialog):
                 await Match.filter(id=self.match.id).update(stream_room_id=stream_room_id if stream_room_id else None)
                 self.match.stream_room_id = stream_room_id if stream_room_id else None
                 with self.dialog:
-                    ui.notify(f'Stream Room updated: {stream_room_id}', color='positive')
+                    ui.notify(f'Stage updated: {stream_room_id}', color='positive')
                     dialog.close()
                 if self.on_submit:
                     await self.on_submit(self.match)

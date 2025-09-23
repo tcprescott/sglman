@@ -16,7 +16,7 @@ def create() -> None:
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True, 'filterable': True},
             {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at', 'sortable': True, 'filterable': True},
             {'name': 'players', 'label': 'Players', 'field': 'players', 'filterable': True},
-            {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room', 'sortable': True, 'filterable': True},
+            {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room', 'sortable': True, 'filterable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
         ]
 
