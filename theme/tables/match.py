@@ -40,11 +40,30 @@ class MatchTableView:
         self.submit_match_callback = submit_match_callback
         self.table = None
         self.show_upcoming_checkbox = None
+        self.auto_refresh_checkbox = None
+        self._auto_refresh_task = None
         self._setup_ui()
 
     def _on_upcoming_change(self, *args, **kwargs):
         app.storage.show_only_upcoming_matches = self.show_upcoming_checkbox.value
         asyncio.create_task(self.refresh())
+
+    def _on_auto_refresh_change(self, *args, **kwargs):
+        if self.auto_refresh_checkbox.value:
+            if not self._auto_refresh_task:
+                self._auto_refresh_task = asyncio.create_task(self._auto_refresh_loop())
+        else:
+            if self._auto_refresh_task:
+                self._auto_refresh_task.cancel()
+                self._auto_refresh_task = None
+
+    async def _auto_refresh_loop(self):
+        try:
+            while self.auto_refresh_checkbox.value:
+                await self.refresh()
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
 
     def _setup_ui(self):
         with ui.row().style('width: 100%;'):
@@ -52,9 +71,13 @@ class MatchTableView:
                 ui.button('Create Match' if self.admin_controls else 'Request Match', on_click=self.submit_match_callback)
             # Use app.storage to persist checkbox state
             default_value = getattr(app.storage, 'show_only_upcoming_matches', True)
-            self.show_upcoming_checkbox = ui.checkbox(
-                'Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
+            self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
+            ui.space()
+            if self.admin_controls:
+                self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
             ui.button('Refresh', on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+        if self.auto_refresh_checkbox:
+            self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
 
         ui.add_head_html("""
         <style>
@@ -98,13 +121,22 @@ class MatchTableView:
                 self.table.add_slot(slot_name, slot_template)
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable player names
-        self.table.add_slot('body-cell-players', '''<q-td :props="props">
-            <span>
-                <template v-for="(name, idx) in props.value">
-                    <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
-                </template>
-            </span>
-        </q-td>''')
+        if self.admin_controls:
+            self.table.add_slot('body-cell-players', '''<q-td :props="props">
+                <span>
+                    <template v-for="(name, idx) in props.value">
+                        <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
+                    </template>
+                </span>
+            </q-td>''')
+        else:
+            self.table.add_slot('body-cell-players', '''<q-td :props="props">
+                <span>
+                    <template v-for="(name, idx) in props.value">
+                        <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span>
+                    </template>
+                </span>
+            </q-td>''')
         for role in ['commentators', 'trackers']:
             self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
                 <span>
