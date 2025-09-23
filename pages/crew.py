@@ -36,23 +36,19 @@ def create() -> None:
                 {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
             ]
 
-            extra_slots = {
-                'body-cell-commentators': '''<q-td :props="props">
+            def slot_template(role):
+                return f'''<q-td :props="props">
                     <span>
+                        <q-btn v-if="props.value.some(item => item[2] === {discord_id})" icon="undo" color="negative" size="sm" @click="$parent.$emit('undo_{role}', props.row)" style="margin-left: 8px;" />
+                        <q-btn v-if="!props.value.some(item => item[2] === {discord_id})" icon="assignment" color="primary" size="sm" @click="$parent.$emit('signup_{role}', props.row)" style="margin-left: 8px;" />
                         <template v-for="(item, idx) in props.value">
-                            <span v-if="item[1]" style="margin-right: 4px;">{{ item[0] }}</span>
+                            <span v-if="item[1]" style="margin-right: 4px;">{{{{ item[0] }}}}</span>
                         </template>
-                        <q-btn label="Sign Up" color="primary" size="sm" @click="$parent.$emit('signup_commentator', props.row)" style="margin-left: 8px;" />
-                    </span>
-                </q-td>''',
-                'body-cell-trackers': '''<q-td :props="props">
-                    <span>
-                        <template v-for="(item, idx) in props.value">
-                            <span v-if="item[1]" style="margin-right: 4px;">{{ item[0] }}</span>
-                        </template>
-                        <q-btn label="Sign Up" color="primary" size="sm" @click="$parent.$emit('signup_tracker', props.row)" style="margin-left: 8px;" />
                     </span>
                 </q-td>'''
+            extra_slots = {
+                'body-cell-commentators': slot_template('commentator'),
+                'body-cell-trackers': slot_template('tracker'),
             }
 
             def get_query():

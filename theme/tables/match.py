@@ -11,8 +11,8 @@ class MatchTableView:
         Build a row dict for a match object.
         """
         player_names = [p.user.preferred_name for p in m.players]
-        commentator_names = [(c.user.preferred_name, c.approved) for c in m.commentators]
-        tracker_names = [(t.user.preferred_name, t.approved) for t in m.trackers]
+        commentator_names = [(c.user.preferred_name, c.approved, c.user.discord_id) for c in m.commentators]
+        tracker_names = [(t.user.preferred_name, t.approved, t.user.discord_id) for t in m.trackers]
         row = {
             'id': m.id,
             'tournament': m.tournament.name if m.tournament else '',
@@ -183,15 +183,13 @@ class MatchTableView:
             self.table.on(f"edit_{role}", lambda event, r=role: handle_approve_role(r, event))
 
 
-
-        # Signup handlers for commentators and trackers
         from theme.dialog import ConfirmationDialog
-        async def handle_signup_role(role, row):
-            # role: 'commentator' or 'tracker'
+        async def handle_signup_or_undo_role(action, role, row):
+            # action: 'signup' or 'undo', role: 'commentator' or 'tracker'
             from models import Match, User
             discord_id = app.storage.user.get('discord_id', None)
             if not discord_id:
-                ui.notify('You must be logged in to sign up.', color='warning')
+                ui.notify(f'You must be logged in to {action}.', color='warning')
                 return
             user = await User.get(discord_id=discord_id)
             match_query = self.get_query()
@@ -199,31 +197,42 @@ class MatchTableView:
             if not match:
                 ui.notify('Match not found.', color='warning')
                 return
-            async def update_role_signup():
-                attr_map = {
-                    'commentator': 'commentators',
-                    'tracker': 'trackers',
-                }
-                if role not in attr_map:
-                    ui.notify(f'Unknown role: {role}', color='warning')
+            attr_map = {
+                'commentator': 'commentators',
+                'tracker': 'trackers',
+            }
+            if role not in attr_map:
+                ui.notify(f'Unknown role: {role}', color='warning')
+                return
+            crew_list = getattr(match, attr_map[role], [])
+            if action == 'undo':
+                crew_member = next((c for c in crew_list if c.user_id == user.id), None)
+                if not crew_member:
+                    ui.notify(f'You are not signed up as a {role} for this match.', color='info')
                     return
-                crew_list = getattr(match, attr_map[role], [])
-                if any(c.user_id == user.id for c in crew_list):
-                    ui.notify(f'You are already signed up as a {role} for this match.', color='info')
-                    return
-                model_map = {
-                    'commentator': Commentator,
-                    'tracker': Tracker,
-                }
-                new_crew = model_map.get(role)(match=match, user=user, approved=False)
-                await new_crew.save()
-                ui.notify(f'Successfully signed up as a {role} for match ID {match.id}. Awaiting approval.', color='positive')
+                await crew_member.delete()
+                ui.notify(f'You have been removed as a {role} for match ID {match.id}.', color='positive')
                 await self.update_row_by_id(match.id)
-                dialog.dialog.close()
-            dialog = ConfirmationDialog(f'Do you want to sign up as a {role} for match ID {match.id}?', confirm_text='Yes', cancel_text='No', on_confirm=update_role_signup)
-            dialog.open()
-        self.table.on('signup_commentator', lambda event: handle_signup_role('commentator', event.args))
-        self.table.on('signup_tracker', lambda event: handle_signup_role('tracker', event.args))
+            elif action == 'signup':
+                async def update_role_signup():
+                    if any(c.user_id == user.id for c in crew_list):
+                        ui.notify(f'You are already signed up as a {role} for this match.', color='info')
+                        return
+                    model_map = {
+                        'commentator': Commentator,
+                        'tracker': Tracker,
+                    }
+                    new_crew = model_map.get(role)(match=match, user=user, approved=False)
+                    await new_crew.save()
+                    ui.notify(f'Successfully signed up as a {role} for match ID {match.id}. Awaiting approval.', color='positive')
+                    await self.update_row_by_id(match.id)
+                    dialog.dialog.close()
+                dialog = ConfirmationDialog(f'Do you want to sign up as a {role} for match ID {match.id}?', confirm_text='Yes', cancel_text='No', on_confirm=update_role_signup)
+                dialog.open()
+        self.table.on('signup_commentator', lambda event: handle_signup_or_undo_role('signup', 'commentator', event.args))
+        self.table.on('signup_tracker', lambda event: handle_signup_or_undo_role('signup', 'tracker', event.args))
+        self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
+        self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
 
     async def refresh(self, *args, **kwargs):
         match_query = self.get_query()
