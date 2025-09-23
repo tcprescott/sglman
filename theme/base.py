@@ -3,7 +3,7 @@ from typing import Callable as func
 from models import Permissions, User
 
 class BaseLayout:
-    def __init__(self, page_name, site_name: str = "SpeedGaming Live Administration System", logo_url: str = None, copyright_text: str = "© 2025 SGLMan", tabs: list = None, user: User = None):
+    def __init__(self, page_name, site_name: str = "SpeedGaming Live On Site", logo_url: str = None, copyright_text: str = "© 2025 Thomas Prescott", tabs: list = None, user: User = None):
         self.site_name = site_name
         self.logo_url = logo_url
         self.copyright_text = copyright_text
