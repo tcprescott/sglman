@@ -52,11 +52,11 @@ class BaseLayout:
                 app.storage.user['selected_tab'] = {}
             app.storage.user['selected_tab'][self.page_name] = event.value
         default_tab = app.storage.user.get('selected_tab', {}).get(self.page_name, tabs[0]['label'])
-        with ui.splitter(value=10, limits=(10, 10)).classes('w-full h-full') as splitter:
+        with ui.splitter(value=5, limits=(5, 5)).classes('w-full h-full') as splitter:
             with splitter.before:
                 with ui.tabs(on_change=on_tab_change).props('vertical').classes('w-full') as panels:
                     for tab in tabs:
-                        ui.tab(tab['label'])
+                        ui.tab(tab['label'], icon=tab.get('icon', None))
             with splitter.after:
                 with ui.tab_panels(panels, value=default_tab):
                     for tab in tabs:

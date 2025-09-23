@@ -11,9 +11,9 @@ def create() -> None:
         discord_id = app.storage.user.get('discord_id', None)
         user = await User.get_or_none(discord_id=discord_id)
         tabs = [
-            {'label': 'Event Schedule', 'content': schedule},
-            {'label': 'Your Matches', 'content': render_player_dashboard},
-            {'label': 'Crew Signup', 'content': render_crew_dashboard},
-            {'label': 'Your Information', 'content': render_edit_info_tab},
+            {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
+            {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
+            {'label': 'Crew', 'icon': 'handyman', 'content': render_crew_dashboard},
+            {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
         ]
         await BaseLayout(tabs=tabs, page_name='home', user=user).render()

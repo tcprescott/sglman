@@ -30,11 +30,10 @@ def create() -> None:
 
         # Define tab data model: label and content function
         tabs = [
-            {'label': 'Schedule', 'content': admin_schedule_page},
-            {'label': 'Users', 'content': admin_users_page},
-            {'label': 'Tournaments', 'content': admin_tournaments_page},
-            {'label': 'Reports', 'content': lambda: ui.label('Reports section is under construction.').style('color: red; font-weight: bold;')},
-            {'label': 'Settings', 'content': admin_settings_page},
+            {'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page},
+            {'label': 'Users', 'icon': 'people', 'content': admin_users_page},
+            {'label': 'Reports', 'icon': 'report', 'content': lambda: ui.label('Reports section is under construction.').style('color: red; font-weight: bold;')},
+            {'label': 'Settings', 'icon': 'settings', 'content': admin_settings_page},
         ]
 
         await BaseLayout(tabs=tabs, page_name='admin', user=user).render()
@@ -44,6 +43,7 @@ def admin_settings_page() -> None:
         ui.label('Event Settings').style('font-size: 2em; margin-bottom: 1em;')
     ui.label('This section is under construction.').style(
         'color: red; font-weight: bold;')
+    admin_tournaments_page()
 
 def admin_users_page() -> None:
     with ui.row().style('width: 100%;'):
