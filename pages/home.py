@@ -9,4 +9,4 @@ def create() -> None:
         if not discord_id:
             ui.label('Welcome to SGLMan! Please log in to access more features.').style('font-size: 1.5em; margin-bottom: 1em;')
         user = await User.get_or_none(discord_id=discord_id)
-        await BaseLayout(page_name='home', is_admin=user and user.permission >= Permissions.TOURNAMENT_ADMIN).render()
+        await BaseLayout(page_name='home', user=user).render()

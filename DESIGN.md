@@ -1,9 +1,11 @@
 # This application requires the following, with the higher requirements being the most important.
 
 1. ~~Allow a user to submit a match for a tournament.~~
-4. Provide a general information page for all users to view.
-5. ~~Allow matches to be assigned to a stream room.~~
-6. Allow crew to sign up, and for privledged users to be able to able to approve crew.
+2. Provide a general information page for all users to view.
+3. ~~Allow matches to be assigned to a stream room.~~
+4. API endpoint with matches scheduled for a stream room, include crew information.
+5. Rename "StreamRoom" to "Stage".  There are four stages (Stage 1, Stage 2, Stage 3, and Stage 4)
+6. Add crew signup system (Commentators and Trackers)
 
 ## Pages
 

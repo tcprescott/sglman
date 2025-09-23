@@ -35,4 +35,4 @@ def create() -> None:
 
         # Initial table load
         await table_view.refresh()
-        await BaseLayout(page_name='schedule', is_admin=user and user.permission >= Permissions.TOURNAMENT_ADMIN).render()
+        await BaseLayout(page_name='schedule', user=user).render()

@@ -20,7 +20,7 @@ def create() -> None:
             {'label': 'Schedule', 'content': (render_player_dashboard, None, {'discord_id': discord_id})},
             {'label': 'Edit Info', 'content': (render_edit_info_tab, None, {'discord_id': discord_id})},
         ]
-        await BaseLayout(tabs=tabs, page_name='player', is_admin=user.permission >= Permissions.TOURNAMENT_ADMIN).render()
+        await BaseLayout(tabs=tabs, page_name='player', user=user).render()
 
     def render_player_dashboard(discord_id):
         ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')
