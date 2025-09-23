@@ -45,6 +45,7 @@ class MatchDialog:
             comment_value = ''
             default_stream_room = None
 
+
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
             if self.discord_id is not None and not tournaments:
@@ -70,12 +71,19 @@ class MatchDialog:
                     selected_players = ui.select(label='Players', options={}, value=player_ids, multiple=True, with_input=True)
                     selected_players.disable()
                     choose_any_players = ui.checkbox('Choose any players', value=False)
+                    # Add dropdowns for commentators and trackers
+                    # Pre-fill for edit mode
+                    commentator_ids = [c.user_id for c in await self.match.commentators] if self.match else []
+                    tracker_ids = [t.user_id for t in await self.match.trackers] if self.match else []
+                    selected_commentators = ui.select(label='Commentators', options={u.id: u.preferred_name for u in users}, value=commentator_ids, multiple=True, with_input=True)
+                    selected_trackers = ui.select(label='Trackers', options={u.id: u.preferred_name for u in users}, value=tracker_ids, multiple=True, with_input=True)
                 else:
                     opponent_options = {}
                     selected_opponent = ui.select(label='Opponent', options=opponent_options, with_input=True)
                     selected_opponent.disable()
+                    # For player edit, you may want to add single commentator/tracker selection if needed
 
-            async def update_selection_options(e):
+            async def update_selection_options():
                 tournament_id = selected_tournament.value
                 if self.discord_id is None:
                     if choose_any_players.value and tournament_id:
@@ -99,9 +107,11 @@ class MatchDialog:
                     else:
                         selected_opponent.options = {}
                         selected_opponent.disable()
-            selected_tournament.on('update:model-value', lambda e: asyncio.create_task(update_selection_options(e)))
+
+            await update_selection_options()  # Initialize options based on default tournament
+            selected_tournament.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
             if self.discord_id is None:
-                choose_any_players.on('update:model-value', lambda e: asyncio.create_task(update_selection_options(e)))
+                choose_any_players.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
 
             with ui.row().classes('justify-between items-center').style('margin-bottom: 1em;'):
                 with ui.input('Date (YYYY-MM-DD)', value=default_date) as date:
@@ -152,10 +162,14 @@ class MatchDialog:
                 # Determine player IDs
                 if self.discord_id is None:
                     new_player_ids = selected_players.value if isinstance(selected_players.value, list) else [selected_players.value]
+                    new_commentator_ids = selected_commentators.value if isinstance(selected_commentators.value, list) else [selected_commentators.value]
+                    new_tracker_ids = selected_trackers.value if isinstance(selected_trackers.value, list) else [selected_trackers.value]
                 else:
                     opponent_id = selected_opponent.value
                     user = await User.get(discord_id=self.discord_id)
                     new_player_ids = [user.id, opponent_id] if opponent_id else []
+                    new_commentator_ids = []
+                    new_tracker_ids = []
 
                 # Validation
                 if self.match:
@@ -204,8 +218,18 @@ class MatchDialog:
                     for pid in new_player_ids:
                         user = await User.get(id=pid)
                         await MatchPlayers.create(match=self.match, user=user)
+                    # Update commentators and trackers
+                    from models import Commentator, Tracker
+                    await Commentator.filter(match=self.match).delete()
+                    for cid in new_commentator_ids:
+                        user = await User.get(id=cid)
+                        await Commentator.create(match=self.match, user=user, approved=True)
+                    await Tracker.filter(match=self.match).delete()
+                    for tid in new_tracker_ids:
+                        user = await User.get(id=tid)
+                        await Tracker.create(match=self.match, user=user, approved=True)
                     with self.dialog:
-                        ui.notify(f'Match updated: Players={new_player_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}, StreamRoom={stream_room_id}', color='positive')
+                        ui.notify(f'Match updated: Players={new_player_ids}, Commentators={new_commentator_ids}, Trackers={new_tracker_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}, StreamRoom={stream_room_id}', color='positive')
                         dialog.close()
                     if self.on_submit:
                         await self.on_submit(self.match)
