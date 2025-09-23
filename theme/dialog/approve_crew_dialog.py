@@ -25,9 +25,9 @@ class ApproveCrewDialog:
                     await self.crew_member.save()
                     ui.notify(f"{self.crew_type.capitalize()} approval updated.", color='positive')
                     if self.on_approve:
-                        await self.on_approve(self.crew_member)
+                        await self.on_approve()
                     self.dialog.close()
                 with ui.row().style('margin-top: 1em;'):
                     ui.button('Save', color='green', on_click=save)
-                    ui.button('Cancel', color='grey', on_click=lambda: self.dialog.close())
+                    ui.button('Cancel', color='grey', on_click=self.dialog.close)
         await self.dialog.open()

@@ -11,8 +11,8 @@ class MatchTableView:
         Build a row dict for a match object.
         """
         player_names = [p.user.preferred_name for p in m.players]
-        commentator_names = [c.user.preferred_name for c in m.commentators]
-        tracker_names = [t.user.preferred_name for t in m.trackers]
+        commentator_names = [(c.user.preferred_name, c.approved) for c in m.commentators]
+        tracker_names = [(t.user.preferred_name, t.approved) for t in m.trackers]
         row = {
             'id': m.id,
             'tournament': m.tournament.name if m.tournament else '',
@@ -98,11 +98,21 @@ class MatchTableView:
                 self.table.add_slot(slot_name, slot_template)
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable player names
-        for role in ['players', 'commentators', 'trackers']:
+        self.table.add_slot('body-cell-players', '''<q-td :props="props">
+            <span>
+                <template v-for="(name, idx) in props.value">
+                    <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
+                </template>
+            </span>
+        </q-td>''')
+        for role in ['commentators', 'trackers']:
             self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
                 <span>
-                    <template v-for="(name, idx) in props.value">
-                        <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{{{ name }}}}</a>
+                    <template v-for="(item, idx) in props.value">
+                        <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})"
+                           :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
+                            {{{{ item[0] }}}}
+                        </a>
                     </template>
                 </span>
             </q-td>''')
@@ -170,7 +180,7 @@ class MatchTableView:
         for role in ['player']:
             self.table.on(f'edit_{role}', lambda event, r=role: handle_edit_role(r, event))
         for role in ['commentator', 'tracker']:
-            self.table.on(f'approve_{role}', lambda event, r=role: handle_approve_role(r, event))
+            self.table.on(f"edit_{role}", lambda event, r=role: handle_approve_role(r, event))
 
 
 

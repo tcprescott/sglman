@@ -39,16 +39,16 @@ def create() -> None:
             extra_slots = {
                 'body-cell-commentators': '''<q-td :props="props">
                     <span>
-                        <template v-for="(name, idx) in props.value">
-                            <span style="margin-right: 4px;">{{ name }}</span>
+                        <template v-for="(item, idx) in props.value">
+                            <span v-if="item[1]" style="margin-right: 4px;">{{ item[0] }}</span>
                         </template>
                         <q-btn label="Sign Up" color="primary" size="sm" @click="$parent.$emit('signup_commentator', props.row)" style="margin-left: 8px;" />
                     </span>
                 </q-td>''',
                 'body-cell-trackers': '''<q-td :props="props">
                     <span>
-                        <template v-for="(name, idx) in props.value">
-                            <span style="margin-right: 4px;">{{ name }}</span>
+                        <template v-for="(item, idx) in props.value">
+                            <span v-if="item[1]" style="margin-right: 4px;">{{ item[0] }}</span>
                         </template>
                         <q-btn label="Sign Up" color="primary" size="sm" @click="$parent.$emit('signup_tracker', props.row)" style="margin-left: 8px;" />
                     </span>
