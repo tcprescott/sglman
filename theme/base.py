@@ -16,6 +16,7 @@ class BaseLayout:
                 ('Home', '/'),
                 ('Schedule', '/schedule'),
                 ('Player', '/player'),
+                ('Crew', '/crew'),
                 ('Admin', '/admin'),
             ]
         else:
@@ -23,6 +24,7 @@ class BaseLayout:
                 ('Home', '/'),
                 ('Schedule', '/schedule'),
                 ('Player', '/player'),
+                ('Crew', '/crew'),
             ]
 
     async def render(self) -> None:

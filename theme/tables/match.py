@@ -1,10 +1,35 @@
 from nicegui import ui, app
 import asyncio
+from models import Tracker, Commentator
 
 # TODO: Implement server-side pagination, sorting, and filtering for large datasets
 
 
 class MatchTableView:
+    def _build_row(self, m):
+        """
+        Build a row dict for a match object.
+        """
+        player_names = [p.user.preferred_name for p in m.players]
+        commentator_names = [c.user.preferred_name for c in m.commentators]
+        tracker_names = [t.user.preferred_name for t in m.trackers]
+        row = {
+            'id': m.id,
+            'tournament': m.tournament.name if m.tournament else '',
+            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
+            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
+            'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else '',
+            'players': player_names,
+            'stream_room': m.stream_room.name if m.stream_room else '',
+            'seed': m.generated_seed.seed_url if m.generated_seed else '',
+            'generated_seed': m.generated_seed.seed_url if m.generated_seed else '',
+            'tournament_seed_generator': m.tournament.seed_generator if m.tournament else None,
+            'commentators': commentator_names,
+            'trackers': tracker_names,
+        }
+        if self.admin_controls:
+            row['actions'] = ''
+        return row
     """Encapsulates the match table UI and logic for admin/player dashboards."""
 
     def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None):
@@ -73,59 +98,131 @@ class MatchTableView:
                 self.table.add_slot(slot_name, slot_template)
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable player names
-        self.table.add_slot('body-cell-players', '''<q-td :props="props">
-            <span>
-                <template v-for="(name, idx) in props.value.split(', ')">
-                    <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
-                </template>
-            </span>
-        </q-td>''')
+        for role in ['players', 'commentators', 'trackers']:
+            self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                <span>
+                    <template v-for="(name, idx) in props.value">
+                        <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{{{ name }}}}</a>
+                    </template>
+                </span>
+            </q-td>''')
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
         # Handler for editing a player
 
-        async def handle_edit_player(event):
+        async def handle_edit_role(role, event):
             row = event.args['row']
             idx = event.args['idx']
             match_id = row['id']
             match_query = self.get_query()
-            m = await match_query.filter(id=match_id).prefetch_related('players', 'players__user').first()
-            if not m or idx >= len(m.players):
-                ui.notify('Player not found.', color='warning')
+            prefetch_map = {
+                'player': ('players', 'players__user'),
+                'commentator': ('commentators', 'commentators__user'),
+                'tracker': ('trackers', 'trackers__user'),
+            }
+            attr_map = {
+                'player': 'players',
+                'commentator': 'commentators',
+                'tracker': 'trackers',
+            }
+            if role not in prefetch_map:
+                ui.notify(f'Unknown role: {role}', color='warning')
+                return
+            m = await match_query.filter(id=match_id).prefetch_related(*prefetch_map[role]).first()
+            items = getattr(m, attr_map[role], []) if m else []
+            if not m or idx >= len(items):
+                ui.notify(f'{role.capitalize()} not found.', color='warning')
                 return
             from theme.dialog import UserDialog
-            user = m.players[idx].user
+            user = items[idx].user
             dialog = UserDialog(user)
             await dialog.open()
-        self.table.on('edit_player', handle_edit_player)
+
+        async def handle_approve_role(role, event):
+            row = event.args['row']
+            idx = event.args['idx']
+            match_id = row['id']
+            match_query = self.get_query()
+            prefetch_map = {
+                'player': ('players', 'players__user'),
+                'commentator': ('commentators', 'commentators__user'),
+                'tracker': ('trackers', 'trackers__user'),
+            }
+            attr_map = {
+                'player': 'players',
+                'commentator': 'commentators',
+                'tracker': 'trackers',
+            }
+            if role not in prefetch_map:
+                ui.notify(f'Unknown role: {role}', color='warning')
+                return
+            m = await match_query.filter(id=match_id).prefetch_related(*prefetch_map[role]).first()
+            items = getattr(m, attr_map[role], []) if m else []
+            if not m or idx >= len(items):
+                ui.notify(f'{role.capitalize()} not found.', color='warning')
+                return
+            from theme.dialog import ApproveCrewDialog
+            crew_member = items[idx]
+            dialog = ApproveCrewDialog(crew_member, role, on_approve=lambda: self.update_row_by_id(match_id))
+            await dialog.open()
+
+        for role in ['player']:
+            self.table.on(f'edit_{role}', lambda event, r=role: handle_edit_role(r, event))
+        for role in ['commentator', 'tracker']:
+            self.table.on(f'approve_{role}', lambda event, r=role: handle_approve_role(r, event))
+
+
+
+        # Signup handlers for commentators and trackers
+        from theme.dialog import ConfirmationDialog
+        async def handle_signup_role(role, row):
+            # role: 'commentator' or 'tracker'
+            from models import Match, User
+            discord_id = app.storage.user.get('discord_id', None)
+            if not discord_id:
+                ui.notify('You must be logged in to sign up.', color='warning')
+                return
+            user = await User.get(discord_id=discord_id)
+            match_query = self.get_query()
+            match = await match_query.filter(id=row['id']).first().prefetch_related('tournament', role + 's', role + 's__user')
+            if not match:
+                ui.notify('Match not found.', color='warning')
+                return
+            async def update_role_signup():
+                attr_map = {
+                    'commentator': 'commentators',
+                    'tracker': 'trackers',
+                }
+                if role not in attr_map:
+                    ui.notify(f'Unknown role: {role}', color='warning')
+                    return
+                crew_list = getattr(match, attr_map[role], [])
+                if any(c.user_id == user.id for c in crew_list):
+                    ui.notify(f'You are already signed up as a {role} for this match.', color='info')
+                    return
+                model_map = {
+                    'commentator': Commentator,
+                    'tracker': Tracker,
+                }
+                new_crew = model_map.get(role)(match=match, user=user, approved=False)
+                await new_crew.save()
+                ui.notify(f'Successfully signed up as a {role} for match ID {match.id}. Awaiting approval.', color='positive')
+                await self.update_row_by_id(match.id)
+                dialog.dialog.close()
+            dialog = ConfirmationDialog(f'Do you want to sign up as a {role} for match ID {match.id}?', confirm_text='Yes', cancel_text='No', on_confirm=update_role_signup)
+            dialog.open()
+        self.table.on('signup_commentator', lambda event: handle_signup_role('commentator', event.args))
+        self.table.on('signup_tracker', lambda event: handle_signup_role('tracker', event.args))
 
     async def refresh(self, *args, **kwargs):
         match_query = self.get_query()
         if self.show_upcoming_checkbox.value:
             match_query = match_query.filter(finished_at__isnull=True)
         all_matches = await match_query.prefetch_related(
-            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
+            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).order_by('scheduled_at')
-        rows = []
-        for m in all_matches:
-            player_names = ', '.join(
-                [p.user.preferred_name for p in m.players])
-            row = {
-                'id': m.id,
-                'tournament': m.tournament.name if m.tournament else '',
-                'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-                'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
-                'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else '',
-                'players': player_names,
-                'stream_room': m.stream_room.name if m.stream_room else '',
-                'seed': m.generated_seed.seed_url if m.generated_seed else '',
-                'generated_seed': m.generated_seed.seed_url if m.generated_seed else '',
-                'tournament_seed_generator': m.tournament.seed_generator if m.tournament else None,
-            }
-            if self.admin_controls:
-                row['actions'] = ''
-            rows.append(row)
+        rows = [self._build_row(m) for m in all_matches]
         self.table.rows = rows
         self.table.update()
 
@@ -146,28 +243,14 @@ class MatchTableView:
         # Query for the match object
         match_query = self.get_query()
         m = await match_query.filter(id=match_id).prefetch_related(
-            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed'
+            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).first()
         if not m:
             # Match not found, delete the row from the table
             del self.table.rows[idx]
             self.table.update()
             return
-        player_names = ', '.join([p.user.username for p in m.players])
-        row = {
-            'id': m.id,
-            'tournament': m.tournament.name if m.tournament else '',
-            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
-            'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else '',
-            'players': player_names,
-            'stream_room': m.stream_room.name if m.stream_room else '',
-            'seed': m.generated_seed.seed_url if m.generated_seed else '',
-            'generated_seed': m.generated_seed.seed_url if m.generated_seed else '',
-            'tournament_seed_generator': m.tournament.seed_generator if m.tournament else None,
-        }
-        if self.admin_controls:
-            row['actions'] = ''
+        row = self._build_row(m)
         self.table.rows[idx] = row
         self.table.update()
 

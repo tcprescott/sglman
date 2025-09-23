@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from nicegui import ui, app
 
-from pages import home, schedule, player, admin
+from pages import home, schedule, player, admin, crew
 
 from middleware.auth import AuthMiddleware, create as auth_create
 
@@ -26,6 +26,7 @@ def init(fastapi_app: FastAPI) -> None:
     home.create()
     player.create()
     schedule.create()
+    crew.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root
