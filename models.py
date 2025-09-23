@@ -15,6 +15,7 @@ class User(Model):
     updated_at = fields.DatetimeField(auto_now=True)
     username = fields.CharField(max_length=150)
     display_name = fields.CharField(max_length=150, null=True)
+    pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
     permission = fields.IntEnumField(Permissions, default=Permissions.USER.value)
 

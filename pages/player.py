@@ -62,6 +62,7 @@ def create() -> None:
         with ui.card().style('padding: 1em;'):
             display_name_hint = f"(default: {user.username})" if not user.display_name else ""
             display_name_input = ui.input('Display Name', value=user.display_name or '', placeholder=display_name_hint)
+            pronouns_input = ui.input('Pronouns', value=user.pronouns or '', placeholder='e.g. they/them')
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
@@ -86,6 +87,7 @@ def create() -> None:
 
         async def save_info():
             user.display_name = display_name_input.value.strip()
+            user.pronouns = pronouns_input.value.strip()
             await user.save()
             # Update tournaments
             selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)

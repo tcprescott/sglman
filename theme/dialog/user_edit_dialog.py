@@ -18,6 +18,7 @@ class UserDialog:
             self.dialog = dialog
             username_input = ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
             display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
+            pronouns_input = ui.input('Pronouns', value=self.user.pronouns if self.user else '')
             is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
             discord_id_input = ui.input('Discord ID', value=self.user.discord_id if self.user else '') if not self.user else None
             permission_select = ui.select(label='Permission', options={0: 'User', 1: 'Tournament Admin', 2: 'Superadmin'}, value=self.user.permission if self.user else 0)
@@ -45,6 +46,7 @@ class UserDialog:
                         return
                     with self.dialog:
                         self.user.display_name = display_name_input.value
+                        self.user.pronouns = pronouns_input.value
                         self.user.is_active = is_active_checkbox.value
                         self.user.permission = permission_select.value
                         await self.user.save()
@@ -71,6 +73,7 @@ class UserDialog:
                     is_active = is_active_checkbox.value
                     permission = permission_select.value
                     discord_id = discord_id_input.value if discord_id_input else None
+                    pronouns = pronouns_input.value
 
                     if not username:
                         with self.dialog:
@@ -79,6 +82,7 @@ class UserDialog:
                     new_user = await User.create(
                         username=username,
                         display_name=display_name,
+                        pronouns=pronouns,
                         is_active=is_active,
                         permission=permission,
                         discord_id=discord_id
