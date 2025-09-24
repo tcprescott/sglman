@@ -17,7 +17,7 @@ from theme.tables.user import UserTableView
 
 def create() -> None:
     @ui.page('/admin')
-    async def admin_dashboard_page() -> None:
+    async def admin_dashboard_page(tab: str = None) -> None:
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.row():
@@ -40,7 +40,7 @@ def create() -> None:
         ]
 
         start = time.perf_counter()
-        base_layout = BaseLayout(tabs=tabs, page_name='admin', user=user)
+        base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user)
         checkpoint1 = time.perf_counter()
         print(f"BaseLayout initialized in {checkpoint1 - start:.2f} seconds.")
         await base_layout.render()

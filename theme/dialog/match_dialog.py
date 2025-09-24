@@ -4,7 +4,7 @@ from datetime import datetime
 from nicegui import ui
 
 from app_logic.match import create_match
-from models import Match, MatchPlayers, StreamRoom, Tournament, User
+from models import Match, MatchPlayers, StreamRoom, Tournament, User, TournamentPlayers
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -20,9 +20,9 @@ class MatchDialog:
         self._initial_updated_at = match.updated_at if match else None
 
     async def open(self):
-        from models import Tournament, TournamentPlayers
         users = await User.all().order_by('username')
         stream_rooms = await StreamRoom.all().order_by('name')
+        show_all_tournaments = None
         if self.discord_id is not None:
             user = await User.get(discord_id=self.discord_id)
             user_tournament_links = await TournamentPlayers.filter(user=user)
@@ -56,12 +56,13 @@ class MatchDialog:
                 dialog.open()
                 return
             selected_tournament = ui.select(label='Tournament', options={t.id: t.name for t in tournaments}, value=default_tournament, with_input=True)
+            if self.discord_id is not None:
+                show_all_tournaments = ui.checkbox('Show all tournaments', value=False)
             if self.discord_id is None:
                 stream_room_options = {None: '(None)'}
                 stream_room_options.update({s.id: s.name for s in stream_rooms})
                 selected_stream_room = ui.select(label='Stage', options=stream_room_options, value=default_stream_room, with_input=True)
 
-            from models import TournamentPlayers
             async def get_opted_in_users(tournament_id):
                 links = await TournamentPlayers.filter(tournament_id=tournament_id)
                 user_ids = [tp.user_id for tp in links]
@@ -101,6 +102,11 @@ class MatchDialog:
                         selected_players.options = {}
                         selected_players.disable()
                 else:
+                    # If show_all_tournaments is checked, show all tournaments
+                    tournaments_list = await Tournament.all().order_by('name') if show_all_tournaments and show_all_tournaments.value else tournaments
+                    selected_tournament.disable()
+                    selected_tournament.options = {t.id: t.name for t in tournaments_list}
+                    selected_tournament.enable()
                     if tournament_id:
                         selected_opponent.disable()
                         opted_in_users = await get_opted_in_users(tournament_id)
@@ -114,6 +120,8 @@ class MatchDialog:
             selected_tournament.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
             if self.discord_id is None:
                 choose_any_players.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
+            else:
+                show_all_tournaments.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
 
             with ui.row().classes('justify-between items-center').style('margin-bottom: 1em;'):
                 with ui.input('Date (YYYY-MM-DD)', value=default_date) as date:
@@ -172,6 +180,9 @@ class MatchDialog:
                     new_player_ids = [user.id, opponent_id] if opponent_id else []
                     new_commentator_ids = []
                     new_tracker_ids = []
+                    already_opted_in = await TournamentPlayers.filter(user=user, tournament_id=tournament_id).exists()
+                    if not already_opted_in:
+                        await TournamentPlayers.create(user=user, tournament_id=tournament_id)
 
                 # Validation
                 if self.match:
@@ -184,9 +195,6 @@ class MatchDialog:
                         with self.dialog:
                             ui.notify('Please select at least two players and fill all fields.', color='warning')
                         return
-
-                # Create or update match
-                from models import Tournament, TournamentPlayers
 
                 # Ensure all submitted players are enrolled in TournamentPlayers for this tournament
                 existing_links = await TournamentPlayers.filter(tournament_id=tournament_id)
@@ -251,7 +259,7 @@ class MatchDialog:
                             ui.notify(f'Match submitted: Opponent={new_player_ids[1]}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
                         dialog.close()
                     if self.on_submit:
-                        await self.on_submit(match)
+                        await self.on_submit()
 
             async def confirm_delete():
                 async def on_confirm():

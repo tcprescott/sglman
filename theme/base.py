@@ -7,11 +7,12 @@ from models import Permissions, User
 
 
 class BaseLayout:
-    def __init__(self, page_name, site_name: str = "SpeedGaming Live On Site", logo_url: str = None, copyright_text: str = "© 2025 Thomas Prescott", tabs: list = None, user: User = None):
+    def __init__(self, page_name, site_name: str = "SpeedGaming Live On Site", logo_url: str = None, copyright_text: str = "© 2025 Thomas Prescott", default_tab: str = None, tabs: list = None, user: User = None):
         self.site_name = site_name
         self.logo_url = logo_url
         self.copyright_text = copyright_text
         self.tabs = tabs
+        self.default_tab = default_tab
         self.page_name = page_name
         self.user = user
         self.width = None
@@ -49,12 +50,9 @@ class BaseLayout:
     async def render_tabbed_page(self, tabs):
         import inspect
         def on_tab_change(event):
-            # Update URL query parameter to current tab
-            if app.storage.user.get('selected_tab') is None:
-                app.storage.user['selected_tab'] = {}
-            app.storage.user['selected_tab'][self.page_name] = event.value
+            ui.navigate.history.push(f'?tab={event.value}')
 
-        default_tab = app.storage.user.get('selected_tab', {}).get(self.page_name, tabs[0]['label'])
+        default_tab = self.default_tab if self.default_tab and self.default_tab in [tab['label'] for tab in tabs] else tabs[0]['label']
 
         async def render_tab_content(tab):
             content = tab['content']
