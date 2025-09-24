@@ -5,7 +5,8 @@ from datetime import datetime
 
 from nicegui import app, ui
 
-from models import GeneratedSeeds, Match, Permissions, Tournament, User
+from application.seedgen import RANDOMIZERS
+from models import GeneratedSeeds, Match, Permissions, Tournament, User, SystemConfiguration
 from theme.base import BaseLayout
 from theme.dialog import (ConfirmationDialog, MatchDialog, TournamentDialog,
                           UserDialog)
@@ -48,10 +49,6 @@ def create() -> None:
         print(f"Admin dashboard rendered in {end - start:.2f} seconds.")
 
 def admin_settings_page() -> None:
-    with ui.row().style('width: 100%;'):
-        ui.label('Event Settings').style('font-size: 2em; margin-bottom: 1em;')
-    ui.label('This section is under construction.').style(
-        'color: red; font-weight: bold;')
     admin_tournaments_page()
 
 def admin_users_page() -> None:
@@ -195,12 +192,17 @@ def admin_schedule_page() -> None:
             match = await Match.get(id=row_id).prefetch_related('tournament')
             random_number = random.randint(1, 1000)
             if match.tournament.seed_generator:
-                match.generated_seed = await GeneratedSeeds.create(
-                    tournament=match.tournament,
-                    seed_url=f"https://example.com/seed/{random_number}",
-                    seed_info=f"Generated seed for match {match.id}"
-                )
-                await match.save()
+                seed_generator = RANDOMIZERS.get(match.tournament.seed_generator)
+                if seed_generator:
+                    seed_url = await seed_generator()
+                    match.generated_seed = await GeneratedSeeds.create(
+                        tournament=match.tournament,
+                        seed_url=seed_url,
+                        seed_info=f"Generated seed for match {match.id}"
+                    )
+                    await match.save()
+                else:
+                    ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
             await table_view.update_row_by_id(row_id)
 
         async def seat_players(event):

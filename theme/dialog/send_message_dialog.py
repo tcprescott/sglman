@@ -1,12 +1,12 @@
 import asyncio
 
 from nicegui import ui
-
+from discordbot.bot import send_dm
 
 class SendMessageDialog:
     def __init__(self, user, send_callback=None):
         self.user = user
-        self.send_callback = send_callback if send_callback else self.send_message
+        self.send_callback = send_callback if send_callback else self.send
         self.dialog = None
 
     async def open(self):
@@ -17,10 +17,8 @@ class SendMessageDialog:
             async def send_message():
                 with self.dialog:
                     await self.send_callback(self.user, message_input.value)
-                    with self.dialog:
-                        await self.send_callback(self.user, message_input.value)
-                        ui.notify('Message sent.', color='positive')
-                        dialog.close()
+                    ui.notify('Message sent.', color='positive')
+                    dialog.close()
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
                 ui.button('Send', color='green', on_click=send_message)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
@@ -30,5 +28,9 @@ class SendMessageDialog:
             dialog.on('keydown', on_keydown)
             dialog.open()
 
-    async def send_message(self, user, message):
-        print(f"Send message to {user.username} ({user.id}): {message}")
+    async def send(self, user, message):
+        result, msg = await send_dm(user.discord_id, message)
+        if not result:
+            ui.notify(f'Failed to send message.  Bot returned error: {msg}', color='negative')
+        else:
+            ui.notify(f"Send message to {user.username} ({user.id}): {message}", color='positive')

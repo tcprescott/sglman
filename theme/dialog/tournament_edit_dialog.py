@@ -17,6 +17,11 @@ class TournamentDialog:
             name_input = ui.input('Tournament Name', value=self.tournament.name if self.tournament else '')
             description_input = ui.textarea('Description', value=self.tournament.description if self.tournament and self.tournament.description else '').style('width: 100')
             seed_generator_input = ui.input('Seed Generator', value=self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else '')
+            bracket_url_input = ui.input('Bracket URL', value=self.tournament.bracket_url if self.tournament and self.tournament.bracket_url else '')
+            rules_url_input = ui.input('Rules URL', value=self.tournament.rules_url if self.tournament and self.tournament.rules_url else '')
+            tournament_format_input = ui.input('Tournament Format', value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '')
+            average_match_duration_input = ui.number('Average Match Duration (min)', value=self.tournament.average_match_duration if self.tournament and self.tournament.average_match_duration else None, min=0)
+            max_match_duration_input = ui.number('Max Match Duration (min)', value=self.tournament.max_match_duration if self.tournament and self.tournament.max_match_duration else None, min=0)
             with ui.row():
                 players_per_match_input = ui.number('Players per Match', value=self.tournament.players_per_match if self.tournament else 2, min=1, max=100)
                 team_size_input = ui.number('Team Size', value=self.tournament.team_size if self.tournament else 1, min=1, max=100)
@@ -30,6 +35,11 @@ class TournamentDialog:
                         self.tournament.name = name_input.value
                         self.tournament.description = description_input.value
                         self.tournament.seed_generator = seed_generator_input.value
+                        self.tournament.bracket_url = bracket_url_input.value
+                        self.tournament.rules_url = rules_url_input.value
+                        self.tournament.tournament_format = tournament_format_input.value
+                        self.tournament.average_match_duration = average_match_duration_input.value
+                        self.tournament.max_match_duration = max_match_duration_input.value
                         self.tournament.is_active = is_active_checkbox.value
                         self.tournament.players_per_match = players_per_match_input.value
                         self.tournament.team_size = team_size_input.value
@@ -43,6 +53,11 @@ class TournamentDialog:
                     name = name_input.value.strip()
                     description = description_input.value.strip()
                     seed_generator = seed_generator_input.value.strip()
+                    bracket_url = bracket_url_input.value.strip()
+                    rules_url = rules_url_input.value.strip()
+                    tournament_format = tournament_format_input.value.strip()
+                    average_match_duration = average_match_duration_input.value
+                    max_match_duration = max_match_duration_input.value
                     is_active = is_active_checkbox.value
                     players_per_match = players_per_match_input.value
                     team_size = team_size_input.value
@@ -55,6 +70,11 @@ class TournamentDialog:
                         name=name,
                         description=description,
                         seed_generator=seed_generator,
+                        bracket_url=bracket_url,
+                        rules_url=rules_url,
+                        tournament_format=tournament_format,
+                        average_match_duration=average_match_duration,
+                        max_match_duration=max_match_duration,
                         is_active=is_active,
                         players_per_match=players_per_match,
                         team_size=team_size,

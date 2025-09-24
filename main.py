@@ -6,8 +6,11 @@ Initializes the database, sets up API and frontend routes, and manages applicati
 
 # import api
 from contextlib import asynccontextmanager
+import os
 from typing import AsyncGenerator
 
+from discordbot.bot import bot
+import asyncio
 from aerich import Command
 from fastapi import FastAPI
 from tortoise import Tortoise
@@ -31,6 +34,13 @@ async def close_db() -> None:
     """
     await Tortoise.close_connections()
 
+async def init_discord_bot() -> None:
+    """
+    Initialize the Discord bot.
+    """
+    loop = asyncio.get_event_loop()
+    loop.create_task(bot.start(os.environ.get('DISCORD_TOKEN')))
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -38,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Initializes and tears down the database on application startup and shutdown.
     """
     await init_db()
+    await init_discord_bot()
     yield
     await close_db()
 
