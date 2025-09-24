@@ -2,7 +2,8 @@ import asyncio
 
 from nicegui import app, ui
 
-from models import Commentator, Tracker
+from models import Commentator, Match, Tracker, User
+from theme.dialog import ConfirmationDialog, UserDialog
 
 # TODO: Implement server-side pagination, sorting, and filtering for large datasets
 
@@ -178,7 +179,7 @@ class MatchTableView:
             if not m or idx >= len(items):
                 ui.notify(f'{role.capitalize()} not found.', color='warning')
                 return
-            from theme.dialog import UserDialog
+
             user = items[idx].user
             dialog = UserDialog(user)
             await dialog.open()
@@ -217,10 +218,10 @@ class MatchTableView:
             self.table.on(f"edit_{role}", lambda event, r=role: handle_approve_role(r, event))
 
 
-        from theme.dialog import ConfirmationDialog
+
         async def handle_signup_or_undo_role(action, role, row):
             # action: 'signup' or 'undo', role: 'commentator' or 'tracker'
-            from models import Match, User
+
             discord_id = app.storage.user.get('discord_id', None)
             if not discord_id:
                 ui.notify(f'You must be logged in to {action}.', color='warning')

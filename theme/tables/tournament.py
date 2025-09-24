@@ -2,6 +2,9 @@ import asyncio
 
 from nicegui import ui
 
+from theme.dialog import TournamentDialog
+from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
+
 
 class TournamentTableView:
     """Encapsulates the tournament table UI and logic for admin/player dashboards."""
@@ -117,7 +120,6 @@ class TournamentTableView:
         if not t:
             ui.notify('Tournament not found.', color='warning')
             return
-        from theme.dialog import TournamentDialog
         dialog = TournamentDialog(t)
         await dialog.open()
         # You may want to call self.refresh() or self.update_row_by_id(t.id) after editing
@@ -130,7 +132,5 @@ class TournamentTableView:
         if not t:
             ui.notify('Tournament not found.', color='warning')
             return
-        from theme.dialog.tournament_players_dialog import \
-            TournamentPlayersDialog
         dialog = TournamentPlayersDialog(t)
         await dialog.open()

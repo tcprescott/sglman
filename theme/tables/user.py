@@ -58,18 +58,7 @@ class UserTableView:
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_user', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
         </q-td>''')
-        # Add custom grid-body slot for grid layout
-        self.table.add_slot('item', '''
-            <q-card :props="props" class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box;">
-                <div style="font-weight: bold; color: #1976d2;">
-                    <a href="#" @click="$parent.$emit('edit_user', { row: props.row })" style="color: #1976d2; text-decoration: underline;">{{ props.row.username }}</a>
-                </div>
-                <div><b>Display Name:</b> {{ props.row.display_name }}</div>
-                <div><b>Pronouns:</b> {{ props.row.pronouns }}</div>
-                <div><b>Active:</b> {{ props.row.is_active ? 'Yes' : 'No' }}</div>
-                <div><b>Permission:</b> {{ props.row.permission }}</div>
-            </q-card>
-        ''')
+        self.render_grid_slot()
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
@@ -88,6 +77,45 @@ class UserTableView:
             await dialog.open()
         self.table.on('edit_user', handle_edit_user)
 
+    def render_grid_slot(self):
+        # Dynamically generate grid slot fields from self.columns
+        grid_fields = []
+        for col in self.columns:
+            field = { 'label': col.get('label', col.get('name', '')), 'key': col.get('name', '') }
+            # Add event for username
+            if field['key'] == 'username':
+                field['event'] = 'edit_user'
+            # Add bool for is_active
+            if field['key'] == 'is_active':
+                field['bool'] = True
+            grid_fields.append(field)
+        # Build JS array for Vue template
+        js_field_array = ',\n    '.join([
+            f"{{ label: '{f['label']}', key: '{f['key']}'" +
+            (f", event: '{f['event']}'" if 'event' in f else '') +
+            (", bool: true" if f.get('bool') else '') + " }" for f in grid_fields
+        ])
+        self.table.add_slot('item', f'''
+        <div class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+        <div v-for="field in [
+            {js_field_array}
+        ]" :key="field.key" class="row items-center q-mb-xs">
+            <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
+            <div class="col-8">
+            <template v-if="field.event">
+                <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+            </template>
+            <template v-else-if="field.bool">
+                {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}
+            </template>
+            <template v-else>
+                {{{{ props.row[field.key] }}}}
+            </template>
+            </div>
+        </div>
+        </div>
+        ''')
+
     async def refresh(self, *args, **kwargs):
         user_query = self.get_query()
         all_users = await user_query.order_by('username')
@@ -97,6 +125,7 @@ class UserTableView:
                 'id': u.id,
                 'username': u.username,
                 'display_name': u.display_name or '',
+                'preferred_name': u.preferred_name or '',
                 'pronouns': u.pronouns or '',
                 'discord_id': u.discord_id,
                 'is_active': u.is_active,

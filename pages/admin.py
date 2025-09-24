@@ -59,7 +59,8 @@ def admin_users_page() -> None:
         ui.label('User Management').style('font-size: 2em; margin-bottom: 1em;')
     columns = [
         {'name': 'username', 'label': 'Username', 'field': 'username'},
-        {'name': 'display_name', 'label': 'Display Name', 'field': 'display_name'},
+        {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name'},
+        {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns'},
         {'name': 'permission', 'label': 'Permission', 'field': 'permission'},
     ]
 

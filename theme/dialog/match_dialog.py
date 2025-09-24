@@ -4,7 +4,8 @@ from datetime import datetime
 from nicegui import ui
 
 from app_logic.match import create_match
-from models import Match, MatchPlayers, StreamRoom, Tournament, User, TournamentPlayers
+from models import (Match, MatchPlayers, StreamRoom, Tournament,
+                    TournamentPlayers, User)
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
