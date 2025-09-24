@@ -58,14 +58,9 @@ def admin_users_page() -> None:
     with ui.row().style('width: 100%;'):
         ui.label('User Management').style('font-size: 2em; margin-bottom: 1em;')
     columns = [
-        {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
         {'name': 'username', 'label': 'Username', 'field': 'username'},
         {'name': 'display_name', 'label': 'Display Name', 'field': 'display_name'},
-        {'name': 'discord_id', 'label': 'Discord ID', 'field': 'discord_id'},
-        {'name': 'is_active', 'label': 'Active', 'field': 'is_active'},
         {'name': 'permission', 'label': 'Permission', 'field': 'permission'},
-        {'name': 'created_at', 'label': 'Created At', 'field': 'created_at'},
-        {'name': 'updated_at', 'label': 'Updated At', 'field': 'updated_at'},
     ]
 
     def get_query():

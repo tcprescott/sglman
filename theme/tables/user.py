@@ -52,12 +52,24 @@ class UserTableView:
                 rows=[],
                 row_key='id',
                 pagination={'rowsPerPage': 20, 'page': 1}
-            ).classes('user-table').style('margin-top: 1em; width: 100%;')
+            ).classes('user-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_user', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
         </q-td>''')
+        # Add custom grid-body slot for grid layout
+        self.table.add_slot('item', '''
+            <q-card :props="props" class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box;">
+                <div style="font-weight: bold; color: #1976d2;">
+                    <a href="#" @click="$parent.$emit('edit_user', { row: props.row })" style="color: #1976d2; text-decoration: underline;">{{ props.row.username }}</a>
+                </div>
+                <div><b>Display Name:</b> {{ props.row.display_name }}</div>
+                <div><b>Pronouns:</b> {{ props.row.pronouns }}</div>
+                <div><b>Active:</b> {{ props.row.is_active ? 'Yes' : 'No' }}</div>
+                <div><b>Permission:</b> {{ props.row.permission }}</div>
+            </q-card>
+        ''')
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
@@ -90,7 +102,7 @@ class UserTableView:
                 'is_active': u.is_active,
                 'permission': u.permission,
                 'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
-                'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else ''
+                'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '',
             }
             rows.append(row)
         self.table.rows = rows

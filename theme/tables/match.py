@@ -112,7 +112,7 @@ class MatchTableView:
                 rows=[],
                 row_key='id',
                 pagination={'rowsPerPage': 20, 'page': 1}
-            ).classes('match-table').style('margin-top: 1em; width: 100%;')
+            ).classes('match-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable match id (or other key field)
         self.table.add_slot('body-cell-id', '''<q-td :props="props">
