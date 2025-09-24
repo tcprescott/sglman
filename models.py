@@ -49,6 +49,11 @@ class Tournament(Model):
     is_active = fields.BooleanField(default=True)
     players_per_match = fields.IntField(default=2)
     team_size = fields.IntField(default=1)
+    bracket_url = fields.CharField(max_length=255, null=True)
+    rules_url = fields.CharField(max_length=255, null=True)
+    tournament_format = fields.CharField(max_length=255, null=True)
+    average_match_duration = fields.IntField(null=True)  # in minutes
+    max_match_duration = fields.IntField(null=True)  # in minutes
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     staff_administered = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
