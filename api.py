@@ -2,10 +2,10 @@
 from fastapi import APIRouter
 from tortoise import Tortoise
 from tortoise.contrib.pydantic import pydantic_model_creator
-from models import (
-    User, UserTeams, TestModel, Tournament, Match, MatchPlayers, TournamentPlayers,
-    StreamRoom, Commentator, Tracker, Team, AuditLog, GeneratedSeeds
-)
+
+from models import (AuditLog, Commentator, GeneratedSeeds, Match, MatchPlayers,
+                    StreamRoom, Team, TestModel, Tournament, TournamentPlayers,
+                    Tracker, User, UserTeams)
 
 router = APIRouter()
 

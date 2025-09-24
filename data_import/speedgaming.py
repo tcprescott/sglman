@@ -3,14 +3,14 @@
 
 import json
 import logging
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from typing import List
 
 import aiofiles
 import aiohttp
+import config
 import pytz
 
-import config
 
 class SGEpisodeNotFoundException(Exception):
     pass

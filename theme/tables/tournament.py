@@ -1,5 +1,7 @@
-from nicegui import ui
 import asyncio
+
+from nicegui import ui
+
 
 class TournamentTableView:
     """Encapsulates the tournament table UI and logic for admin/player dashboards."""
@@ -128,6 +130,7 @@ class TournamentTableView:
         if not t:
             ui.notify('Tournament not found.', color='warning')
             return
-        from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
+        from theme.dialog.tournament_players_dialog import \
+            TournamentPlayersDialog
         dialog = TournamentPlayersDialog(t)
         await dialog.open()

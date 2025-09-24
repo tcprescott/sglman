@@ -1,15 +1,18 @@
 import asyncio
 import random
+import time
 from datetime import datetime
 
-from nicegui import ui, app
+from nicegui import app, ui
 
-from models import GeneratedSeeds, Match, Tournament, User, Permissions
-from theme.dialog import ConfirmationDialog, MatchDialog, TournamentDialog, UserDialog
+from models import GeneratedSeeds, Match, Permissions, Tournament, User
+from theme.base import BaseLayout
+from theme.dialog import (ConfirmationDialog, MatchDialog, TournamentDialog,
+                          UserDialog)
+from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.tables.match import MatchTableView
 from theme.tables.tournament import TournamentTableView
 from theme.tables.user import UserTableView
-from theme.base import BaseLayout
 
 
 def create() -> None:
@@ -36,7 +39,13 @@ def create() -> None:
             {'label': 'Settings', 'icon': 'settings', 'content': admin_settings_page},
         ]
 
-        await BaseLayout(tabs=tabs, page_name='admin', user=user).render()
+        start = time.perf_counter()
+        base_layout = BaseLayout(tabs=tabs, page_name='admin', user=user)
+        checkpoint1 = time.perf_counter()
+        print(f"BaseLayout initialized in {checkpoint1 - start:.2f} seconds.")
+        await base_layout.render()
+        end = time.perf_counter()
+        print(f"Admin dashboard rendered in {end - start:.2f} seconds.")
 
 def admin_settings_page() -> None:
     with ui.row().style('width: 100%;'):
@@ -70,7 +79,9 @@ def admin_users_page() -> None:
 
     table_view = UserTableView(
         columns=columns, get_query=get_query, submit_user_callback=add_user)
-    asyncio.create_task(table_view.refresh())
+    def on_tab_selected():
+        asyncio.create_task(table_view.refresh())
+    ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Users' else None)
 
 def admin_tournaments_page() -> None:
     with ui.row().style('width: 100%;'):
@@ -97,7 +108,9 @@ def admin_tournaments_page() -> None:
         return Tournament.all()
     table_view = TournamentTableView(
         columns=columns, get_query=get_query, submit_tournament_callback=add_tournament)
-    asyncio.create_task(table_view.refresh())
+    def on_tab_selected():
+        asyncio.create_task(table_view.refresh())
+    ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Tournaments' else None)
 
 def admin_schedule_page() -> None:
     with ui.row().style('width: 100%;'):
@@ -161,7 +174,6 @@ def admin_schedule_page() -> None:
         async def edit_stream_room(event):
             row_id = event.args['key']
             match = await Match.get(id=row_id)
-            from theme.dialog.stream_room_dialog import StreamRoomDialog
             async def after_edit(_):
                 await table_view.update_row_by_id(row_id)
             dialog = StreamRoomDialog(match=match, on_submit=after_edit)
@@ -249,5 +261,6 @@ def admin_schedule_page() -> None:
         table_view.table.on('finish', finish_match)
         table_view.table.on('edit-stream-room', edit_stream_room)
 
-        # Initial table load
-        asyncio.create_task(table_view.refresh())
+        def on_tab_selected():
+            asyncio.create_task(table_view.refresh())
+        ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Schedule' else None)

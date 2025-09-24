@@ -1,10 +1,13 @@
 
-from nicegui import ui, app
-from theme.base import BaseLayout
-from models import Match, User, Permissions
-from theme.dialog import MatchDialog
 import asyncio
+
+from nicegui import app, ui
+
+from models import Match, Permissions, User
+from theme.base import BaseLayout
+from theme.dialog import MatchDialog
 from theme.tables.match import MatchTableView
+
 
 def render_player_dashboard():
     with ui.row().style('width: 100%;'):
@@ -44,7 +47,7 @@ async def render_edit_info_tab():
     with ui.row().style('width: 100%;'):
         ui.label('Edit Your Information').style('font-size: 2em; margin-bottom: 1em;')
     ui.separator()
-    from models import User, Tournament, TournamentPlayers
+    from models import Tournament, TournamentPlayers, User
     discord_id = app.storage.user.get('discord_id', None)
     if not discord_id:
         with ui.row():

@@ -1,6 +1,7 @@
+import asyncio
+
 from nicegui import ui
 
-import asyncio
 
 class SendMessageDialog:
     def __init__(self, user, send_callback=None):

@@ -1,7 +1,8 @@
-from nicegui import ui, events, app
 import nicegui.elements.table
+from nicegui import app, events, ui
 
 from models import TestModel
+
 
 def create() -> None:
     @ui.page('/test')

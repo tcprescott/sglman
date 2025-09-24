@@ -1,6 +1,8 @@
-from nicegui import ui, app
 import asyncio
-from models import Tracker, Commentator
+
+from nicegui import app, ui
+
+from models import Commentator, Tracker
 
 # TODO: Implement server-side pagination, sorting, and filtering for large datasets
 

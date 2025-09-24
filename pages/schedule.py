@@ -1,9 +1,12 @@
 
-from nicegui import app, ui
-from theme.base import BaseLayout
-from models import Match, User, Permissions
-from theme.tables.match import MatchTableView
 import asyncio
+
+from nicegui import app, ui
+
+from models import Match, Permissions, User
+from theme.base import BaseLayout
+from theme.tables.match import MatchTableView
+
 
 def schedule():
     discord_id = app.storage.user.get('discord_id', None)

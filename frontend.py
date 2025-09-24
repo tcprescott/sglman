@@ -4,13 +4,13 @@ Sets up NiceGUI pages and integrates them with the FastAPI app.
 """
 
 import os
+
 from fastapi import FastAPI
+from nicegui import app, ui
 
-from nicegui import ui, app
-
-from pages import home, admin
-
-from middleware.auth import AuthMiddleware, create as auth_create
+from middleware.auth import AuthMiddleware
+from middleware.auth import create as auth_create
+from pages import admin, home
 
 app.add_middleware(AuthMiddleware)
 

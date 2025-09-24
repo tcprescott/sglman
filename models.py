@@ -1,6 +1,8 @@
+from enum import IntEnum
+
 from tortoise import fields
 from tortoise.models import Model
-from enum import IntEnum
+
 
 class Permissions(IntEnum):
     USER = 0

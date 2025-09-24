@@ -1,12 +1,13 @@
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import RedirectResponse
-from zenora import APIClient
 import os
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
+from fastapi import Request
 from nicegui import Client, app, ui
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse
+from zenora import APIClient
+
 from models import User
 
 # Supporting variables

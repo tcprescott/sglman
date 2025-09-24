@@ -1,9 +1,10 @@
-from nicegui import ui
-from models import User
-
 import asyncio
 
+from nicegui import ui
+
+from models import User
 from theme.dialog.send_message_dialog import SendMessageDialog
+
 
 class UserDialog:
     def __init__(self, user: User = None, on_submit=None):

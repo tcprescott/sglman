@@ -1,5 +1,6 @@
 from nicegui import ui
 
+
 class ConfirmationDialog:
     def __init__(self, message: str = "Are you sure?", on_confirm=None, confirm_text="Confirm", cancel_text="Cancel"):
         self.message = message

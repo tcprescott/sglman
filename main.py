@@ -4,14 +4,16 @@
 Initializes the database, sets up API and frontend routes, and manages application lifespan.
 """
 
-from tortoise import Tortoise
-from fastapi import FastAPI
-import frontend
 # import api
 from contextlib import asynccontextmanager
-from migrations.tortoise_config import TORTOISE_ORM
-from aerich import Command
 from typing import AsyncGenerator
+
+from aerich import Command
+from fastapi import FastAPI
+from tortoise import Tortoise
+
+import frontend
+from migrations.tortoise_config import TORTOISE_ORM
 
 
 async def init_db() -> None:

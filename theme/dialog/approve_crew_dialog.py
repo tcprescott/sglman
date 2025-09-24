@@ -1,6 +1,9 @@
+from typing import Callable, Optional, Union
+
 from nicegui import ui
-from typing import Union, Callable, Optional
-from models import Tracker, Commentator
+
+from models import Commentator, Tracker
+
 
 class ApproveCrewDialog:
     def __init__(self, crew_member: Union[Tracker, Commentator], crew_type: str, on_approve: Optional[Callable] = None):

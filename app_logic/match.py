@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from models import Match, MatchPlayers, User
+
 
 async def create_match(tournament_id, date_value, time_value, comment_value, player_ids=None):
     match_time = datetime.strptime(f"{date_value} {time_value}", "%Y-%m-%d %H:%M")

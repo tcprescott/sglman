@@ -1,5 +1,7 @@
 from nicegui import ui
+
 from models import TournamentPlayers, User
+
 
 class TournamentPlayersDialog:
     def __init__(self, tournament):

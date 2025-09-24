@@ -1,10 +1,12 @@
 import asyncio
 from datetime import datetime
+
 from nicegui import ui
+
+from app_logic.match import create_match
 from models import Match, MatchPlayers, StreamRoom, Tournament, User
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
-from app_logic.match import create_match
 
 class MatchDialog:
     def __init__(self, match: Match = None, discord_id: int=None, on_submit=None):
@@ -18,7 +20,7 @@ class MatchDialog:
         self._initial_updated_at = match.updated_at if match else None
 
     async def open(self):
-        from models import TournamentPlayers, Tournament
+        from models import Tournament, TournamentPlayers
         users = await User.all().order_by('username')
         stream_rooms = await StreamRoom.all().order_by('name')
         if self.discord_id is not None:
@@ -184,7 +186,8 @@ class MatchDialog:
                         return
 
                 # Create or update match
-                from models import TournamentPlayers, Tournament
+                from models import Tournament, TournamentPlayers
+
                 # Ensure all submitted players are enrolled in TournamentPlayers for this tournament
                 existing_links = await TournamentPlayers.filter(tournament_id=tournament_id)
                 existing_player_ids = {tp.user_id for tp in existing_links}

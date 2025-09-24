@@ -1,7 +1,9 @@
+import asyncio
+
 from nicegui import ui
+
 from models import Tournament
 
-import asyncio
 
 class TournamentDialog:
     def __init__(self, tournament=None, on_submit=None):

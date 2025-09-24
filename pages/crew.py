@@ -1,9 +1,12 @@
-from nicegui import ui, app
-from theme.base import BaseLayout
-from models import Match, User, Permissions
-from theme.dialog import MatchDialog
 import asyncio
+
+from nicegui import app, ui
+
+from models import Match, Permissions, User
+from theme.base import BaseLayout
+from theme.dialog import MatchDialog
 from theme.tables.match import MatchTableView
+
 
 def render_crew_dashboard():
     with ui.row().style('width: 100%;'):

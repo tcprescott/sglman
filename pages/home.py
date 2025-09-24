@@ -1,13 +1,16 @@
 from nicegui import app, ui
-from theme.base import BaseLayout
-from pages.schedule import schedule
-from pages.player import render_edit_info_tab, render_player_dashboard
+
+from models import User
 from pages.crew import render_crew_dashboard
+from pages.player import render_edit_info_tab, render_player_dashboard
+from pages.schedule import schedule
+from theme.base import BaseLayout
+
 
 def create() -> None:
     @ui.page('/')
     async def home():
-        from models import User
+
         discord_id = app.storage.user.get('discord_id', None)
         user = await User.get_or_none(discord_id=discord_id)
         tabs = [

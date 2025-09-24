@@ -1,6 +1,8 @@
 from nicegui import ui
+
 from models import Match, StreamRoom
 from theme.dialog.match_dialog import MatchDialog
+
 
 class StreamRoomDialog(MatchDialog):
     def __init__(self, match: Match, on_submit=None):

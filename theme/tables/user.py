@@ -1,5 +1,6 @@
-from nicegui import ui
 import asyncio
+
+from nicegui import ui
 
 
 class UserTableView:

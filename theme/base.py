@@ -1,7 +1,10 @@
-from nicegui import ui, app
-from typing import Callable as func
-from models import Permissions, User
 from enum import Enum
+from typing import Callable as func
+
+from nicegui import app, ui
+
+from models import Permissions, User
+
 
 class BaseLayout:
     def __init__(self, page_name, site_name: str = "SpeedGaming Live On Site", logo_url: str = None, copyright_text: str = "© 2025 Thomas Prescott", tabs: list = None, user: User = None):
@@ -24,11 +27,6 @@ class BaseLayout:
             ]
 
     async def render(self) -> None:
-        if self.width is None:
-            self.width = await ui.run_javascript("window.screen.width;", timeout=10)
-            self.width = int(self.width)
-            app.storage.user['screen_width'] = self.width
-
         with ui.header().classes(replace='row items-center') as header:
             if self.top_menu:
                 for label, action in self.top_menu:
@@ -44,9 +42,6 @@ class BaseLayout:
 
         with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md') as footer:
             ui.label(self.copyright_text).classes('text-caption')
-
-        with ui.page_sticky(position='bottom-right', x_offset=20, y_offset=20):
-            ui.button(on_click=footer.toggle, icon='contact_support').props('fab')
 
         if self.tabs:
             await self.render_tabbed_page(self.tabs)
@@ -76,27 +71,15 @@ class BaseLayout:
             else:
                 content_func(*args, **kwargs)
 
-        tab_props = 'horizontal' if self.width < 600 else 'vertical'
-        tab_classes = 'w-full' if self.width < 600 else 'w-full'
-        if self.width < 600:
-            with ui.tabs(on_change=on_tab_change).props(tab_props).classes(tab_classes) as panels:
-                for tab in tabs:
-                    ui.tab(tab['label'], icon=tab.get('icon', None))
-            with ui.tab_panels(panels, value=default_tab):
-                for tab in tabs:
-                    with ui.tab_panel(tab['label']):
-                        with ui.row().classes('justify-center').style('width: 100%;'):
-                            await render_tab_content(tab)
-        else:
-            with ui.splitter(value=5, limits=(5, 5)).classes('w-full h-full') as splitter:
-                with splitter.before:
-                    with ui.tabs(on_change=on_tab_change).props(tab_props).classes(tab_classes) as panels:
-                        for tab in tabs:
-                            ui.tab(tab['label'], icon=tab.get('icon', None))
-                with splitter.after:
-                    with ui.tab_panels(panels, value=default_tab):
-                        for tab in tabs:
-                            with ui.tab_panel(tab['label']):
-                                with ui.row().classes('justify-center').style('width: 100%;'):
-                                    await render_tab_content(tab)
+        tab_props = 'horizontal'
+        tab_classes = 'w-full'
+        with ui.tabs(on_change=on_tab_change).props(tab_props).classes(tab_classes) as panels:
+            for tab in tabs:
+                ui.tab(tab['label'], icon=tab.get('icon', None))
+        with ui.tab_panels(panels, value=default_tab):
+            for tab in tabs:
+                with ui.tab_panel(tab['label']):
+                    with ui.row().classes('justify-center').style('width: 100%;'):
+                        await render_tab_content(tab)
+
 

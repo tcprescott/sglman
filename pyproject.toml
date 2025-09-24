@@ -18,6 +18,7 @@ cryptography = "^45.0.7"
 zenora = "^0.0.3.post1"
 py-cord = "^2.6.1"
 faker = "^37.6.0"
+python-dotenv = "^1.1.1"
 
 
 
