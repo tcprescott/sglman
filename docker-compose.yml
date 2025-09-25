@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  sglman:
+    build: .
+    image: sglman:latest
+    env_file:
+      - .env
+    ports:
+      - "8002:8000"
+    restart: unless-stopped
+    # Uncomment if you want to mount local files
+    # volumes:
+    #   - ./data:/app/data

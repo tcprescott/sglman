@@ -41,6 +41,12 @@ async def init_discord_bot() -> None:
     loop = asyncio.get_event_loop()
     loop.create_task(bot.start(os.environ.get('DISCORD_TOKEN')))
 
+async def close_discord_bot() -> None:
+    """
+    Close the Discord bot connection.
+    """
+    await bot.close()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -51,6 +57,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_discord_bot()
     yield
     await close_db()
+    await close_discord_bot()
 
 app: FastAPI = FastAPI(lifespan=lifespan)
 # app.include_router(

@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false 
 # Copy app code
 COPY . .
 
-# Expose port (default: 8080)
-EXPOSE 8080
+# Expose port (default: 8000)
+EXPOSE 8000
 
 # Entrypoint
 CMD ["./start.sh", "prod"]
