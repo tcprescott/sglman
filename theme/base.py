@@ -1,6 +1,3 @@
-from enum import Enum
-from typing import Callable as func
-
 from nicegui import app, ui
 
 from models import Permissions, User
@@ -35,8 +32,9 @@ class BaseLayout:
             else:
                 ui.button('Default', on_click=lambda: None).props('flat color=white')
 
-            if app.storage.user.get('authenticated', False):
-                ui.label(f'Hello, {app.storage.user.get("username", "User")}!').classes('text-lg').style('margin-left: auto;')
+            if self.user:
+                ui.label(self.user.preferred_name).classes('text-lg').style('margin-left: auto;')
+                ui.image(app.storage.user.get('avatar', None)).props('width=32 height=32 fit=cover round').style('margin-left: 8px; margin-right: 8px; display: inline-block; max-width: 32px; max-height: 32px; vertical-align: middle;')
                 ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout')
             else:
                 ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')

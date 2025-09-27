@@ -75,7 +75,7 @@ def create() -> None:
 
             referrer = app.storage.user.get('referrer_path', '/')
             # Avoid redirecting to login/callback
-            if referrer in ['/login', '/oauth/callback']:
+            if referrer in ['/login', '/logout', '/oauth/callback']:
                 referrer = '/'
             ui.navigate.to(referrer)
             app.storage.user.pop('referrer_path', None)

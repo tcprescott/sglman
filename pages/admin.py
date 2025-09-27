@@ -26,7 +26,11 @@ def create() -> None:
                 ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
             return
 
-        user = await User.get(discord_id=discord_id)
+        user = await User.get_or_none(discord_id=discord_id)
+        if user is None:
+            with ui.row():
+                ui.label('User not found in the database.').style('color: red; font-weight: bold;')
+            return
         if user.permission < Permissions.TOURNAMENT_ADMIN:
             await BaseLayout(page_name='admin2').render()
             with ui.row():
@@ -41,13 +45,8 @@ def create() -> None:
             {'label': 'Settings', 'icon': 'settings', 'content': admin_settings_page},
         ]
 
-        start = time.perf_counter()
         base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user)
-        checkpoint1 = time.perf_counter()
-        print(f"BaseLayout initialized in {checkpoint1 - start:.2f} seconds.")
         await base_layout.render()
-        end = time.perf_counter()
-        print(f"Admin dashboard rendered in {end - start:.2f} seconds.")
 
 def admin_settings_page() -> None:
     admin_tournaments_page()

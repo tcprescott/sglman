@@ -13,6 +13,13 @@ def create() -> None:
         ui.page_title('Speedgaming Live Onsite')
         discord_id = app.storage.user.get('discord_id', None)
         user = await User.get_or_none(discord_id=discord_id)
+        if user is None and discord_id is not None:
+            with ui.row():
+                # log the user out if they are not found in the database
+                ui.label('User not found in the database. Logging out...').style('color: red; font-weight: bold;')
+                app.storage.user.clear()
+            ui.timer(2, lambda: ui.navigate.to('/logout'), once=True)
+            return
         tabs = [
             {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},

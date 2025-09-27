@@ -53,7 +53,12 @@ async def render_edit_info_tab():
         with ui.row():
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
         return
-    user = await User.get(discord_id=discord_id)
+    user = await User.get_or_none(discord_id=discord_id)
+    if user is None:
+        with ui.row():
+            ui.label('User not found in the database.').style('color: red; font-weight: bold;')
+        return
+
     tournaments = await Tournament.filter(is_active=True)
     user_tournaments = await TournamentPlayers.filter(user=user)
     selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
