@@ -19,6 +19,7 @@ from theme.tables.user import UserTableView
 def create() -> None:
     @ui.page('/admin')
     async def admin_dashboard_page(tab: str = None) -> None:
+        ui.page_title('Speedgaming Live Onsite - Admin Dashboard')
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.row():

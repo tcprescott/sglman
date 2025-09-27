@@ -8,20 +8,9 @@ from theme.base import BaseLayout
 
 
 def create() -> None:
-    @ui.page('/submit')
-    async def submit_match_page():
-        from models import User
-        from theme.dialog import MatchDialog
-        discord_id = app.storage.user.get('discord_id', None)
-        if not discord_id:
-            ui.label('You must be logged in to submit a match.').style('color: red; font-weight: bold;')
-            return
-        user = await User.get(discord_id=discord_id)
-        dialog = MatchDialog(discord_id=discord_id, on_submit=lambda: ui.navigate.to('/?tab=Player'))
-        await dialog.open()
-
     @ui.page('/')
     async def home(tab: str = None):
+        ui.page_title('Speedgaming Live Onsite')
         discord_id = app.storage.user.get('discord_id', None)
         user = await User.get_or_none(discord_id=discord_id)
         tabs = [
