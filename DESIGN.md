@@ -6,7 +6,7 @@
 4. API endpoint with matches scheduled for a Stage, include crew information.
 5. ~~Rename "StreamRoom" to "Stage".  There are four stages (Stage 1, Stage 2, Stage 3, and Stage 4)~~
 6. ~~Add crew signup system (Commentators and Trackers)~~
-7. Discord bot for messaging users via Discord
+7. ~~Discord bot for messaging users via Discord~~
 
 ## Pages
 

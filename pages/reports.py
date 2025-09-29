@@ -22,7 +22,6 @@ async def player_activity():
     # Prepare data for Plotly
     x = [r['timestamp'] for r in results]
     player_y = [r['player_count'] for r in results]
-    match_y = [r['match_count'] for r in results]
 
     # Plotly figure dict
     fig = {
