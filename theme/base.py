@@ -75,7 +75,7 @@ class BaseLayout:
         with ui.tab_panels(panels, value=default_tab):
             for tab in tabs:
                 with ui.tab_panel(tab['label']):
-                    with ui.row().classes('justify-center').style('width: 100%;'):
+                    with ui.row().style('width: 100%;'):
                         await render_tab_content(tab)
 
 
