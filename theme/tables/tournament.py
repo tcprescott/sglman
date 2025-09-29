@@ -20,7 +20,7 @@ class TournamentTableView:
         with ui.row().style('width: 100%;'):
             if self.submit_tournament_callback:
                 ui.button('Add Tournament', on_click=self.submit_tournament_callback)
-            ui.button('Refresh', on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+            ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
 
         ui.add_head_html("""
         <style>

@@ -18,7 +18,7 @@ class UserTableView:
         with ui.row().style('width: 100%;'):
             if self.submit_user_callback:
                 ui.button('Add User', on_click=self.submit_user_callback)
-            ui.button('Refresh', on_click=self.refresh).props(
+            ui.button(on_click=self.refresh).props(
                 'icon=refresh').style('min-width: 0; margin-left: auto;')
 
         ui.add_head_html("""

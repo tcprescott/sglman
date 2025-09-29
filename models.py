@@ -147,3 +147,13 @@ class SystemConfiguration(Model):
     value = fields.TextField()
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class Announcement(Model):
+    id = fields.IntField(pk=True)
+    title = fields.CharField(max_length=255)
+    content = fields.TextField()
+    is_active = fields.BooleanField(default=True)
+    important = fields.BooleanField(default=False)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='announcements', null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)

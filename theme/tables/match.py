@@ -78,7 +78,7 @@ class MatchTableView:
             ui.space()
             if self.admin_controls:
                 self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
-            ui.button('Refresh', on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+            ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
         if self.auto_refresh_checkbox:
             self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
 

@@ -10,9 +10,9 @@ from theme.tables.match import MatchTableView
 
 def schedule():
     discord_id = app.storage.user.get('discord_id', None)
-    if not discord_id:
-        ui.label('Welcome to the SpeedGaming Live Onsite System!').style('font-size: 1.5em; margin-bottom: 1em;')
-        ui.html('<a href="/login" style="font-size: 1.2em; color: #1976d2; text-decoration: underline;">Log in to access more features</a>').style('margin-bottom: 1em;')
+    with ui.row().style('width: 100%; margin-bottom: 1em; justify-content: center;'):
+        ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('font-size: 1.5em; color: white; background-color: #4CAF50; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; justify-content: center;') if not discord_id else None
+
     with ui.row().style('width: 100%;'):
         ui.label('Scheduled Matches').style('font-size: 2em; margin-bottom: 1em;')
     columns = [

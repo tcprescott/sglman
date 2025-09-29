@@ -1,6 +1,6 @@
 from nicegui import app, ui
 
-from models import Permissions, User
+from models import Permissions, User, Announcement
 
 
 class BaseLayout:
