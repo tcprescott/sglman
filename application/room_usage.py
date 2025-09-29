@@ -100,6 +100,7 @@ async def count_active_race_players_over_range(time_intervals: list[datetime], t
         raise ValueError('time_intervals must be provided as a list of datetime objects')
     start_time = min(time_intervals)
     end_time = max(time_intervals)
+    max_time = end_time  # Avoid repeated calculation
     # Build match filter
     match_filter = Q(seated_at__isnull=False)
     if tournament_id is not None:
@@ -112,15 +113,20 @@ async def count_active_race_players_over_range(time_intervals: list[datetime], t
         return []
     match_ids = [m.id for m in matches]
     players = await MatchPlayers.filter(match_id__in=match_ids).all()
+    # Precompute match_id -> [players]
+    match_id_to_players = {}
+    for p in players:
+        match_id_to_players.setdefault(p.match_id, []).append(p)
     results = []
     now = datetime.utcnow()
     for current_time in time_intervals:
         active_matches, used_prediction = _get_active_matches(matches, current_time, now, future_prediction)
         match_objs = [m for m, _ in active_matches]
-        active_match_ids = [m.id for m in match_objs]
-        player_count = sum(1 for p in players if p.match_id in active_match_ids)
+        active_match_ids = set(m.id for m in match_objs)
+        # Fast player count: sum lengths of player lists for active matches
+        player_count = sum(len(match_id_to_players.get(mid, [])) for mid in active_match_ids)
         match_count = len(match_objs)
-        has_unfinished = any(m.finished_at is None or m.finished_at > max(time_intervals) for m, _ in active_matches)
+        has_unfinished = any(m.finished_at is None or m.finished_at > max_time for m, _ in active_matches)
         result = {
             'timestamp': current_time,
             'player_count': player_count,
@@ -129,9 +135,13 @@ async def count_active_race_players_over_range(time_intervals: list[datetime], t
             'used_prediction': used_prediction
         }
         if tournament_id is None:
-            tournament_player_counts = _count_players_per_tournament(active_matches, players)
+            # Optimize _count_players_per_tournament
+            tournament_counts = {}
+            for m in match_objs:
+                tid = m.tournament_id
+                tournament_counts[tid] = tournament_counts.get(tid, 0) + len(match_id_to_players.get(m.id, []))
             tournament_match_counts = _count_matches_per_tournament(active_matches)
-            result['count_per_tournament'] = tournament_player_counts
+            result['count_per_tournament'] = tournament_counts
             result['count_matches_per_tournament'] = tournament_match_counts
         results.append(result)
     return results

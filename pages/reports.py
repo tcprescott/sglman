@@ -17,7 +17,7 @@ async def player_activity():
         current += timedelta(minutes=10)
 
     # Fetch data (adjust arguments as needed)
-    results = await count_active_race_players_over_range(time_intervals)
+    results = await count_active_race_players_over_range(time_intervals, future_prediction=True)
 
     # Prepare data for Plotly
     x = [r['timestamp'] for r in results]

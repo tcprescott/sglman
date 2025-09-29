@@ -157,12 +157,3 @@ class Announcement(Model):
     tournament = fields.ForeignKeyField('models.Tournament', related_name='announcements', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
-
-# An aggregation model for tournament room usage data
-class TournamentRoomUsageData(Model):
-    id = fields.IntField(pk=True)
-    timestamp = fields.DatetimeField()
-    data = fields.JSONField()
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-    predicted = fields.BooleanField(default=False)
