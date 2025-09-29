@@ -3,6 +3,7 @@ from datetime import timedelta, datetime
 from typing import Optional
 from models import Match, MatchPlayers
 from tortoise.expressions import Q
+from nicegui import ui
 
 def generate_time_intervals(start_time, end_time, interval_minutes=5):
     """
@@ -54,6 +55,7 @@ def _get_active_matches(matches, current_time, now, future_prediction):
             active_matches.append((m, pred))
     return active_matches, used_prediction
 
+
 def _count_players_per_tournament(active_matches, players):
     """
     Returns a dict: tournament_id -> player count for active matches.
@@ -71,7 +73,20 @@ def _count_players_per_tournament(active_matches, players):
             tournament_counts[tid] += 1
     return tournament_counts
 
-async def count_active_race_players_over_range(time_intervals: list[datetime], tournament_id: Optional[int]=None,exclude_stage: Optional[bool]=False, future_prediction: Optional[bool]=False):
+def _count_matches_per_tournament(active_matches):
+    """
+    Returns a dict: tournament_id -> match count for active matches.
+    """
+    tournament_counts = {}
+    match_objs = [m for m, _ in active_matches]
+    for m in match_objs:
+        tid = m.tournament_id
+        if tid not in tournament_counts:
+            tournament_counts[tid] = 0
+        tournament_counts[tid] += 1
+    return tournament_counts
+
+async def count_active_race_players_over_range(time_intervals: list[datetime], tournament_id: Optional[int]=None, exclude_stage: Optional[bool]=False, future_prediction: Optional[bool]=False):
     """
     Returns a list of active player counts for each time in time_intervals.
     time_intervals: list of datetime objects.
@@ -103,12 +118,21 @@ async def count_active_race_players_over_range(time_intervals: list[datetime], t
         active_matches, used_prediction = _get_active_matches(matches, current_time, now, future_prediction)
         match_objs = [m for m, _ in active_matches]
         active_match_ids = [m.id for m in match_objs]
-        count = sum(1 for p in players if p.match_id in active_match_ids)
+        player_count = sum(1 for p in players if p.match_id in active_match_ids)
+        match_count = len(match_objs)
         has_unfinished = any(m.finished_at is None or m.finished_at > max(time_intervals) for m, _ in active_matches)
-        result = {'timestamp': current_time, 'count': count, 'has_unfinished': has_unfinished, 'used_prediction': used_prediction}
+        result = {
+            'timestamp': current_time,
+            'player_count': player_count,
+            'match_count': match_count,
+            'has_unfinished': has_unfinished,
+            'used_prediction': used_prediction
+        }
         if tournament_id is None:
-            tournament_counts = _count_players_per_tournament(active_matches, players)
-            result['count_per_tournament'] = tournament_counts
+            tournament_player_counts = _count_players_per_tournament(active_matches, players)
+            tournament_match_counts = _count_matches_per_tournament(active_matches)
+            result['count_per_tournament'] = tournament_player_counts
+            result['count_matches_per_tournament'] = tournament_match_counts
         results.append(result)
     return results
 
@@ -128,3 +152,26 @@ async def count_active_race_players(tournament_id=None, exclude_stage=False):
         return 0
     match_ids = [m.id for m in active_matches]
     return await MatchPlayers.filter(match_id__in=match_ids).count()
+
+# Global cache dict: key -> (result, cache_time)
+_cache = {}
+
+async def get_cached_active_race_players_over_range(time_intervals, tournament_id=None, exclude_stage=False, future_prediction=False, ttl_seconds=300):
+    cache_key = (
+        tuple(time_intervals),
+        tournament_id,
+        exclude_stage,
+        future_prediction
+    )
+    now = datetime.utcnow()
+    # Check cache
+    if cache_key in _cache:
+        result, cache_time = _cache[cache_key]
+        if (now - cache_time).total_seconds() < ttl_seconds:
+            return result
+    # Compute and cache
+    result = await count_active_race_players_over_range(
+        time_intervals, tournament_id, exclude_stage, future_prediction
+    )
+    _cache[cache_key] = (result, now)
+    return result
