@@ -26,7 +26,7 @@ async def announcements_page():
     async def load_announcements():
         announcements_container.clear()
         discord_id = user.get('discord_id') if user else None
-        show_only = show_enrolled_only.value
+        show_only = show_enrolled_only.value if show_enrolled_only else False
         if show_only and discord_id:
             enrolled_ids = await get_enrolled_tournament_ids(discord_id)
             query = Q(is_active=True) & (Q(tournament_id__in=enrolled_ids) | Q(tournament_id=None))
