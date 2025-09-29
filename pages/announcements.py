@@ -59,5 +59,5 @@ async def announcements_page():
                         tournament = await Tournament.get_or_none(id=ann.tournament_id)
                         if tournament:
                             ui.label(f'Tournament: {tournament.name}').classes('text-caption')
-                    ui.label(f'Posted: {ann.created_at.strftime('%Y-%m-%d %H:%M')}').classes('text-caption')
+                    ui.label(f"Posted: {ann.created_at.strftime('%Y-%m-%d %H:%M')}").classes('text-caption')
     await load_announcements()
