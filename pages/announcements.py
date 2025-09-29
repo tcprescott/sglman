@@ -48,7 +48,7 @@ async def announcements_page():
                         tournament = await Tournament.get_or_none(id=most_recent.tournament_id)
                         if tournament:
                             ui.label(f'Tournament: {tournament.name}').classes('text-caption')
-                    ui.label(f'Posted: {most_recent.created_at.strftime('%Y-%m-%d %H:%M')}').classes('text-caption')
+                    ui.label(f"Posted: {most_recent.created_at.strftime('%Y-%m-%d %H:%M')}").classes('text-caption')
             # Show the rest in the grid
             for ann in announcements[1:]:
                 card = ui.card().classes('q-pa-md').style('width: 350px; min-width: 350px; max-width: 350px; margin: 8px; display: flex; flex-direction: column;')
