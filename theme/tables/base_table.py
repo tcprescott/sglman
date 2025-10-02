@@ -6,7 +6,7 @@ class BaseTableView:
     Base class for NiceGUI table views with common UI logic.
     Subclasses should override _build_row and event handlers as needed.
     """
-    def __init__(self, columns, get_query, extra_slots=None, submit_callback=None, table_class='', row_key='id', add_label='Add', edit_slot=None, edit_event='edit'):
+    def __init__(self, columns, get_query, extra_slots=None, submit_callback=None, table_class='', row_key='id', add_label='Add', edit_slot=None, edit_event='edit', pagination=None, admin_controls=False, custom_slots=None, show_upcoming_checkbox=False, auto_refresh_checkbox=False):
         self.columns = columns
         self.get_query = get_query
         self.extra_slots = extra_slots
@@ -17,20 +17,42 @@ class BaseTableView:
         self.edit_slot = edit_slot
         self.edit_event = edit_event
         self.table = None
+        self.pagination = pagination
+        self.admin_controls = admin_controls
+        self.custom_slots = custom_slots or {}
+        self.show_upcoming_checkbox = show_upcoming_checkbox
+        self.auto_refresh_checkbox = auto_refresh_checkbox
+        self._auto_refresh_task = None
         self._setup_ui()
 
     def _setup_ui(self):
         with ui.row().style('width: 100%;'):
             if self.submit_callback:
                 ui.button(self.add_label, on_click=self.submit_callback)
+            if self.show_upcoming_checkbox:
+                self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=True)
+            if self.admin_controls and self.auto_refresh_checkbox:
+                self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
             ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
         self._inject_css()
-        self.table = ui.table(columns=self.columns, rows=[], row_key=self.row_key).classes(f'{self.table_class} w-full')
+        self.table = ui.table(
+            columns=self.columns,
+            rows=[],
+            row_key=self.row_key,
+            pagination=self.pagination if self.pagination else None
+        ).classes(f'{self.table_class} w-full')
         if self.edit_slot and self.edit_event:
             self.table.add_slot(self.edit_slot, self._edit_slot_template())
             self.table.on(self.edit_event, self.on_edit)
+        # Add custom slots
+        for slot_name, slot_template in self.custom_slots.items():
+            self.table.add_slot(slot_name, slot_template)
         if self.extra_slots:
             self.extra_slots(self.table)
+        self.table.on('update:pagination', self._on_page_change)
+        self.refresh()
+
+    def _on_page_change(self, event):
         self.refresh()
 
     def _inject_css(self):
