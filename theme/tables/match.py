@@ -1,18 +1,65 @@
 import asyncio
-
 from nicegui import app, ui
-
 from models import Commentator, Match, Tracker, User
 from theme.dialog import ConfirmationDialog, UserDialog
+from theme.tables.base_table import BaseTableView
 
-# TODO: Implement server-side pagination, sorting, and filtering for large datasets
+class MatchTableView(BaseTableView):
+    def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None):
+        # Custom slots for clickable cells
+        custom_slots = {
+            'body-cell-id': '''<q-td :props="props">
+                <a href="#" @click="$parent.$emit('edit_match', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+            </q-td>''',
+            'body-cell-players': '''<q-td :props="props">
+                <span>
+                    <template v-for="(name, idx) in props.value">
+                        <a v-if="props.row.actions !== undefined" href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
+                        <span v-else style="margin-right: 4px; text-decoration: underline;">{{ name }}</span>
+                    </template>
+                </span>
+            </q-td>''',
+            'body-cell-commentators': '''<q-td :props="props">
+                <span>
+                    <template v-for="(item, idx) in props.value">
+                        <a href="#" @click="$parent.$emit('edit_commentator', { row: props.row, idx })"
+                           :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
+                            {{ item[0] }}
+                        </a>
+                    </template>
+                </span>
+            </q-td>''',
+            'body-cell-trackers': '''<q-td :props="props">
+                <span>
+                    <template v-for="(item, idx) in props.value">
+                        <a href="#" @click="$parent.$emit('edit_tracker', { row: props.row, idx })"
+                           :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
+                            {{ item[0] }}
+                        </a>
+                    </template>
+                </span>
+            </q-td>''',
+        }
+        super().__init__(
+            columns=columns,
+            get_query=get_query,
+            extra_slots=extra_slots,
+            submit_callback=submit_match_callback,
+            table_class='match-table',
+            row_key='id',
+            add_label='Create Match' if admin_controls else 'Request Match',
+            edit_slot='body-cell-id',
+            edit_event='edit_match',
+            pagination={'rowsPerPage': 20, 'page': 1},
+            admin_controls=admin_controls,
+            custom_slots=custom_slots,
+            show_upcoming_checkbox=True,
+            auto_refresh_checkbox=admin_controls
+        )
+        self._auto_refresh_task = None
+        self._setup_role_events()
 
-
-class MatchTableView:
     def _build_row(self, m):
-        """
-        Build a row dict for a match object.
-        """
         player_names = [p.user.preferred_name for p in m.players]
         commentator_names = [(c.user.preferred_name, c.approved, c.user.discord_id) for c in m.commentators]
         tracker_names = [(t.user.preferred_name, t.approved, t.user.discord_id) for t in m.trackers]
@@ -33,129 +80,9 @@ class MatchTableView:
         if self.admin_controls:
             row['actions'] = ''
         return row
-    """Encapsulates the match table UI and logic for admin/player dashboards."""
 
-    def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None):
-        self.columns = columns
-        self.get_query = get_query
-        self.admin_controls = admin_controls
-        self.extra_slots = extra_slots
-        self.submit_match_callback = submit_match_callback
-        self.table = None
-        self.show_upcoming_checkbox = None
-        self.auto_refresh_checkbox = None
-        self._auto_refresh_task = None
-        self._setup_ui()
-
-    def _on_upcoming_change(self, *args, **kwargs):
-        app.storage.show_only_upcoming_matches = self.show_upcoming_checkbox.value
-        asyncio.create_task(self.refresh())
-
-    def _on_auto_refresh_change(self, *args, **kwargs):
-        if self.auto_refresh_checkbox.value:
-            if not self._auto_refresh_task:
-                self._auto_refresh_task = asyncio.create_task(self._auto_refresh_loop())
-        else:
-            if self._auto_refresh_task:
-                self._auto_refresh_task.cancel()
-                self._auto_refresh_task = None
-
-    async def _auto_refresh_loop(self):
-        try:
-            while self.auto_refresh_checkbox.value:
-                await self.refresh()
-                await asyncio.sleep(5)
-        except asyncio.CancelledError:
-            pass
-
-    def _setup_ui(self):
-        with ui.row().style('width: 100%;'):
-            if self.submit_match_callback:
-                ui.button('Create Match' if self.admin_controls else 'Request Match', on_click=self.submit_match_callback)
-            # Use app.storage to persist checkbox state
-            default_value = getattr(app.storage, 'show_only_upcoming_matches', True)
-            self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
-            ui.space()
-            if self.admin_controls:
-                self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
-            ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
-        if self.auto_refresh_checkbox:
-            self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
-
-        ui.add_head_html("""
-        <style>
-        .match-table th, .match-table td {
-            border-right: 1px solid #ccc;
-        }
-        .match-table td {
-            text-align: left;
-        }
-        .match-table th {
-            text-align: center;
-        }
-        .match-table th:last-child, .match-table td:last-child {
-            border-right: none;
-        }
-        .match-table {
-            border-collapse: collapse;
-        }
-        .match-table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .match-table tr:nth-child(odd) {
-            background-color: #ffffff;
-        }
-        </style>
-        """)
-        with ui.column().style('width: 100%;'):
-            self.table = ui.table(
-                columns=self.columns,
-                rows=[],
-                row_key='id',
-                pagination={'rowsPerPage': 20, 'page': 1}
-            ).classes('match-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
-        self.table.on('update:pagination', self._on_page_change)
-        # Add slot for clickable match id (or other key field)
-        self.table.add_slot('body-cell-id', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('edit_match', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
-        </q-td>''')
-        if self.extra_slots:
-            for slot_name, slot_template in self.extra_slots.items():
-                self.table.add_slot(slot_name, slot_template)
-        self.table.on('update:pagination', self._on_page_change)
-        # Add slot for clickable player names
-        if self.admin_controls:
-            self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <span>
-                    <template v-for="(name, idx) in props.value">
-                        <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
-                    </template>
-                </span>
-            </q-td>''')
-        else:
-            self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <span>
-                    <template v-for="(name, idx) in props.value">
-                        <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span>
-                    </template>
-                </span>
-            </q-td>''')
-        for role in ['commentators', 'trackers']:
-            self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
-                <span>
-                    <template v-for="(item, idx) in props.value">
-                        <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})"
-                           :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
-                            {{{{ item[0] }}}}
-                        </a>
-                    </template>
-                </span>
-            </q-td>''')
-        if self.extra_slots:
-            for slot_name, slot_template in self.extra_slots.items():
-                self.table.add_slot(slot_name, slot_template)
+    def _setup_role_events(self):
         # Handler for editing a player
-
         async def handle_edit_role(role, event):
             row = event.args['row']
             idx = event.args['idx']
@@ -179,7 +106,6 @@ class MatchTableView:
             if not m or idx >= len(items):
                 ui.notify(f'{role.capitalize()} not found.', color='warning')
                 return
-
             user = items[idx].user
             dialog = UserDialog(user)
             await dialog.open()
@@ -217,11 +143,7 @@ class MatchTableView:
         for role in ['commentator', 'tracker']:
             self.table.on(f"edit_{role}", lambda event, r=role: handle_approve_role(r, event))
 
-
-
         async def handle_signup_or_undo_role(action, role, row):
-            # action: 'signup' or 'undo', role: 'commentator' or 'tracker'
-
             discord_id = app.storage.user.get('discord_id', None)
             if not discord_id:
                 ui.notify(f'You must be logged in to {action}.', color='warning')
@@ -269,38 +191,16 @@ class MatchTableView:
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
         self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
 
-    async def refresh(self, *args, **kwargs):
-        match_query = self.get_query()
-        if self.show_upcoming_checkbox.value:
-            match_query = match_query.filter(finished_at__isnull=True)
-        all_matches = await match_query.prefetch_related(
-            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
-        ).order_by('scheduled_at')
-        rows = [self._build_row(m) for m in all_matches]
-        self.table.rows = rows
-        self.table.update()
-
-    def _on_page_change(self, event):
-        import asyncio
-        asyncio.create_task(self.refresh())
-
     async def update_row_by_id(self, match_id):
-        """
-        Update a single row in the table by its match ID, only if the row is currently visible.
-        Does not respect the upcoming filter, but only updates if the row is present in self.table.rows.
-        """
-        # Find the index of the row with the given match_id
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is None:
-            return  # Row not visible, do nothing
-        # Query for the match object
+            return
         match_query = self.get_query()
         m = await match_query.filter(id=match_id).prefetch_related(
             'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).first()
         if not m:
-            # Match not found, delete the row from the table
             del self.table.rows[idx]
             self.table.update()
             return
@@ -309,10 +209,6 @@ class MatchTableView:
         self.table.update()
 
     async def delete_row_by_id(self, match_id):
-        """
-        Delete a single row in the table by its match ID, only if the row is currently visible.
-        Does not delete from the database, only removes from the table UI.
-        """
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is not None:

@@ -134,7 +134,7 @@ def admin_schedule_page() -> None:
         ]
 
         def get_query():
-            return Match.all()
+            return Match.all().prefetch_related('players', 'players__user', 'tournament', 'commentators', 'commentators__user', 'trackers', 'trackers__user', 'generated_seed')
         extra_slots = {
             'body-cell-edit': '''<q-td :props="props">
                 <q-btn @click="$parent.$emit('edit', props)" icon="edit" flat />

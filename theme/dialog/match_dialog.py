@@ -192,9 +192,9 @@ class MatchDialog:
                             ui.notify('All fields are required.', color='warning')
                         return
                 else:
-                    if not (new_player_ids and len(new_player_ids) >= 2 and tournament_id and date_value and time_value):
+                    if not (tournament_id and date_value and time_value):
                         with self.dialog:
-                            ui.notify('Please select at least two players and fill all fields.', color='warning')
+                            ui.notify('Please specify a tournament and a match time.', color='warning')
                         return
 
                 # Ensure all submitted players are enrolled in TournamentPlayers for this tournament

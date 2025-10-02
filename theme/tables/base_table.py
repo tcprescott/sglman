@@ -47,7 +47,7 @@ class BaseTableView:
         # Add custom slots
         for slot_name, slot_template in self.custom_slots.items():
             self.table.add_slot(slot_name, slot_template)
-        if self.extra_slots:
+        if callable(self.extra_slots):
             self.extra_slots(self.table)
         self.table.on('update:pagination', self._on_page_change)
         self.refresh()
