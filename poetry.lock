@@ -1965,6 +1965,17 @@ files = [
 ]
 
 [[package]]
+name = "python-bps-continued"
+version = "7"
+description = "A toolkit for working with BPS patch files"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "python-bps-continued-7.tar.gz", hash = "sha256:8c6aa69c70bb26d93f01dbd15b6c6b54a01d3c0132ca82c70bfdadbddc32d19d"},
+]
+
+[[package]]
 name = "python-dotenv"
 version = "1.1.1"
 description = "Read key-value pairs from a .env file and set them as environment variables"
@@ -2109,6 +2120,25 @@ files = [
 ]
 
 [[package]]
+name = "pyz3r"
+version = "6.1.0"
+description = "A python module for interacting with the web API of various randomizers, such as https://alttpr.com or https://samus.link."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pyz3r-6.1.0-py3-none-any.whl", hash = "sha256:193512b78a1ca79b8aea5042adce0d80bed94cb75939081f0b15da112f62a6cc"},
+    {file = "pyz3r-6.1.0.tar.gz", hash = "sha256:5bd1815e4d4231bb1969e4e2512e583d01763e78b0d68aae9865e54708848e5f"},
+]
+
+[package.dependencies]
+aiofiles = "*"
+aiohttp = "*"
+python-bps-continued = ">=7"
+slugid = "*"
+tenacity = "*"
+
+[[package]]
 name = "requests"
 version = "2.32.5"
 description = "Python HTTP for Humans."
@@ -2148,6 +2178,18 @@ wsproto = "*"
 [package.extras]
 dev = ["flake8", "pytest", "pytest-cov", "tox"]
 docs = ["sphinx"]
+
+[[package]]
+name = "slugid"
+version = "2.0.0"
+description = "Base64 encoded uuid v4 slugs"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "slugid-2.0.0-py2.py3-none-any.whl", hash = "sha256:aec8b0e01c4ad32e38e12d609eab3ec912fd129aaf6b2ded0199b56a5f8fd67c"},
+    {file = "slugid-2.0.0.tar.gz", hash = "sha256:a950d98b72691178bdd4d6c52743c4a2aa039207cf7a97d71060a111ff9ba297"},
+]
 
 [[package]]
 name = "sniffio"
@@ -2198,6 +2240,22 @@ anyio = ">=3.6.2,<5"
 
 [package.extras]
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
+
+[[package]]
+name = "tenacity"
+version = "9.1.2"
+description = "Retry code until it succeeds"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138"},
+    {file = "tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb"},
+]
+
+[package.extras]
+doc = ["reno", "sphinx"]
+test = ["pytest", "tornado (>=4.5)", "typeguard"]
 
 [[package]]
 name = "tomli-w"
@@ -2783,4 +2841,4 @@ requests = "*"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "e06cdf468b19f16380411cf49a1b2fae8d17a9633546c11bcd52843d770235bd"
+content-hash = "761d8d5c749bf1c42589f4876bf301551d9dfae5a8e68d1ce4efa2a7746e6808"

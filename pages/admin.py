@@ -69,7 +69,7 @@ def admin_users_page() -> None:
     async def add_user():
         async def after_submit(_):
             await table_view.refresh()
-        dialog = UserDialog(on_submit=after_submit)
+        dialog = UserDialog(on_submit=after_submit, admin_view=True)
         await dialog.open()
 
     table_view = UserTableView(

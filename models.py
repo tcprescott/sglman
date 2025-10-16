@@ -21,6 +21,17 @@ class User(Model):
     is_active = fields.BooleanField(default=True)
     permission = fields.IntEnumField(Permissions, default=Permissions.USER.value)
 
+    # related fields
+    admin_tournaments = fields.ManyToManyRelation["Tournament"]
+    match_players = fields.ReverseRelation["MatchPlayers"]
+    tournament_players = fields.ReverseRelation["TournamentPlayers"]
+    teams = fields.ReverseRelation["UserTeams"]
+    commentaries = fields.ReverseRelation["Commentator"]
+    approved_commentaries = fields.ReverseRelation["Commentator"]
+    trackers = fields.ReverseRelation["Tracker"]
+    approved_trackers = fields.ReverseRelation["Tracker"]
+    audit_logs = fields.ReverseRelation["AuditLog"]
+
     @property
     def preferred_name(self) -> str:
         return self.display_name if self.display_name else self.username
@@ -58,6 +69,12 @@ class Tournament(Model):
     staff_administered = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    players = fields.ReverseRelation["TournamentPlayers"]
+    matches = fields.ReverseRelation["Match"]
+    teams = fields.ReverseRelation["Team"]
+    announcements = fields.ReverseRelation["Announcement"]
 
 class Match(Model):
     id = fields.IntField(pk=True)

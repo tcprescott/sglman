@@ -24,7 +24,7 @@ class UserDialog:
             discord_id_input = ui.input('Discord ID', value=self.user.discord_id if self.user else '') if not self.user else None
             permission_select = ui.select(label='Permission', options={0: 'User', 1: 'Tournament Admin', 2: 'Superadmin'}, value=self.user.permission if self.user else 0)
 
-            # Tournament multi-select
+            # Tournament multi-select (participation)
             tournaments = await Tournament.filter(is_active=True)
             user_tournaments = []
             if self.user:
@@ -37,6 +37,33 @@ class UserDialog:
                 value=[str(tid) for tid in selected_tournament_ids],
                 multiple=True
             )
+
+            # Tournament admin multi-select (only if permission >= 1)
+            admin_tournament_multiselect = None
+            admin_tournament_ids = []
+            if self.user and self.user.permission >= 1:
+                admin_tournament_ids = [str(t.id) for t in await self.user.admin_tournaments.all()]
+                admin_tournament_multiselect = ui.select(
+                    label='Admin of Tournaments',
+                    options=tournament_options,
+                    value=admin_tournament_ids,
+                    multiple=True
+                )
+            elif not self.user:
+                # For new user, show admin selector if permission is set to >= 1
+                def on_permission_change(e):
+                    if e.value >= 1:
+                        admin_tournament_multiselect.enable()
+                    else:
+                        admin_tournament_multiselect.disable()
+                admin_tournament_multiselect = ui.select(
+                    label='Admin of Tournaments',
+                    options=tournament_options,
+                    value=[],
+                    multiple=True
+                )
+                admin_tournament_multiselect.disable()
+                permission_select.on('update:model-value', on_permission_change)
 
             async def submit():
                 if self.user:
@@ -51,19 +78,31 @@ class UserDialog:
                         self.user.is_active = is_active_checkbox.value
                         self.user.permission = permission_select.value
                         await self.user.save()
-                        # Update tournaments
+                        # Update tournaments (participation)
                         selected_ids = set(map(int, tournament_multiselect.value))
                         current_ids = set(selected_tournament_ids)
-                        # Remove deselected
                         for tp in user_tournaments:
                             if tp.tournament_id not in selected_ids:
                                 await tp.delete()
-                        # Add newly selected
                         for tid in selected_ids:
                             if tid not in current_ids:
                                 tournament = next((t for t in tournaments if t.id == tid), None)
                                 if tournament:
                                     await TournamentPlayers.create(user=self.user, tournament=tournament)
+                        # Update admin tournaments if permission >= 1
+                        if self.user.permission >= 1 and admin_tournament_multiselect:
+                            admin_selected_ids = set(map(int, admin_tournament_multiselect.value))
+                            current_admin_ids = set(map(int, admin_tournament_ids))
+                            # Remove deselected
+                            for t in await self.user.admin_tournaments.all():
+                                if t.id not in admin_selected_ids:
+                                    await self.user.admin_tournaments.remove(t)
+                            # Add newly selected
+                            for tid in admin_selected_ids:
+                                if tid not in current_admin_ids:
+                                    tournament = next((t for t in tournaments if t.id == tid), None)
+                                    if tournament:
+                                        await self.user.admin_tournaments.add(tournament)
                         ui.notify('User updated.', color='positive')
                         dialog.close()
                         if self.on_submit:
@@ -88,12 +127,19 @@ class UserDialog:
                         permission=permission,
                         discord_id=discord_id
                     )
-                    # Add tournaments for new user
+                    # Add tournaments for new user (participation)
                     selected_ids = set(map(int, tournament_multiselect.value))
                     for tid in selected_ids:
                         tournament = next((t for t in tournaments if t.id == tid), None)
                         if tournament:
                             await TournamentPlayers.create(user=new_user, tournament=tournament)
+                    # Add admin tournaments if permission >= 1
+                    if permission >= 1 and admin_tournament_multiselect:
+                        admin_selected_ids = set(map(int, admin_tournament_multiselect.value))
+                        for tid in admin_selected_ids:
+                            tournament = next((t for t in tournaments if t.id == tid), None)
+                            if tournament:
+                                await new_user.admin_tournaments.add(tournament)
                     with self.dialog:
                         ui.notify('User created.', color='positive')
                         dialog.close()
