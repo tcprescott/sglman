@@ -52,12 +52,12 @@ class TournamentDialog:
                         if self.on_submit:
                             await self.on_submit(self.tournament)
                 else:
-                    name = name_input.value.strip()
-                    description = description_input.value.strip()
-                    seed_generator = seed_generator_input.value.strip()
-                    bracket_url = bracket_url_input.value.strip()
-                    rules_url = rules_url_input.value.strip()
-                    tournament_format = tournament_format_input.value.strip()
+                    name = name_input.value
+                    description = description_input.value
+                    seed_generator = seed_generator_input.value
+                    bracket_url = bracket_url_input.value
+                    rules_url = rules_url_input.value
+                    tournament_format = tournament_format_input.value
                     average_match_duration = average_match_duration_input.value
                     max_match_duration = max_match_duration_input.value
                     is_active = is_active_checkbox.value
