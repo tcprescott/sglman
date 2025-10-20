@@ -15,7 +15,8 @@ class UserDialog:
         self.admin_view = admin_view
     async def open(self):
         from models import Tournament, TournamentPlayers
-        with ui.dialog() as dialog, ui.card():
+        # widen the dialog: set min-width and cap with viewport-relative max-width
+        with ui.dialog() as dialog, ui.card().style('min-width: 700px; max-width: 90vw;'):
             self.dialog = dialog
             username_input = ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
             display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
