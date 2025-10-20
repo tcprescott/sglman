@@ -23,9 +23,9 @@ def create() -> None:
             return
         tabs = [
             {'label': 'Home', 'icon': 'home', 'content': announcements_page},
+            {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
             {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
             {'label': 'Crew', 'icon': 'handyman', 'content': render_crew_dashboard},
-            {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
         ]
         await BaseLayout(tabs=tabs, default_tab=tab, page_name='home', user=user).render()
