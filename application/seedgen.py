@@ -73,7 +73,7 @@ async def generate_ootr() -> None:
     ) as resp:
         result = await resp.json()
 
-    return result
+    return f"https://ootrandomizer.com/seed/get?id={result['id']}"
 
 async def generate_wwr() -> None:
     return "https://example.com/wwr-seed-url"
