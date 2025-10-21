@@ -95,11 +95,11 @@ class MatchResponse(BaseModel):
     "/matches", 
     response_model=List[MatchResponse],
     summary="Get tournament matches",
-    description="Retrieve a list of matches with optional filtering by stream room and date range. Includes related data for tournaments, players, commentators, and trackers.",
+    description="Retrieve a list of matches with optional filtering by stream room(s) and date range. Includes related data for tournaments, players, commentators, and trackers.",
     response_description="List of matches with full related data"
 )
 async def get_matches(
-    stream_room_id: Optional[int] = Query(None, description="Filter matches by specific stream room ID"),
+    stream_room_id: Optional[List[int]] = Query(None, description="Filter matches by specific stream room IDs. Can provide multiple IDs."),
     start_date: Optional[datetime] = Query(None, description="Filter matches scheduled on or after this date/time"),
     end_date: Optional[datetime] = Query(None, description="Filter matches scheduled before this date/time"),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of matches to return")
@@ -108,7 +108,7 @@ async def get_matches(
     Retrieve match information with related data and filtering options.
     
     ## Filters
-    - **stream_room_id**: Filter matches by specific stream room
+    - **stream_room_id**: Filter matches by specific stream room(s). Can provide multiple IDs.
     - **start_date**: Filter matches scheduled on or after this date/time (ISO format)
     - **end_date**: Filter matches scheduled before this date/time (ISO format)
     - **limit**: Maximum number of matches to return (default: 100, max: 500)
@@ -121,16 +121,20 @@ async def get_matches(
     - Commentators with user information
     - Trackers with user information
     
-    ## Example
+    ## Examples
     ```
+    # Filter by a single stream room
     GET /api/matches?stream_room_id=1&start_date=2025-10-20T12:00:00
+    
+    # Filter by multiple stream rooms
+    GET /api/matches?stream_room_id=1&stream_room_id=2&stream_room_id=3
     ```
     """
     query = Match.all()
     
     # Apply filters if provided
-    if stream_room_id is not None:
-        query = query.filter(stream_room_id=stream_room_id)
+    if stream_room_id:
+        query = query.filter(stream_room_id__in=stream_room_id)
     
     if start_date is not None:
         query = query.filter(scheduled_at__gte=start_date)
