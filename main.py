@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from tortoise import Tortoise
 
 import frontend
+import api
 from migrations.tortoise_config import TORTOISE_ORM
 
 
@@ -59,12 +60,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_db()
     await close_discord_bot()
 
-app: FastAPI = FastAPI(lifespan=lifespan)
-# app.include_router(
-#     api.router,
-#     prefix='/api',
-#     tags=['api'],
-# )
+# Create FastAPI app with metadata for API documentation
+app: FastAPI = FastAPI(
+    title="Speedgaming Live Manager API",
+    description="API for managing tournaments, matches, players, commentators, and trackers for Speedgaming Live events",
+    version="1.0.0",
+    lifespan=lifespan,
+    # By default, API docs are accessible at /docs (Swagger) and /redoc (ReDoc)
+    docs_url="/api/docs",  # Customize the Swagger UI URL
+    redoc_url="/api/redoc",  # Customize the ReDoc URL
+)
+app.include_router(
+    api.router,
+    prefix='/api',
+    tags=['api'],
+)
 
 frontend.init(app)
 
