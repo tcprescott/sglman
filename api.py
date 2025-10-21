@@ -89,6 +89,27 @@ class MatchResponse(BaseModel):
     
     class Config:
         orm_mode = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        # Create a standard orm conversion first
+        match_dict = {
+            "id": obj.id,
+            "tournament": obj.tournament,
+            "stream_room": obj.stream_room,
+            "scheduled_at": obj.scheduled_at,
+            "seated_at": obj.seated_at,
+            "finished_at": obj.finished_at,
+            "comment": obj.comment,
+            "players": obj.players,
+            # Filter out unapproved commentators
+            "commentators": [c for c in obj.commentators if c.approved],
+            # Filter out unapproved trackers
+            "trackers": [t for t in obj.trackers if t.approved],
+            "created_at": obj.created_at,
+            "updated_at": obj.updated_at,
+        }
+        return cls(**match_dict)
 
 
 @router.get(
@@ -153,13 +174,5 @@ async def get_matches(
     
     # Order by scheduled_at and limit results
     matches = await query.order_by('scheduled_at').limit(limit)
-    
-    # Post-process to filter out unapproved commentators and trackers
-    for match in matches:
-        # Only include approved commentators
-        match.commentators = [c for c in match.commentators if c.approved]
-        
-        # Only include approved trackers
-        match.trackers = [t for t in match.trackers if t.approved]
     
     return matches
