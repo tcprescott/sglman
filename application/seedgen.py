@@ -58,7 +58,7 @@ async def generate_mmr() -> None:
     return "https://example.com/mmr-seed-url"
 
 async def generate_ootr() -> None:
-    with open("presets/ootr/sglive2025.json", "r") as f:
+    with open("presets/ootr/sgl25.json", "r") as f:
         settings = f.read()
     async with aiohttp.request(
         method='post',
