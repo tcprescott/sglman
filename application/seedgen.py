@@ -59,7 +59,7 @@ async def generate_mmr() -> None:
 
 async def generate_ootr() -> None:
     with open("presets/ootr/sgl25.json", "r") as f:
-        settings = f.read()
+        settings = json.load(f)
     async with aiohttp.request(
         method='post',
         url="https://ootrandomizer.com/api/sglive/seed/create",
