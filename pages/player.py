@@ -15,6 +15,8 @@ def render_player_dashboard():
     discord_id = app.storage.user.get('discord_id', None)
     if not discord_id:
         with ui.row():
+            ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
+        with ui.row():
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
         return
 
@@ -64,6 +66,8 @@ async def render_edit_info_tab():
     from models import Tournament, TournamentPlayers, User
     discord_id = app.storage.user.get('discord_id', None)
     if not discord_id:
+        with ui.row():
+            ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
         with ui.row():
             ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
         return
