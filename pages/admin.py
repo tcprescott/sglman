@@ -1,13 +1,11 @@
 import asyncio
-import random
-import time
 from datetime import datetime
 
 from nicegui import app, ui
 
 from application.seedgen import RANDOMIZERS
 from pages.announcement_admin import announcement_admin_page
-from models import GeneratedSeeds, Match, Permissions, Tournament, User, Announcement
+from models import GeneratedSeeds, Match, Permissions, Tournament, User
 from theme.base import BaseLayout
 from theme.dialog import (ConfirmationDialog, MatchDialog, TournamentDialog,
                           UserDialog)
@@ -140,9 +138,13 @@ def admin_schedule_page() -> None:
                 <q-btn @click="$parent.$emit('edit', props)" icon="edit" flat />
             </q-td>''',
             'body-cell-generated_seed': '''<q-td :props="props">
-                <q-btn v-if="props.row.tournament_seed_generator && !props.value" @click="$parent.$emit('roll', props)" icon="casino" flat />
+                <q-btn v-if="props.row.tournament_seed_generator && !props.value"
+                       :loading="props.row._generating_seed"
+                       :disabled="props.row._generating_seed"
+                       @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
+                       icon="casino" flat />
                 <span v-if="props.value">
-                    <template v-if="/^https?:\/\//.test(props.value)">
+                    <template v-if="/^https?:\\/\\//.test(props.value)">
                         <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
                     </template>
                     <template v-else>{{ props.value }}</template>
@@ -191,8 +193,8 @@ def admin_schedule_page() -> None:
 
         async def roll_seed(event):
             row_id = event.args['key']
+            # update the row id to show a spinner while generating
             match = await Match.get(id=row_id).prefetch_related('tournament')
-            random_number = random.randint(1, 1000)
             if match.tournament.seed_generator:
                 seed_generator = RANDOMIZERS.get(match.tournament.seed_generator)
                 if seed_generator:

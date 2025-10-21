@@ -12,6 +12,7 @@ import urllib.parse
 import aiohttp
 import json
 import os
+import asyncio
 
 
 async def generate_alttpr() -> None:
@@ -78,6 +79,7 @@ async def generate_wwr() -> None:
     return "https://example.com/wwr-seed-url"
 
 async def generate_test() -> None:
+    await asyncio.sleep(5) # simulate processing time
     return "https://example.com/test-seed-url"
 
 # map of randomizers to their generation functions
@@ -88,6 +90,6 @@ RANDOMIZERS = {
     'smmap': generate_smmap,
     'mmr': generate_mmr,
     'ootr': generate_ootr,
-    'wwr': generate_wwr,
+    # 'wwr': generate_wwr,
     'test': generate_test,
 }
