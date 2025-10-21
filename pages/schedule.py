@@ -27,11 +27,26 @@ def schedule():
     def get_query():
         return Match.all().prefetch_related('tournament', 'players', 'stream_room', 'generated_seed').order_by('scheduled_at')
 
+
+    extra_slots = {
+        'body-cell-generated_seed': '''<q-td :props="props">
+            <span v-if="props.value">
+                <template v-if="/^https?:\\/\\//.test(props.value)">
+                    <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;" :title="props.value">
+                        {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
+                    </a>
+                </template>
+                <template v-else>{{ props.value }}</template>
+            </span>
+        </q-td>''',
+    }
+
     # No admin controls or extra slots for schedule view
     table_view = MatchTableView(
         columns=columns,
         get_query=get_query,
-        admin_controls=False
+        admin_controls=False,
+        extra_slots=extra_slots
     )
 
     # Initial table load

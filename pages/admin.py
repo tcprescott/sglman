@@ -149,7 +149,9 @@ def admin_schedule_page() -> None:
                        icon="casino" flat />
                 <span v-if="props.value">
                     <template v-if="/^https?:\\/\\//.test(props.value)">
-                        <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+                        <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;" :title="props.value">
+                            {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
+                        </a>
                     </template>
                     <template v-else>{{ props.value }}</template>
                 </span>
