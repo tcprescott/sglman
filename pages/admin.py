@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from typing import Dict
 
 from nicegui import app, ui
 
@@ -13,6 +14,9 @@ from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.tables.match import MatchTableView
 from theme.tables.tournament import TournamentTableView
 from theme.tables.user import UserTableView
+
+# per-match locks to avoid concurrent seed generation for the same match
+_seed_locks: Dict[int, asyncio.Lock] = {}
 
 
 def create() -> None:
@@ -193,21 +197,40 @@ def admin_schedule_page() -> None:
 
         async def roll_seed(event):
             row_id = event.args['key']
-            # update the row id to show a spinner while generating
-            match = await Match.get(id=row_id).prefetch_related('tournament')
-            if match.tournament.seed_generator:
-                seed_generator = RANDOMIZERS.get(match.tournament.seed_generator)
-                if seed_generator:
-                    seed_url = await seed_generator()
-                    match.generated_seed = await GeneratedSeeds.create(
-                        tournament=match.tournament,
-                        seed_url=seed_url,
-                        seed_info=f"Generated seed for match {match.id}"
-                    )
-                    await match.save()
-                else:
-                    ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
-            await table_view.update_row_by_id(row_id)
+            # ensure only one generator runs per match id at a time
+            lock = _seed_locks.get(row_id)
+            if lock is None:
+                lock = asyncio.Lock()
+                _seed_locks[row_id] = lock
+
+            if lock.locked():
+                # another generation is in progress for this row; skip and refresh the row to clear client spinner
+                await table_view.update_row_by_id(row_id)
+                return
+
+            async with lock:
+                try:
+                    match = await Match.get(id=row_id).prefetch_related('tournament')
+                    # sanity check: if a seed has already been generated for this match, skip
+                    if match.generated_seed:
+                        ui.notify('A seed has already been generated for this match.', color='warning')
+                        table_view.update_row_by_id(row_id)
+                        return
+                    if match.tournament.seed_generator:
+                        seed_generator = RANDOMIZERS.get(match.tournament.seed_generator)
+                        if seed_generator:
+                            seed_url = await seed_generator()
+                            match.generated_seed = await GeneratedSeeds.create(
+                                tournament=match.tournament,
+                                seed_url=seed_url,
+                                seed_info=f"Generated seed for match {match.id}"
+                            )
+                            await match.save()
+                        else:
+                            ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
+                finally:
+                    # refresh the row so client clears spinner. Keep the lock dict entry for reuse.
+                    await table_view.update_row_by_id(row_id)
 
         async def seat_players(event):
             row_id = event.args['key']
