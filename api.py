@@ -95,8 +95,8 @@ class MatchResponse(BaseModel):
     "/matches", 
     response_model=List[MatchResponse],
     summary="Get tournament matches",
-    description="Retrieve a list of matches with optional filtering by stream room(s) and date range. Includes related data for tournaments, players, commentators, and trackers.",
-    response_description="List of matches with full related data"
+    description="Retrieve a list of matches with optional filtering by stream room(s) and date range. Includes related data for tournaments, players, and only approved commentators and trackers.",
+    response_description="List of matches with filtered related data"
 )
 async def get_matches(
     stream_room_id: Optional[List[int]] = Query(None, description="Filter matches by specific stream room IDs. Can provide multiple IDs."),
@@ -114,12 +114,12 @@ async def get_matches(
     - **limit**: Maximum number of matches to return (default: 100, max: 500)
     
     ## Response
-    Returns matches with complete related data for:
+    Returns matches with related data for:
     - Tournament information
     - Stream room details
     - Players with user information
-    - Commentators with user information
-    - Trackers with user information
+    - Approved commentators with user information (unapproved commentators are excluded)
+    - Approved trackers with user information (unapproved trackers are excluded)
     
     ## Examples
     ```
@@ -153,5 +153,13 @@ async def get_matches(
     
     # Order by scheduled_at and limit results
     matches = await query.order_by('scheduled_at').limit(limit)
+    
+    # Post-process to filter out unapproved commentators and trackers
+    for match in matches:
+        # Only include approved commentators
+        match.commentators = [c for c in match.commentators if c.approved]
+        
+        # Only include approved trackers
+        match.trackers = [t for t in match.trackers if t.approved]
     
     return matches
