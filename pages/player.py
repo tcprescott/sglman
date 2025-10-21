@@ -77,10 +77,11 @@ async def render_edit_info_tab():
     user_tournaments = await TournamentPlayers.filter(user=user)
     selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
-    with ui.card().style('padding: 1em;'):
-        display_name_hint = f"(default: {user.username})" if not user.display_name else ""
-        display_name_input = ui.input('Display Name', value=user.display_name or '', placeholder=display_name_hint)
-        pronouns_input = ui.input('Pronouns', value=user.pronouns or '', placeholder='e.g. they/them')
+    with ui.row().style('width: 100%;'):
+        with ui.card().style('padding: 1em;'):
+            display_name_hint = f"(default: {user.username})" if not user.display_name else ""
+            display_name_input = ui.input('Display Name', value=user.display_name or '', placeholder=display_name_hint)
+            pronouns_input = ui.input('Pronouns', value=user.pronouns or '', placeholder='e.g. they/them')
     tournament_checkboxes = {}
     staff_tournaments = [t for t in tournaments if t.staff_administered]
     player_tournaments = [t for t in tournaments if not t.staff_administered]
@@ -97,9 +98,10 @@ async def render_edit_info_tab():
                 for _ in range(columns - len(row)):
                     ui.label('')
 
-    with ui.row().style('margin-top: 1em;'):
+    with ui.row().style('width: 100%;'):
         with ui.card().style('padding: 1em;'):
             render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', columns=4)
+    with ui.row().style('width: 100%;'):
         with ui.card().style('padding: 1em;'):
             render_tournament_grid(player_tournaments, 'Community Tournaments', columns=4)
 
