@@ -88,7 +88,7 @@ RANDOMIZERS = {
     'ff1r': generate_ff1r,
     'z1r': generate_z1r,
     'smmap': generate_smmap,
-    'mmr': generate_mmr,
+    # 'mmr': generate_mmr,
     'ootr': generate_ootr,
     # 'wwr': generate_wwr,
     'test': generate_test,
