@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
 
-from models import Match
+from models import Match, GeneratedSeeds
 
 # Create router with better OpenAPI metadata
 router = APIRouter(
@@ -46,6 +46,16 @@ class StreamRoomBase(BaseModel):
         orm_mode = True
 
 
+class GeneratedSeedBase(BaseModel):
+    id: int
+    seed_url: str
+    seed_info: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
 class PlayerInfo(BaseModel):
     id: int
     user: UserBase
@@ -77,6 +87,7 @@ class MatchResponse(BaseModel):
     id: int
     tournament: TournamentBase
     stream_room: Optional[StreamRoomBase] = None
+    generated_seed: Optional[GeneratedSeedBase] = None
     scheduled_at: Optional[datetime] = None
     seated_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -97,6 +108,7 @@ class MatchResponse(BaseModel):
             "id": obj.id,
             "tournament": obj.tournament,
             "stream_room": obj.stream_room,
+            "generated_seed": obj.generated_seed,
             "scheduled_at": obj.scheduled_at,
             "seated_at": obj.seated_at,
             "finished_at": obj.finished_at,
@@ -120,59 +132,71 @@ class MatchResponse(BaseModel):
     response_description="List of matches with filtered related data"
 )
 async def get_matches(
+    match_id: Optional[List[int]] = Query(None, description="Filter matches by specific match IDs. Can provide multiple IDs."),
     stream_room_id: Optional[List[int]] = Query(None, description="Filter matches by specific stream room IDs. Can provide multiple IDs."),
     start_date: Optional[datetime] = Query(None, description="Filter matches scheduled on or after this date/time"),
     end_date: Optional[datetime] = Query(None, description="Filter matches scheduled before this date/time"),
+    tournament_id: Optional[List[int]] = Query(None, description="Filter matches by specific tournament IDs. Can provide multiple IDs."),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of matches to return")
 ):
     """
     Retrieve match information with related data and filtering options.
-    
+
     ## Filters
+    - **match_id**: Filter matches by specific match ID(s). Can provide multiple IDs.
     - **stream_room_id**: Filter matches by specific stream room(s). Can provide multiple IDs.
     - **start_date**: Filter matches scheduled on or after this date/time (ISO format)
     - **end_date**: Filter matches scheduled before this date/time (ISO format)
+    - **tournament_id**: Filter matches by specific tournament(s). Can provide multiple IDs.
     - **limit**: Maximum number of matches to return (default: 100, max: 500)
-    
+
     ## Response
     Returns matches with related data for:
     - Tournament information
     - Stream room details
+    - Generated seed information (if available)
     - Players with user information
     - Approved commentators with user information (unapproved commentators are excluded)
     - Approved trackers with user information (unapproved trackers are excluded)
-    
+
     ## Examples
     ```
     # Filter by a single stream room
     GET /api/matches?stream_room_id=1&start_date=2025-10-20T12:00:00
-    
+
     # Filter by multiple stream rooms
     GET /api/matches?stream_room_id=1&stream_room_id=2&stream_room_id=3
     ```
     """
     query = Match.all()
-    
+
     # Apply filters if provided
+    if match_id:
+        query = query.filter(id__in=match_id)
+
     if stream_room_id:
         query = query.filter(stream_room_id__in=stream_room_id)
-    
+
+    if tournament_id:
+        query = query.filter(tournament_id__in=tournament_id)
+
     if start_date is not None:
         query = query.filter(scheduled_at__gte=start_date)
-        
+
     if end_date is not None:
         query = query.filter(scheduled_at__lte=end_date)
-    
+
     # Load related data
     query = query.prefetch_related(
         'tournament',
         'stream_room',
+        'generated_seed',
         'players__user',
         'commentators__user',
         'trackers__user'
     )
-    
+
     # Order by scheduled_at and limit results
     matches = await query.order_by('scheduled_at').limit(limit)
-    
+
     return matches
