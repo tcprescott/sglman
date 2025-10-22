@@ -62,18 +62,9 @@ async def get_match_date_range() -> Dict:
 
 async def player_activity_report() -> None:
     """Shows a forecast of the number of active players at 5-minute intervals."""
-    
+
     with ui.row().style('width: 100%'):
         ui.label('Active Players Forecast').classes('text-h5')
-        
-    with ui.row().style('width: 100%'):
-        ui.label('''
-            This report shows the predicted number of players who will have active matches at 5-minute intervals.
-            An active match is determined by:
-            - If seated_at and finished_at are set, the match is active between these times
-            - If seated_at is not set, scheduled_at is used as the start time
-            - If finished_at is not set, the tournament's average_match_duration is used to calculate the end time
-        ''').style('white-space: pre-wrap')
 
     # Options for the report
     with ui.row():
