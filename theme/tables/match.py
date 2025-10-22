@@ -285,6 +285,9 @@ class MatchTableView:
         self.table.update()
 
     def render_grid_slot(self):
+        # Get the discord_id from app.storage if available
+        discord_id = app.storage.user.get('discord_id', None)
+        
         # Dynamically generate grid slot fields from self.columns
         grid_fields = []
         for col in self.columns:
@@ -293,7 +296,8 @@ class MatchTableView:
                 
             field = {
                 'label': col.get('label', col.get('name', '')),
-                'key': col.get('name', '')
+                'key': col.get('name', ''),
+                'discord_id': f"'{discord_id}'" if discord_id else 'null'  # Format for JS template
             }
             
             # Special handling for different field types
@@ -322,6 +326,7 @@ class MatchTableView:
             (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
             (", boolOrText: true" if f.get('bool_or_text') else '') +
             (f", separator: '{f['separator']}'" if 'separator' in f else '') +
+            (f", discord_id: {f['discord_id']}" if 'discord_id' in f else '') +
             " }" for f in grid_fields
         ])
         
@@ -345,6 +350,24 @@ class MatchTableView:
                 <!-- For array of objects like commentators/trackers with approval status -->
                 <template v-else-if="field.arrayObjects">
                     <span>
+                        <!-- Add signup/undo buttons for commentator/tracker fields -->
+                        <template v-if="field.key === 'commentators' || field.key === 'trackers'">
+                            <div style="margin-bottom: 8px;">
+                                <q-btn v-if="props.row[field.key] && props.row[field.key].some(item => item[2] == field.discord_id)"
+                                       icon="undo" color="negative" size="sm" 
+                                       @click="$parent.$emit('undo_' + field.key.slice(0, -1), props.row)" 
+                                       style="margin-right: 8px;">
+                                    Undo
+                                </q-btn>
+                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item[2] == field.discord_id)" 
+                                       icon="assignment" color="primary" size="sm" 
+                                       @click="$parent.$emit('signup_' + field.key.slice(0, -1), props.row)" 
+                                       style="margin-right: 8px;">
+                                    Sign Up
+                                </q-btn>
+                            </div>
+                        </template>
+                        
                         <template v-if="Array.isArray(props.row[field.key])">
                             <template v-for="(item, idx) in props.row[field.key]">
                                 <span :style="'color: ' + (item[field.approvedIndex] ? '#1976d2' : 'red') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
