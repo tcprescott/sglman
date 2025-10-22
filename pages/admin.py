@@ -91,7 +91,8 @@ def admin_tournaments_page() -> None:
         {'name': 'seed_generator', 'label': 'Seed Generator', 'field': 'seed_generator'},
         {'name': 'is_active', 'label': 'Active', 'field': 'is_active'},
         {'name': 'players_per_match', 'label': 'Players/Match', 'field': 'players_per_match'},
-        {'name': 'team_size', 'label': 'Team Size', 'field': 'team_size'},
+        {'name': 'average_match_duration', 'label': 'Avg Match Duration (min)', 'field': 'average_match_duration'},
+        {'name': 'max_match_duration', 'label': 'Max Match Duration (min)', 'field': 'max_match_duration'},
         {'name': 'staff_administered', 'label': 'Staff Administered', 'field': 'staff_administered'},
         {'name': 'player_count', 'label': 'Player Count', 'field': 'player_count'},
     ]

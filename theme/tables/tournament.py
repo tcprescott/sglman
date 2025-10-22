@@ -85,6 +85,8 @@ class TournamentTableView:
                 'team_size': t.team_size,
                 'staff_administered': t.staff_administered,
                 'player_count': len(t.players),  # Changed to use prefetch_related data
+                'average_match_duration': t.average_match_duration,
+                'max_match_duration': t.max_match_duration,
             }
             rows.append(row)
         self.table.rows = rows
