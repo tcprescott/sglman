@@ -22,44 +22,6 @@ async def reports_page() -> None:
             with ui.tab_panel('Active Players Forecast'):
                 await player_activity_report()
 
-async def get_match_date_range() -> Dict:
-    """
-    Get the earliest and latest dates from scheduled matches.
-    [Currently unused - kept for potential future enhancements]
-    
-    Returns:
-        Dict with min_date and max_date
-    """
-    from tortoise.functions import Min, Max
-    
-    # Find the earliest and latest scheduled matches
-    earliest = await Match.all().annotate(min_date=Min('scheduled_at')).first().values('min_date')
-    latest = await Match.all().annotate(max_date=Max('scheduled_at')).first().values('max_date')
-    
-    # Get the earliest scheduled_at date, or default to today
-    min_date = None
-    if earliest and earliest.get('min_date'):
-        min_date = earliest['min_date'].date()
-    
-    # Get the latest scheduled_at date, or default to one month from today
-    max_date = None
-    if latest and latest.get('max_date'):
-        max_date = latest['max_date'].date()
-        # Add tournament duration to max_date to catch final matches
-        max_date += timedelta(days=7)  # Add a week as buffer
-    
-    # If no matches in database, set reasonable defaults
-    today = datetime.now().date()
-    if not min_date:
-        min_date = today
-    if not max_date:
-        max_date = today + timedelta(days=30)
-        
-    return {
-        'min_date': min_date.isoformat(),
-        'max_date': max_date.isoformat(),
-    }
-
 async def player_activity_report() -> None:
     """Shows a forecast of the number of active players at 5-minute intervals."""
 
@@ -112,7 +74,7 @@ async def player_activity_report() -> None:
             table_container.clear()
             
             # Setup timezone
-            eastern_tz = pytz.timezone('EDT')
+            eastern_tz = pytz.timezone('US/Eastern')
             
             # Determine date range and interval based on selected forecast period
             if forecast_period.value == 'Whole Event':
@@ -312,7 +274,7 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
     # Note: We assume that match.scheduled_at values are already in US/Eastern timezone
     
     # Set up timezone
-    eastern_tz = pytz.timezone('EDT')
+    eastern_tz = pytz.timezone('US/Eastern')
     
     # Convert check_time to US/Eastern timezone
     # If check_time has no timezone (is naive), assume it's in US/Eastern
@@ -342,7 +304,7 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
             else:
                 start_time = match.seated_at.astimezone(eastern_tz)
         else:
-            start_time = match.scheduled_at.replace(tzinfo=eastern_tz)
+            start_time = match.scheduled_at.replace(tzinfo=eastern_tz) - timedelta(hours=1)
 
         # Skip matches that haven't started yet
         if start_time > check_time:
