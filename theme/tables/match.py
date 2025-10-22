@@ -119,6 +119,10 @@ class MatchTableView:
         self.table.add_slot('body-cell-id', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_match', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
         </q-td>''')
+        
+        # Add the item slot for grid view
+        self.render_grid_slot()
+        
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
@@ -279,6 +283,94 @@ class MatchTableView:
         rows = [self._build_row(m) for m in all_matches]
         self.table.rows = rows
         self.table.update()
+
+    def render_grid_slot(self):
+        # Dynamically generate grid slot fields from self.columns
+        grid_fields = []
+        for col in self.columns:
+            if col.get('hidden'):  # Skip hidden columns
+                continue
+                
+            field = {
+                'label': col.get('label', col.get('name', '')),
+                'key': col.get('name', '')
+            }
+            
+            # Special handling for different field types
+            if field['key'] == 'id':
+                field['event'] = 'edit_match'
+            elif field['key'] == 'players':
+                field['array'] = True
+                field['separator'] = ', '  # Add space after comma
+            elif field['key'] in ['commentators', 'trackers']:
+                field['array_objects'] = True
+                field['name_index'] = 0
+                field['approved_index'] = 1
+                field['separator'] = ', '  # Add space after comma
+            elif field['key'] in ['seated', 'finished']:
+                field['bool_or_text'] = True
+                
+            grid_fields.append(field)
+            
+        # Build JS array for Vue template
+        js_field_array = ',\n    '.join([
+            f"{{ label: '{f['label']}', key: '{f['key']}'" +
+            (f", event: '{f['event']}'" if 'event' in f else '') +
+            (", array: true" if f.get('array') else '') +
+            (", arrayObjects: true" if f.get('array_objects') else '') +
+            (", nameIndex: " + str(f['name_index']) if 'name_index' in f else '') +
+            (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
+            (", boolOrText: true" if f.get('bool_or_text') else '') +
+            (f", separator: '{f['separator']}'" if 'separator' in f else '') +
+            " }" for f in grid_fields
+        ])
+        
+        self.table.add_slot('item', f'''
+        <div class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+        <div v-for="field in [
+            {js_field_array}
+        ]" :key="field.key" class="row items-center q-mb-xs">
+            <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
+            <div class="col-8">
+                <!-- For fields with click events like match ID -->
+                <template v-if="field.event">
+                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+                </template>
+                
+                <!-- For array fields like players -->
+                <template v-else-if="field.array">
+                    <span>{{{{ Array.isArray(props.row[field.key]) ? props.row[field.key].join(field.separator || ', ') : props.row[field.key] }}}}</span>
+                </template>
+                
+                <!-- For array of objects like commentators/trackers with approval status -->
+                <template v-else-if="field.arrayObjects">
+                    <span>
+                        <template v-if="Array.isArray(props.row[field.key])">
+                            <template v-for="(item, idx) in props.row[field.key]">
+                                <span :style="'color: ' + (item[field.approvedIndex] ? '#1976d2' : 'red') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
+                                    {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                </span>
+                            </template>
+                        </template>
+                        <template v-else>{{{{ props.row[field.key] }}}}</template>
+                    </span>
+                </template>
+                
+                <!-- For boolean or text fields like seated/finished -->
+                <template v-else-if="field.boolOrText">
+                    <template v-if="props.row[field.key] === true">Yes</template>
+                    <template v-else-if="props.row[field.key] === false">No</template>
+                    <template v-else>{{{{ props.row[field.key] || '' }}}}</template>
+                </template>
+                
+                <!-- Default rendering for other fields -->
+                <template v-else>
+                    {{{{ props.row[field.key] || '' }}}}
+                </template>
+            </div>
+        </div>
+        </div>
+        ''')
 
     def _on_page_change(self, event):
         import asyncio
