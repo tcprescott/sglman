@@ -312,7 +312,7 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
     # Note: We assume that match.scheduled_at values are already in US/Eastern timezone
     
     # Set up timezone
-    eastern_tz = pytz.timezone('US/Eastern')
+    eastern_tz = pytz.timezone('EDT')
     
     # Convert check_time to US/Eastern timezone
     # If check_time has no timezone (is naive), assume it's in US/Eastern
