@@ -72,11 +72,11 @@ async def player_activity_report() -> None:
             with ui.row():
                 forecast_period = ui.select(
                     [
-                        'Whole Event (Thursday - Sunday)',
                         'Thursday',
                         'Friday',
                         'Saturday',
                         'Sunday',
+                        'Whole Event',
                     ],
                     value='Thursday',
                     label='Forecast Period'
@@ -115,7 +115,7 @@ async def player_activity_report() -> None:
             eastern_tz = pytz.timezone('US/Eastern')
             
             # Determine date range and interval based on selected forecast period
-            if forecast_period.value == 'Whole Event (Thursday - Sunday)':
+            if forecast_period.value == 'Whole Event':
                 # Fixed date range for the whole event with 60-minute intervals
                 now = eastern_tz.localize(datetime(2025, 10, 24, 8, 0, 0))  # Oct 24, 2025 at 8AM ET
                 end_time = eastern_tz.localize(datetime(2025, 10, 27, 22, 0, 0))  # Oct 27, 2025 at 10PM ET
@@ -155,19 +155,10 @@ async def player_activity_report() -> None:
             
             # Display chart with period-specific title
             with chart_container:
-                if forecast_period.value == 'Whole Event (Thursday - Sunday)':
-                    ui.label('Active Players and Matches Forecast - Whole Event').classes('text-h6')
-                else:
-                    ui.label('Active Players and Matches Forecast - Next 24 Hours').classes('text-h6')
+                ui.label(f'Active Players Forecast - {forecast_period.value}').classes('text-h6')
                 
-                # Create EChart configuration
-                # Set chart title based on forecast period
-                title_text = f'Activity Forecast - {forecast_period.value}'
-                
+
                 echart_option = {
-                    'title': {
-                        'text': title_text
-                    },
                     'tooltip': {
                         'trigger': 'axis',
                         'axisPointer': {
