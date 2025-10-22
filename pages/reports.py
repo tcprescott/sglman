@@ -122,7 +122,7 @@ async def player_activity_report() -> None:
                 interval_min = 60  # 60-minute intervals for the whole event
             else:
                 datemap = {
-                    'Thursday': (datetime(2025, 10, 23, 8, 0, 0, tzinfo=eastern_tz), datetime(2025, 10, 24, 0, 0, 0, tzinfo=eastern_tz)),
+                    'Thursday': (datetime(2025, 10, 23, 0, 0, 0, tzinfo=eastern_tz), datetime(2025, 10, 24, 0, 0, 0, tzinfo=eastern_tz)),
                     'Friday': (datetime(2025, 10, 24, 0, 0, 0, tzinfo=eastern_tz), datetime(2025, 10, 25, 0, 0, 0, tzinfo=eastern_tz)),
                     'Saturday': (datetime(2025, 10, 25, 0, 0, 0, tzinfo=eastern_tz), datetime(2025, 10, 26, 0, 0, 0, tzinfo=eastern_tz)),
                     'Sunday': (datetime(2025, 10, 26, 0, 0, 0, tzinfo=eastern_tz), datetime(2025, 10, 27, 0, 0, 0, tzinfo=eastern_tz)),
