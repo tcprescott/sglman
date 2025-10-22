@@ -151,7 +151,7 @@ async def player_activity_report() -> None:
             # Format for chart display - include ET timezone indicator
             time_labels = [t.strftime('%m-%d %H:%M ET') for t in intervals]
             player_counts = [d['active_players'] for d in interval_data]
-            match_counts = [d['active_matches'] for d in interval_data]
+            max_player_counts = [60] * len(intervals)  # Static value of 60 for max players
             
             # Display chart with period-specific title
             with chart_container:
@@ -178,7 +178,7 @@ async def player_activity_report() -> None:
                         }
                     },
                     'legend': {
-                        'data': ['Active Players', 'Active Matches']
+                        'data': ['Active Players', 'Max Players']
                     },
                     'grid': {
                         'left': '3%',
@@ -204,11 +204,6 @@ async def player_activity_report() -> None:
                             'type': 'value',
                             'name': 'Players',
                             'position': 'left'
-                        },
-                        {
-                            'type': 'value',
-                            'name': 'Matches',
-                            'position': 'right'
                         }
                     ],
                     'series': [
@@ -227,17 +222,15 @@ async def player_activity_report() -> None:
                             }
                         },
                         {
-                            'name': 'Active Matches',
+                            'name': 'Max Players',
                             'type': 'line',
-                            'yAxisIndex': 1,
-                            'data': match_counts,
-                            'smooth': True,
+                            'yAxisIndex': 0,
+                            'data': max_player_counts,
+                            'smooth': False,
                             'lineStyle': {
                                 'width': 2,
-                                'color': '#FF5722'
-                            },
-                            'areaStyle': {
-                                'color': 'rgba(255, 87, 34, 0.2)'
+                                'color': '#FF0000',
+                                'type': 'dashed'
                             }
                         }
                     ]
@@ -252,18 +245,12 @@ async def player_activity_report() -> None:
                 
                 # Find top 5 peaks for players
                 player_peaks = sorted(zip(intervals, player_counts), key=lambda x: x[1], reverse=True)[:5]
-                match_peaks = sorted(zip(intervals, match_counts), key=lambda x: x[1], reverse=True)[:5]
                 
                 with ui.row():
-                    with ui.column().classes('col-6'):
+                    with ui.column().classes('col-12'):
                         ui.label('Top 5 Player Peak Times:').classes('text-weight-bold')
                         for time, count in player_peaks:
                             ui.label(f"{time.strftime('%Y-%m-%d %H:%M ET')}: {count} players")
-                            
-                    with ui.column().classes('col-6'):
-                        ui.label('Top 5 Match Peak Times:').classes('text-weight-bold')
-                        for time, count in match_peaks:
-                            ui.label(f"{time.strftime('%Y-%m-%d %H:%M ET')}: {count} matches")
             
             # Display table with data
             with table_container:
@@ -271,15 +258,13 @@ async def player_activity_report() -> None:
                 
                 columns = [
                     {'name': 'time', 'label': 'Time', 'field': 'time', 'sortable': True},
-                    {'name': 'active_matches', 'label': 'Active Matches', 'field': 'active_matches', 'sortable': True},
                     {'name': 'active_players', 'label': 'Active Players', 'field': 'active_players', 'sortable': True},
                 ]
                 
                 rows = [
                     {
                         'time': intervals[i].strftime('%Y-%m-%d %H:%M ET'),
-                        'active_matches': match_counts[i],
-                        'active_players': player_counts[i]
+                        'active_players': player_counts[i],
                     }
                     for i in range(len(intervals))
                 ]
@@ -309,8 +294,8 @@ async def player_activity_report() -> None:
                         table.rows = [
                             row for row in table_all_rows
                             if search_term in row['time'].lower() or 
-                               search_term in str(row['active_matches']).lower() or
-                               search_term in str(row['active_players']).lower()
+                               search_term in str(row['active_players']).lower() or
+                               search_term in str(row['max_players']).lower()
                         ]
                 
         finally:
@@ -331,11 +316,7 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
         Dict with active_matches and active_players counts
     """
     # Initialize counters
-    active_matches = 0
     active_players = 0
-    
-    # Get all tournaments for their match durations
-    tournaments = {t.id: t for t in await Tournament.all()}
     
     # Note: We assume that match.scheduled_at values are already in US/Eastern timezone
     
@@ -354,7 +335,8 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
     # 1. Matches with seated_at ≤ check_time and finished_at > check_time
     # 2. Matches with seated_at ≤ check_time and no finished_at
     # 3. Matches with scheduled_at ≤ check_time and no seated_at
-    matches = await Match.all().prefetch_related('tournament')
+    # Exclude matches with a stream_room set
+    matches = await Match.filter(stream_room=None).prefetch_related('tournament', 'players')
     
     for match in matches:
         # Skip matches with no scheduled time
@@ -391,23 +373,17 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
             else:
                 end_time = match.finished_at.astimezone(eastern_tz)
         else:
-            tournament = tournaments.get(match.tournament_id)
-            if tournament and tournament.average_match_duration:
-                end_time = start_time + timedelta(minutes=tournament.average_match_duration)
+            # Use the prefetched tournament relation directly
+            if match.tournament and match.tournament.average_match_duration:
+                end_time = start_time + timedelta(minutes=match.tournament.average_match_duration)
             else:
                 # Default to 90 minutes if no duration is specified
                 end_time = start_time + timedelta(minutes=90)
         
         # Check if the match is active at the given time
         if start_time <= check_time <= end_time:
-            active_matches += 1
-            
-            # Count players based on tournament's players_per_match
-            tournament = tournaments.get(match.tournament_id)
-            if tournament:
-                active_players += tournament.players_per_match
+            active_players += len(match.players)
     
     return {
-        'active_matches': active_matches,
         'active_players': active_players
     }
