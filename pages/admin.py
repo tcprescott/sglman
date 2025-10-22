@@ -6,6 +6,7 @@ from nicegui import app, ui
 
 from application.seedgen import RANDOMIZERS
 from pages.announcement_admin import announcement_admin_page
+from pages.reports import reports_page
 from models import GeneratedSeeds, Match, Permissions, Tournament, User
 from theme.base import BaseLayout
 from theme.dialog import (ConfirmationDialog, MatchDialog, TournamentDialog,
@@ -44,9 +45,9 @@ def create() -> None:
         tabs = [
             {'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page},
             {'label': 'Users', 'icon': 'people', 'content': admin_users_page},
-            {'label': 'Reports', 'icon': 'report', 'content': lambda: ui.label('Reports section is under construction.').style('color: red; font-weight: bold;')},
             {'label': 'Settings', 'icon': 'settings', 'content': admin_settings_page},
             {'label': 'Announcements', 'icon': 'announcement', 'content': announcement_admin_page},
+            {'label': 'Reports', 'icon': 'analytics', 'content': reports_page},
         ]
 
         base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user)
