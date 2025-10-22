@@ -342,15 +342,7 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
             else:
                 start_time = match.seated_at.astimezone(eastern_tz)
         else:
-            # Use scheduled_at if seated_at is not available
-            # Assume scheduled_at is already in US/Eastern timezone
-            if match.scheduled_at.tzinfo is None:
-                # If naive datetime, just use it directly as it's already Eastern time
-                start_time = eastern_tz.localize(match.scheduled_at)
-            else:
-                # If it has a timezone, assume it's correct but standardize to US/Eastern
-                # start_time = match.scheduled_at.astimezone(eastern_tz)
-                start_time = match.scheduled_at.replace(tzinfo=eastern_tz)
+            start_time = match.scheduled_at.replace(tzinfo=eastern_tz)
 
         # Skip matches that haven't started yet
         if start_time > check_time:
