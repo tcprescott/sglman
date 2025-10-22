@@ -304,7 +304,7 @@ async def calculate_active_players_at_time(check_time: datetime) -> Dict:
             else:
                 start_time = match.seated_at.astimezone(eastern_tz)
         else:
-            start_time = match.scheduled_at.replace(tzinfo=eastern_tz) - timedelta(hours=1)
+            start_time = match.scheduled_at.replace(tzinfo=eastern_tz) - timedelta(hours=1) # TODO: holy fuck this is awful 🤮
 
         # Skip matches that haven't started yet
         if start_time > check_time:
