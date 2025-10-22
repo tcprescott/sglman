@@ -249,9 +249,15 @@ class MatchTableView:
                 if not crew_member:
                     ui.notify(f'You are not signed up as a {role} for this match.', color='info')
                     return
-                await crew_member.delete()
-                ui.notify(f'You have been removed as a {role} for match ID {match.id}.', color='positive')
-                await self.update_row_by_id(match.id)
+                    
+                async def perform_undo():
+                    await crew_member.delete()
+                    ui.notify(f'You have been removed as a {role} for match ID {match.id}.', color='positive')
+                    await self.update_row_by_id(match.id)
+                    dialog.dialog.close()
+                
+                dialog = ConfirmationDialog(f'Are you sure you want to remove yourself as a {role} for match ID {match.id}?', confirm_text='Yes', cancel_text='No', on_confirm=perform_undo)
+                dialog.open()
             elif action == 'signup':
                 async def update_role_signup():
                     if any(c.user_id == user.id for c in crew_list):
