@@ -162,7 +162,7 @@ async def player_activity_report() -> None:
                 
                 # Create EChart configuration
                 # Set chart title based on forecast period
-                title_text = 'Activity Forecast - ' + ('Whole Event' if forecast_period.value.startswith('Whole Event') else 'Next 24 Hours')
+                title_text = f'Activity Forecast - {forecast_period.value}'
                 
                 echart_option = {
                     'title': {
