@@ -112,7 +112,7 @@ async def player_activity_report() -> None:
             table_container.clear()
             
             # Setup timezone
-            eastern_tz = pytz.timezone('US/Eastern')
+            eastern_tz = pytz.timezone('EDT')
             
             # Determine date range and interval based on selected forecast period
             if forecast_period.value == 'Whole Event':
