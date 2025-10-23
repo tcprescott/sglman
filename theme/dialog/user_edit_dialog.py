@@ -37,7 +37,7 @@ class UserDialog:
                 options=tournament_options,
                 value=[str(tid) for tid in selected_tournament_ids],
                 multiple=True
-            )
+            ).props('use-chips')
 
             if self.admin_view:
                 # Tournament admin multi-select (only if permission >= 1)
@@ -50,7 +50,7 @@ class UserDialog:
                         options=tournament_options,
                         value=admin_tournament_ids,
                         multiple=True
-                    )
+                    ).props('use-chips')
                 elif not self.user:
                     # For new user, show admin selector if permission is set to >= 1
                     def on_permission_change(e):
@@ -63,7 +63,7 @@ class UserDialog:
                         options=tournament_options,
                         value=[],
                         multiple=True
-                    )
+                    ).props('use-chips')
                     admin_tournament_multiselect.disable()
                     permission_select.on('update:model-value', on_permission_change)
 

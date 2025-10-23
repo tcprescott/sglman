@@ -72,15 +72,15 @@ class MatchDialog:
 
             with ui.row().classes('items-center').style('margin-top: 1em;'):
                 if self.discord_id is None:
-                    selected_players = ui.select(label='Players', options={}, value=player_ids, multiple=True, with_input=True)
+                    selected_players = ui.select(label='Players', options={}, value=player_ids, multiple=True, with_input=True).props('use-chips')
                     selected_players.disable()
                     choose_any_players = ui.checkbox('Choose any players', value=False)
                     # Add dropdowns for commentators and trackers
                     # Pre-fill for edit mode
                     commentator_ids = [c.user_id for c in await self.match.commentators] if self.match else []
                     tracker_ids = [t.user_id for t in await self.match.trackers] if self.match else []
-                    selected_commentators = ui.select(label='Commentators', options={u.id: u.preferred_name for u in users}, value=commentator_ids, multiple=True, with_input=True)
-                    selected_trackers = ui.select(label='Trackers', options={u.id: u.preferred_name for u in users}, value=tracker_ids, multiple=True, with_input=True)
+                    selected_commentators = ui.select(label='Commentators', options={u.id: u.preferred_name for u in users}, value=commentator_ids, multiple=True, with_input=True).props('use-chips')
+                    selected_trackers = ui.select(label='Trackers', options={u.id: u.preferred_name for u in users}, value=tracker_ids, multiple=True, with_input=True).props('use-chips')
                 else:
                     opponent_options = {}
                     selected_opponent = ui.select(label='Opponent', options=opponent_options, with_input=True)
