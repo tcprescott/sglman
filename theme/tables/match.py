@@ -53,17 +53,17 @@ class MatchTableView:
         self._setup_ui()
 
     def _on_upcoming_change(self, *args, **kwargs):
-        app.storage.show_only_upcoming_matches = self.show_upcoming_checkbox.value
+        app.storage.user['show_only_upcoming_matches'] = self.show_upcoming_checkbox.value
         asyncio.create_task(self.refresh())
         
     def _on_tournament_filter_change(self, *args, **kwargs):
         # Store the tournament ID value in app.storage
-        app.storage.tournament_filter = self.tournament_filter.value
+        app.storage.user['tournament_filter'] = self.tournament_filter.value
         asyncio.create_task(self.refresh())
         
     def _on_stream_room_filter_change(self, *args, **kwargs):
         # Store the stream room ID value in app.storage
-        app.storage.stream_room_filter = self.stream_room_filter.value
+        app.storage.user['stream_room_filter'] = self.stream_room_filter.value
         asyncio.create_task(self.refresh())
 
     def _on_auto_refresh_change(self, *args, **kwargs):
@@ -88,7 +88,7 @@ class MatchTableView:
         tournaments = await Tournament.all()
         self.tournaments_list = {t.id: t.name for t in tournaments}
         # Set initial value from storage or default to None (All Tournaments)
-        default_tournament_id = getattr(app.storage, 'tournament_filter', None)
+        default_tournament_id = app.storage.user.get('tournament_filter', None)
         if self.tournament_filter:
             self.tournament_filter.options = self.tournaments_list
             self.tournament_filter.value = default_tournament_id
@@ -99,7 +99,7 @@ class MatchTableView:
         stream_rooms = await StreamRoom.all()
         self.stream_rooms_list = {sr.id: sr.name for sr in stream_rooms}
         # Set initial value from storage or default to None (All Stages)
-        default_stream_room_id = getattr(app.storage, 'stream_room_filter', None)
+        default_stream_room_id = app.storage.user.get('stream_room_filter', None)
         if self.stream_room_filter:
             self.stream_room_filter.options = self.stream_rooms_list
             self.stream_room_filter.value = default_stream_room_id
@@ -131,7 +131,7 @@ class MatchTableView:
             ).style('min-width: 150px; margin-right: 16px;').props('use-chips')
             
             # Use app.storage to persist checkbox state
-            default_value = getattr(app.storage, 'show_only_upcoming_matches', True)
+            default_value = app.storage.user.get('show_only_upcoming_matches', True)
             self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
             
             ui.space()
