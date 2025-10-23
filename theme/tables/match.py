@@ -79,9 +79,7 @@ class MatchTableView:
     async def _load_tournaments(self):
         """Load all tournament names for the filter"""
         tournaments = await Tournament.all()
-        self.tournaments_list = [
-            t.name for t in tournaments
-        ]
+        self.tournaments_list = {t.id: t.name for t in tournaments}
         # Set initial value from storage or default to None (All Tournaments)
         default_tournament_id = getattr(app.storage, 'tournament_filter', None)
         if self.tournament_filter:
@@ -328,8 +326,8 @@ class MatchTableView:
         # Apply tournament filter if a specific tournament is selected
         if self.tournament_filter and self.tournament_filter.value:
             # Extract the actual tournament ID from the selected object
-            tournament_names = self.tournament_filter.value
-            match_query = match_query.filter(tournament__name__in=tournament_names)
+            tournament_ids = self.tournament_filter.value
+            match_query = match_query.filter(tournament_id__in=tournament_ids)
             
         all_matches = await match_query.prefetch_related(
             'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
