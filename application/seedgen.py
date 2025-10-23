@@ -26,7 +26,7 @@ async def generate_alttpr() -> None:
     return seed.url
 
 async def generate_ff1r() -> None:
-    url = 'https://4-8-6.finalfantasyrandomizer.com/?s=47D73892&f=w5YDdiKkqjtl1K6HiZNJrspHlS20-jLRBJ1SSNZiBJvybkMw1.dWcvHnfFfp.zkPTB90SuAl2vX04hO8F5ApVp1XVza-V-DBIfVS5ptlLkw9iH4vi19U0OSe0ZpjeDmJUH4g2YFJYiMk2plLvWjbCIH4p0-Ccq7LHUQH.q.IutAsHfjB'
+    url = 'https://4-8-6.finalfantasyrandomizer.com/?s=00000000&f=6XOcCG.geJ.YDwt9.jijRao2NoTvBlq0V2VvHuAxjtMhlVRYso0wmNtUopSO9Xzt2k8Gn7v9d6ysABeksoaTevatcw4ZKZoMV95h1NQISZlbvlK8FEwtAAT5KWQUztLnkzQuDcO36uLraMFFQpGq0YsZrZHr7YdUoUxsW5.IutAsHfjB'
     seed = ('%008x' % random.randrange(16 ** 8)).upper()
     up = urllib.parse.urlparse(url)
     qs = urllib.parse.parse_qs(up.query)
