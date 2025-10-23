@@ -52,7 +52,7 @@ class TournamentTableView:
                 columns=self.columns,
                 rows=[],
                 row_key='id',
-                pagination={'rowsPerPage': 20, 'page': 1}
+                # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('tournament-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable tournament name

@@ -39,7 +39,7 @@ class BaseTableView:
             columns=self.columns,
             rows=[],
             row_key=self.row_key,
-            pagination=self.pagination if self.pagination else None
+            # pagination=self.pagination if self.pagination else None
         ).classes(f'{self.table_class} w-full')
         if self.edit_slot and self.edit_event:
             self.table.add_slot(self.edit_slot, self._edit_slot_template())
