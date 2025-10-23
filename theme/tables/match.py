@@ -155,6 +155,21 @@ class MatchTableView:
         .match-table td {
             text-align: left;
         }
+        /* Allow wrapping for long lists of names in table view for specific columns */
+        /* Target the inner wrapper element placed inside the q-td, not the td itself */
+        .match-table td .wrap {
+            display: block;
+            white-space: normal !important;
+            word-break: normal;
+            overflow-wrap: break-word;
+            max-width: 220px; /* reasonable default, table can expand as needed */
+        }
+        /* Ensure links inside the wrapper also wrap */
+        .match-table td .wrap a {
+            white-space: normal !important;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
         .match-table th {
             text-align: center;
         }
@@ -195,30 +210,31 @@ class MatchTableView:
         # Add slot for clickable player names
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <span>
+                <div class="wrap">
                     <template v-for="(name, idx) in props.value">
                         <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
                     </template>
-                </span>
+                </div>
             </q-td>''')
         else:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <span>
+                <div class="wrap">
                     <template v-for="(name, idx) in props.value">
                         <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span>
                     </template>
-                </span>
+                </div>
             </q-td>''')
         for role in ['commentators', 'trackers']:
+            # Add a wrapper with class 'wrap' so only the table (not grid) view will wrap long names
             self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
-                <span>
+                <div class="wrap">
                     <template v-for="(item, idx) in props.value">
                         <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})"
                            :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
                             {{{{ item[0] }}}}
                         </a>
                     </template>
-                </span>
+                </div>
             </q-td>''')
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
