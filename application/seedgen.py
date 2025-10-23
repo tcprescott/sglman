@@ -16,7 +16,7 @@ import asyncio
 
 
 async def generate_alttpr() -> None:
-    with open("presets/alttpr/sglive2025.yaml", "r") as f:
+    with open("presets/alttpr/casualboots.yaml", "r") as f:
             preset = yaml.safe_load(f)
 
     seed = await ALTTPR.generate(
