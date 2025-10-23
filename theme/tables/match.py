@@ -210,15 +210,15 @@ class MatchTableView:
         # Add slot for clickable player names
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <div class="wrap">
+                <div>
                     <template v-for="(name, idx) in props.value">
-                        <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a>
+                        <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a><br/>
                     </template>
                 </div>
             </q-td>''')
         else:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <div class="wrap">
+                <div>
                     <template v-for="(name, idx) in props.value">
                         <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span>
                     </template>
@@ -227,7 +227,7 @@ class MatchTableView:
         for role in ['commentators', 'trackers']:
             # Add a wrapper with class 'wrap' so only the table (not grid) view will wrap long names
             self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
-                <div class="wrap">
+                <div>
                     <template v-for="(item, idx) in props.value">
                         <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})"
                            :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
