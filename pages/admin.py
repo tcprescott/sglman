@@ -5,6 +5,7 @@ from typing import Dict
 from nicegui import app, ui
 
 from application.seedgen import RANDOMIZERS
+from discordbot.bot import send_dm
 from pages.announcement_admin import announcement_admin_page
 from pages.reports import reports_page
 from models import GeneratedSeeds, Match, Permissions, Tournament, User
@@ -214,7 +215,7 @@ def admin_schedule_page() -> None:
 
             async with lock:
                 try:
-                    match = await Match.get(id=row_id).prefetch_related('tournament')
+                    match = await Match.get(id=row_id).prefetch_related('tournament', 'players', 'players__user')
                     # sanity check: if a seed has already been generated for this match, skip
                     if match.generated_seed:
                         ui.notify('A seed has already been generated for this match.', color='warning')
@@ -230,6 +231,17 @@ def admin_schedule_page() -> None:
                                 seed_info=f"Generated seed for match {match.id}"
                             )
                             await match.save()
+                            for player in match.players:
+                                if player.user.discord_id:
+                                    dm_message = f"Hello {player.user.preferred_name},\n\n"
+                                    dm_message += f"A seed has been generated for your upcoming match (ID: {match.id}) in the tournament '{match.tournament.name}'.\n\n"
+                                    dm_message += f"{seed_url}\n\n"
+                                    dm_message += "Good luck and have fun!"
+                                    success, response = await send_dm(player.user.discord_id, dm_message)
+                                    if not success:
+                                        ui.notify(f"Failed to send DM to {player.user.username}: {response}", color='negative')
+
+                            ui.notify(f'Seed generated successfully for match ID {match.id}.', color='positive')
                         else:
                             ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
                 finally:
