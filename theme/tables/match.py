@@ -1,8 +1,9 @@
 import asyncio
+from typing import List
 
 from nicegui import app, ui
 
-from models import Commentator, Match, Tracker, User
+from models import Commentator, Match, Tracker, Tournament, User
 from theme.dialog import ConfirmationDialog, UserDialog
 
 # TODO: Implement server-side pagination, sorting, and filtering for large datasets
@@ -43,12 +44,19 @@ class MatchTableView:
         self.submit_match_callback = submit_match_callback
         self.table = None
         self.show_upcoming_checkbox = None
+        self.tournament_filter = None
+        self.tournaments_list = []  # Will be populated in _setup_ui
         self.auto_refresh_checkbox = None
         self._auto_refresh_task = None
         self._setup_ui()
 
     def _on_upcoming_change(self, *args, **kwargs):
         app.storage.show_only_upcoming_matches = self.show_upcoming_checkbox.value
+        asyncio.create_task(self.refresh())
+        
+    def _on_tournament_filter_change(self, *args, **kwargs):
+        # Store the tournament ID value in app.storage
+        app.storage.tournament_filter = self.tournament_filter.value
         asyncio.create_task(self.refresh())
 
     def _on_auto_refresh_change(self, *args, **kwargs):
@@ -68,17 +76,48 @@ class MatchTableView:
         except asyncio.CancelledError:
             pass
 
+    async def _load_tournaments(self):
+        """Load all tournament names for the filter"""
+        tournaments = await Tournament.all()
+        self.tournaments_list = [
+            t.name for t in tournaments
+        ]
+        # Set initial value from storage or default to None (All Tournaments)
+        default_tournament_id = getattr(app.storage, 'tournament_filter', None)
+        if self.tournament_filter:
+            self.tournament_filter.options = self.tournaments_list
+            self.tournament_filter.value = default_tournament_id
+            self.tournament_filter.update()
+
     def _setup_ui(self):
         with ui.row().style('width: 100%;'):
             if self.submit_match_callback:
                 ui.button('Create Match' if self.admin_controls else 'Request Match', on_click=self.submit_match_callback)
+        
+        # Create a row for filters
+        with ui.row().style('width: 100%; align-items: center;'):
+            # Tournament filter
+            ui.label('Tournament:').style('margin-right: 8px;')
+            self.tournament_filter = ui.select(
+                options=[],
+                value=None,
+                multiple=True,
+                on_change=self._on_tournament_filter_change
+            ).style('min-width: 200px; margin-right: 16px;').props('use-chips')
+            
             # Use app.storage to persist checkbox state
             default_value = getattr(app.storage, 'show_only_upcoming_matches', True)
             self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
+            
             ui.space()
             if self.admin_controls:
                 self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
+            
             ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+            
+        # Load tournaments after UI is set up
+        asyncio.create_task(self._load_tournaments())
+            
         if self.auto_refresh_checkbox:
             self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
 
@@ -281,11 +320,21 @@ class MatchTableView:
 
     async def refresh(self, *args, **kwargs):
         match_query = self.get_query()
+        
+        # Apply upcoming matches filter if checked
         if self.show_upcoming_checkbox.value:
             match_query = match_query.filter(finished_at__isnull=True)
+            
+        # Apply tournament filter if a specific tournament is selected
+        if self.tournament_filter and self.tournament_filter.value:
+            # Extract the actual tournament ID from the selected object
+            tournament_names = self.tournament_filter.value
+            match_query = match_query.filter(tournament__name__in=tournament_names)
+            
         all_matches = await match_query.prefetch_related(
             'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).order_by('scheduled_at')
+        
         rows = [self._build_row(m) for m in all_matches]
         self.table.rows = rows
         self.table.update()
@@ -415,8 +464,10 @@ class MatchTableView:
                    if row.get('id') == match_id), None)
         if idx is None:
             return  # Row not visible, do nothing
-        # Query for the match object
+        # Query for the match object - ignoring tournament filter to properly handle row updates
         match_query = self.get_query()
+        
+        # We don't apply tournament filter here because this is updating a specific row that's already visible
         m = await match_query.filter(id=match_id).prefetch_related(
             'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).first()
