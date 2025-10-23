@@ -21,6 +21,7 @@ async def generate_alttpr() -> None:
 
     seed = await ALTTPR.generate(
         settings=preset['settings'],
+        endpoint='/api/customizer',
     )
     return seed.url
 
