@@ -162,7 +162,7 @@ class MatchTableView:
             white-space: normal !important;
             word-break: normal;
             overflow-wrap: break-word;
-            max-width: 150px; /* reasonable default, table can expand as needed */
+            max-width: 120px; /* reasonable default, table can expand as needed */
         }
         /* Ensure links inside the wrapper also wrap */
         .match-table td .wrap a {
