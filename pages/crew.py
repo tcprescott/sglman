@@ -37,7 +37,7 @@ def render_crew_dashboard():
                     <q-btn v-if="props.value.some(item => item[2] === {discord_id})" icon="undo" color="negative" size="sm" @click="$parent.$emit('undo_{role}', props.row)" style="margin-left: 8px;" />
                     <q-btn v-if="!props.value.some(item => item[2] === {discord_id})" icon="assignment" color="primary" size="sm" @click="$parent.$emit('signup_{role}', props.row)" style="margin-left: 8px;" />
                     <template v-for="(item, idx) in props.value">
-                        <span :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">{{{{ item[0] }}}}</span>
+                        <span :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">{{{{ item[0] }}}}</span><br/>
                     </template>
                 </div>
             </q-td>'''

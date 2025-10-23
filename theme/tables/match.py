@@ -220,7 +220,7 @@ class MatchTableView:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
                 <div>
                     <template v-for="(name, idx) in props.value">
-                        <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span>
+                        <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span><br/>
                     </template>
                 </div>
             </q-td>''')
@@ -231,7 +231,7 @@ class MatchTableView:
                     <template v-for="(item, idx) in props.value">
                         <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})"
                            :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
-                            {{{{ item[0] }}}}
+                            {{{{ item[0] }}}}<br/>
                         </a>
                     </template>
                 </div>
