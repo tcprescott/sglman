@@ -18,6 +18,7 @@ class UserBase(BaseModel):
     id: int
     username: str
     display_name: Optional[str] = None
+    discord_id: Optional[int] = None
     pronouns: Optional[str] = None
     
     class Config:
