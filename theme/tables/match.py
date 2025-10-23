@@ -3,7 +3,7 @@ from typing import List
 
 from nicegui import app, ui
 
-from models import Commentator, Match, Tracker, Tournament, User
+from models import Commentator, Match, StreamRoom, Tracker, Tournament, User
 from theme.dialog import ConfirmationDialog, UserDialog
 
 # TODO: Implement server-side pagination, sorting, and filtering for large datasets
@@ -46,6 +46,8 @@ class MatchTableView:
         self.show_upcoming_checkbox = None
         self.tournament_filter = None
         self.tournaments_list = []  # Will be populated in _setup_ui
+        self.stream_room_filter = None
+        self.stream_rooms_list = []  # Will be populated in _setup_ui
         self.auto_refresh_checkbox = None
         self._auto_refresh_task = None
         self._setup_ui()
@@ -57,6 +59,11 @@ class MatchTableView:
     def _on_tournament_filter_change(self, *args, **kwargs):
         # Store the tournament ID value in app.storage
         app.storage.tournament_filter = self.tournament_filter.value
+        asyncio.create_task(self.refresh())
+        
+    def _on_stream_room_filter_change(self, *args, **kwargs):
+        # Store the stream room ID value in app.storage
+        app.storage.stream_room_filter = self.stream_room_filter.value
         asyncio.create_task(self.refresh())
 
     def _on_auto_refresh_change(self, *args, **kwargs):
@@ -86,6 +93,17 @@ class MatchTableView:
             self.tournament_filter.options = self.tournaments_list
             self.tournament_filter.value = default_tournament_id
             self.tournament_filter.update()
+            
+    async def _load_stream_rooms(self):
+        """Load all stream room names for the filter"""
+        stream_rooms = await StreamRoom.all()
+        self.stream_rooms_list = {sr.id: sr.name for sr in stream_rooms}
+        # Set initial value from storage or default to None (All Stages)
+        default_stream_room_id = getattr(app.storage, 'stream_room_filter', None)
+        if self.stream_room_filter:
+            self.stream_room_filter.options = self.stream_rooms_list
+            self.stream_room_filter.value = default_stream_room_id
+            self.stream_room_filter.update()
 
     def _setup_ui(self):
         with ui.row().style('width: 100%;'):
@@ -101,7 +119,16 @@ class MatchTableView:
                 value=None,
                 multiple=True,
                 on_change=self._on_tournament_filter_change
-            ).style('min-width: 200px; margin-right: 16px;').props('use-chips')
+            ).style('min-width: 180px; margin-right: 16px;').props('use-chips')
+            
+            # Stream room filter
+            ui.label('Stage:').style('margin-right: 8px;')
+            self.stream_room_filter = ui.select(
+                options=[],
+                value=None,
+                multiple=True,
+                on_change=self._on_stream_room_filter_change
+            ).style('min-width: 150px; margin-right: 16px;').props('use-chips')
             
             # Use app.storage to persist checkbox state
             default_value = getattr(app.storage, 'show_only_upcoming_matches', True)
@@ -113,8 +140,9 @@ class MatchTableView:
             
             ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
             
-        # Load tournaments after UI is set up
+        # Load filters data after UI is set up
         asyncio.create_task(self._load_tournaments())
+        asyncio.create_task(self._load_stream_rooms())
             
         if self.auto_refresh_checkbox:
             self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
@@ -328,7 +356,11 @@ class MatchTableView:
             # Extract the actual tournament ID from the selected object
             tournament_ids = self.tournament_filter.value
             match_query = match_query.filter(tournament_id__in=tournament_ids)
-            
+
+        if self.stream_room_filter and self.stream_room_filter.value:
+            stream_room_ids = self.stream_room_filter.value
+            match_query = match_query.filter(stream_room_id__in=stream_room_ids)
+
         all_matches = await match_query.prefetch_related(
             'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).order_by('scheduled_at')
