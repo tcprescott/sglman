@@ -78,11 +78,13 @@ async def stage_timeline_tab():
             start_of_day = datetime.combine(current_date['value'], datetime.min.time())
             end_of_day = datetime.combine(current_date['value'], datetime.max.time())
 
-            # Only show scheduled or in-progress matches (not finished)
+            # Only show scheduled or in-progress matches (not finished) with a stream room assigned
             matches = await Match.filter(
                 scheduled_at__gte=start_of_day,
                 scheduled_at__lte=end_of_day,
-                finished_at__isnull=True
+                finished_at=None
+            ).exclude(
+                stream_room=None
             ).prefetch_related(
                 'tournament', 'stream_room', 'players', 'players__user',
                 'commentators', 'commentators__user', 'trackers', 'trackers__user'
@@ -90,15 +92,11 @@ async def stage_timeline_tab():
 
             # Group matches by stream room
             matches_by_room: Dict[int, List[Match]] = {}
-            unassigned_matches = []
 
             for match in matches:
-                if match.stream_room_id:
-                    if match.stream_room_id not in matches_by_room:
-                        matches_by_room[match.stream_room_id] = []
-                    matches_by_room[match.stream_room_id].append(match)
-                else:
-                    unassigned_matches.append(match)
+                if match.stream_room_id not in matches_by_room:
+                    matches_by_room[match.stream_room_id] = []
+                matches_by_room[match.stream_room_id].append(match)
 
             with timeline_container:
                 # Display each stream room and its matches
@@ -126,19 +124,6 @@ async def stage_timeline_tab():
                             ui.label('No matches scheduled').style(
                                 'color: gray; font-style: italic; padding: 1em;'
                             )
-
-                # Show unassigned matches if any
-                if unassigned_matches:
-                    with ui.card().style('width: 100%; margin-bottom: 1em;'):
-                        with ui.row().style('width: 100%; align-items: center; background-color: #757575; color: white; padding: 0.5em; border-radius: 4px;'):
-                            ui.label('Unassigned Matches').style('font-size: 1.3em; font-weight: bold;')
-                            ui.label(f'{len(unassigned_matches)} match{"es" if len(unassigned_matches) != 1 else ""}').style(
-                                'margin-left: auto; opacity: 0.9;'
-                            )
-
-                        with ui.column().style('width: 100%; padding: 0.5em;'):
-                            for match in unassigned_matches:
-                                render_match_card(match, user)
 
             if not matches:
                 with timeline_container:
