@@ -239,7 +239,7 @@ class MatchDialog:
                             await p.delete()
 
                     # Update commentators and trackers: preserve existing approval state for unchanged users;
-                    # add new users (default to not approved), and delete removed users.
+                    # add new users (default to approved), and delete removed users.
                     from models import Commentator, Tracker
 
                     # Commentators
