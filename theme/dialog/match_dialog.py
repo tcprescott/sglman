@@ -225,21 +225,48 @@ class MatchDialog:
                     if hasattr(self, '_clear_seed') and self._clear_seed:
                         self.match.generated_seed = None
                     await self.match.save()
-                    # Update players
-                    await MatchPlayers.filter(match=self.match).delete()
-                    for pid in new_player_ids:
+                    # Update players: add new ones, remove ones no longer present (preserve existing rows)
+                    existing_players = await MatchPlayers.filter(match=self.match)
+                    existing_player_ids = {p.user_id for p in existing_players}
+                    new_player_ids_set = {pid for pid in new_player_ids if pid is not None}
+                    # add players
+                    for pid in new_player_ids_set - existing_player_ids:
                         user = await User.get(id=pid)
                         await MatchPlayers.create(match=self.match, user=user)
-                    # Update commentators and trackers
+                    # remove players no longer present
+                    for p in existing_players:
+                        if p.user_id not in new_player_ids_set:
+                            await p.delete()
+
+                    # Update commentators and trackers: preserve existing approval state for unchanged users;
+                    # add new users (default to not approved), and delete removed users.
                     from models import Commentator, Tracker
-                    await Commentator.filter(match=self.match).delete()
-                    for cid in new_commentator_ids:
+
+                    # Commentators
+                    existing_commentators = await Commentator.filter(match=self.match)
+                    existing_commentator_map = {c.user_id: c for c in existing_commentators}
+                    existing_commentator_ids = set(existing_commentator_map.keys())
+                    new_commentator_ids_set = {cid for cid in new_commentator_ids if cid is not None}
+                    # Add any new commentators (default approved=False)
+                    for cid in new_commentator_ids_set - existing_commentator_ids:
                         user = await User.get(id=cid)
                         await Commentator.create(match=self.match, user=user, approved=True)
-                    await Tracker.filter(match=self.match).delete()
-                    for tid in new_tracker_ids:
+                    # Remove commentators no longer present
+                    for uid in existing_commentator_ids - new_commentator_ids_set:
+                        await existing_commentator_map[uid].delete()
+
+                    # Trackers
+                    existing_trackers = await Tracker.filter(match=self.match)
+                    existing_tracker_map = {t.user_id: t for t in existing_trackers}
+                    existing_tracker_ids = set(existing_tracker_map.keys())
+                    new_tracker_ids_set = {tid for tid in new_tracker_ids if tid is not None}
+                    # Add any new trackers (default approved=False)
+                    for tid in new_tracker_ids_set - existing_tracker_ids:
                         user = await User.get(id=tid)
                         await Tracker.create(match=self.match, user=user, approved=True)
+                    # Remove trackers no longer present
+                    for uid in existing_tracker_ids - new_tracker_ids_set:
+                        await existing_tracker_map[uid].delete()
                     with self.dialog:
                         ui.notify(f'Match updated: Players={new_player_ids}, Commentators={new_commentator_ids}, Trackers={new_tracker_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}, StreamRoom={stream_room_id}', color='positive')
                         dialog.close()
