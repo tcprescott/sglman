@@ -22,9 +22,9 @@ def create() -> None:
             ui.timer(2, lambda: ui.navigate.to('/logout'), once=True)
             return
         tabs = [
-            {'label': 'Home', 'icon': 'home', 'content': announcements_page},
-            {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
+            # {'label': 'Home', 'icon': 'home', 'content': announcements_page},
             {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
+            {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
             {'label': 'Crew', 'icon': 'handyman', 'content': render_crew_dashboard},
         ]

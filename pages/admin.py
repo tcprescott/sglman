@@ -47,7 +47,7 @@ def create() -> None:
             {'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page},
             {'label': 'Users', 'icon': 'people', 'content': admin_users_page},
             {'label': 'Settings', 'icon': 'settings', 'content': admin_settings_page},
-            {'label': 'Announcements', 'icon': 'announcement', 'content': announcement_admin_page},
+            # {'label': 'Announcements', 'icon': 'announcement', 'content': announcement_admin_page},
             {'label': 'Reports', 'icon': 'analytics', 'content': reports_page},
         ]
 

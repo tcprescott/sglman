@@ -132,7 +132,7 @@ class MatchTableView:
             
             # Use app.storage to persist checkbox state
             default_value = app.storage.user.get('show_only_upcoming_matches', True)
-            self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=default_value, on_change=self._on_upcoming_change)
+            self.show_upcoming_checkbox = ui.checkbox('Hide Finished Matches', value=default_value, on_change=self._on_upcoming_change)
             
             ui.space()
             if self.admin_controls:

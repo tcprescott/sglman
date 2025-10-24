@@ -30,7 +30,7 @@ class BaseTableView:
             if self.submit_callback:
                 ui.button(self.add_label, on_click=self.submit_callback)
             if self.show_upcoming_checkbox:
-                self.show_upcoming_checkbox = ui.checkbox('Show only upcoming matches', value=True)
+                self.show_upcoming_checkbox = ui.checkbox('Hide Finished Matches', value=True)
             if self.admin_controls and self.auto_refresh_checkbox:
                 self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
             ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')

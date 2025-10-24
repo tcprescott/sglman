@@ -25,7 +25,7 @@ def render_player_dashboard():
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
             {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
-            {'name': 'seated', 'label': 'Seated', 'field': 'seated'},
+            # {'name': 'seated', 'label': 'Seated', 'field': 'seated'},
             {'name': 'players', 'label': 'Players', 'field': 'players'},
             {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room'},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
