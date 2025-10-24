@@ -78,9 +78,11 @@ async def stage_timeline_tab():
             start_of_day = datetime.combine(current_date['value'], datetime.min.time())
             end_of_day = datetime.combine(current_date['value'], datetime.max.time())
 
+            # Only show scheduled or in-progress matches (not finished)
             matches = await Match.filter(
                 scheduled_at__gte=start_of_day,
-                scheduled_at__lte=end_of_day
+                scheduled_at__lte=end_of_day,
+                finished_at__isnull=True
             ).prefetch_related(
                 'tournament', 'stream_room', 'players', 'players__user',
                 'commentators', 'commentators__user', 'trackers', 'trackers__user'
