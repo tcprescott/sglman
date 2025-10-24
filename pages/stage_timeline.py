@@ -209,11 +209,11 @@ async def stage_timeline_tab():
                                 pending_names = [t.user.preferred_name for t in pending_trackers]
                                 ui.label(f' ({", ".join(pending_names)} pending)').style('color: #FF9800; font-style: italic;')
 
-                    # Comment (if any)
-                    if match.comment:
-                        with ui.row().style('width: 100%; margin-top: 0.3em;'):
-                            ui.icon('comment').style('margin-right: 0.5em;')
-                            ui.label(match.comment).style('font-style: italic; color: #666;')
+                    # # Comment (if any)
+                    # if match.comment:
+                    #     with ui.row().style('width: 100%; margin-top: 0.3em;'):
+                    #         ui.icon('comment').style('margin-right: 0.5em;')
+                    #         ui.label(match.comment).style('font-style: italic; color: #666;')
 
         # Define button actions
         async def go_prev_day():
