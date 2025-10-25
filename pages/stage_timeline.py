@@ -3,6 +3,7 @@
 import asyncio
 from datetime import datetime, date, timedelta
 from typing import List, Dict
+from zoneinfo import ZoneInfo
 
 from nicegui import app, ui
 
@@ -14,8 +15,10 @@ async def stage_timeline_tab():
     discord_id = app.storage.user.get('discord_id', None)
     user = await User.get_or_none(discord_id=discord_id) if discord_id else None
 
-    # Use internal state for the current date
-    current_date = {'value': date.today()}
+    # Use internal state for the current date (based on US/Eastern timezone)
+    eastern = ZoneInfo('US/Eastern')
+    today_eastern = datetime.now(eastern).date()
+    current_date = {'value': today_eastern}
 
     with ui.column().style('width: 100%; padding: 1em;'):
         # Header with date navigation
@@ -212,7 +215,7 @@ async def stage_timeline_tab():
             await load_timeline()
 
         async def go_today():
-            current_date['value'] = date.today()
+            current_date['value'] = datetime.now(eastern).date()
             await load_timeline()
 
         async def go_to_date():
