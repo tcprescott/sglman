@@ -1,10 +1,10 @@
 from nicegui import app, ui
 
 from models import User
-from pages.crew import render_crew_dashboard
-from pages.player import render_edit_info_tab, render_player_dashboard
-from pages.stage_timeline import stage_timeline_tab
-from pages.schedule import schedule
+from pages.home_tabs.crew import render_crew_dashboard
+from pages.home_tabs.player import render_edit_info_tab, render_player_dashboard
+from pages.home_tabs.stage_timeline import stage_timeline_tab
+from pages.home_tabs.schedule import schedule
 from theme.base import BaseLayout
 
 
