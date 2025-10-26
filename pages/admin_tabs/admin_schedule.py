@@ -26,7 +26,6 @@ def admin_schedule_page() -> None:
         ui.separator().style('margin-bottom: 1.5em;')
         
         columns = [
-            {'name': 'edit', 'label': 'Edit', 'field': 'edit'},
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament',
                 'field': 'tournament', 'sortable': True, 'filterable': True},
