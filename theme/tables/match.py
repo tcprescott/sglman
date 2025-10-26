@@ -426,7 +426,9 @@ class MatchTableView:
                            :loading="props.row._generating_seed"
                            :disabled="props.row._generating_seed"
                            @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
-                           icon="casino" flat />
+                           icon="casino" color="primary" size="sm">
+                        Generate
+                    </q-btn>
                     <span v-if="props.value">
                         <template v-if="/^https?:\\/\\//.test(props.value)">
                             <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;" :title="props.value">
@@ -440,26 +442,37 @@ class MatchTableView:
 
             if self.on_seat is not None:
                 self.table.add_slot('body-cell-seated', '''<q-td :props="props">
-                    <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)" icon="chair" flat />
-                    <div v-else style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                        <q-icon name="check" color="green" size="md" />
+                    <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)"
+                           icon="chair" color="primary" size="sm">
+                        Seat
+                    </q-btn>
+                    <div v-else style="display: flex; justify-content: center; align-items: center; gap: 4px; height: 100%;">
+                        <q-icon name="check" color="green" size="sm" />
+                        <span>{{ props.value }}</span>
                     </div>
                 </q-td>''')
                 self.table.on('seat', lambda event: asyncio.create_task(self._handle_seat(event)))
 
             if self.on_finish is not None:
                 self.table.add_slot('body-cell-finished', '''<q-td :props="props">
-                    <q-btn v-if="!props.value && props.row.seated" @click="$parent.$emit('finish', props)" icon="sports_score" flat />
-                    <div v-else-if="!props.value && !props.row.seated" style="display: flex; justify-content: center; align-items: center; height: 100%;" />
-                    <div v-else style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                        <q-icon name="flag" color="green" size="md" />
+                    <q-btn v-if="!props.value && props.row.seated" @click="$parent.$emit('finish', props)"
+                           icon="sports_score" color="primary" size="sm">
+                        Finish
+                    </q-btn>
+                    <div v-else-if="!props.value && !props.row.seated" style="display: flex; justify-content: center; align-items: center; height: 100%;">-</div>
+                    <div v-else style="display: flex; justify-content: center; align-items: center; gap: 4px; height: 100%;">
+                        <q-icon name="flag" color="green" size="sm" />
+                        <span>{{ props.value }}</span>
                     </div>
                 </q-td>''')
                 self.table.on('finish', lambda event: asyncio.create_task(self._handle_finish(event)))
 
             if self.on_edit_stream_room is not None:
                 self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
-                    <q-btn v-if="!props.value" @click="$parent.$emit('edit-stream-room', props)" icon="movie" flat />
+                    <q-btn v-if="!props.value" @click="$parent.$emit('edit-stream-room', props)"
+                           icon="movie" color="primary" size="sm">
+                        Assign
+                    </q-btn>
                     <template v-else>{{ props.value }}</template>
                 </q-td>''')
                 self.table.on('edit-stream-room', lambda event: asyncio.create_task(self._handle_edit_stream_room(event)))
@@ -549,33 +562,33 @@ class MatchTableView:
                 <template v-if="field.event">
                     <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
                 </template>
-                
+
                 <!-- For array fields like players -->
                 <template v-else-if="field.array">
                     <span>{{{{ Array.isArray(props.row[field.key]) ? props.row[field.key].join(field.separator || ', ') : props.row[field.key] }}}}</span>
                 </template>
-                
+
                 <!-- For array of objects like commentators/trackers with approval status -->
                 <template v-else-if="field.arrayObjects">
                     <span>
-                        <!-- Add signup/undo buttons for commentator/tracker fields -->
-                        <template v-if="field.key === 'commentators' || field.key === 'trackers'">
+                        <!-- Add signup/undo buttons for commentator/tracker fields (non-admin only) -->
+                        <template v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if self.admin_controls else 'false'}">
                             <div style="margin-bottom: 8px;">
                                 <q-btn v-if="props.row[field.key] && props.row[field.key].some(item => item[2] == field.discord_id)"
-                                       icon="undo" color="negative" size="sm" 
-                                       @click="$parent.$emit('undo_' + field.key.slice(0, -1), props.row)" 
+                                       icon="undo" color="negative" size="sm"
+                                       @click="$parent.$emit('undo_' + field.key.slice(0, -1), props.row)"
                                        style="margin-right: 8px;">
                                     Undo
                                 </q-btn>
-                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item[2] == field.discord_id)" 
-                                       icon="assignment" color="primary" size="sm" 
-                                       @click="$parent.$emit('signup_' + field.key.slice(0, -1), props.row)" 
+                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item[2] == field.discord_id)"
+                                       icon="assignment" color="primary" size="sm"
+                                       @click="$parent.$emit('signup_' + field.key.slice(0, -1), props.row)"
                                        style="margin-right: 8px;">
                                     Sign Up
                                 </q-btn>
                             </div>
                         </template>
-                        
+
                         <template v-if="Array.isArray(props.row[field.key])">
                             <template v-for="(item, idx) in props.row[field.key]">
                                 <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if self.admin_controls else 'false'}">
@@ -594,7 +607,7 @@ class MatchTableView:
                         <template v-else>{{{{ props.row[field.key] }}}}</template>
                     </span>
                 </template>
-                
+
                 <!-- For boolean or text fields like seated/finished -->
                 <template v-else-if="field.boolOrText">
                     <!-- Seated field with admin button -->
@@ -632,7 +645,7 @@ class MatchTableView:
                         <template v-else>{{{{ props.row[field.key] || '' }}}}</template>
                     </template>
                 </template>
-                
+
                 <!-- For generated_seed field, truncate long URLs -->
                 <template v-else-if="field.key === 'generated_seed'">
                     <!-- Show generate button if admin, has seed generator, and no seed yet -->
@@ -645,7 +658,7 @@ class MatchTableView:
                         Generate Seed
                     </q-btn>
                     <template v-if="props.row[field.key]">
-                        <a v-if="props.row[field.key].startsWith('https://') || props.row[field.key].startsWith('http://')" 
+                        <a v-if="props.row[field.key].startsWith('https://') || props.row[field.key].startsWith('http://')"
                            :href="props.row[field.key]" target="_blank" style="color: #1976d2; text-decoration: underline;">
                             {{{{ props.row[field.key].length > 40 ? props.row[field.key].substring(0, 40) + '...' : props.row[field.key] }}}}
                         </a>
@@ -655,7 +668,19 @@ class MatchTableView:
                     </template>
                     <template v-else-if="!{'true' if self.admin_controls else 'false'} || !props.row.tournament_seed_generator">-</template>
                 </template>
-                
+
+                <!-- For stream_room field with admin button -->
+                <template v-else-if="field.key === 'stream_room'">
+                    <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key]"
+                           @click="$parent.$emit('edit-stream-room', {{ key: props.row.id }})"
+                           icon="movie" color="primary" size="sm"
+                           style="margin-bottom: 8px;">
+                        Assign Stage
+                    </q-btn>
+                    <template v-else-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</template>
+                    <template v-else>-</template>
+                </template>
+
                 <!-- Default rendering for other fields -->
                 <template v-else>
                     {{{{ props.row[field.key] || '' }}}}
