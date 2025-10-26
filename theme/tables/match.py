@@ -256,14 +256,6 @@ class MatchTableView:
                 singular = role[:-1]
                 self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
                     <div class="wrap">
-                        <div style="margin-bottom: 6px;">
-                            <q-btn v-if="props.value && props.value.some(item => item[2] == {discord_id_js})"
-                                   icon="undo" color="negative" size="sm"
-                                   @click="$parent.$emit('undo_{singular}', props.row)" style="margin-right: 6px;" />
-                            <q-btn v-if="props.value && !props.value.some(item => item[2] == {discord_id_js})"
-                                   icon="assignment" color="primary" size="sm"
-                                   @click="$parent.$emit('signup_{singular}', props.row)" style="margin-right: 6px;" />
-                        </div>
                         <template v-for="(item, idx) in props.value">
                             <a href="#" @click="$parent.$emit('edit_{singular}', {{ row: props.row, idx }})"
                                :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal') + '; text-decoration: underline;'">
