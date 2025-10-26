@@ -187,15 +187,25 @@ class MatchDialog:
 
                 # Validation
                 if self.match:
+                    # For edits, require players and core fields
                     if not (new_player_ids and tournament_id and date_value and time_value):
                         with self.dialog:
                             ui.notify('All fields are required.', color='warning')
                         return
                 else:
-                    if not (new_player_ids and len(new_player_ids) >= 2 and tournament_id and date_value and time_value):
-                        with self.dialog:
-                            ui.notify('Please select at least two players and fill all fields.', color='warning')
-                        return
+                    # For new matches, enforce different rules for admin vs player submissions
+                    if self.discord_id is None:
+                        # Admin mode: do not enforce a minimum number of players; just require at least one
+                        if not (tournament_id and date_value and time_value):
+                            with self.dialog:
+                                ui.notify('Please fill all fields.', color='warning')
+                            return
+                    else:
+                        # Player mode: must include two players (self and opponent)
+                        if not (new_player_ids and len(new_player_ids) >= 2 and tournament_id and date_value and time_value):
+                            with self.dialog:
+                                ui.notify('Please select at least two players and fill all fields.', color='warning')
+                            return
 
                 # Ensure all submitted players are enrolled in TournamentPlayers for this tournament
                 existing_links = await TournamentPlayers.filter(tournament_id=tournament_id)
@@ -273,7 +283,7 @@ class MatchDialog:
                     if self.on_submit:
                         await self.on_submit(self.match)
                 else:
-                    match = await create_match(
+                    await create_match(
                         tournament_id,
                         date_value,
                         time_value,
