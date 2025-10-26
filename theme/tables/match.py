@@ -106,40 +106,56 @@ class MatchTableView:
             self.stream_room_filter.update()
 
     def _setup_ui(self):
-        with ui.row().style('width: 100%;'):
-            if self.submit_match_callback:
-                ui.button('Create Match' if self.admin_controls else 'Request Match', on_click=self.submit_match_callback)
+        # Action button row
+        if self.submit_match_callback:
+            with ui.row().style('width: 100%; margin-bottom: 1em;'):
+                ui.button(
+                    'Create Match' if self.admin_controls else 'Request Match',
+                    icon='add',
+                    on_click=self.submit_match_callback
+                ).props('color=primary')
         
-        # Create a row for filters
-        with ui.row().style('width: 100%; align-items: center;'):
-            # Tournament filter
-            ui.label('Tournament:').style('margin-right: 8px;')
-            self.tournament_filter = ui.select(
-                options=[],
-                value=None,
-                multiple=True,
-                on_change=self._on_tournament_filter_change
-            ).style('min-width: 180px; margin-right: 16px;').props('use-chips')
-            
-            # Stream room filter
-            ui.label('Stage:').style('margin-right: 8px;')
-            self.stream_room_filter = ui.select(
-                options=[],
-                value=None,
-                multiple=True,
-                on_change=self._on_stream_room_filter_change
-            ).style('min-width: 150px; margin-right: 16px;').props('use-chips')
-            
-            # Use app.storage to persist checkbox state
-            default_value = app.storage.user.get('show_only_upcoming_matches', True)
-            self.show_upcoming_checkbox = ui.checkbox('Hide Finished Matches', value=default_value, on_change=self._on_upcoming_change)
-            
-            ui.space()
-            if self.admin_controls:
-                self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
-            
-            ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
-            
+        # Filters section - professional card-based layout
+        with ui.card().style('width: 100%; padding: 1em; margin-bottom: 1em; background-color: #f5f5f5;'):
+            with ui.row().style('width: 100%; align-items: center; gap: 1em; flex-wrap: wrap;'):
+                # Tournament filter
+                with ui.column().style('min-width: 200px;'):
+                    ui.label('Tournament').style('font-size: 0.85em; font-weight: 500; color: #666; margin-bottom: 0.3em;')
+                    self.tournament_filter = ui.select(
+                        options=[],
+                        value=None,
+                        multiple=True,
+                        on_change=self._on_tournament_filter_change
+                    ).style('width: 100%;').props('outlined dense use-chips')
+                
+                # Stream room filter
+                with ui.column().style('min-width: 180px;'):
+                    ui.label('Stage').style('font-size: 0.85em; font-weight: 500; color: #666; margin-bottom: 0.3em;')
+                    self.stream_room_filter = ui.select(
+                        options=[],
+                        value=None,
+                        multiple=True,
+                        on_change=self._on_stream_room_filter_change
+                    ).style('width: 100%;').props('outlined dense use-chips')
+                
+                # Checkbox filters
+                with ui.column().style('justify-content: center;'):
+                    default_value = app.storage.user.get('show_only_upcoming_matches', True)
+                    self.show_upcoming_checkbox = ui.checkbox(
+                        'Hide Finished Matches',
+                        value=default_value,
+                        on_change=self._on_upcoming_change
+                    )
+                    
+                    if self.admin_controls:
+                        self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
+                
+                ui.space()
+                
+                # Refresh button
+                with ui.column().style('justify-content: center;'):
+                    ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
+        
         # Load filters data after UI is set up
         asyncio.create_task(self._load_tournaments())
         asyncio.create_task(self._load_stream_rooms())

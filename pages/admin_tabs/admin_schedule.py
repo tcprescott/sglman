@@ -18,9 +18,13 @@ _seed_locks: Dict[int, asyncio.Lock] = {}
 
 
 def admin_schedule_page() -> None:
-    with ui.row().style('width: 100%;'):
-        ui.label('Schedule Management').style('font-size: 2em; margin-bottom: 1em;')
-    with ui.column().style('width: 100%;'):
+    with ui.column().style('width: 100%; max-width: 1600px; margin: 0 auto;'):
+        # Header section
+        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
+            ui.label('Schedule Management').style('font-size: 2em; font-weight: bold;')
+        
+        ui.separator().style('margin-bottom: 1.5em;')
+        
         columns = [
             {'name': 'edit', 'label': 'Edit', 'field': 'edit'},
             {'name': 'id', 'label': 'ID', 'field': 'id'},

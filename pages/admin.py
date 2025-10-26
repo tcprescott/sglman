@@ -3,7 +3,7 @@
 from nicegui import app, ui
 
 from pages.admin_tabs.admin_schedule import admin_schedule_page
-from pages.admin_tabs.admin_settings import admin_settings_page
+from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.announcement_admin import announcement_admin_page
 from pages.admin_tabs.reports import reports_page
@@ -36,7 +36,8 @@ def create() -> None:
         tabs = [
             {'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page},
             {'label': 'Users', 'icon': 'people', 'content': admin_users_page},
-            {'label': 'Settings', 'icon': 'settings', 'content': admin_settings_page},
+            {'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page},
+            {'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page},
             # {'label': 'Announcements', 'icon': 'announcement', 'content': announcement_admin_page},
             {'label': 'Reports', 'icon': 'analytics', 'content': reports_page},
         ]

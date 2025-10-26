@@ -10,17 +10,25 @@ from theme.tables.match import MatchTableView
 
 
 def render_player_dashboard():
-    with ui.row().style('width: 100%;'):
-        ui.label('Your Schedule').style('font-size: 2em; margin-bottom: 1em;')
     discord_id = app.storage.user.get('discord_id', None)
-    if not discord_id:
-        with ui.row():
-            ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
-        with ui.row():
-            ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
-        return
+    
+    with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
+        # Header section
+        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
+            ui.label('Your Schedule').style('font-size: 2em; font-weight: bold;')
+            ui.space()
+            if not discord_id:
+                ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
+        
+        ui.separator().style('margin-bottom: 1.5em;')
+        
+        if not discord_id:
+            with ui.card().style('padding: 2em; text-align: center;'):
+                ui.icon('lock', size='3em').style('color: #FF9800; margin-bottom: 0.5em;')
+                ui.label('You must be logged in to view this page.').style('color: #666; font-size: 1.2em; margin-bottom: 1em;')
+                ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
+            return
 
-    with ui.column().style('width: 100%;'):
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
@@ -47,8 +55,10 @@ def render_player_dashboard():
         async def submit_match():
             dialog = MatchDialog(discord_id=discord_id)
             await dialog.open()
+        
         def get_query():
             return Match.filter(players__user__discord_id=discord_id)
+        
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,
