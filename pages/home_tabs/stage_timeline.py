@@ -102,9 +102,13 @@ async def stage_timeline_tab():
                 matches_by_room[match.stream_room_id].append(match)
 
             with timeline_container:
-                # Display each stream room and its matches
+                # Display each stream room and its matches (only show rooms with matches)
                 for room in stream_rooms:
                     room_matches = matches_by_room.get(room.id, [])
+                    
+                    # Skip rooms with no matches
+                    if not room_matches:
+                        continue
 
                     with ui.card().style('width: 100%; margin-bottom: 1em;'):
                         # Stream room header
