@@ -604,6 +604,15 @@ class MatchTableView:
                 
                 <!-- For generated_seed field, truncate long URLs -->
                 <template v-else-if="field.key === 'generated_seed'">
+                    <!-- Show generate button if admin, has seed generator, and no seed yet -->
+                    <q-btn v-if="{'true' if self.admin_controls else 'false'} && props.row.tournament_seed_generator && !props.row[field.key]"
+                           :loading="props.row._generating_seed"
+                           :disabled="props.row._generating_seed"
+                           @click="(props.row._generating_seed = true, $parent.$emit('roll', {{ key: props.row.id }}))"
+                           icon="casino" color="primary" size="sm"
+                           style="margin-bottom: 8px;">
+                        Generate Seed
+                    </q-btn>
                     <template v-if="props.row[field.key]">
                         <a v-if="props.row[field.key].startsWith('https://') || props.row[field.key].startsWith('http://')" 
                            :href="props.row[field.key]" target="_blank" style="color: #1976d2; text-decoration: underline;">
@@ -613,7 +622,7 @@ class MatchTableView:
                             {{{{ props.row[field.key].length > 40 ? props.row[field.key].substring(0, 40) + '...' : props.row[field.key] }}}}
                         </span>
                     </template>
-                    <template v-else>-</template>
+                    <template v-else-if="!{'true' if self.admin_controls else 'false'} || !props.row.tournament_seed_generator">-</template>
                 </template>
                 
                 <!-- Default rendering for other fields -->
