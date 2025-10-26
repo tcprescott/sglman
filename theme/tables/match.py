@@ -1,12 +1,11 @@
 import asyncio
-from typing import List
 
 from nicegui import app, ui
 
-from models import Commentator, Match, StreamRoom, Tracker, Tournament, User
+from models import Commentator, StreamRoom, Tracker, Tournament, User
 from theme.dialog import ConfirmationDialog, UserDialog
 
-# TODO: Implement server-side pagination, sorting, and filtering for large datasets
+# Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
 
 class MatchTableView:
@@ -34,14 +33,21 @@ class MatchTableView:
         if self.admin_controls:
             row['actions'] = ''
         return row
-    """Encapsulates the match table UI and logic for admin/player dashboards."""
+    # Encapsulates the match table UI and logic for admin/player dashboards.
 
-    def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None):
+    def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None,
+                 on_edit=None, on_generate_seed=None, on_seat=None, on_finish=None, on_edit_stream_room=None):
         self.columns = columns
         self.get_query = get_query
         self.admin_controls = admin_controls
         self.extra_slots = extra_slots
         self.submit_match_callback = submit_match_callback
+        # Optional callbacks for admin actions
+        self.on_edit = on_edit
+        self.on_generate_seed = on_generate_seed
+        self.on_seat = on_seat
+        self.on_finish = on_finish
+        self.on_edit_stream_room = on_edit_stream_room
         self.table = None
         self.show_upcoming_checkbox = None
         self.tournament_filter = None
@@ -52,21 +58,21 @@ class MatchTableView:
         self._auto_refresh_task = None
         self._setup_ui()
 
-    def _on_upcoming_change(self, *args, **kwargs):
+    def _on_upcoming_change(self, *_args, **_kwargs):
         app.storage.user['show_only_upcoming_matches'] = self.show_upcoming_checkbox.value
         asyncio.create_task(self.refresh())
         
-    def _on_tournament_filter_change(self, *args, **kwargs):
+    def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value in app.storage
         app.storage.user['tournament_filter'] = self.tournament_filter.value
         asyncio.create_task(self.refresh())
         
-    def _on_stream_room_filter_change(self, *args, **kwargs):
+    def _on_stream_room_filter_change(self, *_args, **_kwargs):
         # Store the stream room ID value in app.storage
         app.storage.user['stream_room_filter'] = self.stream_room_filter.value
         asyncio.create_task(self.refresh())
 
-    def _on_auto_refresh_change(self, *args, **kwargs):
+    def _on_auto_refresh_change(self, *_args, **_kwargs):
         if self.auto_refresh_checkbox.value:
             if not self._auto_refresh_task:
                 self._auto_refresh_task = asyncio.create_task(self._auto_refresh_loop())
@@ -203,14 +209,15 @@ class MatchTableView:
         }
         </style>
         """)
-        with ui.column().style('width: 100%;'):
+        with ui.column().style('width: 100%;') as table_container:
+            self.table_container = table_container
             self.table = ui.table(
                 columns=self.columns,
                 rows=[],
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('match-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
-        self.table.on('update:pagination', self._on_page_change)
+            self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable match id (or other key field)
         self.table.add_slot('body-cell-id', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_match', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
@@ -222,7 +229,6 @@ class MatchTableView:
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
-        self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable player names
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
@@ -240,18 +246,52 @@ class MatchTableView:
                     </template>
                 </div>
             </q-td>''')
-        for role in ['commentators', 'trackers']:
-            # Add a wrapper with class 'wrap' so only the table (not grid) view will wrap long names
-            self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
-                <div>
-                    <template v-for="(item, idx) in props.value">
-                        <a href="#" @click="$parent.$emit('edit_{role[:-1] if role.endswith('s') else role}', {{ row: props.row, idx }})"
-                           :style="'color: ' + (item[1] ? '#1976d2' : 'red') + '; text-decoration: underline; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
-                            {{{{ item[0] }}}}<br/>
-                        </a>
-                    </template>
-                </div>
-            </q-td>''')
+        # Crew columns (commentators/trackers):
+        # - Always show signup/undo for the logged-in user
+        # - Names are clickable for approval ONLY when admin_controls=True
+        discord_id = app.storage.user.get('discord_id', None)
+        discord_id_js = f"'{discord_id}'" if discord_id else 'null'
+        if self.admin_controls:
+            for role in ['commentators', 'trackers']:
+                singular = role[:-1]
+                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                    <div class="wrap">
+                        <div style="margin-bottom: 6px;">
+                            <q-btn v-if="props.value && props.value.some(item => item[2] == {discord_id_js})"
+                                   icon="undo" color="negative" size="sm"
+                                   @click="$parent.$emit('undo_{singular}', props.row)" style="margin-right: 6px;" />
+                            <q-btn v-if="props.value && !props.value.some(item => item[2] == {discord_id_js})"
+                                   icon="assignment" color="primary" size="sm"
+                                   @click="$parent.$emit('signup_{singular}', props.row)" style="margin-right: 6px;" />
+                        </div>
+                        <template v-for="(item, idx) in props.value">
+                            <a href="#" @click="$parent.$emit('edit_{singular}', {{ row: props.row, idx }})"
+                               :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal') + '; text-decoration: underline;'">
+                                {{{{ item[0] }}}}
+                            </a><br/>
+                        </template>
+                    </div>
+                </q-td>''')
+        else:
+            for role in ['commentators', 'trackers']:
+                singular = role[:-1]
+                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                    <div class="wrap">
+                        <div style="margin-bottom: 6px;">
+                            <q-btn v-if="props.value && props.value.some(item => item[2] == {discord_id_js})"
+                                   icon="undo" color="negative" size="sm"
+                                   @click="$parent.$emit('undo_{singular}', props.row)" style="margin-right: 6px;" />
+                            <q-btn v-if="props.value && !props.value.some(item => item[2] == {discord_id_js})"
+                                   icon="assignment" color="primary" size="sm"
+                                   @click="$parent.$emit('signup_{singular}', props.row)" style="margin-right: 6px;" />
+                        </div>
+                        <template v-for="(item, idx) in props.value">
+                            <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
+                                {{{{ item[0] }}}}
+                            </span><br/>
+                        </template>
+                    </div>
+                </q-td>''')
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
@@ -282,8 +322,9 @@ class MatchTableView:
                 return
 
             user = items[idx].user
-            dialog = UserDialog(user)
-            await dialog.open()
+            with self.table_container:
+                dialog = UserDialog(user)
+                await dialog.open()
 
         async def handle_approve_role(role, event):
             row = event.args['row']
@@ -310,8 +351,9 @@ class MatchTableView:
                 return
             from theme.dialog import ApproveCrewDialog
             crew_member = items[idx]
-            dialog = ApproveCrewDialog(crew_member, role, on_approve=lambda: self.update_row_by_id(match_id))
-            await dialog.open()
+            with self.table_container:
+                dialog = ApproveCrewDialog(crew_member, role, on_approve=lambda: self.update_row_by_id(match_id))
+                await dialog.open()
 
         for role in ['player']:
             self.table.on(f'edit_{role}', lambda event, r=role: handle_edit_role(r, event))
@@ -376,7 +418,56 @@ class MatchTableView:
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
         self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
 
-    async def refresh(self, *args, **kwargs):
+        # Admin-specific slots and handlers
+        if self.admin_controls:
+            if self.on_generate_seed is not None:
+                self.table.add_slot('body-cell-generated_seed', '''<q-td :props="props">
+                    <q-btn v-if="props.row.tournament_seed_generator && !props.value"
+                           :loading="props.row._generating_seed"
+                           :disabled="props.row._generating_seed"
+                           @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
+                           icon="casino" flat />
+                    <span v-if="props.value">
+                        <template v-if="/^https?:\\/\\//.test(props.value)">
+                            <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;" :title="props.value">
+                                {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
+                            </a>
+                        </template>
+                        <template v-else>{{ props.value }}</template>
+                    </span>
+                </q-td>''')
+                self.table.on('roll', lambda event: asyncio.create_task(self._handle_roll(event)))
+
+            if self.on_seat is not None:
+                self.table.add_slot('body-cell-seated', '''<q-td :props="props">
+                    <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)" icon="chair" flat />
+                    <div v-else style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                        <q-icon name="check" color="green" size="md" />
+                    </div>
+                </q-td>''')
+                self.table.on('seat', lambda event: asyncio.create_task(self._handle_seat(event)))
+
+            if self.on_finish is not None:
+                self.table.add_slot('body-cell-finished', '''<q-td :props="props">
+                    <q-btn v-if="!props.value && props.row.seated" @click="$parent.$emit('finish', props)" icon="sports_score" flat />
+                    <div v-else-if="!props.value && !props.row.seated" style="display: flex; justify-content: center; align-items: center; height: 100%;" />
+                    <div v-else style="display: flex; justify-content: center; align-items: center; height: 100%;">
+                        <q-icon name="flag" color="green" size="md" />
+                    </div>
+                </q-td>''')
+                self.table.on('finish', lambda event: asyncio.create_task(self._handle_finish(event)))
+
+            if self.on_edit_stream_room is not None:
+                self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
+                    <q-btn v-if="!props.value" @click="$parent.$emit('edit-stream-room', props)" icon="movie" flat />
+                    <template v-else>{{ props.value }}</template>
+                </q-td>''')
+                self.table.on('edit-stream-room', lambda event: asyncio.create_task(self._handle_edit_stream_room(event)))
+
+            if self.on_edit is not None:
+                self.table.on('edit_match', lambda event: asyncio.create_task(self._handle_edit(event)))
+
+    async def refresh(self, *_args):
         match_query = self.get_query()
         
         # Apply upcoming matches filter if checked
@@ -487,9 +578,17 @@ class MatchTableView:
                         
                         <template v-if="Array.isArray(props.row[field.key])">
                             <template v-for="(item, idx) in props.row[field.key]">
-                                <span :style="'color: ' + (item[field.approvedIndex] ? '#1976d2' : 'red') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
-                                    {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
-                                </span>
+                                <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if self.admin_controls else 'false'}">
+                                    <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
+                                       :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal') + '; text-decoration: underline;'">
+                                        {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                    </a>
+                                </template>
+                                <template v-else>
+                                    <span :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
+                                        {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                    </span>
+                                </template>
                             </template>
                         </template>
                         <template v-else>{{{{ props.row[field.key] }}}}</template>
@@ -526,9 +625,44 @@ class MatchTableView:
         </div>
         ''')
 
-    def _on_page_change(self, event):
-        import asyncio
+    def _on_page_change(self, *_):
         asyncio.create_task(self.refresh())
+
+    # Helper to extract match id from emitted events
+    def _event_match_id(self, event):
+        if hasattr(event, 'args'):
+            args = event.args
+            if isinstance(args, dict):
+                if 'key' in args:
+                    return args['key']
+                if 'row' in args and isinstance(args['row'], dict) and 'id' in args['row']:
+                    return args['row']['id']
+        return None
+
+    async def _handle_edit(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_edit:
+            await self.on_edit(match_id)
+
+    async def _handle_roll(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_generate_seed:
+            await self.on_generate_seed(match_id)
+
+    async def _handle_seat(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_seat:
+            await self.on_seat(match_id)
+
+    async def _handle_finish(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_finish:
+            await self.on_finish(match_id)
+
+    async def _handle_edit_stream_room(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_edit_stream_room:
+            await self.on_edit_stream_room(match_id)
 
     async def update_row_by_id(self, match_id):
         """

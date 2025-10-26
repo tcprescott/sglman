@@ -1,7 +1,6 @@
 from nicegui import app, ui
 
 from models import User
-from pages.home_tabs.crew import render_crew_dashboard
 from pages.home_tabs.player import render_edit_info_tab, render_player_dashboard
 from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.schedule import schedule
@@ -27,6 +26,5 @@ def create() -> None:
             {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
             {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
-            {'label': 'Crew', 'icon': 'handyman', 'content': render_crew_dashboard},
         ]
         await BaseLayout(tabs=tabs, default_tab=tab, page_name='home', user=user).render()

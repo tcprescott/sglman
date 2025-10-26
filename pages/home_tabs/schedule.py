@@ -3,8 +3,7 @@ import asyncio
 
 from nicegui import app, ui
 
-from models import Match, Permissions, User
-from theme.base import BaseLayout
+from models import Match
 from theme.tables.match import MatchTableView
 
 
@@ -14,7 +13,7 @@ def schedule():
     with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
         # Header section
         with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Scheduled Matches').style('font-size: 2em; font-weight: bold;')
+            ui.label('Schedule & Crew Signup').style('font-size: 2em; font-weight: bold;')
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
@@ -25,9 +24,12 @@ def schedule():
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True, 'filterable': True},
             {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at', 'sortable': True, 'filterable': True},
+            {'name': 'seated', 'label': 'Seated', 'field': 'seated'},
             {'name': 'players', 'label': 'Players', 'field': 'players', 'filterable': True},
             {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room', 'sortable': True, 'filterable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+            {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
+            {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
         ]
 
         def get_query():
@@ -46,7 +48,7 @@ def schedule():
             </q-td>''',
         }
 
-        # No admin controls or extra slots for schedule view
+        # Include crew signup functionality with centralized green/yellow status rendering
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,

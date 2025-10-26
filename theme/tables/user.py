@@ -1,6 +1,7 @@
 import asyncio
 
 from nicegui import ui
+from models import Permissions
 
 
 class UserTableView:
@@ -15,11 +16,12 @@ class UserTableView:
         self._setup_ui()
 
     def _setup_ui(self):
-        with ui.row().style('width: 100%;'):
+        # Toolbar with actions
+        with ui.row().style('width: 100%; margin-bottom: 1em;'):
             if self.submit_user_callback:
-                ui.button('Add User', on_click=self.submit_user_callback)
-            ui.button(on_click=self.refresh).props(
-                'icon=refresh').style('min-width: 0; margin-left: auto;')
+                ui.button('Add User', icon='add', on_click=self.submit_user_callback).props('color=primary')
+            ui.space()
+            ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
         ui.add_head_html("""
         <style>
@@ -28,6 +30,14 @@ class UserTableView:
         }
         .user-table td {
             text-align: left;
+        }
+        /* Allow wrapping for long strings */
+        .user-table td .wrap {
+            display: block;
+            white-space: normal !important;
+            word-break: normal;
+            overflow-wrap: break-word;
+            max-width: 320px;
         }
         .user-table th {
             text-align: center;
@@ -57,6 +67,19 @@ class UserTableView:
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('edit_user', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+        </q-td>''')
+        # Render is_active as icon
+        self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
+            <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
+        </q-td>''')
+        # Truncate long discord ids if present (leave plain text)
+        self.table.add_slot('body-cell-discord_id', '''<q-td :props="props">
+            <span v-if="props.value" class="wrap" :title="props.value">{{ props.value.toString().length > 24 ? props.value.toString().substring(0, 21) + '...' : props.value }}</span>
+            <span v-else>-</span>
+        </q-td>''')
+        # Display permission as a chip
+        self.table.add_slot('body-cell-permission', '''<q-td :props="props">
+            <q-chip :color="'primary'" text-color="white" dense>{{ props.value }}</q-chip>
         </q-td>''')
         self.render_grid_slot()
         if self.extra_slots:
@@ -116,7 +139,7 @@ class UserTableView:
         </div>
         ''')
 
-    async def refresh(self, *args, **kwargs):
+    async def refresh(self, *_, **__):
         user_query = self.get_query()
         all_users = await user_query.order_by('username')
         rows = []
@@ -129,7 +152,7 @@ class UserTableView:
                 'pronouns': u.pronouns or '',
                 'discord_id': u.discord_id,
                 'is_active': u.is_active,
-                'permission': u.permission,
+                'permission': (Permissions(u.permission).name if isinstance(u.permission, int) else str(u.permission)),
                 'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
                 'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '',
             }
@@ -137,7 +160,7 @@ class UserTableView:
         self.table.rows = rows
         self.table.update()
 
-    def _on_page_change(self, event):
+    def _on_page_change(self, _event):
         asyncio.create_task(self.refresh())
 
     async def update_row_by_id(self, user_id):
@@ -159,7 +182,7 @@ class UserTableView:
             'pronouns': u.pronouns or '',
             'discord_id': u.discord_id,
             'is_active': u.is_active,
-            'permission': u.permission,
+            'permission': (Permissions(u.permission).name if isinstance(u.permission, int) else str(u.permission)),
             'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
             'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else ''
         }

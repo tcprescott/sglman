@@ -17,10 +17,12 @@ class TournamentTableView:
         self._setup_ui()
 
     def _setup_ui(self):
-        with ui.row().style('width: 100%;'):
+        # Toolbar with actions
+        with ui.row().style('width: 100%; margin-bottom: 1em;'):
             if self.submit_tournament_callback:
-                ui.button('Add Tournament', on_click=self.submit_tournament_callback)
-            ui.button(on_click=self.refresh).props('icon=refresh').style('min-width: 0; margin-left: auto;')
+                ui.button('Add Tournament', icon='add', on_click=self.submit_tournament_callback).props('color=primary')
+            ui.space()
+            ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
         ui.add_head_html("""
         <style>
@@ -29,6 +31,14 @@ class TournamentTableView:
         }
         .tournament-table td {
             text-align: left;
+        }
+        /* Allow wrapping and truncation for long fields */
+        .tournament-table td .wrap {
+            display: block;
+            white-space: normal !important;
+            word-break: normal;
+            overflow-wrap: break-word;
+            max-width: 320px;
         }
         .tournament-table th {
             text-align: center;
@@ -63,6 +73,63 @@ class TournamentTableView:
         self.table.add_slot('body-cell-player_count', '''<q-td :props="props">
             <a href="#" @click="$parent.$emit('show_players', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
         </q-td>''')
+        # Truncate long descriptions with tooltip
+        self.table.add_slot('body-cell-description', '''<q-td :props="props">
+            <span v-if="props.value" class="wrap" :title="props.value">
+                {{ props.value.length > 120 ? props.value.substring(0, 117) + '...' : props.value }}
+            </span>
+            <span v-else>-</span>
+        </q-td>''')
+        # Render booleans as icons
+        self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
+            <q-icon :name="props.value ? 'check_circle' : 'cancel'" :color="props.value ? 'positive' : 'negative'" size="sm" />
+        </q-td>''')
+        self.table.add_slot('body-cell-staff_administered', '''<q-td :props="props">
+            <q-icon :name="props.value ? 'badge' : 'person'" :color="props.value ? 'primary' : 'grey'" size="sm" />
+        </q-td>''')
+        # Mobile grid item slot
+        self.table.add_slot('item', '''
+        <div class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Name:</div>
+                <div class="col-8">
+                    <a href="#" @click="$parent.$emit('edit_tournament', { row: props.row })" style="color: #1976d2; text-decoration: underline;">{{ props.row.name }}</a>
+                </div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Description:</div>
+                <div class="col-8"><span class="wrap" :title="props.row.description">{{ props.row.description && props.row.description.length > 120 ? props.row.description.substring(0,117) + '...' : (props.row.description || '-') }}</span></div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Seed Generator:</div>
+                <div class="col-8">{{ props.row.seed_generator || '-' }}</div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Active:</div>
+                <div class="col-8"><q-icon :name="props.row.is_active ? 'check_circle' : 'cancel'" :color="props.row.is_active ? 'positive' : 'negative'" size="sm" /></div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Staff Admin:</div>
+                <div class="col-8"><q-icon :name="props.row.staff_administered ? 'badge' : 'person'" :color="props.row.staff_administered ? 'primary' : 'grey'" size="sm" /></div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Players Per Match:</div>
+                <div class="col-8">{{ props.row.players_per_match }}</div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Avg Duration (min):</div>
+                <div class="col-8">{{ props.row.average_match_duration }}</div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Max Duration (min):</div>
+                <div class="col-8">{{ props.row.max_match_duration }}</div>
+            </div>
+            <div class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">Players:</div>
+                <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" style="color: #1976d2; text-decoration: underline;">{{ props.row.player_count }}</a></div>
+            </div>
+        </div>
+        ''')
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
@@ -70,7 +137,7 @@ class TournamentTableView:
         self.table.on('edit_tournament', self.handle_edit_tournament)
         self.table.on('show_players', self.handle_show_players)
 
-    async def refresh(self, *args, **kwargs):
+    async def refresh(self, *_, **__):
         tournament_query = self.get_query().prefetch_related('players')
         all_tournaments = await tournament_query.order_by('name')
         rows = []
@@ -92,7 +159,7 @@ class TournamentTableView:
         self.table.rows = rows
         self.table.update()
 
-    def _on_page_change(self, event):
+    def _on_page_change(self, _event):
         asyncio.create_task(self.refresh())
 
     async def update_row_by_id(self, tournament_id):
@@ -102,13 +169,22 @@ class TournamentTableView:
         idx = next((i for i, row in enumerate(self.table.rows) if row.get('id') == tournament_id), None)
         if idx is None:
             return  # Row not visible, do nothing
-        tournament_query = self.get_query()
+        tournament_query = self.get_query().prefetch_related('players')
         t = await tournament_query.filter(id=tournament_id).first()
         if not t:
             return  # Tournament not found
         row = {
             'id': t.id,
             'name': t.name,
+            'description': t.description,
+            'seed_generator': t.seed_generator,
+            'is_active': t.is_active,
+            'players_per_match': t.players_per_match,
+            'team_size': t.team_size,
+            'staff_administered': t.staff_administered,
+            'player_count': len(t.players),
+            'average_match_duration': t.average_match_duration,
+            'max_match_duration': t.max_match_duration,
         }
         self.table.rows[idx] = row
         self.table.update()
