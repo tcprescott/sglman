@@ -487,6 +487,16 @@ class MatchTableView:
                     <template v-else>{{{{ props.row[field.key] || '' }}}}</template>
                 </template>
                 
+                <!-- For generated_seed field, truncate long URLs -->
+                <template v-else-if="field.key === 'generated_seed'">
+                    <template v-if="props.row[field.key]">
+                        <a :href="props.row[field.key]" target="_blank" style="color: #1976d2; text-decoration: underline;">
+                            {{{{ props.row[field.key].length > 40 ? props.row[field.key].substring(0, 40) + '...' : props.row[field.key] }}}}
+                        </a>
+                    </template>
+                    <template v-else>-</template>
+                </template>
+                
                 <!-- Default rendering for other fields -->
                 <template v-else>
                     {{{{ props.row[field.key] || '' }}}}
