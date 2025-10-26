@@ -597,9 +597,40 @@ class MatchTableView:
                 
                 <!-- For boolean or text fields like seated/finished -->
                 <template v-else-if="field.boolOrText">
-                    <template v-if="props.row[field.key] === true">Yes</template>
-                    <template v-else-if="props.row[field.key] === false">No</template>
-                    <template v-else>{{{{ props.row[field.key] || '' }}}}</template>
+                    <!-- Seated field with admin button -->
+                    <template v-if="field.key === 'seated'">
+                        <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key]"
+                               @click="$parent.$emit('seat', {{ key: props.row.id }})"
+                               icon="chair" color="primary" size="sm"
+                               style="margin-bottom: 8px;">
+                            Seat Players
+                        </q-btn>
+                        <div v-else-if="props.row[field.key]" style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="check" color="green" size="sm" />
+                            <span>{{{{ props.row[field.key] }}}}</span>
+                        </div>
+                        <template v-else>-</template>
+                    </template>
+                    <!-- Finished field with admin button -->
+                    <template v-else-if="field.key === 'finished'">
+                        <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key] && props.row.seated"
+                               @click="$parent.$emit('finish', {{ key: props.row.id }})"
+                               icon="sports_score" color="primary" size="sm"
+                               style="margin-bottom: 8px;">
+                            Mark Finished
+                        </q-btn>
+                        <div v-else-if="props.row[field.key]" style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="flag" color="green" size="sm" />
+                            <span>{{{{ props.row[field.key] }}}}</span>
+                        </div>
+                        <template v-else>-</template>
+                    </template>
+                    <!-- Other boolean fields -->
+                    <template v-else>
+                        <template v-if="props.row[field.key] === true">Yes</template>
+                        <template v-else-if="props.row[field.key] === false">No</template>
+                        <template v-else>{{{{ props.row[field.key] || '' }}}}</template>
+                    </template>
                 </template>
                 
                 <!-- For generated_seed field, truncate long URLs -->
