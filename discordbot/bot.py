@@ -3,7 +3,7 @@ import os
 from application.services.discord_service import get_discord_bot, DiscordService
 
 # Get bot token from environment variable
-TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 # Get the shared Discord bot instance
 bot = get_discord_bot()
