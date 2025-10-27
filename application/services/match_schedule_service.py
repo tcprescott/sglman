@@ -9,8 +9,8 @@ from datetime import datetime
 from typing import Dict, Tuple, Optional
 
 from application.repositories import MatchRepository
-from application.seedgen import RANDOMIZERS
 from application.services.discord_service import DiscordService
+from application.services.seedgen_service import SeedGenerationService
 from models import Match, GeneratedSeeds
 
 
@@ -23,6 +23,7 @@ class MatchScheduleService:
     def __init__(self):
         self.match_repository = MatchRepository()
         self.discord_service = DiscordService()
+        self.seedgen_service = SeedGenerationService()
     
     async def seat_match(self, match: Match) -> None:
         """
@@ -96,13 +97,12 @@ class MatchScheduleService:
                 if not match.tournament.seed_generator:
                     return False, "No seed generator configured for this tournament", None
                 
-                # Get the seed generator
-                seed_generator = RANDOMIZERS.get(match.tournament.seed_generator)
-                if not seed_generator:
+                # Check if seed generator is supported
+                if match.tournament.seed_generator not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
                     return False, f"Seed generator '{match.tournament.seed_generator}' not found", None
                 
                 # Generate the seed
-                seed_url = await seed_generator()
+                seed_url = await self.seedgen_service.generate_seed(match.tournament.seed_generator)
                 
                 # Create GeneratedSeeds record
                 match.generated_seed = await GeneratedSeeds.create(

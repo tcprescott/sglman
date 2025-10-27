@@ -17,7 +17,7 @@ from application.repositories import (
     CommentatorRepository,
     TrackerRepository,
 )
-from application.audit import write_audit_log
+from application.services.audit_service import AuditService
 
 
 class MatchService:
@@ -30,6 +30,7 @@ class MatchService:
         self.user_repository = UserRepository()
         self.commentator_repository = CommentatorRepository()
         self.tracker_repository = TrackerRepository()
+        self.audit_service = AuditService()
     
     async def get_match_for_display(
         self,
@@ -258,7 +259,7 @@ class MatchService:
         
         # Audit log
         if admin_user:
-            await write_audit_log(
+            await self.audit_service.write_log(
                 admin_user,
                 f'Created match {match.id}',
                 f'Tournament: {tournament_id}, Players: {player_ids}'
@@ -358,7 +359,7 @@ class MatchService:
         
         # Audit log
         if admin_user:
-            await write_audit_log(
+            await self.audit_service.write_log(
                 admin_user,
                 f'Updated match {match.id}',
                 f'Fields: {list(update_fields.keys())}'
@@ -396,7 +397,7 @@ class MatchService:
         await self.repository.update(match, seated_at=datetime.now())
         
         if admin_user:
-            await write_audit_log(admin_user, f'Seated match {match.id}', '')
+            await self.audit_service.write_log(admin_user, f'Seated match {match.id}', '')
         
         return match
     
@@ -412,7 +413,7 @@ class MatchService:
         await self.repository.update(match, finished_at=datetime.now())
         
         if admin_user:
-            await write_audit_log(admin_user, f'Finished match {match.id}', '')
+            await self.audit_service.write_log(admin_user, f'Finished match {match.id}', '')
         
         return match
     

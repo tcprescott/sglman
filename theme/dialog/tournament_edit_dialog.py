@@ -3,7 +3,7 @@ import asyncio
 from nicegui import ui
 
 from application.repositories import TournamentRepository
-from application.seedgen import RANDOMIZERS
+from application.services import SeedGenerationService
 
 class TournamentDialog:
     def __init__(self, tournament=None, on_submit=None):
@@ -16,7 +16,7 @@ class TournamentDialog:
             self.dialog = dialog
             name_input = ui.input('Tournament Name', value=self.tournament.name if self.tournament else '')
             description_input = ui.textarea('Description', value=self.tournament.description if self.tournament and self.tournament.description else '').style('width: 100')
-            randomizer_choices = ['None'] + list(RANDOMIZERS.keys())
+            randomizer_choices = ['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS
             default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
             seed_generator_input = ui.select(randomizer_choices, label='Seed Generator', value=default_seed)
             bracket_url_input = ui.input('Bracket URL', value=self.tournament.bracket_url if self.tournament and self.tournament.bracket_url else '')
