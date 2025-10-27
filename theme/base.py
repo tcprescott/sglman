@@ -55,7 +55,15 @@ class BaseLayout:
                 ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
                 _dark_btn_ref['btn'] = ui.button(icon=('light_mode' if dark_pref else 'dark_mode'), on_click=_toggle_dark_mode).props('flat color=white').tooltip('Toggle dark mode')
 
-        with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md'):
+        # Add custom CSS for dark-mode footer styling
+        ui.add_head_html("""
+        <style>
+        .body--dark .footer-dark-override { background-color: #1e1e1e !important; color: #aaa !important; }
+        .q-dark .footer-dark-override { background-color: #1e1e1e !important; color: #aaa !important; }
+        </style>
+        """)
+        
+        with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md footer-dark-override'):
             ui.label(self.copyright_text).classes('text-caption')
 
         if self.tabs:
