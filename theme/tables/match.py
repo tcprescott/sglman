@@ -2,39 +2,18 @@ import asyncio
 
 from nicegui import app, ui
 
-from models import Commentator, StreamRoom, Tracker, Tournament, User
+from application.services import MatchService, UserService
 from theme.dialog import ConfirmationDialog, UserDialog
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
 
 class MatchTableView:
-    def _build_row(self, m):
-        """
-        Build a row dict for a match object.
-        """
-        player_names = [p.user.preferred_name for p in m.players]
-        commentator_names = [(c.user.preferred_name, c.approved, c.user.discord_id) for c in m.commentators]
-        tracker_names = [(t.user.preferred_name, t.approved, t.user.discord_id) for t in m.trackers]
-        row = {
-            'id': m.id,
-            'tournament': m.tournament.name if m.tournament else '',
-            'scheduled_at': m.scheduled_at.strftime('%Y-%m-%d %H:%M') if m.scheduled_at else '',
-            'seated': m.seated_at.strftime('%Y-%m-%d %H:%M') if m.seated_at else '',
-            'finished': m.finished_at.strftime('%Y-%m-%d %H:%M') if m.finished_at else '',
-            'players': player_names,
-            'stream_room': m.stream_room.name if m.stream_room else '',
-            'seed': m.generated_seed.seed_url if m.generated_seed else '',
-            'generated_seed': m.generated_seed.seed_url if m.generated_seed else '',
-            'tournament_seed_generator': m.tournament.seed_generator if m.tournament else None,
-            'commentators': commentator_names,
-            'trackers': tracker_names,
-        }
-        if self.admin_controls:
-            row['actions'] = ''
-        return row
-    # Encapsulates the match table UI and logic for admin/player dashboards.
-
+    """
+    Encapsulates the match table UI and logic for admin/player dashboards.
+    Uses MatchService for all data operations.
+    """
+    
     def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_finish=None, on_edit_stream_room=None):
         self.columns = columns
@@ -56,6 +35,9 @@ class MatchTableView:
         self.stream_rooms_list = []  # Will be populated in _setup_ui
         self.auto_refresh_checkbox = None
         self._auto_refresh_task = None
+        # Initialize services
+        self.service = MatchService()
+        self.user_service = UserService()
         self._setup_ui()
 
     def _on_upcoming_change(self, *_args, **_kwargs):
@@ -90,9 +72,8 @@ class MatchTableView:
             pass
 
     async def _load_tournaments(self):
-        """Load all tournament names for the filter"""
-        tournaments = await Tournament.all()
-        self.tournaments_list = {t.id: t.name for t in tournaments}
+        """Load all tournament names for the filter using service layer."""
+        self.tournaments_list = await self.service.get_tournaments_for_filter()
         # Set initial value from storage or default to None (All Tournaments)
         default_tournament_id = app.storage.user.get('tournament_filter', None)
         if self.tournament_filter:
@@ -101,9 +82,8 @@ class MatchTableView:
             self.tournament_filter.update()
             
     async def _load_stream_rooms(self):
-        """Load all stream room names for the filter"""
-        stream_rooms = await StreamRoom.all()
-        self.stream_rooms_list = {sr.id: sr.name for sr in stream_rooms}
+        """Load all stream room names for the filter using service layer."""
+        self.stream_rooms_list = await self.service.get_stream_rooms_for_filter()
         # Set initial value from storage or default to None (All Stages)
         default_stream_room_id = app.storage.user.get('stream_room_filter', None)
         if self.stream_room_filter:
@@ -379,56 +359,58 @@ class MatchTableView:
 
 
         async def handle_signup_or_undo_role(action, role, row):
-            # action: 'signup' or 'undo', role: 'commentator' or 'tracker'
-
+            """Handle crew signup/undo using service layer."""
             discord_id = app.storage.user.get('discord_id', None)
             if not discord_id:
                 ui.notify(f'You must be logged in to {action}.', color='warning')
                 return
-            user = await User.get(discord_id=discord_id)
-            match_query = self.get_query()
-            match = await match_query.filter(id=row['id']).first().prefetch_related('tournament', role + 's', role + 's__user')
-            if not match:
-                ui.notify('Match not found.', color='warning')
+            
+            # Get user via service layer
+            user = await self.user_service.get_current_user_from_storage(discord_id)
+            if not user:
+                ui.notify('User not found. Please log in again.', color='warning')
                 return
-            attr_map = {
-                'commentator': 'commentators',
-                'tracker': 'trackers',
-            }
-            if role not in attr_map:
-                ui.notify(f'Unknown role: {role}', color='warning')
-                return
-            crew_list = getattr(match, attr_map[role], [])
+            
+            match_id = row['id']
+            
             if action == 'undo':
-                crew_member = next((c for c in crew_list if c.user_id == user.id), None)
-                if not crew_member:
-                    ui.notify(f'You are not signed up as a {role} for this match.', color='info')
-                    return
-                    
                 async def perform_undo():
-                    await crew_member.delete()
-                    ui.notify(f'You have been removed as a {role} for match ID {match.id}.', color='positive')
-                    await self.update_row_by_id(match.id)
-                    dialog.dialog.close()
+                    try:
+                        await self.service.undo_crew_signup(match_id, user, role)
+                        ui.notify(f'You have been removed as a {role} for match ID {match_id}.', color='positive')
+                        await self.update_row_by_id(match_id)
+                        dialog.dialog.close()
+                    except ValueError as e:
+                        ui.notify(str(e), color='warning')
+                        dialog.dialog.close()
                 
-                dialog = ConfirmationDialog(f'Are you sure you want to remove yourself as a {role} for match ID {match.id}?', confirm_text='Yes', cancel_text='No', on_confirm=perform_undo)
+                dialog = ConfirmationDialog(
+                    f'Are you sure you want to remove yourself as a {role} for match ID {match_id}?',
+                    confirm_text='Yes',
+                    cancel_text='No',
+                    on_confirm=perform_undo
+                )
                 dialog.open()
+                
             elif action == 'signup':
                 async def update_role_signup():
-                    if any(c.user_id == user.id for c in crew_list):
-                        ui.notify(f'You are already signed up as a {role} for this match.', color='info')
-                        return
-                    model_map = {
-                        'commentator': Commentator,
-                        'tracker': Tracker,
-                    }
-                    new_crew = model_map.get(role)(match=match, user=user, approved=False)
-                    await new_crew.save()
-                    ui.notify(f'Successfully signed up as a {role} for match ID {match.id}. Awaiting approval.', color='positive')
-                    await self.update_row_by_id(match.id)
-                    dialog.dialog.close()
-                dialog = ConfirmationDialog(f'Do you want to sign up as a {role} for match ID {match.id}?', confirm_text='Yes', cancel_text='No', on_confirm=update_role_signup)
+                    try:
+                        await self.service.signup_crew(match_id, user, role)
+                        ui.notify(f'Successfully signed up as a {role} for match ID {match_id}. Awaiting approval.', color='positive')
+                        await self.update_row_by_id(match_id)
+                        dialog.dialog.close()
+                    except ValueError as e:
+                        ui.notify(str(e), color='warning')
+                        dialog.dialog.close()
+                
+                dialog = ConfirmationDialog(
+                    f'Do you want to sign up as a {role} for match ID {match_id}?',
+                    confirm_text='Yes',
+                    cancel_text='No',
+                    on_confirm=update_role_signup
+                )
                 dialog.open()
+                
         self.table.on('signup_commentator', lambda event: handle_signup_or_undo_role('signup', 'commentator', event.args))
         self.table.on('signup_tracker', lambda event: handle_signup_or_undo_role('signup', 'tracker', event.args))
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
@@ -497,27 +479,26 @@ class MatchTableView:
                 self.table.on('edit_match', lambda event: asyncio.create_task(self._handle_edit(event)))
 
     async def refresh(self, *_args):
-        match_query = self.get_query()
-        
-        # Apply upcoming matches filter if checked
-        if self.show_upcoming_checkbox.value:
-            match_query = match_query.filter(finished_at__isnull=True)
-            
-        # Apply tournament filter if a specific tournament is selected
+        """Refresh table data using service layer."""
+        # Build filter parameters
+        tournament_ids = None
         if self.tournament_filter and self.tournament_filter.value:
-            # Extract the actual tournament ID from the selected object
             tournament_ids = self.tournament_filter.value
-            match_query = match_query.filter(tournament_id__in=tournament_ids)
-
+            
+        stream_room_ids = None
         if self.stream_room_filter and self.stream_room_filter.value:
             stream_room_ids = self.stream_room_filter.value
-            match_query = match_query.filter(stream_room_id__in=stream_room_ids)
-
-        all_matches = await match_query.prefetch_related(
-            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
-        ).order_by('scheduled_at')
+            
+        only_upcoming = self.show_upcoming_checkbox.value if self.show_upcoming_checkbox else False
         
-        rows = [self._build_row(m) for m in all_matches]
+        # Use service to get formatted match data
+        rows = await self.service.get_matches_for_display(
+            tournament_ids=tournament_ids,
+            stream_room_ids=stream_room_ids,
+            only_upcoming=only_upcoming,
+            user_discord_id=None  # Don't filter by user in table view
+        )
+        
         self.table.rows = rows
         self.table.update()
 
@@ -748,27 +729,24 @@ class MatchTableView:
     async def update_row_by_id(self, match_id):
         """
         Update a single row in the table by its match ID, only if the row is currently visible.
-        Does not respect the upcoming filter, but only updates if the row is present in self.table.rows.
+        Uses service layer to fetch match data.
         """
         # Find the index of the row with the given match_id
         idx = next((i for i, row in enumerate(self.table.rows)
                    if row.get('id') == match_id), None)
         if idx is None:
             return  # Row not visible, do nothing
-        # Query for the match object - ignoring tournament filter to properly handle row updates
-        match_query = self.get_query()
         
-        # We don't apply tournament filter here because this is updating a specific row that's already visible
-        m = await match_query.filter(id=match_id).prefetch_related(
-            'tournament', 'players', 'players__user', 'stream_room', 'generated_seed', 'commentators', 'commentators__user', 'trackers', 'trackers__user'
-        ).first()
-        if not m:
+        # Use service to get match data
+        match_data = await self.service.get_match_for_display(match_id)
+        
+        if not match_data:
             # Match not found, delete the row from the table
             del self.table.rows[idx]
             self.table.update()
             return
-        row = self._build_row(m)
-        self.table.rows[idx] = row
+        
+        self.table.rows[idx] = match_data
         self.table.update()
 
     async def delete_row_by_id(self, match_id):

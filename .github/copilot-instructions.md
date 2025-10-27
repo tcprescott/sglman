@@ -10,10 +10,11 @@ SGLMan is a FastAPI + NiceGUI application for managing tournament schedules, mat
 - **migrations/**: Aerich migration scripts and Tortoise config (`tortoise_config.py`).
 - **pages/**: UI pages (`home.py`, `schedule.py`, `player.py`, `crew.py`, `admin.py`). Each page is registered via `@ui.page` and uses NiceGUI components.
 - **theme/dialog/** & **theme/tables/**: Custom dialog and table components for UI interactions (e.g., `UserDialog`, `MatchTableView`, `TournamentDialog`, `MatchDialog`).
-- **application/**: Business logic modules (e.g., `audit.py` for audit logging, `match.py` for match creation).
+- **application/repositories/**: Data access layer with repository classes for models (e.g., `UserRepository`, `MatchRepository`).
+- **application/services/**: Business logic and helper functions (e.g., audit logging, match creation).
 - **api.py**: FastAPI API routes (minimal, expand as needed).
 - **.env**: Environment variables for DB and Discord credentials.
-- **discordbot/**: Discord bot integration (not fully implemented).
+- **discordbot/**: Discord bot integration
 
 ## Developer Workflows
 - **Install dependencies**: `poetry install`
@@ -44,6 +45,7 @@ SGLMan is a FastAPI + NiceGUI application for managing tournament schedules, mat
 
 ## References
 - See `DESIGN.md` for requirements and page structure.
+- See `REFACTORING_GUIDE.md` for coding standards and best practices.
 - See `start.sh` for server commands.
 - See `pyproject.toml` for dependencies and Aerich config.
 

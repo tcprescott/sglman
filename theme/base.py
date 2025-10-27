@@ -4,57 +4,82 @@ from models import Permissions, User
 
 
 class BaseLayout:
-    def __init__(self, page_name, site_name: str = "SpeedGaming Live On Site", logo_url: str = None, copyright_text: str = "© 2025 Thomas Prescott", default_tab: str = None, tabs: list = None, user: User = None):
-        self.site_name = site_name
-        self.logo_url = logo_url
+    """Base layout component providing header, footer, and tabbed content structure."""
+    
+    def __init__(
+        self,
+        copyright_text: str = "© 2025 Thomas Prescott",
+        default_tab: str = None,
+        tabs: list = None,
+        user: User = None,
+        **_kwargs  # Accept and ignore unused legacy params for backward compatibility
+    ):
         self.copyright_text = copyright_text
         self.tabs = tabs
         self.default_tab = default_tab
-        self.page_name = page_name
         self.user = user
-        self.width = None
-
+        self.dark_mode = None  # Will be initialized in render()
+        
+        # Build top menu based on user permissions
+        self.top_menu: list[tuple[str, str]] = [('Home', '/')]
         if user and user.permission >= Permissions.TOURNAMENT_ADMIN:
-            self.top_menu: list[tuple[str, str]] = [
-                ('Home', '/'),
-                ('Admin', '/admin'),
-            ]
-        else:
-            self.top_menu: list[tuple[str, str]] = [
-                ('Home', '/'),
-            ]
+            self.top_menu.append(('Admin', '/admin'))
 
     async def render(self) -> None:
+        """Render the complete layout with header, footer, and optional tabbed content."""
         # Initialize dark mode controller and restore user's preference
         dark_pref = bool(app.storage.user.get('dark_mode', False))
-        dm = ui.dark_mode()
-        dm.value = dark_pref
-        _dark_btn_ref = {'btn': None}  # holder to update icon on toggle
+        self.dark_mode = ui.dark_mode()
+        self.dark_mode.value = dark_pref
+        
+        self._render_header()
+        self._render_footer()
+        
+        if self.tabs:
+            await self.render_tabbed_page(self.tabs)
+    
+    def _render_header(self) -> None:
+        """Render the header with navigation menu and user controls."""
+        dark_pref = bool(app.storage.user.get('dark_mode', False))
+        dark_btn_ref = {'btn': None}
 
-        def _toggle_dark_mode():
-            dm.value = not dm.value
-            app.storage.user['dark_mode'] = dm.value
-            # update icon to reflect the opposite mode action
-            if _dark_btn_ref['btn'] is not None:
-                _dark_btn_ref['btn'].props(f"icon={'light_mode' if dm.value else 'dark_mode'}")
-                _dark_btn_ref['btn'].update()
+        def toggle_dark_mode():
+            self.dark_mode.value = not self.dark_mode.value
+            app.storage.user['dark_mode'] = self.dark_mode.value
+            # Update icon to reflect current state
+            if dark_btn_ref['btn'] is not None:
+                icon = 'light_mode' if self.dark_mode.value else 'dark_mode'
+                dark_btn_ref['btn'].props(f"icon={icon}")
+                dark_btn_ref['btn'].update()
 
         with ui.header().classes(replace='row items-center'):
-            if self.top_menu:
-                for label, action in self.top_menu:
-                    ui.button(label, on_click=lambda a=action: ui.navigate.to(a)).props('flat color=white')
-            else:
-                ui.button('Default', on_click=lambda: None).props('flat color=white')
+            # Navigation menu
+            for label, action in self.top_menu:
+                ui.button(label, on_click=lambda a=action: ui.navigate.to(a)).props('flat color=white')
 
+            # User section or login
             if self.user:
                 ui.label(self.user.preferred_name).classes('text-lg').style('margin-left: auto;')
-                ui.image(app.storage.user.get('avatar', None)).props('width=32 height=32 fit=cover round').style('margin-left: 8px; margin-right: 8px; display: inline-block; max-width: 32px; max-height: 32px; vertical-align: middle;')
-                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout')
-                _dark_btn_ref['btn'] = ui.button(icon=('light_mode' if dark_pref else 'dark_mode'), on_click=_toggle_dark_mode).props('flat color=white').tooltip('Toggle dark mode')
+                ui.image(app.storage.user.get('avatar', None)).props(
+                    'width=32 height=32 fit=cover round'
+                ).style('margin-left: 8px; margin-right: 8px; max-width: 32px; max-height: 32px;')
+                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout').props('flat color=white')
             else:
-                ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
-                _dark_btn_ref['btn'] = ui.button(icon=('light_mode' if dark_pref else 'dark_mode'), on_click=_toggle_dark_mode).props('flat color=white').tooltip('Toggle dark mode')
-
+                ui.button(
+                    on_click=lambda: ui.navigate.to('/login'),
+                    icon='login',
+                    text='Login with Discord'
+                ).props('flat color=white').style('margin-left: auto;')
+            
+            # Dark mode toggle (always visible)
+            dark_icon = 'light_mode' if dark_pref else 'dark_mode'
+            dark_btn_ref['btn'] = ui.button(
+                icon=dark_icon,
+                on_click=toggle_dark_mode
+            ).props('flat color=white').tooltip('Toggle dark mode')
+    
+    def _render_footer(self) -> None:
+        """Render the footer with copyright text."""
         # Add custom CSS for dark-mode footer styling
         ui.add_head_html("""
         <style>
@@ -66,18 +91,28 @@ class BaseLayout:
         with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md footer-dark-override'):
             ui.label(self.copyright_text).classes('text-caption')
 
-        if self.tabs:
-            await self.render_tabbed_page(self.tabs)
-
-    async def render_tabbed_page(self, tabs):
+    async def render_tabbed_page(self, tabs: list) -> None:
+        """Render a tabbed interface with the provided tab configuration.
+        
+        Args:
+            tabs: List of tab dictionaries with 'label', 'icon' (optional), and 'content' keys.
+                  Content can be a callable or tuple of (callable, args, kwargs).
+        """
         import inspect
+        
         def on_tab_change(event):
+            """Update URL query param when tab changes."""
             ui.navigate.history.push(f'?tab={event.value}')
 
-        default_tab = self.default_tab if self.default_tab and self.default_tab in [tab['label'] for tab in tabs] else tabs[0]['label']
+        # Determine default tab
+        tab_labels = [tab['label'] for tab in tabs]
+        default_tab = self.default_tab if self.default_tab in tab_labels else tabs[0]['label']
 
         async def render_tab_content(tab):
+            """Render content for a single tab, handling both sync and async callables."""
             content = tab['content']
+            
+            # Parse content configuration
             if isinstance(content, tuple):
                 content_func = content[0]
                 args = content[1] if len(content) > 1 and content[1] is not None else ()
@@ -86,16 +121,19 @@ class BaseLayout:
                 content_func = content
                 args = ()
                 kwargs = {}
+            
+            # Call content function (async or sync)
             if inspect.iscoroutinefunction(content_func):
                 await content_func(*args, **kwargs)
             else:
                 content_func(*args, **kwargs)
 
-        tab_props = 'horizontal'
-        tab_classes = 'w-full'
-        with ui.tabs(on_change=on_tab_change).props(tab_props).classes(tab_classes) as panels:
+        # Render tabs navigation
+        with ui.tabs(on_change=on_tab_change).props('horizontal').classes('w-full') as panels:
             for tab in tabs:
-                ui.tab(tab['label'], icon=tab.get('icon', None))
+                ui.tab(tab['label'], icon=tab.get('icon'))
+        
+        # Render tab panels content
         with ui.tab_panels(panels, value=default_tab):
             for tab in tabs:
                 with ui.tab_panel(tab['label']):
