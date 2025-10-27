@@ -6,7 +6,8 @@ from nicegui import ui
 
 from application.services import MatchScheduleService
 from models import Match
-from theme.dialog import ConfirmationDialog, MatchDialog
+from theme.dialog import ConfirmationDialog
+from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.tables.match import MatchTableView
 
@@ -51,7 +52,7 @@ def admin_schedule_page() -> None:
             async def after_edit(_):
                 await table_view.update_row_by_id(match_id)
             with page_container:
-                dialog = MatchDialog(match=match, on_submit=after_edit)
+                dialog = AdminMatchDialog(match=match, on_submit=after_edit)
                 await dialog.open()
 
         async def on_generate_seed(match_id: int):
@@ -128,7 +129,7 @@ def admin_schedule_page() -> None:
             async def after_submit(_):
                 await table_view.refresh()
             with page_container:
-                dialog = MatchDialog(on_submit=after_submit)
+                dialog = AdminMatchDialog(on_submit=after_submit)
                 await dialog.open()
 
         table_view = MatchTableView(

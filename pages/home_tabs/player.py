@@ -4,7 +4,7 @@ import asyncio
 from nicegui import app, ui
 
 from application.services import MatchService
-from theme.dialog import MatchDialog
+from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
 
 
@@ -53,7 +53,7 @@ def render_player_dashboard():
         }
 
         async def submit_match():
-            dialog = MatchDialog(discord_id=discord_id)
+            dialog = UserMatchDialog(discord_id=discord_id)
             await dialog.open()
         
         async def get_query():
