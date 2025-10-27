@@ -4,7 +4,7 @@ Discord Service - Business Logic Layer
 Handles Discord-related operations like sending DMs.
 """
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Dict, Union
 import discord
 from discord.ext import commands
 
@@ -22,8 +22,9 @@ def get_discord_bot() -> commands.Bot:
     """
     global _bot_instance # type: ignore
     if _bot_instance is None:
-        # Intents required for DM
+        # Intents required for DM, guild/role visibility
         intents = discord.Intents.default()
+        intents.guilds = True
         intents.members = True
         intents.dm_messages = True
         
@@ -78,3 +79,170 @@ class DiscordService:
     def get_bot(self):
         """Get the Discord bot instance."""
         return self._bot
+
+    async def list_guilds(self) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
+        """
+        Retrieve the list of guilds (servers) the bot is currently connected to.
+
+        Returns:
+            Tuple[success, data]
+            - On success: (True, [{"id": int, "name": str}, ...])
+            - On failure: (False, error_message)
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            guilds = self._bot.guilds  # cached list of Guild objects
+            data = [{"id": g.id, "name": g.name} for g in guilds]
+            return True, data
+        except Exception as e:
+            return False, f"Failed to retrieve guilds: {str(e)}"
+
+    async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
+        """
+        Retrieve all roles for a given guild.
+
+        Args:
+            guild_id: The Discord guild ID (snowflake)
+
+        Returns:
+            Tuple[success, data]
+            - On success: (True, [{"id": int, "name": str}, ...])
+            - On failure: (False, error_message)
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            guild = self._bot.get_guild(guild_id)
+            if guild is None:
+                # Try fetching from API as a fallback
+                try:
+                    guild = await self._bot.fetch_guild(guild_id)
+                except discord.NotFound:
+                    return False, "Guild not found"
+                except discord.Forbidden:
+                    return False, "Insufficient permissions to access this guild"
+
+            roles_list: List[discord.Role]
+            try:
+                # Prefer explicit fetch to ensure complete/updated role list
+                roles_list = await guild.fetch_roles()  # type: ignore[attr-defined]
+            except Exception:
+                # Fallback to cached roles if fetch is unavailable or fails
+                roles_list = list(getattr(guild, "roles", []))
+
+            data = [{"id": r.id, "name": r.name} for r in roles_list]
+            return True, data
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while retrieving roles: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to retrieve roles: {str(e)}"
+
+    async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Add a role to a user in a given guild.
+
+        Args:
+            guild_id: Target guild ID
+            user_id: Target user ID (member)
+            role_id: Role ID to add
+            reason: Optional audit log reason
+
+        Returns:
+            (success, message)
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            guild = self._bot.get_guild(guild_id) or await self._bot.fetch_guild(guild_id)
+            if guild is None:
+                return False, "Guild not found"
+
+            member = guild.get_member(user_id)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(user_id)
+                except discord.NotFound:
+                    return False, "Member not found in guild"
+
+            role = guild.get_role(role_id)
+            if role is None:
+                # Ensure roles are available; try fetching full list
+                try:
+                    roles_list = await guild.fetch_roles()  # type: ignore[attr-defined]
+                    role = next((r for r in roles_list if r.id == role_id), None)
+                except Exception:
+                    role = None
+
+            if role is None:
+                return False, "Role not found in guild"
+
+            await member.add_roles(role, reason=reason)
+            return True, "Role added to user"
+        except discord.Forbidden:
+            return False, "Bot lacks permissions or role hierarchy prevents this action"
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while adding role: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to add role: {str(e)}"
+
+    async def remove_role_from_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Remove a role from a user in a given guild.
+
+        Args:
+            guild_id: Target guild ID
+            user_id: Target user ID (member)
+            role_id: Role ID to remove
+            reason: Optional audit log reason
+
+        Returns:
+            (success, message)
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            guild = self._bot.get_guild(guild_id) or await self._bot.fetch_guild(guild_id)
+            if guild is None:
+                return False, "Guild not found"
+
+            member = guild.get_member(user_id)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(user_id)
+                except discord.NotFound:
+                    return False, "Member not found in guild"
+
+            role = guild.get_role(role_id)
+            if role is None:
+                try:
+                    roles_list = await guild.fetch_roles()  # type: ignore[attr-defined]
+                    role = next((r for r in roles_list if r.id == role_id), None)
+                except Exception:
+                    role = None
+
+            if role is None:
+                return False, "Role not found in guild"
+
+            await member.remove_roles(role, reason=reason)
+            return True, "Role removed from user"
+        except discord.Forbidden:
+            return False, "Bot lacks permissions or role hierarchy prevents this action"
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while removing role: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to remove role: {str(e)}"
