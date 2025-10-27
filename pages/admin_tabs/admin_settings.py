@@ -103,7 +103,7 @@ def admin_stream_rooms_page() -> None:
                 await dialog.open()
 
         with table_container:
-            with ui.row().classes('w-full justify-end').style('margin-bottom: 1em;'):
+            with ui.row().classes('w-full justify-end mb-1'):
                 ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
             
             table = ui.table(

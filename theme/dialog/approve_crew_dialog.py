@@ -21,8 +21,8 @@ class ApproveCrewDialog:
 
     async def open(self):
         with ui.dialog() as self.dialog:
-            with ui.card().style('min-width: 350px; padding: 2em;'):
-                ui.label(f"Approve {self.crew_type.capitalize()}").style('font-size: 1.5em; font-weight: bold;')
+            with ui.card().classes('dialog-card dialog-card-small card-padding-large'):
+                ui.label(f"Approve {self.crew_type.capitalize()}").classes('section-title')
                 ui.label(f"Name: {self.crew_member.user.preferred_name}")
                 approved_checkbox = ui.checkbox('Approved', value=self.crew_member.approved)
                 async def save():
@@ -38,7 +38,7 @@ class ApproveCrewDialog:
                         self.dialog.close()
                     except ValueError as e:
                         ui.notify(f"Error: {str(e)}", color='negative')
-                with ui.row().style('margin-top: 1em;'):
+                with ui.row().classes('action-row'):
                     ui.button('Save', color='green', on_click=save)
                     ui.button('Cancel', color='grey', on_click=self.dialog.close)
         await self.dialog.open()

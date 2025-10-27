@@ -29,7 +29,7 @@ class UserTableView:
                 rows=[],
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
-            ).classes('user-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
+            ).classes('user-table user-table-container').props(':grid="Quasar.Screen.lt.md"')
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">

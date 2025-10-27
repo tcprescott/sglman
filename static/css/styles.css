@@ -28,6 +28,17 @@
     padding: 1em;
 }
 
+/* Flex utilities */
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Spacing utilities */
+.mb-1 { margin-bottom: 1em; }
+.ml-1 { margin-left: 1em; }
+
 /* Header & Title Styles */
 .page-title {
     font-size: 2em;
@@ -103,6 +114,10 @@
 .dialog-card {
     min-width: 700px;
     max-width: 90vw;
+}
+
+.dialog-card-small {
+    min-width: 350px;
 }
 
 /* Button & Action Styles */

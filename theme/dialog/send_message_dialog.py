@@ -11,16 +11,16 @@ class SendMessageDialog:
         self.discord_service = DiscordService()
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card():
+        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
-            message_input = ui.textarea(label='Message', placeholder='Enter message to send...').style('width: 100%')
+            message_input = ui.textarea(label='Message', placeholder='Enter message to send...').classes('full-width')
 
             async def send_message():
                 with self.dialog:
                     await self.send_callback(self.user, message_input.value)
                     ui.notify('Message sent.', color='positive')
                     dialog.close()
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 ui.button('Send', color='green', on_click=send_message)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):

@@ -41,8 +41,8 @@ class MatchDialog:
         if self.discord_id is not None:
             user = await self.user_repository.get_by_discord_id(self.discord_id)
             if not user:
-                with ui.dialog() as dialog, ui.card():
-                    ui.label('User not found. Please log in again.').style('color: red; font-weight: bold;')
+                with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
+                    ui.label('User not found. Please log in again.').classes('text-error')
                     ui.button('Close', color='gray', on_click=dialog.close)
                     dialog.open()
                 return
@@ -68,12 +68,10 @@ class MatchDialog:
             player_ids = []
             comment_value = ''
             default_stream_room = None
-
-
-        with ui.dialog() as dialog, ui.card():
+        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
             if self.discord_id is not None and not tournaments:
-                ui.label('You have not opted into any tournaments. Please opt in before submitting a match.').style('color: red; font-weight: bold; margin-bottom: 1em;')
+                ui.label('You have not opted into any tournaments. Please opt in before submitting a match.').classes('text-error mb-1')
                 ui.button('Close', color='gray', on_click=dialog.close)
                 dialog.open()
                 return
@@ -91,7 +89,7 @@ class MatchDialog:
                 # Exclude self if discord_id is set
                 return [u for u in users if u.id in user_ids and (self.discord_id is None or u.discord_id != self.discord_id)]
 
-            with ui.row().classes('items-center').style('margin-top: 1em;'):
+            with ui.row().classes('items-center action-row'):
                 if self.discord_id is None:
                     selected_players = ui.select(label='Players', options={}, value=player_ids, multiple=True, with_input=True).props('use-chips')
                     selected_players.disable()
@@ -145,7 +143,7 @@ class MatchDialog:
             else:
                 show_all_tournaments.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
 
-            with ui.row().classes('justify-between items-center').style('margin-bottom: 1em;'):
+            with ui.row().classes('justify-between items-center mb-1'):
                 with ui.input('Date (YYYY-MM-DD)', value=default_date) as date:
                     with ui.menu().props('no-parent-event') as menu:
                         with ui.date(value=default_date).bind_value(date):
@@ -162,7 +160,7 @@ class MatchDialog:
                     with time.add_slot('append'):
                         ui.icon('access_time').on('click', menu.open).classes('cursor-pointer')
 
-            comment_input = ui.textarea(label='Comment (optional)', value=comment_value, placeholder='Add any notes or comments about this match...').style('width: 100%')
+            comment_input = ui.textarea(label='Comment (optional)', value=comment_value, placeholder='Add any notes or comments about this match...').classes('full-width')
 
             if self.match:
                 def make_clear_button(label, attr_flag, match_attr):
@@ -172,7 +170,7 @@ class MatchDialog:
                         btn.props('outline color=gray')
                     btn_disabled = getattr(self.match, match_attr) is None
                     btn_color = 'gray' if btn_disabled else 'negative'
-                    btn = ui.button(label, on_click=clear).props(f'outline color={btn_color}').style('margin-left: 1em;')
+                    btn = ui.button(label, on_click=clear).props(f'outline color={btn_color}').classes('ml-1')
                     if btn_disabled:
                         btn.disable()
                     return btn
@@ -318,7 +316,7 @@ class MatchDialog:
                     with self.dialog:
                         ui.notify(f'Error deleting match: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 if self.match:
                     ui.button('Save', color='green', on_click=submit)
                     ui.button('Delete', color='negative', on_click=confirm_delete)

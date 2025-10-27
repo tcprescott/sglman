@@ -10,10 +10,10 @@ class ConfirmationDialog:
         self.dialog = None
 
     def open(self):
-        with ui.dialog() as dialog, ui.card():
+        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
-            ui.label(self.message).style('font-size: 1.1em; margin-bottom: 1em;')
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            ui.label(self.message).classes('mb-1')
+            with ui.row().classes('justify-between action-row'):
                 if self.on_confirm:
                     ui.button(self.confirm_text, color='negative', on_click=self.on_confirm)
                 else:

@@ -9,12 +9,12 @@ class TournamentPlayersDialog:
         self.dialog = None
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card():
+        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
             ui.label(f'Players enrolled in "{self.tournament.name}"').classes('text-h6')
             players = await TournamentRepository.get_enrolled_players(self.tournament)
             if not players:
-                ui.label('No players enrolled.').style('color: gray;')
+                ui.label('No players enrolled.').classes('text-gray')
             else:
                 with ui.column():
                     for tp in players:

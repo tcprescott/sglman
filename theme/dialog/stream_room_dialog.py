@@ -15,7 +15,7 @@ class StreamRoomDialog(MatchDialog):
     async def open(self):
         stream_rooms = await self.stream_room_repository.get_all()
         default_stream_room = self.match.stream_room_id if self.match.stream_room_id else None
-        with ui.dialog() as dialog, ui.card():
+        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
             stream_room_options = {None: '(None)'}
             stream_room_options.update({s.id: s.name for s in stream_rooms})
@@ -39,7 +39,7 @@ class StreamRoomDialog(MatchDialog):
                     with self.dialog:
                         ui.notify(f'Error updating stage: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 ui.button('Save', color='green', on_click=submit)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):
