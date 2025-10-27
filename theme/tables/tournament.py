@@ -55,6 +55,35 @@ class TournamentTableView:
         .tournament-table tr:nth-child(odd) {
             background-color: #ffffff;
         }
+        /* Dark mode overrides */
+        .body--dark .tournament-table th, .body--dark .tournament-table td {
+            border-right: 1px solid #444;
+        }
+        .body--dark .tournament-table tr:nth-child(even) {
+            background-color: #2b2b2b;
+        }
+        .body--dark .tournament-table tr:nth-child(odd) {
+            background-color: #1f1f1f;
+        }
+        /* Also support components explicitly marked dark */
+        .q-dark .tournament-table th, .q-dark .tournament-table td {
+            border-right: 1px solid #444;
+        }
+        .q-dark .tournament-table tr:nth-child(even) {
+            background-color: #2b2b2b;
+        }
+        .q-dark .tournament-table tr:nth-child(odd) {
+            background-color: #1f1f1f;
+        }
+        /* Mobile grid card dark styling */
+        .body--dark .tournament-grid-card { 
+            background: #1e1e1e !important; 
+            border-color: #444 !important; 
+        }
+        .q-dark .tournament-grid-card { 
+            background: #1e1e1e !important; 
+            border-color: #444 !important; 
+        }
         </style>
         """)
         with ui.column().style('width: 100%;'):
@@ -89,7 +118,7 @@ class TournamentTableView:
         </q-td>''')
         # Mobile grid item slot
         self.table.add_slot('item', '''
-        <div class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+        <div class="q-pa-md q-mb-sm tournament-grid-card" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Name:</div>
                 <div class="col-8">

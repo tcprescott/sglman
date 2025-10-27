@@ -122,7 +122,7 @@ class MatchTableView:
                 ).props('color=primary')
         
         # Filters section - professional card-based layout
-        with ui.card().style('width: 100%; padding: 1em; margin-bottom: 1em; background-color: #f5f5f5;'):
+        with ui.card().classes('match-filters-card').style('width: 100%; padding: 1em; margin-bottom: 1em; background-color: #f5f5f5;'):
             with ui.row().style('width: 100%; align-items: center; gap: 1em; flex-wrap: wrap;'):
                 # Tournament filter
                 with ui.column().style('min-width: 200px;'):
@@ -207,6 +207,30 @@ class MatchTableView:
         .match-table tr:nth-child(odd) {
             background-color: #ffffff;
         }
+        /* Dark mode overrides */
+        .body--dark .match-table th, .body--dark .match-table td {
+            border-right: 1px solid #444;
+        }
+        .body--dark .match-table tr:nth-child(even) {
+            background-color: #2b2b2b;
+        }
+        .body--dark .match-table tr:nth-child(odd) {
+            background-color: #1f1f1f;
+        }
+        .q-dark .match-table th, .q-dark .match-table td {
+            border-right: 1px solid #444;
+        }
+        .q-dark .match-table tr:nth-child(even) {
+            background-color: #2b2b2b;
+        }
+        .q-dark .match-table tr:nth-child(odd) {
+            background-color: #1f1f1f;
+        }
+        /* Grid card and filters card dark styling */
+        .body--dark .match-grid-card { background: #1e1e1e !important; border-color: #444 !important; }
+        .q-dark .match-grid-card { background: #1e1e1e !important; border-color: #444 !important; }
+        .body--dark .match-filters-card { background-color: #1f1f1f !important; }
+        .q-dark .match-filters-card { background-color: #1f1f1f !important; }
         </style>
         """)
         with ui.column().style('width: 100%;') as table_container:
@@ -544,7 +568,7 @@ class MatchTableView:
         ])
         
         self.table.add_slot('item', f'''
-        <div class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+    <div class="q-pa-md q-mb-sm match-grid-card" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
         <div v-for="field in [
             {js_field_array}
         ]" :key="field.key" class="row items-center q-mb-xs">

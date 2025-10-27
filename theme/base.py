@@ -1,6 +1,6 @@
 from nicegui import app, ui
 
-from models import Permissions, User, Announcement
+from models import Permissions, User
 
 
 class BaseLayout:
@@ -25,7 +25,21 @@ class BaseLayout:
             ]
 
     async def render(self) -> None:
-        with ui.header().classes(replace='row items-center') as header:
+        # Initialize dark mode controller and restore user's preference
+        dark_pref = bool(app.storage.user.get('dark_mode', False))
+        dm = ui.dark_mode()
+        dm.value = dark_pref
+        _dark_btn_ref = {'btn': None}  # holder to update icon on toggle
+
+        def _toggle_dark_mode():
+            dm.value = not dm.value
+            app.storage.user['dark_mode'] = dm.value
+            # update icon to reflect the opposite mode action
+            if _dark_btn_ref['btn'] is not None:
+                _dark_btn_ref['btn'].props(f"icon={'light_mode' if dm.value else 'dark_mode'}")
+                _dark_btn_ref['btn'].update()
+
+        with ui.header().classes(replace='row items-center'):
             if self.top_menu:
                 for label, action in self.top_menu:
                     ui.button(label, on_click=lambda a=action: ui.navigate.to(a)).props('flat color=white')
@@ -36,10 +50,12 @@ class BaseLayout:
                 ui.label(self.user.preferred_name).classes('text-lg').style('margin-left: auto;')
                 ui.image(app.storage.user.get('avatar', None)).props('width=32 height=32 fit=cover round').style('margin-left: 8px; margin-right: 8px; display: inline-block; max-width: 32px; max-height: 32px; vertical-align: middle;')
                 ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout')
+                _dark_btn_ref['btn'] = ui.button(icon=('light_mode' if dark_pref else 'dark_mode'), on_click=_toggle_dark_mode).props('flat color=white').tooltip('Toggle dark mode')
             else:
                 ui.button(on_click=lambda: ui.navigate.to('/login'), icon='login', text='Login with Discord').style('margin-left: auto;')
+                _dark_btn_ref['btn'] = ui.button(icon=('light_mode' if dark_pref else 'dark_mode'), on_click=_toggle_dark_mode).props('flat color=white').tooltip('Toggle dark mode')
 
-        with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md') as footer:
+        with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md'):
             ui.label(self.copyright_text).classes('text-caption')
 
         if self.tabs:

@@ -54,6 +54,16 @@ class UserTableView:
         .user-table tr:nth-child(odd) {
             background-color: #ffffff;
         }
+        /* Dark mode overrides */
+        .body--dark .user-table th, .body--dark .user-table td { border-right: 1px solid #444; }
+        .body--dark .user-table tr:nth-child(even) { background-color: #2b2b2b; }
+        .body--dark .user-table tr:nth-child(odd) { background-color: #1f1f1f; }
+        .q-dark .user-table th, .q-dark .user-table td { border-right: 1px solid #444; }
+        .q-dark .user-table tr:nth-child(even) { background-color: #2b2b2b; }
+        .q-dark .user-table tr:nth-child(odd) { background-color: #1f1f1f; }
+        /* Mobile grid card dark styling */
+        .body--dark .user-grid-card { background: #1e1e1e !important; border-color: #444 !important; }
+        .q-dark .user-grid-card { background: #1e1e1e !important; border-color: #444 !important; }
         </style>
         """)
         with ui.column().style('width: 100%;'):
@@ -119,25 +129,25 @@ class UserTableView:
             (", bool: true" if f.get('bool') else '') + " }" for f in grid_fields
         ])
         self.table.add_slot('item', f'''
-        <div class="q-pa-md q-mb-sm" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
-        <div v-for="field in [
-            {js_field_array}
-        ]" :key="field.key" class="row items-center q-mb-xs">
-            <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
-            <div class="col-8">
-            <template v-if="field.event">
-                <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
-            </template>
-            <template v-else-if="field.bool">
-                {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}
-            </template>
-            <template v-else>
-                {{{{ props.row[field.key] }}}}
-            </template>
+        <div class="q-pa-md q-mb-sm user-grid-card" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+            <div v-for="field in [
+                {js_field_array}
+            ]" :key="field.key" class="row items-center q-mb-xs">
+                <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
+                <div class="col-8">
+                <template v-if="field.event">
+                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+                </template>
+                <template v-else-if="field.bool">
+                    {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}
+                </template>
+                <template v-else>
+                    {{{{ props.row[field.key] }}}}
+                </template>
+                </div>
             </div>
-        </div>
-        </div>
-        ''')
+            </div>
+            ''')
 
     async def refresh(self, *_, **__):
         user_query = self.get_query()
