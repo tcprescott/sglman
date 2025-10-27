@@ -34,11 +34,11 @@ class TournamentTableView:
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable tournament name
         self.table.add_slot('body-cell-name', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('edit_tournament', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+            <a href="#" @click="$parent.$emit('edit_tournament', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
         # Add slot for clickable player count
         self.table.add_slot('body-cell-player_count', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('show_players', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+            <a href="#" @click="$parent.$emit('show_players', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
         # Truncate long descriptions with tooltip
         self.table.add_slot('body-cell-description', '''<q-td :props="props">

@@ -197,6 +197,12 @@
     text-decoration: underline;
 }
 
+.table-link {
+    color: #1976d2;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
 .italic-note {
     font-style: italic;
 }
@@ -640,4 +646,30 @@
 .match-table-container {
     margin-top: 1em;
     width: 100%;
+}
+
+.user-table-container {
+    margin-top: 1em;
+    width: 100%;
+}
+
+.tournament-table-container {
+    margin-top: 1em;
+    width: 100%;
+}
+
+/* Footer Styles */
+.footer-dark-override {
+    background-color: #f5f5f5;
+    color: #666;
+}
+
+.body--dark .footer-dark-override {
+    background-color: #1e1e1e !important;
+    color: #aaa !important;
+}
+
+.q-dark .footer-dark-override {
+    background-color: #1e1e1e !important;
+    color: #aaa !important;
 }

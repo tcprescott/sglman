@@ -81,14 +81,6 @@ class BaseLayout:
     
     def _render_footer(self) -> None:
         """Render the footer with copyright text."""
-        # Add custom CSS for dark-mode footer styling
-        ui.add_head_html("""
-        <style>
-        .body--dark .footer-dark-override { background-color: #1e1e1e !important; color: #aaa !important; }
-        .q-dark .footer-dark-override { background-color: #1e1e1e !important; color: #aaa !important; }
-        </style>
-        """)
-        
         with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md footer-dark-override'):
             ui.label(self.copyright_text).classes('text-caption')
 

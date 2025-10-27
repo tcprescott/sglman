@@ -160,7 +160,7 @@ class MatchTableView:
             self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable match id (or other key field)
         self.table.add_slot('body-cell-id', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('edit_match', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+            <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
         
         # Add the item slot for grid view

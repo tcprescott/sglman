@@ -33,7 +33,7 @@ class UserTableView:
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
-            <a href="#" @click="$parent.$emit('edit_user', props)" style="color: #1976d2; text-decoration: underline;">{{ props.value }}</a>
+            <a href="#" @click="$parent.$emit('edit_user', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
         # Render is_active as icon
         self.table.add_slot('body-cell-is_active', '''<q-td :props="props">
