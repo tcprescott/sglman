@@ -18,75 +18,13 @@ class TournamentTableView:
 
     def _setup_ui(self):
         # Toolbar with actions
-        with ui.row().style('width: 100%; margin-bottom: 1em;'):
+        with ui.row().classes('full-width'):
             if self.submit_tournament_callback:
                 ui.button('Add Tournament', icon='add', on_click=self.submit_tournament_callback).props('color=primary')
             ui.space()
             ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
-        ui.add_head_html("""
-        <style>
-        .tournament-table th, .tournament-table td {
-            border-right: 1px solid #ccc;
-        }
-        .tournament-table td {
-            text-align: left;
-        }
-        /* Allow wrapping and truncation for long fields */
-        .tournament-table td .wrap {
-            display: block;
-            white-space: normal !important;
-            word-break: normal;
-            overflow-wrap: break-word;
-            max-width: 320px;
-        }
-        .tournament-table th {
-            text-align: center;
-        }
-        .tournament-table th:last-child, .tournament-table td:last-child {
-            border-right: none;
-        }
-        .tournament-table {
-            border-collapse: collapse;
-        }
-        .tournament-table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .tournament-table tr:nth-child(odd) {
-            background-color: #ffffff;
-        }
-        /* Dark mode overrides */
-        .body--dark .tournament-table th, .body--dark .tournament-table td {
-            border-right: 1px solid #444;
-        }
-        .body--dark .tournament-table tr:nth-child(even) {
-            background-color: #2b2b2b;
-        }
-        .body--dark .tournament-table tr:nth-child(odd) {
-            background-color: #1f1f1f;
-        }
-        /* Also support components explicitly marked dark */
-        .q-dark .tournament-table th, .q-dark .tournament-table td {
-            border-right: 1px solid #444;
-        }
-        .q-dark .tournament-table tr:nth-child(even) {
-            background-color: #2b2b2b;
-        }
-        .q-dark .tournament-table tr:nth-child(odd) {
-            background-color: #1f1f1f;
-        }
-        /* Mobile grid card dark styling */
-        .body--dark .tournament-grid-card { 
-            background: #1e1e1e !important; 
-            border-color: #444 !important; 
-        }
-        .q-dark .tournament-grid-card { 
-            background: #1e1e1e !important; 
-            border-color: #444 !important; 
-        }
-        </style>
-        """)
-        with ui.column().style('width: 100%;'):
+        with ui.column().classes('full-width'):
             self.table = ui.table(
                 columns=self.columns,
                 rows=[],

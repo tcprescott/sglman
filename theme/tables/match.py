@@ -94,7 +94,7 @@ class MatchTableView:
     def _setup_ui(self):
         # Action button row
         if self.submit_match_callback:
-            with ui.row().style('width: 100%; margin-bottom: 1em;'):
+            with ui.row().classes('full-width row-spacing'):
                 ui.button(
                     'Create Match' if self.admin_controls else 'Request Match',
                     icon='add',
@@ -102,30 +102,30 @@ class MatchTableView:
                 ).props('color=primary')
         
         # Filters section - professional card-based layout
-        with ui.card().classes('match-filters-card').style('width: 100%; padding: 1em; margin-bottom: 1em; background-color: #f5f5f5;'):
-            with ui.row().style('width: 100%; align-items: center; gap: 1em; flex-wrap: wrap;'):
+        with ui.card().classes('match-filters-card'):
+            with ui.row().classes('match-filter-row'):
                 # Tournament filter
-                with ui.column().style('min-width: 200px;'):
-                    ui.label('Tournament').style('font-size: 0.85em; font-weight: 500; color: #666; margin-bottom: 0.3em;')
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Tournament').classes('match-filter-label')
                     self.tournament_filter = ui.select(
                         options=[],
                         value=None,
                         multiple=True,
                         on_change=self._on_tournament_filter_change
-                    ).style('width: 100%;').props('outlined dense use-chips')
+                    ).classes('full-width').props('outlined dense use-chips')
                 
                 # Stream room filter
-                with ui.column().style('min-width: 180px;'):
-                    ui.label('Stage').style('font-size: 0.85em; font-weight: 500; color: #666; margin-bottom: 0.3em;')
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Stage').classes('match-filter-label')
                     self.stream_room_filter = ui.select(
                         options=[],
                         value=None,
                         multiple=True,
                         on_change=self._on_stream_room_filter_change
-                    ).style('width: 100%;').props('outlined dense use-chips')
+                    ).classes('full-width').props('outlined dense use-chips')
                 
                 # Checkbox filters
-                with ui.column().style('justify-content: center;'):
+                with ui.column().classes('flex-center'):
                     default_value = app.storage.user.get('show_only_upcoming_matches', True)
                     self.show_upcoming_checkbox = ui.checkbox(
                         'Hide Finished Matches',
@@ -139,7 +139,7 @@ class MatchTableView:
                 ui.space()
                 
                 # Refresh button
-                with ui.column().style('justify-content: center;'):
+                with ui.column().classes('flex-center'):
                     ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
         
         # Load filters data after UI is set up
@@ -149,78 +149,14 @@ class MatchTableView:
         if self.auto_refresh_checkbox:
             self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
 
-        ui.add_head_html("""
-        <style>
-        .match-table th, .match-table td {
-            border-right: 1px solid #ccc;
-        }
-        .match-table td {
-            text-align: left;
-        }
-        /* Allow wrapping for long lists of names in table view for specific columns */
-        /* Target the inner wrapper element placed inside the q-td, not the td itself */
-        .match-table td .wrap {
-            display: block;
-            white-space: normal !important;
-            word-break: normal;
-            overflow-wrap: break-word;
-            max-width: 120px; /* reasonable default, table can expand as needed */
-        }
-        /* Ensure links inside the wrapper also wrap */
-        .match-table td .wrap a {
-            white-space: normal !important;
-            word-break: normal;
-            overflow-wrap: break-word;
-        }
-        .match-table th {
-            text-align: center;
-        }
-        .match-table th:last-child, .match-table td:last-child {
-            border-right: none;
-        }
-        .match-table {
-            border-collapse: collapse;
-        }
-        .match-table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .match-table tr:nth-child(odd) {
-            background-color: #ffffff;
-        }
-        /* Dark mode overrides */
-        .body--dark .match-table th, .body--dark .match-table td {
-            border-right: 1px solid #444;
-        }
-        .body--dark .match-table tr:nth-child(even) {
-            background-color: #2b2b2b;
-        }
-        .body--dark .match-table tr:nth-child(odd) {
-            background-color: #1f1f1f;
-        }
-        .q-dark .match-table th, .q-dark .match-table td {
-            border-right: 1px solid #444;
-        }
-        .q-dark .match-table tr:nth-child(even) {
-            background-color: #2b2b2b;
-        }
-        .q-dark .match-table tr:nth-child(odd) {
-            background-color: #1f1f1f;
-        }
-        /* Grid card and filters card dark styling */
-        .body--dark .match-grid-card { background: #1e1e1e !important; border-color: #444 !important; }
-        .q-dark .match-grid-card { background: #1e1e1e !important; border-color: #444 !important; }
-        .body--dark .match-filters-card { background-color: #1f1f1f !important; }
-        .q-dark .match-filters-card { background-color: #1f1f1f !important; }
-        </style>
-        """)
-        with ui.column().style('width: 100%;') as table_container:
+        with ui.column().classes('full-width') as table_container:
             self.table_container = table_container
             self.table = ui.table(
                 columns=self.columns,
                 rows=[],
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
-            ).classes('match-table').style('margin-top: 1em; width: 100%;').props(':grid="Quasar.Screen.lt.md"')
+            ).classes('match-table match-table-container').props(':grid="Quasar.Screen.lt.md"')
             self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable match id (or other key field)
         self.table.add_slot('body-cell-id', '''<q-td :props="props">
