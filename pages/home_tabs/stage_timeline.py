@@ -1,19 +1,22 @@
 """Stage Timeline page - displays a daily calendar view of matches per stream room."""
 
 import asyncio
-from datetime import datetime, date, timedelta
-from typing import List, Dict
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from nicegui import app, ui
 
-from models import Match, StreamRoom, Permissions, User
+from application.services import MatchService
+from models import Match, Permissions, User
 
 
 async def stage_timeline_tab():
     """Display a daily calendar view of matches organized by stream room."""
     discord_id = app.storage.user.get('discord_id', None)
     user = await User.get_or_none(discord_id=discord_id) if discord_id else None
+    
+    # Initialize service
+    match_service = MatchService()
 
     # Use internal state for the current date (based on US/Eastern timezone)
     eastern = ZoneInfo('US/Eastern')
@@ -69,21 +72,12 @@ async def stage_timeline_tab():
             date_label.text = current_date['value'].strftime('%A, %B %d, %Y')
             date_input.value = current_date['value'].strftime('%Y-%m-%d')
 
-            # Fetch all matches for the selected date
-            start_of_day = datetime.combine(current_date['value'], datetime.min.time())
-            end_of_day = datetime.combine(current_date['value'], datetime.max.time())
-
-            # Only show scheduled or in-progress matches (not finished) with a stream room assigned
-            matches = await Match.filter(
-                scheduled_at__gte=start_of_day,
-                scheduled_at__lte=end_of_day,
-                finished_at=None
-            ).exclude(
-                stream_room=None
-            ).prefetch_related(
-                'tournament', 'stream_room', 'players', 'players__user',
-                'commentators', 'commentators__user', 'trackers', 'trackers__user'
-            ).order_by('scheduled_at')
+            # Fetch matches for the selected date using service
+            matches = await match_service.get_matches_for_date(
+                target_date=current_date['value'],
+                exclude_finished=True,
+                require_stream_room=True
+            )
 
             if not matches:
                 with timeline_container:
@@ -92,13 +86,8 @@ async def stage_timeline_tab():
                     )
                 return
 
-            # Group matches by stream room (only rooms that have matches)
-            matches_by_room: Dict[int, tuple[StreamRoom, List[Match]]] = {}
-
-            for match in matches:
-                if match.stream_room_id not in matches_by_room:
-                    matches_by_room[match.stream_room_id] = (match.stream_room, [])
-                matches_by_room[match.stream_room_id][1].append(match)
+            # Group matches by stream room using service
+            matches_by_room = await match_service.group_matches_by_stream_room(matches)
 
             # Sort rooms by name
             sorted_rooms = sorted(matches_by_room.items(), key=lambda x: x[1][0].name)

@@ -12,4 +12,11 @@ from .match_schedule_service import MatchScheduleService
 from .reports_service import ReportsService
 from .user_service import UserService
 
-__all__ = ['CrewService', 'DiscordService', 'MatchService', 'UserService']
+__all__ = [
+    'CrewService',
+    'DiscordService',
+    'MatchService',
+    'MatchScheduleService',
+    'ReportsService',
+    'UserService'
+]

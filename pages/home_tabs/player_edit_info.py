@@ -2,11 +2,15 @@
 
 from nicegui import app, ui
 
-from models import Tournament, TournamentPlayers, User
+from application.services import UserService
+from models import User
 
 
 async def render_edit_info_tab():
     """Render the edit info tab for players to update their information."""
+    # Initialize service
+    user_service = UserService()
+    
     with ui.column().style('width: 100%; max-width: 1200px; margin: 0 auto;'):
         # Header
         with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
@@ -29,8 +33,13 @@ async def render_edit_info_tab():
                 ui.label('User not found in the database.').style('color: #666; font-size: 1.2em;')
             return
 
-        tournaments = await Tournament.filter(is_active=True)
-        user_tournaments = await TournamentPlayers.filter(user=user)
+        # Get tournaments and user registrations from service
+        tournament_data = await user_service.get_active_tournaments_categorized()
+        user_tournaments = await user_service.get_user_tournament_registrations(user)
+        
+        tournaments = tournament_data['all_tournaments']
+        staff_tournaments = tournament_data['staff_tournaments']
+        player_tournaments = tournament_data['player_tournaments']
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
         # Personal Information Section
@@ -87,22 +96,21 @@ async def render_edit_info_tab():
         render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
 
         async def save_info():
-            user.display_name = display_name_input.value.strip()
-            user.pronouns = pronouns_input.value.strip()
-            await user.save()
-            # Update tournaments
+            # Update personal information using service
+            await user_service.update_user_personal_info(
+                user=user,
+                display_name=display_name_input.value,
+                pronouns=pronouns_input.value
+            )
+            
+            # Update tournament registrations using service
             selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)
-            current_ids = set(selected_tournament_ids)
-            # Remove deselected
-            for tp in user_tournaments:
-                if tp.tournament_id not in selected_ids:
-                    await tp.delete()
-            # Add newly selected
-            for tid in selected_ids:
-                if tid not in current_ids:
-                    tournament = next((t for t in tournaments if t.id == tid), None)
-                    if tournament:
-                        await TournamentPlayers.create(user=user, tournament=tournament)
+            await user_service.update_user_tournament_registrations(
+                user=user,
+                selected_tournament_ids=selected_ids,
+                current_registrations=user_tournaments
+            )
+            
             ui.notify('Information updated successfully!', color='positive', icon='check_circle')
 
         # Save Button

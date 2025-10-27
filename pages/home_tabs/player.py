@@ -3,14 +3,14 @@ import asyncio
 
 from nicegui import app, ui
 
-from models import Match
-from pages.home_tabs.player_edit_info import render_edit_info_tab
+from application.services import MatchService
 from theme.dialog import MatchDialog
 from theme.tables.match import MatchTableView
 
 
 def render_player_dashboard():
     discord_id = app.storage.user.get('discord_id', None)
+    match_service = MatchService()
     
     with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
         # Header section
@@ -56,8 +56,8 @@ def render_player_dashboard():
             dialog = MatchDialog(discord_id=discord_id)
             await dialog.open()
         
-        def get_query():
-            return Match.filter(players__user__discord_id=discord_id)
+        async def get_query():
+            return await match_service.get_matches_for_player(discord_id)
         
         table_view = MatchTableView(
             columns=columns,

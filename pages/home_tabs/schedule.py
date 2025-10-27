@@ -3,12 +3,13 @@ import asyncio
 
 from nicegui import app, ui
 
-from models import Match
+from application.services import MatchService
 from theme.tables.match import MatchTableView
 
 
 def schedule():
     discord_id = app.storage.user.get('discord_id', None)
+    match_service = MatchService()
     
     with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
         # Header section
@@ -32,8 +33,8 @@ def schedule():
             {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
         ]
 
-        def get_query():
-            return Match.all().prefetch_related('tournament', 'players', 'stream_room', 'generated_seed').order_by('scheduled_at')
+        async def get_query():
+            return await match_service.get_all_matches_for_schedule()
 
         extra_slots = {
             'body-cell-generated_seed': '''<q-td :props="props">

@@ -5,10 +5,10 @@ Coordinates match-related operations, enforces business rules,
 and orchestrates between repositories.
 """
 
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from typing import List, Optional, Dict, Any, Tuple
+from datetime import datetime, date
 
-from models import Match, User
+from models import Match, User, StreamRoom
 from application.repositories import (
     MatchRepository,
     StreamRoomRepository,
@@ -97,6 +97,87 @@ class MatchService:
             Dict mapping stream room ID to name
         """
         return await self.stream_room_repository.get_all_as_dict()
+    
+    async def get_all_matches_for_schedule(self) -> List[Match]:
+        """
+        Get all matches for the public schedule view.
+        
+        Returns:
+            List of matches with all related data prefetched
+        """
+        return await Match.all().prefetch_related(
+            'tournament', 'players', 'stream_room', 'generated_seed'
+        ).order_by('scheduled_at')
+    
+    async def get_matches_for_date(
+        self,
+        target_date: date,
+        exclude_finished: bool = True,
+        require_stream_room: bool = True
+    ) -> List[Match]:
+        """
+        Get all matches for a specific date with optional filters.
+        
+        Args:
+            target_date: The date to fetch matches for
+            exclude_finished: If True, exclude matches that are finished
+            require_stream_room: If True, only include matches with a stream room
+            
+        Returns:
+            List of matches with all related data prefetched
+        """
+        start_of_day = datetime.combine(target_date, datetime.min.time())
+        end_of_day = datetime.combine(target_date, datetime.max.time())
+        
+        query = Match.filter(
+            scheduled_at__gte=start_of_day,
+            scheduled_at__lte=end_of_day
+        )
+        
+        if exclude_finished:
+            query = query.filter(finished_at=None)
+        
+        if require_stream_room:
+            query = query.exclude(stream_room=None)
+        
+        return await query.prefetch_related(
+            'tournament', 'stream_room', 'players', 'players__user',
+            'commentators', 'commentators__user', 'trackers', 'trackers__user'
+        ).order_by('scheduled_at')
+    
+    async def group_matches_by_stream_room(
+        self,
+        matches: List[Match]
+    ) -> Dict[int, Tuple[StreamRoom, List[Match]]]:
+        """
+        Group matches by their stream room.
+        
+        Args:
+            matches: List of matches to group (must have stream_room prefetched)
+            
+        Returns:
+            Dict mapping stream_room_id to tuple of (StreamRoom, list of matches)
+        """
+        matches_by_room: Dict[int, Tuple[StreamRoom, List[Match]]] = {}
+        
+        for match in matches:
+            if match.stream_room_id not in matches_by_room:
+                matches_by_room[match.stream_room_id] = (match.stream_room, [])
+            matches_by_room[match.stream_room_id][1].append(match)
+        
+        return matches_by_room
+    
+    async def get_matches_for_player(self, discord_id: str) -> List[Match]:
+        """
+        Get all matches for a specific player by their Discord ID.
+        
+        Args:
+            discord_id: Discord ID of the player
+            
+        Returns:
+            List of matches where the player is participating
+        """
+        return await Match.filter(players__user__discord_id=discord_id)
     
     async def create_match(
         self,
