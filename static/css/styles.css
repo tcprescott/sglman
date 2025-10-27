@@ -116,8 +116,22 @@
     max-width: 90vw;
 }
 
+@media (max-width: 768px) {
+    .dialog-card {
+        min-width: unset;
+        width: 90vw;
+    }
+}
+
 .dialog-card-small {
     min-width: 350px;
+}
+
+@media (max-width: 768px) {
+    .dialog-card-small {
+        min-width: unset;
+        width: 90vw;
+    }
 }
 
 /* Button & Action Styles */
