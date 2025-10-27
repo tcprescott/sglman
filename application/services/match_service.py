@@ -18,6 +18,10 @@ from application.repositories import (
     TrackerRepository,
 )
 from application.services.audit_service import AuditService
+from application.utils.timezone import (
+    parse_eastern_datetime,
+    format_eastern_datetime,
+)
 
 
 class MatchService:
@@ -216,12 +220,9 @@ class MatchService:
         if not player_ids:
             raise ValueError("Match must have at least one player")
         
-        # Parse datetime
+        # Parse datetime - input is in Eastern, convert to UTC for storage
         try:
-            scheduled_at = datetime.strptime(
-                f"{scheduled_date} {scheduled_time}",
-                "%Y-%m-%d %H:%M"
-            )
+            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
         
@@ -318,10 +319,8 @@ class MatchService:
             update_fields['tournament_id'] = tournament_id
         
         if scheduled_date and scheduled_time:
-            scheduled_at = datetime.strptime(
-                f"{scheduled_date} {scheduled_time}",
-                "%Y-%m-%d %H:%M"
-            )
+            # Parse datetime - input is in Eastern, convert to UTC for storage
+            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
             update_fields['scheduled_at'] = scheduled_at
         
         if comment is not None:
@@ -497,9 +496,9 @@ class MatchService:
         return {
             'id': match.id,
             'tournament': match.tournament.name if match.tournament else '',
-            'scheduled_at': match.scheduled_at.strftime('%Y-%m-%d %H:%M') if match.scheduled_at else '',
-            'seated': match.seated_at.strftime('%Y-%m-%d %H:%M') if match.seated_at else '',
-            'finished': match.finished_at.strftime('%Y-%m-%d %H:%M') if match.finished_at else '',
+            'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
+            'seated': format_eastern_datetime(match.seated_at) if match.seated_at else '',
+            'finished': format_eastern_datetime(match.finished_at) if match.finished_at else '',
             'players': [p.user.preferred_name for p in match.players],
             'stream_room': match.stream_room.name if match.stream_room else '',
             'seed': match.generated_seed.seed_url if match.generated_seed else '',

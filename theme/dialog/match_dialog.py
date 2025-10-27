@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime
 
 from nicegui import ui
 
@@ -9,6 +8,11 @@ from application.repositories import (
     TournamentRepository,
     StreamRoomRepository,
     MatchRepository,
+)
+from application.utils.timezone import (
+    format_eastern_date,
+    format_eastern_time,
+    now_eastern,
 )
 from models import Match
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -51,12 +55,12 @@ class MatchDialog:
             tournaments = await self.tournament_repository.get_by_ids(tournament_ids) if tournament_ids else []
         else:
             tournaments = await self.tournament_repository.get_all()
-        now = datetime.now()
+        now = now_eastern()
         # Pre-fill values for edit mode
         if self.match:
             default_tournament = self.match.tournament_id if self.match.tournament_id else None
-            default_date = self.match.scheduled_at.strftime('%Y-%m-%d') if self.match.scheduled_at else now.strftime('%Y-%m-%d')
-            default_time = self.match.scheduled_at.strftime('%H:%M') if self.match.scheduled_at else now.strftime('%H:%M')
+            default_date = format_eastern_date(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%Y-%m-%d')
+            default_time = format_eastern_time(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%H:%M')
             players = await self.match_repository.get_players(self.match)
             player_ids = [p.user_id for p in players]
             comment_value = self.match.comment or ''

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from nicegui import app, ui
 
 from application.services import MatchService
+from application.utils.timezone import format_eastern_time
 from models import Match, Permissions, User
 
 
@@ -113,8 +114,8 @@ async def stage_timeline_tab():
 
             with ui.card().classes(f'match-card {border_class}'):
                 with ui.row().classes('full-width'):
-                    # Time
-                    time_str = match.scheduled_at.strftime('%H:%M') if match.scheduled_at else 'TBD'
+                    # Time (displayed in Eastern timezone)
+                    time_str = format_eastern_time(match.scheduled_at) if match.scheduled_at else 'TBD'
                     ui.label(time_str).classes('match-time')
 
                     # Status badge
