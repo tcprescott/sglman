@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import os
 from typing import AsyncGenerator
 
-from discordbot.bot import bot
+from application.services.discord_service import get_discord_bot
 import asyncio
 from aerich import Command
 from fastapi import FastAPI
@@ -40,6 +40,7 @@ async def init_discord_bot() -> None:
     Initialize the Discord bot.
     """
     token = os.environ.get('DISCORD_TOKEN')
+    bot = get_discord_bot()
     if token:
         loop = asyncio.get_event_loop()
         loop.create_task(bot.start(token))
@@ -50,6 +51,7 @@ async def close_discord_bot() -> None:
     """
     Close the Discord bot connection.
     """
+    bot = get_discord_bot()
     await bot.close()
 
 @asynccontextmanager

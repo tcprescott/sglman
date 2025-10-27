@@ -20,7 +20,7 @@ def get_discord_bot() -> commands.Bot:
     Returns:
         The Discord bot instance
     """
-    global _bot_instance
+    global _bot_instance # type: ignore
     if _bot_instance is None:
         # Intents required for DM
         intents = discord.Intents.default()
@@ -62,7 +62,7 @@ class DiscordService:
             # Check if bot is ready
             if not self._bot.is_ready():
                 return False, "Discord bot is not connected. Please try again in a moment."
-            
+
             user = await self._bot.fetch_user(user_id)
             await user.send(message)
             return True, "Message sent successfully."
