@@ -200,6 +200,7 @@ class MatchService:
         clear_seated: bool = False,
         clear_finished: bool = False,
         clear_seed: bool = False,
+        clear_stream_room: bool = False,
         admin_user: Optional[User] = None
     ) -> Match:
         """
@@ -218,6 +219,7 @@ class MatchService:
             clear_seated: Clear seated_at timestamp
             clear_finished: Clear finished_at timestamp
             clear_seed: Clear generated seed
+            clear_stream_room: Clear stream room assignment
             admin_user: User making the update
             
         Returns:
@@ -243,7 +245,9 @@ class MatchService:
         if comment is not None:
             update_fields['comment'] = comment
         
-        if stream_room_id is not None:
+        if clear_stream_room:
+            update_fields['stream_room_id'] = None
+        elif stream_room_id is not None:
             update_fields['stream_room_id'] = stream_room_id
         
         if clear_seated:

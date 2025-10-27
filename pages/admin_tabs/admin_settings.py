@@ -4,22 +4,11 @@ import asyncio
 
 from nicegui import ui
 
-from models import Tournament, StreamRoom
+from application.repositories import StreamRoomRepository
+from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
 from theme.tables.tournament import TournamentTableView
-
-
-def admin_settings_page() -> None:
-    with ui.tabs().classes('w-full') as tabs:
-        ui.tab('Tournaments', icon='emoji_events')
-        ui.tab('Stream Rooms', icon='tv')
-    
-    with ui.tab_panels(tabs, value='Tournaments').classes('w-full'):
-        with ui.tab_panel('Tournaments'):
-            admin_tournaments_page()
-        with ui.tab_panel('Stream Rooms'):
-            admin_stream_rooms_page()
 
 
 def admin_tournaments_page() -> None:
@@ -78,7 +67,7 @@ def admin_stream_rooms_page() -> None:
         table_container = ui.column().classes('w-full')
 
         async def load_stream_rooms():
-            rooms = await StreamRoom.all()
+            rooms = await StreamRoomRepository.get_all()
             rows = [
                 {
                     'id': room.id,
@@ -103,7 +92,10 @@ def admin_stream_rooms_page() -> None:
                 await dialog.open()
 
         async def edit_stream_room(row):
-            room = await StreamRoom.get(id=row['id'])
+            room = await StreamRoomRepository.get_by_id(row['id'])
+            if not room:
+                ui.notify('Stream room not found.', color='warning')
+                return
             async def after_submit(_):
                 await refresh_table()
             with table_container:

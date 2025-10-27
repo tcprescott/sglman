@@ -261,7 +261,8 @@ class MatchDialog:
                             stream_room_id=stream_room_id if stream_room_id else None,
                             clear_seated=self._clear_seated,
                             clear_finished=self._clear_finished,
-                            clear_seed=self._clear_seed
+                            clear_seed=self._clear_seed,
+                            clear_stream_room=(stream_room_id is None)
                         )
                         with self.dialog:
                             ui.notify(f'Match updated: Players={new_player_ids}, Commentators={new_commentator_ids}, Trackers={new_tracker_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}, StreamRoom={stream_room_id}', color='positive')

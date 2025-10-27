@@ -1,25 +1,19 @@
 """Admin Schedule Management Page"""
 
 import asyncio
-from datetime import datetime
-from typing import Dict
 
 from nicegui import ui
 
-from application.seedgen import RANDOMIZERS
-from application.services import DiscordService
-from models import GeneratedSeeds, Match
+from application.services import MatchScheduleService
+from models import Match
 from theme.dialog import ConfirmationDialog, MatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.tables.match import MatchTableView
 
-# per-match locks to avoid concurrent seed generation for the same match
-_seed_locks: Dict[int, asyncio.Lock] = {}
-
 
 def admin_schedule_page() -> None:
     # Initialize services
-    discord_service = DiscordService()
+    match_schedule_service = MatchScheduleService()
     
     with ui.column().style('width: 100%; max-width: 1600px; margin: 0 auto;') as page_container:
         # Header section
@@ -61,55 +55,20 @@ def admin_schedule_page() -> None:
                 await dialog.open()
 
         async def on_generate_seed(match_id: int):
-            # ensure only one generator runs per match id at a time
-            lock = _seed_locks.get(match_id)
-            if lock is None:
-                lock = asyncio.Lock()
-                _seed_locks[match_id] = lock
-
-            if lock.locked():
-                # another generation is in progress for this row; skip and refresh the row to clear client spinner
-                await table_view.update_row_by_id(match_id)
-                return
-
-            async with lock:
-                try:
-                    match = await Match.get(id=match_id).prefetch_related('tournament', 'players', 'players__user')
-                    # sanity check: if a seed has already been generated for this match, skip
-                    if match.generated_seed:
-                        with page_container:
-                            ui.notify('A seed has already been generated for this match.', color='warning')
-                        table_view.update_row_by_id(match_id)
-                        return
-                    if match.tournament.seed_generator:
-                        seed_generator = RANDOMIZERS.get(match.tournament.seed_generator)
-                        if seed_generator:
-                            seed_url = await seed_generator()
-                            match.generated_seed = await GeneratedSeeds.create(
-                                tournament=match.tournament,
-                                seed_url=seed_url,
-                                seed_info=f"Generated seed for match {match.id}"
-                            )
-                            await match.save()
-                            for player in match.players:
-                                if player.user.discord_id:
-                                    dm_message = f"Hello {player.user.preferred_name},\n\n"
-                                    dm_message += f"A seed has been generated for your upcoming match (ID: {match.id}) in the tournament '{match.tournament.name}'.\n\n"
-                                    dm_message += f"{seed_url}\n\n"
-                                    dm_message += "Good luck and have fun!"
-                                    success, response = await discord_service.send_dm(player.user.discord_id, dm_message)
-                                    if not success:
-                                        with page_container:
-                                            ui.notify(f"Failed to send DM to {player.user.username}: {response}", color='negative')
-
-                            with page_container:
-                                ui.notify(f'Seed generated successfully for match ID {match.id}.', color='positive')
-                        else:
-                            with page_container:
-                                ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
-                finally:
-                    # refresh the row so client clears spinner. Keep the lock dict entry for reuse.
-                    await table_view.update_row_by_id(match_id)
+            success, message, _ = await match_schedule_service.generate_seed(match_id)
+            
+            with page_container:
+                if success:
+                    ui.notify(message, color='positive')
+                else:
+                    # Check if it's just "already in progress" (not an error per se)
+                    if "already in progress" in message.lower():
+                        pass  # Skip notification, just refresh
+                    else:
+                        ui.notify(message, color='warning' if "already been generated" in message else 'negative')
+            
+            # Always refresh the row to clear spinner
+            await table_view.update_row_by_id(match_id)
 
         async def on_seat(match_id: int):
             match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
@@ -127,9 +86,12 @@ def admin_schedule_page() -> None:
                 dialog.open()
 
         async def confirm_seating(match: Match):
-            match.seated_at = datetime.now()
-            await match.save()
-            await table_view.update_row_by_id(match.id)
+            try:
+                await match_schedule_service.seat_match(match)
+                await table_view.update_row_by_id(match.id)
+            except ValueError as e:
+                with page_container:
+                    ui.notify(str(e), color='warning')
 
         async def on_finish(match_id: int):
             match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
@@ -147,9 +109,12 @@ def admin_schedule_page() -> None:
                 dialog.open()
 
         async def confirm_finishing(match: Match):
-            match.finished_at = datetime.now()
-            await match.save()
-            await table_view.update_row_by_id(match.id)
+            try:
+                await match_schedule_service.finish_match(match)
+                await table_view.update_row_by_id(match.id)
+            except ValueError as e:
+                with page_container:
+                    ui.notify(str(e), color='warning')
 
         async def on_edit_stream_room(match_id: int):
             match = await Match.get(id=match_id)
