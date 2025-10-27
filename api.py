@@ -62,7 +62,8 @@ class GeneratedSeedBase(BaseModel):
 class PlayerInfo(BaseModel):
     id: int
     user: UserBase
-    confirmed: bool
+    finish_rank: Optional[int] = None
+    assigned_station: Optional[str] = None
     
     class Config:
         orm_mode = True
@@ -89,6 +90,7 @@ class TrackerInfo(BaseModel):
 class MatchResponse(BaseModel):
     id: int
     tournament: TournamentBase
+    title: Optional[str] = None
     stream_room: Optional[StreamRoomBase] = None
     generated_seed: Optional[GeneratedSeedBase] = None
     scheduled_at: Optional[datetime] = None
