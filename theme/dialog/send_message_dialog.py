@@ -1,13 +1,14 @@
 import asyncio
 
 from nicegui import ui
-from discordbot.bot import send_dm
+from application.services import DiscordService
 
 class SendMessageDialog:
     def __init__(self, user, send_callback=None):
         self.user = user
         self.send_callback = send_callback if send_callback else self.send
         self.dialog = None
+        self.discord_service = DiscordService()
 
     async def open(self):
         with ui.dialog() as dialog, ui.card():
@@ -29,7 +30,7 @@ class SendMessageDialog:
             dialog.open()
 
     async def send(self, user, message):
-        result, msg = await send_dm(user.discord_id, message)
+        result, msg = await self.discord_service.send_dm(user.discord_id, message)
         if not result:
             ui.notify(f'Failed to send message.  Bot returned error: {msg}', color='negative')
         else:

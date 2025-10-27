@@ -2,7 +2,7 @@ import asyncio
 
 from nicegui import ui
 
-from models import Tournament
+from application.repositories import TournamentRepository
 from application.seedgen import RANDOMIZERS
 
 class TournamentDialog:
@@ -32,61 +32,69 @@ class TournamentDialog:
                 is_active_checkbox = ui.checkbox('Active', value=self.tournament.is_active if self.tournament else True)
 
             async def submit():
-                if self.tournament:
-                    with self.dialog:
-                        self.tournament.name = name_input.value
-                        self.tournament.description = description_input.value
-                        self.tournament.seed_generator = seed_generator_input.value
-                        self.tournament.bracket_url = bracket_url_input.value
-                        self.tournament.rules_url = rules_url_input.value
-                        self.tournament.tournament_format = tournament_format_input.value
-                        self.tournament.average_match_duration = average_match_duration_input.value
-                        self.tournament.max_match_duration = max_match_duration_input.value
-                        self.tournament.is_active = is_active_checkbox.value
-                        self.tournament.players_per_match = players_per_match_input.value
-                        self.tournament.team_size = team_size_input.value
-                        self.tournament.staff_administered = staff_administered_checkbox.value
-                        await self.tournament.save()
-                        ui.notify('Tournament updated.', color='positive')
-                        dialog.close()
-                        if self.on_submit:
-                            await self.on_submit(self.tournament)
-                else:
-                    name = name_input.value
-                    description = description_input.value
-                    seed_generator = seed_generator_input.value
-                    bracket_url = bracket_url_input.value
-                    rules_url = rules_url_input.value
-                    tournament_format = tournament_format_input.value
-                    average_match_duration = average_match_duration_input.value
-                    max_match_duration = max_match_duration_input.value
-                    is_active = is_active_checkbox.value
-                    players_per_match = players_per_match_input.value
-                    team_size = team_size_input.value
-                    staff_administered = staff_administered_checkbox.value
-                    if not name:
+                try:
+                    if self.tournament:
                         with self.dialog:
-                            ui.notify('Tournament name is required.', color='warning')
-                        return
-                    new_tournament = await Tournament.create(
-                        name=name,
-                        description=description,
-                        seed_generator=seed_generator,
-                        bracket_url=bracket_url,
-                        rules_url=rules_url,
-                        tournament_format=tournament_format,
-                        average_match_duration=average_match_duration,
-                        max_match_duration=max_match_duration,
-                        is_active=is_active,
-                        players_per_match=players_per_match,
-                        team_size=team_size,
-                        staff_administered=staff_administered
-                    )
+                            await TournamentRepository.update(
+                                self.tournament,
+                                name=name_input.value,
+                                description=description_input.value,
+                                seed_generator=seed_generator_input.value,
+                                bracket_url=bracket_url_input.value,
+                                rules_url=rules_url_input.value,
+                                tournament_format=tournament_format_input.value,
+                                average_match_duration=average_match_duration_input.value,
+                                max_match_duration=max_match_duration_input.value,
+                                is_active=is_active_checkbox.value,
+                                players_per_match=players_per_match_input.value,
+                                team_size=team_size_input.value,
+                                staff_administered=staff_administered_checkbox.value
+                            )
+                            ui.notify('Tournament updated.', color='positive')
+                            dialog.close()
+                            if self.on_submit:
+                                await self.on_submit(self.tournament)
+                    else:
+                        name = name_input.value
+                        description = description_input.value
+                        seed_generator = seed_generator_input.value
+                        bracket_url = bracket_url_input.value
+                        rules_url = rules_url_input.value
+                        tournament_format = tournament_format_input.value
+                        average_match_duration = average_match_duration_input.value
+                        max_match_duration = max_match_duration_input.value
+                        is_active = is_active_checkbox.value
+                        players_per_match = players_per_match_input.value
+                        team_size = team_size_input.value
+                        staff_administered = staff_administered_checkbox.value
+                        
+                        if not name:
+                            with self.dialog:
+                                ui.notify('Tournament name is required.', color='warning')
+                            return
+                        
+                        new_tournament = await TournamentRepository.create(
+                            name=name,
+                            description=description,
+                            seed_generator=seed_generator,
+                            bracket_url=bracket_url,
+                            rules_url=rules_url,
+                            tournament_format=tournament_format,
+                            average_match_duration=average_match_duration,
+                            max_match_duration=max_match_duration,
+                            is_active=is_active,
+                            players_per_match=players_per_match,
+                            team_size=team_size,
+                            staff_administered=staff_administered
+                        )
+                        with self.dialog:
+                            ui.notify('Tournament created.', color='positive')
+                            dialog.close()
+                            if self.on_submit:
+                                await self.on_submit(new_tournament)
+                except ValueError as e:
                     with self.dialog:
-                        ui.notify('Tournament created.', color='positive')
-                        dialog.close()
-                        if self.on_submit:
-                            await self.on_submit(new_tournament)
+                        ui.notify(f'Error: {str(e)}', color='negative')
 
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
                 if self.tournament:

@@ -5,7 +5,7 @@ import asyncio
 from nicegui import ui
 
 from models import User
-from theme.dialog import UserDialog
+from theme.dialog import AdminUserDialog
 from theme.tables.user import UserTableView
 
 
@@ -30,7 +30,7 @@ def admin_users_page() -> None:
         async def add_user():
             async def after_submit(_):
                 await table_view.refresh()
-            dialog = UserDialog(on_submit=after_submit, admin_view=True)
+            dialog = AdminUserDialog(on_submit=after_submit)
             await dialog.open()
 
         table_view = UserTableView(

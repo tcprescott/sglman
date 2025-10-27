@@ -33,7 +33,7 @@ class StreamRoomRepository:
         Returns:
             List of StreamRoom objects
         """
-        return await StreamRoom.all()
+        return await StreamRoom.all().order_by('name')
     
     @staticmethod
     async def get_all_as_dict() -> dict[int, str]:
@@ -50,21 +50,24 @@ class StreamRoomRepository:
     @staticmethod
     async def create(
         name: str,
-        description: Optional[str] = None
+        stream_url: Optional[str] = None,
+        is_active: bool = True
     ) -> StreamRoom:
         """
         Create a new stream room.
         
         Args:
             name: Stream room name
-            description: Optional description
+            stream_url: Optional stream URL
+            is_active: Whether the room is active (default: True)
             
         Returns:
             Created StreamRoom object
         """
         return await StreamRoom.create(
             name=name,
-            description=description
+            stream_url=stream_url,
+            is_active=is_active
         )
     
     @staticmethod

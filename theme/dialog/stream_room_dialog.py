@@ -1,15 +1,19 @@
 from nicegui import ui
 
-from models import Match, StreamRoom
+from application.repositories import StreamRoomRepository, MatchRepository
+from models import Match
 from theme.dialog.match_dialog import MatchDialog
 
 
 class StreamRoomDialog(MatchDialog):
     def __init__(self, match: Match, on_submit=None):
         super().__init__(match=match, on_submit=on_submit)
+        # Initialize repositories
+        self.stream_room_repository = StreamRoomRepository()
+        self.match_repository = MatchRepository()
 
     async def open(self):
-        stream_rooms = await StreamRoom.all().order_by('name')
+        stream_rooms = await self.stream_room_repository.get_all()
         default_stream_room = self.match.stream_room_id if self.match.stream_room_id else None
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
@@ -20,14 +24,20 @@ class StreamRoomDialog(MatchDialog):
 
             async def submit():
                 stream_room_id = selected_stream_room.value
-                # Only update stream_room_id, do not touch other columns
-                await Match.filter(id=self.match.id).update(stream_room_id=stream_room_id if stream_room_id else None)
-                self.match.stream_room_id = stream_room_id if stream_room_id else None
-                with self.dialog:
-                    ui.notify(f'Stage updated: {stream_room_id}', color='positive')
-                    dialog.close()
-                if self.on_submit:
-                    await self.on_submit(self.match)
+                try:
+                    # Update using repository
+                    await self.match_repository.update(
+                        self.match,
+                        stream_room_id=stream_room_id if stream_room_id else None
+                    )
+                    with self.dialog:
+                        ui.notify(f'Stage updated: {stream_room_id}', color='positive')
+                        dialog.close()
+                    if self.on_submit:
+                        await self.on_submit(self.match)
+                except ValueError as e:
+                    with self.dialog:
+                        ui.notify(f'Error updating stage: {str(e)}', color='negative')
 
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
                 ui.button('Save', color='green', on_click=submit)

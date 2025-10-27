@@ -1,35 +1,28 @@
 import os
-import discord
-from discord.ext import commands
-from typing import Optional
 
-from theme.tables import user
+from application.services.discord_service import get_discord_bot, DiscordService
 
 # Get bot token from environment variable
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 
-# Intents required for DM
-intents = discord.Intents.default()
-intents.members = True
-intents.dm_messages = True
+# Get the shared Discord bot instance
+bot = get_discord_bot()
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+# Initialize Discord service
+discord_service = DiscordService()
 
-@bot.event
-async def on_ready():
-	print(f'Bot is ready. Logged in as {bot.user}')
-
+# Legacy function for backward compatibility - use DiscordService.send_dm() instead
 async def send_dm(user_id: int, message: str) -> tuple[bool, str]:
-    """Send a DM to a user by their Discord ID."""
-    try:
-        user = await bot.fetch_user(user_id)
-        await user.send(message)
-        return True, "Message sent successfully."
-    except Exception as e:
-        return False, str(e)
+    """
+    Send a DM to a user by their Discord ID.
+    
+    DEPRECATED: Use DiscordService.send_dm() instead.
+    This function is kept for backward compatibility.
+    """
+    return await discord_service.send_dm(user_id, message)
 
 if __name__ == '__main__':
-	if not TOKEN:
-		print('DISCORD_BOT_TOKEN environment variable not set.')
-	else:
-		bot.run(TOKEN)
+    if not TOKEN:
+        print('DISCORD_BOT_TOKEN environment variable not set.')
+    else:
+        bot.run(TOKEN)

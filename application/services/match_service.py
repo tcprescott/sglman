@@ -281,6 +281,27 @@ class MatchService:
         
         return match
     
+    async def ensure_players_enrolled(
+        self,
+        tournament_id: int,
+        player_ids: List[int]
+    ) -> None:
+        """
+        Ensure all players are enrolled in the tournament.
+        
+        Args:
+            tournament_id: Tournament ID
+            player_ids: List of user IDs to enroll
+            
+        Raises:
+            ValueError: If any user is not found
+        """
+        for player_id in player_ids:
+            user = await self.user_repository.get_by_id(player_id)
+            if not user:
+                raise ValueError(f"User {player_id} not found")
+            await self._ensure_tournament_enrollment(user, tournament_id)
+    
     async def seat_players(self, match_id: int, admin_user: Optional[User] = None) -> Match:
         """Mark match players as seated."""
         match = await self.repository.get_by_id(match_id)

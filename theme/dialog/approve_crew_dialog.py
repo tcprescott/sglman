@@ -3,6 +3,7 @@ from typing import Callable, Optional, Union
 from nicegui import ui
 
 from models import Commentator, Tracker
+from application.services import CrewService
 
 
 class ApproveCrewDialog:
@@ -16,6 +17,7 @@ class ApproveCrewDialog:
         self.crew_type = crew_type
         self.on_approve = on_approve
         self.dialog = None
+        self.service = CrewService()
 
     async def open(self):
         with ui.dialog() as self.dialog:
@@ -24,12 +26,18 @@ class ApproveCrewDialog:
                 ui.label(f"Name: {self.crew_member.user.preferred_name}")
                 approved_checkbox = ui.checkbox('Approved', value=self.crew_member.approved)
                 async def save():
-                    self.crew_member.approved = approved_checkbox.value
-                    await self.crew_member.save()
-                    ui.notify(f"{self.crew_type.capitalize()} approval updated.", color='positive')
-                    if self.on_approve:
-                        await self.on_approve()
-                    self.dialog.close()
+                    try:
+                        await self.service.update_crew_approval(
+                            crew_member=self.crew_member,
+                            crew_type=self.crew_type,
+                            approved=approved_checkbox.value
+                        )
+                        ui.notify(f"{self.crew_type.capitalize()} approval updated.", color='positive')
+                        if self.on_approve:
+                            await self.on_approve()
+                        self.dialog.close()
+                    except ValueError as e:
+                        ui.notify(f"Error: {str(e)}", color='negative')
                 with ui.row().style('margin-top: 1em;'):
                     ui.button('Save', color='green', on_click=save)
                     ui.button('Cancel', color='grey', on_click=self.dialog.close)

@@ -1,6 +1,6 @@
 from nicegui import ui
 
-from models import TournamentPlayers, User
+from application.repositories import TournamentRepository
 
 
 class TournamentPlayersDialog:
@@ -12,7 +12,7 @@ class TournamentPlayersDialog:
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
             ui.label(f'Players enrolled in "{self.tournament.name}"').classes('text-h6')
-            players = await TournamentPlayers.filter(tournament=self.tournament).prefetch_related('user')
+            players = await TournamentRepository.get_enrolled_players(self.tournament)
             if not players:
                 ui.label('No players enrolled.').style('color: gray;')
             else:

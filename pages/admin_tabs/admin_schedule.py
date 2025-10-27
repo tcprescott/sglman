@@ -7,7 +7,7 @@ from typing import Dict
 from nicegui import ui
 
 from application.seedgen import RANDOMIZERS
-from discordbot.bot import send_dm
+from application.services import DiscordService
 from models import GeneratedSeeds, Match
 from theme.dialog import ConfirmationDialog, MatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
@@ -18,6 +18,9 @@ _seed_locks: Dict[int, asyncio.Lock] = {}
 
 
 def admin_schedule_page() -> None:
+    # Initialize services
+    discord_service = DiscordService()
+    
     with ui.column().style('width: 100%; max-width: 1600px; margin: 0 auto;') as page_container:
         # Header section
         with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
@@ -94,7 +97,7 @@ def admin_schedule_page() -> None:
                                     dm_message += f"A seed has been generated for your upcoming match (ID: {match.id}) in the tournament '{match.tournament.name}'.\n\n"
                                     dm_message += f"{seed_url}\n\n"
                                     dm_message += "Good luck and have fun!"
-                                    success, response = await send_dm(player.user.discord_id, dm_message)
+                                    success, response = await discord_service.send_dm(player.user.discord_id, dm_message)
                                     if not success:
                                         with page_container:
                                             ui.notify(f"Failed to send DM to {player.user.username}: {response}", color='negative')

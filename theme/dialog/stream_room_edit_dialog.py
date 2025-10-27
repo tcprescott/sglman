@@ -4,6 +4,7 @@ import asyncio
 
 from nicegui import ui
 
+from application.repositories import StreamRoomRepository
 from models import StreamRoom
 
 
@@ -45,28 +46,34 @@ class StreamRoomEditDialog:
                         ui.notify('Room name is required.', color='warning')
                     return
 
-                if self.stream_room:
-                    # Update existing stream room
-                    self.stream_room.name = name
-                    self.stream_room.stream_url = url if url else None
-                    self.stream_room.is_active = is_active
-                    await self.stream_room.save()
-                    with self.dialog:
-                        ui.notify(f'Stream room "{name}" updated successfully.', color='positive')
-                    result_room = self.stream_room
-                else:
-                    # Create new stream room
-                    result_room = await StreamRoom.create(
-                        name=name,
-                        stream_url=url if url else None,
-                        is_active=is_active
-                    )
-                    with self.dialog:
-                        ui.notify(f'Stream room "{name}" created successfully.', color='positive')
+                try:
+                    if self.stream_room:
+                        # Update existing stream room
+                        await StreamRoomRepository.update(
+                            self.stream_room,
+                            name=name,
+                            stream_url=url if url else None,
+                            is_active=is_active
+                        )
+                        with self.dialog:
+                            ui.notify(f'Stream room "{name}" updated successfully.', color='positive')
+                        result_room = self.stream_room
+                    else:
+                        # Create new stream room
+                        result_room = await StreamRoomRepository.create(
+                            name=name,
+                            stream_url=url if url else None,
+                            is_active=is_active
+                        )
+                        with self.dialog:
+                            ui.notify(f'Stream room "{name}" created successfully.', color='positive')
 
-                dialog.close()
-                if self.on_submit:
-                    await self.on_submit(result_room)
+                    dialog.close()
+                    if self.on_submit:
+                        await self.on_submit(result_room)
+                except ValueError as e:
+                    with self.dialog:
+                        ui.notify(f'Error: {str(e)}', color='negative')
 
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
                 ui.button('Save', color='green', on_click=submit)

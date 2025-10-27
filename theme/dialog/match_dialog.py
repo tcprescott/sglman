@@ -3,9 +3,14 @@ from datetime import datetime
 
 from nicegui import ui
 
-from application.match import create_match
-from models import (Match, MatchPlayers, StreamRoom, Tournament,
-                    TournamentPlayers, User)
+from application.services import MatchService, UserService, CrewService
+from application.repositories import (
+    UserRepository,
+    TournamentRepository,
+    StreamRoomRepository,
+    MatchRepository,
+)
+from models import Match
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -19,25 +24,41 @@ class MatchDialog:
         self._clear_finished = False
         self._clear_seed = False
         self._initial_updated_at = match.updated_at if match else None
+        # Initialize services
+        self.match_service = MatchService()
+        self.user_service = UserService()
+        self.crew_service = CrewService()
+        # Initialize repositories
+        self.user_repository = UserRepository()
+        self.tournament_repository = TournamentRepository()
+        self.stream_room_repository = StreamRoomRepository()
+        self.match_repository = MatchRepository()
 
     async def open(self):
-        users = await User.all().order_by('username')
-        stream_rooms = await StreamRoom.all().order_by('name')
+        users = await self.user_repository.get_all()
+        stream_rooms = await self.stream_room_repository.get_all()
         show_all_tournaments = None
         if self.discord_id is not None:
-            user = await User.get(discord_id=self.discord_id)
-            user_tournament_links = await TournamentPlayers.filter(user=user)
-            tournament_ids = [tp.tournament_id for tp in user_tournament_links]
-            tournaments = await Tournament.filter(id__in=tournament_ids).order_by('name')
+            user = await self.user_repository.get_by_discord_id(self.discord_id)
+            if not user:
+                with ui.dialog() as dialog, ui.card():
+                    ui.label('User not found. Please log in again.').style('color: red; font-weight: bold;')
+                    ui.button('Close', color='gray', on_click=dialog.close)
+                    dialog.open()
+                return
+            enrolled_players = await self.tournament_repository.get_enrolled_players_by_user(user)
+            tournament_ids = [tp.tournament_id for tp in enrolled_players]
+            tournaments = await self.tournament_repository.get_by_ids(tournament_ids) if tournament_ids else []
         else:
-            tournaments = await Tournament.all().order_by('name')
+            tournaments = await self.tournament_repository.get_all()
         now = datetime.now()
         # Pre-fill values for edit mode
         if self.match:
             default_tournament = self.match.tournament_id if self.match.tournament_id else None
             default_date = self.match.scheduled_at.strftime('%Y-%m-%d') if self.match.scheduled_at else now.strftime('%Y-%m-%d')
             default_time = self.match.scheduled_at.strftime('%H:%M') if self.match.scheduled_at else now.strftime('%H:%M')
-            player_ids = [p.user_id for p in await MatchPlayers.filter(match=self.match)]
+            players = await self.match_repository.get_players(self.match)
+            player_ids = [p.user_id for p in players]
             comment_value = self.match.comment or ''
             default_stream_room = self.match.stream_room_id if self.match.stream_room_id else None
         else:
@@ -65,8 +86,8 @@ class MatchDialog:
                 selected_stream_room = ui.select(label='Stage', options=stream_room_options, value=default_stream_room, with_input=True)
 
             async def get_opted_in_users(tournament_id):
-                links = await TournamentPlayers.filter(tournament_id=tournament_id)
-                user_ids = [tp.user_id for tp in links]
+                enrolled = await self.tournament_repository.get_enrolled_players_by_tournament_id(tournament_id)
+                user_ids = [tp.user_id for tp in enrolled]
                 # Exclude self if discord_id is set
                 return [u for u in users if u.id in user_ids and (self.discord_id is None or u.discord_id != self.discord_id)]
 
@@ -104,7 +125,7 @@ class MatchDialog:
                         selected_players.disable()
                 else:
                     # If show_all_tournaments is checked, show all tournaments
-                    tournaments_list = await Tournament.all().order_by('name') if show_all_tournaments and show_all_tournaments.value else tournaments
+                    tournaments_list = await self.tournament_repository.get_all() if show_all_tournaments and show_all_tournaments.value else tournaments
                     selected_tournament.disable()
                     selected_tournament.options = {t.id: t.name for t in tournaments_list}
                     selected_tournament.enable()
@@ -177,13 +198,17 @@ class MatchDialog:
                     new_tracker_ids = selected_trackers.value if isinstance(selected_trackers.value, list) else [selected_trackers.value]
                 else:
                     opponent_id = selected_opponent.value
-                    user = await User.get(discord_id=self.discord_id)
+                    user = await self.user_repository.get_by_discord_id(self.discord_id)
+                    if not user:
+                        with self.dialog:
+                            ui.notify('User not found. Please log in again.', color='warning')
+                        return
                     new_player_ids = [user.id, opponent_id] if opponent_id else []
                     new_commentator_ids = []
                     new_tracker_ids = []
-                    already_opted_in = await TournamentPlayers.filter(user=user, tournament_id=tournament_id).exists()
-                    if not already_opted_in:
-                        await TournamentPlayers.create(user=user, tournament_id=tournament_id)
+                    is_enrolled = await self.tournament_repository.is_player_enrolled_by_id(tournament_id, user)
+                    if not is_enrolled:
+                        await self.tournament_repository.enroll_player_by_id(tournament_id, user)
 
                 # Validation
                 if self.match:
@@ -207,97 +232,68 @@ class MatchDialog:
                                 ui.notify('Please select at least two players and fill all fields.', color='warning')
                             return
 
-                # Ensure all submitted players are enrolled in TournamentPlayers for this tournament
-                existing_links = await TournamentPlayers.filter(tournament_id=tournament_id)
-                existing_player_ids = {tp.user_id for tp in existing_links}
-                for pid in new_player_ids:
-                    if pid not in existing_player_ids:
-                        tournament = await Tournament.get(id=tournament_id)
-                        user = await User.get(id=pid)
-                        await TournamentPlayers.create(user=user, tournament=tournament)
+                # Ensure all submitted players are enrolled in tournament (service handles this)
+                try:
+                    await self.match_service.ensure_players_enrolled(tournament_id, new_player_ids)
+                except ValueError as e:
+                    with self.dialog:
+                        ui.notify(f'Error enrolling players: {str(e)}', color='negative')
+                    return
 
                 if self.match:
                     # Fetch latest match from DB to check updated_at
-                    latest_match = await Match.get(id=self.match.id)
-                    if latest_match.updated_at != self._initial_updated_at:
+                    latest_match = await self.match_repository.get_by_id(self.match.id)
+                    if latest_match and latest_match.updated_at != self._initial_updated_at:
                         with self.dialog:
                             ui.notify('This match has been modified by another admin. Please reload and try again.', color='warning')
                         return
-                    match_time = datetime.strptime(f"{date_value} {time_value}", "%Y-%m-%d %H:%M")
-                    self.match.tournament_id = tournament_id
-                    self.match.stream_room_id = stream_room_id if stream_room_id else None
-                    self.match.scheduled_at = match_time
-                    self.match.comment = comment_value
-                    if hasattr(self, '_clear_seated') and self._clear_seated:
-                        self.match.seated_at = None
-                    if hasattr(self, '_clear_finished') and self._clear_finished:
-                        self.match.finished_at = None
-                    if hasattr(self, '_clear_seed') and self._clear_seed:
-                        self.match.generated_seed = None
-                    await self.match.save()
-                    # Update players: add new ones, remove ones no longer present (preserve existing rows)
-                    existing_players = await MatchPlayers.filter(match=self.match)
-                    existing_player_ids = {p.user_id for p in existing_players}
-                    new_player_ids_set = {pid for pid in new_player_ids if pid is not None}
-                    # add players
-                    for pid in new_player_ids_set - existing_player_ids:
-                        user = await User.get(id=pid)
-                        await MatchPlayers.create(match=self.match, user=user)
-                    # remove players no longer present
-                    for p in existing_players:
-                        if p.user_id not in new_player_ids_set:
-                            await p.delete()
-
-                    # Update commentators and trackers: preserve existing approval state for unchanged users;
-                    # add new users (default to approved), and delete removed users.
-                    from models import Commentator, Tracker
-
-                    # Commentators
-                    existing_commentators = await Commentator.filter(match=self.match)
-                    existing_commentator_map = {c.user_id: c for c in existing_commentators}
-                    existing_commentator_ids = set(existing_commentator_map.keys())
-                    new_commentator_ids_set = {cid for cid in new_commentator_ids if cid is not None}
-                    # Add any new commentators (default approved=False)
-                    for cid in new_commentator_ids_set - existing_commentator_ids:
-                        user = await User.get(id=cid)
-                        await Commentator.create(match=self.match, user=user, approved=True)
-                    # Remove commentators no longer present
-                    for uid in existing_commentator_ids - new_commentator_ids_set:
-                        await existing_commentator_map[uid].delete()
-
-                    # Trackers
-                    existing_trackers = await Tracker.filter(match=self.match)
-                    existing_tracker_map = {t.user_id: t for t in existing_trackers}
-                    existing_tracker_ids = set(existing_tracker_map.keys())
-                    new_tracker_ids_set = {tid for tid in new_tracker_ids if tid is not None}
-                    # Add any new trackers (default approved=False)
-                    for tid in new_tracker_ids_set - existing_tracker_ids:
-                        user = await User.get(id=tid)
-                        await Tracker.create(match=self.match, user=user, approved=True)
-                    # Remove trackers no longer present
-                    for uid in existing_tracker_ids - new_tracker_ids_set:
-                        await existing_tracker_map[uid].delete()
-                    with self.dialog:
-                        ui.notify(f'Match updated: Players={new_player_ids}, Commentators={new_commentator_ids}, Trackers={new_tracker_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}, StreamRoom={stream_room_id}', color='positive')
-                        dialog.close()
-                    if self.on_submit:
-                        await self.on_submit(self.match)
+                    
+                    try:
+                        await self.match_service.update_match(
+                            match_id=self.match.id,
+                            tournament_id=tournament_id,
+                            scheduled_date=date_value,
+                            scheduled_time=time_value,
+                            player_ids=new_player_ids,
+                            commentator_ids=new_commentator_ids,
+                            tracker_ids=new_tracker_ids,
+                            comment=comment_value,
+                            stream_room_id=stream_room_id if stream_room_id else None,
+                            clear_seated=self._clear_seated,
+                            clear_finished=self._clear_finished,
+                            clear_seed=self._clear_seed
+                        )
+                        with self.dialog:
+                            ui.notify(f'Match updated: Players={new_player_ids}, Commentators={new_commentator_ids}, Trackers={new_tracker_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}, StreamRoom={stream_room_id}', color='positive')
+                            dialog.close()
+                        if self.on_submit:
+                            await self.on_submit(self.match)
+                    except ValueError as e:
+                        with self.dialog:
+                            ui.notify(f'Error updating match: {str(e)}', color='negative')
                 else:
-                    await create_match(
-                        tournament_id,
-                        date_value,
-                        time_value,
-                        comment_value,
-                        player_ids=new_player_ids
-                    )
-                    with self.dialog:
-                        if self.discord_id is None:
-                            ui.notify(f'Match submitted: Players={new_player_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
-                        else:
-                            ui.notify(f'Match submitted: Opponent={new_player_ids[1]}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
-                        dialog.close()
-                    if self.on_submit:
-                        await self.on_submit()
+                    try:
+                        await self.match_service.create_match(
+                            tournament_id=tournament_id,
+                            scheduled_date=date_value,
+                            scheduled_time=time_value,
+                            comment=comment_value,
+                            player_ids=new_player_ids,
+                            commentator_ids=new_commentator_ids if self.discord_id is None else None,
+                            tracker_ids=new_tracker_ids if self.discord_id is None else None,
+                            stream_room_id=stream_room_id if self.discord_id is None else None
+                        )
+                        with self.dialog:
+                            if self.discord_id is None:
+                                ui.notify(f'Match submitted: Players={new_player_ids}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
+                            else:
+                                ui.notify(f'Match submitted: Opponent={new_player_ids[1]}, Date={date_value}, Time={time_value}, Tournament={tournament_id}', color='positive')
+                            dialog.close()
+                        if self.on_submit:
+                            await self.on_submit()
+                    except ValueError as e:
+                        with self.dialog:
+                            ui.notify(f'Error creating match: {str(e)}', color='negative')
 
             async def confirm_delete():
                 async def on_confirm():
@@ -310,14 +306,16 @@ class MatchDialog:
                 ).open()
 
             async def delete():
-                await MatchPlayers.filter(match=self.match).delete()
-                await self.match.delete()
-                with self.dialog:
+                try:
+                    await self.match_repository.delete(self.match)
                     with self.dialog:
                         ui.notify('Match deleted', color='negative')
                         dialog.close()
-                if self.on_submit:
-                    await self.on_submit(None)
+                    if self.on_submit:
+                        await self.on_submit(None)
+                except ValueError as e:
+                    with self.dialog:
+                        ui.notify(f'Error deleting match: {str(e)}', color='negative')
 
             with ui.row().classes('justify-between').style('margin-top: 1em;'):
                 if self.match:

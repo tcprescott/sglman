@@ -53,7 +53,7 @@ class UserRepository:
         Returns:
             List of User objects
         """
-        query = User.all()
+        query = User.all().order_by('username')
         
         if permission_level is not None:
             query = query.filter(permission__gte=permission_level)
@@ -87,33 +87,36 @@ class UserRepository:
     @staticmethod
     async def create(
         username: str,
-        permission: Permissions = Permissions.USER,
-        discord_id: Optional[str] = None,
-        preferred_name: Optional[str] = None,
-        discriminator: Optional[str] = None,
-        avatar: Optional[str] = None
+        discord_id: Optional[int] = None,
+        display_name: Optional[str] = None,
+        pronouns: Optional[str] = None,
+        is_active: bool = True,
+        permission: int = 0,
+        access_token: Optional[str] = None
     ) -> User:
         """
         Create a new user.
         
         Args:
-            username: Discord username
-            permission: Permission level
+            username: Username
             discord_id: Discord ID
-            preferred_name: Display name
-            discriminator: Discord discriminator
-            avatar: Avatar URL
+            display_name: Display name
+            pronouns: User pronouns
+            is_active: Whether user is active
+            permission: Permission level (0=User, 1=Tournament Admin, 2=Superadmin)
+            access_token: Discord access token
             
         Returns:
             Created User object
         """
         return await User.create(
             username=username,
-            permission=permission,
             discord_id=discord_id,
-            preferred_name=preferred_name or username,
-            discriminator=discriminator,
-            avatar=avatar
+            display_name=display_name,
+            pronouns=pronouns,
+            is_active=is_active,
+            permission=permission,
+            access_token=access_token
         )
     
     @staticmethod

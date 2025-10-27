@@ -30,6 +30,19 @@ class TournamentRepository:
         return await query.first()
     
     @staticmethod
+    async def get_by_ids(tournament_ids: List[int]) -> List[Tournament]:
+        """
+        Get tournaments by a list of IDs.
+        
+        Args:
+            tournament_ids: List of tournament IDs
+            
+        Returns:
+            List of Tournament objects
+        """
+        return await Tournament.filter(id__in=tournament_ids).order_by('name')
+    
+    @staticmethod
     async def get_all(
         active_only: bool = False,
         staff_only: bool = False,
@@ -40,19 +53,19 @@ class TournamentRepository:
         
         Args:
             active_only: Only return active tournaments
-            staff_only: Only return staff tournaments (is_staff=True)
+            staff_only: Only return staff administered tournaments
             prefetch_players: Whether to prefetch enrolled players
             
         Returns:
             List of Tournament objects
         """
-        query = Tournament.all()
+        query = Tournament.all().order_by('name')
         
         if active_only:
-            query = query.filter(active=True)
+            query = query.filter(is_active=True)
         
         if staff_only:
-            query = query.filter(is_staff=True)
+            query = query.filter(staff_administered=True)
         
         if prefetch_players:
             query = query.prefetch_related('players', 'players__user')
@@ -85,39 +98,51 @@ class TournamentRepository:
     @staticmethod
     async def create(
         name: str,
+        description: Optional[str] = None,
         seed_generator: Optional[str] = None,
-        active: bool = True,
-        is_staff: bool = False,
+        is_active: bool = True,
+        players_per_match: int = 2,
+        team_size: int = 1,
         bracket_url: Optional[str] = None,
         rules_url: Optional[str] = None,
-        format_info: Optional[str] = None,
-        match_duration_minutes: Optional[int] = None
+        tournament_format: Optional[str] = None,
+        average_match_duration: Optional[int] = None,
+        max_match_duration: Optional[int] = None,
+        staff_administered: bool = False
     ) -> Tournament:
         """
         Create a new tournament.
         
         Args:
             name: Tournament name
+            description: Tournament description
             seed_generator: Name of seed generator to use
-            active: Whether tournament is active
-            is_staff: Whether this is a staff tournament
+            is_active: Whether tournament is active
+            players_per_match: Number of players per match
+            team_size: Number of players per team
             bracket_url: URL to tournament bracket
             rules_url: URL to tournament rules
-            format_info: Format description
-            match_duration_minutes: Expected match duration
+            tournament_format: Format description
+            average_match_duration: Average match duration in minutes
+            max_match_duration: Maximum match duration in minutes
+            staff_administered: Whether this is staff administered
             
         Returns:
             Created Tournament object
         """
         return await Tournament.create(
             name=name,
+            description=description,
             seed_generator=seed_generator,
-            active=active,
-            is_staff=is_staff,
+            is_active=is_active,
+            players_per_match=players_per_match,
+            team_size=team_size,
             bracket_url=bracket_url,
             rules_url=rules_url,
-            format_info=format_info,
-            match_duration_minutes=match_duration_minutes
+            tournament_format=tournament_format,
+            average_match_duration=average_match_duration,
+            max_match_duration=max_match_duration,
+            staff_administered=staff_administered
         )
     
     @staticmethod
@@ -180,6 +205,32 @@ class TournamentRepository:
             List of TournamentPlayers objects
         """
         return await TournamentPlayers.filter(tournament=tournament).prefetch_related('user')
+    
+    @staticmethod
+    async def get_enrolled_players_by_user(user) -> List:
+        """
+        Get all tournament enrollments for a specific user.
+        
+        Args:
+            user: User to get enrollments for
+            
+        Returns:
+            List of TournamentPlayers objects
+        """
+        return await TournamentPlayers.filter(user=user).prefetch_related('tournament')
+    
+    @staticmethod
+    async def get_enrolled_players_by_tournament_id(tournament_id: int) -> List:
+        """
+        Get all enrolled players for a specific tournament by ID.
+        
+        Args:
+            tournament_id: Tournament ID
+            
+        Returns:
+            List of TournamentPlayers objects
+        """
+        return await TournamentPlayers.filter(tournament_id=tournament_id).prefetch_related('user')
     
     @staticmethod
     async def is_player_enrolled(tournament: Tournament, user) -> bool:
