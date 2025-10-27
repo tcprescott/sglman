@@ -2,14 +2,14 @@ import asyncio
 
 from nicegui import ui
 
-from application.repositories import TournamentRepository
-from application.services import SeedGenerationService
+from application.services import SeedGenerationService, TournamentService
 
 class TournamentDialog:
     def __init__(self, tournament=None, on_submit=None):
         self.tournament = tournament
         self.on_submit = on_submit
         self.dialog = None
+        self.tournament_service = TournamentService()
 
     async def open(self):
         with ui.dialog() as dialog, ui.card():
@@ -35,7 +35,7 @@ class TournamentDialog:
                 try:
                     if self.tournament:
                         with self.dialog:
-                            await TournamentRepository.update(
+                            await self.tournament_service.update_tournament(
                                 self.tournament,
                                 name=name_input.value,
                                 description=description_input.value,
@@ -55,37 +55,19 @@ class TournamentDialog:
                             if self.on_submit:
                                 await self.on_submit(self.tournament)
                     else:
-                        name = name_input.value
-                        description = description_input.value
-                        seed_generator = seed_generator_input.value
-                        bracket_url = bracket_url_input.value
-                        rules_url = rules_url_input.value
-                        tournament_format = tournament_format_input.value
-                        average_match_duration = average_match_duration_input.value
-                        max_match_duration = max_match_duration_input.value
-                        is_active = is_active_checkbox.value
-                        players_per_match = players_per_match_input.value
-                        team_size = team_size_input.value
-                        staff_administered = staff_administered_checkbox.value
-                        
-                        if not name:
-                            with self.dialog:
-                                ui.notify('Tournament name is required.', color='warning')
-                            return
-                        
-                        new_tournament = await TournamentRepository.create(
-                            name=name,
-                            description=description,
-                            seed_generator=seed_generator,
-                            bracket_url=bracket_url,
-                            rules_url=rules_url,
-                            tournament_format=tournament_format,
-                            average_match_duration=average_match_duration,
-                            max_match_duration=max_match_duration,
-                            is_active=is_active,
-                            players_per_match=players_per_match,
-                            team_size=team_size,
-                            staff_administered=staff_administered
+                        new_tournament = await self.tournament_service.create_tournament(
+                            name=name_input.value,
+                            description=description_input.value,
+                            seed_generator=seed_generator_input.value,
+                            bracket_url=bracket_url_input.value,
+                            rules_url=rules_url_input.value,
+                            tournament_format=tournament_format_input.value,
+                            average_match_duration=average_match_duration_input.value,
+                            max_match_duration=max_match_duration_input.value,
+                            is_active=is_active_checkbox.value,
+                            players_per_match=players_per_match_input.value,
+                            team_size=team_size_input.value,
+                            staff_administered=staff_administered_checkbox.value
                         )
                         with self.dialog:
                             ui.notify('Tournament created.', color='positive')

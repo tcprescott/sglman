@@ -4,7 +4,7 @@ import asyncio
 
 from nicegui import ui
 
-from application.repositories import StreamRoomRepository
+from application.services import StreamRoomService
 from models import StreamRoom
 
 
@@ -13,6 +13,7 @@ class StreamRoomEditDialog:
         self.stream_room = stream_room
         self.on_submit = on_submit
         self.dialog = None
+        self.stream_room_service = StreamRoomService()
 
     async def open(self):
         # Pre-fill values for edit mode
@@ -40,16 +41,10 @@ class StreamRoomEditDialog:
                 url = url_input.value.strip()
                 is_active = is_active_checkbox.value
 
-                # Validation
-                if not name:
-                    with self.dialog:
-                        ui.notify('Room name is required.', color='warning')
-                    return
-
                 try:
                     if self.stream_room:
                         # Update existing stream room
-                        await StreamRoomRepository.update(
+                        result_room = await self.stream_room_service.update_stream_room(
                             self.stream_room,
                             name=name,
                             stream_url=url if url else None,
@@ -57,10 +52,9 @@ class StreamRoomEditDialog:
                         )
                         with self.dialog:
                             ui.notify(f'Stream room "{name}" updated successfully.', color='positive')
-                        result_room = self.stream_room
                     else:
                         # Create new stream room
-                        result_room = await StreamRoomRepository.create(
+                        result_room = await self.stream_room_service.create_stream_room(
                             name=name,
                             stream_url=url if url else None,
                             is_active=is_active

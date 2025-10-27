@@ -12,6 +12,8 @@ from .match_service import MatchService
 from .match_schedule_service import MatchScheduleService
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
+from .stream_room_service import StreamRoomService
+from .tournament_service import TournamentService
 from .user_service import UserService
 
 __all__ = [
@@ -22,5 +24,7 @@ __all__ = [
     'MatchScheduleService',
     'ReportsService',
     'SeedGenerationService',
+    'StreamRoomService',
+    'TournamentService',
     'UserService'
 ]

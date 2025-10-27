@@ -2,7 +2,8 @@ import asyncio
 
 from nicegui import ui
 
-from application.repositories import UserRepository, TournamentRepository
+from application.repositories import TournamentRepository
+from application.services import UserService
 from models import User
 from theme.dialog.send_message_dialog import SendMessageDialog
 
@@ -15,6 +16,7 @@ class BaseUserDialog:
         self.on_submit = on_submit
         self.dialog = None
         self._initial_updated_at = user.updated_at if user else None
+        self.user_service = UserService()
 
     async def _get_tournament_data(self):
         """Fetch tournament data for the user."""
@@ -77,18 +79,15 @@ class UserDialog(BaseUserDialog):
             async def submit():
                 try:
                     if self.user:
-                        latest_user = await UserRepository.get_by_id(self.user.id)
-                        if latest_user.updated_at != self._initial_updated_at:
-                            with self.dialog:
-                                ui.notify('This user has been modified by another admin. Please reload and try again.', color='warning')
-                            return
                         with self.dialog:
-                            await UserRepository.update(
+                            await self.user_service.update_user(
                                 self.user,
                                 display_name=display_name_input.value,
                                 pronouns=pronouns_input.value,
                                 is_active=is_active_checkbox.value,
-                                permission=permission_select.value
+                                permission=permission_select.value,
+                                check_concurrency=True,
+                                initial_updated_at=self._initial_updated_at
                             )
                             await self._update_tournament_enrollments(
                                 tournaments, user_tournaments, selected_tournament_ids, tournament_multiselect
@@ -98,25 +97,13 @@ class UserDialog(BaseUserDialog):
                             if self.on_submit:
                                 await self.on_submit(self.user)
                     else:
-                        username = username_input.value.strip()
-                        display_name = display_name_input.value.strip()
-                        is_active = is_active_checkbox.value
-                        permission = permission_select.value
-                        discord_id = discord_id_input.value if discord_id_input else None
-                        pronouns = pronouns_input.value
-
-                        if not username:
-                            with self.dialog:
-                                ui.notify('Username is required.', color='warning')
-                            return
-                        
-                        new_user = await UserRepository.create(
-                            username=username,
-                            display_name=display_name,
-                            pronouns=pronouns,
-                            is_active=is_active,
-                            permission=permission,
-                            discord_id=discord_id
+                        new_user = await self.user_service.create_user(
+                            username=username_input.value,
+                            display_name=display_name_input.value,
+                            pronouns=pronouns_input.value,
+                            is_active=is_active_checkbox.value,
+                            permission=permission_select.value,
+                            discord_id=discord_id_input.value if discord_id_input else None
                         )
                         await self._add_tournament_enrollments(tournaments, tournament_multiselect, new_user)
                         with self.dialog:
@@ -200,18 +187,15 @@ class AdminUserDialog(BaseUserDialog):
             async def submit():
                 try:
                     if self.user:
-                        latest_user = await UserRepository.get_by_id(self.user.id)
-                        if latest_user.updated_at != self._initial_updated_at:
-                            with self.dialog:
-                                ui.notify('This user has been modified by another admin. Please reload and try again.', color='warning')
-                            return
                         with self.dialog:
-                            await UserRepository.update(
+                            await self.user_service.update_user(
                                 self.user,
                                 display_name=display_name_input.value,
                                 pronouns=pronouns_input.value,
                                 is_active=is_active_checkbox.value,
-                                permission=permission_select.value
+                                permission=permission_select.value,
+                                check_concurrency=True,
+                                initial_updated_at=self._initial_updated_at
                             )
                             await self._update_tournament_enrollments(
                                 tournaments, user_tournaments, selected_tournament_ids, tournament_multiselect
@@ -237,30 +221,18 @@ class AdminUserDialog(BaseUserDialog):
                             if self.on_submit:
                                 await self.on_submit(self.user)
                     else:
-                        username = username_input.value.strip()
-                        display_name = display_name_input.value.strip()
-                        is_active = is_active_checkbox.value
-                        permission = permission_select.value
-                        discord_id = discord_id_input.value if discord_id_input else None
-                        pronouns = pronouns_input.value
-
-                        if not username:
-                            with self.dialog:
-                                ui.notify('Username is required.', color='warning')
-                            return
-                        
-                        new_user = await UserRepository.create(
-                            username=username,
-                            display_name=display_name,
-                            pronouns=pronouns,
-                            is_active=is_active,
-                            permission=permission,
-                            discord_id=discord_id
+                        new_user = await self.user_service.create_user(
+                            username=username_input.value,
+                            display_name=display_name_input.value,
+                            pronouns=pronouns_input.value,
+                            is_active=is_active_checkbox.value,
+                            permission=permission_select.value,
+                            discord_id=discord_id_input.value if discord_id_input else None
                         )
                         await self._add_tournament_enrollments(tournaments, tournament_multiselect, new_user)
                         
                         # Add admin tournaments if permission >= 1
-                        if permission >= 1 and admin_tournament_multiselect:
+                        if permission_select.value >= 1 and admin_tournament_multiselect:
                             admin_selected_ids = set(map(int, admin_tournament_multiselect.value))
                             for tid in admin_selected_ids:
                                 tournament = next((t for t in tournaments if t.id == tid), None)
