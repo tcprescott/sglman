@@ -100,7 +100,8 @@ class MatchPlayers(Model):
     id = fields.IntField(pk=True)
     match = fields.ForeignKeyField('models.Match', related_name='players')
     user = fields.ForeignKeyField('models.User', related_name='match_players')
-    confirmed = fields.BooleanField(default=False)
+    finish_rank = fields.IntField(null=True)
+    assigned_station = fields.CharField(max_length=50, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
