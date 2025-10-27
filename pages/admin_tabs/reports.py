@@ -18,12 +18,7 @@ async def reports_page() -> None:
         
         ui.separator().classes('separator-spacing')
 
-        with ui.tabs().props('class="bg-primary text-white"').classes('full-width') as tabs:
-            ui.tab('Active Players Forecast', icon='show_chart')
-            
-        with ui.tab_panels(tabs, value='Active Players Forecast').classes('full-width'):
-            with ui.tab_panel('Active Players Forecast'):
-                await player_activity_report(reports_service)
+        await player_activity_report(reports_service)
 
 
 async def player_activity_report(reports_service: ReportsService) -> None:

@@ -58,7 +58,7 @@ def admin_stream_rooms_page() -> None:
         ui.separator().classes('separator-spacing')
         
         columns = [
-            {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True},
+            {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True, 'clickable': True},
             {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
             {'name': 'stream_url', 'label': 'Stream URL', 'field': 'stream_url'},
             {'name': 'is_active', 'label': 'Active', 'field': 'is_active'},
@@ -112,6 +112,9 @@ def admin_stream_rooms_page() -> None:
                 row_key='id',
             ).classes('w-full')
             
+            # Enable grid mode for mobile using Quasar's screen detection
+            table.props(':grid="Quasar.Screen.lt.md"')
+            
             table.add_slot('body-cell-stream_url', '''
                 <q-td :props="props">
                     <a :href="props.row.stream_url" target="_blank" v-if="props.row.stream_url">
@@ -131,7 +134,13 @@ def admin_stream_rooms_page() -> None:
             table.add_slot('body', '''
                 <q-tr :props="props">
                     <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <template v-if="col.name === 'stream_url'">
+                        <template v-if="col.name === 'id'">
+                            <a href="javascript:void(0)" @click="$parent.$emit('edit', props.row)" 
+                               style="color: #1976d2; text-decoration: underline; cursor: pointer;">
+                                {{ col.value }}
+                            </a>
+                        </template>
+                        <template v-else-if="col.name === 'stream_url'">
                             <a :href="props.row.stream_url" target="_blank" v-if="props.row.stream_url">
                                 {{ props.row.stream_url }}
                             </a>
@@ -145,11 +154,35 @@ def admin_stream_rooms_page() -> None:
                             {{ col.value }}
                         </template>
                     </q-td>
-                    <q-td auto-width>
-                        <q-btn size="sm" color="primary" flat dense icon="edit" 
-                               @click="$parent.$emit('edit', props.row)" />
-                    </q-td>
                 </q-tr>
+            ''')
+            
+            # Add grid item slot for mobile/card view
+            table.add_slot('item', '''
+                <div class="q-pa-xs col-xs-12 col-sm-6 col-md-4">
+                    <q-card class="q-pa-md" style="cursor: pointer;" @click="$parent.$emit('edit', props.row)">
+                        <q-card-section>
+                            <div class="text-h6">
+                                {{ props.row.name }}
+                                <q-badge :color="props.row.is_active ? 'positive' : 'negative'" class="q-ml-sm">
+                                    {{ props.row.is_active ? 'Active' : 'Inactive' }}
+                                </q-badge>
+                            </div>
+                            <div class="text-caption text-grey">ID: {{ props.row.id }}</div>
+                        </q-card-section>
+                        <q-card-section v-if="props.row.stream_url">
+                            <div class="text-caption text-grey-7">Stream URL:</div>
+                            <a :href="props.row.stream_url" target="_blank" 
+                               @click.stop
+                               style="color: #1976d2; text-decoration: underline; word-break: break-all;">
+                                {{ props.row.stream_url }}
+                            </a>
+                        </q-card-section>
+                        <q-card-section v-else>
+                            <div class="text-caption text-grey-7">No stream URL set</div>
+                        </q-card-section>
+                    </q-card>
+                </div>
             ''')
             
             table.on('edit', lambda e: asyncio.create_task(edit_stream_room(e.args)))
