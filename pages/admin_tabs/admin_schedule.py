@@ -74,7 +74,8 @@ def admin_schedule_page() -> None:
                     match = await Match.get(id=match_id).prefetch_related('tournament', 'players', 'players__user')
                     # sanity check: if a seed has already been generated for this match, skip
                     if match.generated_seed:
-                        ui.notify('A seed has already been generated for this match.', color='warning')
+                        with page_container:
+                            ui.notify('A seed has already been generated for this match.', color='warning')
                         table_view.update_row_by_id(match_id)
                         return
                     if match.tournament.seed_generator:
@@ -95,11 +96,14 @@ def admin_schedule_page() -> None:
                                     dm_message += "Good luck and have fun!"
                                     success, response = await send_dm(player.user.discord_id, dm_message)
                                     if not success:
-                                        ui.notify(f"Failed to send DM to {player.user.username}: {response}", color='negative')
+                                        with page_container:
+                                            ui.notify(f"Failed to send DM to {player.user.username}: {response}", color='negative')
 
-                            ui.notify(f'Seed generated successfully for match ID {match.id}.', color='positive')
+                            with page_container:
+                                ui.notify(f'Seed generated successfully for match ID {match.id}.', color='positive')
                         else:
-                            ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
+                            with page_container:
+                                ui.notify(f"Seed generator '{match.tournament.seed_generator}' not found.", color='negative')
                 finally:
                     # refresh the row so client clears spinner. Keep the lock dict entry for reuse.
                     await table_view.update_row_by_id(match_id)

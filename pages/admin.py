@@ -5,7 +5,6 @@ from nicegui import app, ui
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
-from pages.admin_tabs.announcement_admin import announcement_admin_page
 from pages.admin_tabs.reports import reports_page
 from models import Permissions, User
 from theme.base import BaseLayout
