@@ -24,13 +24,35 @@ config = {
 
 discordClient = APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
 
-unrestricted_page_routes = {'/login', '/oauth/callback', '/api', '/', '/schedule'}
+# Registry of routes that require authentication; populated by protected_page decorator
+protected_routes: set[str] = set()
+
+def protected_page(path: str, **page_kwargs):
+    """
+    Decorator to register a NiceGUI page that requires authentication.
+
+    Usage:
+        @protected_page('/admin')
+        async def admin(...): ...
+
+    This will:
+      - Register the page route with NiceGUI
+      - Add the path to protected_routes so the middleware can enforce auth
+    """
+    def decorator(func):
+        # Register the path as protected
+        protected_routes.add(path)
+        # Delegate to NiceGUI's page decorator to actually create the route
+        return ui.page(path, **page_kwargs)(func)
+    return decorator
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Enforce authentication only for routes that were explicitly marked protected
         if not app.storage.user.get('authenticated', False):
-            if not request.url.path.startswith('/_nicegui') and request.url.path not in unrestricted_page_routes:
-                app.storage.user['referrer_path'] = request.url.path
+            path = request.url.path
+            if not path.startswith('/_nicegui') and path in protected_routes:
+                app.storage.user['referrer_path'] = path
                 return RedirectResponse('/login')
         return await call_next(request)
 

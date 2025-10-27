@@ -1,6 +1,7 @@
 """Admin Dashboard Page"""
 
 from nicegui import app, ui
+from middleware.auth import protected_page
 
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
@@ -11,7 +12,7 @@ from theme.base import BaseLayout
 
 
 def create() -> None:
-    @ui.page('/admin')
+    @protected_page('/admin')
     async def admin_dashboard_page(tab: str = None) -> None:
         ui.page_title('Speedgaming Live Onsite - Admin Dashboard')
         discord_id = app.storage.user.get('discord_id', None)
