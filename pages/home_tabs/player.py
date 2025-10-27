@@ -146,8 +146,8 @@ async def render_edit_info_tab():
                             ui.column().style('flex: 1; min-width: 0;')
 
         # Tournament Sections
-        render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=4)
-        render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=4)
+        render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)
+        render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
 
         async def save_info():
             user.display_name = display_name_input.value.strip()
