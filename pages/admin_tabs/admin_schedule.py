@@ -6,7 +6,7 @@ from nicegui import ui
 
 from application.services import MatchScheduleService
 from models import Match
-from theme.dialog import ConfirmationDialog
+from theme.dialog import ConfirmationDialog, StationAssignmentDialog, MatchResultDialog
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.tables.match import MatchTableView
@@ -29,10 +29,8 @@ def admin_schedule_page() -> None:
                 'field': 'tournament', 'sortable': True, 'filterable': True},
             {'name': 'scheduled_at', 'label': 'Scheduled At',
                 'field': 'scheduled_at', 'sortable': True, 'filterable': True},
-            {'name': 'seated', 'label': 'Seated', 'field': 'seated',
+            {'name': 'state', 'label': 'State', 'field': 'state',
                 'sortable': True, 'filterable': True},
-            {'name': 'finished', 'label': 'Finished',
-                'field': 'finished', 'filterable': True},
             {'name': 'players', 'label': 'Players',
                 'field': 'players', 'filterable': True},
             {'name': 'commentators', 'label': 'Commentators',
@@ -80,15 +78,38 @@ def admin_schedule_page() -> None:
                 dialog.dialog.close()
                 await confirm_seating(match)
             with page_container:
-                dialog = ConfirmationDialog(
-                    message=f'Are you sure you want to mark the following players as seated for match ID {match.id}?\n\n{player_names}',
-                    on_confirm=handle_confirm
+                dialog = StationAssignmentDialog(
+                    match=match,
+                    on_submit=handle_confirm
                 )
-                dialog.open()
+                await dialog.open()
 
         async def confirm_seating(match: Match):
             try:
                 await match_schedule_service.seat_match(match)
+                await table_view.update_row_by_id(match.id)
+            except ValueError as e:
+                with page_container:
+                    ui.notify(str(e), color='warning')
+
+        async def on_start(match_id: int):
+            match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
+            player_names = ', '.join(
+                [p.user.username for p in match.players])
+
+            async def handle_confirm(_):
+                dialog.dialog.close()
+                await confirm_starting(match)
+            with page_container:
+                dialog = ConfirmationDialog(
+                    message=f'Are you sure you want to start match ID {match.id}?\n\n{player_names}',
+                    on_confirm=handle_confirm
+                )
+                dialog.open()
+
+        async def confirm_starting(match: Match):
+            try:
+                await match_schedule_service.start_match(match)
                 await table_view.update_row_by_id(match.id)
             except ValueError as e:
                 with page_container:
@@ -103,15 +124,38 @@ def admin_schedule_page() -> None:
                 dialog.dialog.close()
                 await confirm_finishing(match)
             with page_container:
-                dialog = ConfirmationDialog(
-                    message=f'Are you sure you want to mark the following players as finished for match ID {match.id}?\n\n{player_names}',
-                    on_confirm=handle_confirm
+                dialog = MatchResultDialog(
+                    match=match,
+                    on_submit=handle_confirm
                 )
-                dialog.open()
+                await dialog.open()
 
         async def confirm_finishing(match: Match):
             try:
                 await match_schedule_service.finish_match(match)
+                await table_view.update_row_by_id(match.id)
+            except ValueError as e:
+                with page_container:
+                    ui.notify(str(e), color='warning')
+
+        async def on_confirm(match_id: int):
+            match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
+            player_names = ', '.join(
+                [p.user.username for p in match.players])
+
+            async def handle_confirm(_):
+                dialog.dialog.close()
+                await confirm_confirming(match)
+            with page_container:
+                dialog = ConfirmationDialog(
+                    message=f'Are you sure you want to confirm match ID {match.id}?\n\n{player_names}',
+                    on_confirm=handle_confirm
+                )
+                dialog.open()
+
+        async def confirm_confirming(match: Match):
+            try:
+                await match_schedule_service.confirm_match(match)
                 await table_view.update_row_by_id(match.id)
             except ValueError as e:
                 with page_container:
@@ -123,6 +167,14 @@ def admin_schedule_page() -> None:
                 await table_view.update_row_by_id(match_id)
             with page_container:
                 dialog = StreamRoomDialog(match=match, on_submit=after_edit)
+                await dialog.open()
+
+        async def on_assign_stations(match_id: int):
+            match = await Match.get(id=match_id).prefetch_related('tournament', 'players', 'players__user')
+            async def after_assign(_):
+                await table_view.update_row_by_id(match_id)
+            with page_container:
+                dialog = StationAssignmentDialog(match=match, on_submit=after_assign)
                 await dialog.open()
 
         async def submit_admin_match():
@@ -140,8 +192,11 @@ def admin_schedule_page() -> None:
             on_edit=on_edit,
             on_generate_seed=on_generate_seed,
             on_seat=on_seat,
+            on_start=on_start,
             on_finish=on_finish,
+            on_confirm=on_confirm,
             on_edit_stream_room=on_edit_stream_room,
+            on_assign_stations=on_assign_stations
         )
 
         def on_tab_selected():

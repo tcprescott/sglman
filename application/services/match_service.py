@@ -491,15 +491,56 @@ class MatchService:
     
     # Private helper methods
     
+    def _get_match_state(self, match: Match) -> str:
+        """
+        Determine the current state of a match based on its timestamps.
+        
+        Business logic for match state progression:
+        - Confirmed: match has confirmed_at timestamp
+        - Finished: match has finished_at timestamp
+        - Started: match has started_at timestamp
+        - Checked In: match has seated_at timestamp
+        - Scheduled: default state
+        
+        Args:
+            match: Match object
+            
+        Returns:
+            State string: 'Confirmed', 'Finished', 'Started', 'Checked In', or 'Scheduled'
+        """
+        if match.confirmed_at:
+            return 'Confirmed'
+        elif match.finished_at:
+            return 'Finished'
+        elif match.started_at:
+            return 'Started'
+        elif match.seated_at:
+            return 'Checked In'
+        else:
+            return 'Scheduled'
+    
     def _format_match_for_display(self, match: Match) -> Dict[str, Any]:
         """Format a match object for UI display."""
+        # Get state and corresponding timestamp
+        state = self._get_match_state(match)
+        state_timestamp = None
+        
+        if match.confirmed_at:
+            state_timestamp = format_eastern_datetime(match.confirmed_at)
+        elif match.finished_at:
+            state_timestamp = format_eastern_datetime(match.finished_at)
+        elif match.started_at:
+            state_timestamp = format_eastern_datetime(match.started_at)
+        elif match.seated_at:
+            state_timestamp = format_eastern_datetime(match.seated_at)
+        
         return {
             'id': match.id,
             'tournament': match.tournament.name if match.tournament else '',
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
-            'seated': format_eastern_datetime(match.seated_at) if match.seated_at else '',
-            'finished': format_eastern_datetime(match.finished_at) if match.finished_at else '',
-            'players': [p.user.preferred_name for p in match.players],
+            'state': state,
+            'state_timestamp': state_timestamp,
+            'players': [(p.user.preferred_name, p.finish_rank) for p in match.players],
             'stream_room': match.stream_room.name if match.stream_room else '',
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
@@ -512,6 +553,9 @@ class MatchService:
                 (t.user.preferred_name, t.approved, t.user.discord_id)
                 for t in match.trackers
             ],
+            # Keep these for backward compatibility with existing code that may reference them
+            'seated': format_eastern_datetime(match.seated_at) if match.seated_at else '',
+            'finished': format_eastern_datetime(match.finished_at) if match.finished_at else '',
         }
     
     async def _ensure_tournament_enrollment(self, user: User, tournament_id: int) -> None:

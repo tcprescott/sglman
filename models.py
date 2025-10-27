@@ -81,8 +81,10 @@ class Match(Model):
     tournament = fields.ForeignKeyField('models.Tournament', related_name='matches')
     stream_room = fields.ForeignKeyField('models.StreamRoom', related_name='matches', null=True)
     scheduled_at = fields.DatetimeField(null=True)
-    seated_at = fields.DatetimeField(null=True)
+    seated_at = fields.DatetimeField(null=True) # now known as "Checked In"
+    started_at = fields.DatetimeField(null=True)
     finished_at = fields.DatetimeField(null=True)
+    confirmed_at = fields.DatetimeField(null=True)
     comment = fields.TextField(null=True)
     title = fields.CharField(max_length=255, null=True)
     generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
@@ -96,6 +98,25 @@ class Match(Model):
     @property
     def is_finished(self) -> bool:
         return self.finished_at is not None
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.confirmed_at is not None
+
+    @property
+    def is_started(self) -> bool:
+        return self.started_at is not None
+
+    @property
+    def current_state(self) -> str:
+        if self.is_finished:
+            return 'Finished'
+        elif self.is_started:
+            return 'In Progress'
+        elif self.is_seated:
+            return 'Checked In'
+        else:
+            return 'Scheduled'
 
 class MatchPlayers(Model):
     id = fields.IntField(pk=True)

@@ -27,7 +27,7 @@ class MatchScheduleService:
     
     async def seat_match(self, match: Match) -> None:
         """
-        Mark a match as seated.
+        Mark a match as seated (checked in).
         
         Args:
             match: Match to seat
@@ -36,9 +36,28 @@ class MatchScheduleService:
             ValueError: If match is invalid
         """
         if match.seated_at:
-            raise ValueError("Match is already seated")
+            raise ValueError("Match is already checked in")
         
         match.seated_at = datetime.now()
+        await match.save()
+    
+    async def start_match(self, match: Match) -> None:
+        """
+        Mark a match as started.
+        
+        Args:
+            match: Match to start
+            
+        Raises:
+            ValueError: If match is invalid or not checked in
+        """
+        if not match.seated_at:
+            raise ValueError("Match must be checked in before starting")
+        
+        if match.started_at:
+            raise ValueError("Match is already started")
+        
+        match.started_at = datetime.now()
         await match.save()
     
     async def finish_match(self, match: Match) -> None:
@@ -49,12 +68,34 @@ class MatchScheduleService:
             match: Match to finish
             
         Raises:
-            ValueError: If match is invalid
+            ValueError: If match is invalid or not started
         """
+        if not match.started_at:
+            raise ValueError("Match must be started before finishing")
+        
         if match.finished_at:
             raise ValueError("Match is already finished")
         
         match.finished_at = datetime.now()
+        await match.save()
+    
+    async def confirm_match(self, match: Match) -> None:
+        """
+        Mark a match as confirmed.
+        
+        Args:
+            match: Match to confirm
+            
+        Raises:
+            ValueError: If match is invalid or not finished
+        """
+        if not match.finished_at:
+            raise ValueError("Match must be finished before confirming")
+        
+        if match.confirmed_at:
+            raise ValueError("Match is already confirmed")
+        
+        match.confirmed_at = datetime.now()
         await match.save()
     
     async def generate_seed(self, match_id: int) -> Tuple[bool, str, Optional[str]]:

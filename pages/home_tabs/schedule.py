@@ -25,7 +25,7 @@ def schedule():
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True, 'filterable': True},
             {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at', 'sortable': True, 'filterable': True},
-            {'name': 'seated', 'label': 'Seated', 'field': 'seated'},
+            {'name': 'state', 'label': 'State', 'field': 'state', 'sortable': True},
             {'name': 'players', 'label': 'Players', 'field': 'players', 'filterable': True},
             {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room', 'sortable': True, 'filterable': True},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
@@ -37,6 +37,42 @@ def schedule():
             return await match_service.get_all_matches_for_schedule()
 
         extra_slots = {
+            'body-cell-state': '''<q-td :props="props">
+                <!-- Confirmed state -->
+                <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="verified" color="green" size="sm" />
+                        <span style="font-weight: 500;">{{ props.value }}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Finished state -->
+                <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="flag" color="orange" size="sm" />
+                        <span>{{ props.value }}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Started state -->
+                <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="play_arrow" color="blue" size="sm" />
+                        <span>{{ props.value }}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Checked In state -->
+                <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="check" color="grey" size="sm" />
+                        <span>{{ props.value }}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Scheduled state -->
+                <span v-else>{{ props.value || 'Scheduled' }}</span>
+            </q-td>''',
             'body-cell-generated_seed': '''<q-td :props="props">
                 <span v-if="props.value">
                     <template v-if="/^https?:\\/\\//.test(props.value)">

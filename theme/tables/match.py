@@ -15,7 +15,8 @@ class MatchTableView:
     """
     
     def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None,
-                 on_edit=None, on_generate_seed=None, on_seat=None, on_finish=None, on_edit_stream_room=None):
+                 on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None, 
+                 on_edit_stream_room=None, on_assign_stations=None):
         self.columns = columns
         self.get_query = get_query
         self.admin_controls = admin_controls
@@ -25,23 +26,28 @@ class MatchTableView:
         self.on_edit = on_edit
         self.on_generate_seed = on_generate_seed
         self.on_seat = on_seat
+        self.on_start = on_start
         self.on_finish = on_finish
+        self.on_confirm = on_confirm
         self.on_edit_stream_room = on_edit_stream_room
+        self.on_assign_stations = on_assign_stations
         self.table = None
         self.show_upcoming_checkbox = None
         self.tournament_filter = None
         self.tournaments_list = []  # Will be populated in _setup_ui
         self.stream_room_filter = None
         self.stream_rooms_list = []  # Will be populated in _setup_ui
+        self.state_filter = None
         self.auto_refresh_checkbox = None
         self._auto_refresh_task = None
         # Initialize services
         self.service = MatchService()
         self.user_service = UserService()
         self._setup_ui()
-
-    def _on_upcoming_change(self, *_args, **_kwargs):
-        app.storage.user['show_only_upcoming_matches'] = self.show_upcoming_checkbox.value
+        
+    def _on_state_filter_change(self, *_args, **_kwargs):
+        # Store the state filter value in app.storage
+        app.storage.user['state_filter'] = self.state_filter.value
         asyncio.create_task(self.refresh())
         
     def _on_tournament_filter_change(self, *_args, **_kwargs):
@@ -124,15 +130,20 @@ class MatchTableView:
                         on_change=self._on_stream_room_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
                 
-                # Checkbox filters
+                # State filter
+                with ui.column().classes('match-filter-column'):
+                    ui.label('State').classes('match-filter-label')
+                    # Default to showing Scheduled, Checked In, and Started
+                    default_states = app.storage.user.get('state_filter', ['Scheduled', 'Checked In', 'Started'])
+                    self.state_filter = ui.select(
+                        options=['Scheduled', 'Checked In', 'Started', 'Finished', 'Confirmed'],
+                        value=default_states,
+                        multiple=True,
+                        on_change=self._on_state_filter_change
+                    ).classes('full-width').props('outlined dense use-chips')
+                
+                # Auto-refresh checkbox (admin only)
                 with ui.column().classes('flex-center'):
-                    default_value = app.storage.user.get('show_only_upcoming_matches', True)
-                    self.show_upcoming_checkbox = ui.checkbox(
-                        'Hide Finished Matches',
-                        value=default_value,
-                        on_change=self._on_upcoming_change
-                    )
-                    
                     if self.admin_controls:
                         self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
                 
@@ -172,17 +183,29 @@ class MatchTableView:
         # Add slot for clickable player names
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
-                <div>
-                    <template v-for="(name, idx) in props.value">
-                        <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline; margin-right: 4px;">{{ name }}</a><br/>
-                    </template>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div>
+                        <template v-for="(player, idx) in props.value">
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <q-icon v-if="player[1] === 1" name="check_circle" color="green" size="sm" />
+                                <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline;">{{ player[0] }}</a>
+                            </div>
+                        </template>
+                    </div>
+                    <q-btn @click="$parent.$emit('assign_stations', props)"
+                           icon="switch_access_shortcut" color="primary" size="xs" flat round>
+                        <q-tooltip>Assign Stations</q-tooltip>
+                    </q-btn>
                 </div>
             </q-td>''')
         else:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
                 <div>
-                    <template v-for="(name, idx) in props.value">
-                        <span style="margin-right: 4px; text-decoration: underline;">{{ name }}</span><br/>
+                    <template v-for="(player, idx) in props.value">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon v-if="player[1] === 1" name="check_circle" color="green" size="sm" />
+                            <span style="text-decoration: underline;">{{ player[0] }}</span>
+                        </div>
                     </template>
                 </div>
             </q-td>''')
@@ -291,6 +314,9 @@ class MatchTableView:
             self.table.on(f'edit_{role}', lambda event, r=role: handle_edit_role(r, event))
         for role in ['commentator', 'tracker']:
             self.table.on(f"edit_{role}", lambda event, r=role: handle_approve_role(r, event))
+        
+        if self.on_assign_stations is not None:
+            self.table.on('assign_stations', lambda event: asyncio.create_task(self._handle_assign_stations(event)))
 
 
 
@@ -374,32 +400,72 @@ class MatchTableView:
                 </q-td>''')
                 self.table.on('roll', lambda event: asyncio.create_task(self._handle_roll(event)))
 
-            if self.on_seat is not None:
-                self.table.add_slot('body-cell-seated', '''<q-td :props="props">
-                    <q-btn v-if="!props.value" @click="$parent.$emit('seat', props)"
+            # State column with context-aware actions
+            if self.on_seat is not None or self.on_start is not None or self.on_finish is not None or self.on_confirm is not None:
+                self.table.add_slot('body-cell-state', '''<q-td :props="props">
+                    <!-- Scheduled state: show Check In button -->
+                    <q-btn v-if="props.value === 'Scheduled'" @click="$parent.$emit('seat', props)"
                            icon="chair" color="primary" size="sm">
-                        Seat
+                        Check In
                     </q-btn>
-                    <div v-else style="display: flex; justify-content: center; align-items: center; gap: 4px; height: 100%;">
-                        <q-icon name="check" color="green" size="sm" />
-                        <span>{{ props.value }}</span>
+                    
+                    <!-- Checked In: show Start button and timestamp -->
+                    <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        <q-btn @click="$parent.$emit('start', props)"
+                               icon="play_arrow" color="primary" size="sm">
+                            Start
+                        </q-btn>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="check" color="grey" size="xs" />
+                            <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                        </div>
                     </div>
-                </q-td>''')
-                self.table.on('seat', lambda event: asyncio.create_task(self._handle_seat(event)))
-
-            if self.on_finish is not None:
-                self.table.add_slot('body-cell-finished', '''<q-td :props="props">
-                    <q-btn v-if="!props.value && props.row.seated" @click="$parent.$emit('finish', props)"
-                           icon="sports_score" color="primary" size="sm">
-                        Finish
-                    </q-btn>
-                    <div v-else-if="!props.value && !props.row.seated" style="display: flex; justify-content: center; align-items: center; height: 100%;">-</div>
-                    <div v-else style="display: flex; justify-content: center; align-items: center; gap: 4px; height: 100%;">
-                        <q-icon name="flag" color="green" size="sm" />
-                        <span>{{ props.value }}</span>
+                    
+                    <!-- Started: show Finish button and timestamp -->
+                    <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        <q-btn @click="$parent.$emit('finish', props)"
+                               icon="sports_score" color="primary" size="sm">
+                            Finish
+                        </q-btn>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="play_arrow" color="blue" size="xs" />
+                            <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                        </div>
                     </div>
+                    
+                    <!-- Finished: show Confirm button and timestamp -->
+                    <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        <q-btn @click="$parent.$emit('confirm', props)"
+                               icon="check_circle" color="primary" size="sm">
+                            Confirm
+                        </q-btn>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="flag" color="orange" size="xs" />
+                            <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Confirmed: show state with icon and timestamp -->
+                    <div v-else-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="verified" color="green" size="sm" />
+                            <span style="font-weight: 500;">{{ props.value }}</span>
+                        </div>
+                        <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                    </div>
+                    
+                    <!-- Fallback -->
+                    <span v-else>{{ props.value }}</span>
                 </q-td>''')
-                self.table.on('finish', lambda event: asyncio.create_task(self._handle_finish(event)))
+                
+                if self.on_seat is not None:
+                    self.table.on('seat', lambda event: asyncio.create_task(self._handle_seat(event)))
+                if self.on_start is not None:
+                    self.table.on('start', lambda event: asyncio.create_task(self._handle_start(event)))
+                if self.on_finish is not None:
+                    self.table.on('finish', lambda event: asyncio.create_task(self._handle_finish(event)))
+                if self.on_confirm is not None:
+                    self.table.on('confirm', lambda event: asyncio.create_task(self._handle_confirm(event)))
 
             if self.on_edit_stream_room is not None:
                 self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
@@ -424,16 +490,19 @@ class MatchTableView:
         stream_room_ids = None
         if self.stream_room_filter and self.stream_room_filter.value:
             stream_room_ids = self.stream_room_filter.value
-            
-        only_upcoming = self.show_upcoming_checkbox.value if self.show_upcoming_checkbox else False
         
-        # Use service to get formatted match data
+        # Use service to get formatted match data (all states)
         rows = await self.service.get_matches_for_display(
             tournament_ids=tournament_ids,
             stream_room_ids=stream_room_ids,
-            only_upcoming=only_upcoming,
+            only_upcoming=False,  # Get all matches
             user_discord_id=None  # Don't filter by user in table view
         )
+        
+        # Client-side filter by state
+        state_filter = self.state_filter.value if self.state_filter else []
+        if state_filter:
+            rows = [row for row in rows if row.get('state') in state_filter]
         
         self.table.rows = rows
         self.table.update()
@@ -465,8 +534,8 @@ class MatchTableView:
                 field['name_index'] = 0
                 field['approved_index'] = 1
                 field['separator'] = ', '  # Add space after comma
-            elif field['key'] in ['seated', 'finished']:
-                field['bool_or_text'] = True
+            elif field['key'] == 'state':
+                field['state_field'] = True
                 
             grid_fields.append(field)
             
@@ -478,7 +547,7 @@ class MatchTableView:
             (", arrayObjects: true" if f.get('array_objects') else '') +
             (", nameIndex: " + str(f['name_index']) if 'name_index' in f else '') +
             (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
-            (", boolOrText: true" if f.get('bool_or_text') else '') +
+            (", stateField: true" if f.get('state_field') else '') +
             (f", separator: '{f['separator']}'" if 'separator' in f else '') +
             (f", discord_id: {f['discord_id']}" if 'discord_id' in f else '') +
             " }" for f in grid_fields
@@ -498,7 +567,22 @@ class MatchTableView:
 
                 <!-- For array fields like players -->
                 <template v-else-if="field.array">
-                    <span>{{{{ Array.isArray(props.row[field.key]) ? props.row[field.key].join(field.separator || ', ') : props.row[field.key] }}}}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div v-if="field.key === 'players'">
+                            <template v-for="(player, idx) in props.row[field.key]">
+                                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                                    <q-icon v-if="player[1] === 1" name="check_circle" color="green" size="sm" />
+                                    <span>{{ player[0] }}</span>
+                                </div>
+                            </template>
+                        </div>
+                        <span v-else>{{{{ Array.isArray(props.row[field.key]) ? props.row[field.key].join(field.separator || ', ') : props.row[field.key] }}}}</span>
+                        <q-btn v-if="{'true' if self.admin_controls else 'false'} && field.key === 'players'"
+                               @click="$parent.$emit('assign_stations', {{ row: props.row }})"
+                               icon="switch_access_shortcut" color="primary" size="xs" flat round>
+                            <q-tooltip>Assign Stations</q-tooltip>
+                        </q-btn>
+                    </div>
                 </template>
 
                 <!-- For array of objects like commentators/trackers with approval status -->
@@ -541,42 +625,89 @@ class MatchTableView:
                     </span>
                 </template>
 
-                <!-- For boolean or text fields like seated/finished -->
-                <template v-else-if="field.boolOrText">
-                    <!-- Seated field with admin button -->
-                    <template v-if="field.key === 'seated'">
-                        <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key]"
-                               @click="$parent.$emit('seat', {{ key: props.row.id }})"
-                               icon="chair" color="primary" size="sm"
-                               style="margin-bottom: 8px;">
-                            Seat Players
+                <!-- For state field with admin buttons -->
+                <template v-else-if="field.stateField">
+                    <!-- Scheduled state: show Check In button -->
+                    <q-btn v-if="{'true' if self.admin_controls else 'false'} && props.row[field.key] === 'Scheduled'"
+                           @click="$parent.$emit('seat', {{ key: props.row.id }})"
+                           icon="chair" color="primary" size="sm"
+                           style="margin-bottom: 8px;">
+                        Check In
+                    </q-btn>
+                    
+                    <!-- Checked In: show Start button and timestamp -->
+                    <div v-else-if="{'true' if self.admin_controls else 'false'} && props.row[field.key] === 'Checked In'"
+                         style="display: flex; flex-direction: column; gap: 4px;">
+                        <q-btn @click="$parent.$emit('start', {{ key: props.row.id }})"
+                               icon="play_arrow" color="primary" size="sm">
+                            Start
                         </q-btn>
-                        <div v-else-if="props.row[field.key]" style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="check" color="green" size="sm" />
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="check" color="grey" size="xs" />
+                            <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Started: show Finish button and timestamp -->
+                    <div v-else-if="{'true' if self.admin_controls else 'false'} && props.row[field.key] === 'Started'"
+                         style="display: flex; flex-direction: column; gap: 4px;">
+                        <q-btn @click="$parent.$emit('finish', {{ key: props.row.id }})"
+                               icon="sports_score" color="primary" size="sm">
+                            Finish
+                        </q-btn>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="play_arrow" color="blue" size="xs" />
+                            <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Finished: show Confirm button and timestamp -->
+                    <div v-else-if="{'true' if self.admin_controls else 'false'} && props.row[field.key] === 'Finished'"
+                         style="display: flex; flex-direction: column; gap: 4px;">
+                        <q-btn @click="$parent.$emit('confirm', {{ key: props.row.id }})"
+                               icon="check_circle" color="primary" size="sm">
+                            Confirm
+                        </q-btn>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="flag" color="orange" size="xs" />
+                            <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Confirmed: show state with icon and timestamp -->
+                    <div v-else-if="props.row[field.key] === 'Confirmed'" style="display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="verified" color="green" size="sm" />
+                            <span style="font-weight: 500;">{{{{ props.row[field.key] }}}}</span>
+                        </div>
+                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                    </div>
+                    
+                    <!-- Non-admin views: show state with icon and timestamp -->
+                    <div v-else-if="props.row[field.key] === 'Finished'" style="display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="flag" color="orange" size="sm" />
                             <span>{{{{ props.row[field.key] }}}}</span>
                         </div>
-                        <template v-else>-</template>
-                    </template>
-                    <!-- Finished field with admin button -->
-                    <template v-else-if="field.key === 'finished'">
-                        <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key] && props.row.seated"
-                               @click="$parent.$emit('finish', {{ key: props.row.id }})"
-                               icon="sports_score" color="primary" size="sm"
-                               style="margin-bottom: 8px;">
-                            Mark Finished
-                        </q-btn>
-                        <div v-else-if="props.row[field.key]" style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="flag" color="green" size="sm" />
+                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                    </div>
+                    <div v-else-if="props.row[field.key] === 'Started'" style="display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="play_arrow" color="blue" size="sm" />
                             <span>{{{{ props.row[field.key] }}}}</span>
                         </div>
-                        <template v-else>-</template>
-                    </template>
-                    <!-- Other boolean fields -->
-                    <template v-else>
-                        <template v-if="props.row[field.key] === true">Yes</template>
-                        <template v-else-if="props.row[field.key] === false">No</template>
-                        <template v-else>{{{{ props.row[field.key] || '' }}}}</template>
-                    </template>
+                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                    </div>
+                    <div v-else-if="props.row[field.key] === 'Checked In'" style="display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="check" color="grey" size="sm" />
+                            <span>{{{{ props.row[field.key] }}}}</span>
+                        </div>
+                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                    </div>
+                    
+                    <!-- Fallback for Scheduled or other states -->
+                    <span v-else>{{{{ props.row[field.key] || 'Scheduled' }}}}</span>
                 </template>
 
                 <!-- For generated_seed field, truncate long URLs -->
@@ -652,10 +783,25 @@ class MatchTableView:
         if match_id is not None and self.on_seat:
             await self.on_seat(match_id)
 
+    async def _handle_start(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_start:
+            await self.on_start(match_id)
+
     async def _handle_finish(self, event):
         match_id = self._event_match_id(event)
         if match_id is not None and self.on_finish:
             await self.on_finish(match_id)
+
+    async def _handle_confirm(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_confirm:
+            await self.on_confirm(match_id)
+
+    async def _handle_assign_stations(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_assign_stations:
+            await self.on_assign_stations(match_id)
 
     async def _handle_edit_stream_room(self, event):
         match_id = self._event_match_id(event)

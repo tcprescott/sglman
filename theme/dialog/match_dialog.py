@@ -532,12 +532,3 @@ class UserMatchDialog(BaseMatchDialog):
                     asyncio.create_task(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()
-
-
-# Factory function for backward compatibility
-def MatchDialog(match=None, discord_id=None, on_submit=None):
-    """Factory function to create the appropriate dialog based on context."""
-    if discord_id is None:
-        return AdminMatchDialog(match=match, on_submit=on_submit)
-    else:
-        return UserMatchDialog(discord_id=discord_id, match=match, on_submit=on_submit)
