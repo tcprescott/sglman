@@ -84,6 +84,7 @@ class Match(Model):
     seated_at = fields.DatetimeField(null=True)
     finished_at = fields.DatetimeField(null=True)
     comment = fields.TextField(null=True)
+    title = fields.CharField(max_length=255, null=True)
     generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

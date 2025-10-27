@@ -140,32 +140,22 @@ async def stage_timeline_tab():
                     ui.label(' vs '.join(player_names) if player_names else 'No players assigned').classes('match-players')
 
                 # Commentators (if any)
-                if match.commentators:
-                    approved_commentators = [c for c in match.commentators if c.approved]
-                    pending_commentators = [c for c in match.commentators if not c.approved]
-
-                    with ui.row().classes('match-details-nested'):
-                        ui.icon('mic').classes('icon-spacing')
-                        commentator_names = [c.user.preferred_name for c in approved_commentators]
-                        if commentator_names:
-                            ui.label(', '.join(commentator_names)).classes('text-success')
-                        if pending_commentators:
-                            pending_names = [c.user.preferred_name for c in pending_commentators]
-                            ui.label(f' ({", ".join(pending_names)} pending)').classes('text-warning')
+                    if match.commentators:
+                        approved_commentators = [c for c in match.commentators if c.approved]
+                        if approved_commentators:
+                            with ui.row().classes('match-details-nested'):
+                                ui.icon('mic').classes('icon-spacing')
+                                commentator_names = [c.user.preferred_name for c in approved_commentators]
+                                ui.label(', '.join(commentator_names)).classes('text-success')
 
                 # Trackers (if any)
-                if match.trackers:
-                    approved_trackers = [t for t in match.trackers if t.approved]
-                    pending_trackers = [t for t in match.trackers if not t.approved]
-
-                    with ui.row().classes('match-details-nested'):
-                        ui.icon('track_changes').classes('icon-spacing')
-                        tracker_names = [t.user.preferred_name for t in approved_trackers]
-                        if tracker_names:
-                            ui.label(', '.join(tracker_names)).classes('text-success')
-                        if pending_trackers:
-                            pending_names = [t.user.preferred_name for t in pending_trackers]
-                            ui.label(f' ({", ".join(pending_names)} pending)').classes('text-warning')
+                    if match.trackers:
+                        approved_trackers = [t for t in match.trackers if t.approved]
+                        if approved_trackers:
+                            with ui.row().classes('match-details-nested'):
+                                ui.icon('track_changes').classes('icon-spacing')
+                                tracker_names = [t.user.preferred_name for t in approved_trackers]
+                                ui.label(', '.join(tracker_names)).classes('text-success')
 
                     # # Comment (if any)
                     # if match.comment:

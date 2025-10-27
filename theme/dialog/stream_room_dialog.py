@@ -2,10 +2,10 @@ from nicegui import ui
 
 from application.repositories import StreamRoomRepository, MatchRepository
 from models import Match
-from theme.dialog.match_dialog import MatchDialog
+from theme.dialog.match_dialog import BaseMatchDialog
 
 
-class StreamRoomDialog(MatchDialog):
+class StreamRoomDialog(BaseMatchDialog):
     def __init__(self, match: Match, on_submit=None):
         super().__init__(match=match, on_submit=on_submit)
         # Initialize repositories
