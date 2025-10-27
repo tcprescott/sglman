@@ -11,26 +11,26 @@ async def render_edit_info_tab():
     # Initialize service
     user_service = UserService()
     
-    with ui.column().style('width: 100%; max-width: 1200px; margin: 0 auto;'):
+    with ui.column().classes('page-container-narrow'):
         # Header
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Edit Your Information').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Edit Your Information').classes('page-title')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
-            with ui.card().style('padding: 2em; text-align: center;'):
-                ui.icon('lock', size='3em').style('color: #FF9800; margin-bottom: 0.5em;')
-                ui.label('You must be logged in to view this page.').style('color: #666; font-size: 1.2em; margin-bottom: 1em;')
+            with ui.card().classes('card-centered'):
+                ui.icon('lock', size='3em').classes('icon-large')
+                ui.label('You must be logged in to view this page.').classes('text-muted')
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
         
         user = await User.get_or_none(discord_id=discord_id)
         if user is None:
-            with ui.card().style('padding: 2em; text-align: center;'):
-                ui.icon('error', size='3em').style('color: #f44336; margin-bottom: 0.5em;')
-                ui.label('User not found in the database.').style('color: #666; font-size: 1.2em;')
+            with ui.card().classes('card-centered'):
+                ui.icon('error', size='3em').classes('icon-error')
+                ui.label('User not found in the database.').classes('text-italic')
             return
 
         # Get tournaments and user registrations from service
@@ -43,26 +43,26 @@ async def render_edit_info_tab():
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
         # Personal Information Section
-        with ui.card().style('width: 100%; margin-bottom: 1.5em; padding: 1.5em;'):
-            ui.label('Personal Information').style('font-size: 1.5em; font-weight: bold; margin-bottom: 1em; color: #1976d2;')
+        with ui.card().classes('card-full-width'):
+            ui.label('Personal Information').classes('section-title')
             
-            with ui.grid(columns=2).style('width: 100%; gap: 1em;'):
+            with ui.grid(columns=2).classes('form-grid'):
                 display_name_hint = f"Default: {user.username}" if not user.display_name else ""
                 with ui.column():
-                    ui.label('Display Name').style('font-weight: 500; margin-bottom: 0.3em; color: #666;')
+                    ui.label('Display Name').classes('input-label')
                     display_name_input = ui.input(
                         '', 
                         value=user.display_name or '', 
                         placeholder=display_name_hint
-                    ).style('width: 100%;').props('outlined dense')
+                    ).classes('input-full-width').props('outlined dense')
                 
                 with ui.column():
-                    ui.label('Pronouns').style('font-weight: 500; margin-bottom: 0.3em; color: #666;')
+                    ui.label('Pronouns').classes('input-label')
                     pronouns_input = ui.input(
                         '', 
                         value=user.pronouns or '', 
                         placeholder='e.g. they/them'
-                    ).style('width: 100%;').props('outlined dense')
+                    ).classes('input-full-width').props('outlined dense')
         
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
@@ -72,24 +72,24 @@ async def render_edit_info_tab():
             if not tournament_list:
                 return
                 
-            with ui.card().style('width: 100%; margin-bottom: 1.5em; padding: 1.5em;'):
-                with ui.row().style('align-items: center; margin-bottom: 1em;'):
-                    ui.icon(icon, size='sm').style('color: #1976d2; margin-right: 0.5em;')
-                    ui.label(label).style('font-size: 1.5em; font-weight: bold; color: #1976d2;')
+            with ui.card().classes('card-full-width'):
+                with ui.row().classes('row-centered'):
+                    ui.icon(icon, size='sm').classes('icon-primary')
+                    ui.label(label).classes('section-title')
                 
                 rows = [tournament_list[i:i+columns] for i in range(0, len(tournament_list), columns)]
                 for row in rows:
-                    with ui.row().style('width: 100%; gap: 1em; margin-bottom: 0.5em;'):
+                    with ui.row().classes('row-spacing'):
                         for t in row:
                             checked = t.id in selected_tournament_ids
-                            with ui.column().style('flex: 1; min-width: 0;'):
+                            with ui.column().classes('flex-1'):
                                 tournament_checkboxes[t.id] = ui.checkbox(
                                     t.name, 
                                     value=checked
-                                ).style('width: 100%;')
+                                ).classes('input-full-width')
                         # Fill empty cells if less than columns
                         for _ in range(columns - len(row)):
-                            ui.column().style('flex: 1; min-width: 0;')
+                            ui.column().classes('flex-1')
 
         # Tournament Sections
         render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)
@@ -114,5 +114,5 @@ async def render_edit_info_tab():
             ui.notify('Information updated successfully!', color='positive', icon='check_circle')
 
         # Save Button
-        with ui.row().style('width: 100%; justify-content: flex-end; margin-top: 1em;'):
+        with ui.row().classes('button-row'):
             ui.button('Save Changes', icon='save', on_click=save_info).props('color=primary size=lg')

@@ -58,7 +58,7 @@ class UserDialog(BaseUserDialog):
     """Dialog for editing users (non-admin view - tournaments only)."""
     
     async def open(self):
-        with ui.dialog() as dialog, ui.card().style('min-width: 700px; max-width: 90vw;'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             username_input = ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
             display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
@@ -120,7 +120,7 @@ class UserDialog(BaseUserDialog):
                     dialog_instance = SendMessageDialog(self.user)
                     await dialog_instance.open()
 
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 if self.user:
                     ui.button('Save', color='green', on_click=submit)
                     ui.button('Send Message', color='primary', on_click=open_message_dialog)
@@ -139,7 +139,7 @@ class AdminUserDialog(BaseUserDialog):
     """Dialog for editing users (admin view - includes tournament admin assignments)."""
     
     async def open(self):
-        with ui.dialog() as dialog, ui.card().style('min-width: 700px; max-width: 90vw;'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             username_input = ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
             display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
@@ -253,7 +253,7 @@ class AdminUserDialog(BaseUserDialog):
                     dialog_instance = SendMessageDialog(self.user)
                     await dialog_instance.open()
 
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 if self.user:
                     ui.button('Save', color='green', on_click=submit)
                     ui.button('Send Message', color='primary', on_click=open_message_dialog)

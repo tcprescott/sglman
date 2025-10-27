@@ -31,7 +31,8 @@ class BaseLayout:
         dark_pref = bool(app.storage.user.get('dark_mode', False))
         self.dark_mode = ui.dark_mode()
         self.dark_mode.value = dark_pref
-        
+        # Add custom CSS to all pages
+        ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
         self._render_header()
         self._render_footer()
         
@@ -59,17 +60,17 @@ class BaseLayout:
 
             # User section or login
             if self.user:
-                ui.label(self.user.preferred_name).classes('text-lg').style('margin-left: auto;')
+                ui.label(self.user.preferred_name).classes('text-lg user-name')
                 ui.image(app.storage.user.get('avatar', None)).props(
                     'width=32 height=32 fit=cover round'
-                ).style('margin-left: 8px; margin-right: 8px; max-width: 32px; max-height: 32px;')
+                ).classes('user-avatar')
                 ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout').props('flat color=white')
             else:
                 ui.button(
                     on_click=lambda: ui.navigate.to('/login'),
                     icon='login',
                     text='Login with Discord'
-                ).props('flat color=white').style('margin-left: auto;')
+                ).props('flat color=white').classes('login-button')
             
             # Dark mode toggle (always visible)
             dark_icon = 'light_mode' if dark_pref else 'dark_mode'
@@ -137,7 +138,7 @@ class BaseLayout:
         with ui.tab_panels(panels, value=default_tab):
             for tab in tabs:
                 with ui.tab_panel(tab['label']):
-                    with ui.row().style('width: 100%;'):
+                    with ui.row().classes('full-width'):
                         await render_tab_content(tab)
 
 

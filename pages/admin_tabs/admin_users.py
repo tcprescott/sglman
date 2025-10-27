@@ -10,12 +10,12 @@ from theme.tables.user import UserTableView
 
 
 def admin_users_page() -> None:
-    with ui.column().style('width: 100%; max-width: 1200px; margin: 0 auto;'):
+    with ui.column().classes('page-container-narrow'):
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('User Management').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('User Management').classes('page-title')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         columns = [
             {'name': 'username', 'label': 'Username', 'field': 'username'},

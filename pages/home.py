@@ -17,7 +17,7 @@ def create() -> None:
         if user is None and discord_id is not None:
             with ui.row():
                 # log the user out if they are not found in the database
-                ui.label('User not found in the database. Logging out...').style('color: red; font-weight: bold;')
+                ui.label('User not found in the database. Logging out...').classes('text-error')
                 app.storage.user.clear()
             ui.timer(2, lambda: ui.navigate.to('/logout'), once=True)
             return

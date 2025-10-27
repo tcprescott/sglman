@@ -15,6 +15,7 @@ SGLMan is a FastAPI + NiceGUI application for managing tournament schedules, mat
 - **api.py**: FastAPI API routes (minimal, expand as needed).
 - **.env**: Environment variables for DB and Discord credentials.
 - **discordbot/**: Discord bot integration
+- **static/**: Static assets (CSS, JS, images).
 
 ## Developer Workflows
 - **Install dependencies**: `poetry install`

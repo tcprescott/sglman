@@ -11,15 +11,15 @@ def schedule():
     discord_id = app.storage.user.get('discord_id', None)
     match_service = MatchService()
     
-    with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
+    with ui.column().classes('page-container'):
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Schedule & Crew Signup').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Schedule & Crew Signup').classes('page-title')
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id'},

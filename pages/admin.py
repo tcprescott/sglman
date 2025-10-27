@@ -17,18 +17,18 @@ def create() -> None:
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.row():
-                ui.label('You must be logged in to view this page.').style('color: red; font-weight: bold;')
+                ui.label('You must be logged in to view this page.').classes('text-error')
             return
 
         user = await User.get_or_none(discord_id=discord_id)
         if user is None:
             with ui.row():
-                ui.label('User not found in the database.').style('color: red; font-weight: bold;')
+                ui.label('User not found in the database.').classes('text-error')
             return
         if user.permission < Permissions.TOURNAMENT_ADMIN:
             await BaseLayout(page_name='admin2').render()
             with ui.row():
-                ui.label('You do not have permission to view this page.').style('color: red; font-weight: bold;')
+                ui.label('You do not have permission to view this page.').classes('text-error')
             return
 
         # Define tab data model: label and content function

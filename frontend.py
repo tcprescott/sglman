@@ -6,6 +6,7 @@ Sets up NiceGUI pages and integrates them with the FastAPI app.
 import os
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
 from middleware.auth import AuthMiddleware
@@ -21,6 +22,9 @@ def init(fastapi_app: FastAPI) -> None:
     Args:
         fastapi_app (FastAPI): The FastAPI application instance to integrate with NiceGUI.
     """
+    # Mount static files directory
+    fastapi_app.mount("/static", StaticFiles(directory="static"), name="static")
+
     auth_create()
     admin.create()
     home.create()

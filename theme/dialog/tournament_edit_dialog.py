@@ -15,7 +15,7 @@ class TournamentDialog:
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
             name_input = ui.input('Tournament Name', value=self.tournament.name if self.tournament else '')
-            description_input = ui.textarea('Description', value=self.tournament.description if self.tournament and self.tournament.description else '').style('width: 100')
+            description_input = ui.textarea('Description', value=self.tournament.description if self.tournament and self.tournament.description else '').classes('input-full-width')
             randomizer_choices = ['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS
             default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
             seed_generator_input = ui.select(randomizer_choices, label='Seed Generator', value=default_seed)
@@ -78,7 +78,7 @@ class TournamentDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 if self.tournament:
                     ui.button('Save', color='green', on_click=submit)
                 else:

@@ -15,12 +15,12 @@ def admin_schedule_page() -> None:
     # Initialize services
     match_schedule_service = MatchScheduleService()
     
-    with ui.column().style('width: 100%; max-width: 1600px; margin: 0 auto;') as page_container:
+    with ui.column().classes('page-container-wide') as page_container:
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Schedule Management').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Schedule Management').classes('page-title')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id'},

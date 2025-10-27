@@ -12,12 +12,12 @@ from theme.tables.tournament import TournamentTableView
 
 
 def admin_tournaments_page() -> None:
-    with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
+    with ui.column().classes('page-container'):
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Tournament Management').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Tournament Management').classes('page-title')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
@@ -50,12 +50,12 @@ def admin_tournaments_page() -> None:
 
 
 def admin_stream_rooms_page() -> None:
-    with ui.column().style('width: 100%; max-width: 1200px; margin: 0 auto;'):
+    with ui.column().classes('page-container-narrow'):
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Stream Room Management').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Stream Room Management').classes('page-title')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True},

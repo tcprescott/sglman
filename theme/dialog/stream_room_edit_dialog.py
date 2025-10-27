@@ -28,12 +28,10 @@ class StreamRoomEditDialog:
 
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
-            ui.label('Edit Stream Room' if self.stream_room else 'Add Stream Room').style(
-                'font-size: 1.5em; font-weight: bold; margin-bottom: 1em;'
-            )
+            ui.label('Edit Stream Room' if self.stream_room else 'Add Stream Room').classes('section-title')
 
-            name_input = ui.input('Room Name', value=default_name).style('width: 100%;')
-            url_input = ui.input('Stream URL', value=default_url).style('width: 100%;')
+            name_input = ui.input('Room Name', value=default_name).classes('input-full-width')
+            url_input = ui.input('Stream URL', value=default_url).classes('input-full-width')
             is_active_checkbox = ui.checkbox('Active', value=default_is_active)
 
             async def submit():
@@ -69,7 +67,7 @@ class StreamRoomEditDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between').style('margin-top: 1em;'):
+            with ui.row().classes('justify-between action-row'):
                 ui.button('Save', color='green', on_click=submit)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
 

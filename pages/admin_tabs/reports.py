@@ -11,17 +11,17 @@ async def reports_page() -> None:
     # Initialize service
     reports_service = ReportsService()
     
-    with ui.column().style('width: 100%; max-width: 1600px; margin: 0 auto;'):
+    with ui.column().classes('page-container-wide'):
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Reports').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Reports').classes('page-title')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
 
-        with ui.tabs().props('class="bg-primary text-white"').style('width: 100%') as tabs:
+        with ui.tabs().props('class="bg-primary text-white"').classes('full-width') as tabs:
             ui.tab('Active Players Forecast', icon='show_chart')
             
-        with ui.tab_panels(tabs, value='Active Players Forecast').style('width: 100%'):
+        with ui.tab_panels(tabs, value='Active Players Forecast').classes('full-width'):
             with ui.tab_panel('Active Players Forecast'):
                 await player_activity_report(reports_service)
 
@@ -29,22 +29,22 @@ async def reports_page() -> None:
 async def player_activity_report(reports_service: ReportsService) -> None:
     """Shows a forecast of the number of active players at intervals."""
 
-    with ui.row().style('width: 100%'):
+    with ui.row().classes('full-width'):
         ui.label('Active Players Forecast').classes('text-h5')
 
     # Options for the report
     with ui.row():
-        with ui.card().style('width: 100%').classes('q-pa-md'):
+        with ui.card().classes('full-width q-pa-md'):
             with ui.row():
                 forecast_period = ui.select(
                     reports_service.FORECAST_PERIODS,
                     value=reports_service.DEFAULT_FORECAST_PERIOD,
                     label='Forecast Period'
-                ).style('width: 400px')
+                ).classes('control-width')
                 
             # Row for forecast period info
             with ui.row():
-                ui.label('Select a predefined forecast period').style('font-style: italic')
+                ui.label('Select a predefined forecast period').classes('italic-note')
                 
             with ui.row():
                 forecast_button = ui.button('Generate Forecast', icon='refresh')
@@ -53,13 +53,13 @@ async def player_activity_report(reports_service: ReportsService) -> None:
                 spinner.bind_visibility_from(forecast_button, 'loading')
     
     # Container for the chart
-    chart_container = ui.card().style('width: 100%; min-height: 500px')
+    chart_container = ui.card().classes('chart-container')
 
     # Container for peak times
-    peaks_container = ui.card().style('width: 100%').classes('q-mb-md')
+    peaks_container = ui.card().classes('full-width q-mb-md')
 
     # Container for the data table
-    table_container = ui.card().style('width: 100%')
+    table_container = ui.card().classes('full-width')
 
     async def generate_forecast():
         # Set button to loading state
@@ -157,7 +157,7 @@ async def player_activity_report(reports_service: ReportsService) -> None:
                 }
                 
                 # Display the chart using ui.echart
-                ui.echart(echart_option).style('width: 100%; height: 400px')
+                ui.echart(echart_option).classes('chart-height')
             
             # Find peak times using service
             with peaks_container:
@@ -190,7 +190,7 @@ async def player_activity_report(reports_service: ReportsService) -> None:
                 ]
                 
                 # Create a table with search functionality
-                with ui.row().style('width: 100%'):
+                with ui.row().classes('full-width'):
                     ui.input(label='Search', placeholder='Type to search...').classes('w-full').bind_value_to(
                         table_search_model := {'value': ''}
                     ).on('input', lambda e: filter_table())
@@ -200,7 +200,7 @@ async def player_activity_report(reports_service: ReportsService) -> None:
                     rows=rows,
                     pagination=25,
                     row_key='time'
-                ).style('width: 100%')
+                ).classes('full-width')
                 
                 # Store original rows for filtering
                 table_all_rows = rows.copy()

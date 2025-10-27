@@ -12,20 +12,20 @@ def render_player_dashboard():
     discord_id = app.storage.user.get('discord_id', None)
     match_service = MatchService()
     
-    with ui.column().style('width: 100%; max-width: 1400px; margin: 0 auto;'):
+    with ui.column().classes('page-container'):
         # Header section
-        with ui.row().style('width: 100%; align-items: center; margin-bottom: 1.5em;'):
-            ui.label('Your Schedule').style('font-size: 2em; font-weight: bold;')
+        with ui.row().classes('header-row'):
+            ui.label('Your Schedule').classes('page-title')
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
         
-        ui.separator().style('margin-bottom: 1.5em;')
+        ui.separator().classes('separator-spacing')
         
         if not discord_id:
-            with ui.card().style('padding: 2em; text-align: center;'):
-                ui.icon('lock', size='3em').style('color: #FF9800; margin-bottom: 0.5em;')
-                ui.label('You must be logged in to view this page.').style('color: #666; font-size: 1.2em; margin-bottom: 1em;')
+            with ui.card().classes('card-centered'):
+                ui.icon('lock', size='3em').classes('icon-large')
+                ui.label('You must be logged in to view this page.').classes('text-muted')
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
 
