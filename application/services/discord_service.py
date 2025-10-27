@@ -59,6 +59,10 @@ class DiscordService:
             if self._bot is None:
                 return False, "Discord bot not initialized"
             
+            # Check if bot is ready
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+            
             user = await self._bot.fetch_user(user_id)
             await user.send(message)
             return True, "Message sent successfully."
@@ -68,6 +72,8 @@ class DiscordService:
             return False, "Cannot send DM to this user (DMs may be disabled)"
         except discord.HTTPException as e:
             return False, f"Failed to send message: {str(e)}"
+        except Exception as e:
+            return False, f"Discord bot error: {str(e)}"
     
     def get_bot(self):
         """Get the Discord bot instance."""

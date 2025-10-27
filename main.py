@@ -39,8 +39,12 @@ async def init_discord_bot() -> None:
     """
     Initialize the Discord bot.
     """
-    loop = asyncio.get_event_loop()
-    loop.create_task(bot.start(os.environ.get('DISCORD_TOKEN')))
+    token = os.environ.get('DISCORD_TOKEN')
+    if token:
+        loop = asyncio.get_event_loop()
+        loop.create_task(bot.start(token))
+    else:
+        print('Warning: DISCORD_TOKEN not set. Discord features will not work.')
 
 async def close_discord_bot() -> None:
     """
@@ -52,13 +56,13 @@ async def close_discord_bot() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Context manager for FastAPI lifespan events.
-    Initializes and tears down the database on application startup and shutdown.
+    Initializes and tears down the database and Discord bot on application startup and shutdown.
     """
     await init_db()
     await init_discord_bot()
     yield
-    await close_db()
     await close_discord_bot()
+    await close_db()
 
 # Create FastAPI app with metadata for API documentation
 app: FastAPI = FastAPI(
