@@ -281,7 +281,9 @@ class MatchService:
         comment: Optional[str] = None,
         stream_room_id: Optional[int] = None,
         clear_seated: bool = False,
+        clear_started: bool = False,
         clear_finished: bool = False,
+        clear_confirmed: bool = False,
         clear_seed: bool = False,
         clear_stream_room: bool = False,
         admin_user: Optional[User] = None
@@ -300,7 +302,9 @@ class MatchService:
             comment: New comment
             stream_room_id: New stream room ID
             clear_seated: Clear seated_at timestamp
+            clear_started: Clear started_at timestamp
             clear_finished: Clear finished_at timestamp
+            clear_confirmed: Clear confirmed_at timestamp
             clear_seed: Clear generated seed
             clear_stream_room: Clear stream room assignment
             admin_user: User making the update
@@ -334,8 +338,14 @@ class MatchService:
         if clear_seated:
             update_fields['seated_at'] = None
         
+        if clear_started:
+            update_fields['started_at'] = None
+        
         if clear_finished:
             update_fields['finished_at'] = None
+        
+        if clear_confirmed:
+            update_fields['confirmed_at'] = None
         
         if clear_seed:
             update_fields['generated_seed'] = None

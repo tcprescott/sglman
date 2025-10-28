@@ -26,7 +26,9 @@ class BaseMatchDialog:
         self.on_submit = on_submit
         self.dialog = None
         self._clear_seated = False
+        self._clear_started = False
         self._clear_finished = False
+        self._clear_confirmed = False
         self._clear_seed = False
         self._initial_updated_at = match.updated_at if match else None
         # Initialize services
@@ -82,22 +84,30 @@ class BaseMatchDialog:
 
     def _render_clear_buttons(self):
         """Render clear buttons for edit mode."""
-        def make_clear_button(label, attr_flag, match_attr):
+        def make_clear_button(label, icon, attr_flag, match_attr, is_relation=False):
             def clear():
                 setattr(self, attr_flag, True)
                 btn.disable()
                 btn.props('outline color=gray')
-            btn_disabled = getattr(self.match, match_attr) is None
+            
+            # For foreign key relations, check if the ID field is None
+            if is_relation:
+                btn_disabled = getattr(self.match, f'{match_attr}_id', None) is None
+            else:
+                btn_disabled = getattr(self.match, match_attr) is None
+            
             btn_color = 'gray' if btn_disabled else 'negative'
-            btn = ui.button(label, on_click=clear).props(f'outline color={btn_color}').classes('ml-1')
+            btn = ui.button(label, icon=icon, on_click=clear).props(f'outline color={btn_color}').classes('ml-1')
             if btn_disabled:
                 btn.disable()
             return btn
 
         with ui.row().classes('items-center'):
-            make_clear_button('Clear Seated', '_clear_seated', 'seated_at')
-            make_clear_button('Clear Finish', '_clear_finished', 'finished_at')
-            make_clear_button('Clear Seed', '_clear_seed', 'generated_seed')
+            make_clear_button('Clear Seated', 'chair', '_clear_seated', 'seated_at')
+            make_clear_button('Clear Started', 'play_arrow', '_clear_started', 'started_at')
+            make_clear_button('Clear Finish', 'sports_score', '_clear_finished', 'finished_at')
+            make_clear_button('Clear Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
+            make_clear_button('Clear Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
 
     async def _confirm_delete(self, dialog):
         """Show delete confirmation dialog."""
@@ -284,7 +294,9 @@ class AdminMatchDialog(BaseMatchDialog):
                             comment=comment_value,
                             stream_room_id=stream_room_id if stream_room_id else None,
                             clear_seated=self._clear_seated,
+                            clear_started=self._clear_started,
                             clear_finished=self._clear_finished,
+                            clear_confirmed=self._clear_confirmed,
                             clear_seed=self._clear_seed,
                             clear_stream_room=(stream_room_id is None)
                         )
@@ -486,7 +498,9 @@ class UserMatchDialog(BaseMatchDialog):
                             comment=comment_value,
                             stream_room_id=None,
                             clear_seated=self._clear_seated,
+                            clear_started=self._clear_started,
                             clear_finished=self._clear_finished,
+                            clear_confirmed=self._clear_confirmed,
                             clear_seed=self._clear_seed,
                             clear_stream_room=True
                         )
