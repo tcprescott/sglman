@@ -180,15 +180,17 @@ class MatchTableView:
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
-        # Add slot for clickable player names
+        # Add slot for player names with winner indicator
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div>
                         <template v-for="(player, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px;">
-                                <q-icon v-if="player[1] === 1" name="check_circle" color="green" size="sm" />
-                                <a href="#" @click="$parent.$emit('edit_player', { row: props.row, idx })" style="color: #1976d2; text-decoration: underline;">{{ player[0] }}</a>
+                                <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">
+                                    {{ player[0] }}
+                                    <span v-if="player[2]" style="color: #999; font-style: italic;"> ({{ player[2] }})</span>
+                                </span>
                             </div>
                         </template>
                     </div>
@@ -203,8 +205,7 @@ class MatchTableView:
                 <div>
                     <template v-for="(player, idx) in props.value">
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon v-if="player[1] === 1" name="check_circle" color="green" size="sm" />
-                            <span style="text-decoration: underline;">{{ player[0] }}</span>
+                            <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">{{ player[0] }}</span>
                         </div>
                     </template>
                 </div>
@@ -571,8 +572,10 @@ class MatchTableView:
                         <div v-if="field.key === 'players'">
                             <template v-for="(player, idx) in props.row[field.key]">
                                 <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                    <q-icon v-if="player[1] === 1" name="check_circle" color="green" size="sm" />
-                                    <span>{{ player[0] }}</span>
+                                    <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">
+                                        {{{{ player[0] }}}}
+                                        <span v-if="{'true' if self.admin_controls else 'false'} && player[2]" style="color: #999; font-style: italic;"> ({{{{ player[2] }}}})</span>
+                                    </span>
                                 </div>
                             </template>
                         </div>

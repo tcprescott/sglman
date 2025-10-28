@@ -550,7 +550,7 @@ class MatchService:
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
             'state': state,
             'state_timestamp': state_timestamp,
-            'players': [(p.user.preferred_name, p.finish_rank) for p in match.players],
+            'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station) for p in match.players],
             'stream_room': match.stream_room.name if match.stream_room else '',
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
