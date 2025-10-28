@@ -103,7 +103,7 @@ class BaseMatchDialog:
             return btn
 
         with ui.row().classes('items-center'):
-            make_clear_button('Clear Seated', 'chair', '_clear_seated', 'seated_at')
+            make_clear_button('Clear Check In', 'chair', '_clear_seated', 'seated_at')
             make_clear_button('Clear Started', 'play_arrow', '_clear_started', 'started_at')
             make_clear_button('Clear Finish', 'sports_score', '_clear_finished', 'finished_at')
             make_clear_button('Clear Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
