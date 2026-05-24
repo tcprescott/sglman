@@ -189,48 +189,47 @@ class MatchScheduleService:
     
     async def notify_match_participants(self, match: Match, message: str) -> None:
         """
-        Send a DM to all opted-in players and approved crew for a match.
+        Send a DM to all opted-in players, approved crew, and watchers for a match.
+
+        Each recipient gets exactly one DM. Anyone who is watching the match
+        (whether or not they are also a player/crew) receives the DM with an
+        Unwatch button so they can opt out from Discord.
 
         Never raises; partial DM failures are logged and swallowed so the
         calling lifecycle operation is never blocked.
         """
         try:
-            seen_ids: list[int] = []
+            recipients: dict[int, bool] = {}
 
             players = await MatchPlayers.filter(match=match).prefetch_related('user')
             for mp in players:
                 if mp.user.dm_notifications and mp.user.discord_id:
-                    seen_ids.append(mp.user.discord_id)
+                    recipients.setdefault(mp.user.discord_id, False)
 
             commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
             for c in commentators:
-                if c.user.dm_notifications and c.user.discord_id and c.user.discord_id not in seen_ids:
-                    seen_ids.append(c.user.discord_id)
+                if c.user.dm_notifications and c.user.discord_id:
+                    recipients.setdefault(c.user.discord_id, False)
 
             trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
             for t in trackers:
-                if t.user.dm_notifications and t.user.discord_id and t.user.discord_id not in seen_ids:
-                    seen_ids.append(t.user.discord_id)
+                if t.user.dm_notifications and t.user.discord_id:
+                    recipients.setdefault(t.user.discord_id, False)
 
-            watcher_ids: list[int] = []
             watchers = await MatchWatcher.filter(match=match).prefetch_related('user')
             for w in watchers:
-                if (w.user.dm_notifications and w.user.discord_id
-                        and w.user.discord_id not in seen_ids
-                        and w.user.discord_id not in watcher_ids):
-                    watcher_ids.append(w.user.discord_id)
+                if w.user.dm_notifications and w.user.discord_id:
+                    recipients[w.user.discord_id] = True
 
-            for discord_id in seen_ids:
-                success, err = await self.discord_service.send_dm(discord_id, message)
+            for discord_id, is_watcher in recipients.items():
+                if is_watcher:
+                    success, err = await self.discord_service.send_dm_with_unwatch_button(
+                        discord_id, message, match.id,
+                    )
+                else:
+                    success, err = await self.discord_service.send_dm(discord_id, message)
                 if not success:
                     print(f"[notify_match_participants] DM failed for {discord_id}: {err}")
-
-            for discord_id in watcher_ids:
-                success, err = await self.discord_service.send_dm_with_unwatch_button(
-                    discord_id, message, match.id,
-                )
-                if not success:
-                    print(f"[notify_match_participants] watcher DM failed for {discord_id}: {err}")
 
         except Exception as e:
             print(f"[notify_match_participants] Unexpected error for match {match.id}: {e}")

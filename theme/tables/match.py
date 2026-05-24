@@ -569,9 +569,11 @@ class MatchTableView:
                 field['separator'] = ', '  # Add space after comma
             elif field['key'] == 'state':
                 field['state_field'] = True
-                
+            elif field['key'] == 'watch':
+                field['watch_field'] = True
+
             grid_fields.append(field)
-            
+
         # Build JS array for Vue template
         js_field_array = ',\n    '.join([
             f"{{ label: '{f['label']}', key: '{f['key']}'" +
@@ -581,6 +583,7 @@ class MatchTableView:
             (", nameIndex: " + str(f['name_index']) if 'name_index' in f else '') +
             (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
             (", stateField: true" if f.get('state_field') else '') +
+            (", watchField: true" if f.get('watch_field') else '') +
             (f", separator: '{f['separator']}'" if 'separator' in f else '') +
             (f", discord_id: {f['discord_id']}" if 'discord_id' in f else '') +
             " }" for f in grid_fields
@@ -766,6 +769,16 @@ class MatchTableView:
                         </span>
                     </template>
                     <template v-else-if="!{'true' if self.admin_controls else 'false'} || !props.row.tournament_seed_generator">-</template>
+                </template>
+
+                <!-- Watch toggle (logged-in users only) -->
+                <template v-else-if="field.watchField">
+                    <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
+                           :color="props.row._watching ? 'primary' : 'grey'"
+                           size="sm" flat round
+                           @click="$parent.$emit('toggle_watch', props.row)">
+                        <q-tooltip>{{{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}}}</q-tooltip>
+                    </q-btn>
                 </template>
 
                 <!-- For stream_room field with admin button -->
