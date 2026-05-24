@@ -1,6 +1,4 @@
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
@@ -127,7 +125,7 @@ class TournamentTableView:
         self.table.update()
 
     def _on_page_change(self, _event):
-        asyncio.create_task(self.refresh())
+        background_tasks.create(self.refresh())
 
     async def update_row_by_id(self, tournament_id):
         """

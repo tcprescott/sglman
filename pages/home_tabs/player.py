@@ -1,7 +1,6 @@
 
-import asyncio
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, ui
 
 from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
@@ -102,5 +101,5 @@ def render_player_dashboard():
             submit_match_callback=submit_match,
             extra_slots=extra_slots
         )
-        asyncio.create_task(table_view.refresh())
+        background_tasks.create(table_view.refresh())
 

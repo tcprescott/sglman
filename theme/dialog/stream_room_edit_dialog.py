@@ -1,8 +1,6 @@
 """Dialog for editing StreamRoom details"""
 
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.services import StreamRoomService
 from models import StreamRoom
@@ -73,6 +71,6 @@ class StreamRoomEditDialog:
 
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()

@@ -1,6 +1,4 @@
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.services import SeedGenerationService, TournamentService
 
@@ -86,6 +84,6 @@ class TournamentDialog:
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()

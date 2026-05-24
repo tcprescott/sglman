@@ -1,6 +1,6 @@
 import asyncio
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, ui
 
 from application.services import MatchService, UserService
 from theme.dialog import ConfirmationDialog, UserDialog
@@ -48,22 +48,22 @@ class MatchTableView:
     def _on_state_filter_change(self, *_args, **_kwargs):
         # Store the state filter value in app.storage
         app.storage.user['state_filter'] = self.state_filter.value
-        asyncio.create_task(self.refresh())
+        background_tasks.create(self.refresh())
         
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value in app.storage
         app.storage.user['tournament_filter'] = self.tournament_filter.value
-        asyncio.create_task(self.refresh())
+        background_tasks.create(self.refresh())
         
     def _on_stream_room_filter_change(self, *_args, **_kwargs):
         # Store the stream room ID value in app.storage
         app.storage.user['stream_room_filter'] = self.stream_room_filter.value
-        asyncio.create_task(self.refresh())
+        background_tasks.create(self.refresh())
 
     def _on_auto_refresh_change(self, *_args, **_kwargs):
         if self.auto_refresh_checkbox.value:
             if not self._auto_refresh_task:
-                self._auto_refresh_task = asyncio.create_task(self._auto_refresh_loop())
+                self._auto_refresh_task = background_tasks.create(self._auto_refresh_loop())
         else:
             if self._auto_refresh_task:
                 self._auto_refresh_task.cancel()
@@ -154,8 +154,8 @@ class MatchTableView:
                     ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
         
         # Load filters data after UI is set up
-        asyncio.create_task(self._load_tournaments())
-        asyncio.create_task(self._load_stream_rooms())
+        background_tasks.create(self._load_tournaments())
+        background_tasks.create(self._load_stream_rooms())
             
         if self.auto_refresh_checkbox:
             self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
@@ -317,7 +317,7 @@ class MatchTableView:
             self.table.on(f"edit_{role}", lambda event, r=role: handle_approve_role(r, event))
         
         if self.on_assign_stations is not None:
-            self.table.on('assign_stations', lambda event: asyncio.create_task(self._handle_assign_stations(event)))
+            self.table.on('assign_stations', lambda event: background_tasks.create(self._handle_assign_stations(event)))
 
 
 
@@ -399,7 +399,7 @@ class MatchTableView:
                         <template v-else>{{ props.value }}</template>
                     </span>
                 </q-td>''')
-                self.table.on('roll', lambda event: asyncio.create_task(self._handle_roll(event)))
+                self.table.on('roll', lambda event: background_tasks.create(self._handle_roll(event)))
 
             # State column with context-aware actions
             if self.on_seat is not None or self.on_start is not None or self.on_finish is not None or self.on_confirm is not None:
@@ -460,13 +460,13 @@ class MatchTableView:
                 </q-td>''')
                 
                 if self.on_seat is not None:
-                    self.table.on('seat', lambda event: asyncio.create_task(self._handle_seat(event)))
+                    self.table.on('seat', lambda event: background_tasks.create(self._handle_seat(event)))
                 if self.on_start is not None:
-                    self.table.on('start', lambda event: asyncio.create_task(self._handle_start(event)))
+                    self.table.on('start', lambda event: background_tasks.create(self._handle_start(event)))
                 if self.on_finish is not None:
-                    self.table.on('finish', lambda event: asyncio.create_task(self._handle_finish(event)))
+                    self.table.on('finish', lambda event: background_tasks.create(self._handle_finish(event)))
                 if self.on_confirm is not None:
-                    self.table.on('confirm', lambda event: asyncio.create_task(self._handle_confirm(event)))
+                    self.table.on('confirm', lambda event: background_tasks.create(self._handle_confirm(event)))
 
             if self.on_edit_stream_room is not None:
                 self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
@@ -476,10 +476,10 @@ class MatchTableView:
                     </q-btn>
                     <template v-else>{{ props.value }}</template>
                 </q-td>''')
-                self.table.on('edit-stream-room', lambda event: asyncio.create_task(self._handle_edit_stream_room(event)))
+                self.table.on('edit-stream-room', lambda event: background_tasks.create(self._handle_edit_stream_room(event)))
 
             if self.on_edit is not None:
-                self.table.on('edit_match', lambda event: asyncio.create_task(self._handle_edit(event)))
+                self.table.on('edit_match', lambda event: background_tasks.create(self._handle_edit(event)))
 
     async def refresh(self, *_args):
         """Refresh table data using service layer."""
@@ -758,7 +758,7 @@ class MatchTableView:
         ''')
 
     def _on_page_change(self, *_):
-        asyncio.create_task(self.refresh())
+        background_tasks.create(self.refresh())
 
     # Helper to extract match id from emitted events
     def _event_match_id(self, event):

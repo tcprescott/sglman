@@ -1,6 +1,4 @@
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.repositories import TournamentRepository
 from application.services import UserService
@@ -130,7 +128,7 @@ class UserDialog(BaseUserDialog):
             
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()
 
@@ -263,7 +261,7 @@ class AdminUserDialog(BaseUserDialog):
             
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()
 

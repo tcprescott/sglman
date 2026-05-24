@@ -247,6 +247,42 @@ if user_data and user_data.get('permission', 0) >= Permissions.TOURNAMENT_ADMIN:
 
 ## NiceGUI Patterns
 
+NiceGUI ships a comprehensive LLM reference at `nicegui/llms.md` inside the installed package. When working on NiceGUI code, fetch it for the authoritative API surface rather than relying on training data.
+
+### Critical rules (sourced from NiceGUI's official anti-pattern list)
+
+**Never use `asyncio.create_task()` or `asyncio.ensure_future()`** — bare task references can be garbage-collected mid-run and exceptions are silently swallowed. Always use `background_tasks.create()` instead:
+
+```python
+# WRONG — task may be GC-cancelled, exceptions vanish silently
+asyncio.create_task(my_coroutine())
+
+# CORRECT — NiceGUI keeps the reference and routes exceptions to its handler
+from nicegui import background_tasks
+background_tasks.create(my_coroutine())
+```
+
+This pattern appears everywhere sync event handlers need to call async functions (e.g., `on_click`, `on_change`, keydown handlers, `ui.table.on()`).
+
+**Never block the event loop** — all users share one asyncio loop. Use `async with httpx.AsyncClient()` instead of `requests`, and use `await asyncio.sleep()` not `time.sleep()`.
+
+**Use `@ui.refreshable` for dynamic UI sections** — avoids full page rebuilds:
+
+```python
+@ui.refreshable
+def match_list():
+    for match in current_matches:
+        ui.label(match.title)
+
+match_list()  # initial render
+# later, after data changes:
+match_list.refresh()
+```
+
+**Module-level variables are shared across all users** — never store per-user state at module level. Use `app.storage.user` or local variables inside `@ui.page` functions.
+
+### Standard patterns
+
 ```python
 # Define a page
 @ui.page('/example')
@@ -255,17 +291,19 @@ async def example_page():
         ui.label('Hello')
 
 # Show a dialog
-dialog = ui.dialog()
-with dialog:
-    with ui.card():
-        ui.label('Confirm?')
-        ui.button('Yes', on_click=dialog.close)
+with ui.dialog() as dialog, ui.card():
+    ui.label('Confirm?')
+    ui.button('Yes', on_click=dialog.close)
 dialog.open()
 
 # Notify user
 ui.notify('Success', color='positive')   # green
 ui.notify('Warning', color='warning')    # yellow
 ui.notify('Error',   color='negative')   # red
+
+# Async event from sync handler (e.g. on_change, keydown)
+def on_filter_change(*_):
+    background_tasks.create(refresh_table())
 ```
 
 ## Discord Integration
@@ -300,3 +338,4 @@ When touching any of these areas, prefer completing the refactor to the three-la
 | `migrations/tortoise_config.py` | DB connection configuration |
 | `start.sh` | Server startup commands |
 | `pyproject.toml` | Dependencies and Aerich config |
+| `nicegui/llms.md` (in installed package) | Authoritative NiceGUI API reference for AI assistants — fetch before writing NiceGUI code |

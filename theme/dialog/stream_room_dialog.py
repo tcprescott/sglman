@@ -1,4 +1,4 @@
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.repositories import StreamRoomRepository, MatchRepository
 from models import Match
@@ -44,7 +44,6 @@ class StreamRoomDialog(BaseMatchDialog):
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    import asyncio
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()

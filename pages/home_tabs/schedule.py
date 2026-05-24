@@ -1,7 +1,6 @@
 
-import asyncio
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, ui
 
 from application.services import MatchService
 from theme.tables.match import MatchTableView
@@ -94,4 +93,4 @@ def schedule():
         )
 
         # Initial table load
-        asyncio.create_task(table_view.refresh())
+        background_tasks.create(table_view.refresh())
