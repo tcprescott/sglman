@@ -41,6 +41,9 @@ def get_discord_bot() -> commands.Bot:
                 if custom_id.startswith('crew_signup:'):
                     from discordbot.crew_signup import handle_crew_signup_interaction
                     await handle_crew_signup_interaction(interaction)
+                elif custom_id.startswith('match_ack:'):
+                    from discordbot.match_acknowledgment import handle_match_acknowledgment_interaction
+                    await handle_match_acknowledgment_interaction(interaction)
 
     return _bot_instance
 
@@ -106,6 +109,39 @@ class DiscordService:
             from discordbot.crew_signup import make_crew_signup_view
             user = await self._bot.fetch_user(user_id)
             view = make_crew_signup_view(match_id)
+            await user.send(message, view=view)
+            return True, "Message sent successfully."
+        except discord.NotFound:
+            return False, "User not found"
+        except discord.Forbidden:
+            return False, "Cannot send DM to this user (DMs may be disabled)"
+        except discord.HTTPException as e:
+            return False, f"Failed to send message: {str(e)}"
+        except Exception as e:
+            return False, f"Discord bot error: {str(e)}"
+
+    async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
+        """
+        Send a direct message to a Discord user with a match acknowledgment button.
+
+        Args:
+            user_id: Discord user ID
+            message: Message content
+            match_id: Match ID encoded into the button custom_id
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            from discordbot.match_acknowledgment import make_match_acknowledgment_view
+            user = await self._bot.fetch_user(user_id)
+            view = make_match_acknowledgment_view(match_id)
             await user.send(message, view=view)
             return True, "Message sent successfully."
         except discord.NotFound:
@@ -306,6 +342,10 @@ class MockDiscordService:
 
     async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
         print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, crew buttons): {message}")
+        return True, "Message sent (mock)"
+
+    async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
+        print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, ack button): {message}")
         return True, "Message sent (mock)"
 
     def get_bot(self):

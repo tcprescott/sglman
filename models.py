@@ -25,6 +25,7 @@ class User(Model):
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
     crew_coordinated_tournaments = fields.ManyToManyRelation["Tournament"]
     match_players = fields.ReverseRelation["MatchPlayers"]
+    match_acknowledgments = fields.ReverseRelation["MatchAcknowledgment"]
     tournament_players = fields.ReverseRelation["TournamentPlayers"]
     tournament_notifications = fields.ReverseRelation["TournamentNotificationPreference"]
     teams = fields.ReverseRelation["UserTeams"]
@@ -102,6 +103,9 @@ class Match(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+    # related fields
+    acknowledgments = fields.ReverseRelation["MatchAcknowledgment"]
+
     @property
     def is_seated(self) -> bool:
         return self.seated_at is not None
@@ -137,6 +141,19 @@ class MatchPlayers(Model):
     assigned_station = fields.CharField(max_length=50, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class MatchAcknowledgment(Model):
+    id = fields.IntField(pk=True)
+    match = fields.ForeignKeyField('models.Match', related_name='acknowledgments', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='match_acknowledgments', on_delete=fields.CASCADE)
+    acknowledged_at = fields.DatetimeField(null=True)
+    auto_acknowledged = fields.BooleanField(default=False)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('match', 'user'),)
+        table = 'matchacknowledgment'
 
 class TournamentPlayers(Model):
     id = fields.IntField(pk=True)

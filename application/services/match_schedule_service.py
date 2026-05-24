@@ -8,7 +8,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Tuple, Optional
 
-from application.repositories import MatchRepository
+from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services.audit_service import AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
@@ -24,6 +24,7 @@ class MatchScheduleService:
     
     def __init__(self):
         self.match_repository = MatchRepository()
+        self.acknowledgment_repository = MatchAcknowledgmentRepository()
         self.discord_service = DiscordService()
         self.seedgen_service = SeedGenerationService()
         self.audit_service = AuditService()
@@ -245,6 +246,93 @@ class MatchScheduleService:
             f"New time: {new_scheduled_at_display}\n\n"
             f"Please update your calendar."
         )
+
+    def _create_acknowledgment_request_dm_message(
+        self,
+        match_id: int,
+        tournament_name: str,
+        scheduled_at_display: str,
+        *,
+        rescheduled: bool,
+    ) -> str:
+        if rescheduled:
+            header = (
+                f"Your match in **{tournament_name}** has been rescheduled.\n\n"
+                f"Match ID: {match_id}\n"
+                f"New time: {scheduled_at_display}"
+            )
+        else:
+            header = (
+                f"A match has been scheduled for you in **{tournament_name}**.\n\n"
+                f"Match ID: {match_id}\n"
+                f"Scheduled for: {scheduled_at_display}"
+            )
+        return (
+            f"{header}\n\n"
+            f"Click **Acknowledge** below to confirm you've seen this."
+        )
+
+    async def notify_match_crew(self, match: Match, message: str) -> None:
+        """
+        Send a DM to approved commentators and trackers for a match.
+
+        Players are excluded — they receive a separate acknowledgment DM via
+        notify_acknowledgment_request. Never raises; per-DM failures are
+        logged and swallowed.
+        """
+        try:
+            seen_ids: list[int] = []
+            commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+            for c in commentators:
+                if c.user.dm_notifications and c.user.discord_id and c.user.discord_id not in seen_ids:
+                    seen_ids.append(c.user.discord_id)
+
+            trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+            for t in trackers:
+                if t.user.dm_notifications and t.user.discord_id and t.user.discord_id not in seen_ids:
+                    seen_ids.append(t.user.discord_id)
+
+            for discord_id in seen_ids:
+                success, err = await self.discord_service.send_dm(discord_id, message)
+                if not success:
+                    print(f"[notify_match_crew] DM failed for {discord_id}: {err}")
+        except Exception as e:
+            print(f"[notify_match_crew] Unexpected error for match {match.id}: {e}")
+
+    async def notify_acknowledgment_request(
+        self,
+        match: Match,
+        *,
+        rescheduled: bool,
+    ) -> None:
+        """
+        Send a DM with an Acknowledge button to every current match player
+        whose acknowledgment is still pending and who opts in to DMs.
+
+        Never raises; per-DM failures are logged and swallowed.
+        """
+        try:
+            await match.fetch_related('tournament')
+            from application.utils.timezone import format_eastern_display
+            scheduled_display = format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
+            message = self._create_acknowledgment_request_dm_message(
+                match.id, match.tournament.name, scheduled_display,
+                rescheduled=rescheduled,
+            )
+
+            acks = await self.acknowledgment_repository.list_for_match(match)
+            for ack in acks:
+                if ack.acknowledged_at is not None:
+                    continue
+                if not ack.user.dm_notifications or not ack.user.discord_id:
+                    continue
+                success, err = await self.discord_service.send_dm_with_acknowledgment_button(
+                    ack.user.discord_id, message, match.id,
+                )
+                if not success:
+                    print(f"[notify_acknowledgment_request] DM failed for {ack.user.discord_id}: {err}")
+        except Exception as e:
+            print(f"[notify_acknowledgment_request] Unexpected error for match {match.id}: {e}")
 
     def _create_checked_in_dm_message(
         self,

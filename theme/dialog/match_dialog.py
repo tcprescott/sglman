@@ -2,6 +2,7 @@ from nicegui import background_tasks, ui
 
 from application.services import CrewService, MatchService, UserService, current_user_from_storage
 from application.repositories import (
+    MatchAcknowledgmentRepository,
     UserRepository,
     TournamentRepository,
     StreamRoomRepository,
@@ -9,6 +10,7 @@ from application.repositories import (
 )
 from application.utils.timezone import (
     format_eastern_date,
+    format_eastern_display,
     format_eastern_time,
     now_eastern,
 )
@@ -38,6 +40,7 @@ class BaseMatchDialog:
         self.tournament_repository = TournamentRepository()
         self.stream_room_repository = StreamRoomRepository()
         self.match_repository = MatchRepository()
+        self.acknowledgment_repository = MatchAcknowledgmentRepository()
 
     def _get_default_values(self):
         """Get default form values based on match state."""
@@ -257,6 +260,27 @@ class AdminMatchDialog(BaseMatchDialog):
             # Clear buttons for edit mode
             if self.match:
                 self._render_clear_buttons()
+
+            # Acknowledgment status block (edit mode only)
+            if self.match:
+                acks = await self.acknowledgment_repository.list_for_match(self.match)
+                with ui.column().classes('action-row'):
+                    ui.label('Player Acknowledgments').classes('text-bold')
+                    if not acks:
+                        ui.label('No players assigned.').classes('text-muted')
+                    else:
+                        for ack in acks:
+                            with ui.row().classes('items-center'):
+                                if ack.acknowledged_at:
+                                    ui.icon('check_circle').props('color=green')
+                                    suffix = ' (auto)' if ack.auto_acknowledged else ''
+                                    ui.label(
+                                        f'{ack.user.preferred_name}{suffix} — '
+                                        f'{format_eastern_display(ack.acknowledged_at)}'
+                                    )
+                                else:
+                                    ui.icon('schedule').props('color=orange')
+                                    ui.label(f'{ack.user.preferred_name} — pending').classes('text-muted')
 
             async def submit():
                 tournament_id = selected_tournament.value
