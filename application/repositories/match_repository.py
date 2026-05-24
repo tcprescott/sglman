@@ -99,17 +99,19 @@ class MatchRepository:
         tournament_id: int,
         scheduled_at: datetime,
         comment: Optional[str] = None,
-        stream_room_id: Optional[int] = None
+        stream_room_id: Optional[int] = None,
+        is_stream_candidate: bool = False,
     ) -> Match:
         """
         Create a new match.
-        
+
         Args:
             tournament_id: Tournament ID
             scheduled_at: When the match is scheduled
             comment: Optional comment
             stream_room_id: Optional stream room ID
-            
+            is_stream_candidate: Whether this match is a stream candidate
+
         Returns:
             Created Match object
         """
@@ -117,7 +119,8 @@ class MatchRepository:
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
-            stream_room_id=stream_room_id
+            stream_room_id=stream_room_id,
+            is_stream_candidate=is_stream_candidate,
         )
         return match
     

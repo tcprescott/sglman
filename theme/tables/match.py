@@ -470,11 +470,18 @@ class MatchTableView:
 
             if self.on_edit_stream_room is not None:
                 self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
-                    <q-btn v-if="!props.value" @click="$parent.$emit('edit-stream-room', props)"
+                    <q-btn v-if="!props.value && !props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
                            icon="movie" color="primary" size="sm">
                         Assign
                     </q-btn>
-                    <template v-else>{{ props.value }}</template>
+                    <template v-else>
+                        <span>{{ props.value }}</span>
+                        <q-badge v-if="props.row.is_stream_candidate" color="amber" label="candidate" class="q-ml-xs" />
+                        <q-btn v-if="!props.value && props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
+                               icon="movie" color="primary" size="sm" class="q-ml-xs">
+                            Assign
+                        </q-btn>
+                    </template>
                 </q-td>''')
                 self.table.on('edit-stream-room', lambda event: background_tasks.create(self._handle_edit_stream_room(event)))
 
@@ -738,14 +745,15 @@ class MatchTableView:
 
                 <!-- For stream_room field with admin button -->
                 <template v-else-if="field.key === 'stream_room'">
+                    <span v-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
+                    <q-badge v-if="props.row.is_stream_candidate" color="amber" label="candidate" class="q-ml-xs" />
                     <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key]"
                            @click="$parent.$emit('edit-stream-room', {{ key: props.row.id }})"
                            icon="movie" color="primary" size="sm"
                            style="margin-bottom: 8px;">
                         Assign Stage
                     </q-btn>
-                    <template v-else-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</template>
-                    <template v-else>-</template>
+                    <template v-if="!props.row[field.key] && !props.row.is_stream_candidate && !{'true' if self.admin_controls else 'false'}">-</template>
                 </template>
 
                 <!-- Default rendering for other fields -->

@@ -244,6 +244,12 @@ class AdminMatchDialog(BaseMatchDialog):
                 placeholder='Add any notes or comments about this match...'
             ).classes('full-width')
 
+            # Stream candidate flag
+            stream_candidate_checkbox = ui.checkbox(
+                'Stream candidate (flag as potential stream match)',
+                value=self.match.is_stream_candidate if self.match else False,
+            )
+
             # Clear buttons for edit mode
             if self.match:
                 self._render_clear_buttons()
@@ -296,7 +302,8 @@ class AdminMatchDialog(BaseMatchDialog):
                             clear_finished=self._clear_finished,
                             clear_confirmed=self._clear_confirmed,
                             clear_seed=self._clear_seed,
-                            clear_stream_room=(stream_room_id is None)
+                            clear_stream_room=(stream_room_id is None),
+                            is_stream_candidate=stream_candidate_checkbox.value,
                         )
                         with self.dialog:
                             ui.notify('Match updated successfully', color='positive')
@@ -316,7 +323,8 @@ class AdminMatchDialog(BaseMatchDialog):
                             player_ids=new_player_ids,
                             commentator_ids=new_commentator_ids,
                             tracker_ids=new_tracker_ids,
-                            stream_room_id=stream_room_id
+                            stream_room_id=stream_room_id,
+                            is_stream_candidate=stream_candidate_checkbox.value,
                         )
                         with self.dialog:
                             ui.notify('Match created successfully', color='positive')
