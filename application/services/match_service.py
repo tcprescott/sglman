@@ -18,7 +18,7 @@ from application.repositories import (
     CommentatorRepository,
     TrackerRepository,
 )
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.match_schedule_service import MatchScheduleService
 from application.utils.timezone import (
@@ -288,13 +288,18 @@ class MatchService:
         for user in trackers:
             await self.tracker_repository.create(match=match, user=user, approved=True)
         
-        # Audit log
-        if actor:
-            await self.audit_service.write_log(
-                actor,
-                f'Created match {match.id}',
-                f'Tournament: {tournament_id}, Players: {player_ids}'
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.MATCH_CREATED,
+            {
+                'match_id': match.id,
+                'tournament_id': tournament_id,
+                'player_ids': player_ids,
+                'commentator_ids': commentator_ids or [],
+                'tracker_ids': tracker_ids or [],
+                'is_stream_candidate': is_stream_candidate,
+            },
+        )
 
         # Seed per-player acknowledgments (actor auto-acks themselves)
         await self._seed_acknowledgments(match, player_ids, actor)
@@ -423,13 +428,19 @@ class MatchService:
         if tracker_ids is not None:
             await self._sync_trackers(match, tracker_ids)
 
-        # Audit log
-        if actor:
-            await self.audit_service.write_log(
-                actor,
-                f'Updated match {match.id}',
-                f'Fields: {list(update_fields.keys())}'
-            )
+        audit_details: Dict[str, Any] = {
+            'match_id': match.id,
+            'changed_fields': list(update_fields.keys()),
+        }
+        if player_ids is not None:
+            audit_details['player_ids'] = player_ids
+        if commentator_ids is not None:
+            audit_details['commentator_ids'] = commentator_ids
+        if tracker_ids is not None:
+            audit_details['tracker_ids'] = tracker_ids
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_UPDATED, audit_details,
+        )
 
         # Notify participants when the match time changes on an already-scheduled match
         new_scheduled_at = update_fields.get('scheduled_at')
@@ -502,8 +513,13 @@ class MatchService:
             await self.repository.add_player(match, user)
 
         await self.audit_service.write_log(
-            actor, f'Submitted match request {match.id}',
-            f'Tournament: {tournament_id}, Players: {player_ids}',
+            actor,
+            AuditActions.MATCH_REQUESTED,
+            {
+                'match_id': match.id,
+                'tournament_id': tournament_id,
+                'player_ids': player_ids,
+            },
         )
 
         await self._seed_acknowledgments(match, player_ids, actor)
@@ -538,12 +554,11 @@ class MatchService:
         was_candidate = match.is_stream_candidate
         await self.repository.update(match, is_stream_candidate=flag)
 
-        if actor:
-            await self.audit_service.write_log(
-                actor,
-                'Set stream candidate' if flag else 'Cleared stream candidate',
-                f'match={match.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.MATCH_STREAM_CANDIDATE_SET if flag else AuditActions.MATCH_STREAM_CANDIDATE_CLEARED,
+            {'match_id': match.id},
+        )
 
         if flag and not was_candidate:
             await match.fetch_related('tournament')
@@ -570,12 +585,11 @@ class MatchService:
 
         await self.repository.update(match, stream_room_id=stream_room_id)
 
-        if actor:
-            await self.audit_service.write_log(
-                actor,
-                'Assigned stage' if stream_room_id is not None else 'Cleared stage',
-                f'match={match.id} stage={stream_room_id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.MATCH_STAGE_ASSIGNED if stream_room_id is not None else AuditActions.MATCH_STAGE_CLEARED,
+            {'match_id': match.id, 'stream_room_id': stream_room_id},
+        )
 
         return match
 
@@ -606,12 +620,14 @@ class MatchService:
                 player.assigned_station = assignments[player.id]
                 await player.save()
 
-        if actor:
-            await self.audit_service.write_log(
-                actor,
-                'Assigned stations',
-                f'match={match.id} {assignments}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.MATCH_STATIONS_ASSIGNED,
+            {
+                'match_id': match.id,
+                'assignments': {str(k): v for k, v in assignments.items()},
+            },
+        )
 
         return match
     
@@ -645,8 +661,9 @@ class MatchService:
             f"User cannot delete match {match_id}",
         )
         await self.repository.delete(match)
-        if actor:
-            await self.audit_service.write_log(actor, f'Deleted match {match_id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
+        )
 
     async def seat_players(self, match_id: int, actor: Optional[User] = None) -> Match:
         """Mark match players as seated."""
@@ -661,8 +678,9 @@ class MatchService:
 
         await self.repository.update(match, seated_at=datetime.now())
 
-        if actor:
-            await self.audit_service.write_log(actor, f'Seated match {match.id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_SEATED, {'match_id': match.id},
+        )
 
         await match.fetch_related('tournament')
         msg = self.match_schedule_service._create_checked_in_dm_message(match.id, match.tournament.name)
@@ -686,11 +704,56 @@ class MatchService:
 
         await self.repository.update(match, finished_at=datetime.now())
 
-        if actor:
-            await self.audit_service.write_log(actor, f'Finished match {match.id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_FINISHED, {'match_id': match.id},
+        )
 
         return match
-    
+
+    async def record_match_result(
+        self,
+        match_id: int,
+        winner_id: int,
+        actor: User,
+    ) -> Match:
+        """Record finish ranks for a 2-player match.
+
+        Winner gets rank 1; remaining player gets rank 2. The ``winner_id``
+        is a :class:`MatchPlayers` row id, not a User id.
+        """
+        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot record results for match {match_id}",
+        )
+
+        if not match.players:
+            raise ValueError("Match has no players")
+
+        if not any(p.id == winner_id for p in match.players):
+            raise ValueError("Winner is not a player in this match")
+
+        ranks: Dict[int, int] = {}
+        for player in match.players:
+            player.finish_rank = 1 if player.id == winner_id else 2
+            await player.save()
+            ranks[player.id] = player.finish_rank
+
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.MATCH_RESULT_RECORDED,
+            {
+                'match_id': match.id,
+                'winner_id': winner_id,
+                'ranks': {str(k): v for k, v in ranks.items()},
+            },
+        )
+
+        return match
+
     async def signup_crew(
         self,
         match_id: int,
@@ -727,7 +790,13 @@ class MatchService:
             await self.commentator_repository.create(match=match, user=user, approved=False)
         else:
             await self.tracker_repository.create(match=match, user=user, approved=False)
-    
+
+        await self.audit_service.write_log(
+            user,
+            AuditActions.CREW_SIGNUP_CREATED,
+            {'match_id': match_id, 'role': role},
+        )
+
     async def undo_crew_signup(
         self,
         match_id: int,
@@ -763,7 +832,13 @@ class MatchService:
         
         # Delete crew entry
         await crew_member.delete()
-    
+
+        await self.audit_service.write_log(
+            user,
+            AuditActions.CREW_SIGNUP_REMOVED,
+            {'match_id': match_id, 'role': role},
+        )
+
     async def acknowledge_match(self, match_id: int, user: User) -> MatchAcknowledgment:
         """Mark a match as acknowledged by the given player.
 
@@ -784,8 +859,8 @@ class MatchService:
         ack = await self.ack_repository.upsert(match, user, acknowledged=True, auto=False)
         await self.audit_service.write_log(
             user,
-            f'Acknowledged match {match.id}',
-            f'Tournament: {match.tournament_id}',
+            AuditActions.MATCH_ACKNOWLEDGED,
+            {'match_id': match.id, 'tournament_id': match.tournament_id},
         )
         return ack
 

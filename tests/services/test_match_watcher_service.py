@@ -48,7 +48,8 @@ class TestWatch:
         service.audit_service.write_log.assert_awaited_once()
         args, _ = service.audit_service.write_log.call_args
         assert args[0] is user
-        assert 'Watched match 7' in args[1]
+        assert args[1] == 'match.watcher_added'
+        assert args[2] == {'match_id': 7}
 
     async def test_no_audit_log_when_already_watching(self, service):
         service.match_repository.get_by_id = AsyncMock(return_value=make_match())
@@ -106,7 +107,8 @@ class TestUnwatch:
         service.audit_service.write_log.assert_awaited_once()
         args, _ = service.audit_service.write_log.call_args
         assert args[0] is user
-        assert 'Unwatched match 42' in args[1]
+        assert args[1] == 'match.watcher_removed'
+        assert args[2] == {'match_id': 42}
 
     async def test_no_audit_log_when_not_watching(self, service):
         service.match_repository.get_by_id = AsyncMock(return_value=make_match())

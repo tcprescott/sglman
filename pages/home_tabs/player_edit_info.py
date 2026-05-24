@@ -103,22 +103,22 @@ async def render_edit_info_tab():
         render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
 
         async def save_info():
-            # Update personal information using service
             await user_service.update_user_personal_info(
                 user=user,
+                actor=user,
                 display_name=display_name_input.value,
                 pronouns=pronouns_input.value,
                 dm_notifications=dm_checkbox.value,
             )
-            
-            # Update tournament registrations using service
+
             selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)
             await user_service.update_user_tournament_registrations(
                 user=user,
+                actor=user,
                 selected_tournament_ids=selected_ids,
-                current_registrations=user_tournaments
+                current_registrations=user_tournaments,
             )
-            
+
             ui.notify('Information updated successfully!', color='positive', icon='check_circle')
 
         # Save Button

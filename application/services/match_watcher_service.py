@@ -9,7 +9,7 @@ being a participant or crew member.
 from typing import List
 
 from application.repositories import MatchRepository, MatchWatcherRepository
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from models import MatchWatcher, User
 
 
@@ -31,7 +31,9 @@ class MatchWatcherService:
         watcher, created = await self.repository.get_or_create(match=match, user=user)
         if created:
             await self.audit_service.write_log(
-                user, f'Watched match {match_id}', '',
+                user,
+                AuditActions.MATCH_WATCHER_ADDED,
+                {'match_id': match_id},
             )
         return watcher
 
@@ -42,7 +44,9 @@ class MatchWatcherService:
         removed = await self.repository.delete_by_match_and_user(match=match, user=user)
         if removed:
             await self.audit_service.write_log(
-                user, f'Unwatched match {match_id}', '',
+                user,
+                AuditActions.MATCH_WATCHER_REMOVED,
+                {'match_id': match_id},
             )
         return removed
 

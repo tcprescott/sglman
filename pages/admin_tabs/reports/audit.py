@@ -3,7 +3,8 @@
 Server-side paginated, filterable view of the AuditLog table.
 """
 
-from typing import Optional
+import json
+from typing import Any, Optional
 
 from nicegui import ui
 
@@ -21,6 +22,23 @@ from .shared import (
 
 
 PAGE_SIZE = 50
+
+
+def _parse_details(raw: Optional[str]) -> tuple[Optional[Any], str]:
+    """Return (parsed_json_or_none, display_text).
+
+    Legacy rows store plain-text details — those parse to None and display
+    as-is. New rows store JSON and display pretty-printed.
+    """
+    if not raw:
+        return None, ''
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return None, raw
+    if isinstance(parsed, (dict, list)):
+        return parsed, json.dumps(parsed, indent=2, sort_keys=True)
+    return parsed, str(parsed)
 
 
 async def audit_page(
@@ -85,18 +103,19 @@ async def audit_page(
             limit=PAGE_SIZE, offset=(page_int - 1) * PAGE_SIZE,
         )
 
-        rows = [
-            {
+        rows = []
+        for log in logs:
+            _, display = _parse_details(log.details)
+            truncated = display[:200] + ('…' if len(display) > 200 else '')
+            rows.append({
                 'log_id': log.id,
                 'created_at': format_eastern_display(log.created_at),
                 'user_id': log.user_id,
                 'user': log.user.preferred_name if log.user else f'User {log.user_id}',
                 'action': log.action,
-                'details': (log.details or '')[:200] + ('…' if log.details and len(log.details) > 200 else ''),
-                'full_details': log.details or '',
-            }
-            for log in logs
-        ]
+                'details': truncated,
+                'full_details': display,
+            })
         columns = [
             {'name': 'created_at', 'label': 'When (ET)', 'field': 'created_at', 'sortable': False},
             {'name': 'user', 'label': 'User', 'field': 'user', 'sortable': False},
@@ -129,8 +148,31 @@ async def audit_page(
                 rows=rows,
                 row_key='log_id',
             ).classes('full-width')
+            table.add_slot('body', r'''
+                <q-tr :props="props">
+                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
+                        <span v-if="col.name !== 'details'" @click="$parent.$emit('row-click', $event, props.row)" style="cursor: pointer">
+                            {{ col.value }}
+                        </span>
+                        <q-expansion-item
+                            v-else-if="props.row.full_details && props.row.full_details.length > 0"
+                            dense
+                            dense-toggle
+                            switch-toggle-side
+                            :label="props.row.details"
+                            class="text-body2"
+                        >
+                            <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
+                        </q-expansion-item>
+                        <span v-else class="text-grey-7">—</span>
+                    </q-td>
+                </q-tr>
+            ''')
             table.on('row-click', _on_user_click)
-            ui.label('Click a row to filter by that user. Showing first 200 chars of details.').classes('italic-note')
+            ui.label(
+                'Click a row to filter by that user. Click the details cell to expand JSON. '
+                'Try action filters like "match." or "user.role_".'
+            ).classes('italic-note')
 
             # Pager
             total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
