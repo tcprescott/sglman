@@ -98,6 +98,7 @@ All loaded from `.env` (automatically by `start.sh` and Docker):
 | `DISCORD_TOKEN` | yes | Discord bot token |
 | `STORAGE_SECRET` | yes | NiceGUI storage encryption key |
 | `ENVIRONMENT` | no | `dev` or `production` |
+| `MOCK_DISCORD` | no | When `true`, bypasses Discord OAuth (renders a user picker at `/login`) and stubs all `DiscordService` calls. Use for local development without a real Discord app. |
 
 ## Architecture: Three-Layer Pattern
 

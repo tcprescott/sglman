@@ -10,6 +10,7 @@ import os
 from typing import AsyncGenerator
 
 from application.services.discord_service import get_discord_bot
+from application.utils.mock_discord import is_mock_discord
 import asyncio
 from aerich import Command
 from fastapi import FastAPI
@@ -39,6 +40,9 @@ async def init_discord_bot() -> None:
     """
     Initialize the Discord bot.
     """
+    if is_mock_discord():
+        print('MOCK_DISCORD enabled — skipping Discord bot start.')
+        return
     token = os.environ.get('DISCORD_TOKEN')
     bot = get_discord_bot()
     if token:
@@ -51,6 +55,8 @@ async def close_discord_bot() -> None:
     """
     Close the Discord bot connection.
     """
+    if is_mock_discord():
+        return
     bot = get_discord_bot()
     await bot.close()
 
