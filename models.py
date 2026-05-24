@@ -195,6 +195,8 @@ class Commentator(Model):
     match = fields.ForeignKeyField('models.Match', related_name='commentators')
     approved = fields.BooleanField(default=False)
     approved_by = fields.ForeignKeyField('models.User', related_name='approved_commentaries', null=True)
+    acknowledged_at = fields.DatetimeField(null=True)
+    auto_acknowledged = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -204,6 +206,8 @@ class Tracker(Model):
     match = fields.ForeignKeyField('models.Match', related_name='trackers')
     approved = fields.BooleanField(default=False)
     approved_by = fields.ForeignKeyField('models.User', related_name='approved_trackers', null=True)
+    acknowledged_at = fields.DatetimeField(null=True)
+    auto_acknowledged = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

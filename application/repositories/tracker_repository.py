@@ -4,6 +4,7 @@ Tracker Repository - Data Access Layer
 Handles all database operations for Tracker model.
 """
 
+from datetime import datetime
 from typing import List, Optional
 
 from models import Tracker, User, Match
@@ -48,3 +49,21 @@ class TrackerRepository:
     async def approve(tracker: Tracker) -> Tracker:
         """Approve a tracker."""
         return await TrackerRepository.update(tracker, approved=True)
+
+    @staticmethod
+    async def acknowledge(tracker: Tracker, auto: bool = False) -> Tracker:
+        """Mark a tracker assignment as acknowledged by the crew member."""
+        return await TrackerRepository.update(
+            tracker,
+            acknowledged_at=datetime.now(),
+            auto_acknowledged=auto,
+        )
+
+    @staticmethod
+    async def clear_acknowledgment(tracker: Tracker) -> Tracker:
+        """Reset acknowledgment fields on a tracker assignment."""
+        return await TrackerRepository.update(
+            tracker,
+            acknowledged_at=None,
+            auto_acknowledged=False,
+        )
