@@ -55,23 +55,29 @@ class UserService:
         same user (self-edit); permission check is performed at the page level
         via authentication.
         """
+        any_provided = False
         changed: Dict[str, object] = {}
         if display_name is not None:
+            any_provided = True
             new_value = display_name.strip() if display_name.strip() else None
             if new_value != user.display_name:
-                user.display_name = new_value
                 changed['display_name'] = new_value
+            user.display_name = new_value
         if pronouns is not None:
+            any_provided = True
             new_value = pronouns.strip() if pronouns.strip() else None
             if new_value != user.pronouns:
-                user.pronouns = new_value
                 changed['pronouns'] = new_value
-        if dm_notifications is not None and dm_notifications != user.dm_notifications:
+            user.pronouns = new_value
+        if dm_notifications is not None:
+            any_provided = True
+            if dm_notifications != user.dm_notifications:
+                changed['dm_notifications'] = dm_notifications
             user.dm_notifications = dm_notifications
-            changed['dm_notifications'] = dm_notifications
 
-        if changed:
+        if any_provided:
             await user.save()
+        if changed:
             await self.audit_service.write_log(
                 actor,
                 AuditActions.USER_SELF_PROFILE_UPDATED,
@@ -196,16 +202,18 @@ class UserService:
                 raise ValueError("This user has been modified by another admin. Please reload and try again.")
 
         update_data = {}
-        if is_active is not None and is_active != user.is_active:
+        if is_active is not None:
             update_data['is_active'] = is_active
 
         if update_data:
+            previous_is_active = user.is_active
             await self.repository.update(user, **update_data)
-            await self.audit_service.write_log(
-                actor,
-                AuditActions.USER_ACTIVATION_CHANGED,
-                {'target_user_id': user.id, 'is_active': update_data.get('is_active')},
-            )
+            if is_active is not None and is_active != previous_is_active:
+                await self.audit_service.write_log(
+                    actor,
+                    AuditActions.USER_ACTIVATION_CHANGED,
+                    {'target_user_id': user.id, 'is_active': is_active},
+                )
         return user
 
     async def grant_role(self, target: User, role: Role, actor: User) -> None:

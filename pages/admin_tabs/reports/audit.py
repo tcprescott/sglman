@@ -36,6 +36,8 @@ def _parse_details(raw: Optional[str]) -> tuple[Optional[Any], str]:
         parsed = json.loads(raw)
     except (ValueError, TypeError):
         return None, raw
+    if parsed is None:
+        return None, ''
     if isinstance(parsed, (dict, list)):
         return parsed, json.dumps(parsed, indent=2, sort_keys=True)
     return parsed, str(parsed)
@@ -149,22 +151,24 @@ async def audit_page(
                 row_key='log_id',
             ).classes('full-width')
             table.add_slot('body', r'''
-                <q-tr :props="props">
+                <q-tr :props="props" @click="$parent.$emit('row-click', $event, props.row)" style="cursor: pointer">
                     <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <span v-if="col.name !== 'details'" @click="$parent.$emit('row-click', $event, props.row)" style="cursor: pointer">
+                        <template v-if="col.name !== 'details'">
                             {{ col.value }}
-                        </span>
-                        <q-expansion-item
-                            v-else-if="props.row.full_details && props.row.full_details.length > 0"
-                            dense
-                            dense-toggle
-                            switch-toggle-side
-                            :label="props.row.details"
-                            class="text-body2"
-                        >
-                            <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
-                        </q-expansion-item>
-                        <span v-else class="text-grey-7">—</span>
+                        </template>
+                        <div v-else @click.stop>
+                            <q-expansion-item
+                                v-if="props.row.full_details && props.row.full_details.length > 0"
+                                dense
+                                dense-toggle
+                                switch-toggle-side
+                                :label="props.row.details"
+                                class="text-body2"
+                            >
+                                <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
+                            </q-expansion-item>
+                            <span v-else class="text-grey-7">—</span>
+                        </div>
                     </q-td>
                 </q-tr>
             ''')

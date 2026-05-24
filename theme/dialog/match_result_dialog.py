@@ -101,6 +101,9 @@ class MatchResultDialog:
         except ValueError as e:
             ui.notify(str(e), color='warning')
             return
+        except Exception as e:
+            ui.notify(f'Error saving results: {str(e)}', color='negative')
+            return
 
         winner = next((p for p in self.match.players if p.id == winner_id), None)
         winner_name = winner.user.preferred_name or winner.user.username if winner else 'Unknown'
