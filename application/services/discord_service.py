@@ -427,6 +427,10 @@ class MockDiscordService:
         print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, ack button): {message}")
         return True, "Message sent (mock)"
 
+    async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int) -> Tuple[bool, str]:
+        print(f"[MOCK Discord DM] -> {user_id} ({crew_type} {crew_id}, ack button): {message}")
+        return True, "Message sent (mock)"
+
     async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
         print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, unwatch button): {message}")
         return True, "Message sent (mock)"

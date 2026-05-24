@@ -2,8 +2,12 @@
 Discord crew acknowledgment interaction handler and view factory.
 """
 
+import logging
+
 import discord
 
+
+logger = logging.getLogger(__name__)
 
 CUSTOM_ID_PREFIX = 'crew_ack'
 
@@ -19,6 +23,17 @@ def make_crew_acknowledgment_view(crew_type: str, crew_id: int) -> discord.ui.Vi
     return view
 
 
+async def _send(interaction: discord.Interaction, message: str) -> None:
+    """Send a reply via followup if defer succeeded, else fall back to response."""
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+    except Exception:
+        logger.exception("Failed to send Discord crew_ack response")
+
+
 async def handle_crew_acknowledgment_interaction(interaction: discord.Interaction) -> None:
     """
     Handle a crew_ack button press from a Discord DM.
@@ -29,34 +44,46 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
     from application.repositories import UserRepository
     from application.services import CrewService
 
+    # Defer immediately to extend Discord's 3-second interaction deadline; the
+    # downstream DB work (fetch user, fetch crew, update, audit) can exceed it.
+    try:
+        await interaction.response.defer(ephemeral=True)
+    except Exception:
+        logger.exception("Failed to defer Discord crew_ack interaction")
+
     custom_id = (interaction.data or {}).get('custom_id', '')
     parts = custom_id.split(':')
     if len(parts) != 3 or parts[1] not in ('commentator', 'tracker'):
-        await interaction.response.send_message('Invalid interaction.', ephemeral=True)
+        await _send(interaction, 'Invalid interaction.')
         return
 
     crew_type = parts[1]
     try:
         crew_id = int(parts[2])
     except ValueError:
-        await interaction.response.send_message('Invalid crew ID.', ephemeral=True)
+        await _send(interaction, 'Invalid crew ID.')
         return
 
-    user = await UserRepository().get_by_discord_id(str(interaction.user.id))
-    if not user:
-        await interaction.response.send_message(
-            'You do not have an SGLMan account. Please log in at the website first.',
-            ephemeral=True,
-        )
-        return
-
-    crew_service = CrewService()
     try:
-        crew_member = await crew_service.acknowledge_crew_assignment(crew_id, crew_type, user)
+        user = await UserRepository().get_by_discord_id(str(interaction.user.id))
+        if not user:
+            await _send(
+                interaction,
+                'You do not have an SGLMan account. Please log in at the website first.',
+            )
+            return
+
+        crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
         match_id = crew_member.match_id
-        await interaction.response.send_message(
+        await _send(
+            interaction,
             f'You have acknowledged your {crew_type} assignment for Match ID {match_id}. Thanks!',
-            ephemeral=True,
         )
     except ValueError as e:
-        await interaction.response.send_message(str(e), ephemeral=True)
+        await _send(interaction, str(e))
+    except Exception:
+        logger.exception("Crew acknowledgment handler failed (crew_id=%s)", crew_id)
+        await _send(
+            interaction,
+            'An unexpected error occurred. Please try again or use the website to acknowledge.',
+        )

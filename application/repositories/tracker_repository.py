@@ -51,12 +51,11 @@ class TrackerRepository:
         return await TrackerRepository.update(tracker, approved=True)
 
     @staticmethod
-    async def acknowledge(tracker: Tracker, auto: bool = False) -> Tracker:
+    async def acknowledge(tracker: Tracker) -> Tracker:
         """Mark a tracker assignment as acknowledged by the crew member."""
         return await TrackerRepository.update(
             tracker,
             acknowledged_at=datetime.now(),
-            auto_acknowledged=auto,
         )
 
     @staticmethod
@@ -65,5 +64,4 @@ class TrackerRepository:
         return await TrackerRepository.update(
             tracker,
             acknowledged_at=None,
-            auto_acknowledged=False,
         )

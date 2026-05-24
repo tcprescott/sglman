@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,14 +21,24 @@ def bypass_auth(monkeypatch):
     monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
 
 
+@pytest.fixture(autouse=True)
+def bypass_transactions(monkeypatch):
+    """Replace in_transaction() with a no-op async context manager for unit tests."""
+    @asynccontextmanager
+    async def noop_tx(*_args, **_kwargs):
+        yield None
+
+    monkeypatch.setattr('application.services.crew_service.in_transaction', noop_tx)
+
+
 @pytest.fixture
 def service():
     svc = object.__new__(CrewService)
     svc.commentator_repository = MagicMock()
-    svc.commentator_repository.acknowledge = AsyncMock()
+    svc.commentator_repository.acknowledge = AsyncMock(side_effect=lambda c: c)
     svc.commentator_repository.get_by_id = AsyncMock()
     svc.tracker_repository = MagicMock()
-    svc.tracker_repository.acknowledge = AsyncMock()
+    svc.tracker_repository.acknowledge = AsyncMock(side_effect=lambda c: c)
     svc.tracker_repository.get_by_id = AsyncMock()
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
@@ -61,8 +72,8 @@ def make_crew(*, user, match, approved=True, acknowledged_at=None, crew_id=7):
     crew.match_id = match.id
     crew.approved = approved
     crew.acknowledged_at = acknowledged_at
-    crew.auto_acknowledged = False
     crew.fetch_related = AsyncMock()
+    crew.refresh_from_db = AsyncMock()
     crew.save = AsyncMock()
     return crew
 
@@ -77,7 +88,7 @@ class TestAcknowledgeCrewAssignment:
         result = await service.acknowledge_crew_assignment(crew.id, 'commentator', user)
 
         assert result is crew
-        service.commentator_repository.acknowledge.assert_awaited_once_with(crew, auto=False)
+        service.commentator_repository.acknowledge.assert_awaited_once_with(crew)
         service.audit_service.write_log.assert_awaited_once()
         action_arg = service.audit_service.write_log.await_args.args[1]
         assert action_arg == 'crew.acknowledged'
@@ -90,7 +101,7 @@ class TestAcknowledgeCrewAssignment:
 
         await service.acknowledge_crew_assignment(crew.id, 'tracker', user)
 
-        service.tracker_repository.acknowledge.assert_awaited_once_with(crew, auto=False)
+        service.tracker_repository.acknowledge.assert_awaited_once_with(crew)
 
     async def test_rejects_when_not_approved(self, service):
         user = make_user()
@@ -102,7 +113,7 @@ class TestAcknowledgeCrewAssignment:
 
         service.commentator_repository.acknowledge.assert_not_called()
 
-    async def test_rejects_when_already_acknowledged(self, service):
+    async def test_already_acknowledged_is_idempotent_noop(self, service):
         user = make_user()
         crew = make_crew(
             user=user, match=make_match(),
@@ -110,8 +121,11 @@ class TestAcknowledgeCrewAssignment:
         )
         service.commentator_repository.get_by_id.return_value = crew
 
-        with pytest.raises(ValueError, match='already acknowledged'):
-            await service.acknowledge_crew_assignment(crew.id, 'commentator', user)
+        result = await service.acknowledge_crew_assignment(crew.id, 'commentator', user)
+
+        assert result is crew
+        service.commentator_repository.acknowledge.assert_not_called()
+        service.audit_service.write_log.assert_not_called()
 
     async def test_rejects_when_user_mismatch(self, service):
         other_user = make_user(user_id=99)
@@ -142,25 +156,41 @@ class TestUpdateCrewApproval:
         assert kwargs_or_args[2] == 'commentator'
         assert kwargs_or_args[3] == crew.id
 
-    async def test_unapprove_clears_acknowledgment(self, service):
+    async def test_unapprove_clears_acknowledgment_and_audits_previously_acknowledged(self, service):
         user = make_user()
         crew = make_crew(
             user=user, match=make_match(),
             approved=True, acknowledged_at=datetime.now(),
         )
-        crew.auto_acknowledged = True
 
         await service.update_crew_approval(crew, 'commentator', approved=False, actor=user)
 
         assert crew.approved is False
         assert crew.acknowledged_at is None
-        assert crew.auto_acknowledged is False
         service.discord_service.send_dm_with_crew_acknowledgment_button.assert_not_called()
+        details = service.audit_service.write_log.await_args.args[2]
+        assert details['approved'] is False
+        assert details['previously_acknowledged'] is True
 
-    async def test_re_approve_does_not_dm_when_already_approved(self, service):
+    async def test_idempotent_when_state_unchanged(self, service):
         user = make_user()
         crew = make_crew(user=user, match=make_match(), approved=True)
 
         await service.update_crew_approval(crew, 'commentator', approved=True, actor=user)
 
         service.discord_service.send_dm_with_crew_acknowledgment_button.assert_not_called()
+        service.audit_service.write_log.assert_not_called()
+        crew.save.assert_not_called()
+
+    async def test_dm_failure_does_not_raise(self, service):
+        user = make_user()
+        crew = make_crew(user=user, match=make_match(), approved=False)
+        service.discord_service.send_dm_with_crew_acknowledgment_button = AsyncMock(
+            side_effect=RuntimeError('discord boom')
+        )
+
+        # Should complete without raising; approval and audit still happen.
+        await service.update_crew_approval(crew, 'commentator', approved=True, actor=user)
+
+        assert crew.approved is True
+        service.audit_service.write_log.assert_awaited_once()

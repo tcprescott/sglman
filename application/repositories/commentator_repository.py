@@ -51,12 +51,11 @@ class CommentatorRepository:
         return await CommentatorRepository.update(commentator, approved=True)
 
     @staticmethod
-    async def acknowledge(commentator: Commentator, auto: bool = False) -> Commentator:
+    async def acknowledge(commentator: Commentator) -> Commentator:
         """Mark a commentator assignment as acknowledged by the crew member."""
         return await CommentatorRepository.update(
             commentator,
             acknowledged_at=datetime.now(),
-            auto_acknowledged=auto,
         )
 
     @staticmethod
@@ -65,5 +64,4 @@ class CommentatorRepository:
         return await CommentatorRepository.update(
             commentator,
             acknowledged_at=None,
-            auto_acknowledged=False,
         )

@@ -448,13 +448,10 @@ class MatchTableView:
             idx = event.args['idx']
             match_id = row['id']
             items = row.get(f'{role}s') or []
-            if idx >= len(items):
-                ui.notify(f'{role.capitalize()} assignment not found.', color='warning')
+            if idx >= len(items) or len(items[idx]) <= 5:
+                ui.notify('Page is out of date — please refresh and try again.', color='warning')
                 return
-            crew_id = items[idx][5] if len(items[idx]) > 5 else None
-            if crew_id is None:
-                ui.notify(f'{role.capitalize()} assignment not found.', color='warning')
-                return
+            crew_id = items[idx][5]
             discord_id = app.storage.user.get('discord_id', None)
             if not discord_id:
                 ui.notify('You must be logged in to acknowledge.', color='warning')
@@ -757,12 +754,12 @@ class MatchTableView:
                                     <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if self.admin_controls else 'false'}">
                                         <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
                                            :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal') + '; text-decoration: underline;'">
-                                            {{{{ item[field.nameIndex] }}}}
+                                            {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
                                         </a>
                                     </template>
                                     <template v-else>
                                         <span :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
-                                            {{{{ item[field.nameIndex] }}}}
+                                            {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
                                         </span>
                                     </template>
                                     <q-btn v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if self.admin_controls else 'false'} && item[field.approvedIndex] && !item[field.ackIndex] && item[field.discordIndex] == field.discord_id"
@@ -770,7 +767,6 @@ class MatchTableView:
                                            @click="$parent.$emit('acknowledge_' + field.key.slice(0, -1), {{ row: props.row, idx }})">
                                         <q-tooltip>Acknowledge</q-tooltip>
                                     </q-btn>
-                                    <span>{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}</span>
                                 </span>
                             </template>
                         </template>
