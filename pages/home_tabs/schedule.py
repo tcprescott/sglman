@@ -3,6 +3,7 @@
 from nicegui import app, background_tasks, ui
 
 from application.services import MatchService, UserService
+from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
 from theme.dialog.tournament_notification_dialog import TournamentNotificationDialog
 
@@ -32,9 +33,9 @@ def schedule():
                     icon='notifications',
                     on_click=lambda: background_tasks.create(open_notification_dialog()),
                 ).props('color=secondary outline')
-        
+
         ui.separator().classes('separator-spacing')
-        
+
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament', 'sortable': True, 'filterable': True},
@@ -46,6 +47,8 @@ def schedule():
             {'name': 'commentators', 'label': 'Commentators', 'field': 'commentators'},
             {'name': 'trackers', 'label': 'Trackers', 'field': 'trackers'},
         ]
+        if discord_id:
+            columns.append({'name': 'watch', 'label': 'Watch', 'field': 'watch'})
 
         async def get_query():
             return await match_service.get_all_matches_for_schedule()
@@ -99,12 +102,27 @@ def schedule():
             </q-td>''',
         }
 
+        async def on_edit(match_id: int):
+            if not discord_id:
+                return
+            match = await match_service.repository.get_by_id(match_id)
+            if not match:
+                ui.notify('Match not found.', color='warning')
+                return
+            dialog = UserMatchDialog(
+                discord_id=discord_id,
+                match=match,
+                on_submit=lambda *_: table_view.refresh(),
+            )
+            await dialog.open()
+
         # Include crew signup functionality with centralized green/yellow status rendering
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,
             admin_controls=False,
-            extra_slots=extra_slots
+            extra_slots=extra_slots,
+            on_edit=on_edit if discord_id else None,
         )
 
         # Initial table load

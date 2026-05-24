@@ -348,3 +348,90 @@ class TestCreateSeedDmMessage:
         msg = service._create_seed_dm_message("Bob", 1, "OoTR", "https://ootrandomizer.com/seed/1")
         assert isinstance(msg, str)
         assert len(msg) > 0
+
+
+class TestNotifyMatchParticipants:
+    @pytest.fixture
+    def real_notify_service(self, service):
+        del service.notify_match_participants
+        service.discord_service.send_dm = AsyncMock(return_value=(True, "ok"))
+        service.discord_service.send_dm_with_unwatch_button = AsyncMock(return_value=(True, "ok"))
+        return service
+
+    @staticmethod
+    def _patch_query(target, rows):
+        mock_qs = MagicMock()
+        mock_qs.prefetch_related = MagicMock(return_value=AsyncMock(return_value=rows)())
+        return patch(target, return_value=mock_qs)
+
+    async def test_player_only_gets_plain_dm(self, real_notify_service):
+        match = MockMatch()
+        player = SimpleNamespace(user=SimpleNamespace(discord_id=111, dm_notifications=True))
+
+        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', []):
+            await real_notify_service.notify_match_participants(match, "hello")
+
+        real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello")
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
+
+    async def test_watcher_only_gets_unwatch_button_dm(self, real_notify_service):
+        match = MockMatch()
+        watcher = SimpleNamespace(user=SimpleNamespace(discord_id=222, dm_notifications=True))
+
+        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', []), \
+             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', [watcher]):
+            await real_notify_service.notify_match_participants(match, "hello")
+
+        real_notify_service.discord_service.send_dm.assert_not_awaited()
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "hello", match.id)
+
+    async def test_player_who_is_also_watcher_gets_unwatch_button(self, real_notify_service):
+        match = MockMatch()
+        u = SimpleNamespace(discord_id=333, dm_notifications=True)
+        player = SimpleNamespace(user=u)
+        watcher = SimpleNamespace(user=u)
+
+        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', [watcher]):
+            await real_notify_service.notify_match_participants(match, "hello")
+
+        real_notify_service.discord_service.send_dm.assert_not_awaited()
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(333, "hello", match.id)
+
+    async def test_dm_notifications_opt_out_skips_user(self, real_notify_service):
+        match = MockMatch()
+        opted_out = SimpleNamespace(user=SimpleNamespace(discord_id=444, dm_notifications=False))
+
+        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [opted_out]), \
+             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', []):
+            await real_notify_service.notify_match_participants(match, "hello")
+
+        real_notify_service.discord_service.send_dm.assert_not_awaited()
+        real_notify_service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
+
+    async def test_each_recipient_gets_exactly_one_dm(self, real_notify_service):
+        match = MockMatch()
+        player_user = SimpleNamespace(discord_id=111, dm_notifications=True)
+        crew_user = SimpleNamespace(discord_id=222, dm_notifications=True)
+        watcher_user = SimpleNamespace(discord_id=333, dm_notifications=True)
+
+        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter',
+                               [SimpleNamespace(user=player_user)]), \
+             self._patch_query('application.services.match_schedule_service.Commentator.filter',
+                               [SimpleNamespace(user=crew_user)]), \
+             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter',
+                               [SimpleNamespace(user=watcher_user)]):
+            await real_notify_service.notify_match_participants(match, "msg")
+
+        assert real_notify_service.discord_service.send_dm.await_count == 2
+        assert real_notify_service.discord_service.send_dm_with_unwatch_button.await_count == 1

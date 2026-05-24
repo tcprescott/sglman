@@ -1,6 +1,6 @@
 from nicegui import background_tasks, ui
 
-from application.services import CrewService, MatchService, UserService, current_user_from_storage
+from application.services import CrewService, MatchService, MatchWatcherService, UserService, current_user_from_storage
 from application.repositories import (
     UserRepository,
     TournamentRepository,
@@ -106,6 +106,44 @@ class BaseMatchDialog:
             make_clear_button('Clear Finish', 'sports_score', '_clear_finished', 'finished_at')
             make_clear_button('Clear Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
             make_clear_button('Clear Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
+
+    async def _render_watch_switch(self, user):
+        if not self.match:
+            return
+        watcher_service = MatchWatcherService()
+        initial_watching = await watcher_service.is_watching(self.match.id, user)
+        match_id = self.match.id
+
+        switch_ref = {}
+
+        async def on_change(event):
+            new_value = bool(event.value)
+            try:
+                if new_value:
+                    await watcher_service.watch(match_id, user)
+                    with self.dialog:
+                        ui.notify(
+                            f'Now watching match ID {match_id}. You will receive Discord DMs on updates.',
+                            color='positive',
+                        )
+                else:
+                    await watcher_service.unwatch(match_id, user)
+                    with self.dialog:
+                        ui.notify(
+                            f'No longer watching match ID {match_id}.',
+                            color='positive',
+                        )
+            except ValueError as e:
+                switch_ref['widget'].value = not new_value
+                switch_ref['widget'].update()
+                with self.dialog:
+                    ui.notify(str(e), color='warning')
+
+        switch_ref['widget'] = ui.switch(
+            'Watch this match (Discord DM updates)',
+            value=initial_watching,
+            on_change=lambda e: background_tasks.create(on_change(e)),
+        )
 
     async def _confirm_delete(self, dialog):
         """Show delete confirmation dialog."""
@@ -407,7 +445,10 @@ class UserMatchDialog(BaseMatchDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
-            
+
+            if self.match:
+                await self._render_watch_switch(user)
+
             # Check if user has tournaments
             if not tournaments:
                 ui.label('You have not opted into any tournaments. Please opt in before submitting a match.').classes('text-error mb-1')

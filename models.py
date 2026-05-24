@@ -32,6 +32,7 @@ class User(Model):
     approved_commentaries = fields.ReverseRelation["Commentator"]
     trackers = fields.ReverseRelation["Tracker"]
     approved_trackers = fields.ReverseRelation["Tracker"]
+    watched_matches = fields.ReverseRelation["MatchWatcher"]
     roles = fields.ReverseRelation["UserRole"]
     granted_roles = fields.ReverseRelation["UserRole"]
     audit_logs = fields.ReverseRelation["AuditLog"]
@@ -188,6 +189,17 @@ class Tracker(Model):
     approved_by = fields.ForeignKeyField('models.User', related_name='approved_trackers', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class MatchWatcher(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='watched_matches', on_delete=fields.CASCADE)
+    match = fields.ForeignKeyField('models.Match', related_name='watchers', on_delete=fields.CASCADE)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'match')
+        table = 'matchwatcher'
 
 class Team(Model):
     id = fields.IntField(pk=True)
