@@ -8,6 +8,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from application.services.audit_service import AuditActions, AuditService
+from application.services.auth_service import AuthService
 from application.utils.timezone import EASTERN_TZ, to_eastern
 from models import Match, StreamRoom, SystemConfiguration, User
 
@@ -28,6 +29,10 @@ class SystemConfigService:
 
     @staticmethod
     async def set_raw(key: str, value: str, actor: User) -> SystemConfiguration:
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can modify system configuration",
+        )
         config = await SystemConfiguration.get_or_none(name=key)
         old_value = config.value if config else None
         if config:

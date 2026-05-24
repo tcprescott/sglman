@@ -99,18 +99,20 @@ class UserService:
         for tp in current_registrations:
             if tp.tournament_id in removed_ids:
                 await tp.delete()
+        created_ids: List[int] = []
         for tournament_id in added_ids:
             tournament = await Tournament.get_or_none(id=tournament_id)
             if tournament:
                 await TournamentPlayers.create(user=user, tournament=tournament)
+                created_ids.append(tournament_id)
 
-        if added_ids or removed_ids:
+        if created_ids or removed_ids:
             await self.audit_service.write_log(
                 actor,
                 AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
                 {
                     'target_user_id': user.id,
-                    'added_tournament_ids': sorted(added_ids),
+                    'added_tournament_ids': sorted(created_ids),
                     'removed_tournament_ids': sorted(removed_ids),
                 },
             )

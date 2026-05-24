@@ -90,7 +90,7 @@ class MatchResultDialog:
             return
 
         try:
-            await self.match_service.record_match_result(
+            self.match = await self.match_service.record_match_result(
                 match_id=self.match.id,
                 winner_id=winner_id,
                 actor=actor,

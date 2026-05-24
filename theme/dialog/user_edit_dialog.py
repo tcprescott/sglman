@@ -27,7 +27,7 @@ class BaseUserDialog:
         tournament_options = {str(t.id): t.name for t in tournaments}
         return tournaments, user_tournaments, selected_tournament_ids, tournament_options
 
-    async def _update_tournament_enrollments(self, tournaments, user_tournaments, selected_tournament_ids, tournament_multiselect, actor):
+    async def _update_tournament_enrollments(self, user_tournaments, tournament_multiselect, actor):
         selected_ids = set(map(int, tournament_multiselect.value))
         await self.user_service.update_user_tournament_registrations(
             user=self.user,
@@ -36,7 +36,7 @@ class BaseUserDialog:
             current_registrations=user_tournaments,
         )
 
-    async def _add_tournament_enrollments(self, tournaments, tournament_multiselect, new_user, actor):
+    async def _add_tournament_enrollments(self, tournament_multiselect, new_user, actor):
         selected_ids = set(map(int, tournament_multiselect.value))
         if selected_ids:
             await self.user_service.manage_tournament_enrollments(
@@ -86,7 +86,7 @@ class UserDialog(BaseUserDialog):
                             actor=actor,
                         )
                         await self._update_tournament_enrollments(
-                            tournaments, user_tournaments, selected_tournament_ids, tournament_multiselect, actor,
+                            user_tournaments, tournament_multiselect, actor,
                         )
                         ui.notify('User updated.', color='positive')
                         dialog.close()
@@ -207,7 +207,7 @@ class AdminUserDialog(BaseUserDialog):
                                 actor=actor,
                             )
                             await self._update_tournament_enrollments(
-                                tournaments, user_tournaments, selected_tournament_ids, tournament_multiselect, actor,
+                                user_tournaments, tournament_multiselect, actor,
                             )
                             await sync_role_assignments(self.user)
                             await sync_tournament_memberships(
@@ -232,7 +232,7 @@ class AdminUserDialog(BaseUserDialog):
                             discord_id=discord_id_input.value if discord_id_input else None,
                             actor=actor,
                         )
-                        await self._add_tournament_enrollments(tournaments, tournament_multiselect, new_user, actor)
+                        await self._add_tournament_enrollments(tournament_multiselect, new_user, actor)
                         await sync_role_assignments(new_user)
                         await sync_tournament_memberships(
                             new_user, admin_tournament_multiselect, [],

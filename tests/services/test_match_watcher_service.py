@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from application.services.audit_service import AuditActions
 from application.services.match_watcher_service import MatchWatcherService
 
 
@@ -48,7 +49,7 @@ class TestWatch:
         service.audit_service.write_log.assert_awaited_once()
         args, _ = service.audit_service.write_log.call_args
         assert args[0] is user
-        assert args[1] == 'match.watcher_added'
+        assert args[1] == AuditActions.MATCH_WATCHER_ADDED
         assert args[2] == {'match_id': 7}
 
     async def test_no_audit_log_when_already_watching(self, service):
@@ -107,7 +108,7 @@ class TestUnwatch:
         service.audit_service.write_log.assert_awaited_once()
         args, _ = service.audit_service.write_log.call_args
         assert args[0] is user
-        assert args[1] == 'match.watcher_removed'
+        assert args[1] == AuditActions.MATCH_WATCHER_REMOVED
         assert args[2] == {'match_id': 42}
 
     async def test_no_audit_log_when_not_watching(self, service):
