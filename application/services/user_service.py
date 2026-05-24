@@ -75,28 +75,33 @@ class UserService:
         return await TournamentPlayers.filter(user=user)
     
     async def update_user_personal_info(
-        self, 
-        user: User, 
-        display_name: Optional[str] = None, 
-        pronouns: Optional[str] = None
+        self,
+        user: User,
+        display_name: Optional[str] = None,
+        pronouns: Optional[str] = None,
+        dm_notifications: Optional[bool] = None,
     ) -> User:
         """
         Update user's personal information.
-        
+
         Args:
             user: User to update
             display_name: New display name (optional)
             pronouns: New pronouns (optional)
-            
+            dm_notifications: Whether to receive Discord DM notifications (optional)
+
         Returns:
             Updated user object
         """
         if display_name is not None:
             user.display_name = display_name.strip() if display_name.strip() else None
-        
+
         if pronouns is not None:
             user.pronouns = pronouns.strip() if pronouns.strip() else None
-        
+
+        if dm_notifications is not None:
+            user.dm_notifications = dm_notifications
+
         await user.save()
         return user
     

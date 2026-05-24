@@ -19,6 +19,7 @@ class User(Model):
     display_name = fields.CharField(max_length=150, null=True)
     pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
+    dm_notifications = fields.BooleanField(default=True)
     permission = fields.IntEnumField(Permissions, default=Permissions.USER.value)
 
     # related fields
