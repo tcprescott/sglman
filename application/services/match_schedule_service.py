@@ -11,7 +11,7 @@ from typing import Dict, Tuple, Optional
 from application.repositories import MatchRepository
 from application.services.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
-from models import Match, GeneratedSeeds
+from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker
 
 
 class MatchScheduleService:
@@ -28,75 +28,87 @@ class MatchScheduleService:
     async def seat_match(self, match: Match) -> None:
         """
         Mark a match as seated (checked in).
-        
+
         Args:
             match: Match to seat
-            
+
         Raises:
             ValueError: If match is invalid
         """
         if match.seated_at:
             raise ValueError("Match is already checked in")
-        
+
         match.seated_at = datetime.now()
         await match.save()
+        await match.fetch_related('tournament')
+        msg = self._create_checked_in_dm_message(match.id, match.tournament.name)
+        await self.notify_match_participants(match, msg)
     
     async def start_match(self, match: Match) -> None:
         """
         Mark a match as started.
-        
+
         Args:
             match: Match to start
-            
+
         Raises:
             ValueError: If match is invalid or not checked in
         """
         if not match.seated_at:
             raise ValueError("Match must be checked in before starting")
-        
+
         if match.started_at:
             raise ValueError("Match is already started")
-        
+
         match.started_at = datetime.now()
         await match.save()
+        await match.fetch_related('tournament')
+        msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Started")
+        await self.notify_match_participants(match, msg)
     
     async def finish_match(self, match: Match) -> None:
         """
         Mark a match as finished.
-        
+
         Args:
             match: Match to finish
-            
+
         Raises:
             ValueError: If match is invalid or not started
         """
         if not match.started_at:
             raise ValueError("Match must be started before finishing")
-        
+
         if match.finished_at:
             raise ValueError("Match is already finished")
-        
+
         match.finished_at = datetime.now()
         await match.save()
+        await match.fetch_related('tournament')
+        msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Finished")
+        await self.notify_match_participants(match, msg)
     
     async def confirm_match(self, match: Match) -> None:
         """
         Mark a match as confirmed.
-        
+
         Args:
             match: Match to confirm
-            
+
         Raises:
             ValueError: If match is invalid or not finished
         """
         if not match.finished_at:
             raise ValueError("Match must be finished before confirming")
-        
+
         if match.confirmed_at:
             raise ValueError("Match is already confirmed")
-        
+
         match.confirmed_at = datetime.now()
         await match.save()
+        await match.fetch_related('tournament')
+        msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Confirmed")
+        await self.notify_match_participants(match, msg)
     
     async def generate_seed(self, match_id: int) -> Tuple[bool, str, Optional[str]]:
         """
@@ -153,10 +165,10 @@ class MatchScheduleService:
                 )
                 await match.save()
                 
-                # Send DMs to players
+                # Send DMs to players (respects dm_notifications opt-out)
                 dm_failures = []
                 for player in match.players:
-                    if player.user.discord_id:
+                    if player.user.discord_id and player.user.dm_notifications:
                         dm_message = self._create_seed_dm_message(
                             player.user.display_name or player.user.username,
                             match.id,
@@ -179,6 +191,85 @@ class MatchScheduleService:
             except Exception as e:
                 return False, f"Error generating seed: {str(e)}", None
     
+    async def notify_match_participants(self, match: Match, message: str) -> None:
+        """
+        Send a DM to all opted-in players and approved crew for a match.
+
+        Never raises; partial DM failures are logged and swallowed so the
+        calling lifecycle operation is never blocked.
+        """
+        try:
+            seen_ids: list[int] = []
+
+            players = await MatchPlayers.filter(match=match).prefetch_related('user')
+            for mp in players:
+                if mp.user.dm_notifications and mp.user.discord_id:
+                    seen_ids.append(mp.user.discord_id)
+
+            commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+            for c in commentators:
+                if c.user.dm_notifications and c.user.discord_id and c.user.discord_id not in seen_ids:
+                    seen_ids.append(c.user.discord_id)
+
+            trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+            for t in trackers:
+                if t.user.dm_notifications and t.user.discord_id and t.user.discord_id not in seen_ids:
+                    seen_ids.append(t.user.discord_id)
+
+            for discord_id in seen_ids:
+                success, err = await self.discord_service.send_dm(discord_id, message)
+                if not success:
+                    print(f"[notify_match_participants] DM failed for {discord_id}: {err}")
+
+        except Exception as e:
+            print(f"[notify_match_participants] Unexpected error for match {match.id}: {e}")
+
+    def _create_scheduled_dm_message(
+        self,
+        match_id: int,
+        tournament_name: str,
+        scheduled_at_display: str,
+    ) -> str:
+        return (
+            f"A match has been scheduled for you in **{tournament_name}**.\n\n"
+            f"Match ID: {match_id}\n"
+            f"Scheduled for: {scheduled_at_display}\n\n"
+            f"Good luck!"
+        )
+
+    def _create_rescheduled_dm_message(
+        self,
+        match_id: int,
+        tournament_name: str,
+        new_scheduled_at_display: str,
+    ) -> str:
+        return (
+            f"Your match in **{tournament_name}** has been rescheduled.\n\n"
+            f"Match ID: {match_id}\n"
+            f"New time: {new_scheduled_at_display}\n\n"
+            f"Please update your calendar."
+        )
+
+    def _create_checked_in_dm_message(
+        self,
+        match_id: int,
+        tournament_name: str,
+    ) -> str:
+        return (
+            f"Match ID {match_id} in **{tournament_name}** has been checked in. "
+            f"The match is about to begin — good luck!"
+        )
+
+    def _create_state_changed_dm_message(
+        self,
+        match_id: int,
+        tournament_name: str,
+        new_state: str,
+    ) -> str:
+        return (
+            f"Match ID {match_id} in **{tournament_name}** is now: **{new_state}**."
+        )
+
     def _create_seed_dm_message(
         self, 
         player_name: str, 

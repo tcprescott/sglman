@@ -18,9 +18,11 @@ from application.repositories import (
     TrackerRepository,
 )
 from application.services.audit_service import AuditService
+from application.services.match_schedule_service import MatchScheduleService
 from application.utils.timezone import (
     parse_eastern_datetime,
     format_eastern_datetime,
+    format_eastern_display,
 )
 
 
@@ -35,6 +37,7 @@ class MatchService:
         self.commentator_repository = CommentatorRepository()
         self.tracker_repository = TrackerRepository()
         self.audit_service = AuditService()
+        self.match_schedule_service = MatchScheduleService()
     
     async def get_match_for_display(
         self,
@@ -265,9 +268,18 @@ class MatchService:
                 f'Created match {match.id}',
                 f'Tournament: {tournament_id}, Players: {player_ids}'
             )
-        
+
+        # Notify participants of the newly scheduled match
+        await match.fetch_related('tournament')
+        msg = self.match_schedule_service._create_scheduled_dm_message(
+            match.id,
+            match.tournament.name,
+            format_eastern_display(match.scheduled_at),
+        )
+        await self.match_schedule_service.notify_match_participants(match, msg)
+
         return match
-    
+
     async def update_match(
         self,
         match_id: int,
@@ -315,7 +327,9 @@ class MatchService:
         match = await self.repository.get_by_id(match_id, prefetch_relations=True)
         if not match:
             raise ValueError(f"Match {match_id} not found")
-        
+
+        old_scheduled_at = match.scheduled_at
+
         # Build update fields
         update_fields = {}
         
@@ -373,7 +387,18 @@ class MatchService:
                 f'Updated match {match.id}',
                 f'Fields: {list(update_fields.keys())}'
             )
-        
+
+        # Notify participants when the match time changes on an already-scheduled match
+        new_scheduled_at = update_fields.get('scheduled_at')
+        if new_scheduled_at and old_scheduled_at and new_scheduled_at != old_scheduled_at:
+            await match.fetch_related('tournament')
+            msg = self.match_schedule_service._create_rescheduled_dm_message(
+                match.id,
+                match.tournament.name,
+                format_eastern_display(new_scheduled_at),
+            )
+            await self.match_schedule_service.notify_match_participants(match, msg)
+
         return match
     
     async def ensure_players_enrolled(
@@ -402,12 +427,16 @@ class MatchService:
         match = await self.repository.get_by_id(match_id)
         if not match:
             raise ValueError(f"Match {match_id} not found")
-        
+
         await self.repository.update(match, seated_at=datetime.now())
-        
+
         if admin_user:
             await self.audit_service.write_log(admin_user, f'Seated match {match.id}', '')
-        
+
+        await match.fetch_related('tournament')
+        msg = self.match_schedule_service._create_checked_in_dm_message(match.id, match.tournament.name)
+        await self.match_schedule_service.notify_match_participants(match, msg)
+
         return match
     
     async def finish_match(self, match_id: int, admin_user: Optional[User] = None) -> Match:

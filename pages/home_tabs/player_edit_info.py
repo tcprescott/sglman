@@ -59,11 +59,18 @@ async def render_edit_info_tab():
                 with ui.column():
                     ui.label('Pronouns').classes('input-label')
                     pronouns_input = ui.input(
-                        '', 
-                        value=user.pronouns or '', 
+                        '',
+                        value=user.pronouns or '',
                         placeholder='e.g. they/them'
                     ).classes('input-full-width').props('outlined dense')
-        
+
+        with ui.card().classes('card-full-width'):
+            ui.label('Notifications').classes('section-title')
+            dm_checkbox = ui.checkbox(
+                'Receive Discord DM notifications for match updates',
+                value=user.dm_notifications
+            )
+
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
@@ -100,7 +107,8 @@ async def render_edit_info_tab():
             await user_service.update_user_personal_info(
                 user=user,
                 display_name=display_name_input.value,
-                pronouns=pronouns_input.value
+                pronouns=pronouns_input.value,
+                dm_notifications=dm_checkbox.value,
             )
             
             # Update tournament registrations using service

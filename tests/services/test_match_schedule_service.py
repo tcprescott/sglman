@@ -6,6 +6,11 @@ import pytest
 from application.services.match_schedule_service import MatchScheduleService
 
 
+class MockTournament:
+    def __init__(self, name="Test Tournament"):
+        self.name = name
+
+
 class MockMatch:
     """Minimal stand-in for a Match ORM object."""
 
@@ -15,7 +20,9 @@ class MockMatch:
         self.started_at = started_at
         self.finished_at = finished_at
         self.confirmed_at = confirmed_at
+        self.tournament = MockTournament()
         self.save = AsyncMock()
+        self.fetch_related = AsyncMock()
 
 
 @pytest.fixture
@@ -25,6 +32,7 @@ def service():
     svc.discord_service = MagicMock()
     svc.seedgen_service = MagicMock()
     svc._seed_locks = {}
+    svc.notify_match_participants = AsyncMock()
     return svc
 
 
