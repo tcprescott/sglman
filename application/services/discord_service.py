@@ -287,3 +287,49 @@ class DiscordService:
             return False, f"Discord HTTP error while removing role: {str(e)}"
         except Exception as e:
             return False, f"Failed to remove role: {str(e)}"
+
+
+class MockDiscordService:
+    """Stub Discord service for local development without a real bot.
+
+    Mirrors the public surface of DiscordService. Methods log to stdout and
+    return success tuples with shapes matching the real implementation, so
+    notification code paths can be exercised end-to-end.
+    """
+
+    def __init__(self):
+        self._bot = None
+
+    async def send_dm(self, user_id: int, message: str) -> Tuple[bool, str]:
+        print(f"[MOCK Discord DM] -> {user_id}: {message}")
+        return True, "Message sent (mock)"
+
+    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
+        print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, crew buttons): {message}")
+        return True, "Message sent (mock)"
+
+    def get_bot(self):
+        return None
+
+    async def list_guilds(self) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
+        return True, [{"id": 1, "name": "Mock Guild"}]
+
+    async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
+        return True, [
+            {"id": 1, "name": "Mock Role"},
+            {"id": 2, "name": "Mock Admin"},
+        ]
+
+    async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
+        print(f"[MOCK Discord] add_role guild={guild_id} user={user_id} role={role_id} reason={reason!r}")
+        return True, "Role added (mock)"
+
+    async def remove_role_from_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
+        print(f"[MOCK Discord] remove_role guild={guild_id} user={user_id} role={role_id} reason={reason!r}")
+        return True, "Role removed (mock)"
+
+
+from application.utils.mock_discord import is_mock_discord  # noqa: E402
+
+if is_mock_discord():
+    DiscordService = MockDiscordService  # type: ignore[misc,assignment]

@@ -8,6 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 from zenora import APIClient
 
+from application.utils.mock_discord import is_mock_discord
 from models import User
 
 # Supporting variables
@@ -22,7 +23,10 @@ config = {
     "STORAGE_SECRET": os.getenv("STORAGE_SECRET")
 }
 
-discordClient = APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
+discordClient = (
+    APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
+    if not is_mock_discord() else None
+)
 
 # Registry of routes that require authentication; populated by protected_page decorator
 protected_routes: set[str] = set()
@@ -57,6 +61,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 def create() -> None:
+    if is_mock_discord():
+        from middleware import mock_auth
+        mock_auth.create()
+        return
+
     @ui.page('/login')
     def login(client: Client) -> Optional[RedirectResponse]:
         if app.storage.user.get('authenticated', False):
