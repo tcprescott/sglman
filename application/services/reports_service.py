@@ -9,7 +9,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from application.services.system_config_service import SystemConfigService
-from application.utils.timezone import EASTERN_TZ
+from application.utils.timezone import EASTERN_TZ, to_eastern
 from models import (
     Commentator,
     Match,
@@ -31,11 +31,7 @@ class ReportsService:
 
     @staticmethod
     def _eastern(dt: Optional[datetime]) -> Optional[datetime]:
-        if dt is None:
-            return None
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=EASTERN_TZ)
-        return dt.astimezone(EASTERN_TZ)
+        return to_eastern(dt)
 
     @staticmethod
     def _match_window(match: Match) -> Optional[Tuple[datetime, datetime]]:

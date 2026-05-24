@@ -3,6 +3,7 @@
 KPI strip + report cards. All KPIs scoped to the configured event window.
 """
 
+import asyncio
 from typing import Optional
 
 from nicegui import ui
@@ -65,16 +66,21 @@ async def dashboard_page() -> None:
             f'Window: {start_d.isoformat()} → {end_d.isoformat()} (US/Eastern)'
         ).classes('italic-note')
 
-        forecast = await reports_service.generate_capacity_forecast(start, end)
-        ops = await reports_service.match_operations(start, end)
-        coverage = await reports_service.crew_coverage(start, end)
-        utilization = await reports_service.stream_room_utilization(start, end)
-        max_stages = await SystemConfigService.get_max_concurrent_stages()
+        forecast, ops, coverage, utilization, max_stages = await asyncio.gather(
+            reports_service.generate_capacity_forecast(start, end),
+            reports_service.match_operations(start, end),
+            reports_service.crew_coverage(start, end),
+            reports_service.stream_room_utilization(start, end),
+            SystemConfigService.get_max_concurrent_stages(),
+        )
 
         # KPI computations
         peak_players = max(forecast['player_counts']) if forecast['player_counts'] else 0
-        peak_idx = forecast['player_counts'].index(peak_players) if peak_players else 0
-        peak_time = forecast['intervals'][peak_idx] if forecast['intervals'] else None
+        if peak_players > 0:
+            peak_idx = forecast['player_counts'].index(peak_players)
+            peak_time = forecast['intervals'][peak_idx]
+        else:
+            peak_time = None
 
         peak_stages = 0
         if forecast['intervals']:

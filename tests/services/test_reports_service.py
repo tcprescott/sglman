@@ -1,0 +1,249 @@
+"""Unit tests for ReportsService pure-function helpers.
+
+Tests that require a DB are skipped here; the session-scoped ``db`` fixture
+in conftest.py is available for async DB tests but not used for the pure
+computations below.
+"""
+
+from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
+from typing import Optional
+
+import pytest
+
+from application.services.reports_service import (
+    DEFAULT_MATCH_DURATION_MIN,
+    ReportsService,
+    event_day_bounds,
+)
+from application.utils.timezone import EASTERN_TZ
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def make_match(
+    *,
+    scheduled_at=None,
+    seated_at=None,
+    started_at=None,
+    finished_at=None,
+    avg_duration: Optional[int] = None,
+    players_per_match: int = 2,
+    stream_room_id=None,
+):
+    tournament = SimpleNamespace(
+        average_match_duration=avg_duration,
+        players_per_match=players_per_match,
+        name='Test',
+    )
+    return SimpleNamespace(
+        id=1,
+        tournament_id=1,
+        tournament=tournament,
+        scheduled_at=scheduled_at,
+        seated_at=seated_at,
+        started_at=started_at,
+        finished_at=finished_at,
+        stream_room_id=stream_room_id,
+        is_stream_candidate=False,
+        players=[],
+    )
+
+
+def eastern(year, month, day, hour=0, minute=0) -> datetime:
+    return datetime(year, month, day, hour, minute, tzinfo=EASTERN_TZ)
+
+
+def utc(year, month, day, hour=0, minute=0) -> datetime:
+    return datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
+
+
+def naive(year, month, day, hour=0, minute=0) -> datetime:
+    return datetime(year, month, day, hour, minute)
+
+
+# ---------------------------------------------------------------------------
+# _eastern: naive treated as UTC
+# ---------------------------------------------------------------------------
+
+
+class TestEastern:
+    def test_returns_none_for_none(self):
+        assert ReportsService._eastern(None) is None
+
+    def test_naive_treated_as_utc_winter(self):
+        # Naive 2025-01-15 19:30 should be interpreted as UTC → 14:30 ET (EST = UTC-5)
+        dt = naive(2025, 1, 15, 19, 30)
+        result = ReportsService._eastern(dt)
+        assert result.tzinfo is not None
+        assert result.hour == 14
+        assert result.minute == 30
+
+    def test_naive_treated_as_utc_summer(self):
+        # Naive 2025-07-15 18:00 should be interpreted as UTC → 14:00 ET (EDT = UTC-4)
+        dt = naive(2025, 7, 15, 18, 0)
+        result = ReportsService._eastern(dt)
+        assert result.hour == 14
+
+    def test_aware_utc_is_converted(self):
+        # UTC 2025-01-15 19:30 → ET 14:30
+        dt = utc(2025, 1, 15, 19, 30)
+        result = ReportsService._eastern(dt)
+        assert result.hour == 14
+        assert result.minute == 30
+
+    def test_already_eastern_is_unchanged(self):
+        dt = eastern(2025, 1, 15, 14, 30)
+        result = ReportsService._eastern(dt)
+        assert result.hour == 14
+        assert result.minute == 30
+
+
+# ---------------------------------------------------------------------------
+# _match_window
+# ---------------------------------------------------------------------------
+
+
+class TestMatchWindow:
+    def test_no_scheduled_at_returns_none(self):
+        assert ReportsService._match_window(make_match()) is None
+
+    def test_no_seated_start_is_one_hour_before_scheduled(self):
+        sched = eastern(2025, 10, 23, 14, 0)
+        m = make_match(scheduled_at=sched)
+        ws, we = ReportsService._match_window(m)
+        assert ws == eastern(2025, 10, 23, 13, 0)
+
+    def test_seated_at_overrides_start(self):
+        sched = eastern(2025, 10, 23, 14, 0)
+        seated = eastern(2025, 10, 23, 13, 30)
+        m = make_match(scheduled_at=sched, seated_at=seated)
+        ws, _ = ReportsService._match_window(m)
+        assert ws == seated
+
+    def test_finished_at_sets_end(self):
+        sched = eastern(2025, 10, 23, 14, 0)
+        finished = eastern(2025, 10, 23, 15, 45)
+        m = make_match(scheduled_at=sched, finished_at=finished)
+        _, we = ReportsService._match_window(m)
+        assert we == finished
+
+    def test_no_finished_uses_tournament_avg_duration(self):
+        sched = eastern(2025, 10, 23, 14, 0)
+        m = make_match(scheduled_at=sched, avg_duration=60)
+        ws, we = ReportsService._match_window(m)
+        assert (we - ws) == timedelta(hours=1 + 1)  # start is sched-1h, end is sched+60min
+
+    def test_no_finished_defaults_to_90_min_when_no_tournament_avg(self):
+        sched = eastern(2025, 10, 23, 14, 0)
+        m = make_match(scheduled_at=sched, avg_duration=None)
+        ws, we = ReportsService._match_window(m)
+        assert (we - ws) == timedelta(minutes=60 + DEFAULT_MATCH_DURATION_MIN)
+
+    def test_naive_scheduled_at_treated_as_utc(self):
+        # Naive UTC 19:00 → ET 14:00; start should be 13:00 ET (one hour prior)
+        sched = naive(2025, 1, 15, 19, 0)
+        m = make_match(scheduled_at=sched)
+        ws, _ = ReportsService._match_window(m)
+        assert ws.hour == 13
+
+    def test_end_not_before_start(self):
+        # Edge case: finished_at before seated_at
+        sched = eastern(2025, 10, 23, 14, 0)
+        seated = eastern(2025, 10, 23, 14, 0)
+        finished = eastern(2025, 10, 23, 13, 0)  # before seated
+        m = make_match(scheduled_at=sched, seated_at=seated, finished_at=finished)
+        ws, we = ReportsService._match_window(m)
+        assert we >= ws
+
+
+# ---------------------------------------------------------------------------
+# _auto_interval_minutes
+# ---------------------------------------------------------------------------
+
+
+class TestAutoIntervalMinutes:
+    def test_less_than_24h_gives_15min(self):
+        s = eastern(2025, 10, 23, 0, 0)
+        e = s + timedelta(hours=12)
+        assert ReportsService._auto_interval_minutes(s, e) == 15
+
+    def test_exactly_24h_gives_15min(self):
+        s = eastern(2025, 10, 23, 0, 0)
+        e = s + timedelta(hours=24)
+        assert ReportsService._auto_interval_minutes(s, e) == 15
+
+    def test_25h_gives_30min(self):
+        s = eastern(2025, 10, 23, 0, 0)
+        e = s + timedelta(hours=25)
+        assert ReportsService._auto_interval_minutes(s, e) == 30
+
+    def test_exactly_72h_gives_30min(self):
+        s = eastern(2025, 10, 23, 0, 0)
+        e = s + timedelta(hours=72)
+        assert ReportsService._auto_interval_minutes(s, e) == 30
+
+    def test_more_than_72h_gives_60min(self):
+        s = eastern(2025, 10, 23, 0, 0)
+        e = s + timedelta(hours=96)
+        assert ReportsService._auto_interval_minutes(s, e) == 60
+
+
+# ---------------------------------------------------------------------------
+# peak_times
+# ---------------------------------------------------------------------------
+
+
+class TestPeakTimes:
+    def _times(self):
+        return [eastern(2025, 10, 23, h) for h in range(5)]
+
+    def test_returns_top_n(self):
+        intervals = self._times()
+        counts = [3, 7, 2, 9, 5]
+        peaks = ReportsService.peak_times(intervals, counts, top_n=3)
+        assert len(peaks) == 3
+
+    def test_sorted_descending(self):
+        intervals = self._times()
+        counts = [3, 7, 2, 9, 5]
+        peaks = ReportsService.peak_times(intervals, counts, top_n=3)
+        assert [p[1] for p in peaks] == [9, 7, 5]
+
+    def test_all_zeros_returns_zeros(self):
+        intervals = self._times()
+        counts = [0, 0, 0, 0, 0]
+        peaks = ReportsService.peak_times(intervals, counts, top_n=2)
+        assert all(p[1] == 0 for p in peaks)
+
+    def test_top_n_larger_than_list(self):
+        intervals = self._times()[:2]
+        counts = [5, 3]
+        peaks = ReportsService.peak_times(intervals, counts, top_n=10)
+        assert len(peaks) == 2
+
+
+# ---------------------------------------------------------------------------
+# event_day_bounds
+# ---------------------------------------------------------------------------
+
+
+class TestEventDayBounds:
+    def test_start_is_midnight_eastern(self):
+        from datetime import date
+        s, e = event_day_bounds(date(2025, 10, 23))
+        assert s == eastern(2025, 10, 23, 0, 0)
+        assert s.tzinfo == EASTERN_TZ
+
+    def test_end_is_next_midnight(self):
+        from datetime import date
+        s, e = event_day_bounds(date(2025, 10, 23))
+        assert e == eastern(2025, 10, 24, 0, 0)
+
+    def test_window_is_24_hours(self):
+        from datetime import date
+        s, e = event_day_bounds(date(2025, 10, 23))
+        assert (e - s) == timedelta(hours=24)

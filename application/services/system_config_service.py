@@ -8,7 +8,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from models import SystemConfiguration, StreamRoom, Match
-from application.utils.timezone import EASTERN_TZ
+from application.utils.timezone import EASTERN_TZ, to_eastern
 
 
 KEY_EVENT_START_DATE = 'event_start_date'
@@ -69,11 +69,11 @@ class SystemConfigService:
             first = await Match.all().order_by('scheduled_at').first()
             last = await Match.all().order_by('-scheduled_at').first()
             derived_start = (
-                first.scheduled_at.astimezone(EASTERN_TZ).date()
+                to_eastern(first.scheduled_at).date()
                 if first and first.scheduled_at else None
             )
             derived_end = (
-                last.scheduled_at.astimezone(EASTERN_TZ).date()
+                to_eastern(last.scheduled_at).date()
                 if last and last.scheduled_at else None
             )
             if start is None:

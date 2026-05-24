@@ -58,7 +58,7 @@ async def audit_page(
                         report='audit',
                         start=start_d, end=end_d,
                         user_id=user_id_int,
-                        action=action_input.value or None,
+                        action=(action_input.value or '').strip() or None,
                     )
                 action_input.on('blur', _on_action)
                 action_input.on('keydown.enter', _on_action)
