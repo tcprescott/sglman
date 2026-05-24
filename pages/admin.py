@@ -13,7 +13,20 @@ from theme.base import BaseLayout
 
 def create() -> None:
     @protected_page('/admin')
-    async def admin_dashboard_page(tab: str = None) -> None:
+    async def admin_dashboard_page(
+        tab: str = None,
+        report: str = None,
+        start: str = None,
+        end: str = None,
+        tournament_id: int = None,
+        user_id: int = None,
+        stream_room_id: int = None,
+        state: str = None,
+        approval: str = None,
+        action: str = None,
+        focus: str = None,
+        page: int = None,
+    ) -> None:
         ui.page_title('Speedgaming Live Onsite - Admin Dashboard')
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
@@ -32,6 +45,20 @@ def create() -> None:
                 ui.label('You do not have permission to view this page.').classes('text-error')
             return
 
+        reports_kwargs = {
+            'report': report,
+            'start': start,
+            'end': end,
+            'tournament_id': tournament_id,
+            'user_id': user_id,
+            'stream_room_id': stream_room_id,
+            'state': state,
+            'approval': approval,
+            'action': action,
+            'focus': focus,
+            'page': page,
+        }
+
         # Define tab data model: label and content function
         tabs = [
             {'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page},
@@ -39,7 +66,7 @@ def create() -> None:
             {'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page},
             {'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page},
             # {'label': 'Announcements', 'icon': 'announcement', 'content': announcement_admin_page},
-            {'label': 'Reports', 'icon': 'analytics', 'content': reports_page},
+            {'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)},
         ]
 
         base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user)

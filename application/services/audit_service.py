@@ -4,13 +4,52 @@ Audit Service - Business Logic Layer
 Handles audit logging for tracking user actions and system events.
 """
 
+from datetime import datetime
 from typing import Optional, Union
 
+from application.repositories.audit_repository import AuditRepository
 from models import AuditLog, User
 
 
 class AuditService:
     """Service for audit logging operations."""
+
+    def __init__(self):
+        self.repository = AuditRepository()
+
+    async def list_logs(
+        self,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        user_id: Optional[int] = None,
+        action_contains: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[AuditLog]:
+        return await self.repository.list(
+            start=start,
+            end=end,
+            user_id=user_id,
+            action_contains=action_contains,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def count_logs(
+        self,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        user_id: Optional[int] = None,
+        action_contains: Optional[str] = None,
+    ) -> int:
+        return await self.repository.count(
+            start=start,
+            end=end,
+            user_id=user_id,
+            action_contains=action_contains,
+        )
     
     async def write_log(
         self,
