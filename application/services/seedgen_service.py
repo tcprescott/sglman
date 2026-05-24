@@ -59,12 +59,47 @@ class SeedGenerationService:
     async def _generate_alttpr(self) -> str:
         """
         Generate an A Link to the Past Randomizer seed.
-        
+
         Returns:
             URL to the generated seed
         """
         with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
             preset = yaml.safe_load(f)
+
+        seed = await ALTTPR.generate(
+            settings=preset['settings'],
+            endpoint='/api/customizer',
+        )
+        return seed.url
+
+    async def generate_alttpr_for_tournament(
+        self,
+        tournament_id: int,
+        balanced: bool = True,
+    ) -> str:
+        """Generate an ALTTPR seed with a community triforce text embedded.
+
+        Selects an approved text from the tournament's pool (balanced by
+        default so every submitter is weighted equally). Falls back to a
+        plain seed when no approved texts exist.
+        """
+        from application.services.triforce_text_service import TriforceTextService
+        from models import Tournament
+
+        tournament = await Tournament.get(id=tournament_id)
+
+        with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
+            preset = yaml.safe_load(f)
+
+        service = TriforceTextService()
+        text = (
+            await service.get_balanced_text(tournament)
+            if balanced
+            else await service.get_random_text(tournament)
+        )
+        if text:
+            preset.setdefault('settings', {}).setdefault('texts', {})
+            preset['settings']['texts']['end_triforce'] = "{NOBORDER}\n" + text
 
         seed = await ALTTPR.generate(
             settings=preset['settings'],

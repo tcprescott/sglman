@@ -14,6 +14,7 @@ from .stream_room_repository import StreamRoomRepository
 from .tournament_notification_repository import TournamentNotificationRepository
 from .tournament_repository import TournamentRepository
 from .tracker_repository import TrackerRepository
+from .triforce_text_repository import TriforceTextRepository
 from .user_repository import UserRepository
 from .user_role_repository import UserRoleRepository
 
@@ -27,6 +28,7 @@ __all__ = [
     'TournamentNotificationRepository',
     'TournamentRepository',
     'TrackerRepository',
+    'TriforceTextRepository',
     'UserRepository',
     'UserRoleRepository',
 ]

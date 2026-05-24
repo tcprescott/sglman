@@ -18,6 +18,7 @@ from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
 from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
+from .triforce_text_service import TriforceTextService
 from .user_service import UserService
 
 __all__ = [
@@ -35,5 +36,6 @@ __all__ = [
     'SystemConfigService',
     'TournamentNotificationService',
     'TournamentService',
+    'TriforceTextService',
     'UserService',
 ]
