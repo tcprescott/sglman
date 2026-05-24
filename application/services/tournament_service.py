@@ -8,7 +8,7 @@ and admin/crew-coordinator membership.
 from typing import Optional
 
 from application.repositories import TournamentRepository
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from models import Tournament, User
 
@@ -62,10 +62,11 @@ class TournamentService:
             staff_administered=staff_administered,
         )
 
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Created tournament', f'T={tournament.id} name="{tournament.name}"',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_CREATED,
+            {'tournament_id': tournament.id, 'name': tournament.name},
+        )
 
         return tournament
 
@@ -125,10 +126,11 @@ class TournamentService:
 
         result = await self.repository.update(tournament, **update_data)
 
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Updated tournament', f'T={tournament.id} fields={list(update_data.keys())}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_UPDATED,
+            {'tournament_id': tournament.id, 'changed_fields': list(update_data.keys())},
+        )
 
         return result
 
@@ -139,8 +141,11 @@ class TournamentService:
         )
         tournament_id = tournament.id
         await tournament.delete()
-        if actor:
-            await self.audit_service.write_log(actor, 'Deleted tournament', f'T={tournament_id}')
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_DELETED,
+            {'tournament_id': tournament_id},
+        )
 
     async def add_admin(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -148,10 +153,11 @@ class TournamentService:
             "Only Staff can grant Tournament Admin",
         )
         await tournament.admins.add(target)
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Granted TA', f'T={tournament.id} target=U{target.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_ADMIN_GRANTED,
+            {'tournament_id': tournament.id, 'target_user_id': target.id},
+        )
 
     async def remove_admin(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -159,10 +165,11 @@ class TournamentService:
             "Only Staff can revoke Tournament Admin",
         )
         await tournament.admins.remove(target)
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Revoked TA', f'T={tournament.id} target=U{target.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_ADMIN_REVOKED,
+            {'tournament_id': tournament.id, 'target_user_id': target.id},
+        )
 
     async def add_crew_coordinator(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -170,10 +177,11 @@ class TournamentService:
             "Only Staff can grant Crew Coordinator",
         )
         await tournament.crew_coordinators.add(target)
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Granted CC', f'T={tournament.id} target=U{target.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_CREW_COORDINATOR_GRANTED,
+            {'tournament_id': tournament.id, 'target_user_id': target.id},
+        )
 
     async def remove_crew_coordinator(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -181,10 +189,11 @@ class TournamentService:
             "Only Staff can revoke Crew Coordinator",
         )
         await tournament.crew_coordinators.remove(target)
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Revoked CC', f'T={tournament.id} target=U{target.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.TOURNAMENT_CREW_COORDINATOR_REVOKED,
+            {'tournament_id': tournament.id, 'target_user_id': target.id},
+        )
 
     async def get_all_tournaments(self, active_only: bool = False) -> list[Tournament]:
         return await self.repository.get_all(active_only=active_only)

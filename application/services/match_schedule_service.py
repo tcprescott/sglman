@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, Tuple, Optional
 
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
@@ -39,8 +39,9 @@ class MatchScheduleService:
 
         match.seated_at = datetime.now()
         await match.save()
-        if actor:
-            await self.audit_service.write_log(actor, f'Seated match {match.id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_SEATED, {'match_id': match.id},
+        )
         await match.fetch_related('tournament')
         msg = self._create_checked_in_dm_message(match.id, match.tournament.name)
         await self.notify_match_participants(match, msg)
@@ -57,8 +58,9 @@ class MatchScheduleService:
 
         match.started_at = datetime.now()
         await match.save()
-        if actor:
-            await self.audit_service.write_log(actor, f'Started match {match.id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_STARTED, {'match_id': match.id},
+        )
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Started")
         await self.notify_match_participants(match, msg)
@@ -75,8 +77,9 @@ class MatchScheduleService:
 
         match.finished_at = datetime.now()
         await match.save()
-        if actor:
-            await self.audit_service.write_log(actor, f'Finished match {match.id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_FINISHED, {'match_id': match.id},
+        )
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Finished")
         await self.notify_match_participants(match, msg)
@@ -93,8 +96,9 @@ class MatchScheduleService:
 
         match.confirmed_at = datetime.now()
         await match.save()
-        if actor:
-            await self.audit_service.write_log(actor, f'Confirmed match {match.id}', '')
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_CONFIRMED, {'match_id': match.id},
+        )
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Confirmed")
         await self.notify_match_participants(match, msg)
@@ -178,10 +182,15 @@ class MatchScheduleService:
                 if dm_failures:
                     message += f"\n\nFailed to send DM to: {'; '.join(dm_failures)}"
 
-                if actor:
-                    await self.audit_service.write_log(
-                        actor, f'Rolled seed for match {match.id}', f'seed_url={seed_url}',
-                    )
+                await self.audit_service.write_log(
+                    actor,
+                    AuditActions.MATCH_SEED_ROLLED,
+                    {
+                        'match_id': match.id,
+                        'preset': match.tournament.seed_generator,
+                        'seed_url': seed_url,
+                    },
+                )
 
                 return True, message, seed_url
                 

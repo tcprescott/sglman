@@ -7,7 +7,7 @@ Handles crew (commentator and tracker) related operations.
 from typing import Optional, Union
 
 from application.repositories import CommentatorRepository, TrackerRepository
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from models import Commentator, Tracker, User
 
@@ -53,13 +53,16 @@ class CrewService:
         await crew_member.save()
         updated = crew_member
 
-        if actor:
-            action_verb = 'Approved' if approved else 'Unapproved'
-            await self.audit_service.write_log(
-                actor,
-                f'{action_verb} {crew_type}',
-                f'crew_id={crew_member.id} match={crew_member.match.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.CREW_APPROVAL_CHANGED,
+            {
+                'crew_type': crew_type,
+                'crew_id': crew_member.id,
+                'match_id': crew_member.match.id,
+                'approved': approved,
+            },
+        )
 
         return updated
 

@@ -7,8 +7,10 @@ Typed accessors over the SystemConfiguration key/value table.
 from datetime import date, datetime
 from typing import Optional
 
-from models import SystemConfiguration, StreamRoom, Match
+from application.services.audit_service import AuditActions, AuditService
+from application.services.auth_service import AuthService
 from application.utils.timezone import EASTERN_TZ, to_eastern
+from models import Match, StreamRoom, SystemConfiguration, User
 
 
 KEY_EVENT_START_DATE = 'event_start_date'
@@ -26,13 +28,25 @@ class SystemConfigService:
         return config.value if config else None
 
     @staticmethod
-    async def set_raw(key: str, value: str) -> SystemConfiguration:
+    async def set_raw(key: str, value: str, actor: User) -> SystemConfiguration:
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can modify system configuration",
+        )
         config = await SystemConfiguration.get_or_none(name=key)
+        old_value = config.value if config else None
         if config:
             config.value = value
             await config.save()
-            return config
-        return await SystemConfiguration.create(name=key, value=value)
+            result = config
+        else:
+            result = await SystemConfiguration.create(name=key, value=value)
+        await AuditService().write_log(
+            actor,
+            AuditActions.SYSTEM_CONFIG_UPDATED,
+            {'key': key, 'old_value': old_value, 'new_value': value},
+        )
+        return result
 
     @staticmethod
     async def get_int(key: str, default: Optional[int] = None) -> Optional[int]:

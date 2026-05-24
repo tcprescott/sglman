@@ -7,7 +7,7 @@ Handles stream room-related operations including creation, updates, and validati
 from typing import Optional
 
 from application.repositories import StreamRoomRepository
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from models import StreamRoom, User
 
@@ -40,10 +40,11 @@ class StreamRoomService:
             is_active=is_active,
         )
 
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Created stream room', f'id={room.id} name="{room.name}"',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.STREAM_ROOM_CREATED,
+            {'stream_room_id': room.id, 'name': room.name},
+        )
 
         return room
 
@@ -73,10 +74,11 @@ class StreamRoomService:
 
         result = await self.repository.update(stream_room, **update_data)
 
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Updated stream room', f'id={stream_room.id} fields={list(update_data.keys())}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.STREAM_ROOM_UPDATED,
+            {'stream_room_id': stream_room.id, 'changed_fields': list(update_data.keys())},
+        )
 
         return result
 
@@ -87,8 +89,11 @@ class StreamRoomService:
         )
         room_id = stream_room.id
         await stream_room.delete()
-        if actor:
-            await self.audit_service.write_log(actor, 'Deleted stream room', f'id={room_id}')
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.STREAM_ROOM_DELETED,
+            {'stream_room_id': room_id},
+        )
 
     async def get_all_stream_rooms(self, active_only: bool = False) -> list[StreamRoom]:
         if active_only:

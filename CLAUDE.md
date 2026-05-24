@@ -242,9 +242,15 @@ if user_data and user_data.get('permission', 0) >= Permissions.TOURNAMENT_ADMIN:
 - **No direct ORM writes in UI** — always go through the service layer
 - **Read-only ORM queries from UI are acceptable** for simple display lookups, but prefer repositories
 - **Raise `ValueError` for user errors** in services; catch in UI and show `ui.notify(str(e), color='warning')`
-- **Audit important actions** — use `AuditService` for creates, updates, deletes
+- **Audit important actions** — use `AuditService` for creates, updates, deletes (see "Audit log action conventions" below)
 - **No comments explaining what code does** — only add a comment for a non-obvious constraint, workaround, or invariant
 - **Keep services stateless** — instantiate per-request or use static methods
+
+### Audit log action conventions
+
+- Action strings are namespaced `verb.object` — e.g. `match.created`, `user.role_granted`, `system_config.updated`. Use a constant from `application.services.audit_service.AuditActions` rather than a literal string; add a new constant there when introducing a new action.
+- Pass `actor: User` explicitly. `AuditService.write_log` raises `ValueError` when actor is `None` — do not wrap calls in `if actor:` guards.
+- Pass `details` as a plain dict (e.g. `{'match_id': match.id, 'changed_fields': [...]}`). The service JSON-encodes it; the audit viewer renders it expandable.
 
 ## NiceGUI Patterns
 

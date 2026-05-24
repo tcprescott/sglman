@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Set
 
 from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
-from application.services.audit_service import AuditService
+from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from models import Role, Tournament, TournamentPlayers, User
 
@@ -46,6 +46,7 @@ class UserService:
     async def update_user_personal_info(
         self,
         user: User,
+        actor: User,
         display_name: Optional[str] = None,
         pronouns: Optional[str] = None,
         dm_notifications: Optional[bool] = None,
@@ -54,39 +55,76 @@ class UserService:
         same user (self-edit); permission check is performed at the page level
         via authentication.
         """
+        any_provided = False
+        changed: Dict[str, object] = {}
         if display_name is not None:
-            user.display_name = display_name.strip() if display_name.strip() else None
+            any_provided = True
+            new_value = display_name.strip() if display_name.strip() else None
+            if new_value != user.display_name:
+                changed['display_name'] = new_value
+            user.display_name = new_value
         if pronouns is not None:
-            user.pronouns = pronouns.strip() if pronouns.strip() else None
+            any_provided = True
+            new_value = pronouns.strip() if pronouns.strip() else None
+            if new_value != user.pronouns:
+                changed['pronouns'] = new_value
+            user.pronouns = new_value
         if dm_notifications is not None:
+            any_provided = True
+            if dm_notifications != user.dm_notifications:
+                changed['dm_notifications'] = dm_notifications
             user.dm_notifications = dm_notifications
-        await user.save()
+
+        if any_provided:
+            await user.save()
+        if changed:
+            await self.audit_service.write_log(
+                actor,
+                AuditActions.USER_SELF_PROFILE_UPDATED,
+                {'target_user_id': user.id, 'changed_fields': changed},
+            )
         return user
 
     async def update_user_tournament_registrations(
         self,
         user: User,
+        actor: User,
         selected_tournament_ids: Set[int],
         current_registrations: List[TournamentPlayers],
     ) -> None:
         current_ids = set(tp.tournament_id for tp in current_registrations)
+        removed_ids = current_ids - selected_tournament_ids
+        added_ids = selected_tournament_ids - current_ids
+
         for tp in current_registrations:
-            if tp.tournament_id not in selected_tournament_ids:
+            if tp.tournament_id in removed_ids:
                 await tp.delete()
-        for tournament_id in selected_tournament_ids:
-            if tournament_id not in current_ids:
-                tournament = await Tournament.get_or_none(id=tournament_id)
-                if tournament:
-                    await TournamentPlayers.create(user=user, tournament=tournament)
+        created_ids: List[int] = []
+        for tournament_id in added_ids:
+            tournament = await Tournament.get_or_none(id=tournament_id)
+            if tournament:
+                await TournamentPlayers.create(user=user, tournament=tournament)
+                created_ids.append(tournament_id)
+
+        if created_ids or removed_ids:
+            await self.audit_service.write_log(
+                actor,
+                AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
+                {
+                    'target_user_id': user.id,
+                    'added_tournament_ids': sorted(created_ids),
+                    'removed_tournament_ids': sorted(removed_ids),
+                },
+            )
 
     async def create_user(
         self,
         username: str,
+        actor: User,
         display_name: Optional[str] = None,
         pronouns: Optional[str] = None,
         is_active: bool = True,
         discord_id: Optional[str] = None,
-        actor: Optional[User] = None,
     ) -> User:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -94,25 +132,36 @@ class UserService:
         )
         if not username or not username.strip():
             raise ValueError("Username is required")
-        return await self.repository.create(
+        new_user = await self.repository.create(
             username=username.strip(),
             display_name=display_name.strip() if display_name else None,
             pronouns=pronouns.strip() if pronouns else None,
             is_active=is_active,
             discord_id=discord_id,
         )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.USER_CREATED,
+            {
+                'target_user_id': new_user.id,
+                'username': new_user.username,
+                'is_active': is_active,
+                'discord_id': discord_id,
+            },
+        )
+        return new_user
 
     async def update_user_profile(
         self,
         user: User,
+        actor: User,
         display_name: Optional[str] = None,
         pronouns: Optional[str] = None,
         check_concurrency: bool = False,
         initial_updated_at: Optional[datetime] = None,
-        actor: Optional[User] = None,
     ) -> User:
         """Update display_name / pronouns. Allowed for the user themselves or Staff."""
-        if actor is None or (actor.id != user.id and not await AuthService.is_staff(actor)):
+        if actor.id != user.id and not await AuthService.is_staff(actor):
             raise PermissionError("User cannot edit another user's profile")
 
         if check_concurrency and initial_updated_at is not None:
@@ -128,15 +177,20 @@ class UserService:
 
         if update_data:
             await self.repository.update(user, **update_data)
+            await self.audit_service.write_log(
+                actor,
+                AuditActions.USER_PROFILE_UPDATED,
+                {'target_user_id': user.id, 'changed_fields': update_data},
+            )
         return user
 
     async def update_user_admin_fields(
         self,
         user: User,
+        actor: User,
         is_active: Optional[bool] = None,
         check_concurrency: bool = False,
         initial_updated_at: Optional[datetime] = None,
-        actor: Optional[User] = None,
     ) -> User:
         """Update admin-managed user fields (is_active). Staff-only."""
         await AuthService.ensure(
@@ -154,42 +208,66 @@ class UserService:
             update_data['is_active'] = is_active
 
         if update_data:
+            previous_is_active = user.is_active
             await self.repository.update(user, **update_data)
+            if is_active is not None and is_active != previous_is_active:
+                await self.audit_service.write_log(
+                    actor,
+                    AuditActions.USER_ACTIVATION_CHANGED,
+                    {'target_user_id': user.id, 'is_active': is_active},
+                )
         return user
 
-    async def grant_role(self, target: User, role: Role, actor: Optional[User] = None) -> None:
+    async def grant_role(self, target: User, role: Role, actor: User) -> None:
         await AuthService.ensure(
             await AuthService.can_grant_roles(actor),
             "Only Staff can grant roles",
         )
         await self.role_repository.add(target, role, granted_by=actor)
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Granted role', f'role={role.value} target=U{target.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.USER_ROLE_GRANTED,
+            {'role': role.value, 'target_user_id': target.id},
+        )
 
-    async def revoke_role(self, target: User, role: Role, actor: Optional[User] = None) -> None:
+    async def revoke_role(self, target: User, role: Role, actor: User) -> None:
         await AuthService.ensure(
             await AuthService.can_grant_roles(actor),
             "Only Staff can revoke roles",
         )
         await self.role_repository.remove(target, role)
-        if actor:
-            await self.audit_service.write_log(
-                actor, 'Revoked role', f'role={role.value} target=U{target.id}',
-            )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.USER_ROLE_REVOKED,
+            {'role': role.value, 'target_user_id': target.id},
+        )
 
     async def manage_tournament_enrollments(
         self,
         user: User,
+        actor: User,
         tournament_ids: Set[int],
         is_update: bool = True,
     ) -> None:
         if is_update:
             current_registrations = await self.get_user_tournament_registrations(user)
-            await self.update_user_tournament_registrations(user, tournament_ids, current_registrations)
+            await self.update_user_tournament_registrations(
+                user, actor, tournament_ids, current_registrations,
+            )
         else:
+            added: List[int] = []
             for tournament_id in tournament_ids:
                 tournament = await Tournament.get_or_none(id=tournament_id)
                 if tournament:
                     await TournamentPlayers.create(user=user, tournament=tournament)
+                    added.append(tournament_id)
+            if added:
+                await self.audit_service.write_log(
+                    actor,
+                    AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
+                    {
+                        'target_user_id': user.id,
+                        'added_tournament_ids': sorted(added),
+                        'removed_tournament_ids': [],
+                    },
+                )
