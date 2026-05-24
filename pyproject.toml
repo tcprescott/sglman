@@ -26,6 +26,13 @@ pyz3r = "^6.1.0"
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.32.0"
+pytest = "^8.0"
+pytest-asyncio = "^0.24"
+pytest-mock = "^3.14"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [tool.aerich]
 tortoise_orm = "migrations.tortoise_config.TORTOISE_ORM"
