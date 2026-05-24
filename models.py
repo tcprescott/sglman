@@ -278,13 +278,15 @@ class TriforceText(Model):
         'models.Tournament', related_name='triforce_texts', on_delete=fields.CASCADE
     )
     user = fields.ForeignKeyField(
-        'models.User', related_name='triforce_texts', null=True
+        'models.User', related_name='triforce_texts',
+        null=True, on_delete=fields.SET_NULL,
     )
     text = fields.CharField(max_length=200)
     author = fields.CharField(max_length=200, null=True)
     approved = fields.BooleanField(null=True)
     approved_by = fields.ForeignKeyField(
-        'models.User', related_name='triforce_texts_moderated', null=True
+        'models.User', related_name='triforce_texts_moderated',
+        null=True, on_delete=fields.SET_NULL,
     )
     approved_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)

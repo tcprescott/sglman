@@ -86,7 +86,9 @@ class SeedGenerationService:
         from application.services.triforce_text_service import TriforceTextService
         from models import Tournament
 
-        tournament = await Tournament.get(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id)
+        if tournament is None:
+            raise ValueError(f"Tournament {tournament_id} not found.")
 
         with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
             preset = yaml.safe_load(f)

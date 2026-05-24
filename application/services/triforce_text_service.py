@@ -92,12 +92,17 @@ class TriforceTextService:
     async def list_for_moderation(
         self,
         tournament_id: int,
-        approved=TriforceTextRepository._UNSET,
+        status: Optional[str] = None,
     ) -> List[TriforceText]:
+        """List submissions for moderation.
+
+        ``status`` may be ``None`` (all), ``'pending'``, ``'approved'``, or
+        ``'rejected'``.
+        """
         tournament = await Tournament.get_or_none(id=tournament_id)
         if tournament is None:
             return []
-        return await self.repository.list_by_tournament(tournament, approved=approved)
+        return await self.repository.list_by_tournament(tournament, status=status)
 
     async def moderate(
         self,
@@ -148,14 +153,16 @@ class TriforceTextService:
         """Pick a random user with approved texts, then a random text from that user.
 
         Ensures every submitter has equal weight regardless of how many texts
-        they have approved. Returns None if no approved texts exist.
+        they have approved. Texts whose submitter has been deleted (user FK
+        nulled) form their own bucket so approved content remains usable.
+        Returns None if no approved texts exist.
         """
         if tournament is None:
             return None
-        user_ids = await self.repository.list_approved_user_ids(tournament)
-        if not user_ids:
+        buckets = await self.repository.list_approved_user_buckets(tournament)
+        if not buckets:
             return None
-        chosen_user_id = random.choice(user_ids)
+        chosen_user_id = random.choice(buckets)
         texts = await self.repository.list_approved_by_user(tournament, chosen_user_id)
         if not texts:
             return None

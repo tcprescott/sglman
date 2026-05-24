@@ -2,7 +2,6 @@
 
 from nicegui import background_tasks, ui
 
-from application.repositories import TriforceTextRepository
 from application.services import AuthService, TriforceTextService, current_user_from_storage
 from models import Tournament
 
@@ -15,14 +14,8 @@ _STATUS_OPTIONS = {
 }
 
 
-def _approved_filter(status: str):
-    if status == 'pending':
-        return None
-    if status == 'approved':
-        return True
-    if status == 'rejected':
-        return False
-    return TriforceTextRepository._UNSET
+def _to_status(option: str):
+    return None if option == 'all' else option
 
 
 async def admin_triforce_texts_page() -> None:
@@ -78,7 +71,7 @@ async def admin_triforce_texts_page() -> None:
                 table_container.clear()
                 rows = await service.list_for_moderation(
                     state['tournament_id'],
-                    approved=_approved_filter(state['status']),
+                    status=_to_status(state['status']),
                 )
                 with table_container:
                     if not rows:

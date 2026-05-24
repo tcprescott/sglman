@@ -10,10 +10,29 @@ from typing import List, Optional
 from models import Tournament, TriforceText, User
 
 
+# Public approval-status filter values used by callers (service + UI). The
+# repository maps these onto the underlying nullable boolean column.
+APPROVAL_STATUSES = ('pending', 'approved', 'rejected')
+
+
+def _status_to_approved_filter(status: Optional[str]):
+    """Translate a status string into the ``approved`` column filter."""
+    if status is None:
+        return _UNSET
+    if status == 'pending':
+        return None
+    if status == 'approved':
+        return True
+    if status == 'rejected':
+        return False
+    raise ValueError(f"Unknown triforce text status: {status!r}")
+
+
+_UNSET = object()
+
+
 class TriforceTextRepository:
     """Repository for triforce text data access."""
-
-    _UNSET = object()
 
     @staticmethod
     async def get_by_id(text_id: int) -> Optional[TriforceText]:
@@ -24,15 +43,16 @@ class TriforceTextRepository:
     @staticmethod
     async def list_by_tournament(
         tournament: Tournament,
-        approved=_UNSET,
+        status: Optional[str] = None,
     ) -> List[TriforceText]:
         """List texts for a tournament.
 
-        ``approved`` may be left unset (all), ``None`` (pending), or
-        ``True``/``False`` for decided rows.
+        ``status`` may be ``None`` (all), ``'pending'``, ``'approved'``, or
+        ``'rejected'``.
         """
         query = TriforceText.filter(tournament=tournament)
-        if approved is not TriforceTextRepository._UNSET:
+        approved = _status_to_approved_filter(status)
+        if approved is not _UNSET:
             query = query.filter(approved=approved)
         return await query.order_by('-created_at').prefetch_related('user', 'approved_by')
 
@@ -49,15 +69,22 @@ class TriforceTextRepository:
         return await TriforceText.filter(tournament=tournament, approved=True)
 
     @staticmethod
-    async def list_approved_user_ids(tournament: Tournament) -> List[int]:
+    async def list_approved_user_buckets(tournament: Tournament) -> List[Optional[int]]:
+        """Distinct user-id buckets that have at least one approved text.
+
+        Includes ``None`` as a bucket when there are approved texts whose
+        submitter has since been deleted (FK set to NULL). Treating NULL
+        as its own bucket keeps those texts in rotation for balanced
+        selection.
+        """
         rows = await TriforceText.filter(
             tournament=tournament, approved=True
         ).distinct().values_list('user_id', flat=True)
-        return [uid for uid in rows if uid is not None]
+        return list(rows)
 
     @staticmethod
     async def list_approved_by_user(
-        tournament: Tournament, user_id: int
+        tournament: Tournament, user_id: Optional[int]
     ) -> List[TriforceText]:
         return await TriforceText.filter(
             tournament=tournament, approved=True, user_id=user_id

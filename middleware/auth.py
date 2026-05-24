@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 from typing import Iterable, Optional
 from urllib.parse import parse_qs, urlparse
 
@@ -30,8 +31,21 @@ discordClient = (
     if not is_mock_discord() else None
 )
 
-# Registry of routes that require authentication; populated by protected_page decorator
+# Registry of routes that require authentication; populated by protected_page decorator.
+# Plain strings match exactly; entries containing ``{param}`` placeholders are
+# compiled to regexes so dynamic NiceGUI routes match incoming request paths.
 protected_routes: set[str] = set()
+
+
+def _matches_protected_route(path: str) -> bool:
+    for route in protected_routes:
+        if '{' in route:
+            pattern = '^' + re.sub(r'\{[^/}]+\}', r'[^/]+', route) + '$'
+            if re.match(pattern, path):
+                return True
+        elif path == route:
+            return True
+    return False
 
 def protected_page(
     path: str,
@@ -82,7 +96,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Enforce authentication only for routes that were explicitly marked protected
         if not app.storage.user.get('authenticated', False):
             path = request.url.path
-            if not path.startswith('/_nicegui') and path in protected_routes:
+            if not path.startswith('/_nicegui') and _matches_protected_route(path):
                 app.storage.user['referrer_path'] = path
                 return RedirectResponse('/login')
         return await call_next(request)

@@ -1,8 +1,9 @@
 """Triforce Text submission page (public, Discord OAuth required)."""
 
-from nicegui import app, background_tasks, ui
+from nicegui import background_tasks, ui
 
 from application.services import TriforceTextService, current_user_from_storage
+from middleware.auth import protected_page
 from models import Tournament
 from theme.base import BaseLayout
 
@@ -16,14 +17,9 @@ _HELP_TEXT = (
 
 
 def create() -> None:
-    @ui.page('/triforcetexts/{tournament_id}')
+    @protected_page('/triforcetexts/{tournament_id}')
     async def triforce_texts_page(tournament_id: int):
         ui.page_title('Triforce Text Submission')
-
-        if not app.storage.user.get('authenticated', False):
-            app.storage.user['referrer_path'] = f'/triforcetexts/{tournament_id}'
-            ui.navigate.to('/login')
-            return
 
         user = await current_user_from_storage()
         if user is None:

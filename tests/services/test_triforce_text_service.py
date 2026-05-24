@@ -6,7 +6,6 @@ audit trail. Uses the in-memory ``db`` fixture to exercise the real ORM.
 
 import pytest
 
-from application.repositories.triforce_text_repository import TriforceTextRepository
 from application.services.audit_service import AuditActions
 from application.services.triforce_text_service import TriforceTextService
 from models import AuditLog, Tournament, TriforceText, User
@@ -131,9 +130,9 @@ async def test_list_for_moderation_filters_by_status(db):
     await svc.moderate(a.id, True, admin)
     await svc.moderate(r.id, False, admin)
 
-    pending = await svc.list_for_moderation(t.id, approved=None)
-    approved = await svc.list_for_moderation(t.id, approved=True)
-    rejected = await svc.list_for_moderation(t.id, approved=False)
+    pending = await svc.list_for_moderation(t.id, status='pending')
+    approved = await svc.list_for_moderation(t.id, status='approved')
+    rejected = await svc.list_for_moderation(t.id, status='rejected')
     all_rows = await svc.list_for_moderation(t.id)
 
     assert [x.id for x in pending] == [p.id]
@@ -191,6 +190,23 @@ async def test_selection_returns_none_when_no_approved(db):
     t = await Tournament.create(name='Empty', is_active=True)
     assert await svc.get_balanced_text(t) is None
     assert await svc.get_random_text(t) is None
+
+
+async def test_balanced_selection_includes_orphaned_texts(db):
+    svc = TriforceTextService()
+    submitter = await _make_user(1, 'alice')
+    admin = await _make_user(2, 'mod')
+    t = await _make_tournament([admin])
+
+    # Approved text whose submitter is later deleted (FK becomes NULL).
+    orphan = await svc.submit(t.id, ['orphan', '', ''], submitter)
+    await svc.moderate(orphan.id, True, admin)
+    await submitter.delete()
+    orphan_row = await TriforceText.get(id=orphan.id)
+    assert orphan_row.user_id is None
+
+    text = await svc.get_balanced_text(t)
+    assert text == 'orphan\n\n'
 
 
 async def test_delete_requires_permission(db):
