@@ -21,9 +21,9 @@ def rows_to_csv_bytes(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator='\n')
-    writer.writerow(headers)
+    writer.writerow([_csv_safe(h) for h in headers])
     for row in rows:
-        writer.writerow([_stringify(row.get(field, '')) for field in fields])
+        writer.writerow([_csv_safe(_stringify(row.get(field, ''))) for field in fields])
     return buffer.getvalue().encode('utf-8-sig')
 
 
@@ -31,6 +31,15 @@ def timestamped_filename(prefix: str, ext: str = 'csv') -> str:
     """``prefix-20251130T143015Z.csv`` style filename."""
     stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     return f'{prefix}-{stamp}.{ext}'
+
+
+_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _csv_safe(value: str) -> str:
+    if value and value[0] in _FORMULA_PREFIXES:
+        return "'" + value
+    return value
 
 
 def _stringify(value) -> str:
