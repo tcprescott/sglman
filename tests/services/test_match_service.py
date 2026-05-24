@@ -172,19 +172,25 @@ class TestFormatMatchForDisplay:
 
     def test_commentators_formatted_as_tuples(self, service):
         commentator = SimpleNamespace(
+            id=11,
             user=SimpleNamespace(preferred_name="Charlie", discord_id="123"),
             approved=True,
+            acknowledged_at=None,
+            auto_acknowledged=False,
         )
         result = service._format_match_for_display(make_match(commentators=[commentator]))
-        assert result["commentators"] == [("Charlie", True, "123")]
+        assert result["commentators"] == [("Charlie", True, "123", False, "", 11)]
 
     def test_trackers_formatted_as_tuples(self, service):
         tracker = SimpleNamespace(
+            id=22,
             user=SimpleNamespace(preferred_name="Dana", discord_id="456"),
             approved=False,
+            acknowledged_at=None,
+            auto_acknowledged=False,
         )
         result = service._format_match_for_display(make_match(trackers=[tracker]))
-        assert result["trackers"] == [("Dana", False, "456")]
+        assert result["trackers"] == [("Dana", False, "456", False, "", 22)]
 
     def test_state_timestamp_set_when_seated(self, service):
         match = make_match(seated_at=datetime(2025, 1, 15, 19, 30))

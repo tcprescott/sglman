@@ -263,10 +263,18 @@ class MatchTableView:
                 self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
                     <div class="wrap">
                         <template v-for="(item, idx) in props.value">
-                            <a href="#" @click="$parent.$emit('edit_{singular}', {{ row: props.row, idx }})"
-                               :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal') + '; text-decoration: underline;'">
-                                {{{{ item[0] }}}}
-                            </a><br/>
+                            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                                <q-icon v-if="item[1] && item[3]" name="check_circle" color="green" size="xs">
+                                    <q-tooltip v-if="item[4]">Acknowledged {{{{ item[4] }}}}</q-tooltip>
+                                </q-icon>
+                                <q-icon v-else-if="item[1] && !item[3]" name="schedule" color="orange" size="xs">
+                                    <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                                </q-icon>
+                                <a href="#" @click="$parent.$emit('edit_{singular}', {{ row: props.row, idx }})"
+                                   :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal') + '; text-decoration: underline;'">
+                                    {{{{ item[0] }}}}
+                                </a>
+                            </div>
                         </template>
                     </div>
                 </q-td>''')
@@ -284,9 +292,22 @@ class MatchTableView:
                                    @click="$parent.$emit('signup_{singular}', props.row)" style="margin-right: 6px;" />
                         </div>
                         <template v-for="(item, idx) in props.value">
-                            <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
-                                {{{{ item[0] }}}}
-                            </span><br/>
+                            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                                <q-icon v-if="item[1] && item[3]" name="check_circle" color="green" size="xs">
+                                    <q-tooltip v-if="item[4]">Acknowledged {{{{ item[4] }}}}</q-tooltip>
+                                </q-icon>
+                                <q-icon v-else-if="item[1] && !item[3]" name="schedule" color="orange" size="xs">
+                                    <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                                </q-icon>
+                                <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
+                                    {{{{ item[0] }}}}
+                                </span>
+                                <q-btn v-if="item[1] && !item[3] && item[2] == {discord_id_js}"
+                                       icon="check" color="primary" size="xs" dense flat
+                                       @click="$parent.$emit('acknowledge_{singular}', {{ row: props.row, idx }})">
+                                    <q-tooltip>Acknowledge</q-tooltip>
+                                </q-btn>
+                            </div>
                         </template>
                     </div>
                 </q-td>''')
@@ -420,6 +441,34 @@ class MatchTableView:
         self.table.on('signup_tracker', lambda event: handle_signup_or_undo_role('signup', 'tracker', event.args))
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
         self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
+
+        async def handle_acknowledge_crew(role, event):
+            from application.services import CrewService
+            row = event.args['row']
+            idx = event.args['idx']
+            match_id = row['id']
+            items = row.get(f'{role}s') or []
+            if idx >= len(items) or len(items[idx]) <= 5:
+                ui.notify('Page is out of date — please refresh and try again.', color='warning')
+                return
+            crew_id = items[idx][5]
+            discord_id = app.storage.user.get('discord_id', None)
+            if not discord_id:
+                ui.notify('You must be logged in to acknowledge.', color='warning')
+                return
+            user = await self.user_service.get_current_user_from_storage(discord_id)
+            if not user:
+                ui.notify('User not found. Please log in again.', color='warning')
+                return
+            try:
+                await CrewService().acknowledge_crew_assignment(crew_id, role, user)
+                ui.notify(f'You acknowledged your {role} assignment for match ID {match_id}.', color='positive')
+                await self.update_row_by_id(match_id)
+            except ValueError as e:
+                ui.notify(str(e), color='warning')
+
+        self.table.on('acknowledge_commentator', lambda event: background_tasks.create(handle_acknowledge_crew('commentator', event)))
+        self.table.on('acknowledge_tracker', lambda event: background_tasks.create(handle_acknowledge_crew('tracker', event)))
 
         if discord_id:
             self.table.add_slot('body-cell-watch', '''<q-td :props="props">
@@ -607,6 +656,9 @@ class MatchTableView:
                 field['array_objects'] = True
                 field['name_index'] = 0
                 field['approved_index'] = 1
+                field['ack_index'] = 3
+                field['ack_ts_index'] = 4
+                field['discord_index'] = 2
                 field['separator'] = ', '  # Add space after comma
             elif field['key'] == 'state':
                 field['state_field'] = True
@@ -623,6 +675,9 @@ class MatchTableView:
             (", arrayObjects: true" if f.get('array_objects') else '') +
             (", nameIndex: " + str(f['name_index']) if 'name_index' in f else '') +
             (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
+            (", ackIndex: " + str(f['ack_index']) if 'ack_index' in f else '') +
+            (", ackTsIndex: " + str(f['ack_ts_index']) if 'ack_ts_index' in f else '') +
+            (", discordIndex: " + str(f['discord_index']) if 'discord_index' in f else '') +
             (", stateField: true" if f.get('state_field') else '') +
             (", watchField: true" if f.get('watch_field') else '') +
             (f", separator: '{f['separator']}'" if 'separator' in f else '') +
@@ -687,17 +742,32 @@ class MatchTableView:
 
                         <template v-if="Array.isArray(props.row[field.key])">
                             <template v-for="(item, idx) in props.row[field.key]">
-                                <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if self.admin_controls else 'false'}">
-                                    <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
-                                       :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal') + '; text-decoration: underline;'">
-                                        {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
-                                    </a>
-                                </template>
-                                <template v-else>
-                                    <span :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
-                                        {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
-                                    </span>
-                                </template>
+                                <span style="display: inline-flex; align-items: center; gap: 2px;">
+                                    <q-icon v-if="(field.key === 'commentators' || field.key === 'trackers') && item[field.approvedIndex] && item[field.ackIndex]"
+                                            name="check_circle" color="green" size="xs">
+                                        <q-tooltip v-if="item[field.ackTsIndex]">Acknowledged {{{{ item[field.ackTsIndex] }}}}</q-tooltip>
+                                    </q-icon>
+                                    <q-icon v-else-if="(field.key === 'commentators' || field.key === 'trackers') && item[field.approvedIndex] && !item[field.ackIndex]"
+                                            name="schedule" color="orange" size="xs">
+                                        <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                                    </q-icon>
+                                    <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if self.admin_controls else 'false'}">
+                                        <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
+                                           :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal') + '; text-decoration: underline;'">
+                                            {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                        </a>
+                                    </template>
+                                    <template v-else>
+                                        <span :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal')">
+                                            {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                        </span>
+                                    </template>
+                                    <q-btn v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if self.admin_controls else 'false'} && item[field.approvedIndex] && !item[field.ackIndex] && item[field.discordIndex] == field.discord_id"
+                                           icon="check" color="primary" size="xs" dense flat
+                                           @click="$parent.$emit('acknowledge_' + field.key.slice(0, -1), {{ row: props.row, idx }})">
+                                        <q-tooltip>Acknowledge</q-tooltip>
+                                    </q-btn>
+                                </span>
                             </template>
                         </template>
                         <template v-else>{{{{ props.row[field.key] }}}}</template>

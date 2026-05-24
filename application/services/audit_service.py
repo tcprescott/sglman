@@ -43,6 +43,7 @@ class AuditActions:
     CREW_SIGNUP_CREATED = 'crew.signup_created'
     CREW_SIGNUP_REMOVED = 'crew.signup_removed'
     CREW_APPROVAL_CHANGED = 'crew.approval_changed'
+    CREW_ACKNOWLEDGED = 'crew.acknowledged'
 
     # Tournament
     TOURNAMENT_CREATED = 'tournament.created'

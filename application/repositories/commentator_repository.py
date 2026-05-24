@@ -4,6 +4,7 @@ Commentator Repository - Data Access Layer
 Handles all database operations for Commentator model.
 """
 
+from datetime import datetime
 from typing import List, Optional
 
 from models import Commentator, User, Match
@@ -48,3 +49,19 @@ class CommentatorRepository:
     async def approve(commentator: Commentator) -> Commentator:
         """Approve a commentator."""
         return await CommentatorRepository.update(commentator, approved=True)
+
+    @staticmethod
+    async def acknowledge(commentator: Commentator) -> Commentator:
+        """Mark a commentator assignment as acknowledged by the crew member."""
+        return await CommentatorRepository.update(
+            commentator,
+            acknowledged_at=datetime.now(),
+        )
+
+    @staticmethod
+    async def clear_acknowledgment(commentator: Commentator) -> Commentator:
+        """Reset acknowledgment fields on a commentator assignment."""
+        return await CommentatorRepository.update(
+            commentator,
+            acknowledged_at=None,
+        )
