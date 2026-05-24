@@ -1,6 +1,6 @@
 from nicegui import background_tasks, ui
 
-from application.repositories import StreamRoomRepository, MatchRepository
+from application.services import current_user_from_storage
 from models import Match
 from theme.dialog.match_dialog import BaseMatchDialog
 
@@ -8,9 +8,6 @@ from theme.dialog.match_dialog import BaseMatchDialog
 class StreamRoomDialog(BaseMatchDialog):
     def __init__(self, match: Match, on_submit=None):
         super().__init__(match=match, on_submit=on_submit)
-        # Initialize repositories
-        self.stream_room_repository = StreamRoomRepository()
-        self.match_repository = MatchRepository()
 
     async def open(self):
         stream_rooms = await self.stream_room_repository.get_all()
@@ -25,16 +22,18 @@ class StreamRoomDialog(BaseMatchDialog):
             async def submit():
                 stream_room_id = selected_stream_room.value
                 try:
-                    # Update using repository
-                    await self.match_repository.update(
-                        self.match,
-                        stream_room_id=stream_room_id if stream_room_id else None
+                    actor = await current_user_from_storage()
+                    await self.match_service.assign_stage(
+                        self.match.id, stream_room_id if stream_room_id else None, actor=actor,
                     )
                     with self.dialog:
                         ui.notify(f'Stage updated: {stream_room_id}', color='positive')
                         dialog.close()
                     if self.on_submit:
                         await self.on_submit(self.match)
+                except PermissionError as e:
+                    with self.dialog:
+                        ui.notify(str(e), color='negative')
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(f'Error updating stage: {str(e)}', color='negative')

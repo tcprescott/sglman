@@ -1,17 +1,18 @@
 from nicegui import app, ui
 
-from models import Permissions, User
+from models import User
 
 
 class BaseLayout:
     """Base layout component providing header, footer, and tabbed content structure."""
-    
+
     def __init__(
         self,
         copyright_text: str = "© 2025 Thomas Prescott",
         default_tab: str = None,
         tabs: list = None,
         user: User = None,
+        show_admin: bool = False,
         **_kwargs  # Accept and ignore unused legacy params for backward compatibility
     ):
         self.copyright_text = copyright_text
@@ -19,10 +20,9 @@ class BaseLayout:
         self.default_tab = default_tab
         self.user = user
         self.dark_mode = None  # Will be initialized in render()
-        
-        # Build top menu based on user permissions
+
         self.top_menu: list[tuple[str, str]] = [('Home', '/')]
-        if user and user.permission >= Permissions.TOURNAMENT_ADMIN:
+        if show_admin:
             self.top_menu.append(('Admin', '/admin'))
 
     async def render(self) -> None:

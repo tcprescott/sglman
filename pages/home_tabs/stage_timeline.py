@@ -5,16 +5,17 @@ from zoneinfo import ZoneInfo
 
 from nicegui import app, background_tasks, ui
 
-from application.services import MatchService
+from application.services import AuthService, MatchService
 from application.utils.timezone import format_eastern_time
-from models import Match, Permissions, User
+from models import Match, User
 
 
 async def stage_timeline_tab():
     """Display a daily calendar view of matches organized by stream room."""
     discord_id = app.storage.user.get('discord_id', None)
     user = await User.get_or_none(discord_id=discord_id) if discord_id else None
-    
+    show_admin_link = await AuthService.can_view_admin(user)
+
     # Initialize service
     match_service = MatchService()
 
@@ -127,7 +128,7 @@ async def stage_timeline_tab():
                     ui.space()
 
                     # Match ID (clickable for admins)
-                    if user and user.permission >= Permissions.TOURNAMENT_ADMIN:
+                    if show_admin_link:
                         ui.link(f'Match #{match.id}', '/admin?tab=Schedule').classes('text-link')
                     else:
                         ui.label(f'Match #{match.id}').classes('text-gray')

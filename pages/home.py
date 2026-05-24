@@ -1,5 +1,6 @@
 from nicegui import app, ui
 
+from application.services import AuthService
 from models import User
 from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.player import render_player_dashboard
@@ -28,4 +29,5 @@ def create() -> None:
             {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
         ]
-        await BaseLayout(tabs=tabs, default_tab=tab, page_name='home', user=user).render()
+        show_admin = await AuthService.can_view_admin(user)
+        await BaseLayout(tabs=tabs, default_tab=tab, page_name='home', user=user, show_admin=show_admin).render()

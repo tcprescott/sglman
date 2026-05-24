@@ -3,7 +3,7 @@ from typing import Callable, Optional, Union
 from nicegui import ui
 
 from models import Commentator, Tracker
-from application.services import CrewService
+from application.services import CrewService, current_user_from_storage
 
 
 class ApproveCrewDialog:
@@ -27,15 +27,19 @@ class ApproveCrewDialog:
                 approved_checkbox = ui.checkbox('Approved', value=self.crew_member.approved)
                 async def save():
                     try:
+                        actor = await current_user_from_storage()
                         await self.service.update_crew_approval(
                             crew_member=self.crew_member,
                             crew_type=self.crew_type,
-                            approved=approved_checkbox.value
+                            approved=approved_checkbox.value,
+                            actor=actor,
                         )
                         ui.notify(f"{self.crew_type.capitalize()} approval updated.", color='positive')
                         if self.on_approve:
                             await self.on_approve()
                         self.dialog.close()
+                    except PermissionError as e:
+                        ui.notify(str(e), color='negative')
                     except ValueError as e:
                         ui.notify(f"Error: {str(e)}", color='negative')
                 with ui.row().classes('action-row'):

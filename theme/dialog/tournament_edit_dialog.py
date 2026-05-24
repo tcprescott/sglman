@@ -1,6 +1,6 @@
 from nicegui import background_tasks, ui
 
-from application.services import SeedGenerationService, TournamentService
+from application.services import SeedGenerationService, TournamentService, current_user_from_storage
 
 class TournamentDialog:
     def __init__(self, tournament=None, on_submit=None):
@@ -31,6 +31,7 @@ class TournamentDialog:
 
             async def submit():
                 try:
+                    actor = await current_user_from_storage()
                     if self.tournament:
                         with self.dialog:
                             await self.tournament_service.update_tournament(
@@ -46,7 +47,8 @@ class TournamentDialog:
                                 is_active=is_active_checkbox.value,
                                 players_per_match=players_per_match_input.value,
                                 team_size=team_size_input.value,
-                                staff_administered=staff_administered_checkbox.value
+                                staff_administered=staff_administered_checkbox.value,
+                                actor=actor,
                             )
                             ui.notify('Tournament updated.', color='positive')
                             dialog.close()
@@ -65,13 +67,17 @@ class TournamentDialog:
                             is_active=is_active_checkbox.value,
                             players_per_match=players_per_match_input.value,
                             team_size=team_size_input.value,
-                            staff_administered=staff_administered_checkbox.value
+                            staff_administered=staff_administered_checkbox.value,
+                            actor=actor,
                         )
                         with self.dialog:
                             ui.notify('Tournament created.', color='positive')
                             dialog.close()
                             if self.on_submit:
                                 await self.on_submit(new_tournament)
+                except PermissionError as e:
+                    with self.dialog:
+                        ui.notify(str(e), color='negative')
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')

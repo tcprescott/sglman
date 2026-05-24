@@ -8,7 +8,7 @@ and orchestrates between repositories.
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date
 
-from models import Match, User, StreamRoom
+from models import Match, MatchPlayers, User, StreamRoom
 from application.repositories import (
     MatchRepository,
     StreamRoomRepository,
@@ -18,6 +18,7 @@ from application.repositories import (
     TrackerRepository,
 )
 from application.services.audit_service import AuditService
+from application.services.auth_service import AuthService
 from application.services.match_schedule_service import MatchScheduleService
 from application.utils.timezone import (
     parse_eastern_datetime,
@@ -198,7 +199,7 @@ class MatchService:
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
         is_stream_candidate: bool = False,
-        admin_user: Optional[User] = None
+        actor: Optional[User] = None,
     ) -> Match:
         """
         Create a new match with validation and business rules.
@@ -220,16 +221,50 @@ class MatchService:
         Raises:
             ValueError: If validation fails
         """
+        # Permission check: must be Staff or TA of the target tournament
+        if await AuthService.is_staff(actor):
+            pass
+        else:
+            await AuthService.ensure(
+                await AuthService.is_tournament_admin(actor, tournament_id),
+                f"User cannot create matches in tournament {tournament_id}",
+            )
+
         # Business rule: Must have at least one player
         if not player_ids:
             raise ValueError("Match must have at least one player")
-        
+
         # Parse datetime - input is in Eastern, convert to UTC for storage
         try:
             scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
-        
+
+        # Resolve every referenced user up-front so a missing ID doesn't leave
+        # an orphan Match row behind.
+        players = []
+        for player_id in player_ids:
+            user = await self.user_repository.get_by_id(player_id)
+            if not user:
+                raise ValueError(f"User {player_id} not found")
+            players.append(user)
+
+        commentators = []
+        if commentator_ids:
+            for comm_id in commentator_ids:
+                user = await self.user_repository.get_by_id(comm_id)
+                if not user:
+                    raise ValueError(f"User {comm_id} not found")
+                commentators.append(user)
+
+        trackers = []
+        if tracker_ids:
+            for track_id in tracker_ids:
+                user = await self.user_repository.get_by_id(track_id)
+                if not user:
+                    raise ValueError(f"User {track_id} not found")
+                trackers.append(user)
+
         # Create match
         match = await self.repository.create(
             tournament_id=tournament_id,
@@ -238,35 +273,21 @@ class MatchService:
             stream_room_id=stream_room_id,
             is_stream_candidate=is_stream_candidate,
         )
-        
-        # Add players and ensure they're enrolled in tournament
-        for player_id in player_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
+
+        for user in players:
             await self._ensure_tournament_enrollment(user, tournament_id)
             await self.repository.add_player(match, user)
-        
-        # Add commentators if provided
-        if commentator_ids:
-            for comm_id in commentator_ids:
-                user = await self.user_repository.get_by_id(comm_id)
-                if not user:
-                    raise ValueError(f"User {comm_id} not found")
-                await self.commentator_repository.create(match=match, user=user, approved=True)
-        
-        # Add trackers if provided
-        if tracker_ids:
-            for track_id in tracker_ids:
-                user = await self.user_repository.get_by_id(track_id)
-                if not user:
-                    raise ValueError(f"User {track_id} not found")
-                await self.tracker_repository.create(match=match, user=user, approved=True)
+
+        for user in commentators:
+            await self.commentator_repository.create(match=match, user=user, approved=True)
+
+        for user in trackers:
+            await self.tracker_repository.create(match=match, user=user, approved=True)
         
         # Audit log
-        if admin_user:
+        if actor:
             await self.audit_service.write_log(
-                admin_user,
+                actor,
                 f'Created match {match.id}',
                 f'Tournament: {tournament_id}, Players: {player_ids}'
             )
@@ -299,15 +320,12 @@ class MatchService:
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
         comment: Optional[str] = None,
-        stream_room_id: Optional[int] = None,
         clear_seated: bool = False,
         clear_started: bool = False,
         clear_finished: bool = False,
         clear_confirmed: bool = False,
         clear_seed: bool = False,
-        clear_stream_room: bool = False,
-        is_stream_candidate: Optional[bool] = None,
-        admin_user: Optional[User] = None
+        actor: Optional[User] = None,
     ) -> Match:
         """
         Update a match with validation.
@@ -337,66 +355,62 @@ class MatchService:
         if not match:
             raise ValueError(f"Match {match_id} not found")
 
+        await AuthService.ensure(
+            await AuthService.can_crud_match(actor, match),
+            f"User cannot edit match {match_id}",
+        )
+
         old_scheduled_at = match.scheduled_at
-        old_is_stream_candidate = match.is_stream_candidate
 
         # Build update fields
         update_fields = {}
-        
+
         if tournament_id is not None:
             update_fields['tournament_id'] = tournament_id
-        
+
         if scheduled_date and scheduled_time:
             # Parse datetime - input is in Eastern, convert to UTC for storage
             scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
             update_fields['scheduled_at'] = scheduled_at
-        
+
         if comment is not None:
             update_fields['comment'] = comment
-        
-        if clear_stream_room:
-            update_fields['stream_room_id'] = None
-        elif stream_room_id is not None:
-            update_fields['stream_room_id'] = stream_room_id
-        
+
         if clear_seated:
             update_fields['seated_at'] = None
-        
+
         if clear_started:
             update_fields['started_at'] = None
-        
+
         if clear_finished:
             update_fields['finished_at'] = None
-        
+
         if clear_confirmed:
             update_fields['confirmed_at'] = None
-        
+
         if clear_seed:
             update_fields['generated_seed'] = None
-
-        if is_stream_candidate is not None:
-            update_fields['is_stream_candidate'] = is_stream_candidate
 
         # Apply updates
         if update_fields:
             await self.repository.update(match, **update_fields)
-        
+
         # Update players if provided
         if player_ids is not None:
             await self._sync_players(match, player_ids, tournament_id or match.tournament_id)
-        
+
         # Update commentators if provided
         if commentator_ids is not None:
             await self._sync_commentators(match, commentator_ids)
-        
+
         # Update trackers if provided
         if tracker_ids is not None:
             await self._sync_trackers(match, tracker_ids)
-        
+
         # Audit log
-        if admin_user:
+        if actor:
             await self.audit_service.write_log(
-                admin_user,
+                actor,
                 f'Updated match {match.id}',
                 f'Fields: {list(update_fields.keys())}'
             )
@@ -414,12 +428,162 @@ class MatchService:
             notified_ids = await self._collect_notified_discord_ids(match)
             await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
 
-        # Notify stream candidate subscribers when the flag flips True
-        new_is_candidate = update_fields.get('is_stream_candidate')
-        if new_is_candidate is True and not old_is_stream_candidate:
+        return match
+
+    async def submit_match_request(
+        self,
+        tournament_id: int,
+        scheduled_date: str,
+        scheduled_time: str,
+        player_ids: List[int],
+        actor: User,
+        comment: Optional[str] = None,
+    ) -> Match:
+        """Player-initiated match creation.
+
+        Allowed when the actor is a player in the new match (typically self-vs-opponent
+        in a tournament they're enrolled in). Bypasses the TA/Staff CRUD gate but
+        does not grant Tournament Admin powers.
+        """
+        if actor is None:
+            raise PermissionError("Login required to submit a match request")
+        if actor.id not in player_ids:
+            raise PermissionError("You may only submit match requests where you are a player")
+
+        if not player_ids:
+            raise ValueError("Match must have at least one player")
+
+        try:
+            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
+        except ValueError as e:
+            raise ValueError(f"Invalid date/time format: {e}") from e
+
+        # Resolve every player before touching the match row so a missing user
+        # doesn't leave an orphan Match behind.
+        players = []
+        for player_id in player_ids:
+            user = await self.user_repository.get_by_id(player_id)
+            if not user:
+                raise ValueError(f"User {player_id} not found")
+            players.append(user)
+
+        match = await self.repository.create(
+            tournament_id=tournament_id,
+            scheduled_at=scheduled_at,
+            comment=comment,
+        )
+        for user in players:
+            await self._ensure_tournament_enrollment(user, tournament_id)
+            await self.repository.add_player(match, user)
+
+        await self.audit_service.write_log(
+            actor, f'Submitted match request {match.id}',
+            f'Tournament: {tournament_id}, Players: {player_ids}',
+        )
+
+        await match.fetch_related('tournament')
+        msg = self.match_schedule_service._create_scheduled_dm_message(
+            match.id, match.tournament.name, format_eastern_display(match.scheduled_at),
+        )
+        await self.match_schedule_service.notify_match_participants(match, msg)
+        notified_ids = await self._collect_notified_discord_ids(match)
+        await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+
+        return match
+
+    async def set_stream_candidate(
+        self,
+        match_id: int,
+        flag: bool,
+        actor: Optional[User] = None,
+    ) -> Match:
+        """Toggle Match.is_stream_candidate. Stream Managers globally; TAs within their tournaments."""
+        match = await self.repository.get_by_id(match_id)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+
+        await AuthService.ensure(
+            await AuthService.can_assign_match_stream(actor, match),
+            "User cannot toggle stream candidate for this match",
+        )
+
+        was_candidate = match.is_stream_candidate
+        await self.repository.update(match, is_stream_candidate=flag)
+
+        if actor:
+            await self.audit_service.write_log(
+                actor,
+                'Set stream candidate' if flag else 'Cleared stream candidate',
+                f'match={match.id}',
+            )
+
+        if flag and not was_candidate:
             await match.fetch_related('tournament')
             notified_ids = await self._collect_notified_discord_ids(match)
             await self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids)
+
+        return match
+
+    async def assign_stage(
+        self,
+        match_id: int,
+        stream_room_id: Optional[int],
+        actor: Optional[User] = None,
+    ) -> Match:
+        """Assign or clear the StreamRoom for a match. Stream Managers globally; TAs within their tournaments."""
+        match = await self.repository.get_by_id(match_id)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+
+        await AuthService.ensure(
+            await AuthService.can_assign_match_stream(actor, match),
+            "User cannot assign stages for this match",
+        )
+
+        await self.repository.update(match, stream_room_id=stream_room_id)
+
+        if actor:
+            await self.audit_service.write_log(
+                actor,
+                'Assigned stage' if stream_room_id is not None else 'Cleared stage',
+                f'match={match.id} stage={stream_room_id}',
+            )
+
+        return match
+
+    async def assign_stations(
+        self,
+        match_id: int,
+        assignments: dict,
+        actor: Optional[User] = None,
+    ) -> Match:
+        """Set MatchPlayers.assigned_station for one or more players.
+
+        Args:
+            match_id: Match to update.
+            assignments: Mapping of MatchPlayers.id -> station string (or None).
+            actor: User performing the assignment.
+        """
+        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot assign stations for match {match_id}",
+        )
+
+        for player in match.players:
+            if player.id in assignments:
+                player.assigned_station = assignments[player.id]
+                await player.save()
+
+        if actor:
+            await self.audit_service.write_log(
+                actor,
+                'Assigned stations',
+                f'match={match.id} {assignments}',
+            )
 
         return match
     
@@ -444,37 +608,59 @@ class MatchService:
                 raise ValueError(f"User {player_id} not found")
             await self._ensure_tournament_enrollment(user, tournament_id)
     
-    async def seat_players(self, match_id: int, admin_user: Optional[User] = None) -> Match:
+    async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
+        match = await self.repository.get_by_id(match_id)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+        await AuthService.ensure(
+            await AuthService.can_crud_match(actor, match),
+            f"User cannot delete match {match_id}",
+        )
+        await self.repository.delete(match)
+        if actor:
+            await self.audit_service.write_log(actor, f'Deleted match {match_id}', '')
+
+    async def seat_players(self, match_id: int, actor: Optional[User] = None) -> Match:
         """Mark match players as seated."""
         match = await self.repository.get_by_id(match_id)
         if not match:
             raise ValueError(f"Match {match_id} not found")
 
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot seat match {match_id}",
+        )
+
         await self.repository.update(match, seated_at=datetime.now())
 
-        if admin_user:
-            await self.audit_service.write_log(admin_user, f'Seated match {match.id}', '')
+        if actor:
+            await self.audit_service.write_log(actor, f'Seated match {match.id}', '')
 
         await match.fetch_related('tournament')
         msg = self.match_schedule_service._create_checked_in_dm_message(match.id, match.tournament.name)
         await self.match_schedule_service.notify_match_participants(match, msg)
 
         return match
-    
-    async def finish_match(self, match_id: int, admin_user: Optional[User] = None) -> Match:
+
+    async def finish_match(self, match_id: int, actor: Optional[User] = None) -> Match:
         """Mark match as finished."""
         match = await self.repository.get_by_id(match_id)
         if not match:
             raise ValueError(f"Match {match_id} not found")
-        
+
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot finish match {match_id}",
+        )
+
         if not match.seated_at:
             raise ValueError("Cannot finish a match that hasn't been seated")
-        
+
         await self.repository.update(match, finished_at=datetime.now())
-        
-        if admin_user:
-            await self.audit_service.write_log(admin_user, f'Finished match {match.id}', '')
-        
+
+        if actor:
+            await self.audit_service.write_log(actor, f'Finished match {match.id}', '')
+
         return match
     
     async def signup_crew(

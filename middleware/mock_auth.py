@@ -1,7 +1,7 @@
 """Mock OAuth login flow used when MOCK_DISCORD=true.
 
 Replaces the Discord OAuth redirect with a user picker page so developers can
-log in as any existing user, or create a new one with arbitrary fields.
+log in as any existing user, or create a new one with arbitrary roles.
 """
 
 import random
@@ -10,7 +10,7 @@ from typing import Optional
 from nicegui import Client, app, ui
 from starlette.responses import RedirectResponse
 
-from models import Permissions, User
+from models import Role, User, UserRole
 
 
 def _login_as(user: User) -> None:
@@ -49,14 +49,25 @@ def create() -> None:
 
                 filter_input = ui.input(label='Filter by username or discord_id').classes('w-full')
 
-                users = await User.all().order_by('username')
+                users = await User.all().order_by('username').prefetch_related(
+                    'roles', 'admin_tournaments', 'crew_coordinated_tournaments',
+                )
+
+                def format_roles(u: User) -> str:
+                    labels = [r.role.value.replace('_', ' ').title() for r in u.roles]
+                    if len(u.admin_tournaments):
+                        labels.append(f'TA({len(u.admin_tournaments)})')
+                    if len(u.crew_coordinated_tournaments):
+                        labels.append(f'CC({len(u.crew_coordinated_tournaments)})')
+                    return ', '.join(labels) or '-'
+
                 rows = [
                     {
                         'id': u.id,
                         'username': u.username,
                         'display_name': u.display_name or '',
                         'discord_id': str(u.discord_id),
-                        'permission': Permissions(u.permission).name,
+                        'roles': format_roles(u),
                     }
                     for u in users
                 ]
@@ -66,7 +77,7 @@ def create() -> None:
                     {'name': 'username', 'label': 'Username', 'field': 'username', 'align': 'left', 'sortable': True},
                     {'name': 'display_name', 'label': 'Display Name', 'field': 'display_name', 'align': 'left'},
                     {'name': 'discord_id', 'label': 'Discord ID', 'field': 'discord_id', 'align': 'left'},
-                    {'name': 'permission', 'label': 'Permission', 'field': 'permission', 'align': 'left'},
+                    {'name': 'roles', 'label': 'Roles', 'field': 'roles', 'align': 'left'},
                     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
                 ]
 
@@ -113,11 +124,13 @@ def create() -> None:
                     value=random.randint(10_000_000_000_000_000, 99_999_999_999_999_999),
                     format='%.0f',
                 ).classes('w-full')
-                permission_select = ui.select(
-                    options={p.value: p.name for p in Permissions},
-                    value=Permissions.USER.value,
-                    label='Permission',
-                ).classes('w-full')
+                role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                role_select = ui.select(
+                    options=role_options,
+                    value=[],
+                    label='Roles',
+                    multiple=True,
+                ).props('use-chips').classes('w-full')
 
                 async def create_user():
                     username = (username_input.value or '').strip()
@@ -137,8 +150,9 @@ def create() -> None:
                         discord_id=discord_id,
                         username=username,
                         display_name=display_name,
-                        permission=int(permission_select.value),
                     )
+                    for role_value in role_select.value or []:
+                        await UserRole.create(user=user, role=Role(role_value))
                     ui.notify(f'Created user {user.username} (#{user.discord_id})', color='positive')
                     _login_as(user)
 
