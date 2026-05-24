@@ -380,9 +380,6 @@ class MatchTableView:
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
         self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
 
-        # Watch toggle (logged-in users only). The 'watch' column is added by the
-        # page when discord_id is present; the slot renders an eye/eye-off button
-        # and emits 'toggle_watch' with the row.
         if discord_id:
             self.table.add_slot('body-cell-watch', '''<q-td :props="props">
                 <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
@@ -535,7 +532,6 @@ class MatchTableView:
         self.table.update()
 
     async def _fetch_watched_ids(self) -> set:
-        """Return the set of match IDs currently watched by the logged-in user."""
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             return set()
@@ -873,7 +869,6 @@ class MatchTableView:
         self.table.update()
 
     async def _handle_toggle_watch(self, event):
-        """Watch or unwatch the match represented by the event's row."""
         row = event.args if isinstance(event.args, dict) else {}
         match_id = row.get('id')
         if match_id is None:

@@ -477,7 +477,6 @@ class UserMatchDialog(BaseMatchDialog):
             if self.match:
                 self._render_clear_buttons()
 
-            # Watch toggle - logged-in user opts in to Discord DMs on lifecycle changes
             if self.match:
                 watcher_service = MatchWatcherService()
                 initial_watching = await watcher_service.is_watching(self.match.id, user)
