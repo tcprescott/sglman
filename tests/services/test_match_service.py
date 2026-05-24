@@ -1,0 +1,345 @@
+from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from application.services.match_service import MatchService
+
+
+@pytest.fixture
+def service():
+    svc = object.__new__(MatchService)
+    svc.repository = MagicMock()
+    svc.stream_room_repository = MagicMock()
+    svc.tournament_repository = MagicMock()
+    svc.user_repository = MagicMock()
+    svc.commentator_repository = MagicMock()
+    svc.tracker_repository = MagicMock()
+    svc.audit_service = MagicMock()
+    return svc
+
+
+def make_match(**overrides):
+    defaults = dict(
+        id=1,
+        seated_at=None,
+        started_at=None,
+        finished_at=None,
+        confirmed_at=None,
+        scheduled_at=datetime(2025, 1, 15, 19, 30),
+        comment=None,
+        tournament=SimpleNamespace(name="Test Tournament", seed_generator=None),
+        stream_room=None,
+        generated_seed=None,
+        players=[],
+        commentators=[],
+        trackers=[],
+    )
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+# ---------------------------------------------------------------------------
+# _get_match_state
+# ---------------------------------------------------------------------------
+
+
+class TestGetMatchState:
+    def test_scheduled_when_no_timestamps(self, service):
+        assert service._get_match_state(make_match()) == "Scheduled"
+
+    def test_checked_in_when_only_seated(self, service):
+        match = make_match(seated_at=datetime.now())
+        assert service._get_match_state(match) == "Checked In"
+
+    def test_started_when_seated_and_started(self, service):
+        now = datetime.now()
+        match = make_match(seated_at=now, started_at=now)
+        assert service._get_match_state(match) == "Started"
+
+    def test_finished_when_finished_set(self, service):
+        now = datetime.now()
+        match = make_match(seated_at=now, started_at=now, finished_at=now)
+        assert service._get_match_state(match) == "Finished"
+
+    def test_confirmed_takes_highest_priority(self, service):
+        now = datetime.now()
+        match = make_match(seated_at=now, started_at=now, finished_at=now, confirmed_at=now)
+        assert service._get_match_state(match) == "Confirmed"
+
+    def test_confirmed_beats_finished(self, service):
+        now = datetime.now()
+        # Even without started_at, confirmed_at should dominate
+        match = make_match(finished_at=now, confirmed_at=now)
+        assert service._get_match_state(match) == "Confirmed"
+
+
+# ---------------------------------------------------------------------------
+# _format_match_for_display
+# ---------------------------------------------------------------------------
+
+
+class TestFormatMatchForDisplay:
+    def test_returns_id(self, service):
+        result = service._format_match_for_display(make_match(id=77))
+        assert result["id"] == 77
+
+    def test_state_is_scheduled_by_default(self, service):
+        result = service._format_match_for_display(make_match())
+        assert result["state"] == "Scheduled"
+
+    def test_state_timestamp_is_none_when_scheduled(self, service):
+        result = service._format_match_for_display(make_match())
+        assert result["state_timestamp"] is None
+
+    def test_stream_room_empty_when_none(self, service):
+        result = service._format_match_for_display(make_match(stream_room=None))
+        assert result["stream_room"] == ""
+
+    def test_stream_room_name_when_set(self, service):
+        match = make_match(stream_room=SimpleNamespace(name="Stage 1"))
+        result = service._format_match_for_display(match)
+        assert result["stream_room"] == "Stage 1"
+
+    def test_seed_empty_when_none(self, service):
+        result = service._format_match_for_display(make_match(generated_seed=None))
+        assert result["seed"] == ""
+
+    def test_seed_url_when_set(self, service):
+        match = make_match(generated_seed=SimpleNamespace(seed_url="https://alttpr.com/h/abc"))
+        result = service._format_match_for_display(match)
+        assert result["seed"] == "https://alttpr.com/h/abc"
+
+    def test_tournament_name_in_result(self, service):
+        result = service._format_match_for_display(make_match())
+        assert result["tournament"] == "Test Tournament"
+
+    def test_tournament_empty_when_none(self, service):
+        match = make_match(tournament=None)
+        result = service._format_match_for_display(match)
+        assert result["tournament"] == ""
+
+    def test_players_formatted_as_tuples(self, service):
+        player = SimpleNamespace(
+            user=SimpleNamespace(preferred_name="Alice"),
+            finish_rank=1,
+            assigned_station="A",
+        )
+        result = service._format_match_for_display(make_match(players=[player]))
+        assert result["players"] == [("Alice", 1, "A")]
+
+    def test_multiple_players_all_included(self, service):
+        players = [
+            SimpleNamespace(user=SimpleNamespace(preferred_name="Alice"), finish_rank=1, assigned_station="A"),
+            SimpleNamespace(user=SimpleNamespace(preferred_name="Bob"), finish_rank=2, assigned_station="B"),
+        ]
+        result = service._format_match_for_display(make_match(players=players))
+        assert len(result["players"]) == 2
+
+    def test_commentators_formatted_as_tuples(self, service):
+        commentator = SimpleNamespace(
+            user=SimpleNamespace(preferred_name="Charlie", discord_id="123"),
+            approved=True,
+        )
+        result = service._format_match_for_display(make_match(commentators=[commentator]))
+        assert result["commentators"] == [("Charlie", True, "123")]
+
+    def test_trackers_formatted_as_tuples(self, service):
+        tracker = SimpleNamespace(
+            user=SimpleNamespace(preferred_name="Dana", discord_id="456"),
+            approved=False,
+        )
+        result = service._format_match_for_display(make_match(trackers=[tracker]))
+        assert result["trackers"] == [("Dana", False, "456")]
+
+    def test_state_timestamp_set_when_seated(self, service):
+        match = make_match(seated_at=datetime(2025, 1, 15, 19, 30))
+        result = service._format_match_for_display(match)
+        assert result["state_timestamp"] is not None
+
+    def test_state_timestamp_reflects_highest_state(self, service):
+        now = datetime.now()
+        match = make_match(seated_at=now, started_at=now, finished_at=now, confirmed_at=now)
+        result = service._format_match_for_display(match)
+        assert result["state"] == "Confirmed"
+        assert result["state_timestamp"] is not None
+
+    def test_scheduled_at_formatted_as_string(self, service):
+        match = make_match(scheduled_at=datetime(2025, 1, 15, 19, 30))
+        result = service._format_match_for_display(match)
+        assert isinstance(result["scheduled_at"], str)
+        assert result["scheduled_at"] != ""
+
+    def test_scheduled_at_empty_when_none(self, service):
+        match = make_match(scheduled_at=None)
+        result = service._format_match_for_display(match)
+        assert result["scheduled_at"] == ""
+
+
+# ---------------------------------------------------------------------------
+# create_match validation (no DB needed; error paths exit before any DB call)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateMatchValidation:
+    async def test_raises_when_player_ids_empty(self, service):
+        with pytest.raises(ValueError, match="at least one player"):
+            await service.create_match(
+                tournament_id=1,
+                scheduled_date="2025-01-15",
+                scheduled_time="14:30",
+                player_ids=[],
+            )
+
+    async def test_raises_on_invalid_date_format(self, service):
+        with pytest.raises(ValueError):
+            await service.create_match(
+                tournament_id=1,
+                scheduled_date="not-a-date",
+                scheduled_time="14:30",
+                player_ids=[1],
+            )
+
+    async def test_raises_on_invalid_time_format(self, service):
+        with pytest.raises(ValueError):
+            await service.create_match(
+                tournament_id=1,
+                scheduled_date="2025-01-15",
+                scheduled_time="99:99",
+                player_ids=[1],
+            )
+
+
+# ---------------------------------------------------------------------------
+# signup_crew
+# ---------------------------------------------------------------------------
+
+
+class TestSignupCrew:
+    async def test_raises_for_invalid_role(self, service):
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.signup_crew(match_id=1, user=MagicMock(), role="referee")
+
+    async def test_raises_when_match_not_found(self, service):
+        service.repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError, match="not found"):
+            await service.signup_crew(match_id=999, user=MagicMock(), role="commentator")
+
+    async def test_raises_when_commentator_already_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match(commentators=[SimpleNamespace(user_id=42)])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already signed up"):
+            await service.signup_crew(match_id=1, user=user, role="commentator")
+
+    async def test_raises_when_tracker_already_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match(trackers=[SimpleNamespace(user_id=42)])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already signed up"):
+            await service.signup_crew(match_id=1, user=user, role="tracker")
+
+    async def test_creates_commentator_when_valid(self, service):
+        user = SimpleNamespace(id=99)
+        match = make_match(commentators=[])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.commentator_repository.create = AsyncMock()
+        await service.signup_crew(match_id=1, user=user, role="commentator")
+        service.commentator_repository.create.assert_awaited_once_with(
+            match=match, user=user, approved=False
+        )
+
+    async def test_creates_tracker_when_valid(self, service):
+        user = SimpleNamespace(id=99)
+        match = make_match(trackers=[])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.tracker_repository.create = AsyncMock()
+        await service.signup_crew(match_id=1, user=user, role="tracker")
+        service.tracker_repository.create.assert_awaited_once_with(
+            match=match, user=user, approved=False
+        )
+
+    async def test_invalid_role_check_precedes_db_lookup(self, service):
+        service.repository.get_by_id = AsyncMock()
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.signup_crew(match_id=1, user=MagicMock(), role="judge")
+        service.repository.get_by_id.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# undo_crew_signup
+# ---------------------------------------------------------------------------
+
+
+class TestUndoCrewSignup:
+    async def test_raises_for_invalid_role(self, service):
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.undo_crew_signup(match_id=1, user=MagicMock(), role="referee")
+
+    async def test_raises_when_match_not_found(self, service):
+        service.repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError, match="not found"):
+            await service.undo_crew_signup(match_id=999, user=MagicMock(), role="commentator")
+
+    async def test_raises_when_commentator_not_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match(commentators=[])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="not signed up"):
+            await service.undo_crew_signup(match_id=1, user=user, role="commentator")
+
+    async def test_raises_when_tracker_not_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match(trackers=[])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="not signed up"):
+            await service.undo_crew_signup(match_id=1, user=user, role="tracker")
+
+    async def test_deletes_commentator_when_found(self, service):
+        user = SimpleNamespace(id=42)
+        crew_member = SimpleNamespace(user_id=42, delete=AsyncMock())
+        match = make_match(commentators=[crew_member])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        await service.undo_crew_signup(match_id=1, user=user, role="commentator")
+        crew_member.delete.assert_awaited_once()
+
+    async def test_deletes_tracker_when_found(self, service):
+        user = SimpleNamespace(id=42)
+        crew_member = SimpleNamespace(user_id=42, delete=AsyncMock())
+        match = make_match(trackers=[crew_member])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        await service.undo_crew_signup(match_id=1, user=user, role="tracker")
+        crew_member.delete.assert_awaited_once()
+
+    async def test_invalid_role_check_precedes_db_lookup(self, service):
+        service.repository.get_by_id = AsyncMock()
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.undo_crew_signup(match_id=1, user=MagicMock(), role="judge")
+        service.repository.get_by_id.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# finish_match (MatchService, not MatchScheduleService)
+# ---------------------------------------------------------------------------
+
+
+class TestMatchServiceFinishMatch:
+    async def test_raises_when_match_not_found(self, service):
+        service.repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError, match="not found"):
+            await service.finish_match(match_id=999)
+
+    async def test_raises_when_not_seated(self, service):
+        match = make_match(seated_at=None)
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="hasn't been seated"):
+            await service.finish_match(match_id=1)
+
+    async def test_updates_finished_at(self, service):
+        match = make_match(seated_at=datetime.now())
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.update = AsyncMock(return_value=match)
+        await service.finish_match(match_id=1)
+        call_kwargs = service.repository.update.call_args
+        assert "finished_at" in call_kwargs.kwargs
