@@ -21,9 +21,9 @@ def rows_to_csv_bytes(
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator='\n')
-    writer.writerow([_csv_safe(h) for h in headers])
+    writer.writerow(headers)
     for row in rows:
-        writer.writerow([_csv_safe(_stringify(row.get(field, ''))) for field in fields])
+        writer.writerow([_csv_safe_cell(row.get(field, '')) for field in fields])
     return buffer.getvalue().encode('utf-8-sig')
 
 
@@ -33,13 +33,19 @@ def timestamped_filename(prefix: str, ext: str = 'csv') -> str:
     return f'{prefix}-{stamp}.{ext}'
 
 
-_FORMULA_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+_FORMULA_PREFIXES = ('=', '+', '-', '@')
 
 
-def _csv_safe(value: str) -> str:
-    if value and value[0] in _FORMULA_PREFIXES:
-        return "'" + value
-    return value
+def _csv_safe_cell(value) -> str:
+    s = _stringify(value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return s
+    if not s:
+        return s
+    stripped = s.lstrip(' \t\r\n')
+    if stripped and stripped[0] in _FORMULA_PREFIXES:
+        return "'" + s
+    return s
 
 
 def _stringify(value) -> str:
