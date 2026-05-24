@@ -1,6 +1,6 @@
 # SGLMan - Claude Development Guide
 
-SGLMan (Speedgaming Live Manager) is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for speedgaming live events. It integrates with Discord for authentication and user management, uses Tortoise ORM with MySQL, and runs as a single Docker container.
+SGLMan (Speedgaming Live Manager) is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for speedgaming live events. It integrates with Discord for authentication and user management, uses Tortoise ORM with PostgreSQL, and runs as a single Docker container.
 
 ## Tech Stack
 
@@ -11,7 +11,7 @@ SGLMan (Speedgaming Live Manager) is a FastAPI + NiceGUI application for managin
 | ASGI server | Uvicorn |
 | ORM | Tortoise ORM 0.24 |
 | Migrations | Aerich 0.8 |
-| Database | MySQL / MariaDB |
+| Database | PostgreSQL |
 | Auth | Discord OAuth |
 | Discord bot | discord.py 2.6 / py-cord |
 | Package manager | Poetry |
