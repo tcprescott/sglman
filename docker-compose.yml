@@ -1,16 +1,35 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sglman}
+      POSTGRES_USER: ${DB_USERNAME:-sglman}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sglman}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-sglman} -d ${DB_NAME:-sglman}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   sglman:
     build: .
     image: sglman:latest
     env_file:
       - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
     ports:
       - "8000:8000"
-    extra_hosts:
-      - "host.docker.internal:172.18.0.1"
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
-    # Uncomment if you want to mount local files
-    # volumes:
-    #   - ./data:/app/data
+
+volumes:
+  postgres_data:
