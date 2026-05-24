@@ -11,8 +11,8 @@ python = "^3.10"
 nicegui = "^2.11.1"
 fastapi = "^0.115.8"
 pyyaml = "^6.0.2"
-pymysql = "^1.1.1"
-tortoise-orm = {extras = ["asyncmy"], version = "^0.24.0"}
+asyncpg = "^0.30.0"
+tortoise-orm = {extras = ["asyncpg"], version = "^0.24.0"}
 aerich = {extras = ["toml"], version = "^0.8.1"}
 cryptography = "^45.0.7"
 zenora = "^0.0.3.post1"

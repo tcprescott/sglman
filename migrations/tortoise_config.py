@@ -16,7 +16,7 @@ if not all([host, port, dbname]):
 
 TORTOISE_ORM = {
     "connections": {
-        "default": f"mysql://{username}:{urllib.parse.quote_plus((password).encode())}@{host}:{port}/{dbname}"
+        "default": f"postgres://{username}:{urllib.parse.quote_plus((password).encode())}@{host}:{port}/{dbname}"
     },
     "apps": {
         "models": {
