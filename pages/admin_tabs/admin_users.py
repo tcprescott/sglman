@@ -1,8 +1,7 @@
 """Admin Users Management Page"""
 
-import asyncio
 
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from models import User, Permissions
 from theme.dialog import AdminUserDialog
@@ -57,9 +56,9 @@ def admin_users_page() -> None:
             columns=columns, get_query=get_query, submit_user_callback=add_user)
 
         # Refresh table when filter changes
-        perm_select.on('update:model-value', lambda *_: asyncio.create_task(table_view.refresh()))
+        perm_select.on('update:model-value', lambda *_: background_tasks.create(table_view.refresh()))
 
         def on_tab_selected():
-            asyncio.create_task(table_view.refresh())
+            background_tasks.create(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Users' else None)
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Users' else None)

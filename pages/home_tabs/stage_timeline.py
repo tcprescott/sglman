@@ -1,10 +1,9 @@
 """Stage Timeline page - displays a daily calendar view of matches per stream room."""
 
-import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, ui
 
 from application.services import MatchService
 from application.utils.timezone import format_eastern_time
@@ -185,11 +184,11 @@ async def stage_timeline_tab():
                 ui.notify('Invalid date format', color='warning')
 
         # Bind button actions
-        prev_btn.on('click', lambda: asyncio.create_task(go_prev_day()))
-        next_btn.on('click', lambda: asyncio.create_task(go_next_day()))
-        today_btn.on('click', lambda: asyncio.create_task(go_today()))
-        go_btn.on('click', lambda: asyncio.create_task(go_to_date()))
-        refresh_btn.on('click', lambda: asyncio.create_task(load_timeline()))
+        prev_btn.on('click', lambda: background_tasks.create(go_prev_day()))
+        next_btn.on('click', lambda: background_tasks.create(go_next_day()))
+        today_btn.on('click', lambda: background_tasks.create(go_today()))
+        go_btn.on('click', lambda: background_tasks.create(go_to_date()))
+        refresh_btn.on('click', lambda: background_tasks.create(load_timeline()))
 
         # Initial load
         await load_timeline()

@@ -1,6 +1,4 @@
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 from application.services import DiscordService
 
 class SendMessageDialog:
@@ -25,7 +23,7 @@ class SendMessageDialog:
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(send_message())
+                    background_tasks.create(send_message())
             dialog.on('keydown', on_keydown)
             dialog.open()
 

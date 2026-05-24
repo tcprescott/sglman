@@ -1,8 +1,7 @@
 """Admin Settings/Tournaments Management Page"""
 
-import asyncio
 
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.repositories import StreamRoomRepository
 from models import Tournament
@@ -45,7 +44,7 @@ def admin_tournaments_page() -> None:
             columns=columns, get_query=get_query, submit_tournament_callback=add_tournament)
         
         def on_tab_selected():
-            asyncio.create_task(table_view.refresh())
+            background_tasks.create(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Tournaments' else None)
 
 
@@ -185,6 +184,6 @@ def admin_stream_rooms_page() -> None:
                 </div>
             ''')
             
-            table.on('edit', lambda e: asyncio.create_task(edit_stream_room(e.args)))
+            table.on('edit', lambda e: background_tasks.create(edit_stream_room(e.args)))
 
-        asyncio.create_task(refresh_table())
+        background_tasks.create(refresh_table())

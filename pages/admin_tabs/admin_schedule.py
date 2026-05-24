@@ -1,8 +1,7 @@
 """Admin Schedule Management Page"""
 
-import asyncio
 
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.services import MatchScheduleService
 from models import Match
@@ -200,5 +199,5 @@ def admin_schedule_page() -> None:
         )
 
         def on_tab_selected():
-            asyncio.create_task(table_view.refresh())
+            background_tasks.create(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Schedule' else None)

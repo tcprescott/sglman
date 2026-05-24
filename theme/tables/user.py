@@ -1,6 +1,4 @@
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 from models import Permissions
 
 
@@ -128,7 +126,7 @@ class UserTableView:
         self.table.update()
 
     def _on_page_change(self, _event):
-        asyncio.create_task(self.refresh())
+        background_tasks.create(self.refresh())
 
     async def update_row_by_id(self, user_id):
         """

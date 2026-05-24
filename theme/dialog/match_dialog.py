@@ -1,6 +1,4 @@
-import asyncio
-
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.services import MatchService, UserService, CrewService
 from application.repositories import (
@@ -233,8 +231,8 @@ class AdminMatchDialog(BaseMatchDialog):
                     selected_players.disable()
 
             await update_selection_options()
-            selected_tournament.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
-            choose_any_players.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
+            selected_tournament.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
+            choose_any_players.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
 
             # Date and time inputs
             date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
@@ -332,14 +330,14 @@ class AdminMatchDialog(BaseMatchDialog):
             with ui.row().classes('justify-between action-row'):
                 if self.match:
                     ui.button('Save', color='green', on_click=submit)
-                    ui.button('Delete', color='negative', on_click=lambda: asyncio.create_task(self._confirm_delete(dialog)))
+                    ui.button('Delete', color='negative', on_click=lambda: background_tasks.create(self._confirm_delete(dialog)))
                 else:
                     ui.button('Submit', on_click=submit)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
 
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()
 
@@ -433,8 +431,8 @@ class UserMatchDialog(BaseMatchDialog):
                     selected_opponent.disable()
 
             await update_selection_options()
-            selected_tournament.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
-            show_all_tournaments.on('update:model-value', lambda: asyncio.create_task(update_selection_options()))
+            selected_tournament.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
+            show_all_tournaments.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
 
             # Date and time inputs
             date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
@@ -536,13 +534,13 @@ class UserMatchDialog(BaseMatchDialog):
             with ui.row().classes('justify-between action-row'):
                 if self.match:
                     ui.button('Save', color='green', on_click=submit)
-                    ui.button('Delete', color='negative', on_click=lambda: asyncio.create_task(self._confirm_delete(dialog)))
+                    ui.button('Delete', color='negative', on_click=lambda: background_tasks.create(self._confirm_delete(dialog)))
                 else:
                     ui.button('Submit', on_click=submit)
                 ui.button('Cancel', color='gray', on_click=dialog.close)
 
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
-                    asyncio.create_task(submit())
+                    background_tasks.create(submit())
             dialog.on('keydown', on_keydown)
             dialog.open()
