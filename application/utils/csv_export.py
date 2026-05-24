@@ -23,7 +23,7 @@ def rows_to_csv_bytes(
     writer = csv.writer(buffer, lineterminator='\n')
     writer.writerow(headers)
     for row in rows:
-        writer.writerow([_stringify(row.get(field, '')) for field in fields])
+        writer.writerow([_csv_safe_cell(row.get(field, '')) for field in fields])
     return buffer.getvalue().encode('utf-8-sig')
 
 
@@ -31,6 +31,21 @@ def timestamped_filename(prefix: str, ext: str = 'csv') -> str:
     """``prefix-20251130T143015Z.csv`` style filename."""
     stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
     return f'{prefix}-{stamp}.{ext}'
+
+
+_FORMULA_PREFIXES = ('=', '+', '-', '@')
+
+
+def _csv_safe_cell(value) -> str:
+    s = _stringify(value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return s
+    if not s:
+        return s
+    stripped = s.lstrip(' \t\r\n')
+    if stripped and stripped[0] in _FORMULA_PREFIXES:
+        return "'" + s
+    return s
 
 
 def _stringify(value) -> str:
