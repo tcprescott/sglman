@@ -139,11 +139,12 @@ class TestCsvInjectionEscaping:
     def test_escaping_appears_in_full_csv_output(self):
         # End-to-end: an injection payload survives escaping through rows_to_csv_bytes.
         columns = [{'name': 'a', 'label': 'A'}]
-        rows = [{'a': '=cmd|\' /C calc\'!A0'}]
-        out = _decode(rows_to_csv_bytes(columns, rows))
-        # The escaped cell will be CSV-quoted because it contains a comma & quote.
-        # We just need to ensure the leading apostrophe is present before the '='.
-        assert "'=" in out
+        payload = "=cmd|' /C calc'!A0"
+        out = _decode(rows_to_csv_bytes(columns, [{'a': payload}]))
+        # The cell row should be the escaped payload (leading apostrophe before '=').
+        # No CSV quoting is triggered here — the payload contains no delimiter,
+        # double-quote, or newline — so the line is emitted as a literal.
+        assert out.splitlines()[1] == "'" + payload
 
 
 # ---------------------------------------------------------------------------

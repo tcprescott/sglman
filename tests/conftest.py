@@ -6,7 +6,9 @@ from tortoise import Tortoise
 async def db():
     """Function-scoped in-memory SQLite for tests that need a real DB.
 
-    Each test gets a fresh schema with no leakage from prior tests.
+    Each test gets a fresh schema with no leakage from prior tests. Closing
+    the in-memory connection at the end discards all rows; the next test
+    re-runs ``Tortoise.init`` and ``generate_schemas`` to start clean.
     """
     await Tortoise.init(
         db_url="sqlite://:memory:",
@@ -16,5 +18,4 @@ async def db():
     try:
         yield
     finally:
-        await Tortoise._drop_databases()
         await Tortoise.close_connections()
