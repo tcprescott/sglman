@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 from tortoise import fields
 from tortoise.models import Model
@@ -26,6 +26,7 @@ class User(Model):
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
     match_players = fields.ReverseRelation["MatchPlayers"]
     tournament_players = fields.ReverseRelation["TournamentPlayers"]
+    tournament_notifications = fields.ReverseRelation["TournamentNotificationPreference"]
     teams = fields.ReverseRelation["UserTeams"]
     commentaries = fields.ReverseRelation["Commentator"]
     approved_commentaries = fields.ReverseRelation["Commentator"]
@@ -76,6 +77,7 @@ class Tournament(Model):
     matches = fields.ReverseRelation["Match"]
     teams = fields.ReverseRelation["Team"]
     announcements = fields.ReverseRelation["Announcement"]
+    notification_preferences = fields.ReverseRelation["TournamentNotificationPreference"]
 
 class Match(Model):
     id = fields.IntField(pk=True)
@@ -87,6 +89,7 @@ class Match(Model):
     finished_at = fields.DatetimeField(null=True)
     confirmed_at = fields.DatetimeField(null=True)
     comment = fields.TextField(null=True)
+    is_stream_candidate = fields.BooleanField(default=False)
     title = fields.CharField(max_length=255, null=True)
     generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -134,6 +137,24 @@ class TournamentPlayers(Model):
     user = fields.ForeignKeyField('models.User', related_name='tournament_players')
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class MatchNotificationLevel(str, Enum):
+    NONE = 'none'
+    STREAMED = 'streamed'
+    STREAMED_AND_CANDIDATES = 'streamed_and_candidates'
+    ALL = 'all'
+
+class TournamentNotificationPreference(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='tournament_notifications')
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='notification_preferences')
+    match_notifications = fields.CharEnumField(MatchNotificationLevel, default=MatchNotificationLevel.NONE, max_length=30)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'tournament')
+        table = 'tournamentnotificationpreference'
 
 class StreamRoom(Model):
     id = fields.IntField(pk=True)

@@ -1,5 +1,6 @@
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -14,12 +15,17 @@ class MockTournament:
 class MockMatch:
     """Minimal stand-in for a Match ORM object."""
 
-    def __init__(self, *, seated_at=None, started_at=None, finished_at=None, confirmed_at=None, id=1):
+    def __init__(self, *, seated_at=None, started_at=None, finished_at=None,
+                 confirmed_at=None, id=1, stream_room_id=None, tournament_id=1,
+                 scheduled_at=None):
         self.id = id
         self.seated_at = seated_at
         self.started_at = started_at
         self.finished_at = finished_at
         self.confirmed_at = confirmed_at
+        self.stream_room_id = stream_room_id
+        self.tournament_id = tournament_id
+        self.scheduled_at = scheduled_at or datetime(2025, 1, 15, 19, 30)
         self.tournament = MockTournament()
         self.save = AsyncMock()
         self.fetch_related = AsyncMock()
@@ -177,6 +183,128 @@ class TestFullLifecycle:
         match = MockMatch(seated_at=now, started_at=now)
         with pytest.raises(ValueError):
             await service.confirm_match(match)
+
+
+class TestCreateStreamCandidateDmMessage:
+    def test_contains_match_id(self, service):
+        msg = service._create_stream_candidate_dm_message(42, "ALttPR Open", "2025-01-15 14:30 EST")
+        assert "42" in msg
+
+    def test_contains_tournament_name(self, service):
+        msg = service._create_stream_candidate_dm_message(1, "ALttPR Open", "2025-01-15 14:30 EST")
+        assert "ALttPR Open" in msg
+
+    def test_contains_scheduled_at(self, service):
+        msg = service._create_stream_candidate_dm_message(1, "Test", "2025-01-15 14:30 EST")
+        assert "2025-01-15 14:30 EST" in msg
+
+    def test_is_non_empty_string(self, service):
+        msg = service._create_stream_candidate_dm_message(1, "Test", "")
+        assert isinstance(msg, str)
+        assert len(msg) > 0
+
+
+class TestNotifyTournamentSubscribersScheduled:
+    async def test_sends_dm_with_crew_buttons_to_qualifying_subscriber(self, service):
+        match = MockMatch()
+        subscriber = SimpleNamespace(discord_id=999)
+        mock_repo = MagicMock()
+        mock_repo.get_match_notification_subscribers = AsyncMock(return_value=[subscriber])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock(return_value=(True, "ok"))
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_tournament_subscribers_scheduled(match, "msg", [])
+
+        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(999, "msg", match.id)
+
+    async def test_excludes_already_notified_discord_ids(self, service):
+        match = MockMatch()
+        subscriber = SimpleNamespace(discord_id=999)
+        mock_repo = MagicMock()
+        mock_repo.get_match_notification_subscribers = AsyncMock(return_value=[subscriber])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock(return_value=(True, "ok"))
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_tournament_subscribers_scheduled(match, "msg", [999])
+
+        service.discord_service.send_dm_with_crew_buttons.assert_not_awaited()
+
+    async def test_passes_has_stream_room_true_when_set(self, service):
+        match = MockMatch(stream_room_id=5)
+        mock_repo = MagicMock()
+        mock_repo.get_match_notification_subscribers = AsyncMock(return_value=[])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock()
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_tournament_subscribers_scheduled(match, "msg", [])
+
+        mock_repo.get_match_notification_subscribers.assert_awaited_once_with(
+            match.tournament_id, has_stream_room=True
+        )
+
+    async def test_passes_has_stream_room_false_when_not_set(self, service):
+        match = MockMatch(stream_room_id=None)
+        mock_repo = MagicMock()
+        mock_repo.get_match_notification_subscribers = AsyncMock(return_value=[])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock()
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_tournament_subscribers_scheduled(match, "msg", [])
+
+        mock_repo.get_match_notification_subscribers.assert_awaited_once_with(
+            match.tournament_id, has_stream_room=False
+        )
+
+    async def test_swallows_exception_without_raising(self, service):
+        match = MockMatch()
+        with patch('application.repositories.TournamentNotificationRepository', side_effect=Exception("db error")):
+            # Should not raise
+            await service.notify_tournament_subscribers_scheduled(match, "msg", [])
+
+
+class TestNotifyStreamCandidateSubscribers:
+    async def test_skips_entirely_when_match_has_stream_room(self, service):
+        match = MockMatch(stream_room_id=3)
+        mock_repo = MagicMock()
+        mock_repo.get_stream_candidate_subscribers = AsyncMock(return_value=[])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock()
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_stream_candidate_subscribers(match, [])
+
+        mock_repo.get_stream_candidate_subscribers.assert_not_awaited()
+        service.discord_service.send_dm_with_crew_buttons.assert_not_awaited()
+
+    async def test_sends_dm_to_subscriber_when_no_stream_room(self, service):
+        match = MockMatch(stream_room_id=None)
+        subscriber = SimpleNamespace(discord_id=777)
+        mock_repo = MagicMock()
+        mock_repo.get_stream_candidate_subscribers = AsyncMock(return_value=[subscriber])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock(return_value=(True, "ok"))
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_stream_candidate_subscribers(match, [])
+
+        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once()
+        call_args = service.discord_service.send_dm_with_crew_buttons.call_args
+        assert call_args.args[0] == 777
+
+    async def test_excludes_already_notified_discord_ids(self, service):
+        match = MockMatch(stream_room_id=None)
+        subscriber = SimpleNamespace(discord_id=777)
+        mock_repo = MagicMock()
+        mock_repo.get_stream_candidate_subscribers = AsyncMock(return_value=[subscriber])
+        service.discord_service.send_dm_with_crew_buttons = AsyncMock(return_value=(True, "ok"))
+
+        with patch('application.repositories.TournamentNotificationRepository', return_value=mock_repo):
+            await service.notify_stream_candidate_subscribers(match, [777])
+
+        service.discord_service.send_dm_with_crew_buttons.assert_not_awaited()
+
+    async def test_swallows_exception_without_raising(self, service):
+        match = MockMatch(stream_room_id=None)
+        with patch('application.repositories.TournamentNotificationRepository', side_effect=Exception("db error")):
+            await service.notify_stream_candidate_subscribers(match, [])
 
 
 class TestCreateSeedDmMessage:

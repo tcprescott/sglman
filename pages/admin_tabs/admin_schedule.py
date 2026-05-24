@@ -38,6 +38,8 @@ def admin_schedule_page() -> None:
                 'field': 'trackers', 'filterable': True},
             {'name': 'stream_room', 'label': 'Stage',
                 'field': 'stream_room', 'sortable': True, 'filterable': True, 'clickable': True},
+            {'name': 'is_stream_candidate', 'label': 'Candidate',
+                'field': 'is_stream_candidate', 'sortable': True},
             {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
         ]
 
@@ -183,6 +185,13 @@ def admin_schedule_page() -> None:
                 dialog = AdminMatchDialog(on_submit=after_submit)
                 await dialog.open()
 
+        extra_slots = {
+            'body-cell-is_stream_candidate': '''<q-td :props="props">
+                <q-icon v-if="props.value" name="live_tv" color="amber" size="sm" />
+                <span v-else style="color: #aaa;">—</span>
+            </q-td>''',
+        }
+
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,
@@ -195,7 +204,8 @@ def admin_schedule_page() -> None:
             on_finish=on_finish,
             on_confirm=on_confirm,
             on_edit_stream_room=on_edit_stream_room,
-            on_assign_stations=on_assign_stations
+            on_assign_stations=on_assign_stations,
+            extra_slots=extra_slots,
         )
 
         def on_tab_selected():

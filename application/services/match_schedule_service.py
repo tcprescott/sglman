@@ -270,6 +270,84 @@ class MatchScheduleService:
             f"Match ID {match_id} in **{tournament_name}** is now: **{new_state}**."
         )
 
+    async def notify_tournament_subscribers_scheduled(
+        self,
+        match: Match,
+        message: str,
+        exclude_discord_ids: list,
+    ) -> None:
+        """
+        Send match-scheduled DM with crew signup buttons to tournament subscribers.
+
+        Never raises; per-DM failures are logged and swallowed.
+        """
+        try:
+            from application.repositories import TournamentNotificationRepository
+            has_stream_room = match.stream_room_id is not None
+            subscribers = await TournamentNotificationRepository().get_match_notification_subscribers(
+                match.tournament_id, has_stream_room=has_stream_room
+            )
+            for user in subscribers:
+                if user.discord_id not in exclude_discord_ids:
+                    success, err = await self.discord_service.send_dm_with_crew_buttons(
+                        user.discord_id, message, match.id
+                    )
+                    if not success:
+                        print(f"[notify_tournament_subscribers_scheduled] DM failed for {user.discord_id}: {err}")
+        except Exception as e:
+            print(f"[notify_tournament_subscribers_scheduled] Unexpected error for match {match.id}: {e}")
+
+    async def notify_stream_candidate_subscribers(
+        self,
+        match: Match,
+        exclude_discord_ids: list,
+    ) -> None:
+        """
+        Send stream-candidate alert with crew signup buttons to opted-in subscribers.
+
+        Skipped entirely when the match already has a stream room — those subscribers
+        were already notified via notify_tournament_subscribers_scheduled.
+
+        Never raises; per-DM failures are logged and swallowed.
+        """
+        if match.stream_room_id is not None:
+            return
+
+        try:
+            from application.repositories import TournamentNotificationRepository
+            subscribers = await TournamentNotificationRepository().get_stream_candidate_subscribers(
+                match.tournament_id
+            )
+            await match.fetch_related('tournament')
+            scheduled_display = ''
+            if match.scheduled_at:
+                from application.utils.timezone import format_eastern_display
+                scheduled_display = format_eastern_display(match.scheduled_at)
+            msg = self._create_stream_candidate_dm_message(
+                match.id, match.tournament.name, scheduled_display
+            )
+            for user in subscribers:
+                if user.discord_id not in exclude_discord_ids:
+                    success, err = await self.discord_service.send_dm_with_crew_buttons(
+                        user.discord_id, msg, match.id
+                    )
+                    if not success:
+                        print(f"[notify_stream_candidate_subscribers] DM failed for {user.discord_id}: {err}")
+        except Exception as e:
+            print(f"[notify_stream_candidate_subscribers] Unexpected error for match {match.id}: {e}")
+
+    def _create_stream_candidate_dm_message(
+        self,
+        match_id: int,
+        tournament_name: str,
+        scheduled_at_display: str,
+    ) -> str:
+        return (
+            f"Match ID {match_id} in **{tournament_name}** has been flagged as a potential stream match!\n\n"
+            f"Scheduled for: {scheduled_at_display}\n\n"
+            f"Use the buttons below to sign up as crew."
+        )
+
     def _create_seed_dm_message(
         self, 
         player_name: str, 

@@ -197,6 +197,7 @@ class MatchService:
         stream_room_id: Optional[int] = None,
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
+        is_stream_candidate: bool = False,
         admin_user: Optional[User] = None
     ) -> Match:
         """
@@ -234,7 +235,8 @@ class MatchService:
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
-            stream_room_id=stream_room_id
+            stream_room_id=stream_room_id,
+            is_stream_candidate=is_stream_candidate,
         )
         
         # Add players and ensure they're enrolled in tournament
@@ -278,6 +280,12 @@ class MatchService:
         )
         await self.match_schedule_service.notify_match_participants(match, msg)
 
+        # Collect IDs already notified to avoid duplicates in subscriber fan-out
+        notified_ids = await self._collect_notified_discord_ids(match)
+        await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+        if is_stream_candidate:
+            await self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids)
+
         return match
 
     async def update_match(
@@ -298,6 +306,7 @@ class MatchService:
         clear_confirmed: bool = False,
         clear_seed: bool = False,
         clear_stream_room: bool = False,
+        is_stream_candidate: Optional[bool] = None,
         admin_user: Optional[User] = None
     ) -> Match:
         """
@@ -329,6 +338,7 @@ class MatchService:
             raise ValueError(f"Match {match_id} not found")
 
         old_scheduled_at = match.scheduled_at
+        old_is_stream_candidate = match.is_stream_candidate
 
         # Build update fields
         update_fields = {}
@@ -363,7 +373,10 @@ class MatchService:
         
         if clear_seed:
             update_fields['generated_seed'] = None
-        
+
+        if is_stream_candidate is not None:
+            update_fields['is_stream_candidate'] = is_stream_candidate
+
         # Apply updates
         if update_fields:
             await self.repository.update(match, **update_fields)
@@ -398,6 +411,15 @@ class MatchService:
                 format_eastern_display(new_scheduled_at),
             )
             await self.match_schedule_service.notify_match_participants(match, msg)
+            notified_ids = await self._collect_notified_discord_ids(match)
+            await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+
+        # Notify stream candidate subscribers when the flag flips True
+        new_is_candidate = update_fields.get('is_stream_candidate')
+        if new_is_candidate is True and not old_is_stream_candidate:
+            await match.fetch_related('tournament')
+            notified_ids = await self._collect_notified_discord_ids(match)
+            await self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids)
 
         return match
     
@@ -581,6 +603,7 @@ class MatchService:
             'state_timestamp': state_timestamp,
             'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station) for p in match.players],
             'stream_room': match.stream_room.name if match.stream_room else '',
+            'is_stream_candidate': match.is_stream_candidate,
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
@@ -665,3 +688,24 @@ class MatchService:
         # Remove old
         for uid in existing_ids - new_ids_set:
             await self.tracker_repository.delete(existing_map[uid])
+
+    async def _collect_notified_discord_ids(self, match: Match) -> list:
+        """
+        Return the discord_ids of players and approved crew for a match.
+        Used to deduplicate tournament-subscriber notifications.
+        """
+        from models import MatchPlayers, Commentator, Tracker
+        ids: list = []
+        players = await MatchPlayers.filter(match=match).prefetch_related('user')
+        for mp in players:
+            if mp.user.discord_id:
+                ids.append(mp.user.discord_id)
+        commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+        for c in commentators:
+            if c.user.discord_id and c.user.discord_id not in ids:
+                ids.append(c.user.discord_id)
+        trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+        for t in trackers:
+            if t.user.discord_id and t.user.discord_id not in ids:
+                ids.append(t.user.discord_id)
+        return ids
