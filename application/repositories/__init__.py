@@ -7,6 +7,7 @@ They should NOT contain business logic - only data fetching/persistence.
 
 from .audit_repository import AuditRepository
 from .commentator_repository import CommentatorRepository
+from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .stream_room_repository import StreamRoomRepository
@@ -19,6 +20,7 @@ from .user_role_repository import UserRoleRepository
 __all__ = [
     'AuditRepository',
     'CommentatorRepository',
+    'MatchAcknowledgmentRepository',
     'MatchRepository',
     'MatchWatcherRepository',
     'StreamRoomRepository',

@@ -181,6 +181,49 @@ class MatchTableView:
         if self.extra_slots:
             for slot_name, slot_template in self.extra_slots.items():
                 self.table.add_slot(slot_name, slot_template)
+        # Resolve current user's discord_id once for slot templates that need it.
+        discord_id = app.storage.user.get('discord_id', None)
+        discord_id_js = f"'{discord_id}'" if discord_id else 'null'
+        # Acknowledgment column slot.
+        # Cell value shape: [(name, acknowledged: bool, auto: bool, timestamp_display: str, discord_id: str|null), ...]
+        self.table.add_slot('body-cell-acknowledgments', f'''<q-td :props="props">
+            <div class="wrap">
+                <template v-for="(item, idx) in props.value">
+                    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                        <q-icon v-if="item[1]" name="check_circle" color="green" size="xs" />
+                        <q-icon v-else name="schedule" color="orange" size="xs" />
+                        <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[1] ? 'bold' : 'normal')">
+                            {{{{ item[0] }}}}<span v-if="item[1] && item[2]" style="font-style: italic; font-weight: normal;"> (auto)</span>
+                        </span>
+                        <q-btn v-if="!item[1] && item[4] && item[4] == {discord_id_js}"
+                               icon="check" color="primary" size="xs" dense flat
+                               @click="$parent.$emit('acknowledge_match', props.row)">
+                            <q-tooltip>Acknowledge</q-tooltip>
+                        </q-btn>
+                        <q-tooltip v-if="item[1] && item[3]">Acknowledged {{{{ item[3] }}}}</q-tooltip>
+                    </div>
+                </template>
+            </div>
+        </q-td>''')
+
+        async def handle_acknowledge_match(row):
+            discord_id = app.storage.user.get('discord_id', None)
+            if not discord_id:
+                ui.notify('You must be logged in to acknowledge.', color='warning')
+                return
+            user = await self.user_service.get_current_user_from_storage(discord_id)
+            if not user:
+                ui.notify('User not found. Please log in again.', color='warning')
+                return
+            match_id = row['id']
+            try:
+                await self.service.acknowledge_match(match_id, user)
+                ui.notify(f'You acknowledged match ID {match_id}.', color='positive')
+                await self.update_row_by_id(match_id)
+            except ValueError as e:
+                ui.notify(str(e), color='warning')
+
+        self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args)))
         # Add slot for player names with winner indicator
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
@@ -214,8 +257,6 @@ class MatchTableView:
         # Crew columns (commentators/trackers):
         # - Always show signup/undo for the logged-in user
         # - Names are clickable for approval ONLY when admin_controls=True
-        discord_id = app.storage.user.get('discord_id', None)
-        discord_id_js = f"'{discord_id}'" if discord_id else 'null'
         if self.admin_controls:
             for role in ['commentators', 'trackers']:
                 singular = role[:-1]

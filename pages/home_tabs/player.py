@@ -34,6 +34,7 @@ def render_player_dashboard():
             {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
             {'name': 'state', 'label': 'State', 'field': 'state'},
             {'name': 'players', 'label': 'Players', 'field': 'players'},
+            {'name': 'acknowledgments', 'label': 'Acks', 'field': 'acknowledgments'},
             {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room'},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
             {'name': 'watch', 'label': 'Watch', 'field': 'watch'},

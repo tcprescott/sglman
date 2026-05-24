@@ -35,9 +35,17 @@ def service():
     svc.user_repository = MagicMock()
     svc.commentator_repository = MagicMock()
     svc.tracker_repository = MagicMock()
+    svc.ack_repository = MagicMock()
+    svc.ack_repository.delete_for_match = AsyncMock()
+    svc.ack_repository.upsert = AsyncMock()
+    svc.ack_repository.list_for_match = AsyncMock(return_value=[])
+    svc.ack_repository.list_for_matches = AsyncMock(return_value={})
+    svc.ack_repository.get = AsyncMock(return_value=None)
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
     svc.match_schedule_service = MagicMock()
+    svc.match_schedule_service.notify_acknowledgment_request = AsyncMock()
+    svc.match_schedule_service.notify_match_crew = AsyncMock()
     return svc
 
 
@@ -460,3 +468,77 @@ class TestCreateMatchSubscriberNotifications:
         exclude_ids = call_args.args[2]
         assert 111 in exclude_ids
         assert 222 in exclude_ids
+
+
+# ---------------------------------------------------------------------------
+# Acknowledgment seeding / acknowledge_match
+# ---------------------------------------------------------------------------
+
+
+class TestSeedAcknowledgments:
+    async def test_actor_auto_acked_when_in_player_list(self, service):
+        actor = SimpleNamespace(id=42)
+        user = SimpleNamespace(id=42)
+        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        match = make_match()
+        await service._seed_acknowledgments(match, [42], actor)
+        service.ack_repository.delete_for_match.assert_awaited_once_with(match)
+        call = service.ack_repository.upsert.await_args
+        assert call.kwargs["acknowledged"] is True
+        assert call.kwargs["auto"] is True
+
+    async def test_non_actor_left_pending(self, service):
+        actor = SimpleNamespace(id=42)
+        opponent = SimpleNamespace(id=99)
+        service.user_repository.get_by_id = AsyncMock(return_value=opponent)
+        match = make_match()
+        await service._seed_acknowledgments(match, [99], actor)
+        call = service.ack_repository.upsert.await_args
+        assert call.kwargs["acknowledged"] is False
+        assert call.kwargs["auto"] is False
+
+    async def test_no_actor_means_no_auto_ack(self, service):
+        user = SimpleNamespace(id=99)
+        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        match = make_match()
+        await service._seed_acknowledgments(match, [99], None)
+        call = service.ack_repository.upsert.await_args
+        assert call.kwargs["acknowledged"] is False
+        assert call.kwargs["auto"] is False
+
+
+class TestAcknowledgeMatch:
+    async def test_raises_when_match_not_found(self, service):
+        service.repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError, match="not found"):
+            await service.acknowledge_match(match_id=1, user=SimpleNamespace(id=1))
+
+    async def test_raises_when_user_not_a_player(self, service):
+        match = make_match()
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=999)])
+        with pytest.raises(ValueError, match="not a participant"):
+            await service.acknowledge_match(match_id=1, user=SimpleNamespace(id=1))
+
+    async def test_raises_when_already_acknowledged(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match()
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
+        service.ack_repository.get = AsyncMock(
+            return_value=SimpleNamespace(acknowledged_at=datetime(2026, 1, 1))
+        )
+        with pytest.raises(ValueError, match="already acknowledged"):
+            await service.acknowledge_match(match_id=1, user=user)
+
+    async def test_upserts_acknowledgment_when_pending(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match()
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
+        service.ack_repository.get = AsyncMock(return_value=None)
+        await service.acknowledge_match(match_id=1, user=user)
+        call = service.ack_repository.upsert.await_args
+        assert call.kwargs["acknowledged"] is True
+        assert call.kwargs["auto"] is False
+        service.audit_service.write_log.assert_awaited_once()

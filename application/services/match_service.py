@@ -8,8 +8,9 @@ and orchestrates between repositories.
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date
 
-from models import Match, MatchPlayers, User, StreamRoom
+from models import Match, MatchAcknowledgment, MatchPlayers, User, StreamRoom
 from application.repositories import (
+    MatchAcknowledgmentRepository,
     MatchRepository,
     StreamRoomRepository,
     TournamentRepository,
@@ -37,6 +38,7 @@ class MatchService:
         self.user_repository = UserRepository()
         self.commentator_repository = CommentatorRepository()
         self.tracker_repository = TrackerRepository()
+        self.ack_repository = MatchAcknowledgmentRepository()
         self.audit_service = AuditService()
         self.match_schedule_service = MatchScheduleService()
     
@@ -46,19 +48,20 @@ class MatchService:
     ) -> Optional[Dict[str, Any]]:
         """
         Get a match with all related data formatted for display.
-        
+
         Args:
             match_id: The match ID
-            
+
         Returns:
             Dictionary with match data or None
         """
         match = await self.repository.get_by_id(match_id, prefetch_relations=True)
         if not match:
             return None
-        
-        return self._format_match_for_display(match)
-    
+
+        acks = await self.ack_repository.list_for_match(match)
+        return self._format_match_for_display(match, acks)
+
     async def get_matches_for_display(
         self,
         *,
@@ -69,13 +72,13 @@ class MatchService:
     ) -> List[Dict[str, Any]]:
         """
         Get matches formatted for table display.
-        
+
         Args:
             tournament_ids: Filter by tournament IDs
             stream_room_ids: Filter by stream room IDs
             only_upcoming: Only return unfinished matches
             user_discord_id: Filter by player discord ID
-            
+
         Returns:
             List of formatted match dictionaries
         """
@@ -86,8 +89,9 @@ class MatchService:
             user_discord_id=user_discord_id,
             prefetch_relations=True
         )
-        
-        return [self._format_match_for_display(m) for m in matches]
+
+        ack_map = await self.ack_repository.list_for_matches([m.id for m in matches])
+        return [self._format_match_for_display(m, ack_map.get(m.id, [])) for m in matches]
     
     async def get_tournaments_for_filter(self) -> Dict[int, str]:
         """
@@ -292,6 +296,9 @@ class MatchService:
                 f'Tournament: {tournament_id}, Players: {player_ids}'
             )
 
+        # Seed per-player acknowledgments (actor auto-acks themselves)
+        await self._seed_acknowledgments(match, player_ids, actor)
+
         # Notify participants of the newly scheduled match
         await match.fetch_related('tournament')
         msg = self.match_schedule_service._create_scheduled_dm_message(
@@ -299,7 +306,8 @@ class MatchService:
             match.tournament.name,
             format_eastern_display(match.scheduled_at),
         )
-        await self.match_schedule_service.notify_match_participants(match, msg)
+        await self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False)
+        await self.match_schedule_service.notify_match_crew(match, msg)
 
         # Collect IDs already notified to avoid duplicates in subscriber fan-out
         notified_ids = await self._collect_notified_discord_ids(match)
@@ -362,6 +370,14 @@ class MatchService:
 
         old_scheduled_at = match.scheduled_at
 
+        # Snapshot the existing player list so we can detect adds/removals.
+        old_player_ids = {p.user_id for p in await self.repository.get_players(match)}
+        if player_ids is not None:
+            new_player_ids = set(player_ids)
+        else:
+            new_player_ids = old_player_ids
+        players_changed = old_player_ids != new_player_ids
+
         # Build update fields
         update_fields = {}
 
@@ -417,16 +433,25 @@ class MatchService:
 
         # Notify participants when the match time changes on an already-scheduled match
         new_scheduled_at = update_fields.get('scheduled_at')
-        if new_scheduled_at and old_scheduled_at and new_scheduled_at != old_scheduled_at:
-            await match.fetch_related('tournament')
-            msg = self.match_schedule_service._create_rescheduled_dm_message(
-                match.id,
-                match.tournament.name,
-                format_eastern_display(new_scheduled_at),
+        scheduled_at_changed = bool(
+            new_scheduled_at and old_scheduled_at and new_scheduled_at != old_scheduled_at
+        )
+
+        if scheduled_at_changed or players_changed:
+            await self._seed_acknowledgments(match, list(new_player_ids), actor)
+            await self.match_schedule_service.notify_acknowledgment_request(
+                match, rescheduled=scheduled_at_changed,
             )
-            await self.match_schedule_service.notify_match_participants(match, msg)
-            notified_ids = await self._collect_notified_discord_ids(match)
-            await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+            if scheduled_at_changed:
+                await match.fetch_related('tournament')
+                msg = self.match_schedule_service._create_rescheduled_dm_message(
+                    match.id,
+                    match.tournament.name,
+                    format_eastern_display(new_scheduled_at),
+                )
+                await self.match_schedule_service.notify_match_crew(match, msg)
+                notified_ids = await self._collect_notified_discord_ids(match)
+                await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
 
         return match
 
@@ -481,11 +506,14 @@ class MatchService:
             f'Tournament: {tournament_id}, Players: {player_ids}',
         )
 
+        await self._seed_acknowledgments(match, player_ids, actor)
+
         await match.fetch_related('tournament')
         msg = self.match_schedule_service._create_scheduled_dm_message(
             match.id, match.tournament.name, format_eastern_display(match.scheduled_at),
         )
-        await self.match_schedule_service.notify_match_participants(match, msg)
+        await self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False)
+        await self.match_schedule_service.notify_match_crew(match, msg)
         notified_ids = await self._collect_notified_discord_ids(match)
         await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
 
@@ -736,8 +764,56 @@ class MatchService:
         # Delete crew entry
         await crew_member.delete()
     
+    async def acknowledge_match(self, match_id: int, user: User) -> MatchAcknowledgment:
+        """Mark a match as acknowledged by the given player.
+
+        Only current players of the match may acknowledge.
+        """
+        match = await self.repository.get_by_id(match_id, prefetch_relations=False)
+        if not match:
+            raise ValueError("Match not found")
+
+        players = await self.repository.get_players(match)
+        if not any(p.user_id == user.id for p in players):
+            raise ValueError("You are not a participant of this match.")
+
+        existing = await self.ack_repository.get(match, user)
+        if existing and existing.acknowledged_at is not None:
+            raise ValueError(f"You have already acknowledged Match ID {match.id}.")
+
+        ack = await self.ack_repository.upsert(match, user, acknowledged=True, auto=False)
+        await self.audit_service.write_log(
+            user,
+            f'Acknowledged match {match.id}',
+            f'Tournament: {match.tournament_id}',
+        )
+        return ack
+
+    async def _seed_acknowledgments(
+        self,
+        match: Match,
+        player_ids: List[int],
+        actor: Optional[User],
+    ) -> None:
+        """Reset and re-create acknowledgment rows for all current players.
+
+        The actor (if present among players) is auto-acknowledged.
+        """
+        await self.ack_repository.delete_for_match(match)
+        actor_id = actor.id if actor is not None else None
+        for pid in player_ids:
+            user = await self.user_repository.get_by_id(pid)
+            if not user:
+                continue
+            is_actor = actor_id is not None and pid == actor_id
+            await self.ack_repository.upsert(
+                match, user,
+                acknowledged=is_actor,
+                auto=is_actor,
+            )
+
     # Private helper methods
-    
+
     def _get_match_state(self, match: Match) -> str:
         """
         Determine the current state of a match based on its timestamps.
@@ -766,12 +842,16 @@ class MatchService:
         else:
             return 'Scheduled'
     
-    def _format_match_for_display(self, match: Match) -> Dict[str, Any]:
+    def _format_match_for_display(
+        self,
+        match: Match,
+        acknowledgments: Optional[List[MatchAcknowledgment]] = None,
+    ) -> Dict[str, Any]:
         """Format a match object for UI display."""
         # Get state and corresponding timestamp
         state = self._get_match_state(match)
         state_timestamp = None
-        
+
         if match.confirmed_at:
             state_timestamp = format_eastern_datetime(match.confirmed_at)
         elif match.finished_at:
@@ -780,7 +860,28 @@ class MatchService:
             state_timestamp = format_eastern_datetime(match.started_at)
         elif match.seated_at:
             state_timestamp = format_eastern_datetime(match.seated_at)
-        
+
+        ack_by_user: Dict[int, MatchAcknowledgment] = {
+            a.user_id: a for a in (acknowledgments or [])
+        }
+        acknowledgments_summary = []
+        for p in match.players:
+            user_id = getattr(p, 'user_id', None) or getattr(p.user, 'id', None)
+            ack = ack_by_user.get(user_id) if user_id is not None else None
+            acknowledged = ack is not None and ack.acknowledged_at is not None
+            ts_display = (
+                format_eastern_display(ack.acknowledged_at)
+                if acknowledged and ack and ack.acknowledged_at else ''
+            )
+            discord_id = getattr(p.user, 'discord_id', None)
+            acknowledgments_summary.append((
+                p.user.preferred_name,
+                acknowledged,
+                bool(ack and ack.auto_acknowledged),
+                ts_display,
+                str(discord_id) if discord_id else None,
+            ))
+
         return {
             'id': match.id,
             'tournament': match.tournament.name if match.tournament else '',
@@ -788,6 +889,7 @@ class MatchService:
             'state': state,
             'state_timestamp': state_timestamp,
             'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station) for p in match.players],
+            'acknowledgments': acknowledgments_summary,
             'stream_room': match.stream_room.name if match.stream_room else '',
             'is_stream_candidate': match.is_stream_candidate,
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
