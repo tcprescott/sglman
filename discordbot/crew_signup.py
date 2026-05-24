@@ -34,7 +34,8 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
     from application.repositories import UserRepository
     from application.services import MatchService
 
-    parts = interaction.custom_id.split(':')
+    custom_id = (interaction.data or {}).get('custom_id', '')
+    parts = custom_id.split(':')
     if len(parts) != 3:
         await interaction.response.send_message('Invalid interaction.', ephemeral=True)
         return

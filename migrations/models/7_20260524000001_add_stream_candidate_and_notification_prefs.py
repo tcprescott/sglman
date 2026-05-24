@@ -9,9 +9,12 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
             `match_notifications` VARCHAR(30) NOT NULL DEFAULT 'none',
             `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
             `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-            `tournament_id` INT NOT NULL REFERENCES `tournament` (`id`) ON DELETE CASCADE,
-            `user_id` INT NOT NULL REFERENCES `user` (`id`) ON DELETE CASCADE,
-            UNIQUE KEY `uid_tournamentno_user_tournament` (`user_id`, `tournament_id`)
+            `tournament_id` INT NOT NULL,
+            `user_id` INT NOT NULL,
+            UNIQUE KEY `uid_tournamentno_user_tournament` (`user_id`, `tournament_id`),
+            INDEX `idx_tournamentno_tournament_level` (`tournament_id`, `match_notifications`),
+            CONSTRAINT `fk_tnp_tournament` FOREIGN KEY (`tournament_id`) REFERENCES `tournament` (`id`) ON DELETE CASCADE,
+            CONSTRAINT `fk_tnp_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
         ) CHARACTER SET utf8mb4;"""
 
 

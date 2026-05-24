@@ -17,12 +17,14 @@ def service():
     svc.commentator_repository = MagicMock()
     svc.tracker_repository = MagicMock()
     svc.audit_service = MagicMock()
+    svc.match_schedule_service = MagicMock()
     return svc
 
 
 def make_match(**overrides):
     defaults = dict(
         id=1,
+        tournament_id=1,
         seated_at=None,
         started_at=None,
         finished_at=None,
@@ -31,10 +33,13 @@ def make_match(**overrides):
         comment=None,
         tournament=SimpleNamespace(name="Test Tournament", seed_generator=None),
         stream_room=None,
+        stream_room_id=None,
         generated_seed=None,
+        is_stream_candidate=False,
         players=[],
         commentators=[],
         trackers=[],
+        fetch_related=AsyncMock(),
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -343,3 +348,95 @@ class TestMatchServiceFinishMatch:
         await service.finish_match(match_id=1)
         call_kwargs = service.repository.update.call_args
         assert "finished_at" in call_kwargs.kwargs
+
+
+# ---------------------------------------------------------------------------
+# _format_match_for_display — is_stream_candidate field
+# ---------------------------------------------------------------------------
+
+
+class TestFormatMatchIsStreamCandidate:
+    def test_is_stream_candidate_false_by_default(self, service):
+        result = service._format_match_for_display(make_match())
+        assert result["is_stream_candidate"] is False
+
+    def test_is_stream_candidate_true_when_set(self, service):
+        result = service._format_match_for_display(make_match(is_stream_candidate=True))
+        assert result["is_stream_candidate"] is True
+
+
+# ---------------------------------------------------------------------------
+# create_match — subscriber notification fan-out
+# ---------------------------------------------------------------------------
+
+
+def _setup_create_match_mocks(service):
+    """Wire up minimal mocks to let create_match reach its notification phase."""
+    user = SimpleNamespace(id=1, discord_id=111)
+    match = make_match(id=1, tournament_id=1, is_stream_candidate=False)
+
+    service.repository.create = AsyncMock(return_value=match)
+    service.user_repository.get_by_id = AsyncMock(return_value=user)
+    service.tournament_repository.is_player_enrolled_by_id = AsyncMock(return_value=True)
+    service.repository.add_player = AsyncMock()
+
+    service.match_schedule_service._create_scheduled_dm_message = MagicMock(return_value="scheduled msg")
+    service.match_schedule_service.notify_match_participants = AsyncMock()
+    service.match_schedule_service.notify_tournament_subscribers_scheduled = AsyncMock()
+    service.match_schedule_service.notify_stream_candidate_subscribers = AsyncMock()
+
+    # Avoid real ORM queries in _collect_notified_discord_ids
+    service._collect_notified_discord_ids = AsyncMock(return_value=[111])
+
+    return match, user
+
+
+class TestCreateMatchSubscriberNotifications:
+    async def test_tournament_subscriber_notification_called(self, service):
+        match, _ = _setup_create_match_mocks(service)
+        await service.create_match(
+            tournament_id=1,
+            scheduled_date="2025-01-15",
+            scheduled_time="14:30",
+            player_ids=[1],
+        )
+        service.match_schedule_service.notify_tournament_subscribers_scheduled.assert_awaited_once()
+
+    async def test_stream_candidate_notification_not_called_when_flag_false(self, service):
+        _setup_create_match_mocks(service)
+        await service.create_match(
+            tournament_id=1,
+            scheduled_date="2025-01-15",
+            scheduled_time="14:30",
+            player_ids=[1],
+            is_stream_candidate=False,
+        )
+        service.match_schedule_service.notify_stream_candidate_subscribers.assert_not_awaited()
+
+    async def test_stream_candidate_notification_called_when_flag_true(self, service):
+        match, _ = _setup_create_match_mocks(service)
+        match.is_stream_candidate = True
+        service.repository.create = AsyncMock(return_value=match)
+        await service.create_match(
+            tournament_id=1,
+            scheduled_date="2025-01-15",
+            scheduled_time="14:30",
+            player_ids=[1],
+            is_stream_candidate=True,
+        )
+        service.match_schedule_service.notify_stream_candidate_subscribers.assert_awaited_once()
+
+    async def test_subscriber_notification_receives_excluded_ids(self, service):
+        _setup_create_match_mocks(service)
+        service._collect_notified_discord_ids = AsyncMock(return_value=[111, 222])
+        await service.create_match(
+            tournament_id=1,
+            scheduled_date="2025-01-15",
+            scheduled_time="14:30",
+            player_ids=[1],
+        )
+        call_args = service.match_schedule_service.notify_tournament_subscribers_scheduled.call_args
+        # Third positional arg is exclude_discord_ids
+        exclude_ids = call_args.args[2]
+        assert 111 in exclude_ids
+        assert 222 in exclude_ids
