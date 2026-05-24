@@ -2,7 +2,7 @@ import asyncio
 
 from nicegui import app, background_tasks, ui
 
-from application.services import MatchService, UserService
+from application.services import MatchService, MatchWatcherService, UserService
 from theme.dialog import ConfirmationDialog, UserDialog
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
@@ -43,6 +43,7 @@ class MatchTableView:
         # Initialize services
         self.service = MatchService()
         self.user_service = UserService()
+        self.watcher_service = MatchWatcherService()
         self._setup_ui()
         
     def _on_state_filter_change(self, *_args, **_kwargs):
@@ -420,6 +421,17 @@ class MatchTableView:
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
         self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
 
+        if discord_id:
+            self.table.add_slot('body-cell-watch', '''<q-td :props="props">
+                <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
+                       :color="props.row._watching ? 'primary' : 'grey'"
+                       size="sm" flat round
+                       @click="$parent.$emit('toggle_watch', props.row)">
+                    <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
+                </q-btn>
+            </q-td>''')
+            self.table.on('toggle_watch', lambda event: background_tasks.create(self._handle_toggle_watch(event)))
+
         # Admin-specific slots and handlers
         if self.admin_controls:
             if self.on_generate_seed is not None:
@@ -526,8 +538,8 @@ class MatchTableView:
                 </q-td>''')
                 self.table.on('edit-stream-room', lambda event: background_tasks.create(self._handle_edit_stream_room(event)))
 
-            if self.on_edit is not None:
-                self.table.on('edit_match', lambda event: background_tasks.create(self._handle_edit(event)))
+        if self.on_edit is not None:
+            self.table.on('edit_match', lambda event: background_tasks.create(self._handle_edit(event)))
 
     async def refresh(self, *_args):
         """Refresh table data using service layer."""
@@ -535,11 +547,11 @@ class MatchTableView:
         tournament_ids = None
         if self.tournament_filter and self.tournament_filter.value:
             tournament_ids = self.tournament_filter.value
-            
+
         stream_room_ids = None
         if self.stream_room_filter and self.stream_room_filter.value:
             stream_room_ids = self.stream_room_filter.value
-        
+
         # Use service to get formatted match data (all states)
         rows = await self.service.get_matches_for_display(
             tournament_ids=tournament_ids,
@@ -547,14 +559,27 @@ class MatchTableView:
             only_upcoming=False,  # Get all matches
             user_discord_id=None  # Don't filter by user in table view
         )
-        
+
         # Client-side filter by state
         state_filter = self.state_filter.value if self.state_filter else []
         if state_filter:
             rows = [row for row in rows if row.get('state') in state_filter]
-        
+
+        watched_ids = await self._fetch_watched_ids()
+        for row in rows:
+            row['_watching'] = row.get('id') in watched_ids
+
         self.table.rows = rows
         self.table.update()
+
+    async def _fetch_watched_ids(self) -> set:
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            return set()
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            return set()
+        return set(await self.watcher_service.list_watched_match_ids(user))
 
     def render_grid_slot(self):
         # Get the discord_id from app.storage if available
@@ -585,9 +610,11 @@ class MatchTableView:
                 field['separator'] = ', '  # Add space after comma
             elif field['key'] == 'state':
                 field['state_field'] = True
-                
+            elif field['key'] == 'watch':
+                field['watch_field'] = True
+
             grid_fields.append(field)
-            
+
         # Build JS array for Vue template
         js_field_array = ',\n    '.join([
             f"{{ label: '{f['label']}', key: '{f['key']}'" +
@@ -597,6 +624,7 @@ class MatchTableView:
             (", nameIndex: " + str(f['name_index']) if 'name_index' in f else '') +
             (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
             (", stateField: true" if f.get('state_field') else '') +
+            (", watchField: true" if f.get('watch_field') else '') +
             (f", separator: '{f['separator']}'" if 'separator' in f else '') +
             (f", discord_id: {f['discord_id']}" if 'discord_id' in f else '') +
             " }" for f in grid_fields
@@ -784,6 +812,16 @@ class MatchTableView:
                     <template v-else-if="!{'true' if self.admin_controls else 'false'} || !props.row.tournament_seed_generator">-</template>
                 </template>
 
+                <!-- Watch toggle (logged-in users only) -->
+                <template v-else-if="field.watchField">
+                    <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
+                           :color="props.row._watching ? 'primary' : 'grey'"
+                           size="sm" flat round
+                           @click="$parent.$emit('toggle_watch', props.row)">
+                        <q-tooltip>{{{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}}}</q-tooltip>
+                    </q-btn>
+                </template>
+
                 <!-- For stream_room field with admin button -->
                 <template v-else-if="field.key === 'stream_room'">
                     <span v-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
@@ -870,18 +908,52 @@ class MatchTableView:
                    if row.get('id') == match_id), None)
         if idx is None:
             return  # Row not visible, do nothing
-        
+
         # Use service to get match data
         match_data = await self.service.get_match_for_display(match_id)
-        
+
         if not match_data:
             # Match not found, delete the row from the table
             del self.table.rows[idx]
             self.table.update()
             return
-        
+
+        match_data['_watching'] = self.table.rows[idx].get('_watching', False)
         self.table.rows[idx] = match_data
         self.table.update()
+
+    async def _handle_toggle_watch(self, event):
+        row = event.args if isinstance(event.args, dict) else {}
+        match_id = row.get('id')
+        if match_id is None:
+            return
+
+        discord_id = app.storage.user.get('discord_id', None)
+        if not discord_id:
+            ui.notify('You must be logged in to watch a match.', color='warning')
+            return
+
+        user = await self.user_service.get_current_user_from_storage(discord_id)
+        if not user:
+            ui.notify('User not found. Please log in again.', color='warning')
+            return
+
+        currently_watching = bool(row.get('_watching'))
+        try:
+            if currently_watching:
+                await self.watcher_service.unwatch(match_id, user)
+                ui.notify(f'No longer watching match ID {match_id}.', color='positive')
+            else:
+                await self.watcher_service.watch(match_id, user)
+                ui.notify(f'Now watching match ID {match_id}. You will receive Discord DMs on updates.', color='positive')
+        except ValueError as e:
+            ui.notify(str(e), color='warning')
+            return
+
+        idx = next((i for i, r in enumerate(self.table.rows) if r.get('id') == match_id), None)
+        if idx is not None:
+            self.table.rows[idx]['_watching'] = not currently_watching
+            self.table.update()
 
     async def delete_row_by_id(self, match_id):
         """
