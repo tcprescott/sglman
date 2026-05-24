@@ -63,7 +63,8 @@ def protected_page(
             user = await current_user_from_storage()
             allowed = False
             if user is not None and role_list:
-                allowed = any(await AuthService.has_role(user, r) for r in role_list)
+                held = await AuthService.get_roles(user)
+                allowed = bool(held.intersection(role_list))
             if not allowed and allow_tournament_membership:
                 allowed = await AuthService.can_view_admin(user)
             if not allowed:

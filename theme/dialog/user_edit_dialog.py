@@ -1,4 +1,4 @@
-from nicegui import app, background_tasks, ui
+from nicegui import background_tasks, ui
 
 from application.repositories import TournamentRepository
 from application.services import AuthService, TournamentService, UserService, current_user_from_storage
@@ -74,6 +74,11 @@ class UserDialog(BaseUserDialog):
                     with self.dialog:
                         ui.notify('Self-edit dialog requires an existing user.', color='warning')
                     return
+                actor = await current_user_from_storage()
+                if actor is None:
+                    with self.dialog:
+                        ui.notify('You must be logged in to edit your profile.', color='negative')
+                    return
                 try:
                     with self.dialog:
                         await self.user_service.update_user_profile(
@@ -82,7 +87,7 @@ class UserDialog(BaseUserDialog):
                             pronouns=pronouns_input.value,
                             check_concurrency=True,
                             initial_updated_at=self._initial_updated_at,
-                            actor=self.user,
+                            actor=actor,
                         )
                         await self._update_tournament_enrollments(
                             tournaments, user_tournaments, selected_tournament_ids, tournament_multiselect,

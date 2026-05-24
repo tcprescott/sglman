@@ -240,6 +240,31 @@ class MatchService:
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
+        # Resolve every referenced user up-front so a missing ID doesn't leave
+        # an orphan Match row behind.
+        players = []
+        for player_id in player_ids:
+            user = await self.user_repository.get_by_id(player_id)
+            if not user:
+                raise ValueError(f"User {player_id} not found")
+            players.append(user)
+
+        commentators = []
+        if commentator_ids:
+            for comm_id in commentator_ids:
+                user = await self.user_repository.get_by_id(comm_id)
+                if not user:
+                    raise ValueError(f"User {comm_id} not found")
+                commentators.append(user)
+
+        trackers = []
+        if tracker_ids:
+            for track_id in tracker_ids:
+                user = await self.user_repository.get_by_id(track_id)
+                if not user:
+                    raise ValueError(f"User {track_id} not found")
+                trackers.append(user)
+
         # Create match
         match = await self.repository.create(
             tournament_id=tournament_id,
@@ -248,30 +273,16 @@ class MatchService:
             stream_room_id=stream_room_id,
             is_stream_candidate=is_stream_candidate,
         )
-        
-        # Add players and ensure they're enrolled in tournament
-        for player_id in player_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
+
+        for user in players:
             await self._ensure_tournament_enrollment(user, tournament_id)
             await self.repository.add_player(match, user)
-        
-        # Add commentators if provided
-        if commentator_ids:
-            for comm_id in commentator_ids:
-                user = await self.user_repository.get_by_id(comm_id)
-                if not user:
-                    raise ValueError(f"User {comm_id} not found")
-                await self.commentator_repository.create(match=match, user=user, approved=True)
-        
-        # Add trackers if provided
-        if tracker_ids:
-            for track_id in tracker_ids:
-                user = await self.user_repository.get_by_id(track_id)
-                if not user:
-                    raise ValueError(f"User {track_id} not found")
-                await self.tracker_repository.create(match=match, user=user, approved=True)
+
+        for user in commentators:
+            await self.commentator_repository.create(match=match, user=user, approved=True)
+
+        for user in trackers:
+            await self.tracker_repository.create(match=match, user=user, approved=True)
         
         # Audit log
         if actor:
@@ -447,15 +458,21 @@ class MatchService:
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
+        # Resolve every player before touching the match row so a missing user
+        # doesn't leave an orphan Match behind.
+        players = []
+        for player_id in player_ids:
+            user = await self.user_repository.get_by_id(player_id)
+            if not user:
+                raise ValueError(f"User {player_id} not found")
+            players.append(user)
+
         match = await self.repository.create(
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
         )
-        for player_id in player_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
+        for user in players:
             await self._ensure_tournament_enrollment(user, tournament_id)
             await self.repository.add_player(match, user)
 
