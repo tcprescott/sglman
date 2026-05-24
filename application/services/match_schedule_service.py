@@ -9,9 +9,11 @@ from datetime import datetime
 from typing import Dict, Tuple, Optional
 
 from application.repositories import MatchRepository
+from application.services.audit_service import AuditService
+from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
-from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker
+from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, User
 
 
 class MatchScheduleService:
@@ -24,93 +26,79 @@ class MatchScheduleService:
         self.match_repository = MatchRepository()
         self.discord_service = DiscordService()
         self.seedgen_service = SeedGenerationService()
-    
-    async def seat_match(self, match: Match) -> None:
-        """
-        Mark a match as seated (checked in).
+        self.audit_service = AuditService()
 
-        Args:
-            match: Match to seat
-
-        Raises:
-            ValueError: If match is invalid
-        """
+    async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot seat match {match.id}",
+        )
         if match.seated_at:
             raise ValueError("Match is already checked in")
 
         match.seated_at = datetime.now()
         await match.save()
+        if actor:
+            await self.audit_service.write_log(actor, f'Seated match {match.id}', '')
         await match.fetch_related('tournament')
         msg = self._create_checked_in_dm_message(match.id, match.tournament.name)
         await self.notify_match_participants(match, msg)
-    
-    async def start_match(self, match: Match) -> None:
-        """
-        Mark a match as started.
 
-        Args:
-            match: Match to start
-
-        Raises:
-            ValueError: If match is invalid or not checked in
-        """
+    async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot start match {match.id}",
+        )
         if not match.seated_at:
             raise ValueError("Match must be checked in before starting")
-
         if match.started_at:
             raise ValueError("Match is already started")
 
         match.started_at = datetime.now()
         await match.save()
+        if actor:
+            await self.audit_service.write_log(actor, f'Started match {match.id}', '')
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Started")
         await self.notify_match_participants(match, msg)
-    
-    async def finish_match(self, match: Match) -> None:
-        """
-        Mark a match as finished.
 
-        Args:
-            match: Match to finish
-
-        Raises:
-            ValueError: If match is invalid or not started
-        """
+    async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot finish match {match.id}",
+        )
         if not match.started_at:
             raise ValueError("Match must be started before finishing")
-
         if match.finished_at:
             raise ValueError("Match is already finished")
 
         match.finished_at = datetime.now()
         await match.save()
+        if actor:
+            await self.audit_service.write_log(actor, f'Finished match {match.id}', '')
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Finished")
         await self.notify_match_participants(match, msg)
-    
-    async def confirm_match(self, match: Match) -> None:
-        """
-        Mark a match as confirmed.
 
-        Args:
-            match: Match to confirm
-
-        Raises:
-            ValueError: If match is invalid or not finished
-        """
+    async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_transition_match(actor, match),
+            f"User cannot confirm match {match.id}",
+        )
         if not match.finished_at:
             raise ValueError("Match must be finished before confirming")
-
         if match.confirmed_at:
             raise ValueError("Match is already confirmed")
 
         match.confirmed_at = datetime.now()
         await match.save()
+        if actor:
+            await self.audit_service.write_log(actor, f'Confirmed match {match.id}', '')
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Confirmed")
         await self.notify_match_participants(match, msg)
     
-    async def generate_seed(self, match_id: int) -> Tuple[bool, str, Optional[str]]:
+    async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
         """
         Generate a seed for a match and send DMs to players.
         
@@ -141,7 +129,10 @@ class MatchScheduleService:
                 match = await Match.get(id=match_id).prefetch_related(
                     'tournament', 'players', 'players__user'
                 )
-                
+
+                if not await AuthService.can_transition_match(actor, match):
+                    return False, "You do not have permission to roll a seed for this match", None
+
                 # Check if seed already exists
                 if match.generated_seed:
                     return False, "A seed has already been generated for this match", None
@@ -185,7 +176,12 @@ class MatchScheduleService:
                 message = f"Seed generated successfully for match ID {match.id}"
                 if dm_failures:
                     message += f"\n\nFailed to send DM to: {'; '.join(dm_failures)}"
-                
+
+                if actor:
+                    await self.audit_service.write_log(
+                        actor, f'Rolled seed for match {match.id}', f'seed_url={seed_url}',
+                    )
+
                 return True, message, seed_url
                 
             except Exception as e:

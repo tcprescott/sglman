@@ -1,13 +1,13 @@
-from enum import IntEnum, Enum
+from enum import Enum
 
 from tortoise import fields
 from tortoise.models import Model
 
 
-class Permissions(IntEnum):
-    USER = 0
-    TOURNAMENT_ADMIN = 1
-    SUPERADMIN = 2
+class Role(str, Enum):
+    STAFF = 'staff'
+    PROCTOR = 'proctor'
+    STREAM_MANAGER = 'stream_manager'
 
 class User(Model):
     id = fields.IntField(pk=True)
@@ -20,10 +20,10 @@ class User(Model):
     pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
     dm_notifications = fields.BooleanField(default=True)
-    permission = fields.IntEnumField(Permissions, default=Permissions.USER.value)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
+    crew_coordinated_tournaments = fields.ManyToManyRelation["Tournament"]
     match_players = fields.ReverseRelation["MatchPlayers"]
     tournament_players = fields.ReverseRelation["TournamentPlayers"]
     tournament_notifications = fields.ReverseRelation["TournamentNotificationPreference"]
@@ -32,6 +32,8 @@ class User(Model):
     approved_commentaries = fields.ReverseRelation["Commentator"]
     trackers = fields.ReverseRelation["Tracker"]
     approved_trackers = fields.ReverseRelation["Tracker"]
+    roles = fields.ReverseRelation["UserRole"]
+    granted_roles = fields.ReverseRelation["UserRole"]
     audit_logs = fields.ReverseRelation["AuditLog"]
 
     @property
@@ -68,6 +70,11 @@ class Tournament(Model):
     average_match_duration = fields.IntField(null=True)  # in minutes
     max_match_duration = fields.IntField(null=True)  # in minutes
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
+    crew_coordinators = fields.ManyToManyField(
+        'models.User',
+        related_name='crew_coordinated_tournaments',
+        through='TournamentCrewCoordinators',
+    )
     staff_administered = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -219,3 +226,14 @@ class Announcement(Model):
     tournament = fields.ForeignKeyField('models.Tournament', related_name='announcements', null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class UserRole(Model):
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='roles')
+    role = fields.CharEnumField(Role, max_length=32)
+    granted_by = fields.ForeignKeyField('models.User', related_name='granted_roles', null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'role')
+        table = 'userrole'

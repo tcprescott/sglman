@@ -3,7 +3,7 @@
 
 from nicegui import background_tasks, ui
 
-from application.services import MatchScheduleService
+from application.services import MatchScheduleService, current_user_from_storage
 from models import Match
 from theme.dialog import ConfirmationDialog, StationAssignmentDialog, MatchResultDialog
 from theme.dialog.match_dialog import AdminMatchDialog
@@ -55,7 +55,8 @@ def admin_schedule_page() -> None:
                 await dialog.open()
 
         async def on_generate_seed(match_id: int):
-            success, message, _ = await match_schedule_service.generate_seed(match_id)
+            actor = await current_user_from_storage()
+            success, message, _ = await match_schedule_service.generate_seed(match_id, actor=actor)
             
             with page_container:
                 if success:
@@ -87,8 +88,12 @@ def admin_schedule_page() -> None:
 
         async def confirm_seating(match: Match):
             try:
-                await match_schedule_service.seat_match(match)
+                actor = await current_user_from_storage()
+                await match_schedule_service.seat_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
+            except PermissionError as e:
+                with page_container:
+                    ui.notify(str(e), color='negative')
             except ValueError as e:
                 with page_container:
                     ui.notify(str(e), color='warning')
@@ -110,8 +115,12 @@ def admin_schedule_page() -> None:
 
         async def confirm_starting(match: Match):
             try:
-                await match_schedule_service.start_match(match)
+                actor = await current_user_from_storage()
+                await match_schedule_service.start_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
+            except PermissionError as e:
+                with page_container:
+                    ui.notify(str(e), color='negative')
             except ValueError as e:
                 with page_container:
                     ui.notify(str(e), color='warning')
@@ -133,8 +142,12 @@ def admin_schedule_page() -> None:
 
         async def confirm_finishing(match: Match):
             try:
-                await match_schedule_service.finish_match(match)
+                actor = await current_user_from_storage()
+                await match_schedule_service.finish_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
+            except PermissionError as e:
+                with page_container:
+                    ui.notify(str(e), color='negative')
             except ValueError as e:
                 with page_container:
                     ui.notify(str(e), color='warning')
@@ -156,8 +169,12 @@ def admin_schedule_page() -> None:
 
         async def confirm_confirming(match: Match):
             try:
-                await match_schedule_service.confirm_match(match)
+                actor = await current_user_from_storage()
+                await match_schedule_service.confirm_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
+            except PermissionError as e:
+                with page_container:
+                    ui.notify(str(e), color='negative')
             except ValueError as e:
                 with page_container:
                     ui.notify(str(e), color='warning')

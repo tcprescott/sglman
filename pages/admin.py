@@ -3,11 +3,12 @@
 from nicegui import app, ui
 from middleware.auth import protected_page
 
+from application.services import AuthService
+from models import Role, User
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.reports import reports_page
-from models import Permissions, User
 from theme.base import BaseLayout
 
 
@@ -39,8 +40,16 @@ def create() -> None:
             with ui.row():
                 ui.label('User not found in the database.').classes('text-error')
             return
-        if user.permission < Permissions.TOURNAMENT_ADMIN:
-            await BaseLayout(page_name='admin2').render()
+
+        roles = await AuthService.get_roles(user)
+        is_staff = Role.STAFF in roles
+        is_proctor = Role.PROCTOR in roles
+        is_stream_manager = Role.STREAM_MANAGER in roles
+        is_ta_any = await user.admin_tournaments.all().exists()
+        is_cc_any = await user.crew_coordinated_tournaments.all().exists()
+
+        if not (is_staff or is_proctor or is_stream_manager or is_ta_any or is_cc_any):
+            await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
             with ui.row():
                 ui.label('You do not have permission to view this page.').classes('text-error')
             return
@@ -59,15 +68,17 @@ def create() -> None:
             'page': page,
         }
 
-        # Define tab data model: label and content function
-        tabs = [
-            {'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page},
-            {'label': 'Users', 'icon': 'people', 'content': admin_users_page},
-            {'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page},
-            {'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page},
-            # {'label': 'Announcements', 'icon': 'announcement', 'content': announcement_admin_page},
-            {'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)},
-        ]
+        tabs = []
+        if is_staff or is_proctor or is_ta_any or is_cc_any:
+            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page})
+        if is_staff:
+            tabs.append({'label': 'Users', 'icon': 'people', 'content': admin_users_page})
+        if is_staff or is_ta_any:
+            tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page})
+        if is_staff or is_stream_manager:
+            tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
+        if is_staff or is_proctor or is_ta_any or is_cc_any:
+            tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
 
-        base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user)
+        base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user, show_admin=True)
         await base_layout.render()

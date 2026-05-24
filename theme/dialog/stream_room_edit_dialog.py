@@ -2,7 +2,7 @@
 
 from nicegui import background_tasks, ui
 
-from application.services import StreamRoomService
+from application.services import StreamRoomService, current_user_from_storage
 from models import StreamRoom
 
 
@@ -38,22 +38,23 @@ class StreamRoomEditDialog:
                 is_active = is_active_checkbox.value
 
                 try:
+                    actor = await current_user_from_storage()
                     if self.stream_room:
-                        # Update existing stream room
                         result_room = await self.stream_room_service.update_stream_room(
                             self.stream_room,
                             name=name,
                             stream_url=url if url else None,
-                            is_active=is_active
+                            is_active=is_active,
+                            actor=actor,
                         )
                         with self.dialog:
                             ui.notify(f'Stream room "{name}" updated successfully.', color='positive')
                     else:
-                        # Create new stream room
                         result_room = await self.stream_room_service.create_stream_room(
                             name=name,
                             stream_url=url if url else None,
-                            is_active=is_active
+                            is_active=is_active,
+                            actor=actor,
                         )
                         with self.dialog:
                             ui.notify(f'Stream room "{name}" created successfully.', color='positive')
@@ -61,6 +62,9 @@ class StreamRoomEditDialog:
                     dialog.close()
                     if self.on_submit:
                         await self.on_submit(result_room)
+                except PermissionError as e:
+                    with self.dialog:
+                        ui.notify(str(e), color='negative')
                 except ValueError as e:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')

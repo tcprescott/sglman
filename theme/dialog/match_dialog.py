@@ -1,6 +1,6 @@
 from nicegui import background_tasks, ui
 
-from application.services import MatchService, UserService, CrewService
+from application.services import CrewService, MatchService, UserService, current_user_from_storage
 from application.repositories import (
     UserRepository,
     TournamentRepository,
@@ -121,12 +121,16 @@ class BaseMatchDialog:
     async def _delete_match(self, dialog):
         """Delete the match."""
         try:
-            await self.match_repository.delete(self.match)
+            actor = await current_user_from_storage()
+            await self.match_service.delete_match(self.match.id, actor=actor)
             with dialog:
                 ui.notify('Match deleted', color='negative')
                 dialog.close()
             if self.on_submit:
                 await self.on_submit(None)
+        except PermissionError as e:
+            with dialog:
+                ui.notify(str(e), color='negative')
         except ValueError as e:
             with dialog:
                 ui.notify(f'Error deleting match: {str(e)}', color='negative')
@@ -278,6 +282,7 @@ class AdminMatchDialog(BaseMatchDialog):
                         ui.notify(f'Error enrolling players: {str(e)}', color='negative')
                     return
 
+                actor = await current_user_from_storage()
                 if self.match:
                     # Check for concurrent modifications
                     latest_match = await self.match_repository.get_by_id(self.match.id)
@@ -285,7 +290,7 @@ class AdminMatchDialog(BaseMatchDialog):
                         with self.dialog:
                             ui.notify('This match has been modified by another admin. Please reload and try again.', color='warning')
                         return
-                    
+
                     try:
                         await self.match_service.update_match(
                             match_id=self.match.id,
@@ -296,26 +301,37 @@ class AdminMatchDialog(BaseMatchDialog):
                             commentator_ids=new_commentator_ids,
                             tracker_ids=new_tracker_ids,
                             comment=comment_value,
-                            stream_room_id=stream_room_id if stream_room_id else None,
                             clear_seated=self._clear_seated,
                             clear_started=self._clear_started,
                             clear_finished=self._clear_finished,
                             clear_confirmed=self._clear_confirmed,
                             clear_seed=self._clear_seed,
-                            clear_stream_room=(stream_room_id is None),
-                            is_stream_candidate=stream_candidate_checkbox.value,
+                            actor=actor,
                         )
+                        # Stage assignment and stream-candidate flag are gated by
+                        # can_manage_streams; route them through dedicated methods.
+                        if (stream_room_id or None) != self.match.stream_room_id:
+                            await self.match_service.assign_stage(
+                                self.match.id, stream_room_id or None, actor=actor,
+                            )
+                        if stream_candidate_checkbox.value != self.match.is_stream_candidate:
+                            await self.match_service.set_stream_candidate(
+                                self.match.id, stream_candidate_checkbox.value, actor=actor,
+                            )
                         with self.dialog:
                             ui.notify('Match updated successfully', color='positive')
                             dialog.close()
                         if self.on_submit:
                             await self.on_submit(self.match)
+                    except PermissionError as e:
+                        with self.dialog:
+                            ui.notify(str(e), color='negative')
                     except ValueError as e:
                         with self.dialog:
                             ui.notify(f'Error updating match: {str(e)}', color='negative')
                 else:
                     try:
-                        await self.match_service.create_match(
+                        new_match = await self.match_service.create_match(
                             tournament_id=tournament_id,
                             scheduled_date=date_value,
                             scheduled_time=time_value,
@@ -323,14 +339,19 @@ class AdminMatchDialog(BaseMatchDialog):
                             player_ids=new_player_ids,
                             commentator_ids=new_commentator_ids,
                             tracker_ids=new_tracker_ids,
-                            stream_room_id=stream_room_id,
                             is_stream_candidate=stream_candidate_checkbox.value,
+                            actor=actor,
                         )
+                        if stream_room_id:
+                            await self.match_service.assign_stage(new_match.id, stream_room_id, actor=actor)
                         with self.dialog:
                             ui.notify('Match created successfully', color='positive')
                             dialog.close()
                         if self.on_submit:
                             await self.on_submit()
+                    except PermissionError as e:
+                        with self.dialog:
+                            ui.notify(str(e), color='negative')
                     except ValueError as e:
                         with self.dialog:
                             ui.notify(f'Error creating match: {str(e)}', color='negative')
@@ -491,7 +512,7 @@ class UserMatchDialog(BaseMatchDialog):
                         with self.dialog:
                             ui.notify('This match has been modified. Please reload and try again.', color='warning')
                         return
-                    
+
                     try:
                         await self.match_service.update_match(
                             match_id=self.match.id,
@@ -502,39 +523,42 @@ class UserMatchDialog(BaseMatchDialog):
                             commentator_ids=[],
                             tracker_ids=[],
                             comment=comment_value,
-                            stream_room_id=None,
                             clear_seated=self._clear_seated,
                             clear_started=self._clear_started,
                             clear_finished=self._clear_finished,
                             clear_confirmed=self._clear_confirmed,
                             clear_seed=self._clear_seed,
-                            clear_stream_room=True
+                            actor=user,
                         )
                         with self.dialog:
                             ui.notify('Match updated successfully', color='positive')
                             dialog.close()
                         if self.on_submit:
                             await self.on_submit(self.match)
+                    except PermissionError as e:
+                        with self.dialog:
+                            ui.notify(str(e), color='negative')
                     except ValueError as e:
                         with self.dialog:
                             ui.notify(f'Error updating match: {str(e)}', color='negative')
                 else:
                     try:
-                        await self.match_service.create_match(
+                        await self.match_service.submit_match_request(
                             tournament_id=tournament_id,
                             scheduled_date=date_value,
                             scheduled_time=time_value,
                             comment=comment_value,
                             player_ids=new_player_ids,
-                            commentator_ids=None,
-                            tracker_ids=None,
-                            stream_room_id=None
+                            actor=user,
                         )
                         with self.dialog:
                             ui.notify('Match submitted successfully', color='positive')
                             dialog.close()
                         if self.on_submit:
                             await self.on_submit()
+                    except PermissionError as e:
+                        with self.dialog:
+                            ui.notify(str(e), color='negative')
                     except ValueError as e:
                         with self.dialog:
                             ui.notify(f'Error creating match: {str(e)}', color='negative')

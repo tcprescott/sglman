@@ -1,21 +1,25 @@
 """
 Tournament Service - Business Logic Layer
 
-Handles tournament-related operations including creation, updates, and validation.
+Handles tournament-related operations including creation, updates, validation,
+and admin/crew-coordinator membership.
 """
 
 from typing import Optional
 
 from application.repositories import TournamentRepository
-from models import Tournament
+from application.services.audit_service import AuditService
+from application.services.auth_service import AuthService
+from models import Tournament, User
 
 
 class TournamentService:
     """Service for tournament-related business operations."""
-    
+
     def __init__(self):
         self.repository = TournamentRepository()
-    
+        self.audit_service = AuditService()
+
     async def create_tournament(
         self,
         name: str,
@@ -29,40 +33,21 @@ class TournamentService:
         is_active: bool = True,
         players_per_match: int = 2,
         team_size: int = 1,
-        staff_administered: bool = False
+        staff_administered: bool = False,
+        actor: Optional[User] = None,
     ) -> Tournament:
-        """
-        Create a new tournament with validation.
-        
-        Args:
-            name: Tournament name (required)
-            description: Tournament description
-            seed_generator: Name of the seed generator to use
-            bracket_url: URL to the tournament bracket
-            rules_url: URL to the tournament rules
-            tournament_format: Format description (e.g., "Swiss", "Double Elimination")
-            average_match_duration: Average match duration in minutes
-            max_match_duration: Maximum match duration in minutes
-            is_active: Whether the tournament is active
-            players_per_match: Number of players per match
-            team_size: Size of each team
-            staff_administered: Whether tournament is staff-administered
-            
-        Returns:
-            The created Tournament instance
-            
-        Raises:
-            ValueError: If validation fails
-        """
-        # Validation
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can create tournaments",
+        )
+
         if not name or not name.strip():
             raise ValueError("Tournament name is required")
-        
-        # Handle "None" string for seed_generator
+
         if seed_generator == "None":
             seed_generator = None
-        
-        return await self.repository.create(
+
+        tournament = await self.repository.create(
             name=name.strip(),
             description=description.strip() if description else None,
             seed_generator=seed_generator,
@@ -74,9 +59,16 @@ class TournamentService:
             is_active=is_active,
             players_per_match=players_per_match,
             team_size=team_size,
-            staff_administered=staff_administered
+            staff_administered=staff_administered,
         )
-    
+
+        if actor:
+            await self.audit_service.write_log(
+                actor, 'Created tournament', f'T={tournament.id} name="{tournament.name}"',
+            )
+
+        return tournament
+
     async def update_tournament(
         self,
         tournament: Tournament,
@@ -91,41 +83,20 @@ class TournamentService:
         is_active: Optional[bool] = None,
         players_per_match: Optional[int] = None,
         team_size: Optional[int] = None,
-        staff_administered: Optional[bool] = None
+        staff_administered: Optional[bool] = None,
+        actor: Optional[User] = None,
     ) -> Tournament:
-        """
-        Update an existing tournament with validation.
-        
-        Args:
-            tournament: Tournament instance to update
-            name: New tournament name
-            description: New description
-            seed_generator: New seed generator
-            bracket_url: New bracket URL
-            rules_url: New rules URL
-            tournament_format: New tournament format
-            average_match_duration: New average match duration
-            max_match_duration: New max match duration
-            is_active: New active status
-            players_per_match: New players per match
-            team_size: New team size
-            staff_administered: New staff-administered status
-            
-        Returns:
-            The updated Tournament instance
-            
-        Raises:
-            ValueError: If validation fails
-        """
-        # Validation
+        await AuthService.ensure(
+            await AuthService.can_edit_tournament(actor, tournament),
+            f"User cannot edit tournament {tournament.id}",
+        )
+
         if name is not None and (not name or not name.strip()):
             raise ValueError("Tournament name cannot be empty")
-        
-        # Handle "None" string for seed_generator
+
         if seed_generator == "None":
             seed_generator = None
-        
-        # Build update dict with only provided values
+
         update_data = {}
         if name is not None:
             update_data['name'] = name.strip()
@@ -151,29 +122,72 @@ class TournamentService:
             update_data['team_size'] = team_size
         if staff_administered is not None:
             update_data['staff_administered'] = staff_administered
-        
-        return await self.repository.update(tournament, **update_data)
-    
+
+        result = await self.repository.update(tournament, **update_data)
+
+        if actor:
+            await self.audit_service.write_log(
+                actor, 'Updated tournament', f'T={tournament.id} fields={list(update_data.keys())}',
+            )
+
+        return result
+
+    async def delete_tournament(self, tournament: Tournament, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can delete tournaments",
+        )
+        tournament_id = tournament.id
+        await tournament.delete()
+        if actor:
+            await self.audit_service.write_log(actor, 'Deleted tournament', f'T={tournament_id}')
+
+    async def add_admin(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            "Only Staff can grant Tournament Admin",
+        )
+        await tournament.admins.add(target)
+        if actor:
+            await self.audit_service.write_log(
+                actor, 'Granted TA', f'T={tournament.id} target=U{target.id}',
+            )
+
+    async def remove_admin(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            "Only Staff can revoke Tournament Admin",
+        )
+        await tournament.admins.remove(target)
+        if actor:
+            await self.audit_service.write_log(
+                actor, 'Revoked TA', f'T={tournament.id} target=U{target.id}',
+            )
+
+    async def add_crew_coordinator(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            "Only Staff can grant Crew Coordinator",
+        )
+        await tournament.crew_coordinators.add(target)
+        if actor:
+            await self.audit_service.write_log(
+                actor, 'Granted CC', f'T={tournament.id} target=U{target.id}',
+            )
+
+    async def remove_crew_coordinator(self, tournament: Tournament, target: User, actor: Optional[User] = None) -> None:
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            "Only Staff can revoke Crew Coordinator",
+        )
+        await tournament.crew_coordinators.remove(target)
+        if actor:
+            await self.audit_service.write_log(
+                actor, 'Revoked CC', f'T={tournament.id} target=U{target.id}',
+            )
+
     async def get_all_tournaments(self, active_only: bool = False) -> list[Tournament]:
-        """
-        Get all tournaments.
-        
-        Args:
-            active_only: If True, only return active tournaments
-            
-        Returns:
-            List of Tournament instances
-        """
         return await self.repository.get_all(active_only=active_only)
-    
+
     async def get_tournament_by_id(self, tournament_id: int) -> Optional[Tournament]:
-        """
-        Get a tournament by ID.
-        
-        Args:
-            tournament_id: Tournament ID
-            
-        Returns:
-            Tournament instance or None if not found
-        """
         return await self.repository.get_by_id(tournament_id)

@@ -4,18 +4,22 @@
 from nicegui import background_tasks, ui
 
 from application.repositories import StreamRoomRepository
+from application.services import AuthService, current_user_from_storage
 from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
 from theme.tables.tournament import TournamentTableView
 
 
-def admin_tournaments_page() -> None:
+async def admin_tournaments_page() -> None:
+    actor = await current_user_from_storage()
+    can_create = await AuthService.is_staff(actor)
+
     with ui.column().classes('page-container'):
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Tournament Management').classes('page-title')
-        
+
         ui.separator().classes('separator-spacing')
         
         columns = [
@@ -41,14 +45,19 @@ def admin_tournaments_page() -> None:
             return Tournament.all()
         
         table_view = TournamentTableView(
-            columns=columns, get_query=get_query, submit_tournament_callback=add_tournament)
+            columns=columns, get_query=get_query,
+            submit_tournament_callback=add_tournament if can_create else None,
+        )
         
         def on_tab_selected():
             background_tasks.create(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Tournaments' else None)
 
 
-def admin_stream_rooms_page() -> None:
+async def admin_stream_rooms_page() -> None:
+    actor = await current_user_from_storage()
+    can_manage = await AuthService.can_manage_stream_rooms(actor)
+
     with ui.column().classes('page-container-narrow'):
         # Header section
         with ui.row().classes('header-row'):
@@ -103,8 +112,9 @@ def admin_stream_rooms_page() -> None:
 
         with table_container:
             with ui.row().classes('w-full justify-end mb-1'):
-                ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
-            
+                if can_manage:
+                    ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
+
             table = ui.table(
                 columns=columns,
                 rows=[],

@@ -5,7 +5,7 @@ from typing import Optional, Callable
 from nicegui import ui
 
 from models import Match
-from application.services import MatchService
+from application.services import MatchService, current_user_from_storage
 
 
 class StationAssignmentDialog:
@@ -91,28 +91,27 @@ class StationAssignmentDialog:
     async def _handle_submit(self):
         """Handle station assignment submission."""
         try:
-            # Collect station assignments
             assignments = {}
             for player_id, station_input in self.station_inputs.items():
                 station = station_input.value.strip() if station_input.value else None
                 assignments[player_id] = station
-            
-            # Update each player's assigned station
-            for player in self.match.players:
-                if player.id in assignments:
-                    player.assigned_station = assignments[player.id]
-                    await player.save()
-            
+
+            actor = await current_user_from_storage()
+            await self.match_service.assign_stations(self.match.id, assignments, actor=actor)
+
             ui.notify(
                 f'Stations assigned successfully for match #{self.match.id}',
-                color='positive'
+                color='positive',
             )
-            
-            # Call the on_submit callback if provided
+
             if self.on_submit:
                 await self.on_submit(self.match)
-            
+
             self.dialog.close()
-            
+
+        except PermissionError as e:
+            ui.notify(str(e), color='negative')
+        except ValueError as e:
+            ui.notify(f'Error: {str(e)}', color='negative')
         except Exception as e:
             ui.notify(f'Error assigning stations: {str(e)}', color='negative')

@@ -13,6 +13,7 @@ from .tournament_notification_repository import TournamentNotificationRepository
 from .tournament_repository import TournamentRepository
 from .tracker_repository import TrackerRepository
 from .user_repository import UserRepository
+from .user_role_repository import UserRoleRepository
 
 __all__ = [
     'AuditRepository',
@@ -23,4 +24,5 @@ __all__ = [
     'TournamentRepository',
     'TrackerRepository',
     'UserRepository',
+    'UserRoleRepository',
 ]

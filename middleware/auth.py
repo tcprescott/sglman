@@ -1,5 +1,6 @@
+import functools
 import os
-from typing import Optional
+from typing import Iterable, Optional
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import Request
@@ -8,8 +9,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 from zenora import APIClient
 
+from application.services.auth_service import AuthService, current_user_from_storage
 from application.utils.mock_discord import is_mock_discord
-from models import User
+from models import Role, User
 
 # Supporting variables
 referrer_path = None
@@ -31,23 +33,47 @@ discordClient = (
 # Registry of routes that require authentication; populated by protected_page decorator
 protected_routes: set[str] = set()
 
-def protected_page(path: str, **page_kwargs):
-    """
-    Decorator to register a NiceGUI page that requires authentication.
+def protected_page(
+    path: str,
+    *,
+    roles: Optional[Iterable[Role]] = None,
+    allow_tournament_membership: bool = False,
+    **page_kwargs,
+):
+    """Register a NiceGUI page that requires authentication and optional roles.
 
-    Usage:
-        @protected_page('/admin')
-        async def admin(...): ...
-
-    This will:
-      - Register the page route with NiceGUI
-      - Add the path to protected_routes so the middleware can enforce auth
+    Args:
+        path: Page route.
+        roles: If set, the user must hold at least one of these global roles.
+        allow_tournament_membership: If True, users who are a Tournament Admin
+            or Crew Coordinator of any tournament also pass the role gate.
+            Use for pages whose subset of features may be available to per-
+            tournament admins (e.g. the admin dashboard shell).
     """
+    role_list = list(roles) if roles else None
+
     def decorator(func):
-        # Register the path as protected
         protected_routes.add(path)
-        # Delegate to NiceGUI's page decorator to actually create the route
-        return ui.page(path, **page_kwargs)(func)
+
+        if role_list is None and not allow_tournament_membership:
+            return ui.page(path, **page_kwargs)(func)
+
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            user = await current_user_from_storage()
+            allowed = False
+            if user is not None and role_list:
+                allowed = any(await AuthService.has_role(user, r) for r in role_list)
+            if not allowed and allow_tournament_membership:
+                allowed = await AuthService.can_view_admin(user)
+            if not allowed:
+                from theme.base import BaseLayout
+                await BaseLayout(page_name='denied').render()
+                ui.label('You do not have permission to view this page.').classes('text-error')
+                return
+            return await func(*args, **kwargs)
+
+        return ui.page(path, **page_kwargs)(wrapper)
     return decorator
 
 class AuthMiddleware(BaseHTTPMiddleware):

@@ -7,6 +7,25 @@ import pytest
 from application.services.match_service import MatchService
 
 
+@pytest.fixture(autouse=True)
+def bypass_auth(monkeypatch):
+    """Disable AuthService permission checks for tests; they exercise business logic."""
+    from application.services import auth_service
+
+    async def allow(*_args, **_kwargs):
+        return True
+
+    async def noop_ensure(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(auth_service.AuthService, 'can_transition_match', allow)
+    monkeypatch.setattr(auth_service.AuthService, 'can_crud_match', allow)
+    monkeypatch.setattr(auth_service.AuthService, 'can_assign_match_stream', allow)
+    monkeypatch.setattr(auth_service.AuthService, 'is_staff', allow)
+    monkeypatch.setattr(auth_service.AuthService, 'is_tournament_admin', allow)
+    monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
+
+
 @pytest.fixture
 def service():
     svc = object.__new__(MatchService)
@@ -17,6 +36,7 @@ def service():
     svc.commentator_repository = MagicMock()
     svc.tracker_repository = MagicMock()
     svc.audit_service = MagicMock()
+    svc.audit_service.write_log = AsyncMock()
     svc.match_schedule_service = MagicMock()
     return svc
 

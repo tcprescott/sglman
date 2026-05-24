@@ -1,5 +1,4 @@
 from nicegui import background_tasks, ui
-from models import Permissions
 
 
 class UserTableView:
@@ -42,9 +41,12 @@ class UserTableView:
             <span v-if="props.value" class="wrap" :title="props.value">{{ props.value.toString().length > 24 ? props.value.toString().substring(0, 21) + '...' : props.value }}</span>
             <span v-else>-</span>
         </q-td>''')
-        # Display permission as a chip
-        self.table.add_slot('body-cell-permission', '''<q-td :props="props">
-            <q-chip :color="'primary'" text-color="white" dense>{{ props.value }}</q-chip>
+        # Display roles as comma-separated chips. props.value is a comma-separated string.
+        self.table.add_slot('body-cell-roles', '''<q-td :props="props">
+            <template v-if="props.value">
+                <q-chip v-for="r in props.value.split(',')" :key="r" color="primary" text-color="white" dense>{{ r.trim() }}</q-chip>
+            </template>
+            <span v-else class="text-grey-7">-</span>
         </q-td>''')
         self.render_grid_slot()
         if self.extra_slots:
@@ -106,24 +108,34 @@ class UserTableView:
 
     async def refresh(self, *_, **__):
         user_query = self.get_query()
-        all_users = await user_query.order_by('username')
-        rows = []
-        for u in all_users:
-            row = {
-                'id': u.id,
-                'username': u.username,
-                'display_name': u.display_name or '',
-                'preferred_name': u.preferred_name or '',
-                'pronouns': u.pronouns or '',
-                'discord_id': u.discord_id,
-                'is_active': u.is_active,
-                'permission': (Permissions(u.permission).name if isinstance(u.permission, int) else str(u.permission)),
-                'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
-                'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '',
-            }
-            rows.append(row)
+        all_users = await user_query.order_by('username').prefetch_related(
+            'roles', 'admin_tournaments', 'crew_coordinated_tournaments'
+        )
+        rows = [self._format_user_row(u) for u in all_users]
         self.table.rows = rows
         self.table.update()
+
+    @staticmethod
+    def _format_user_row(u):
+        role_labels = [r.role.value.replace('_', ' ').title() for r in u.roles]
+        ta_count = len(u.admin_tournaments)
+        cc_count = len(u.crew_coordinated_tournaments)
+        if ta_count:
+            role_labels.append(f'TA({ta_count})')
+        if cc_count:
+            role_labels.append(f'CC({cc_count})')
+        return {
+            'id': u.id,
+            'username': u.username,
+            'display_name': u.display_name or '',
+            'preferred_name': u.preferred_name or '',
+            'pronouns': u.pronouns or '',
+            'discord_id': u.discord_id,
+            'is_active': u.is_active,
+            'roles': ', '.join(role_labels),
+            'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
+            'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '',
+        }
 
     def _on_page_change(self, _event):
         background_tasks.create(self.refresh())
@@ -137,19 +149,10 @@ class UserTableView:
         if idx is None:
             return  # Row not visible, do nothing
         user_query = self.get_query()
-        u = await user_query.filter(id=user_id).first()
+        u = await user_query.filter(id=user_id).prefetch_related(
+            'roles', 'admin_tournaments', 'crew_coordinated_tournaments'
+        ).first()
         if not u:
             return  # User not found
-        row = {
-            'id': u.id,
-            'username': u.username,
-            'display_name': u.display_name or '',
-            'pronouns': u.pronouns or '',
-            'discord_id': u.discord_id,
-            'is_active': u.is_active,
-            'permission': (Permissions(u.permission).name if isinstance(u.permission, int) else str(u.permission)),
-            'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
-            'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else ''
-        }
-        self.table.rows[idx] = row
+        self.table.rows[idx] = self._format_user_row(u)
         self.table.update()

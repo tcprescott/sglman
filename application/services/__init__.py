@@ -6,6 +6,7 @@ between repositories. They should NOT know about UI components.
 """
 
 from .audit_service import AuditService
+from .auth_service import AuthService, current_user_from_storage
 from .crew_service import CrewService
 from .discord_service import DiscordService
 from .match_service import MatchService
@@ -20,7 +21,9 @@ from .user_service import UserService
 
 __all__ = [
     'AuditService',
+    'AuthService',
     'CrewService',
+    'current_user_from_storage',
     'DiscordService',
     'MatchService',
     'MatchScheduleService',
