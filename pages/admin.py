@@ -9,6 +9,7 @@ from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.reports import reports_page
+from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from theme.base import BaseLayout
 
 
@@ -77,6 +78,8 @@ def create() -> None:
             tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page})
         if is_staff or is_stream_manager:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
+        if is_staff or is_ta_any:
+            tabs.append({'label': 'Triforce Texts', 'icon': 'star', 'content': admin_triforce_texts_page})
         if is_staff or is_proctor or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
 

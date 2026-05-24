@@ -71,6 +71,12 @@ class AuditActions:
     # System
     SYSTEM_CONFIG_UPDATED = 'system_config.updated'
 
+    # Triforce texts
+    TRIFORCE_TEXT_SUBMITTED = 'triforce_text.submitted'
+    TRIFORCE_TEXT_APPROVED = 'triforce_text.approved'
+    TRIFORCE_TEXT_REJECTED = 'triforce_text.rejected'
+    TRIFORCE_TEXT_DELETED = 'triforce_text.deleted'
+
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
     if details is None:

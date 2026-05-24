@@ -37,6 +37,8 @@ class User(Model):
     roles = fields.ReverseRelation["UserRole"]
     granted_roles = fields.ReverseRelation["UserRole"]
     audit_logs = fields.ReverseRelation["AuditLog"]
+    triforce_texts = fields.ReverseRelation["TriforceText"]
+    triforce_texts_moderated = fields.ReverseRelation["TriforceText"]
 
     @property
     def preferred_name(self) -> str:
@@ -87,6 +89,7 @@ class Tournament(Model):
     teams = fields.ReverseRelation["Team"]
     announcements = fields.ReverseRelation["Announcement"]
     notification_preferences = fields.ReverseRelation["TournamentNotificationPreference"]
+    triforce_texts = fields.ReverseRelation["TriforceText"]
 
 class Match(Model):
     id = fields.IntField(pk=True)
@@ -268,3 +271,26 @@ class UserRole(Model):
     class Meta:
         unique_together = ('user', 'role')
         table = 'userrole'
+
+class TriforceText(Model):
+    id = fields.IntField(pk=True)
+    tournament = fields.ForeignKeyField(
+        'models.Tournament', related_name='triforce_texts', on_delete=fields.CASCADE
+    )
+    user = fields.ForeignKeyField(
+        'models.User', related_name='triforce_texts',
+        null=True, on_delete=fields.SET_NULL,
+    )
+    text = fields.CharField(max_length=200)
+    author = fields.CharField(max_length=200, null=True)
+    approved = fields.BooleanField(null=True)
+    approved_by = fields.ForeignKeyField(
+        'models.User', related_name='triforce_texts_moderated',
+        null=True, on_delete=fields.SET_NULL,
+    )
+    approved_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'triforcetext'
