@@ -1,6 +1,6 @@
 from nicegui import background_tasks, ui
 
-from application.services import CrewService, MatchService, UserService, current_user_from_storage
+from application.services import CrewService, MatchService, MatchWatcherService, UserService, current_user_from_storage
 from application.repositories import (
     UserRepository,
     TournamentRepository,
@@ -476,6 +476,41 @@ class UserMatchDialog(BaseMatchDialog):
             # Clear buttons for edit mode
             if self.match:
                 self._render_clear_buttons()
+
+            # Watch toggle - logged-in user opts in to Discord DMs on lifecycle changes
+            if self.match:
+                watcher_service = MatchWatcherService()
+                initial_watching = await watcher_service.is_watching(self.match.id, user)
+                match_id_for_watch = self.match.id
+
+                async def on_watch_change(event):
+                    new_value = bool(event.value)
+                    try:
+                        if new_value:
+                            await watcher_service.watch(match_id_for_watch, user)
+                            with self.dialog:
+                                ui.notify(
+                                    f'Now watching match ID {match_id_for_watch}. You will receive Discord DMs on updates.',
+                                    color='positive',
+                                )
+                        else:
+                            await watcher_service.unwatch(match_id_for_watch, user)
+                            with self.dialog:
+                                ui.notify(
+                                    f'No longer watching match ID {match_id_for_watch}.',
+                                    color='positive',
+                                )
+                    except ValueError as e:
+                        watch_switch.value = not new_value
+                        watch_switch.update()
+                        with self.dialog:
+                            ui.notify(str(e), color='warning')
+
+                watch_switch = ui.switch(
+                    'Watch this match (Discord DM updates)',
+                    value=initial_watching,
+                    on_change=lambda e: background_tasks.create(on_watch_change(e)),
+                )
 
             async def submit():
                 tournament_id = selected_tournament.value

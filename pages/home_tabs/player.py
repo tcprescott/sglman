@@ -36,6 +36,7 @@ def render_player_dashboard():
             {'name': 'players', 'label': 'Players', 'field': 'players'},
             {'name': 'stream_room', 'label': 'Stage', 'field': 'stream_room'},
             {'name': 'generated_seed', 'label': 'Generated Seed', 'field': 'generated_seed'},
+            {'name': 'watch', 'label': 'Watch', 'field': 'watch'},
         ]
 
         extra_slots = {

@@ -11,6 +11,7 @@ from .crew_service import CrewService
 from .discord_service import DiscordService
 from .match_service import MatchService
 from .match_schedule_service import MatchScheduleService
+from .match_watcher_service import MatchWatcherService
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
 from .stream_room_service import StreamRoomService
@@ -27,6 +28,7 @@ __all__ = [
     'DiscordService',
     'MatchService',
     'MatchScheduleService',
+    'MatchWatcherService',
     'ReportsService',
     'SeedGenerationService',
     'StreamRoomService',

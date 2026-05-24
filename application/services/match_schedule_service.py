@@ -13,7 +13,7 @@ from application.services.audit_service import AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
-from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, User
+from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, MatchWatcher, User
 
 
 class MatchScheduleService:
@@ -212,10 +212,25 @@ class MatchScheduleService:
                 if t.user.dm_notifications and t.user.discord_id and t.user.discord_id not in seen_ids:
                     seen_ids.append(t.user.discord_id)
 
+            watcher_ids: list[int] = []
+            watchers = await MatchWatcher.filter(match=match).prefetch_related('user')
+            for w in watchers:
+                if (w.user.dm_notifications and w.user.discord_id
+                        and w.user.discord_id not in seen_ids
+                        and w.user.discord_id not in watcher_ids):
+                    watcher_ids.append(w.user.discord_id)
+
             for discord_id in seen_ids:
                 success, err = await self.discord_service.send_dm(discord_id, message)
                 if not success:
                     print(f"[notify_match_participants] DM failed for {discord_id}: {err}")
+
+            for discord_id in watcher_ids:
+                success, err = await self.discord_service.send_dm_with_unwatch_button(
+                    discord_id, message, match.id,
+                )
+                if not success:
+                    print(f"[notify_match_participants] watcher DM failed for {discord_id}: {err}")
 
         except Exception as e:
             print(f"[notify_match_participants] Unexpected error for match {match.id}: {e}")
