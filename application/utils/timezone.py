@@ -5,9 +5,9 @@ Handles timezone conversions for the application.
 All datetimes are stored in UTC in the database and converted to/from US/Eastern for display.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
-from typing import Optional
+from typing import Optional, Union
 
 # Define the application timezone
 EASTERN_TZ = ZoneInfo("America/New_York")
@@ -102,17 +102,22 @@ def format_eastern_datetime(dt: Optional[datetime], fmt: str = "%Y-%m-%d %H:%M")
     return eastern_dt.strftime(fmt)
 
 
-def format_eastern_date(dt: Optional[datetime]) -> str:
+def format_eastern_date(dt: Optional[Union[datetime, date]]) -> str:
     """
     Format just the date portion in US/Eastern timezone.
-    
+
     Args:
-        dt: Datetime to format
-        
+        dt: Datetime or date to format. Plain ``date`` values have no
+            timezone interpretation and are formatted as-is.
+
     Returns:
         Date string in YYYY-MM-DD format, or empty string if None
     """
-    return format_eastern_datetime(dt, "%Y-%m-%d")
+    if dt is None:
+        return ''
+    if isinstance(dt, datetime):
+        return format_eastern_datetime(dt, "%Y-%m-%d")
+    return dt.strftime("%Y-%m-%d")
 
 
 def format_eastern_time(dt: Optional[datetime]) -> str:
