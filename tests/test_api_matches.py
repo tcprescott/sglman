@@ -242,23 +242,10 @@ class TestLimit:
 
 # ---------------------------------------------------------------------------
 # Approved-only filtering for commentators / trackers
-#
-# NOTE: api.py defines ``MatchResponse.from_orm`` with a filter that drops
-# unapproved commentators/trackers, but FastAPI/Pydantic v2 does not call
-# that classmethod during response serialization — ``orm_mode = True`` only
-# enables attribute-based conversion. As a result the filter is currently
-# dead code and the endpoint returns *all* commentators and trackers. The
-# tests below are marked xfail so they will start passing once the API is
-# fixed (e.g. by filtering in the route handler instead of from_orm).
 # ---------------------------------------------------------------------------
 
 
 class TestApprovedOnlyCrew:
-    @pytest.mark.xfail(
-        reason='MatchResponse.from_orm is not called by Pydantic v2 response_model serialization; '
-               'unapproved commentators are currently leaked through the /matches endpoint.',
-        strict=True,
-    )
     async def test_only_approved_commentators_returned(self, client):
         t = await Tournament.create(name='T')
         match = await Match.create(
@@ -276,10 +263,6 @@ class TestApprovedOnlyCrew:
         assert len(commentators) == 1
         assert commentators[0]['user']['username'] == 'approved'
 
-    @pytest.mark.xfail(
-        reason='Same dead-from_orm bug as commentators: unapproved trackers leak through.',
-        strict=True,
-    )
     async def test_only_approved_trackers_returned(self, client):
         t = await Tournament.create(name='T')
         match = await Match.create(
@@ -295,24 +278,6 @@ class TestApprovedOnlyCrew:
         trackers = response.json()[0]['trackers']
         assert len(trackers) == 1
         assert trackers[0]['user']['username'] == 'approved-tracker'
-
-    async def test_current_behavior_returns_all_commentators(self, client):
-        """Regression test pinning the current (buggy) behavior so changes are visible."""
-        t = await Tournament.create(name='T')
-        match = await Match.create(
-            tournament=t,
-            scheduled_at=datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
-        )
-        approved_user = await User.create(discord_id=21, username='ok')
-        unapproved_user = await User.create(discord_id=22, username='pending')
-        await Commentator.create(match=match, user=approved_user, approved=True)
-        await Commentator.create(match=match, user=unapproved_user, approved=False)
-
-        response = await client.get('/api/matches')
-        commentators = response.json()[0]['commentators']
-        # TODO: once the API filters approved-only, change this to assert == 1
-        # and remove the xfail markers above.
-        assert len(commentators) == 2
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Query, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from models import Match, GeneratedSeeds
 
@@ -102,31 +102,16 @@ class MatchResponse(BaseModel):
     trackers: List[TrackerInfo] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         orm_mode = True
-    
+
+    @field_validator('commentators', 'trackers', mode='before')
     @classmethod
-    def from_orm(cls, obj):
-        # Create a standard orm conversion first
-        match_dict = {
-            "id": obj.id,
-            "tournament": obj.tournament,
-            "stream_room": obj.stream_room,
-            "generated_seed": obj.generated_seed,
-            "scheduled_at": obj.scheduled_at,
-            "seated_at": obj.seated_at,
-            "finished_at": obj.finished_at,
-            "comment": obj.comment,
-            "players": obj.players,
-            # Filter out unapproved commentators
-            "commentators": [c for c in obj.commentators if c.approved],
-            # Filter out unapproved trackers
-            "trackers": [t for t in obj.trackers if t.approved],
-            "created_at": obj.created_at,
-            "updated_at": obj.updated_at,
-        }
-        return cls(**match_dict)
+    def _drop_unapproved(cls, v):
+        if v is None:
+            return v
+        return [item for item in v if getattr(item, 'approved', False)]
 
 
 @router.get(
