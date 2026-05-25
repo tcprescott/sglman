@@ -12,7 +12,11 @@ class TournamentDialog:
     async def open(self):
         with ui.dialog() as dialog, ui.card():
             self.dialog = dialog
-            name_input = ui.input('Tournament Name', value=self.tournament.name if self.tournament else '')
+            ui.label('* required').classes('required-legend')
+            name_input = ui.input(
+                'Tournament Name',
+                value=self.tournament.name if self.tournament else '',
+            ).props('required')
             description_input = ui.textarea('Description', value=self.tournament.description if self.tournament and self.tournament.description else '').classes('input-full-width')
             randomizer_choices = ['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS
             default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
@@ -30,6 +34,10 @@ class TournamentDialog:
                 is_active_checkbox = ui.checkbox('Active', value=self.tournament.is_active if self.tournament else True)
 
             async def submit():
+                if not (name_input.value or '').strip():
+                    with self.dialog:
+                        ui.notify('Please fill required field(s): Tournament Name.', color='warning')
+                    return
                 try:
                     actor = await current_user_from_storage()
                     if self.tournament:
@@ -84,9 +92,13 @@ class TournamentDialog:
 
             with ui.row().classes('justify-between action-row'):
                 if self.tournament:
-                    ui.button('Save', color='green', on_click=submit)
+                    primary_btn = ui.button('Save', color='green', on_click=submit)
                 else:
-                    ui.button('Create', color='green', on_click=submit)
+                    primary_btn = ui.button('Create', color='green', on_click=submit)
+                primary_btn.bind_enabled_from(
+                    name_input, 'value',
+                    backward=lambda v: bool(v and v.strip()),
+                )
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':

@@ -105,6 +105,14 @@
     color: #666;
 }
 
+.required-legend {
+    font-size: 0.8em;
+    color: #888;
+    font-style: italic;
+    margin-top: -0.25em;
+    margin-bottom: 0.5em;
+}
+
 .form-grid {
     width: 100%;
     gap: 1em;

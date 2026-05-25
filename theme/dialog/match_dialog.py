@@ -65,7 +65,7 @@ class BaseMatchDialog:
     def _render_date_time_inputs(self, default_date, default_time):
         """Render date and time input fields."""
         with ui.row().classes('justify-between items-center mb-1'):
-            with ui.input('Date (YYYY-MM-DD)', value=default_date) as date:
+            with ui.input('Date (YYYY-MM-DD)', value=default_date).props('required') as date:
                 with ui.menu().props('no-parent-event') as menu:
                     with ui.date(value=default_date).bind_value(date):
                         with ui.row().classes('justify-end'):
@@ -73,14 +73,14 @@ class BaseMatchDialog:
                 with date.add_slot('append'):
                     ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
 
-            with ui.input('Time (24-hour format)', value=default_time) as time:
+            with ui.input('Time (24-hour format)', value=default_time).props('required') as time:
                 with ui.menu().props('no-parent-event') as menu:
                     with ui.time(value=default_time).bind_value(time):
                         with ui.row().classes('justify-end'):
                             ui.button('Close', on_click=menu.close).props('flat')
                 with time.add_slot('append'):
                     ui.icon('access_time').on('click', menu.open).classes('cursor-pointer')
-        
+
         return date, time
 
     def _render_clear_buttons(self):
@@ -207,15 +207,17 @@ class AdminMatchDialog(BaseMatchDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
-            
+
+            ui.label('* required').classes('required-legend')
+
             # Tournament selector
             selected_tournament = ui.select(
                 label='Tournament',
                 options={t.id: t.name for t in tournaments},
                 value=defaults['tournament'],
                 with_input=True
-            )
-            
+            ).props('required')
+
             # Stream room selector
             stream_room_options = {None: '(None)'}
             stream_room_options.update({s.id: s.name for s in stream_rooms})
@@ -331,9 +333,16 @@ class AdminMatchDialog(BaseMatchDialog):
                 new_tracker_ids = selected_trackers.value if isinstance(selected_trackers.value, list) else [selected_trackers.value]
 
                 # Validation
-                if not (tournament_id and date_value and time_value):
+                missing = []
+                if not tournament_id:
+                    missing.append('Tournament')
+                if not date_value:
+                    missing.append('Date')
+                if not time_value:
+                    missing.append('Time')
+                if missing:
                     with self.dialog:
-                        ui.notify('Please fill all required fields.', color='warning')
+                        ui.notify(f'Please fill required field(s): {", ".join(missing)}.', color='warning')
                     return
 
                 # Ensure all submitted players are enrolled in tournament
@@ -479,14 +488,16 @@ class UserMatchDialog(BaseMatchDialog):
                 ui.button('Close', color='gray', on_click=dialog.close)
                 dialog.open()
                 return
-            
+
+            ui.label('* required').classes('required-legend')
+
             # Tournament selector with "show all" option
             selected_tournament = ui.select(
                 label='Tournament',
                 options={t.id: t.name for t in tournaments},
                 value=defaults['tournament'],
                 with_input=True
-            )
+            ).props('required')
             show_all_tournaments = ui.checkbox('Show all tournaments', value=False)
 
             async def get_opted_in_users(tournament_id):
@@ -502,7 +513,7 @@ class UserMatchDialog(BaseMatchDialog):
                 options=opponent_options,
                 value=opponent_id,
                 with_input=True
-            )
+            ).props('required')
             selected_opponent.disable()
 
             async def update_selection_options():
@@ -550,9 +561,18 @@ class UserMatchDialog(BaseMatchDialog):
                 comment_value = comment_input.value
 
                 # Validation - must have opponent and all fields
-                if not (opponent_id and tournament_id and date_value and time_value):
+                missing = []
+                if not tournament_id:
+                    missing.append('Tournament')
+                if not opponent_id:
+                    missing.append('Opponent')
+                if not date_value:
+                    missing.append('Date')
+                if not time_value:
+                    missing.append('Time')
+                if missing:
                     with self.dialog:
-                        ui.notify('Please select an opponent and fill all fields.', color='warning')
+                        ui.notify(f'Please fill required field(s): {", ".join(missing)}.', color='warning')
                     return
 
                 new_player_ids = [user.id, opponent_id]
