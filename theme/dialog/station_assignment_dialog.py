@@ -65,17 +65,18 @@ class StationAssignmentDialog:
                         with ui.column().classes('q-gutter-xs full-width'):
                             # Player name
                             ui.label(player.user.preferred_name or player.user.username).classes('text-weight-medium')
-                            
-                            # Station input
+
+                            # Station input (leave blank to clear assignment)
                             station_input = ui.input(
                                 label='Station',
-                                placeholder='e.g., A1, B2, Station 3'
-                            ).props('outlined dense').classes('full-width')
-                            
+                                placeholder='e.g., A1, B2, Station 3',
+                                validation={'Max 50 characters': lambda v: not v or len(v) <= 50},
+                            ).props('outlined dense maxlength=50').classes('full-width')
+
                             # Pre-fill existing station if available
                             if player.assigned_station:
                                 station_input.value = player.assigned_station
-                            
+
                             # Store reference to input
                             self.station_inputs[player.id] = station_input
             

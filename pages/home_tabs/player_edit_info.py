@@ -10,6 +10,28 @@ async def render_edit_info_tab():
     """Render the edit info tab for players to update their information."""
     # Initialize service
     user_service = UserService()
+
+    # Install a beforeunload guard so unsaved edits prompt before navigation.
+    ui.add_head_html("""
+    <script>
+      if (!window.__sglman_dirty_guard_installed) {
+        window.__sglman_dirty_guard_installed = true;
+        window.sglman_dirty = false;
+        window.addEventListener('beforeunload', (e) => {
+          if (window.sglman_dirty) {
+            e.preventDefault();
+            e.returnValue = '';
+          }
+        });
+      }
+    </script>
+    """)
+
+    def mark_dirty():
+        ui.run_javascript('window.sglman_dirty = true;')
+
+    def mark_clean():
+        ui.run_javascript('window.sglman_dirty = false;')
     
     with ui.column().classes('page-container-narrow'):
         # Header
@@ -51,24 +73,27 @@ async def render_edit_info_tab():
                 with ui.column():
                     ui.label('Display Name').classes('input-label')
                     display_name_input = ui.input(
-                        '', 
-                        value=user.display_name or '', 
-                        placeholder=display_name_hint
+                        '',
+                        value=user.display_name or '',
+                        placeholder=display_name_hint,
+                        on_change=lambda _: mark_dirty(),
                     ).classes('input-full-width').props('outlined dense')
-                
+
                 with ui.column():
                     ui.label('Pronouns').classes('input-label')
                     pronouns_input = ui.input(
                         '',
                         value=user.pronouns or '',
-                        placeholder='e.g. they/them'
+                        placeholder='e.g. they/them',
+                        on_change=lambda _: mark_dirty(),
                     ).classes('input-full-width').props('outlined dense')
 
         with ui.card().classes('card-full-width'):
             ui.label('Notifications').classes('section-title')
             dm_checkbox = ui.checkbox(
                 'Receive Discord DM notifications for match updates',
-                value=user.dm_notifications
+                value=user.dm_notifications,
+                on_change=lambda _: mark_dirty(),
             )
 
         tournament_checkboxes = {}
@@ -91,8 +116,9 @@ async def render_edit_info_tab():
                             checked = t.id in selected_tournament_ids
                             with ui.column().classes('flex-1'):
                                 tournament_checkboxes[t.id] = ui.checkbox(
-                                    t.name, 
-                                    value=checked
+                                    t.name,
+                                    value=checked,
+                                    on_change=lambda _: mark_dirty(),
                                 ).classes('input-full-width')
                         # Fill empty cells if less than columns
                         for _ in range(columns - len(row)):
@@ -119,6 +145,7 @@ async def render_edit_info_tab():
                 current_registrations=user_tournaments,
             )
 
+            mark_clean()
             ui.notify('Information updated successfully!', color='positive', icon='check_circle')
 
         # Save Button

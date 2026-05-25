@@ -121,7 +121,12 @@ class AdminUserDialog(BaseUserDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            username_input = ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
+            if not self.user:
+                ui.label('* required').classes('required-legend')
+            username_input = ui.input(
+                'Username',
+                value=self.user.username if self.user else '',
+            ).props('readonly' if self.user else 'required')
             display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
             pronouns_input = ui.input('Pronouns', value=self.user.pronouns if self.user else '')
             is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
@@ -190,6 +195,10 @@ class AdminUserDialog(BaseUserDialog):
                         await remove_method(t, target_user, actor=actor)
 
             async def submit():
+                if not self.user and not (username_input.value or '').strip():
+                    with self.dialog:
+                        ui.notify('Please fill required field(s): Username.', color='warning')
+                    return
                 try:
                     if self.user:
                         with self.dialog:
@@ -265,7 +274,11 @@ class AdminUserDialog(BaseUserDialog):
                     ui.button('Save', color='green', on_click=submit)
                     ui.button('Send Message', color='primary', on_click=open_message_dialog)
                 else:
-                    ui.button('Create', color='green', on_click=submit)
+                    create_btn = ui.button('Create', color='green', on_click=submit)
+                    create_btn.bind_enabled_from(
+                        username_input, 'value',
+                        backward=lambda v: bool(v and v.strip()),
+                    )
                 ui.button('Cancel', color='gray', on_click=dialog.close)
 
             def on_keydown(e):

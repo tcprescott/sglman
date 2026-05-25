@@ -56,6 +56,7 @@ class MatchResultDialog:
                     ui.label('No players assigned to this match').classes('text-grey-7')
                 else:
                     ui.label('Select Winner:').classes('text-subtitle2')
+                    ui.label('* required').classes('required-legend')
 
                     player_options = {}
                     for player in self.match.players:
@@ -66,13 +67,20 @@ class MatchResultDialog:
                         options=player_options,
                         label='Winner',
                         with_input=True
-                    ).props('outlined').classes('full-width')
+                    ).props('outlined required').classes('full-width')
 
             ui.separator()
 
             with ui.row().classes('dialog-actions'):
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
-                ui.button('Submit Results', on_click=self._handle_submit).props('color=primary')
+                submit_button = ui.button(
+                    'Submit Results', on_click=self._handle_submit,
+                ).props('color=primary')
+                if self.winner_select is not None:
+                    submit_button.bind_enabled_from(
+                        self.winner_select, 'value',
+                        backward=lambda v: v is not None,
+                    )
 
         self.dialog.open()
 

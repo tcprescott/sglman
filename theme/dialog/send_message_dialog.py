@@ -11,15 +11,28 @@ class SendMessageDialog:
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
             self.dialog = dialog
-            message_input = ui.textarea(label='Message', placeholder='Enter message to send...').classes('full-width')
+            message_input = ui.textarea(
+                label='Message',
+                placeholder='Enter message to send...',
+            ).props('required').classes('full-width')
+            ui.label('* required').classes('required-legend')
 
             async def send_message():
+                message = (message_input.value or '').strip()
+                if not message:
+                    with self.dialog:
+                        ui.notify('Please enter a message before sending.', color='warning')
+                    return
                 with self.dialog:
-                    await self.send_callback(self.user, message_input.value)
+                    await self.send_callback(self.user, message)
                     ui.notify('Message sent.', color='positive')
                     dialog.close()
             with ui.row().classes('justify-between action-row'):
-                ui.button('Send', color='green', on_click=send_message)
+                send_button = ui.button('Send', color='green', on_click=send_message)
+                send_button.bind_enabled_from(
+                    message_input, 'value',
+                    backward=lambda v: bool(v and v.strip()),
+                )
                 ui.button('Cancel', color='gray', on_click=dialog.close)
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
