@@ -4,6 +4,7 @@ from nicegui import background_tasks, ui
 
 from application.services import AuthService, TriforceTextService, current_user_from_storage
 from models import Tournament
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
 _STATUS_OPTIONS = {
@@ -121,9 +122,7 @@ async def admin_triforce_texts_page() -> None:
                                         )
                                         ui.button(
                                             icon='delete',
-                                            on_click=lambda _, eid=entry.id: background_tasks.create(
-                                                _delete(eid)
-                                            ),
+                                            on_click=lambda _, eid=entry.id: _confirm_delete(eid),
                                         ).props('flat dense color=grey').tooltip('Delete')
             background_tasks.create(render())
 
@@ -147,6 +146,16 @@ async def admin_triforce_texts_page() -> None:
                 return
             ui.notify('Deleted.', color='positive')
             submissions_table.refresh()
+
+        def _confirm_delete(text_id: int) -> None:
+            async def on_confirm():
+                await _delete(text_id)
+            ConfirmationDialog(
+                message='Are you sure you want to delete this triforce text submission? This action cannot be undone.',
+                on_confirm=on_confirm,
+                confirm_text='Delete',
+                cancel_text='Cancel',
+            ).open()
 
         def on_tournament_change(e):
             state['tournament_id'] = int(e.value)
