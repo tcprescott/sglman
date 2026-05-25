@@ -39,7 +39,7 @@ class StationAssignmentDialog:
             with ui.row().classes('dialog-header'):
                 ui.label(f'Assign Stations - Match #{self.match.id}').classes('dialog-title')
                 ui.space()
-                ui.button(icon='close', on_click=self.dialog.close).props('flat round dense')
+                ui.button(icon='close', on_click=self.dialog.close).props('flat round dense').tooltip('Close')
             
             ui.separator()
             

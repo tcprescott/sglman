@@ -64,7 +64,7 @@ class BaseLayout:
                 ui.image(app.storage.user.get('avatar', None)).props(
                     'width=32 height=32 fit=cover round'
                 ).classes('user-avatar')
-                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout').props('flat color=white')
+                ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout').props('flat color=white').tooltip('Log out')
             else:
                 ui.button(
                     on_click=lambda: ui.navigate.to('/login'),
