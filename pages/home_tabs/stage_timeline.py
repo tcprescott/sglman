@@ -30,14 +30,14 @@ async def stage_timeline_tab():
             prev_btn = ui.button(
                 icon='chevron_left',
                 on_click=lambda: None
-            ).props('flat')
+            ).props('flat').tooltip('Previous day')
 
             date_label = ui.label(current_date['value'].strftime('%A, %B %d, %Y')).classes('large-title')
 
             next_btn = ui.button(
                 icon='chevron_right',
                 on_click=lambda: None
-            ).props('flat')
+            ).props('flat').tooltip('Next day')
 
             today_btn = ui.button(
                 'Today',
@@ -56,7 +56,7 @@ async def stage_timeline_tab():
                     ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
 
         # Refresh button
-        refresh_btn = ui.button(icon='refresh', on_click=lambda: None).props('flat').classes('refresh-button')
+        refresh_btn = ui.button(icon='refresh', on_click=lambda: None).props('flat').classes('refresh-button').tooltip('Refresh')
 
         # Container for the timeline view
         timeline_container = ui.column().classes('timeline-container')
