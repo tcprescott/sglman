@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -124,6 +124,14 @@ class TestFormatEasternDate:
         assert len(parts[0]) == 4  # year
         assert len(parts[1]) == 2  # month
         assert len(parts[2]) == 2  # day
+
+    def test_accepts_plain_date(self):
+        # Plain dates have no timezone; format them as-is.
+        assert format_eastern_date(date(2025, 1, 15)) == "2025-01-15"
+
+    def test_plain_date_is_not_shifted(self):
+        # A date near year boundary should not roll based on UTC vs Eastern.
+        assert format_eastern_date(date(2025, 12, 31)) == "2025-12-31"
 
 
 class TestFormatEasternTime:

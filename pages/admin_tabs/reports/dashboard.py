@@ -9,7 +9,7 @@ from typing import Optional
 from nicegui import ui
 
 from application.services import ReportsService, SystemConfigService
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_eastern_date, format_eastern_display
 from .shared import (
     eastern_bounds,
     reports_url,
@@ -63,7 +63,7 @@ async def dashboard_page() -> None:
         start_d, end_d = await SystemConfigService.get_event_window()
         start, end = eastern_bounds(start_d, end_d)
         ui.label(
-            f'Window: {start_d.isoformat()} → {end_d.isoformat()} (US/Eastern)'
+            f'Window: {format_eastern_date(start_d)} → {format_eastern_date(end_d)} (US/Eastern)'
         ).classes('italic-note')
 
         forecast, ops, coverage, utilization, max_stages = await asyncio.gather(

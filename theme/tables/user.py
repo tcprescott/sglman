@@ -1,5 +1,7 @@
 from nicegui import background_tasks, ui
 
+from application.utils.timezone import format_eastern_display
+
 
 class UserTableView:
     """Encapsulates the user table UI and logic for admin/player dashboards."""
@@ -133,8 +135,8 @@ class UserTableView:
             'discord_id': u.discord_id,
             'is_active': u.is_active,
             'roles': ', '.join(role_labels),
-            'created_at': u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '',
-            'updated_at': u.updated_at.strftime('%Y-%m-%d %H:%M') if u.updated_at else '',
+            'created_at': format_eastern_display(u.created_at),
+            'updated_at': format_eastern_display(u.updated_at),
         }
 
     def _on_page_change(self, _event):
