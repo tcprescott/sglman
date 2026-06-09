@@ -143,7 +143,10 @@ class SeedGenerationService:
         Returns:
             URL to the generated seed
         """
-        spoiler_token = 'SpeedGamingLive2025IsTheBestTournamentEverAndEverLOL'
+        spoiler_token = os.environ.get(
+            'SMMAP_SPOILER_TOKEN',
+            'SpeedGamingLive2025IsTheBestTournamentEverAndEverLOL',
+        )
         with open("presets/smmap/community_race_s4.json", "r", encoding="utf-8") as f:
             settings = f.read()
 
@@ -175,14 +178,20 @@ class SeedGenerationService:
         """
         with open("presets/ootr/sgl25.json", "r", encoding="utf-8") as f:
             settings = json.load(f)
-        
+
+        # The OOTR API authenticates via a ``key`` query parameter; guard
+        # against silently sending key=None when it is not configured.
+        api_key = os.environ.get('OOTR_API_KEY')
+        if not api_key:
+            raise ValueError('OOTR_API_KEY is not configured.')
+
         async with aiohttp.request(
             method='post',
             url="https://ootrandomizer.com/api/sglive/seed/create",
             raise_for_status=True,
             json=settings,
             params={
-                "key": os.environ.get('OOTR_API_KEY'),
+                "key": api_key,
                 "version": "8.3.0",
                 "encrypt": "true"
             }

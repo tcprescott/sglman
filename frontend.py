@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
+from application.utils.environment import validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.auth import create as auth_create
 from pages import admin, home, triforce_texts
@@ -49,6 +50,9 @@ def init(fastapi_app: FastAPI) -> None:
     Args:
         fastapi_app (FastAPI): The FastAPI application instance to integrate with NiceGUI.
     """
+    # Refuse to start with an insecure session/DB configuration.
+    validate_security_config()
+
     # Mount static files directory with no-cache in development
     fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
@@ -59,5 +63,5 @@ def init(fastapi_app: FastAPI) -> None:
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root
-        storage_secret=os.environ.get('STORAGE_SECRET'),  # NOTE setting a secret is optional but allows for persistent storage per user
+        storage_secret=(os.environ.get('STORAGE_SECRET') or '').strip(),  # required; enforced by validate_security_config()
     )

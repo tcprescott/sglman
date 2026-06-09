@@ -102,31 +102,9 @@ class MatchResponse(BaseModel):
     trackers: List[TrackerInfo] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         orm_mode = True
-    
-    @classmethod
-    def from_orm(cls, obj):
-        # Create a standard orm conversion first
-        match_dict = {
-            "id": obj.id,
-            "tournament": obj.tournament,
-            "stream_room": obj.stream_room,
-            "generated_seed": obj.generated_seed,
-            "scheduled_at": obj.scheduled_at,
-            "seated_at": obj.seated_at,
-            "finished_at": obj.finished_at,
-            "comment": obj.comment,
-            "players": obj.players,
-            # Filter out unapproved commentators
-            "commentators": [c for c in obj.commentators if c.approved],
-            # Filter out unapproved trackers
-            "trackers": [t for t in obj.trackers if t.approved],
-            "created_at": obj.created_at,
-            "updated_at": obj.updated_at,
-        }
-        return cls(**match_dict)
 
 
 @router.get(
@@ -204,4 +182,15 @@ async def get_matches(
     # Order by scheduled_at and limit results
     matches = await query.order_by('scheduled_at').limit(limit)
 
-    return matches
+    # Only approved commentators/trackers are public. Tortoise reverse relations
+    # are read-only, so convert to the response model first and drop unapproved
+    # crew there (response_model serialization never invokes a custom from_orm
+    # under Pydantic v2).
+    results = []
+    for match in matches:
+        resp = MatchResponse.model_validate(match, from_attributes=True)
+        resp.commentators = [c for c in resp.commentators if c.approved]
+        resp.trackers = [t for t in resp.trackers if t.approved]
+        results.append(resp)
+
+    return results

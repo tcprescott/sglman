@@ -60,6 +60,11 @@ def make_user(user_id=1, discord_id='12345'):
 def make_match(match_id=42):
     match = MagicMock()
     match.id = match_id
+    # Keep the DM message builder on a simple path: no title/schedule/stream room.
+    match.title = None
+    match.scheduled_at = None
+    match.stream_room = None
+    match.players.all.return_value.prefetch_related = AsyncMock(return_value=[])
     return match
 
 
@@ -151,8 +156,9 @@ class TestUpdateCrewApproval:
 
         assert crew.approved is True
         crew.save.assert_awaited_once()
-        service.discord_service.send_dm_with_crew_acknowledgment_button.assert_awaited_once()
-        kwargs_or_args = service.discord_service.send_dm_with_crew_acknowledgment_button.await_args.args
+        # The DM is built and enqueued (awaited later by the queue worker).
+        service.discord_service.send_dm_with_crew_acknowledgment_button.assert_called_once()
+        kwargs_or_args = service.discord_service.send_dm_with_crew_acknowledgment_button.call_args.args
         assert kwargs_or_args[2] == 'commentator'
         assert kwargs_or_args[3] == crew.id
 

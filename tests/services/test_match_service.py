@@ -434,7 +434,7 @@ class TestCreateMatchSubscriberNotifications:
             scheduled_time="14:30",
             player_ids=[1],
         )
-        service.match_schedule_service.notify_tournament_subscribers_scheduled.assert_awaited_once()
+        service.match_schedule_service.notify_tournament_subscribers_scheduled.assert_called_once()
 
     async def test_stream_candidate_notification_not_called_when_flag_false(self, service):
         _setup_create_match_mocks(service)
@@ -445,7 +445,7 @@ class TestCreateMatchSubscriberNotifications:
             player_ids=[1],
             is_stream_candidate=False,
         )
-        service.match_schedule_service.notify_stream_candidate_subscribers.assert_not_awaited()
+        service.match_schedule_service.notify_stream_candidate_subscribers.assert_not_called()
 
     async def test_stream_candidate_notification_called_when_flag_true(self, service):
         match, _ = _setup_create_match_mocks(service)
@@ -458,7 +458,7 @@ class TestCreateMatchSubscriberNotifications:
             player_ids=[1],
             is_stream_candidate=True,
         )
-        service.match_schedule_service.notify_stream_candidate_subscribers.assert_awaited_once()
+        service.match_schedule_service.notify_stream_candidate_subscribers.assert_called_once()
 
     async def test_subscriber_notification_receives_excluded_ids(self, service):
         _setup_create_match_mocks(service)
