@@ -11,7 +11,7 @@ from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.tables.match import MatchTableView
 
 
-def admin_schedule_page() -> None:
+def admin_schedule_page(can_crud: bool = True) -> None:
     # Initialize services
     match_schedule_service = MatchScheduleService()
     
@@ -206,14 +206,15 @@ def admin_schedule_page() -> None:
             columns=columns,
             get_query=get_query,
             admin_controls=True,
-            submit_match_callback=submit_admin_match,
-            on_edit=on_edit,
+            can_crud=can_crud,
+            submit_match_callback=submit_admin_match if can_crud else None,
+            on_edit=on_edit if can_crud else None,
             on_generate_seed=on_generate_seed,
             on_seat=on_seat,
             on_start=on_start,
             on_finish=on_finish,
             on_confirm=on_confirm,
-            on_edit_stream_room=on_edit_stream_room,
+            on_edit_stream_room=on_edit_stream_room if can_crud else None,
             on_assign_stations=on_assign_stations,
             extra_slots=extra_slots,
         )

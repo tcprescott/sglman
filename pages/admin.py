@@ -69,9 +69,10 @@ def create() -> None:
             'page': page,
         }
 
+        can_crud = is_staff or is_ta_any
         tabs = []
         if is_staff or is_proctor or is_ta_any or is_cc_any:
-            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'content': admin_schedule_page})
+            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
         if is_staff:
             tabs.append({'label': 'Users', 'icon': 'people', 'content': admin_users_page})
         if is_staff or is_ta_any:
@@ -80,7 +81,7 @@ def create() -> None:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
         if is_staff or is_ta_any:
             tabs.append({'label': 'Triforce Texts', 'icon': 'star', 'content': admin_triforce_texts_page})
-        if is_staff or is_proctor or is_ta_any or is_cc_any:
+        if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
 
         base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user, show_admin=True)

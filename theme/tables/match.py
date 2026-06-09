@@ -14,12 +14,13 @@ class MatchTableView:
     Uses MatchService for all data operations.
     """
     
-    def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None,
+    def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
                  on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None):
         self.columns = columns
         self.get_query = get_query
         self.admin_controls = admin_controls
+        self.can_crud = can_crud
         self.player_discord_id = player_discord_id
         self.extra_slots = extra_slots
         self.submit_match_callback = submit_match_callback
@@ -206,7 +207,7 @@ class MatchTableView:
 
         self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args, context.client)))
         # Add slot for player names with winner indicator
-        if self.admin_controls:
+        if self.admin_controls and self.can_crud:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div>
@@ -233,6 +234,29 @@ class MatchTableView:
                            icon="switch_access_shortcut" color="primary" size="xs" flat round>
                         <q-tooltip>Assign Stations</q-tooltip>
                     </q-btn>
+                </div>
+            </q-td>''')
+        elif self.admin_controls:
+            self.table.add_slot('body-cell-players', '''<q-td :props="props">
+                <div>
+                    <template v-for="(player, idx) in props.value">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                                    name="check_circle" color="green" size="xs">
+                                <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{ props.row.acknowledgments[idx][3] }}</q-tooltip>
+                            </q-icon>
+                            <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
+                                    name="schedule" color="orange" size="xs">
+                                <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                            </q-icon>
+                            <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">
+                                {{ player[0] }}
+                                <span v-if="player[2]" style="color: #999; font-style: italic;"> ({{ player[2] }})</span>
+                            </span>
+                            <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                                  style="font-style: italic; color: #999; font-size: 0.85em;"> (auto)</span>
+                        </div>
+                    </template>
                 </div>
             </q-td>''')
         else:
@@ -263,7 +287,7 @@ class MatchTableView:
         # Crew columns (commentators/trackers):
         # - Always show signup/undo for the logged-in user
         # - Names are clickable for approval ONLY when admin_controls=True
-        if self.admin_controls:
+        if self.admin_controls and self.can_crud:
             for role in ['commentators', 'trackers']:
                 singular = role[:-1]
                 self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
@@ -280,6 +304,25 @@ class MatchTableView:
                                    :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal') + '; text-decoration: underline;'">
                                     {{{{ item[0] }}}}
                                 </a>
+                            </div>
+                        </template>
+                    </div>
+                </q-td>''')
+        elif self.admin_controls:
+            for role in ['commentators', 'trackers']:
+                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                    <div class="wrap">
+                        <template v-for="(item, idx) in props.value">
+                            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                                <q-icon v-if="item[1] && item[3]" name="check_circle" color="green" size="xs">
+                                    <q-tooltip v-if="item[4]">Acknowledged {{{{ item[4] }}}}</q-tooltip>
+                                </q-icon>
+                                <q-icon v-else-if="item[1] && !item[3]" name="schedule" color="orange" size="xs">
+                                    <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                                </q-icon>
+                                <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; margin-right: 4px; font-weight:' + (item[1] ? 'bold' : 'normal')">
+                                    {{{{ item[0] }}}}
+                                </span>
                             </div>
                         </template>
                     </div>
@@ -736,7 +779,7 @@ class MatchTableView:
                             </template>
                         </div>
                         <span v-else>{{{{ Array.isArray(props.row[field.key]) ? props.row[field.key].join(field.separator || ', ') : props.row[field.key] }}}}</span>
-                        <q-btn v-if="{'true' if self.admin_controls else 'false'} && field.key === 'players'"
+                        <q-btn v-if="{'true' if (self.admin_controls and self.can_crud) else 'false'} && field.key === 'players'"
                                @click="$parent.$emit('assign_stations', {{ row: props.row }})"
                                icon="switch_access_shortcut" color="primary" size="xs" flat round>
                             <q-tooltip>Assign Stations</q-tooltip>
@@ -776,7 +819,7 @@ class MatchTableView:
                                             name="schedule" color="orange" size="xs">
                                         <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                                     </q-icon>
-                                    <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if self.admin_controls else 'false'}">
+                                    <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if (self.admin_controls and self.can_crud) else 'false'}">
                                         <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
                                            :style="'color: ' + (item[field.approvedIndex] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[field.approvedIndex] ? 'bold' : 'normal') + '; text-decoration: underline;'">
                                             {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
@@ -936,13 +979,13 @@ class MatchTableView:
                 <template v-else-if="field.key === 'stream_room'">
                     <span v-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
                     <q-badge v-if="props.row.is_stream_candidate && !props.row[field.key]" color="amber" label="candidate" class="q-ml-xs" />
-                    <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key]"
+                    <q-btn v-if="{'true' if (self.admin_controls and self.can_crud) else 'false'} && !props.row[field.key]"
                            @click="$parent.$emit('edit-stream-room', {{ key: props.row.id }})"
                            icon="movie" color="primary" size="sm"
                            style="margin-bottom: 8px;">
                         Assign Stage
                     </q-btn>
-                    <template v-if="!props.row[field.key] && !props.row.is_stream_candidate && !{'true' if self.admin_controls else 'false'}">-</template>
+                    <template v-if="!props.row[field.key] && !props.row.is_stream_candidate && !{'true' if (self.admin_controls and self.can_crud) else 'false'}">-</template>
                 </template>
 
                 <!-- Default rendering for other fields -->
