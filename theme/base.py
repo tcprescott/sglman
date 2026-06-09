@@ -90,23 +90,23 @@ class BaseLayout:
             ui.label('SGLMan').classes('text-h6 q-pa-md')
             ui.separator()
 
-            with ui.list().props('dense padding'):
+            with ui.list().props('padding'):
                 for item in self.top_menu:
                     with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple'):
                         with ui.item_section().props('avatar'):
-                            ui.icon(item['icon'])
+                            ui.icon(item['icon']).props('size=sm')
                         with ui.item_section():
                             ui.item_label(item['label'])
 
             if self.tabs:
                 ui.separator()
-                with ui.list().props('dense padding'):
+                with ui.list().props('padding'):
                     for tab in self.tabs:
                         with ui.item(
                             on_click=lambda t=tab['label']: self._switch_tab(t)
                         ).props('clickable v-ripple') as tab_item:
                             with ui.item_section().props('avatar'):
-                                ui.icon(tab.get('icon', 'circle'))
+                                ui.icon(tab.get('icon', 'circle')).props('size=sm')
                             with ui.item_section():
                                 ui.item_label(tab['label'])
                         if tab['label'] == self._default_tab:

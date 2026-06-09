@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict, Tuple, Optional
 
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
+from application.services import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
@@ -44,7 +45,7 @@ class MatchScheduleService:
         )
         await match.fetch_related('tournament')
         msg = self._create_checked_in_dm_message(match.id, match.tournament.name)
-        await self.notify_match_participants(match, msg)
+        discord_queue.enqueue(self.notify_match_participants(match, msg))
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -63,7 +64,7 @@ class MatchScheduleService:
         )
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Started")
-        await self.notify_match_participants(match, msg)
+        discord_queue.enqueue(self.notify_match_participants(match, msg))
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -82,7 +83,7 @@ class MatchScheduleService:
         )
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Finished")
-        await self.notify_match_participants(match, msg)
+        discord_queue.enqueue(self.notify_match_participants(match, msg))
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
         await AuthService.ensure(
@@ -101,7 +102,7 @@ class MatchScheduleService:
         )
         await match.fetch_related('tournament')
         msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Confirmed")
-        await self.notify_match_participants(match, msg)
+        discord_queue.enqueue(self.notify_match_participants(match, msg))
     
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
         """
@@ -161,26 +162,21 @@ class MatchScheduleService:
                 )
                 await match.save()
                 
-                # Send DMs to players (respects dm_notifications opt-out)
-                dm_failures = []
-                for player in match.players:
-                    if player.user.discord_id and player.user.dm_notifications:
-                        dm_message = self._create_seed_dm_message(
-                            player.user.display_name or player.user.username,
-                            match.id,
-                            match.tournament.name,
-                            seed_url
-                        )
-                        success, response = await self.discord_service.send_dm(
-                            player.user.discord_id, dm_message
-                        )
-                        if not success:
-                            dm_failures.append(f"{player.user.username}: {response}")
-                
-                # Build success message
+                # Send DMs to players in the background (respects dm_notifications opt-out)
+                async def _send_seed_dms() -> None:
+                    for player in match.players:
+                        if player.user.discord_id and player.user.dm_notifications:
+                            dm_message = self._create_seed_dm_message(
+                                player.user.display_name or player.user.username,
+                                match.id,
+                                match.tournament.name,
+                                seed_url
+                            )
+                            await self.discord_service.send_dm(player.user.discord_id, dm_message)
+
+                discord_queue.enqueue(_send_seed_dms())
+
                 message = f"Seed generated successfully for match ID {match.id}"
-                if dm_failures:
-                    message += f"\n\nFailed to send DM to: {'; '.join(dm_failures)}"
 
                 await self.audit_service.write_log(
                     actor,

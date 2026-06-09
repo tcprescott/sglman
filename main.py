@@ -10,6 +10,7 @@ import os
 from typing import AsyncGenerator
 
 from application.services.discord_service import get_discord_bot
+from application.services import discord_queue
 from application.utils.mock_discord import is_mock_discord
 import asyncio
 from aerich import Command
@@ -68,7 +69,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     await init_db()
     await init_discord_bot()
+    discord_queue.start()
     yield
+    await discord_queue.stop()
     await close_discord_bot()
     await close_db()
 

@@ -20,6 +20,7 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
 from application.utils.timezone import (
     parse_eastern_datetime,
@@ -311,14 +312,14 @@ class MatchService:
             match.tournament.name,
             format_eastern_display(match.scheduled_at),
         )
-        await self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False)
-        await self.match_schedule_service.notify_match_crew(match, msg)
+        discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
+        discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
 
         # Collect IDs already notified to avoid duplicates in subscriber fan-out
         notified_ids = await self._collect_notified_discord_ids(match)
-        await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+        discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
         if is_stream_candidate:
-            await self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids)
+            discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
 
         return match
 
@@ -450,9 +451,9 @@ class MatchService:
 
         if scheduled_at_changed or players_changed:
             await self._seed_acknowledgments(match, list(new_player_ids), actor)
-            await self.match_schedule_service.notify_acknowledgment_request(
+            discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(
                 match, rescheduled=scheduled_at_changed,
-            )
+            ))
             if scheduled_at_changed:
                 await match.fetch_related('tournament')
                 msg = self.match_schedule_service._create_rescheduled_dm_message(
@@ -460,9 +461,9 @@ class MatchService:
                     match.tournament.name,
                     format_eastern_display(new_scheduled_at),
                 )
-                await self.match_schedule_service.notify_match_crew(match, msg)
+                discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
                 notified_ids = await self._collect_notified_discord_ids(match)
-                await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+                discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
 
         return match
 
@@ -528,10 +529,10 @@ class MatchService:
         msg = self.match_schedule_service._create_scheduled_dm_message(
             match.id, match.tournament.name, format_eastern_display(match.scheduled_at),
         )
-        await self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False)
-        await self.match_schedule_service.notify_match_crew(match, msg)
+        discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
+        discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
         notified_ids = await self._collect_notified_discord_ids(match)
-        await self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids)
+        discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
 
         return match
 
@@ -563,7 +564,7 @@ class MatchService:
         if flag and not was_candidate:
             await match.fetch_related('tournament')
             notified_ids = await self._collect_notified_discord_ids(match)
-            await self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids)
+            discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
 
         return match
 
@@ -684,7 +685,7 @@ class MatchService:
 
         await match.fetch_related('tournament')
         msg = self.match_schedule_service._create_checked_in_dm_message(match.id, match.tournament.name)
-        await self.match_schedule_service.notify_match_participants(match, msg)
+        discord_queue.enqueue(self.match_schedule_service.notify_match_participants(match, msg))
 
         return match
 

@@ -12,6 +12,7 @@ from tortoise.transactions import in_transaction
 from application.repositories import CommentatorRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services import discord_queue
 from application.services.discord_service import DiscordService
 from application.utils.timezone import format_eastern_display
 from models import Commentator, Tracker, User
@@ -175,17 +176,8 @@ class CrewService:
             lines.append(f"**Players:** {', '.join(p.user.preferred_name for p in players)}")
         lines.append("Please click below to acknowledge your assignment.")
         message = "\n".join(lines)
-        try:
-            success, info = await self.discord_service.send_dm_with_crew_acknowledgment_button(
+        discord_queue.enqueue(
+            self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id,
             )
-            if not success:
-                logger.warning(
-                    "Crew acknowledgment DM not delivered (crew_id=%s, crew_type=%s): %s",
-                    crew_member.id, crew_type, info,
-                )
-        except Exception:
-            logger.exception(
-                "Crew acknowledgment DM raised unexpectedly (crew_id=%s, crew_type=%s)",
-                crew_member.id, crew_type,
-            )
+        )
