@@ -1,6 +1,6 @@
 import asyncio
 
-from nicegui import app, background_tasks, ui
+from nicegui import Client, app, background_tasks, ui
 
 from application.services import MatchService, MatchWatcherService, UserService
 from theme.dialog import ConfirmationDialog, UserDialog
@@ -15,11 +15,12 @@ class MatchTableView:
     """
     
     def __init__(self, columns, get_query, admin_controls=False, extra_slots=None, submit_match_callback=None,
-                 on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None, 
-                 on_edit_stream_room=None, on_assign_stations=None):
+                 on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
+                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None):
         self.columns = columns
         self.get_query = get_query
         self.admin_controls = admin_controls
+        self.player_discord_id = player_discord_id
         self.extra_slots = extra_slots
         self.submit_match_callback = submit_match_callback
         # Optional callbacks for admin actions
@@ -206,24 +207,25 @@ class MatchTableView:
             </div>
         </q-td>''')
 
-        async def handle_acknowledge_match(row):
-            discord_id = app.storage.user.get('discord_id', None)
-            if not discord_id:
-                ui.notify('You must be logged in to acknowledge.', color='warning')
-                return
-            user = await self.user_service.get_current_user_from_storage(discord_id)
-            if not user:
-                ui.notify('User not found. Please log in again.', color='warning')
-                return
-            match_id = row['id']
-            try:
-                await self.service.acknowledge_match(match_id, user)
-                ui.notify(f'You acknowledged match ID {match_id}.', color='positive')
-                await self.update_row_by_id(match_id)
-            except ValueError as e:
-                ui.notify(str(e), color='warning')
+        async def handle_acknowledge_match(row, client):
+            async with client:
+                discord_id = app.storage.user.get('discord_id', None)
+                if not discord_id:
+                    ui.notify('You must be logged in to acknowledge.', color='warning')
+                    return
+                user = await self.user_service.get_current_user_from_storage(discord_id)
+                if not user:
+                    ui.notify('User not found. Please log in again.', color='warning')
+                    return
+                match_id = row['id']
+                try:
+                    await self.service.acknowledge_match(match_id, user)
+                    ui.notify(f'You acknowledged match ID {match_id}.', color='positive')
+                    await self.update_row_by_id(match_id)
+                except ValueError as e:
+                    ui.notify(str(e), color='warning')
 
-        self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args)))
+        self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args, Client.current)))
         # Add slot for player names with winner indicator
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
@@ -442,33 +444,34 @@ class MatchTableView:
         self.table.on('undo_commentator', lambda event: handle_signup_or_undo_role('undo', 'commentator', event.args))
         self.table.on('undo_tracker', lambda event: handle_signup_or_undo_role('undo', 'tracker', event.args))
 
-        async def handle_acknowledge_crew(role, event):
+        async def handle_acknowledge_crew(role, event, client):
             from application.services import CrewService
-            row = event.args['row']
-            idx = event.args['idx']
-            match_id = row['id']
-            items = row.get(f'{role}s') or []
-            if idx >= len(items) or len(items[idx]) <= 5:
-                ui.notify('Page is out of date — please refresh and try again.', color='warning')
-                return
-            crew_id = items[idx][5]
-            discord_id = app.storage.user.get('discord_id', None)
-            if not discord_id:
-                ui.notify('You must be logged in to acknowledge.', color='warning')
-                return
-            user = await self.user_service.get_current_user_from_storage(discord_id)
-            if not user:
-                ui.notify('User not found. Please log in again.', color='warning')
-                return
-            try:
-                await CrewService().acknowledge_crew_assignment(crew_id, role, user)
-                ui.notify(f'You acknowledged your {role} assignment for match ID {match_id}.', color='positive')
-                await self.update_row_by_id(match_id)
-            except ValueError as e:
-                ui.notify(str(e), color='warning')
+            async with client:
+                row = event.args['row']
+                idx = event.args['idx']
+                match_id = row['id']
+                items = row.get(f'{role}s') or []
+                if idx >= len(items) or len(items[idx]) <= 5:
+                    ui.notify('Page is out of date — please refresh and try again.', color='warning')
+                    return
+                crew_id = items[idx][5]
+                discord_id = app.storage.user.get('discord_id', None)
+                if not discord_id:
+                    ui.notify('You must be logged in to acknowledge.', color='warning')
+                    return
+                user = await self.user_service.get_current_user_from_storage(discord_id)
+                if not user:
+                    ui.notify('User not found. Please log in again.', color='warning')
+                    return
+                try:
+                    await CrewService().acknowledge_crew_assignment(crew_id, role, user)
+                    ui.notify(f'You acknowledged your {role} assignment for match ID {match_id}.', color='positive')
+                    await self.update_row_by_id(match_id)
+                except ValueError as e:
+                    ui.notify(str(e), color='warning')
 
-        self.table.on('acknowledge_commentator', lambda event: background_tasks.create(handle_acknowledge_crew('commentator', event)))
-        self.table.on('acknowledge_tracker', lambda event: background_tasks.create(handle_acknowledge_crew('tracker', event)))
+        self.table.on('acknowledge_commentator', lambda event: background_tasks.create(handle_acknowledge_crew('commentator', event, Client.current)))
+        self.table.on('acknowledge_tracker', lambda event: background_tasks.create(handle_acknowledge_crew('tracker', event, Client.current)))
 
         if discord_id:
             self.table.add_slot('body-cell-watch', '''<q-td :props="props">
@@ -606,7 +609,7 @@ class MatchTableView:
             tournament_ids=tournament_ids,
             stream_room_ids=stream_room_ids,
             only_upcoming=False,  # Get all matches
-            user_discord_id=None  # Don't filter by user in table view
+            user_discord_id=self.player_discord_id
         )
 
         # Client-side filter by state

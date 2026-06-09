@@ -101,7 +101,8 @@ def render_player_dashboard():
             get_query=get_query,
             admin_controls=False,
             submit_match_callback=submit_match,
-            extra_slots=extra_slots
+            extra_slots=extra_slots,
+            player_discord_id=discord_id
         )
         background_tasks.create(table_view.refresh())
 

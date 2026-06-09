@@ -307,6 +307,27 @@ background_tasks.create(my_coroutine())
 
 This pattern appears everywhere sync event handlers need to call async functions (e.g., `on_click`, `on_change`, keydown handlers, `ui.table.on()`).
 
+**Always capture `Client.current` before spawning a background task that calls UI functions** — `ui.notify` and other UI calls require the NiceGUI slot context, which is cleared in background tasks. Capture the client in the synchronous dispatch point (where the context is still active), pass it into the coroutine, and wrap the body with `async with client:`:
+
+```python
+from nicegui import Client, background_tasks, ui
+
+# WRONG — slot context is gone by the time ui.notify runs
+async def handle_event(row):
+    ...
+    ui.notify('Done', color='positive')  # RuntimeError: slot stack is empty
+
+table.on('my_event', lambda event: background_tasks.create(handle_event(event.args)))
+
+# CORRECT — client captured synchronously, restored inside the task
+async def handle_event(row, client):
+    async with client:
+        ...
+        ui.notify('Done', color='positive')  # works
+
+table.on('my_event', lambda event: background_tasks.create(handle_event(event.args, Client.current)))
+```
+
 **Never block the event loop** — all users share one asyncio loop. Use `async with httpx.AsyncClient()` instead of `requests`, and use `await asyncio.sleep()` not `time.sleep()`.
 
 **Use `@ui.refreshable` for dynamic UI sections** — avoids full page rebuilds:
