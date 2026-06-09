@@ -7,17 +7,18 @@ readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.12"
 nicegui = "^3.12.1"
 fastapi = "^0.136.0"
 pyyaml = "^6.0.2"
-asyncpg = "^0.30.0"
+asyncpg = "^0.31.0"
 tortoise-orm = {extras = ["asyncpg"], version = "^0.24.0"}
 aerich = {extras = ["toml"], version = "^0.8.1"}
-cryptography = "^45.0.7"
+aiosqlite = "^0.21.0"
+cryptography = "^48.0.0"
 zenora = "^0.0.3.post1"
 py-cord = "^2.6.1"
-faker = "^37.6.0"
+faker = "^40.0.0"
 python-dotenv = "^1.1.1"
 discord-py = "^2.6.3"
 pyz3r = "^6.1.0"
@@ -25,9 +26,9 @@ pyz3r = "^6.1.0"
 
 
 [tool.poetry.group.dev.dependencies]
-ipython = "^8.32.0"
-pytest = "^8.0"
-pytest-asyncio = "^0.24"
+ipython = "^9.0.0"
+pytest = "^9.0"
+pytest-asyncio = "^1.0"
 pytest-mock = "^3.14"
 
 [tool.pytest.ini_options]
