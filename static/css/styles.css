@@ -120,15 +120,10 @@
 
 /* Dialog Styles */
 .dialog-card {
-    min-width: 700px;
+    width: min(700px, 90vw);
     max-width: 90vw;
-}
-
-@media (max-width: 768px) {
-    .dialog-card {
-        min-width: unset;
-        width: 90vw;
-    }
+    overflow-y: auto;
+    max-height: 85vh;
 }
 
 .dialog-card-small {
@@ -420,6 +415,12 @@
     border-collapse: collapse;
 }
 
+/* Force user/tournament tables to fill their container width */
+.user-table-container .q-table__middle,
+.user-table-container table.q-table {
+    width: 100%;
+}
+
 .user-table tr:nth-child(even) {
     background-color: #f9f9f9;
 }
@@ -467,6 +468,11 @@
 }
 
 /* Tournament Table Styles */
+.tournament-table-container .q-table__middle,
+.tournament-table-container table.q-table {
+    width: 100%;
+}
+
 .tournament-table th,
 .tournament-table td {
     border-right: 1px solid #ccc;

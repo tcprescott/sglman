@@ -9,13 +9,19 @@ class SendMessageDialog:
         self.discord_service = DiscordService()
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            message_input = ui.textarea(
-                label='Message',
-                placeholder='Enter message to send...',
-            ).props('required').classes('full-width')
-            ui.label('* required').classes('required-legend')
+            with ui.row().classes('items-center q-pa-sm'):
+                ui.label('Send Message').classes('text-h6 q-ma-none')
+                ui.space()
+                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+            ui.separator()
+            with ui.column().classes('q-pa-md gap-2'):
+                message_input = ui.textarea(
+                    label='Message',
+                    placeholder='Enter message to send...',
+                ).props('required').classes('full-width')
+                ui.label('* required').classes('required-legend')
 
             async def send_message():
                 message = (message_input.value or '').strip()
@@ -27,13 +33,16 @@ class SendMessageDialog:
                     await self.send_callback(self.user, message)
                     ui.notify('Message sent.', color='positive')
                     dialog.close()
-            with ui.row().classes('justify-between action-row'):
-                send_button = ui.button('Send', color='green', on_click=send_message)
+
+            ui.separator()
+            with ui.row().classes('justify-end q-pa-sm gap-2'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                send_button = ui.button('Send', on_click=send_message).props('color=primary')
                 send_button.bind_enabled_from(
                     message_input, 'value',
                     backward=lambda v: bool(v and v.strip()),
                 )
-                ui.button('Cancel', color='gray', on_click=dialog.close)
+
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
                     background_tasks.create(send_message())

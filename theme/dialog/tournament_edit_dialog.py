@@ -2,6 +2,7 @@ from nicegui import background_tasks, ui
 
 from application.services import SeedGenerationService, TournamentService, current_user_from_storage
 
+
 class TournamentDialog:
     def __init__(self, tournament=None, on_submit=None):
         self.tournament = tournament
@@ -10,28 +11,74 @@ class TournamentDialog:
         self.tournament_service = TournamentService()
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card():
+        is_create = self.tournament is None
+        title = 'Add Tournament' if is_create else 'Edit Tournament'
+
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            ui.label('* required').classes('required-legend')
-            name_input = ui.input(
-                'Tournament Name',
-                value=self.tournament.name if self.tournament else '',
-            ).props('required')
-            description_input = ui.textarea('Description', value=self.tournament.description if self.tournament and self.tournament.description else '').classes('input-full-width')
-            randomizer_choices = ['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS
-            default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
-            seed_generator_input = ui.select(randomizer_choices, label='Seed Generator', value=default_seed)
-            bracket_url_input = ui.input('Bracket URL', value=self.tournament.bracket_url if self.tournament and self.tournament.bracket_url else '')
-            rules_url_input = ui.input('Rules URL', value=self.tournament.rules_url if self.tournament and self.tournament.rules_url else '')
-            tournament_format_input = ui.input('Tournament Format', value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '')
-            average_match_duration_input = ui.number('Average Match Duration (min)', value=self.tournament.average_match_duration if self.tournament and self.tournament.average_match_duration else None, min=0)
-            max_match_duration_input = ui.number('Max Match Duration (min)', value=self.tournament.max_match_duration if self.tournament and self.tournament.max_match_duration else None, min=0)
-            with ui.row():
-                players_per_match_input = ui.number('Players per Match', value=self.tournament.players_per_match if self.tournament else 2, min=1, max=100)
-                team_size_input = ui.number('Team Size', value=self.tournament.team_size if self.tournament else 1, min=1, max=100)
-            with ui.row():
-                staff_administered_checkbox = ui.checkbox('Staff Administered', value=self.tournament.staff_administered if self.tournament else False)
-                is_active_checkbox = ui.checkbox('Active', value=self.tournament.is_active if self.tournament else True)
+            with ui.row().classes('items-center q-pa-sm'):
+                ui.label(title).classes('text-h6 q-ma-none')
+                ui.space()
+                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+            ui.separator()
+            with ui.column().classes('q-pa-md gap-2'):
+                ui.label('* required').classes('required-legend')
+                name_input = ui.input(
+                    'Tournament Name *',
+                    value=self.tournament.name if self.tournament else '',
+                ).props('required').classes('input-full-width')
+                description_input = ui.textarea(
+                    'Description',
+                    value=self.tournament.description if self.tournament and self.tournament.description else '',
+                ).classes('input-full-width')
+                randomizer_choices = ['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS
+                default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
+                seed_generator_input = ui.select(
+                    randomizer_choices, label='Seed Generator', value=default_seed,
+                ).classes('input-full-width')
+                bracket_url_input = ui.input(
+                    'Bracket URL',
+                    value=self.tournament.bracket_url if self.tournament and self.tournament.bracket_url else '',
+                ).classes('input-full-width')
+                rules_url_input = ui.input(
+                    'Rules URL',
+                    value=self.tournament.rules_url if self.tournament and self.tournament.rules_url else '',
+                ).classes('input-full-width')
+                tournament_format_input = ui.input(
+                    'Tournament Format',
+                    value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '',
+                ).classes('input-full-width')
+                with ui.row().classes('gap-2'):
+                    average_match_duration_input = ui.number(
+                        'Avg Match Duration (min)',
+                        value=self.tournament.average_match_duration if self.tournament and self.tournament.average_match_duration else None,
+                        min=0,
+                    )
+                    max_match_duration_input = ui.number(
+                        'Max Match Duration (min)',
+                        value=self.tournament.max_match_duration if self.tournament and self.tournament.max_match_duration else None,
+                        min=0,
+                    )
+                with ui.row().classes('gap-2'):
+                    players_per_match_input = ui.number(
+                        'Players per Match',
+                        value=self.tournament.players_per_match if self.tournament else 2,
+                        min=1, max=100,
+                    )
+                    team_size_input = ui.number(
+                        'Team Size',
+                        value=self.tournament.team_size if self.tournament else 1,
+                        min=1, max=100,
+                    )
+                with ui.row().classes('gap-4'):
+                    staff_administered_checkbox = ui.checkbox(
+                        'Staff Administered',
+                        value=self.tournament.staff_administered if self.tournament else False,
+                    )
+                    is_active_checkbox = ui.checkbox(
+                        'Active',
+                        value=self.tournament.is_active if self.tournament else True,
+                    )
 
             async def submit():
                 if not (name_input.value or '').strip():
@@ -90,16 +137,17 @@ class TournamentDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between action-row'):
-                if self.tournament:
-                    primary_btn = ui.button('Save', color='green', on_click=submit)
-                else:
-                    primary_btn = ui.button('Create', color='green', on_click=submit)
+            ui.separator()
+            with ui.row().classes('justify-end q-pa-sm gap-2'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                primary_btn = ui.button(
+                    'Create' if is_create else 'Save', on_click=submit
+                ).props('color=primary')
                 primary_btn.bind_enabled_from(
                     name_input, 'value',
                     backward=lambda v: bool(v and v.strip()),
                 )
-                ui.button('Cancel', color='gray', on_click=dialog.close)
+
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
                     background_tasks.create(submit())

@@ -479,7 +479,7 @@ class MatchTableView:
                     <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
                 </q-btn>
             </q-td>''')
-            self.table.on('toggle_watch', lambda event: background_tasks.create(self._handle_toggle_watch(event)))
+            self.table.on('toggle_watch', self._handle_toggle_watch)
 
         # Admin-specific slots and handlers
         if self.admin_controls:
@@ -660,6 +660,8 @@ class MatchTableView:
                 field['ack_ts_index'] = 4
                 field['discord_index'] = 2
                 field['separator'] = ', '  # Add space after comma
+            elif field['key'] == 'acknowledgments':
+                field['ack_field'] = True
             elif field['key'] == 'state':
                 field['state_field'] = True
             elif field['key'] == 'watch':
@@ -678,6 +680,7 @@ class MatchTableView:
             (", ackIndex: " + str(f['ack_index']) if 'ack_index' in f else '') +
             (", ackTsIndex: " + str(f['ack_ts_index']) if 'ack_ts_index' in f else '') +
             (", discordIndex: " + str(f['discord_index']) if 'discord_index' in f else '') +
+            (", ackField: true" if f.get('ack_field') else '') +
             (", stateField: true" if f.get('state_field') else '') +
             (", watchField: true" if f.get('watch_field') else '') +
             (f", separator: '{f['separator']}'" if 'separator' in f else '') +
@@ -880,6 +883,21 @@ class MatchTableView:
                         </span>
                     </template>
                     <template v-else-if="!{'true' if self.admin_controls else 'false'} || !props.row.tournament_seed_generator">-</template>
+                </template>
+
+                <!-- Acknowledgments field: icon + name per player -->
+                <template v-else-if="field.ackField">
+                    <template v-if="Array.isArray(props.row[field.key])">
+                        <div v-for="(item, idx) in props.row[field.key]" :key="idx"
+                             style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                            <q-icon :name="item[1] ? 'check_circle' : 'schedule'"
+                                    :color="item[1] ? 'green' : 'orange'" size="xs" />
+                            <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[1] ? 'bold' : 'normal')">
+                                {{{{ item[0] }}}}<span v-if="item[1] && item[2]" style="font-style: italic; font-weight: normal;"> (auto)</span>
+                            </span>
+                        </div>
+                    </template>
+                    <template v-else>—</template>
                 </template>
 
                 <!-- Watch toggle (logged-in users only) -->

@@ -9,16 +9,22 @@ class TournamentPlayersDialog:
         self.dialog = None
 
     async def open(self):
-        with ui.dialog() as dialog, ui.card().classes('dialog-card card-padding'):
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            ui.label(f'Players enrolled in "{self.tournament.name}"').classes('text-h6')
-            players = await TournamentRepository.get_enrolled_players(self.tournament)
-            if not players:
-                ui.label('No players enrolled.').classes('text-gray')
-            else:
-                with ui.column():
+            with ui.row().classes('items-center q-pa-sm'):
+                ui.label(f'Players — {self.tournament.name}').classes('text-h6 q-ma-none')
+                ui.space()
+                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+            ui.separator()
+            with ui.column().classes('q-pa-md'):
+                players = await TournamentRepository.get_enrolled_players(self.tournament)
+                if not players:
+                    ui.label('No players enrolled.').classes('text-grey-7')
+                else:
                     for tp in players:
                         user = tp.user
                         ui.label(f'{user.display_name or user.username} (Discord: {user.discord_id})')
-            ui.button('Close', color='gray', on_click=dialog.close)
+            ui.separator()
+            with ui.row().classes('justify-end q-pa-sm'):
+                ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()

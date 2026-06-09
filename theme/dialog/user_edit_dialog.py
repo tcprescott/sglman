@@ -53,17 +53,29 @@ class UserDialog(BaseUserDialog):
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            ui.input('Username', value=self.user.username if self.user else '').props('readonly' if self.user else '')
-            display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
-            pronouns_input = ui.input('Pronouns', value=self.user.pronouns if self.user else '')
+            with ui.row().classes('items-center q-pa-sm'):
+                ui.label('Edit Profile').classes('text-h6 q-ma-none')
+                ui.space()
+                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+            ui.separator()
+            with ui.column().classes('q-pa-md gap-2'):
+                ui.input('Username', value=self.user.username if self.user else '').props(
+                    'readonly' if self.user else ''
+                ).classes('input-full-width')
+                display_name_input = ui.input(
+                    'Display Name', value=self.user.display_name if self.user else ''
+                ).classes('input-full-width')
+                pronouns_input = ui.input(
+                    'Pronouns', value=self.user.pronouns if self.user else ''
+                ).classes('input-full-width')
 
-            tournaments, user_tournaments, selected_tournament_ids, tournament_options = await self._get_tournament_data()
-            tournament_multiselect = ui.select(
-                label='Tournaments',
-                options=tournament_options,
-                value=[str(tid) for tid in selected_tournament_ids],
-                multiple=True,
-            ).props('use-chips')
+                tournaments, user_tournaments, selected_tournament_ids, tournament_options = await self._get_tournament_data()
+                tournament_multiselect = ui.select(
+                    label='Tournaments',
+                    options=tournament_options,
+                    value=[str(tid) for tid in selected_tournament_ids],
+                    multiple=True,
+                ).props('use-chips').classes('input-full-width')
 
             async def submit():
                 if not self.user:
@@ -99,9 +111,10 @@ class UserDialog(BaseUserDialog):
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between action-row'):
-                ui.button('Save', color='green', on_click=submit)
-                ui.button('Cancel', color='gray', on_click=dialog.close)
+            ui.separator()
+            with ui.row().classes('justify-end q-pa-sm gap-2'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                ui.button('Save', on_click=submit).props('color=primary')
 
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':
@@ -119,57 +132,75 @@ class AdminUserDialog(BaseUserDialog):
             ui.notify('Only Staff can manage users.', color='negative')
             return
 
+        is_create = self.user is None
+        title = 'Add User' if is_create else 'Edit User'
+
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            if not self.user:
-                ui.label('* required').classes('required-legend')
-            username_input = ui.input(
-                'Username',
-                value=self.user.username if self.user else '',
-            ).props('readonly' if self.user else 'required')
-            display_name_input = ui.input('Display Name', value=self.user.display_name if self.user else '')
-            pronouns_input = ui.input('Pronouns', value=self.user.pronouns if self.user else '')
-            is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
-            discord_id_input = ui.input('Discord ID', value=self.user.discord_id if self.user else '') if not self.user else None
+            with ui.row().classes('items-center q-pa-sm'):
+                ui.label(title).classes('text-h6 q-ma-none')
+                ui.space()
+                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+            ui.separator()
+            with ui.column().classes('q-pa-md gap-2'):
+                if is_create:
+                    ui.label('* required').classes('required-legend')
+                username_input = ui.input(
+                    'Username',
+                    value=self.user.username if self.user else '',
+                ).props('readonly' if self.user else 'required').classes('input-full-width')
+                display_name_input = ui.input(
+                    'Display Name', value=self.user.display_name if self.user else ''
+                ).classes('input-full-width')
+                pronouns_input = ui.input(
+                    'Pronouns', value=self.user.pronouns if self.user else ''
+                ).classes('input-full-width')
+                is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
+                if is_create:
+                    discord_id_input = ui.input(
+                        'Discord ID', value=''
+                    ).classes('input-full-width')
+                else:
+                    discord_id_input = None
 
-            role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
-            current_roles = []
-            if self.user:
-                current_roles = [r.value for r in await AuthService.get_roles(self.user)]
-            role_select = ui.select(
-                label='Roles',
-                options=role_options,
-                value=list(current_roles),
-                multiple=True,
-            ).props('use-chips')
+                role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                current_roles = []
+                if self.user:
+                    current_roles = [r.value for r in await AuthService.get_roles(self.user)]
+                role_select = ui.select(
+                    label='Roles',
+                    options=role_options,
+                    value=list(current_roles),
+                    multiple=True,
+                ).props('use-chips').classes('input-full-width')
 
-            tournaments, user_tournaments, selected_tournament_ids, tournament_options = await self._get_tournament_data()
-            tournament_multiselect = ui.select(
-                label='Tournaments (Player)',
-                options=tournament_options,
-                value=[str(tid) for tid in selected_tournament_ids],
-                multiple=True,
-            ).props('use-chips')
+                tournaments, user_tournaments, selected_tournament_ids, tournament_options = await self._get_tournament_data()
+                tournament_multiselect = ui.select(
+                    label='Tournaments (Player)',
+                    options=tournament_options,
+                    value=[str(tid) for tid in selected_tournament_ids],
+                    multiple=True,
+                ).props('use-chips').classes('input-full-width')
 
-            admin_tournament_ids = []
-            if self.user:
-                admin_tournament_ids = [str(t.id) for t in await self.user.admin_tournaments.all()]
-            admin_tournament_multiselect = ui.select(
-                label='Tournament Admin of',
-                options=tournament_options,
-                value=admin_tournament_ids,
-                multiple=True,
-            ).props('use-chips')
+                admin_tournament_ids = []
+                if self.user:
+                    admin_tournament_ids = [str(t.id) for t in await self.user.admin_tournaments.all()]
+                admin_tournament_multiselect = ui.select(
+                    label='Tournament Admin of',
+                    options=tournament_options,
+                    value=admin_tournament_ids,
+                    multiple=True,
+                ).props('use-chips').classes('input-full-width')
 
-            cc_tournament_ids = []
-            if self.user:
-                cc_tournament_ids = [str(t.id) for t in await self.user.crew_coordinated_tournaments.all()]
-            cc_tournament_multiselect = ui.select(
-                label='Crew Coordinator of',
-                options=tournament_options,
-                value=cc_tournament_ids,
-                multiple=True,
-            ).props('use-chips')
+                cc_tournament_ids = []
+                if self.user:
+                    cc_tournament_ids = [str(t.id) for t in await self.user.crew_coordinated_tournaments.all()]
+                cc_tournament_multiselect = ui.select(
+                    label='Crew Coordinator of',
+                    options=tournament_options,
+                    value=cc_tournament_ids,
+                    multiple=True,
+                ).props('use-chips').classes('input-full-width')
 
             async def sync_role_assignments(target_user):
                 desired = set(role_select.value or [])
@@ -195,7 +226,7 @@ class AdminUserDialog(BaseUserDialog):
                         await remove_method(t, target_user, actor=actor)
 
             async def submit():
-                if not self.user and not (username_input.value or '').strip():
+                if is_create and not (username_input.value or '').strip():
                     with self.dialog:
                         ui.notify('Please fill required field(s): Username.', color='warning')
                     return
@@ -269,17 +300,20 @@ class AdminUserDialog(BaseUserDialog):
                     dialog_instance = SendMessageDialog(self.user)
                     await dialog_instance.open()
 
-            with ui.row().classes('justify-between action-row'):
+            ui.separator()
+            with ui.row().classes('items-center q-pa-sm gap-2'):
                 if self.user:
-                    ui.button('Save', color='green', on_click=submit)
-                    ui.button('Send Message', color='primary', on_click=open_message_dialog)
-                else:
-                    create_btn = ui.button('Create', color='green', on_click=submit)
+                    ui.button('Send Message', on_click=open_message_dialog).props('flat')
+                ui.space()
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                if is_create:
+                    create_btn = ui.button('Create', on_click=submit).props('color=primary')
                     create_btn.bind_enabled_from(
                         username_input, 'value',
                         backward=lambda v: bool(v and v.strip()),
                     )
-                ui.button('Cancel', color='gray', on_click=dialog.close)
+                else:
+                    ui.button('Save', on_click=submit).props('color=primary')
 
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':

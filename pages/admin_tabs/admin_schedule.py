@@ -32,7 +32,7 @@ def admin_schedule_page() -> None:
                 'sortable': True, 'filterable': True},
             {'name': 'players', 'label': 'Players',
                 'field': 'players', 'filterable': True},
-            {'name': 'acknowledgments', 'label': 'Acks',
+            {'name': 'acknowledgments', 'label': 'Acknowledgments',
                 'field': 'acknowledgments'},
             {'name': 'commentators', 'label': 'Commentators',
                 'field': 'commentators', 'filterable': True},
@@ -40,8 +40,6 @@ def admin_schedule_page() -> None:
                 'field': 'trackers', 'filterable': True},
             {'name': 'stream_room', 'label': 'Stage',
                 'field': 'stream_room', 'sortable': True, 'filterable': True, 'clickable': True},
-            {'name': 'is_stream_candidate', 'label': 'Candidate',
-                'field': 'is_stream_candidate', 'sortable': True},
             {'name': 'generated_seed', 'label': 'Seed', 'field': 'seed'},
         ]
 
@@ -204,12 +202,7 @@ def admin_schedule_page() -> None:
                 dialog = AdminMatchDialog(on_submit=after_submit)
                 await dialog.open()
 
-        extra_slots = {
-            'body-cell-is_stream_candidate': '''<q-td :props="props">
-                <q-icon v-if="props.value" name="live_tv" color="amber" size="sm" />
-                <span v-else style="color: #aaa;">—</span>
-            </q-td>''',
-        }
+        extra_slots = {}
 
         table_view = MatchTableView(
             columns=columns,

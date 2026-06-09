@@ -31,7 +31,7 @@ def schedule():
                 ui.button(
                     'Manage Notifications',
                     icon='notifications',
-                    on_click=lambda: background_tasks.create(open_notification_dialog()),
+                    on_click=open_notification_dialog,
                 ).props('color=secondary outline')
 
         ui.separator().classes('separator-spacing')

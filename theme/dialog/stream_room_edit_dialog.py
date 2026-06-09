@@ -14,29 +14,33 @@ class StreamRoomEditDialog:
         self.stream_room_service = StreamRoomService()
 
     async def open(self):
-        # Pre-fill values for edit mode
         if self.stream_room:
             default_name = self.stream_room.name
             default_url = self.stream_room.stream_url or ''
             default_is_active = self.stream_room.is_active
+            title = 'Edit Stream Room'
         else:
             default_name = ''
             default_url = ''
             default_is_active = True
+            title = 'Add Stream Room'
 
-        with ui.dialog() as dialog, ui.card():
+        with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            ui.label('Edit Stream Room' if self.stream_room else 'Add Stream Room').classes('section-title')
-
-            name_input = ui.input('Room Name', value=default_name).classes('input-full-width')
-            url_input = ui.input('Stream URL', value=default_url).classes('input-full-width')
-            is_active_checkbox = ui.checkbox('Active', value=default_is_active)
+            with ui.row().classes('items-center q-pa-sm'):
+                ui.label(title).classes('text-h6 q-ma-none')
+                ui.space()
+                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
+            ui.separator()
+            with ui.column().classes('q-pa-md gap-2'):
+                name_input = ui.input('Room Name', value=default_name).classes('input-full-width')
+                url_input = ui.input('Stream URL', value=default_url).classes('input-full-width')
+                is_active_checkbox = ui.checkbox('Active', value=default_is_active)
 
             async def submit():
                 name = name_input.value.strip()
                 url = url_input.value.strip()
                 is_active = is_active_checkbox.value
-
                 try:
                     actor = await current_user_from_storage()
                     if self.stream_room:
@@ -58,7 +62,6 @@ class StreamRoomEditDialog:
                         )
                         with self.dialog:
                             ui.notify(f'Stream room "{name}" created successfully.', color='positive')
-
                     dialog.close()
                     if self.on_submit:
                         await self.on_submit(result_room)
@@ -69,9 +72,10 @@ class StreamRoomEditDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            with ui.row().classes('justify-between action-row'):
-                ui.button('Save', color='green', on_click=submit)
-                ui.button('Cancel', color='gray', on_click=dialog.close)
+            ui.separator()
+            with ui.row().classes('justify-end q-pa-sm gap-2'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                ui.button('Save' if self.stream_room else 'Create', on_click=submit).props('color=primary')
 
             def on_keydown(e):
                 if e.args and e.args.get('key') == 'Enter':

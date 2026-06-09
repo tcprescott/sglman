@@ -13,7 +13,7 @@ _CC_FILTER = '_crew_coordinator'
 
 
 def admin_users_page() -> None:
-    with ui.column().classes('page-container-narrow'):
+    with ui.column().classes('page-container-narrow w-full'):
         with ui.row().classes('header-row'):
             ui.label('User Management').classes('page-title')
 

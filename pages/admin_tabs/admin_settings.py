@@ -169,25 +169,30 @@ async def admin_stream_rooms_page() -> None:
             # Add grid item slot for mobile/card view
             table.add_slot('item', '''
                 <div class="q-pa-xs col-xs-12 col-sm-6 col-md-4">
-                    <q-card class="q-pa-md" style="cursor: pointer;" @click="$parent.$emit('edit', props.row)">
-                        <q-card-section>
-                            <div class="text-h6">
-                                {{ props.row.name }}
-                                <q-badge :color="props.row.is_active ? 'positive' : 'negative'" class="q-ml-sm">
-                                    {{ props.row.is_active ? 'Active' : 'Inactive' }}
-                                </q-badge>
+                    <q-card class="q-pa-sm">
+                        <q-card-section class="q-pa-sm">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <span class="text-h6">{{ props.row.name }}</span>
+                                    <q-badge :color="props.row.is_active ? 'positive' : 'negative'" class="q-ml-sm">
+                                        {{ props.row.is_active ? 'Active' : 'Inactive' }}
+                                    </q-badge>
+                                </div>
+                                <q-btn flat round dense icon="edit" color="primary"
+                                       @click="$parent.$emit('edit', props.row)">
+                                    <q-tooltip>Edit</q-tooltip>
+                                </q-btn>
                             </div>
                             <div class="text-caption text-grey">ID: {{ props.row.id }}</div>
                         </q-card-section>
-                        <q-card-section v-if="props.row.stream_url">
+                        <q-card-section class="q-pa-sm" v-if="props.row.stream_url">
                             <div class="text-caption text-grey-7">Stream URL:</div>
-                            <a :href="props.row.stream_url" target="_blank" 
-                               @click.stop
+                            <a :href="props.row.stream_url" target="_blank"
                                style="color: #1976d2; text-decoration: underline; word-break: break-all;">
                                 {{ props.row.stream_url }}
                             </a>
                         </q-card-section>
-                        <q-card-section v-else>
+                        <q-card-section class="q-pa-sm" v-else>
                             <div class="text-caption text-grey-7">No stream URL set</div>
                         </q-card-section>
                     </q-card>
