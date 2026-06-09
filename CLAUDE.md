@@ -355,7 +355,7 @@ The Discord bot starts in `main.py:init_discord_bot()` using `DISCORD_TOKEN`. Bo
 
 ## Refactoring Status
 
-The three-layer refactor is largely complete. All major domains have repositories and services. See `REFACTORING_GUIDE.md` for patterns and examples.
+The three-layer refactor is largely complete. All major domains have repositories and services. See `docs/refactoring-guide.md` for patterns and examples.
 
 **Repositories** (`application/repositories/`):
 `commentator`, `match`, `stream_room`, `tournament`, `tracker`, `user`
@@ -369,9 +369,12 @@ When touching any area, prefer the three-layer pattern over adding direct ORM qu
 
 | File | Purpose |
 |---|---|
-| `DESIGN.md` | Original requirements and page structure |
-| `REFACTORING_GUIDE.md` | Detailed three-layer architecture guide with code examples |
-| `TIMEZONE_HANDLING.md` | Datetime/timezone implementation details |
+| `docs/current-state.md` | Active project state — feature status, known issues, key files |
+| `docs/design.md` | Original requirements and page structure |
+| `docs/refactoring-guide.md` | Detailed three-layer architecture guide with code examples |
+| `docs/timezone-handling.md` | Datetime/timezone implementation details |
+| `docs/ux-audit.md` | Full UX audit with findings by theme and severity |
+| `docs/features/` | Per-feature docs for all Claude-built features |
 | `migrations/tortoise_config.py` | DB connection configuration |
 | `start.sh` | Server startup commands |
 | `pyproject.toml` | Dependencies and Aerich config |

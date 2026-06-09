@@ -1,0 +1,111 @@
+# SGLMan — Current Project State
+
+_Last updated: 2026-06-08_
+
+## What Is This
+
+SGLMan (Speedgaming Live Manager) manages tournament schedules, matches, users, and crew for speedgaming live events. It runs as a single Docker container: FastAPI backend + NiceGUI frontend + Discord bot, backed by PostgreSQL.
+
+## Running Status
+
+The application is functional and in active use. All features listed below are merged to `main`. The three-layer refactor (Presentation → Service → Repository) is complete.
+
+## Feature Status
+
+| Feature | Status | PR(s) | Notes |
+|---|---|---|---|
+| Match scheduling & lifecycle | Stable | pre-Claude | Core feature; state machine via timestamps |
+| Discord OAuth login | Stable | pre-Claude | Via `middleware/auth.py`; mock mode available |
+| Role-based authorization | Stable | #8 | Replaced single-permission gate with `Role` enum |
+| Discord match notifications (DM) | Stable | #3, #4 | Match lifecycle events sent to players/watchers |
+| Match watcher (subscribe to match) | Stable | #9 | Users can watch any match for Discord DM updates |
+| Match acknowledgment (Discord DM) | Stable | #10 | Players acknowledge match via DM buttons |
+| Tournament notification preferences | Stable | #4 | Per-user/tournament subscription levels |
+| Discord crew signup (DM buttons) | Stable | #4 | Commentator/Tracker signup via Discord DM |
+| Crew match acknowledgment | Stable | #12 | Crew confirms match via web UI; approval flow |
+| Admin reports (multi-report) | Stable | #6 | Crew hours, match CSV, audit log viewer |
+| Audit logging | Stable | #11 | Covers all major create/update/delete actions |
+| Triforce texts | Stable | #14 | Per-tournament player submission + admin moderation |
+| Mock Discord (dev mode) | Stable | #5 | `MOCK_DISCORD=true` bypasses OAuth; stub all Discord calls |
+| CSV export (injection-safe) | Stable | #7 | Formula prefixes escaped in all CSV outputs |
+| PostgreSQL database | Stable | #15, #16 | Migrated from MySQL; runs in Docker via compose |
+| GitHub Actions / GHCR publish | Stable | #16 | CI publishes container image on push to main |
+| Test suite | Partial | #2, #13 | Unit tests for timezone utils, match service, API; not complete coverage |
+| Icon-only button tooltips | Stable | #32 | All icon-only buttons now have `.tooltip()` |
+| Required-field markers + validation | Stable | #33 | Forms mark required fields and validate before submit |
+| Triforce delete confirmation | Stable | #31 | `ConfirmationDialog` gates admin triforce-text deletion |
+| Station assignment display | Stable | direct | Admin schedule shows assigned stations per player |
+| Timezone consistency | Stable | #30 | All user-table and report timestamps use Eastern |
+
+## Known Open Issues (from UX Audit, PR #29)
+
+The UX audit (`docs/ux-audit.md`) logged 4 critical and 23 major findings. Most have been addressed by PRs #30–#33. Remaining open items tracked as GitHub issues:
+
+- **Theme 4** (feedback after empty-message send): `send_message_dialog.py` still sends blank DMs if textarea is empty — no guard on `send_callback`. Filed as issue.
+- **Theme 5** (station assignment format validation): free-text station field has no format enforcement.
+- **Themes 6–12**: Remaining major/minor polish items. None block core workflows.
+
+## Architecture Summary
+
+```
+pages/ + theme/         ← NiceGUI UI (Quasar components)
+  ↓ calls
+application/services/   ← business logic, validation, audit, Discord notifications
+  ↓ calls
+application/repositories/ ← ORM queries (Tortoise)
+  ↓ uses
+models.py               ← Tortoise models + Role/MatchNotificationLevel enums
+```
+
+All datetimes stored UTC; all user-facing times in US/Eastern. See `docs/timezone-handling.md`.
+
+## Key Files at a Glance
+
+| File | Purpose |
+|---|---|
+| `main.py` | FastAPI app, DB init, lifespan, Discord bot startup |
+| `api.py` | REST endpoints under `/api` |
+| `frontend.py` | Registers NiceGUI pages |
+| `models.py` | All Tortoise ORM models + enums |
+| `middleware/auth.py` | Discord OAuth; `@protected_page` decorator; mock mode |
+| `application/services/auth_service.py` | `AuthService` — role checks, `can_crud_match`, etc. |
+| `application/services/match_service.py` | Match CRUD, lifecycle transitions |
+| `application/services/match_schedule_service.py` | Scheduling logic + Discord notification fan-out |
+| `application/services/discord_service.py` | All Discord DM and interaction logic |
+| `application/services/audit_service.py` | `AuditService` + `AuditActions` constants |
+| `discordbot/crew_signup.py` | Discord button handler for crew DM signup |
+| `discordbot/match_acknowledgment.py` | Discord button handler for match acknowledgment |
+| `discordbot/watch_buttons.py` | Discord button handler for match watch |
+| `pages/home.py` | Homepage (Schedule / On Air / Profile / Player tabs) |
+| `pages/admin.py` | Admin dashboard (schedule, users, reports, settings tabs) |
+| `pages/triforce_texts.py` | Player triforce text submission |
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `DB_HOST` | yes | PostgreSQL host |
+| `DB_PORT` | yes | PostgreSQL port |
+| `DB_NAME` | yes | Database name |
+| `DB_USERNAME` | no | DB user |
+| `DB_PASSWORD` | no | DB password |
+| `DISCORD_TOKEN` | yes | Discord bot token |
+| `STORAGE_SECRET` | yes | NiceGUI storage encryption key |
+| `ENVIRONMENT` | no | `dev` or `production` |
+| `MOCK_DISCORD` | no | `true` → bypass Discord OAuth + stub all Discord API calls |
+
+## Running Locally
+
+```bash
+poetry install
+cp .env.example .env      # fill in credentials, or set MOCK_DISCORD=true
+./start.sh dev            # port 8000 with auto-reload
+```
+
+## Testing
+
+```bash
+poetry run pytest         # runs all tests under tests/
+```
+
+Tests cover: timezone utilities, match state transitions, match service, API endpoints. Coverage is partial — happy paths for core flows only.
