@@ -70,3 +70,5 @@ submit_btn.bind_enabled_from(form_state, 'is_valid')
 - Empty-message guard on `send_message_dialog.py` — blank DM can still be sent.
 - Station assignment format validation (free-text, no length cap).
 - Themes 6–12 (minor polish items from the audit).
+
+**See also:** [reference/frontend.md](../reference/frontend.md) — pages, dialogs, and table component internals.

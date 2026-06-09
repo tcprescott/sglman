@@ -40,3 +40,5 @@ MOCK_DISCORD=true ./start.sh dev
 - Test users created via the picker are real database rows — they persist between restarts.
 - Role assignments and tournament enrollments work normally in mock mode.
 - The Discord bot does not start when `MOCK_DISCORD=true` (`main.py:init_discord_bot()` checks the flag).
+
+**See also:** [reference/authentication.md](../reference/authentication.md) — how the mock login page replaces the OAuth routes.

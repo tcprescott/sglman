@@ -2,14 +2,16 @@
 
 SGLMan (Speedgaming Live Manager) is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for speedgaming live events. It integrates with Discord for authentication and user management, uses Tortoise ORM with PostgreSQL, and runs as a single Docker container.
 
+Full documentation index: `docs/README.md` (architecture, development, deployment, code reference, feature docs).
+
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Web framework | FastAPI 0.115 |
-| UI framework | NiceGUI 2.11 |
+| Web framework | FastAPI ≥0.136 |
+| UI framework | NiceGUI ≥3.12 |
 | ASGI server | Uvicorn |
-| ORM | Tortoise ORM 0.24 |
+| ORM | Tortoise ORM ≥0.24 |
 | Migrations | Aerich 0.8 |
 | Database | PostgreSQL |
 | Auth | Discord OAuth |
@@ -390,8 +392,19 @@ When touching any area, prefer the three-layer pattern over adding direct ORM qu
 
 | File | Purpose |
 |---|---|
+| `docs/README.md` | Documentation index with coverage map — start here |
+| `docs/architecture.md` | System overview: startup, three-layer pattern, component diagram, directory map |
 | `docs/current-state.md` | Active project state — feature status, known issues, key files |
-| `docs/design.md` | Original requirements and page structure |
+| `docs/development.md` | Dev environment setup, mock Discord workflow, dev data, tests, CI |
+| `docs/deployment.md` | Docker topology, authoritative env-var table, GHCR images, operations |
+| `docs/reference/data-model.md` | All models, ERD, match lifecycle, repositories, migrations |
+| `docs/reference/services.md` | Every service and utility module with public methods |
+| `docs/reference/rest-api.md` | REST endpoints, query params, response schemas |
+| `docs/reference/authentication.md` | OAuth mechanics, route protection, `AuthService` API |
+| `docs/reference/discord-integration.md` | Bot singleton, DM queue, button interaction handlers |
+| `docs/reference/seed-generation.md` | Randomizer integrations and presets |
+| `docs/reference/frontend.md` | Pages, tabs, dialogs, tables, layout, styling |
+| `docs/design.md` | Original requirements sketch (superseded by `docs/architecture.md`) |
 | `docs/refactoring-guide.md` | Detailed three-layer architecture guide with code examples |
 | `docs/timezone-handling.md` | Datetime/timezone implementation details |
 | `docs/ux-audit.md` | Full UX audit with findings by theme and severity |

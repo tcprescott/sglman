@@ -17,14 +17,26 @@ A web application for managing tournament schedules, matches, players, and crew 
 
 | Layer | Technology |
 |---|---|
-| Web framework | FastAPI 0.115 |
-| UI framework | NiceGUI 2.11 |
-| ORM | Tortoise ORM 0.24 |
-| Migrations | Aerich 0.8 |
+| Web framework | FastAPI ≥0.136 |
+| UI framework | NiceGUI ≥3.12 |
+| ORM | Tortoise ORM ≥0.24 |
+| Migrations | Aerich ≥0.8 |
 | Database | PostgreSQL 16 |
 | Auth | Discord OAuth |
 | Package manager | Poetry |
 | Container | Docker + docker-compose |
+
+Authoritative versions live in [`pyproject.toml`](pyproject.toml).
+
+## Documentation
+
+Full developer documentation lives in [`docs/`](docs/README.md):
+
+- [Architecture overview](docs/architecture.md) — how the pieces fit together
+- [Development guide](docs/development.md) — local setup, mock Discord mode, tests
+- [Deployment guide](docs/deployment.md) — Docker, environment variables, operations
+- [Code reference](docs/README.md#code-reference-docsreference) — data model, services, REST API, auth, Discord, seed generation, frontend
+- [Feature docs](docs/README.md#feature-reference-docsfeatures) — implementation notes per feature
 
 ## Quick Start
 
@@ -63,8 +75,9 @@ Migrations also run automatically on startup.
 | `DISCORD_TOKEN` | yes | Discord bot token |
 | `DISCORD_CLIENT_ID` | yes | Discord OAuth app client ID |
 | `DISCORD_CLIENT_SECRET` | yes | Discord OAuth app client secret |
-| `REDIRECT_URL` | yes | OAuth callback URL (e.g. `http://localhost:8000/oauth/callback`) |
-| `OAUTH_URL` | yes | Discord OAuth authorize URL |
+| `BASE_URL` | no | Public base URL of the app (default `http://localhost:8000`); used to derive the OAuth redirect URI |
+| `REDIRECT_URL` | no | Override the derived OAuth callback URL (`{BASE_URL}/oauth/callback`) |
+| `OAUTH_URL` | no | Override the derived Discord OAuth authorize URL |
 | `STORAGE_SECRET` | yes | NiceGUI session storage encryption key |
 | `ENVIRONMENT` | no | `development` (default) or `production` |
 | `MOCK_DISCORD` | no | Set `true` to bypass Discord OAuth (shows a user-picker at `/login`); stubs all Discord calls. Useful for local dev without a real Discord app. |

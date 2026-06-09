@@ -52,3 +52,5 @@ When `MOCK_DISCORD=true`, `DiscordService.send_dm()` logs the message instead of
 ## Testing
 
 Notification fan-out logic is tested in `tests/test_match_service.py`. Discord DM delivery is not unit-tested (requires live Discord; covered by integration only).
+
+**See also:** [reference/discord-integration.md](../reference/discord-integration.md) — implementation reference for the bot, DM queue, and button handlers.

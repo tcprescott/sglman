@@ -1,10 +1,12 @@
 # SGLMan — Current Project State
 
-_Last updated: 2026-06-08_
+_Last updated: 2026-06-09_
 
 ## What Is This
 
 SGLMan (Speedgaming Live Manager) manages tournament schedules, matches, users, and crew for speedgaming live events. It runs as a single Docker container: FastAPI backend + NiceGUI frontend + Discord bot, backed by PostgreSQL.
+
+This document is the living status snapshot. For the full documentation set — architecture, development/deployment guides, and method-level code reference — start at the [documentation index](README.md).
 
 ## Running Status
 
@@ -57,9 +59,13 @@ application/repositories/ ← ORM queries (Tortoise)
 models.py               ← Tortoise models + Role/MatchNotificationLevel enums
 ```
 
-All datetimes stored UTC; all user-facing times in US/Eastern. See `docs/timezone-handling.md`.
+All datetimes stored UTC; all user-facing times in US/Eastern. See [timezone-handling.md](timezone-handling.md).
+
+Full architecture (startup sequence, component diagram, directory map): [architecture.md](architecture.md). Layer-by-layer code reference: [reference/](README.md#code-reference-docsreference).
 
 ## Key Files at a Glance
+
+Method-level detail for every file below lives in the [code reference docs](README.md#code-reference-docsreference).
 
 | File | Purpose |
 |---|---|

@@ -1,3 +1,11 @@
+# Original Design Notes (Superseded)
+
+> **Superseded.** This early requirements sketch predates the current implementation and is retained only as a historical record. For an accurate description of the system, see [architecture.md](architecture.md); for the documentation index, see [README.md](README.md); for per-feature implementation notes, see [features/](features/).
+>
+> The original content is preserved below unchanged. Struck-through items were completed; the page list no longer reflects actual routes (see [reference/frontend.md](reference/frontend.md) for current routes).
+
+---
+
 # This application requires the following, with the higher requirements being the most important.
 
 1. ~~Allow a user to submit a match for a tournament.~~
