@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main entry point for the SGLMan FastAPI application.
+"""Main entry point for the SGL On Site FastAPI application.
 
 Initializes the database, sets up API and frontend routes, and manages application lifespan.
 """
@@ -77,8 +77,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # Create FastAPI app with metadata for API documentation
 app: FastAPI = FastAPI(
-    title="Speedgaming Live Manager API",
-    description="API for managing tournaments, matches, players, commentators, and trackers for Speedgaming Live events",
+    title="SGL On Site API",
+    description="API for managing tournaments, matches, players, commentators, and trackers for SGL On Site events",
     version="1.0.0",
     lifespan=lifespan,
     # By default, API docs are accessible at /docs (Swagger) and /redoc (ReDoc)

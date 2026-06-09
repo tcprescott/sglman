@@ -87,7 +87,7 @@ class BaseLayout:
     def _render_drawer(self) -> None:
         """Render the left drawer with navigation links and optional tab navigation."""
         with ui.left_drawer(value=False).props('breakpoint=600 show-if-above bordered') as self._drawer:
-            ui.label('SGLMan').classes('text-h6 q-pa-md')
+            ui.label('SGL On Site').classes('text-h6 q-pa-md')
             ui.separator()
 
             with ui.list().props('padding'):

@@ -81,7 +81,7 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
         if not user:
             await _send(
                 interaction,
-                'You do not have an SGLMan account. Please log in at the website first.',
+                'You do not have an SGL On Site account. Please log in at the website first.',
             )
             return
 

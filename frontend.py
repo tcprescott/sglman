@@ -1,4 +1,4 @@
-"""Frontend initialization for the SGLMan FastAPI application.
+"""Frontend initialization for the SGL On Site FastAPI application.
 
 Sets up NiceGUI pages and integrates them with the FastAPI app.
 """

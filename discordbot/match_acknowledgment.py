@@ -78,7 +78,7 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         if not user:
             await _send(
                 interaction,
-                'You do not have an SGLMan account. Please log in at the website first.',
+                'You do not have an SGL On Site account. Please log in at the website first.',
             )
             return
 
