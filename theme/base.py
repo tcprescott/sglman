@@ -8,7 +8,7 @@ class BaseLayout:
 
     def __init__(
         self,
-        copyright_text: str = "© 2025 Thomas Prescott",
+        copyright_text: str = "© 2026 Thomas Prescott",
         default_tab: str = None,
         tabs: list = None,
         user: User = None,
@@ -124,7 +124,7 @@ class BaseLayout:
 
     def _render_footer(self) -> None:
         """Render the footer with copyright text."""
-        with ui.footer().classes('bg-grey-2 text-grey-7 q-pa-md footer-dark-override'):
+        with ui.footer().classes('q-pa-md footer-dark-override'):
             ui.label(self.copyright_text).classes('text-caption')
 
     async def _render_tab_panels(self) -> None:

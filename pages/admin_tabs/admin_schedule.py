@@ -194,7 +194,7 @@ def admin_schedule_page() -> None:
                 await dialog.open()
 
         async def submit_admin_match():
-            async def after_submit(_):
+            async def after_submit():
                 await table_view.refresh()
             with page_container:
                 dialog = AdminMatchDialog(on_submit=after_submit)

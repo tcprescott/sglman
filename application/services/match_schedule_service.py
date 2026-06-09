@@ -277,21 +277,27 @@ class MatchScheduleService:
         scheduled_at_display: str,
         *,
         rescheduled: bool,
+        stream_room_name: str = '',
+        player_names: Optional[list[str]] = None,
     ) -> str:
         if rescheduled:
-            header = (
+            details = (
                 f"Your match in **{tournament_name}** has been rescheduled.\n\n"
                 f"Match ID: {match_id}\n"
                 f"New time: {scheduled_at_display}"
             )
         else:
-            header = (
+            details = (
                 f"A match has been scheduled for you in **{tournament_name}**.\n\n"
                 f"Match ID: {match_id}\n"
                 f"Scheduled for: {scheduled_at_display}"
             )
+        if stream_room_name:
+            details += f"\nStream Room: {stream_room_name}"
+        if player_names:
+            details += f"\nPlayers: {', '.join(player_names)}"
         return (
-            f"{header}\n\n"
+            f"{details}\n\n"
             f"Click **Acknowledge** below to confirm you've seen this."
         )
 
@@ -355,12 +361,16 @@ class MatchScheduleService:
         Never raises; per-DM failures are logged and swallowed.
         """
         try:
-            await match.fetch_related('tournament')
+            await match.fetch_related('tournament', 'stream_room')
             from application.utils.timezone import format_eastern_display
             scheduled_display = format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
+            players = await MatchPlayers.filter(match=match).prefetch_related('user')
+            player_names = [p.user.preferred_name for p in players]
             message = self._create_acknowledgment_request_dm_message(
                 match.id, match.tournament.name, scheduled_display,
                 rescheduled=rescheduled,
+                stream_room_name=match.stream_room.name if match.stream_room else '',
+                player_names=player_names,
             )
 
             acks = await self.acknowledgment_repository.list_for_match(match)

@@ -23,6 +23,18 @@ def make_crew_acknowledgment_view(crew_type: str, crew_id: int) -> discord.ui.Vi
     return view
 
 
+def make_acknowledged_view() -> discord.ui.View:
+    """Create a Discord View with a disabled Acknowledged button."""
+    view = discord.ui.View(timeout=None)
+    view.add_item(discord.ui.Button(
+        label='Acknowledged',
+        style=discord.ButtonStyle.secondary,
+        custom_id=f'{CUSTOM_ID_PREFIX}:acknowledged',
+        disabled=True,
+    ))
+    return view
+
+
 async def _send(interaction: discord.Interaction, message: str) -> None:
     """Send a reply via followup if defer succeeded, else fall back to response."""
     try:
@@ -75,10 +87,21 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
 
         crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
         match_id = crew_member.match_id
-        await _send(
-            interaction,
-            f'You have acknowledged your {crew_type} assignment for Match ID {match_id}. Thanks!',
-        )
+
+        from models import MatchPlayers
+        players = await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
+        player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
+
+        try:
+            await interaction.message.edit(view=make_acknowledged_view())
+        except Exception:
+            logger.warning("Could not disable crew_ack button (crew_id=%s)", crew_id)
+
+        confirmation = f'You have acknowledged your {crew_type} assignment for Match ID {match_id}.'
+        if player_names:
+            confirmation += f' Players: {player_names}.'
+        confirmation += ' Thanks!'
+        await _send(interaction, confirmation)
     except ValueError as e:
         await _send(interaction, str(e))
     except Exception:

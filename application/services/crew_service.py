@@ -13,6 +13,7 @@ from application.repositories import CommentatorRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
+from application.utils.timezone import format_eastern_display
 from models import Commentator, Tracker, User
 
 
@@ -50,7 +51,7 @@ class CrewService:
         if crew_type not in ('commentator', 'tracker'):
             raise ValueError(f"Invalid crew_type: {crew_type}. Must be 'commentator' or 'tracker'")
 
-        await crew_member.fetch_related('match', 'user')
+        await crew_member.fetch_related('match', 'user', 'match__stream_room')
         await AuthService.ensure(
             await AuthService.can_approve_crew(actor, crew_member.match),
             f"User cannot approve {crew_type} signups for match {crew_member.match.id}",
@@ -160,10 +161,20 @@ class CrewService:
         discord_id = getattr(crew_member.user, 'discord_id', None)
         if not discord_id:
             return
-        message = (
-            f"You've been approved as {crew_type} for Match ID {crew_member.match_id}. "
-            "Please click below to acknowledge your assignment."
-        )
+
+        match = crew_member.match
+        lines = [f"You've been approved as {crew_type} for Match ID {match.id}."]
+        if match.title:
+            lines.append(f"**Match:** {match.title}")
+        if match.scheduled_at:
+            lines.append(f"**Scheduled:** {format_eastern_display(match.scheduled_at)}")
+        if match.stream_room:
+            lines.append(f"**Stream Room:** {match.stream_room.name}")
+        players = await match.players.all().prefetch_related('user')
+        if players:
+            lines.append(f"**Players:** {', '.join(p.user.preferred_name for p in players)}")
+        lines.append("Please click below to acknowledge your assignment.")
+        message = "\n".join(lines)
         try:
             success, info = await self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id,

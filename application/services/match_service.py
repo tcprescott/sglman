@@ -883,8 +883,8 @@ class MatchService:
             is_actor = actor_id is not None and pid == actor_id
             await self.ack_repository.upsert(
                 match, user,
-                acknowledged=is_actor,
-                auto=is_actor,
+                acknowledged=False,
+                auto=False,
             )
 
     # Private helper methods

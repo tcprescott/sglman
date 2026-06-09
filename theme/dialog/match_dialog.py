@@ -139,7 +139,7 @@ class BaseMatchDialog:
             on_change=lambda e: background_tasks.create(on_change(e)),
         )
 
-    async def _confirm_delete(self, dialog):
+    def _confirm_delete(self, dialog):
         async def on_confirm():
             await self._delete_match(dialog)
         ConfirmationDialog(
@@ -412,7 +412,7 @@ class AdminMatchDialog(BaseMatchDialog):
             ui.separator()
             with ui.row().classes('items-center q-pa-sm gap-2'):
                 if self.match:
-                    ui.button('Delete', on_click=lambda: background_tasks.create(self._confirm_delete(dialog))).props('color=negative flat')
+                    ui.button('Delete', on_click=lambda: self._confirm_delete(dialog)).props('color=negative flat')
                 ui.space()
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if self.match else 'Create', on_click=submit).props('color=primary')
@@ -625,7 +625,7 @@ class UserMatchDialog(BaseMatchDialog):
             ui.separator()
             with ui.row().classes('items-center q-pa-sm gap-2'):
                 if self.match:
-                    ui.button('Delete', on_click=lambda: background_tasks.create(self._confirm_delete(dialog))).props('color=negative flat')
+                    ui.button('Delete', on_click=lambda: self._confirm_delete(dialog)).props('color=negative flat')
                 ui.space()
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if self.match else 'Submit', on_click=submit).props('color=primary')
