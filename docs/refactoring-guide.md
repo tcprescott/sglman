@@ -1,5 +1,7 @@
 # Refactoring Guide: Separating UI from Business Logic
 
+> Code-layer reference docs now live in [`docs/reference/`](reference/) — see [data-model.md](reference/data-model.md), [services.md](reference/services.md), and the [documentation index](README.md). This guide remains the canonical explanation of the three-layer pattern itself.
+
 ## Architecture Overview
 
 The application is being refactored into three distinct layers:
