@@ -42,3 +42,5 @@ Character limits and line count restrictions are enforced in `TriforceTextServic
 ## Per-Tournament Scope
 
 Each `TriforceText` row is linked to a specific `Tournament`. Players see only the submission form for tournaments they are enrolled in. Admins see all submissions filterable by tournament.
+
+**See also:** [reference/seed-generation.md](../reference/seed-generation.md) — how approved texts integrate with ALTTPR seed generation; [reference/frontend.md](../reference/frontend.md) — submission page and moderation tab internals.

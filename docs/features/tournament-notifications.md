@@ -44,3 +44,5 @@ When `MatchScheduleService.notify_tournament_subscribers_scheduled()` fires (e.g
 ## Stream Candidate Flag
 
 `Match.is_stream_candidate` (bool) is set by admins in `AdminMatchDialog`. When toggled on, `MatchScheduleService` triggers a DM fan-out to all `streamed_and_candidates`-level subscribers, including interactive crew signup buttons.
+
+**See also:** [reference/discord-integration.md](../reference/discord-integration.md) — implementation reference for the bot, DM queue, and button handlers.

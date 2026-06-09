@@ -18,18 +18,19 @@ The application was originally backed by MySQL. PR #15 migrated to PostgreSQL:
 
 | Service | Image | Purpose |
 |---|---|---|
-| `app` | Built from `Dockerfile` | The SGLMan application |
-| `db` | `postgres:16-alpine` | PostgreSQL database |
+| `sglman` | Built from `Dockerfile` | The SGLMan application |
+| `postgres` | `postgres:16-alpine` | PostgreSQL database |
 
-The `app` container waits for `db` to be healthy before starting (healthcheck configured).
+The `sglman` container waits for `postgres` to be healthy before starting (healthcheck configured). Full topology and operations: [deployment.md](../deployment.md).
 
 ## CI: GitHub Actions / GHCR Publish (PR #16)
 
-`.github/workflows/publish.yml` builds and pushes the container image to GitHub Container Registry on every push to `main`:
+`.github/workflows/publish.yml` builds and pushes the container image to GitHub Container Registry on pushes to `main` and on `v*` tags:
 
 ```
-ghcr.io/tcprescott/sglman:latest
-ghcr.io/tcprescott/sglman:<sha>
+ghcr.io/tcprescott/sglman:main      # branch ref on pushes to main
+ghcr.io/tcprescott/sglman:latest    # default branch only
+ghcr.io/tcprescott/sglman:1.2.3     # semver tags from v* (also 1.2 and 1)
 ```
 
 ## Connection Configuration
@@ -47,7 +48,7 @@ poetry run aerich migrate   # generate migration from model changes
 poetry run aerich upgrade   # apply pending migrations
 
 # Or via Docker:
-docker-compose exec app poetry run aerich upgrade
+docker-compose exec sglman poetry run aerich upgrade
 ```
 
 Migrations run automatically on startup via `main.py:init_db()`.

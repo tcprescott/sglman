@@ -8,10 +8,10 @@ Full documentation index: `docs/README.md` (architecture, development, deploymen
 
 | Layer | Technology |
 |---|---|
-| Web framework | FastAPI 0.115 |
-| UI framework | NiceGUI 2.11 |
+| Web framework | FastAPI ≥0.136 |
+| UI framework | NiceGUI ≥3.12 |
 | ASGI server | Uvicorn |
-| ORM | Tortoise ORM 0.24 |
+| ORM | Tortoise ORM ≥0.24 |
 | Migrations | Aerich 0.8 |
 | Database | PostgreSQL |
 | Auth | Discord OAuth |

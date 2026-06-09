@@ -86,5 +86,5 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `start.sh`, `Dockerfile`, `docker-compose.yml` | [deployment.md](deployment.md) |
 | `.env.example` — every variable | [deployment.md](deployment.md) |
 | `.github/workflows/` — test.yml, publish.yml | [development.md](development.md), [deployment.md](deployment.md) |
-| `pyproject.toml` | [architecture.md](architecture.md), [development.md](development.md) |
-| `CLAUDE.md`, `README.md`, `profile.html` | indexed here; `profile.html` noted in [development.md](development.md) |
+| `pyproject.toml`, `poetry.lock` | [architecture.md](architecture.md), [development.md](development.md) |
+| `CLAUDE.md`, `README.md`, `.gitignore`, `profile.html` | indexed here; hygiene notes in [development.md](development.md) |

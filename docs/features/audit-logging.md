@@ -62,3 +62,5 @@ As of PR #11, audit entries are written for all major create/update/delete opera
 - Crew (approve/reject/sign-up/undo)
 - Triforce texts (submit/approve/reject/delete)
 - System configuration changes
+
+**See also:** [reference/services.md](../reference/services.md) — AuditService API and AuditActions namespaces.

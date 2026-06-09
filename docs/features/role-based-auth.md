@@ -36,12 +36,16 @@ from models import Role
 
 user = await current_user_from_storage()          # User | None
 
-await AuthService.has_role(user, Role.STAFF)      # bool
-await AuthService.get_roles(user)                 # set[Role]
-await AuthService.can_view_admin(user)            # any role or tournament/crew membership
-await AuthService.can_crud_match(user, match)     # staff or proctor
-await AuthService.can_assign_stage(user)          # staff or stream_manager
+await AuthService.has_role(user, Role.STAFF)            # bool
+await AuthService.get_roles(user)                        # set[Role]
+await AuthService.can_view_admin(user)                   # any role or tournament/crew membership
+await AuthService.can_crud_match(user, match)            # staff or tournament admin
+await AuthService.can_transition_match(user, match)      # staff, proctor, or tournament admin
+await AuthService.can_manage_stream_rooms(user)          # staff or stream_manager
+await AuthService.can_assign_match_stream(user, match)   # stream managers globally; TAs for their tournaments
 ```
+
+Full method catalog: [reference/authentication.md](../reference/authentication.md).
 
 ## Route-Level Protection
 
@@ -54,7 +58,7 @@ async def admin_page():
     ...
 ```
 
-Unauthenticated users are redirected to `/login`. Users without the required role see a "Permission denied" message.
+Unauthenticated users are redirected to `/login`. Users without the required role see a "You do not have permission to view this page." message.
 
 ## Tournament/Crew Access
 
