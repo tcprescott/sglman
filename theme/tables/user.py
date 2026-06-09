@@ -6,21 +6,23 @@ from application.utils.timezone import format_eastern_display
 class UserTableView:
     """Encapsulates the user table UI and logic for admin/player dashboards."""
 
-    def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None):
+    def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None, show_toolbar=True):
         self.columns = columns
         self.get_query = get_query
         self.extra_slots = extra_slots
         self.submit_user_callback = submit_user_callback
+        self.show_toolbar = show_toolbar
         self.table = None
         self._setup_ui()
 
     def _setup_ui(self):
-        # Toolbar with actions
-        with ui.row().classes('full-width'):
-            if self.submit_user_callback:
-                ui.button('Add User', icon='add', on_click=self.submit_user_callback).props('color=primary')
-            ui.space()
-            ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
+        # Toolbar with actions (skipped when caller renders it externally)
+        if self.show_toolbar:
+            with ui.row().classes('full-width'):
+                if self.submit_user_callback:
+                    ui.button('Add User', icon='add', on_click=self.submit_user_callback).props('color=primary')
+                ui.space()
+                ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
         with ui.column().classes('full-width'):
             self.table = ui.table(

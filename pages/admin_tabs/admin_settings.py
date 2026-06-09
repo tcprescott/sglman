@@ -111,9 +111,11 @@ async def admin_stream_rooms_page() -> None:
                 await dialog.open()
 
         with table_container:
-            with ui.row().classes('w-full justify-end mb-1'):
+            with ui.row().classes('full-width'):
                 if can_manage:
                     ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
+                ui.space()
+                ui.button(icon='refresh', on_click=lambda: background_tasks.create(refresh_table())).props('flat color=primary').tooltip('Refresh table')
 
             table = ui.table(
                 columns=columns,

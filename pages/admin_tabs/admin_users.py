@@ -19,18 +19,7 @@ def admin_users_page() -> None:
 
         ui.separator().classes('separator-spacing')
 
-        # Filter controls: global roles plus synthetic Tournament Admin / Crew Coordinator entries
-        with ui.row().classes('q-gutter-sm items-center'):
-            ui.label('Filter by role:')
-            role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
-            role_options[_TA_FILTER] = 'Tournament Admin'
-            role_options[_CC_FILTER] = 'Crew Coordinator'
-            selected = {'value': []}
-            role_select = (
-                ui.select(options=role_options, value=[], label='Roles', multiple=True)
-                .props('use-chips clearable')
-            )
-            role_select.bind_value(selected, 'value')
+        selected = {'value': []}
 
         columns = [
             {'name': 'username', 'label': 'Username', 'field': 'username'},
@@ -59,8 +48,29 @@ def admin_users_page() -> None:
             dialog = AdminUserDialog(on_submit=after_submit)
             await dialog.open()
 
+        # Toolbar row — rendered before filter and table for correct visual order
+        with ui.row().classes('full-width'):
+            ui.button('Add User', icon='add', on_click=add_user).props('color=primary')
+            ui.space()
+            ui.button(icon='refresh', on_click=lambda: background_tasks.create(table_view.refresh())).props('flat color=primary').tooltip('Refresh table')
+
+        # Filter card — between toolbar and table, matching match-filters-card pattern
+        with ui.card().classes('match-filters-card'):
+            with ui.row().classes('match-filter-row'):
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Filter by Role').classes('match-filter-label')
+                    role_options = {r.value: r.name.replace('_', ' ').title() for r in Role}
+                    role_options[_TA_FILTER] = 'Tournament Admin'
+                    role_options[_CC_FILTER] = 'Crew Coordinator'
+                    role_select = (
+                        ui.select(options=role_options, value=[], multiple=True)
+                        .props('outlined dense use-chips clearable')
+                    )
+                    role_select.bind_value(selected, 'value')
+
+        # Table — toolbar suppressed since we rendered it above
         table_view = UserTableView(
-            columns=columns, get_query=get_query, submit_user_callback=add_user)
+            columns=columns, get_query=get_query, show_toolbar=False)
 
         role_select.on('update:model-value', lambda *_: background_tasks.create(table_view.refresh()))
 

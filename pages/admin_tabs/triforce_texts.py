@@ -50,19 +50,22 @@ async def admin_triforce_texts_page() -> None:
         with ui.row().classes('header-row'):
             ui.label('Triforce Texts').classes('page-title')
 
-        with ui.row().classes('q-gutter-sm items-center'):
-            tournament_select = ui.select(
-                options={t.id: t.name for t in tournaments},
-                value=state['tournament_id'],
-                label='Tournament',
-            ).props('outlined dense').classes('min-w-[16rem]')
-            status_select = ui.select(
-                options=_STATUS_OPTIONS,
-                value=state['status'],
-                label='Status',
-            ).props('outlined dense')
-
         ui.separator().classes('separator-spacing')
+
+        with ui.card().classes('match-filters-card'):
+            with ui.row().classes('match-filter-row'):
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Tournament').classes('match-filter-label')
+                    tournament_select = ui.select(
+                        options={t.id: t.name for t in tournaments},
+                        value=state['tournament_id'],
+                    ).props('outlined dense').classes('full-width')
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Status').classes('match-filter-label')
+                    status_select = ui.select(
+                        options=_STATUS_OPTIONS,
+                        value=state['status'],
+                    ).props('outlined dense')
 
         table_container = ui.column().classes('w-full')
 
