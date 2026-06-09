@@ -1,6 +1,8 @@
 import functools
+import logging
 import os
 import re
+import secrets
 from typing import Iterable, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -13,6 +15,8 @@ from zenora import APIClient
 from application.services.auth_service import AuthService, current_user_from_storage
 from application.utils.mock_discord import is_mock_discord
 from models import Role, User
+
+logger = logging.getLogger(__name__)
 
 # Supporting variables
 referrer_path = None
@@ -121,7 +125,12 @@ def create() -> None:
     def login(client: Client) -> Optional[RedirectResponse]:
         if app.storage.user.get('authenticated', False):
             return RedirectResponse('/')
-        return RedirectResponse(config["OAUTH_URL"])
+        # CSRF protection: bind this login attempt to a one-time state token
+        # that must come back on the OAuth callback.
+        state = secrets.token_urlsafe(32)
+        app.storage.user['oauth_state'] = state
+        sep = '&' if '?' in config["OAUTH_URL"] else '?'
+        return RedirectResponse(f'{config["OAUTH_URL"]}{sep}state={quote(state, safe="")}')
 
     @ui.page('/logout')
     def logout(client: Client) -> Optional[RedirectResponse]:
@@ -132,9 +141,31 @@ def create() -> None:
     async def oauth_callback(client: Client):
         await client.connected()
         url = await ui.run_javascript('window.location.href')
+        expected_state = app.storage.user.pop('oauth_state', None)
         try:
             parsed_url = urlparse(url)
-            code = parse_qs(parsed_url.query)['code'][0]
+            params = parse_qs(parsed_url.query)
+
+            if 'error' in params:
+                logger.warning('OAuth callback returned error: %s', params.get('error'))
+                ui.notify('Discord login was cancelled or denied.', color='warning')
+                ui.navigate.to('/login')
+                return
+
+            returned_state = (params.get('state') or [None])[0]
+            if not expected_state or returned_state != expected_state:
+                logger.warning('OAuth state mismatch on callback.')
+                ui.notify('Login session expired or invalid. Please try again.', color='warning')
+                ui.navigate.to('/login')
+                return
+
+            code = (params.get('code') or [None])[0]
+            if not code:
+                logger.warning('OAuth callback missing authorization code.')
+                ui.notify('Login failed. Please try again.', color='warning')
+                ui.navigate.to('/login')
+                return
+
             access_token = discordClient.oauth.get_access_token(code, config["REDIRECT_URL"]).access_token
             bearer_client = APIClient(access_token, bearer=True)
             current_user = bearer_client.users.get_current_user()
@@ -161,7 +192,7 @@ def create() -> None:
                 referrer = '/'
             ui.navigate.to(referrer)
             app.storage.user.pop('referrer_path', None)
-        except Exception as e:
-            print(e)
-            ui.notify(f'Error Encountered: {e}')
+        except Exception:
+            logger.exception('Unexpected error during OAuth callback')
+            ui.notify('An unexpected error occurred during login. Please try again.', color='negative')
             ui.navigate.to('/login')
