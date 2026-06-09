@@ -24,6 +24,10 @@ class StreamRoomDialog(BaseMatchDialog):
                 stream_room_options.update({s.id: s.name for s in stream_rooms})
                 selected_stream_room = ui.select(
                     label='Stage', options=stream_room_options, value=default_stream_room, with_input=True)
+                stream_candidate_checkbox = ui.checkbox(
+                    'Stream candidate',
+                    value=self.match.is_stream_candidate,
+                )
 
             async def submit():
                 stream_room_id = selected_stream_room.value
@@ -32,6 +36,10 @@ class StreamRoomDialog(BaseMatchDialog):
                     await self.match_service.assign_stage(
                         self.match.id, stream_room_id if stream_room_id else None, actor=actor,
                     )
+                    if stream_candidate_checkbox.value != self.match.is_stream_candidate:
+                        await self.match_service.set_stream_candidate(
+                            self.match.id, stream_candidate_checkbox.value, actor=actor,
+                        )
                     with self.dialog:
                         ui.notify(f'Stage updated.', color='positive')
                         dialog.close()

@@ -32,8 +32,6 @@ def admin_schedule_page() -> None:
                 'sortable': True, 'filterable': True},
             {'name': 'players', 'label': 'Players',
                 'field': 'players', 'filterable': True},
-            {'name': 'acknowledgments', 'label': 'Acknowledgments',
-                'field': 'acknowledgments'},
             {'name': 'commentators', 'label': 'Commentators',
                 'field': 'commentators', 'filterable': True},
             {'name': 'trackers', 'label': 'Trackers',

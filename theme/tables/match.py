@@ -1,6 +1,6 @@
 import asyncio
 
-from nicegui import Client, app, background_tasks, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchService, MatchWatcherService, UserService
 from theme.dialog import ConfirmationDialog, UserDialog
@@ -185,30 +185,9 @@ class MatchTableView:
         # Resolve current user's discord_id once for slot templates that need it.
         discord_id = app.storage.user.get('discord_id', None)
         discord_id_js = f"'{discord_id}'" if discord_id else 'null'
-        # Acknowledgment column slot.
-        # Cell value shape: [(name, acknowledged: bool, auto: bool, timestamp_display: str, discord_id: str|null), ...]
-        self.table.add_slot('body-cell-acknowledgments', f'''<q-td :props="props">
-            <div class="wrap">
-                <template v-for="(item, idx) in props.value">
-                    <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                        <q-icon v-if="item[1]" name="check_circle" color="green" size="xs" />
-                        <q-icon v-else name="schedule" color="orange" size="xs" />
-                        <span :style="'color: ' + (item[1] ? '#4CAF50' : '#FF9800') + '; font-weight: ' + (item[1] ? 'bold' : 'normal')">
-                            {{{{ item[0] }}}}<span v-if="item[1] && item[2]" style="font-style: italic; font-weight: normal;"> (auto)</span>
-                        </span>
-                        <q-btn v-if="!item[1] && item[4] && item[4] == {discord_id_js}"
-                               icon="check" color="primary" size="xs" dense flat
-                               @click="$parent.$emit('acknowledge_match', props.row)">
-                            <q-tooltip>Acknowledge</q-tooltip>
-                        </q-btn>
-                        <q-tooltip v-if="item[1] && item[3]">Acknowledged {{{{ item[3] }}}}</q-tooltip>
-                    </div>
-                </template>
-            </div>
-        </q-td>''')
 
         async def handle_acknowledge_match(row, client):
-            async with client:
+            with client:
                 discord_id = app.storage.user.get('discord_id', None)
                 if not discord_id:
                     ui.notify('You must be logged in to acknowledge.', color='warning')
@@ -225,7 +204,7 @@ class MatchTableView:
                 except ValueError as e:
                     ui.notify(str(e), color='warning')
 
-        self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args, Client.current)))
+        self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args, context.client)))
         # Add slot for player names with winner indicator
         if self.admin_controls:
             self.table.add_slot('body-cell-players', '''<q-td :props="props">
@@ -233,10 +212,20 @@ class MatchTableView:
                     <div>
                         <template v-for="(player, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px;">
+                                <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                                        name="check_circle" color="green" size="xs">
+                                    <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{ props.row.acknowledgments[idx][3] }}</q-tooltip>
+                                </q-icon>
+                                <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
+                                        name="schedule" color="orange" size="xs">
+                                    <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                                </q-icon>
                                 <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">
                                     {{ player[0] }}
                                     <span v-if="player[2]" style="color: #999; font-style: italic;"> ({{ player[2] }})</span>
                                 </span>
+                                <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                                      style="font-style: italic; color: #999; font-size: 0.85em;"> (auto)</span>
                             </div>
                         </template>
                     </div>
@@ -247,11 +236,26 @@ class MatchTableView:
                 </div>
             </q-td>''')
         else:
-            self.table.add_slot('body-cell-players', '''<q-td :props="props">
+            self.table.add_slot('body-cell-players', f'''<q-td :props="props">
                 <div>
                     <template v-for="(player, idx) in props.value">
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">{{ player[0] }}</span>
+                            <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                                    name="check_circle" color="green" size="xs">
+                                <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{{{ props.row.acknowledgments[idx][3] }}}}</q-tooltip>
+                            </q-icon>
+                            <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
+                                    name="schedule" color="orange" size="xs">
+                                <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                            </q-icon>
+                            <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">{{{{ player[0] }}}}</span>
+                            <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                                  style="font-style: italic; color: #999; font-size: 0.85em;"> (auto)</span>
+                            <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][4] && props.row.acknowledgments[idx][4] == {discord_id_js}"
+                                   icon="check" color="primary" size="xs" dense flat
+                                   @click="$parent.$emit('acknowledge_match', props.row)">
+                                <q-tooltip>Acknowledge</q-tooltip>
+                            </q-btn>
                         </div>
                     </template>
                 </div>
@@ -446,7 +450,7 @@ class MatchTableView:
 
         async def handle_acknowledge_crew(role, event, client):
             from application.services import CrewService
-            async with client:
+            with client:
                 row = event.args['row']
                 idx = event.args['idx']
                 match_id = row['id']
@@ -470,8 +474,8 @@ class MatchTableView:
                 except ValueError as e:
                     ui.notify(str(e), color='warning')
 
-        self.table.on('acknowledge_commentator', lambda event: background_tasks.create(handle_acknowledge_crew('commentator', event, Client.current)))
-        self.table.on('acknowledge_tracker', lambda event: background_tasks.create(handle_acknowledge_crew('tracker', event, Client.current)))
+        self.table.on('acknowledge_commentator', lambda event: background_tasks.create(handle_acknowledge_crew('commentator', event, context.client)))
+        self.table.on('acknowledge_tracker', lambda event: background_tasks.create(handle_acknowledge_crew('tracker', event, context.client)))
 
         if discord_id:
             self.table.add_slot('body-cell-watch', '''<q-td :props="props">
@@ -581,7 +585,7 @@ class MatchTableView:
                     </q-btn>
                     <template v-else>
                         <span>{{ props.value }}</span>
-                        <q-badge v-if="props.row.is_stream_candidate" color="amber" label="candidate" class="q-ml-xs" />
+                        <q-badge v-if="props.row.is_stream_candidate && !props.value" color="amber" label="candidate" class="q-ml-xs" />
                         <q-btn v-if="!props.value && props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
                                icon="movie" color="primary" size="sm" class="q-ml-xs">
                             Assign
@@ -709,10 +713,25 @@ class MatchTableView:
                         <div v-if="field.key === 'players'">
                             <template v-for="(player, idx) in props.row[field.key]">
                                 <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
+                                    <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                                            name="check_circle" color="green" size="xs">
+                                        <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{{{ props.row.acknowledgments[idx][3] }}}}</q-tooltip>
+                                    </q-icon>
+                                    <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
+                                            name="schedule" color="orange" size="xs">
+                                        <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                                    </q-icon>
                                     <span :style="player[1] === 1 ? 'color: green; font-weight: bold;' : ''">
                                         {{{{ player[0] }}}}
                                         <span v-if="{'true' if self.admin_controls else 'false'} && player[2]" style="color: #999; font-style: italic;"> ({{{{ player[2] }}}})</span>
                                     </span>
+                                    <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                                          style="font-style: italic; color: #999; font-size: 0.85em;"> (auto)</span>
+                                    <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][4] && props.row.acknowledgments[idx][4] == field.discord_id"
+                                           icon="check" color="primary" size="xs" dense flat
+                                           @click="$parent.$emit('acknowledge_match', props.row)">
+                                        <q-tooltip>Acknowledge</q-tooltip>
+                                    </q-btn>
                                 </div>
                             </template>
                         </div>
@@ -916,7 +935,7 @@ class MatchTableView:
                 <!-- For stream_room field with admin button -->
                 <template v-else-if="field.key === 'stream_room'">
                     <span v-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
-                    <q-badge v-if="props.row.is_stream_candidate" color="amber" label="candidate" class="q-ml-xs" />
+                    <q-badge v-if="props.row.is_stream_candidate && !props.row[field.key]" color="amber" label="candidate" class="q-ml-xs" />
                     <q-btn v-if="{'true' if self.admin_controls else 'false'} && !props.row[field.key]"
                            @click="$parent.$emit('edit-stream-room', {{ key: props.row.id }})"
                            icon="movie" color="primary" size="sm"
