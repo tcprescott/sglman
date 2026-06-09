@@ -37,10 +37,11 @@ sglman/
 │       └── timezone.py      # Timezone conversion utilities (Eastern ↔ UTC)
 │
 ├── pages/                   # NiceGUI top-level pages
-│   ├── home.py              # Homepage with tabs (schedule, timeline, player dashboard)
+│   ├── home.py              # Homepage with tabs (schedule, on-air, profile, player)
 │   ├── admin.py             # Admin dashboard with tabs
-│   └── home_tabs/           # Sub-tab components for home
-│   └── admin_tabs/          # Sub-tab components for admin
+│   ├── triforce_texts.py    # Player triforce text submission (per-tournament)
+│   ├── home_tabs/           # Sub-tab components for home
+│   └── admin_tabs/          # Sub-tab components for admin (reports/ is a sub-package)
 │
 ├── theme/
 │   ├── dialog/              # Modal dialogs (match, user, tournament, crew, etc.)
@@ -90,8 +91,8 @@ All loaded from `.env` (automatically by `start.sh` and Docker):
 
 | Variable | Required | Description |
 |---|---|---|
-| `DB_HOST` | yes | MySQL server hostname |
-| `DB_PORT` | yes | MySQL server port |
+| `DB_HOST` | yes | PostgreSQL server hostname |
+| `DB_PORT` | yes | PostgreSQL server port (default 5432) |
 | `DB_NAME` | yes | Database name |
 | `DB_USERNAME` | no | Database user |
 | `DB_PASSWORD` | no | Database password |
@@ -144,11 +145,12 @@ Models (models.py)
 
 | Route | File | Description |
 |---|---|---|
-| `/` | `pages/home.py` | Homepage (schedule, timeline, player dashboard) |
-| `/schedule` | `pages/home_tabs/schedule.py` | Read-only public schedule |
-| `/player` | `pages/home_tabs/player.py` | Player dashboard |
-| `/crew` | `pages/crew.py` | Crew (commentator/tracker) signup |
-| `/admin` | `pages/admin.py` | Admin dashboard (requires TOURNAMENT_ADMIN+) |
+| `/` | `pages/home.py` | Homepage (tabs: Schedule / On Air / Profile / Player) |
+| `/triforcetexts/{tournament_id}` | `pages/triforce_texts.py` | Player triforce text submission (requires login) |
+| `/admin` | `pages/admin.py` | Admin dashboard — tabs vary by role (requires login + any admin role) |
+| `/login` | `middleware/auth.py` | Discord OAuth redirect |
+| `/logout` | `middleware/auth.py` | Clears session |
+| `/oauth/callback` | `middleware/auth.py` | OAuth return handler |
 | `/api/*` | `api.py` | REST API endpoints |
 
 ### Adding a new page
@@ -168,23 +170,31 @@ pages.mypage.create()
 
 ## Models Overview (`models.py`)
 
-### Permissions enum
+### Role enum
 ```python
-class Permissions(IntEnum):
-    USER = 0
-    TOURNAMENT_ADMIN = 1
-    SUPERADMIN = 2
+class Role(str, Enum):
+    STAFF = 'staff'
+    PROCTOR = 'proctor'
+    STREAM_MANAGER = 'stream_manager'
 ```
 
+Roles are stored in the `UserRole` junction table (many-to-many). A user may hold multiple roles.
+
 ### Key models and relationships
-- **User** — Discord-authenticated users; `preferred_name` property returns `display_name` or `username`
-- **Tournament** — Tournament metadata; has `admins` (ManyToMany with User), `matches`, `players`, `teams`, `announcements`
+- **User** — Discord-authenticated users; `preferred_name` returns `display_name` or `username`
+- **UserRole** — Maps users to `Role` values; records who granted the role
+- **UserTeams** / **Team** — Team membership within a tournament
+- **Tournament** — Tournament metadata; has `admins` and `crew_coordinators` (both ManyToMany with User), `matches`, `players`, `teams`, `announcements`
 - **Match** — Core scheduling unit; lifecycle tracked via timestamps (`scheduled_at`, `seated_at`, `started_at`, `finished_at`, `confirmed_at`); `current_state` property returns human-readable state
 - **MatchPlayers** — Players in a match; stores `finish_rank` and `assigned_station`
+- **MatchAcknowledgment** — Tracks whether each player has acknowledged a match
+- **MatchWatcher** — Users who are watching a match for notifications
 - **TournamentPlayers** — Tournament enrollment
+- **TournamentNotificationPreference** — Per-user, per-tournament match notification level (`MatchNotificationLevel` enum)
 - **StreamRoom** — Named stream stage (Stage 1, Stage 2, etc.)
 - **Commentator** / **Tracker** — Crew signups with approval workflow
 - **GeneratedSeeds** — Randomizer seed URLs linked to matches
+- **TriforceText** — Player-submitted ALTTP end-game triforce screen lines; approval tracked per entry
 - **SystemConfiguration** — Key-value app settings
 - **Announcement** — Tournament announcements
 - **AuditLog** — Admin action tracking
@@ -224,15 +234,41 @@ Never store localized datetimes directly; never display raw UTC to users.
 
 ## Authentication
 
-Discord OAuth is handled by `middleware/auth.py`. User identity is stored in NiceGUI's `app.storage.user`. Check permissions before any privileged action:
+Discord OAuth is handled by `middleware/auth.py`. User identity is stored in NiceGUI's `app.storage.user` (key: `discord_id`). Access control is role-based via `UserRole` — there is no `permission` field on `User`.
+
+Use `AuthService` from `application/services/auth_service.py` to check access:
 
 ```python
-from nicegui import app
-from models import Permissions
+from application.services.auth_service import AuthService, current_user_from_storage
+from models import Role
 
-user_data = app.storage.user.get('user')
-if user_data and user_data.get('permission', 0) >= Permissions.TOURNAMENT_ADMIN:
-    # allow action
+user = await current_user_from_storage()   # returns User or None
+
+# Check a global role
+if await AuthService.has_role(user, Role.STAFF):
+    ...
+
+# Check a set of roles (returns set[Role])
+roles = await AuthService.get_roles(user)
+if Role.PROCTOR in roles:
+    ...
+
+# Higher-level helpers
+if await AuthService.can_view_admin(user):  # any admin role or tournament/crew membership
+    ...
+if await AuthService.can_crud_match(user, match):
+    ...
+```
+
+Use `@protected_page('/path')` for routes that require login. Pass `roles=` to also enforce a specific role at the route level:
+
+```python
+from middleware.auth import protected_page
+from models import Role
+
+@protected_page('/admin', roles=[Role.STAFF])
+async def admin_only_page():
+    ...
 ```
 
 ## Coding Conventions
@@ -319,21 +355,15 @@ The Discord bot starts in `main.py:init_discord_bot()` using `DISCORD_TOKEN`. Bo
 
 ## Refactoring Status
 
-The codebase is mid-refactor toward full three-layer architecture. See `REFACTORING_GUIDE.md` for detailed patterns and examples.
+The three-layer refactor is largely complete. All major domains have repositories and services. See `REFACTORING_GUIDE.md` for patterns and examples.
 
-**Completed:**
-- `MatchRepository` and `MatchService` — full match CRUD and lifecycle operations
+**Repositories** (`application/repositories/`):
+`commentator`, `match`, `stream_room`, `tournament`, `tracker`, `user`
 
-**In progress:**
-- Migrating `admin_schedule.py` to use `MatchService`
+**Services** (`application/services/`):
+`auth`, `audit`, `crew`, `discord`, `match`, `match_schedule`, `reports`, `seedgen`, `stream_room`, `tournament`, `user`
 
-**Pending:**
-- `TournamentRepository` / `TournamentService`
-- `UserRepository` / `UserService`
-- `CrewRepository` / `CrewService`
-- Remaining UI components
-
-When touching any of these areas, prefer completing the refactor to the three-layer pattern rather than adding more direct ORM calls to the UI layer.
+When touching any area, prefer the three-layer pattern over adding direct ORM queries to the UI layer.
 
 ## Reference Documents
 

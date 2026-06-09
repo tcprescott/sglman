@@ -2,7 +2,7 @@ import functools
 import os
 import re
 from typing import Iterable, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from fastapi import Request
 from nicegui import Client, app, ui
@@ -17,12 +17,22 @@ from models import Role, User
 # Supporting variables
 referrer_path = None
 
+_base_url = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+_client_id = os.getenv("DISCORD_CLIENT_ID")
+_redirect_url = os.getenv("REDIRECT_URL") or f"{_base_url}/oauth/callback"
+
 config = {
     "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
     "DISCORD_CLIENT_SECRET": os.getenv("DISCORD_CLIENT_SECRET"),
-    "REDIRECT_URL": os.getenv("REDIRECT_URL"),
-    "DISCORD_CLIENT_ID": os.getenv("DISCORD_CLIENT_ID"),
-    "OAUTH_URL": os.getenv("OAUTH_URL"),
+    "REDIRECT_URL": _redirect_url,
+    "DISCORD_CLIENT_ID": _client_id,
+    "OAUTH_URL": os.getenv("OAUTH_URL") or (
+        f"https://discord.com/api/oauth2/authorize"
+        f"?client_id={_client_id}"
+        f"&redirect_uri={quote(_redirect_url, safe='')}"
+        f"&response_type=code"
+        f"&scope=identify"
+    ),
     "STORAGE_SECRET": os.getenv("STORAGE_SECRET")
 }
 
