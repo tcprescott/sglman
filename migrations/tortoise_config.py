@@ -14,7 +14,7 @@ dbname = os.environ.get("DB_NAME")
 if not all([host, port, dbname]):
     raise ValueError("Database configuration is incomplete. Please set DB_HOST, DB_PORT, and DB_NAME environment variables.")
 
-if os.environ.get("ENVIRONMENT", "development").strip().lower() == "production" and not (username and password):
+if os.environ.get("ENVIRONMENT", "development").strip().lower() == "production" and not (username.strip() and password.strip()):
     raise ValueError("DB_USERNAME and DB_PASSWORD must be set in production.")
 
 TORTOISE_ORM = {
