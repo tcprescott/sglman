@@ -6,6 +6,7 @@ from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.player import render_player_dashboard
 from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.schedule import schedule
+from pages.home_tabs.help import help_tab
 from theme.base import BaseLayout
 
 
@@ -28,6 +29,7 @@ def create() -> None:
             {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
             {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
+            {'label': 'Help', 'icon': 'help', 'content': help_tab},
         ]
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(tabs=tabs, default_tab=tab, page_name='home', user=user, show_admin=show_admin).render()

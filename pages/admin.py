@@ -10,6 +10,7 @@ from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tourn
 from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
+from pages.admin_tabs.admin_help import admin_help_page
 from theme.base import BaseLayout
 
 
@@ -83,6 +84,7 @@ def create() -> None:
             tabs.append({'label': 'Triforce Texts', 'icon': 'star', 'content': admin_triforce_texts_page})
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
+        tabs.append({'label': 'Help', 'icon': 'help', 'content': admin_help_page})
 
         base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user, show_admin=True)
         await base_layout.render()
