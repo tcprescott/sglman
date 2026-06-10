@@ -1,5 +1,3 @@
-import asyncio
-
 from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchService, MatchWatcherService, UserService
@@ -42,8 +40,6 @@ class MatchTableView:
         self.stream_room_filter = None
         self.stream_rooms_list = []  # Will be populated in _setup_ui
         self.state_filter = None
-        self.auto_refresh_checkbox = None
-        self._auto_refresh_task = None
         # Initialize services
         self.service = MatchService()
         self.user_service = UserService()
@@ -64,23 +60,6 @@ class MatchTableView:
         # Store the stream room ID value in app.storage
         app.storage.user['stream_room_filter'] = self.stream_room_filter.value
         background_tasks.create(self.refresh())
-
-    def _on_auto_refresh_change(self, *_args, **_kwargs):
-        if self.auto_refresh_checkbox.value:
-            if not self._auto_refresh_task:
-                self._auto_refresh_task = background_tasks.create(self._auto_refresh_loop())
-        else:
-            if self._auto_refresh_task:
-                self._auto_refresh_task.cancel()
-                self._auto_refresh_task = None
-
-    async def _auto_refresh_loop(self):
-        try:
-            while self.auto_refresh_checkbox.value:
-                await self.refresh()
-                await asyncio.sleep(5)
-        except asyncio.CancelledError:
-            pass
 
     async def _load_tournaments(self):
         """Load all tournament names for the filter using service layer."""
@@ -147,11 +126,6 @@ class MatchTableView:
                         on_change=self._on_state_filter_change
                     ).classes('full-width').props('outlined dense use-chips')
                 
-                # Auto-refresh checkbox (admin only)
-                with ui.column().classes('flex-center'):
-                    if self.admin_controls:
-                        self.auto_refresh_checkbox = ui.checkbox('Auto-refresh', value=False)
-                
                 ui.space()
                 
                 # Refresh button
@@ -161,9 +135,6 @@ class MatchTableView:
         # Load filters data after UI is set up
         background_tasks.create(self._load_tournaments())
         background_tasks.create(self._load_stream_rooms())
-            
-        if self.auto_refresh_checkbox:
-            self.auto_refresh_checkbox.on('update:model-value', self._on_auto_refresh_change)
 
         with ui.column().classes('full-width') as table_container:
             self.table_container = table_container
@@ -567,10 +538,12 @@ class MatchTableView:
             if self.on_seat is not None or self.on_start is not None or self.on_finish is not None or self.on_confirm is not None:
                 self.table.add_slot('body-cell-state', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <!-- Scheduled state: show Check In button -->
-                    <q-btn v-if="props.value === 'Scheduled'" @click="$parent.$emit('seat', props)"
-                           icon="chair" color="primary" size="sm">
-                        Check In
-                    </q-btn>
+                    <div v-if="props.value === 'Scheduled'" style="display: flex; justify-content: center;">
+                        <q-btn @click="$parent.$emit('seat', props)"
+                               icon="chair" color="primary" size="sm">
+                            Check In
+                        </q-btn>
+                    </div>
                     
                     <!-- Checked In: show Start button and timestamp -->
                     <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
