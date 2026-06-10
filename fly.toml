@@ -3,7 +3,7 @@
 # UI state are in-process singletons. Do NOT scale count > 1 or enable scale-to-zero.
 # See docs/deployment.md "Single worker — required".
 
-app = "sglman"            # confirm/replace at `fly launch`
+app = "sglonsite"            # confirm/replace at `fly launch`
 primary_region = "iad"    # pick the region closest to your users
 
 [build]
