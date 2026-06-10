@@ -5,6 +5,7 @@ Repositories handle all database queries and return domain objects.
 They should NOT contain business logic - only data fetching/persistence.
 """
 
+from .api_token_repository import ApiTokenRepository
 from .audit_repository import AuditRepository
 from .commentator_repository import CommentatorRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
@@ -19,6 +20,7 @@ from .user_repository import UserRepository
 from .user_role_repository import UserRoleRepository
 
 __all__ = [
+    'ApiTokenRepository',
     'AuditRepository',
     'CommentatorRepository',
     'MatchAcknowledgmentRepository',

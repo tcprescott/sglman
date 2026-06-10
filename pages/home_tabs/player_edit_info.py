@@ -4,6 +4,7 @@ from nicegui import app, ui
 
 from application.services import UserService
 from models import User
+from pages.home_tabs.api_tokens_section import render_api_tokens_section
 
 
 async def render_edit_info_tab():
@@ -151,3 +152,6 @@ async def render_edit_info_tab():
         # Save Button
         with ui.row().classes('button-row'):
             ui.button('Save Changes', icon='save', on_click=save_info).props('color=primary size=lg')
+
+        # API token management (self-contained; saves independently of the form above)
+        await render_api_tokens_section(user)

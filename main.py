@@ -78,9 +78,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await close_db()
 
 # Create FastAPI app with metadata for API documentation
+API_DESCRIPTION = """
+REST API for managing tournaments, matches, players, crew, and event
+operations for SGL On Site.
+
+## Authentication
+
+Every endpoint requires a **personal API token**. Generate one on your
+profile page (Edit Your Information -> API Tokens), then send it as a bearer
+token:
+
+    Authorization: Bearer sglman_pat_xxxxxxxx...
+
+A token acts with the exact permissions and scope of the user who created it --
+the same role checks that gate the web UI apply here. A token marked
+**read-only** can call read (GET) endpoints only.
+
+Click **Authorize** and paste your token to try the endpoints below.
+"""
+
 app: FastAPI = FastAPI(
     title="SGL On Site API",
-    description="API for managing tournaments, matches, players, commentators, and trackers for SGL On Site events",
+    description=API_DESCRIPTION,
     version="1.0.0",
     lifespan=lifespan,
     # By default, API docs are accessible at /docs (Swagger) and /redoc (ReDoc)
@@ -88,10 +107,21 @@ app: FastAPI = FastAPI(
     redoc_url="/api/redoc",  # Customize the ReDoc URL
 )
 
+_HEADER_TRANS = str.maketrans({
+    '–': '-',   # en-dash
+    '—': '-',   # em-dash
+    '‘': "'",   # left single quote
+    '’': "'",   # right single quote
+    '“': '"',   # left double quote
+    '”': '"',   # right double quote
+    '·': '.',   # middle dot
+})
+
+
 class FunFactMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        response.headers['X-Fun-Fact'] = random_fact()
+        response.headers['X-Fun-Fact'] = random_fact().translate(_HEADER_TRANS)
         return response
 
 app.add_middleware(FunFactMiddleware)

@@ -35,6 +35,24 @@ def app():
 
 @pytest.fixture
 async def client(db, app):
+    """Authenticated client: a fresh user with a (read-write) API token whose
+    bearer header is sent on every request."""
+    from application.services.api_token_service import ApiTokenService
+
+    user = await User.create(discord_id=999999, username='api-test-user')
+    _, raw_token = await ApiTokenService().create_token(user, name='test-suite')
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url='http://test',
+        headers={'Authorization': f'Bearer {raw_token}'},
+    ) as ac:
+        yield ac
+
+
+@pytest.fixture
+async def anon_client(db, app):
+    """Unauthenticated client (no bearer header)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url='http://test') as ac:
         yield ac
@@ -82,6 +100,18 @@ async def _seed_basic_data() -> dict:
 # ---------------------------------------------------------------------------
 # Empty / basic cases
 # ---------------------------------------------------------------------------
+
+
+class TestAuthRequired:
+    async def test_missing_token_is_rejected(self, anon_client):
+        response = await anon_client.get('/api/matches')
+        assert response.status_code == 401
+
+    async def test_invalid_token_is_rejected(self, anon_client):
+        response = await anon_client.get(
+            '/api/matches', headers={'Authorization': 'Bearer not-a-real-token'}
+        )
+        assert response.status_code == 401
 
 
 class TestGetMatchesEmpty:

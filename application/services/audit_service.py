@@ -77,6 +77,10 @@ class AuditActions:
     TRIFORCE_TEXT_REJECTED = 'triforce_text.rejected'
     TRIFORCE_TEXT_DELETED = 'triforce_text.deleted'
 
+    # API tokens
+    APITOKEN_CREATED = 'apitoken.created'
+    APITOKEN_REVOKED = 'apitoken.revoked'
+
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
     if details is None:

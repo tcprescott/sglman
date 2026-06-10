@@ -5,6 +5,7 @@ Services orchestrate business operations, validate data, and coordinate
 between repositories. They should NOT know about UI components.
 """
 
+from .api_token_service import ApiTokenService
 from .audit_service import AuditService
 from .auth_service import AuthService, current_user_from_storage
 from .crew_service import CrewService
@@ -22,6 +23,7 @@ from .triforce_text_service import TriforceTextService
 from .user_service import UserService
 
 __all__ = [
+    'ApiTokenService',
     'AuditService',
     'AuthService',
     'CrewService',

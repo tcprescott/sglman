@@ -39,10 +39,34 @@ class User(Model):
     audit_logs = fields.ReverseRelation["AuditLog"]
     triforce_texts = fields.ReverseRelation["TriforceText"]
     triforce_texts_moderated = fields.ReverseRelation["TriforceText"]
+    api_tokens = fields.ReverseRelation["ApiToken"]
 
     @property
     def preferred_name(self) -> str:
         return self.display_name if self.display_name else self.username
+
+
+class ApiToken(Model):
+    """A personal access token granting REST API access as its owning user.
+
+    Only the SHA-256 hash of the token is stored; the plaintext is shown once
+    at creation. A token acts with the full permissions of ``user`` unless
+    ``read_only`` is set, in which case it may only call read endpoints.
+    """
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='api_tokens')
+    name = fields.CharField(max_length=100)
+    token_hash = fields.CharField(max_length=64, unique=True, index=True)
+    token_prefix = fields.CharField(max_length=24)
+    read_only = fields.BooleanField(default=False)
+    last_used_at = fields.DatetimeField(null=True)
+    expires_at = fields.DatetimeField(null=True)
+    revoked_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'apitoken'
 
 class UserTeams(Model):
     id = fields.IntField(pk=True)

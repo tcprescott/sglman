@@ -1,0 +1,41 @@
+"""SGL On Site REST API package.
+
+Exposes a single ``router`` (aggregating every domain sub-router) that
+``main.py`` mounts under ``/api``. Every endpoint is authenticated with a
+personal bearer token; see :mod:`api.dependencies`.
+"""
+
+from fastapi import APIRouter
+
+from api.routers import (
+    audit,
+    crew,
+    match_actions,
+    matches,
+    notifications,
+    stream_room_actions,
+    stream_rooms,
+    system_config,
+    tokens,
+    tournament_actions,
+    tournaments,
+    triforce,
+    users,
+)
+
+router = APIRouter()
+router.include_router(matches.router)
+router.include_router(match_actions.router)
+router.include_router(crew.router)
+router.include_router(tournaments.router)
+router.include_router(tournament_actions.router)
+router.include_router(stream_rooms.router)
+router.include_router(stream_room_actions.router)
+router.include_router(users.router)
+router.include_router(triforce.router)
+router.include_router(notifications.router)
+router.include_router(audit.router)
+router.include_router(system_config.router)
+router.include_router(tokens.router)
+
+__all__ = ['router']
