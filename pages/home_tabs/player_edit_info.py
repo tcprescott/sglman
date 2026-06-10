@@ -4,7 +4,7 @@ import asyncio
 
 from nicegui import app, ui
 
-from application.services import UserService
+from application.services import TournamentNotificationService, UserService
 from models import User
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 
@@ -86,6 +86,20 @@ async def render_edit_info_tab():
         player_tournaments = tournament_data['player_tournaments']
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
+        # Per-tournament match notification preferences
+        notification_service = TournamentNotificationService()
+        active_tournaments = await notification_service.get_active_tournaments()
+        existing_prefs = await notification_service.get_user_preferences(user)
+        prefs_by_tournament = {p.tournament_id: p for p in existing_prefs}
+
+        level_options = {
+            'none': 'None',
+            'streamed': 'Streamed only',
+            'streamed_and_candidates': 'Streamed & Candidates',
+            'all': 'All matches',
+        }
+        pref_widgets = {}
+
         personal_token = {'n': 0}
 
         async def on_personal_change():
@@ -129,6 +143,22 @@ async def render_edit_info_tab():
             show_saved()
             mark_clean()
 
+        async def on_notification_pref_change(tournament_id: int):
+            mark_dirty()
+            show_saving()
+            try:
+                await notification_service.upsert_preference(
+                    user=user,
+                    tournament_id=tournament_id,
+                    match_notifications=pref_widgets[tournament_id].value,
+                )
+            except ValueError as e:
+                show_error(str(e))
+                ui.notify(str(e), color='warning')
+                return
+            show_saved()
+            mark_clean()
+
         # Personal Information Section
         with ui.card().classes('card-full-width'):
             ui.label('Personal Information').classes('section-title')
@@ -160,6 +190,27 @@ async def render_edit_info_tab():
                 value=user.dm_notifications,
                 on_change=on_personal_change,
             )
+
+            ui.separator().classes('separator-spacing')
+            ui.label('Match Notification Preferences').classes('input-label')
+            ui.label(
+                'Choose when to receive Discord DMs about scheduled matches. '
+                '"Streamed & Candidates" also alerts you when a match may be streamed.'
+            ).classes('text-caption text-grey-7')
+
+            if not active_tournaments:
+                ui.label('No active tournaments.').classes('text-muted')
+            else:
+                for tournament in active_tournaments:
+                    existing = prefs_by_tournament.get(tournament.id)
+                    current_level = existing.match_notifications if existing else 'none'
+                    with ui.row().classes('items-center full-width q-my-xs'):
+                        ui.label(tournament.name).classes('col-grow')
+                        pref_widgets[tournament.id] = ui.select(
+                            options=level_options,
+                            value=current_level,
+                            on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
+                        ).classes('col-auto').style('min-width: 200px')
 
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]

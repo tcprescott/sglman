@@ -2,10 +2,9 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.services import MatchService, UserService
+from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
-from theme.dialog.tournament_notification_dialog import TournamentNotificationDialog
 
 
 def schedule():
@@ -19,20 +18,6 @@ def schedule():
             ui.space()
             if not discord_id:
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary')
-            else:
-                async def open_notification_dialog():
-                    user = await UserService().get_current_user_from_storage(discord_id)
-                    if user:
-                        dialog = TournamentNotificationDialog(user=user)
-                        await dialog.open()
-                    else:
-                        ui.notify('Could not find your user account.', color='warning')
-
-                ui.button(
-                    'Manage Notifications',
-                    icon='notifications',
-                    on_click=open_notification_dialog,
-                ).props('color=secondary outline')
 
         ui.separator().classes('separator-spacing')
 
