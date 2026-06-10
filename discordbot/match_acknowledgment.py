@@ -78,7 +78,7 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         except Exception:
             logger.warning("Could not disable match_ack button (match_id=%s)", match_id)
 
-        await _send(interaction, match_ack_confirmation(match_id, player_names))
+        await _send(interaction, match_ack_confirmation(player_names))
     except ValueError as e:
         await _send(interaction, str(e))
     except Exception:

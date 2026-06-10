@@ -314,11 +314,12 @@ class MatchService:
         await self._seed_acknowledgments(match, player_ids, actor)
 
         # Notify participants of the newly scheduled match
-        await match.fetch_related('tournament')
+        await match.fetch_related('tournament', 'players__user', 'stream_room')
         msg = scheduled_dm(
-            match.id,
             match.tournament.name,
             format_eastern_display(match.scheduled_at),
+            player_names=[p.user.preferred_name for p in match.players],
+            stream_room_name=match.stream_room.name if match.stream_room else '',
         )
         discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
         discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
@@ -472,11 +473,12 @@ class MatchService:
                 match, rescheduled=scheduled_at_changed,
             ))
             if scheduled_at_changed:
-                await match.fetch_related('tournament')
+                await match.fetch_related('tournament', 'players__user', 'stream_room')
                 msg = rescheduled_dm(
-                    match.id,
                     match.tournament.name,
                     format_eastern_display(new_scheduled_at),
+                    player_names=[p.user.preferred_name for p in match.players],
+                    stream_room_name=match.stream_room.name if match.stream_room else '',
                 )
                 discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
                 notified_ids = await self._collect_notified_discord_ids(match)
@@ -544,9 +546,12 @@ class MatchService:
 
         await self._seed_acknowledgments(match, player_ids, actor)
 
-        await match.fetch_related('tournament')
+        await match.fetch_related('tournament', 'players__user', 'stream_room')
         msg = scheduled_dm(
-            match.id, match.tournament.name, format_eastern_display(match.scheduled_at),
+            match.tournament.name,
+            format_eastern_display(match.scheduled_at),
+            player_names=[p.user.preferred_name for p in match.players],
+            stream_room_name=match.stream_room.name if match.stream_room else '',
         )
         discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
         discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
@@ -711,8 +716,15 @@ class MatchService:
             actor, AuditActions.MATCH_SEATED, {'match_id': match.id},
         )
 
-        await match.fetch_related('tournament')
-        msg = checked_in_dm(match.id, match.tournament.name)
+        await match.fetch_related('tournament', 'players__user', 'stream_room')
+        msg = checked_in_dm(
+            match.tournament.name,
+            player_names=[p.user.preferred_name for p in match.players],
+            scheduled_at_display=(
+                format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
+            ),
+            stream_room_name=match.stream_room.name if match.stream_room else '',
+        )
         discord_queue.enqueue(self.match_schedule_service.notify_match_participants(match, msg))
 
         match_events.publish(match.id)
@@ -897,7 +909,7 @@ class MatchService:
 
         existing = await self.ack_repository.get(match, user)
         if existing and existing.acknowledged_at is not None:
-            raise ValueError(f"You have already acknowledged Match ID {match.id}.")
+            raise ValueError("You have already acknowledged this match.")
 
         ack = await self.ack_repository.upsert(match, user, acknowledged=True, auto=False)
         await self.audit_service.write_log(

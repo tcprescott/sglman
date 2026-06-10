@@ -22,7 +22,20 @@ from application.utils.discord_messages import (
     state_changed_dm,
     stream_candidate_dm,
 )
+from application.utils.timezone import format_eastern_display
 from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, MatchWatcher, User
+
+
+def _match_descriptor(match: Match) -> dict:
+    """Extract human-readable match fields from a match with ``players__user``,
+    ``stream_room`` (and ``scheduled_at``) loaded, for passing to message builders."""
+    return {
+        'player_names': [p.user.preferred_name for p in match.players],
+        'scheduled_at_display': (
+            format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
+        ),
+        'stream_room_name': match.stream_room.name if match.stream_room else '',
+    }
 
 
 class MatchScheduleService:
@@ -65,7 +78,7 @@ class MatchScheduleService:
         await self.audit_service.write_log(
             actor, audit_action, {'match_id': match.id},
         )
-        await match.fetch_related('tournament')
+        await match.fetch_related('tournament', 'players__user', 'stream_room')
         discord_queue.enqueue(self.notify_match_participants(match, build_message(match)))
         match_events.publish(match.id)
 
@@ -79,7 +92,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="seated_at",
             audit_action=AuditActions.MATCH_SEATED,
-            build_message=lambda m: checked_in_dm(m.id, m.tournament.name),
+            build_message=lambda m: checked_in_dm(m.tournament.name, **_match_descriptor(m)),
         )
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -94,7 +107,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="started_at",
             audit_action=AuditActions.MATCH_STARTED,
-            build_message=lambda m: state_changed_dm(m.id, m.tournament.name, "Started"),
+            build_message=lambda m: state_changed_dm(m.tournament.name, "Started", **_match_descriptor(m)),
         )
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -109,7 +122,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="finished_at",
             audit_action=AuditActions.MATCH_FINISHED,
-            build_message=lambda m: state_changed_dm(m.id, m.tournament.name, "Finished"),
+            build_message=lambda m: state_changed_dm(m.tournament.name, "Finished", **_match_descriptor(m)),
         )
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -124,7 +137,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="confirmed_at",
             audit_action=AuditActions.MATCH_CONFIRMED,
-            build_message=lambda m: state_changed_dm(m.id, m.tournament.name, "Confirmed"),
+            build_message=lambda m: state_changed_dm(m.tournament.name, "Confirmed", **_match_descriptor(m)),
         )
     
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
@@ -156,7 +169,7 @@ class MatchScheduleService:
             try:
                 # Fetch match with related data
                 match = await Match.get(id=match_id).prefetch_related(
-                    'tournament', 'players', 'players__user'
+                    'tournament', 'players', 'players__user', 'stream_room'
                 )
 
                 if not await AuthService.can_transition_match(actor, match):
@@ -186,14 +199,16 @@ class MatchScheduleService:
                 await match.save()
                 
                 # Send DMs to players in the background (respects dm_notifications opt-out)
+                descriptor = _match_descriptor(match)
+
                 async def _send_seed_dms() -> None:
                     for player in match.players:
                         if player.user.discord_id and player.user.dm_notifications:
                             dm_message = seed_dm(
-                                player.user.display_name or player.user.username,
-                                match.id,
+                                player.user.preferred_name,
                                 match.tournament.name,
                                 seed_url,
+                                **descriptor,
                             )
                             await self.discord_service.send_dm(player.user.discord_id, dm_message)
 
@@ -326,12 +341,11 @@ class MatchScheduleService:
         """
         try:
             await match.fetch_related('tournament', 'stream_room')
-            from application.utils.timezone import format_eastern_display
             scheduled_display = format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
             players = await MatchPlayers.filter(match=match).prefetch_related('user')
             player_names = [p.user.preferred_name for p in players]
             message = acknowledgment_request_dm(
-                match.id, match.tournament.name, scheduled_display,
+                match.tournament.name, scheduled_display,
                 rescheduled=rescheduled,
                 stream_room_name=match.stream_room.name if match.stream_room else '',
                 player_names=player_names,
@@ -399,13 +413,13 @@ class MatchScheduleService:
             subscribers = await TournamentNotificationRepository().get_stream_candidate_subscribers(
                 match.tournament_id
             )
-            await match.fetch_related('tournament')
+            await match.fetch_related('tournament', 'players__user')
             scheduled_display = ''
             if match.scheduled_at:
-                from application.utils.timezone import format_eastern_display
                 scheduled_display = format_eastern_display(match.scheduled_at)
             msg = stream_candidate_dm(
-                match.id, match.tournament.name, scheduled_display,
+                match.tournament.name, scheduled_display,
+                player_names=[p.user.preferred_name for p in match.players],
             )
             for user in subscribers:
                 if user.discord_id not in exclude_discord_ids:

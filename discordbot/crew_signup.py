@@ -4,6 +4,8 @@ Discord crew signup interaction handler and view factory.
 
 import discord
 
+from application.utils.discord_messages import crew_signup_confirmation
+
 
 CUSTOM_ID_PREFIX = 'crew_signup'
 
@@ -74,8 +76,13 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
 
     try:
         await match_service.signup_crew(match_id, user, role)
+
+        from models import MatchPlayers
+        players = await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
+        player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
+
         await interaction.response.send_message(
-            f'You have been signed up as a **{role}** for Match ID {match_id}. Awaiting admin approval.',
+            crew_signup_confirmation(role, player_names),
             ephemeral=True,
         )
     except ValueError as e:

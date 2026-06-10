@@ -82,7 +82,7 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
         except Exception:
             logger.warning("Could not disable crew_ack button (crew_id=%s)", crew_id)
 
-        await _send(interaction, crew_ack_confirmation(crew_type, match_id, player_names))
+        await _send(interaction, crew_ack_confirmation(crew_type, player_names))
     except ValueError as e:
         await _send(interaction, str(e))
     except Exception:

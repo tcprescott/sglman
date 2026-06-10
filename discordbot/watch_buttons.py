@@ -7,6 +7,8 @@ can opt out of further notifications without leaving Discord.
 
 import discord
 
+from application.utils.discord_messages import unwatch_confirmation
+
 
 CUSTOM_ID_PREFIX = 'match_watch'
 
@@ -58,13 +60,11 @@ async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:
         await interaction.response.send_message(str(e), ephemeral=True)
         return
 
-    if removed:
-        await interaction.response.send_message(
-            f'You are no longer watching match ID {match_id}.',
-            ephemeral=True,
-        )
-    else:
-        await interaction.response.send_message(
-            f'You were not watching match ID {match_id}.',
-            ephemeral=True,
-        )
+    from models import MatchPlayers
+    players = await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
+    player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
+
+    await interaction.response.send_message(
+        unwatch_confirmation(player_names, was_watching=removed),
+        ephemeral=True,
+    )

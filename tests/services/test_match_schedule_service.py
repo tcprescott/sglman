@@ -5,7 +5,52 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.match_schedule_service import MatchScheduleService
-from application.utils.discord_messages import seed_dm, stream_candidate_dm
+from application.utils.discord_messages import (
+    checked_in_dm,
+    scheduled_dm,
+    seed_dm,
+    state_changed_dm,
+    stream_candidate_dm,
+    _players_label,
+)
+
+
+class TestPlayersLabel:
+    def test_two_players_uses_vs(self):
+        assert _players_label(["Alice", "Bob"]) == "Alice vs Bob"
+
+    def test_three_players_comma_joined(self):
+        assert _players_label(["A", "B", "C"]) == "A, B, C"
+
+    def test_empty_returns_blank(self):
+        assert _players_label(None) == ""
+        assert _players_label([]) == ""
+
+
+class TestMatchInfoBlock:
+    def test_stage_omitted_when_no_stream_room(self):
+        msg = scheduled_dm(
+            "Test", "2025-01-15 14:30 EST", player_names=["Alice", "Bob"]
+        )
+        assert "Stage:" not in msg
+        assert "Players: Alice vs Bob" in msg
+
+    def test_stage_included_when_assigned(self):
+        msg = scheduled_dm(
+            "Test", "2025-01-15 14:30 EST",
+            player_names=["Alice", "Bob"], stream_room_name="Stage 1",
+        )
+        assert "Stage: Stage 1" in msg
+
+    def test_state_changed_has_no_match_id(self):
+        msg = state_changed_dm("Test", "Started", player_names=["Alice", "Bob"])
+        assert "Match ID" not in msg
+        assert "Alice vs Bob" in msg
+
+    def test_checked_in_has_no_match_id(self):
+        msg = checked_in_dm("Test", player_names=["Alice", "Bob"])
+        assert "Match ID" not in msg
+        assert "Alice vs Bob" in msg
 
 
 class MockTournament:
@@ -18,7 +63,7 @@ class MockMatch:
 
     def __init__(self, *, seated_at=None, started_at=None, finished_at=None,
                  confirmed_at=None, id=1, stream_room_id=None, tournament_id=1,
-                 scheduled_at=None):
+                 scheduled_at=None, players=None, stream_room=None):
         self.id = id
         self.seated_at = seated_at
         self.started_at = started_at
@@ -28,6 +73,8 @@ class MockMatch:
         self.tournament_id = tournament_id
         self.scheduled_at = scheduled_at or datetime(2025, 1, 15, 19, 30)
         self.tournament = MockTournament()
+        self.players = players if players is not None else []
+        self.stream_room = stream_room
         self.save = AsyncMock()
         self.fetch_related = AsyncMock()
 
@@ -206,20 +253,28 @@ class TestFullLifecycle:
 
 
 class TestStreamCandidateDm:
-    def test_contains_match_id(self):
-        msg = stream_candidate_dm(42, "ALttPR Open", "2025-01-15 14:30 EST")
-        assert "42" in msg
+    def test_contains_player_names(self):
+        msg = stream_candidate_dm(
+            "ALttPR Open", "2025-01-15 14:30 EST", player_names=["Alice", "Bob"]
+        )
+        assert "Alice vs Bob" in msg
+
+    def test_omits_match_id(self):
+        msg = stream_candidate_dm(
+            "ALttPR Open", "2025-01-15 14:30 EST", player_names=["Alice", "Bob"]
+        )
+        assert "Match ID" not in msg
 
     def test_contains_tournament_name(self):
-        msg = stream_candidate_dm(1, "ALttPR Open", "2025-01-15 14:30 EST")
+        msg = stream_candidate_dm("ALttPR Open", "2025-01-15 14:30 EST")
         assert "ALttPR Open" in msg
 
     def test_contains_scheduled_at(self):
-        msg = stream_candidate_dm(1, "Test", "2025-01-15 14:30 EST")
+        msg = stream_candidate_dm("Test", "2025-01-15 14:30 EST")
         assert "2025-01-15 14:30 EST" in msg
 
     def test_is_non_empty_string(self):
-        msg = stream_candidate_dm(1, "Test", "")
+        msg = stream_candidate_dm("Test", "")
         assert isinstance(msg, str)
         assert len(msg) > 0
 
@@ -329,24 +384,35 @@ class TestNotifyStreamCandidateSubscribers:
 
 class TestSeedDm:
     def test_contains_player_name(self):
-        msg = seed_dm("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
+        msg = seed_dm("Alice", "ALttPR Open", "https://alttpr.com/h/abc")
         assert "Alice" in msg
 
-    def test_contains_match_id(self):
-        msg = seed_dm("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
-        assert "42" in msg
+    def test_omits_match_id(self):
+        msg = seed_dm(
+            "Alice", "ALttPR Open", "https://alttpr.com/h/abc",
+            player_names=["Alice", "Bob"],
+        )
+        assert "Match ID" not in msg
+        assert "ID:" not in msg
+
+    def test_contains_player_names_block(self):
+        msg = seed_dm(
+            "Alice", "ALttPR Open", "https://alttpr.com/h/abc",
+            player_names=["Alice", "Bob"],
+        )
+        assert "Alice vs Bob" in msg
 
     def test_contains_tournament_name(self):
-        msg = seed_dm("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
+        msg = seed_dm("Alice", "ALttPR Open", "https://alttpr.com/h/abc")
         assert "ALttPR Open" in msg
 
     def test_contains_seed_url(self):
         url = "https://alttpr.com/h/abc123"
-        msg = seed_dm("Alice", 42, "ALttPR Open", url)
+        msg = seed_dm("Alice", "ALttPR Open", url)
         assert url in msg
 
     def test_is_non_empty_string(self):
-        msg = seed_dm("Bob", 1, "OoTR", "https://ootrandomizer.com/seed/1")
+        msg = seed_dm("Bob", "OoTR", "https://ootrandomizer.com/seed/1")
         assert isinstance(msg, str)
         assert len(msg) > 0
 

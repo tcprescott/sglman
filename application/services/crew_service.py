@@ -173,7 +173,6 @@ class CrewService:
         players = await match.players.all().prefetch_related('user')
         message = crew_assignment_dm(
             crew_type=crew_type,
-            match_id=match.id,
             match_title=match.title or None,
             scheduled_at_display=format_eastern_display(match.scheduled_at) if match.scheduled_at else '',
             stream_room_name=match.stream_room.name if match.stream_room else None,
