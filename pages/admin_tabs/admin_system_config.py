@@ -1,6 +1,6 @@
 """Admin System Configuration Page"""
 
-from datetime import date
+from datetime import date, time
 
 from nicegui import ui
 
@@ -34,6 +34,8 @@ async def admin_system_config_page() -> None:
     max_players = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_PLAYERS)
     max_stages = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_STAGES)
     reminder_lead = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
+    tournament_hours = await SystemConfigService.get_tournament_hours()
+    event_start, event_end = await SystemConfigService.get_event_window()
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -61,6 +63,29 @@ async def admin_system_config_page() -> None:
             ).classes('w-full')
             ui.label('How far ahead of a shift to DM volunteers. Blank uses 60 minutes.').classes('text-caption text-grey')
 
+        # --- Per-day tournament hours ---
+        from datetime import timedelta
+
+        ui.separator().classes('separator-spacing')
+        ui.label('Tournament Hours').classes('text-subtitle1 text-bold')
+        ui.label(
+            'Set the window during which matches may start each day. '
+            'Matches cannot be scheduled outside these hours. Leave a day blank to allow any time.'
+        ).classes('text-caption text-grey')
+
+        hours_inputs: dict[date, dict] = {}
+        current = event_start
+        while current <= event_end:
+            window = tournament_hours.get(current)
+            open_val = window[0].strftime('%H:%M') if window else ''
+            close_val = window[1].strftime('%H:%M') if window else ''
+            with ui.row().classes('items-center gap-3 q-mb-xs'):
+                ui.label(current.isoformat()).classes('w-28 text-mono')
+                open_input = ui.input('Open', value=open_val).props('type=time dense').classes('w-28')
+                close_input = ui.input('Close', value=close_val).props('type=time dense').classes('w-28')
+                hours_inputs[current] = {'open': open_input, 'close': close_input}
+            current += timedelta(days=1)
+
         async def save():
             actor = await current_user_from_storage()
             try:
@@ -85,11 +110,20 @@ async def admin_system_config_page() -> None:
                 stages_raw = int_str(stages_input.value)
                 reminder_raw = int_str(reminder_lead_input.value)
 
+                # Build per-day tournament hours mapping
+                hours_mapping: dict[date, tuple[str, str]] = {}
+                for d, fields in hours_inputs.items():
+                    open_str = (fields['open'].value or '').strip()
+                    close_str = (fields['close'].value or '').strip()
+                    if open_str and close_str:
+                        hours_mapping[d] = (open_str, close_str)
+
                 await SystemConfigService.set_raw(KEY_EVENT_START_DATE, start_raw, actor)
                 await SystemConfigService.set_raw(KEY_EVENT_END_DATE, end_raw, actor)
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_PLAYERS, players_raw, actor)
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_STAGES, stages_raw, actor)
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
+                await SystemConfigService.set_tournament_hours(hours_mapping, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return

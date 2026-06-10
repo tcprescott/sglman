@@ -1,6 +1,6 @@
 from nicegui import background_tasks, ui
 
-from application.services import CrewService, MatchService, MatchWatcherService, UserService, current_user_from_storage
+from application.services import CrewService, MatchService, MatchSuggestionService, MatchWatcherService, UserService, current_user_from_storage
 from application.repositories import (
     MatchAcknowledgmentRepository,
     UserRepository,
@@ -272,6 +272,32 @@ class AdminMatchDialog(BaseMatchDialog):
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
 
+                async def suggest_time_admin():
+                    tournament_id = selected_tournament.value
+                    pids = selected_players.value
+                    if isinstance(pids, list):
+                        pids = [p for p in pids if p is not None]
+                    else:
+                        pids = [pids] if pids else []
+                    if not tournament_id or not pids:
+                        with self.dialog:
+                            ui.notify('Select a tournament and at least one player first.', color='warning')
+                        return
+                    try:
+                        suggested = await MatchSuggestionService().suggest_match_time(
+                            tournament_id=tournament_id,
+                            player_ids=pids,
+                        )
+                        date.value = format_eastern_date(suggested)
+                        time.value = format_eastern_time(suggested)
+                        with self.dialog:
+                            ui.notify('Suggested time filled in — review and save.', color='info')
+                    except ValueError as e:
+                        with self.dialog:
+                            ui.notify(str(e), color='warning')
+
+                ui.button('Suggest a time', icon='lightbulb', on_click=suggest_time_admin).props('flat color=secondary').classes('mt-1')
+
                 comment_input = ui.textarea(
                     label='Comment (optional)',
                     value=defaults['comment'],
@@ -511,6 +537,28 @@ class UserMatchDialog(BaseMatchDialog):
                 show_all_tournaments.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
+
+                async def suggest_time_user():
+                    tournament_id = selected_tournament.value
+                    opp_id = selected_opponent.value
+                    if not tournament_id or not opp_id:
+                        with self.dialog:
+                            ui.notify('Select a tournament and opponent first.', color='warning')
+                        return
+                    try:
+                        suggested = await MatchSuggestionService().suggest_match_time(
+                            tournament_id=tournament_id,
+                            player_ids=[user.id, opp_id],
+                        )
+                        date.value = format_eastern_date(suggested)
+                        time.value = format_eastern_time(suggested)
+                        with self.dialog:
+                            ui.notify('Suggested time filled in — review and save.', color='info')
+                    except ValueError as e:
+                        with self.dialog:
+                            ui.notify(str(e), color='warning')
+
+                ui.button('Suggest a time', icon='lightbulb', on_click=suggest_time_user).props('flat color=secondary').classes('mt-1')
 
                 comment_input = ui.textarea(
                     label='Comment (optional)',

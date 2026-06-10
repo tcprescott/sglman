@@ -439,3 +439,19 @@ class VolunteerAvailability(Model):
 
     class Meta:
         table = 'volunteeravailability'
+
+
+class PlayerAvailability(Model):
+    """A window a player self-declares they can play (UTC)."""
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='player_availability', on_delete=fields.CASCADE)
+    starts_at = fields.DatetimeField(index=True)
+    ends_at = fields.DatetimeField()
+    status = fields.CharEnumField(VolunteerAvailabilityStatus, default=VolunteerAvailabilityStatus.AVAILABLE, max_length=20)
+    note = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'playeravailability'

@@ -4,8 +4,9 @@ SystemConfig Service - Business Logic Layer
 Typed accessors over the SystemConfiguration key/value table.
 """
 
-from datetime import date, datetime
-from typing import Optional
+import json
+from datetime import date, datetime, time
+from typing import Dict, Optional, Tuple
 
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -18,6 +19,7 @@ KEY_EVENT_END_DATE = 'event_end_date'
 KEY_MAX_CONCURRENT_PLAYERS = 'max_concurrent_players'
 KEY_MAX_CONCURRENT_STAGES = 'max_concurrent_stages'
 KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
+KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
 
 
 class SystemConfigService:
@@ -118,3 +120,51 @@ class SystemConfigService:
     async def get_volunteer_reminder_lead_minutes(default: int = 60) -> int:
         value = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
         return value if value is not None and value > 0 else default
+
+    @staticmethod
+    async def get_tournament_hours() -> Dict[date, Tuple[time, time]]:
+        """Return {date: (open_time, close_time)} for all configured days."""
+        raw = await SystemConfigService.get_raw(KEY_TOURNAMENT_HOURS)
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return {}
+        result: Dict[date, Tuple[time, time]] = {}
+        for date_str, window in data.items():
+            try:
+                d = date.fromisoformat(date_str)
+                open_t = time.fromisoformat(window['open'])
+                close_t = time.fromisoformat(window['close'])
+                result[d] = (open_t, close_t)
+            except (KeyError, ValueError):
+                continue
+        return result
+
+    @staticmethod
+    async def get_tournament_window_for_date(d: date) -> Optional[Tuple[time, time]]:
+        """Return (open_time, close_time) for the given date, or None if not configured."""
+        hours = await SystemConfigService.get_tournament_hours()
+        return hours.get(d)
+
+    @staticmethod
+    async def set_tournament_hours(
+        mapping: Dict[date, Tuple[str, str]], actor: User,
+    ) -> None:
+        """Persist per-day tournament hours. mapping is {date: (open_HH_MM, close_HH_MM)}."""
+        data: Dict[str, Dict[str, str]] = {}
+        for d, (open_str, close_str) in mapping.items():
+            open_str = open_str.strip()
+            close_str = close_str.strip()
+            if not open_str or not close_str:
+                continue
+            try:
+                open_t = time.fromisoformat(open_str)
+                close_t = time.fromisoformat(close_str)
+            except ValueError:
+                raise ValueError(f"Tournament hours for {d} must be in HH:MM format.")
+            if close_t <= open_t:
+                raise ValueError(f"Close time must be after open time for {d}.")
+            data[d.isoformat()] = {'open': open_str, 'close': close_str}
+        await SystemConfigService.set_raw(KEY_TOURNAMENT_HOURS, json.dumps(data), actor)

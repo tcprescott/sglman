@@ -23,11 +23,13 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
+from application.services.system_config_service import SystemConfigService
 from application.utils.discord_messages import checked_in_dm, scheduled_dm, rescheduled_dm
 from application.utils.timezone import (
     parse_eastern_datetime,
     format_eastern_datetime,
     format_eastern_display,
+    to_eastern,
 )
 
 
@@ -247,6 +249,8 @@ class MatchService:
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
+        await self._assert_within_tournament_hours(scheduled_at)
+
         # Resolve every referenced user up-front so a missing ID doesn't leave
         # an orphan Match row behind.
         players = []
@@ -411,6 +415,7 @@ class MatchService:
         if scheduled_date and scheduled_time:
             # Parse datetime - input is in Eastern, convert to UTC for storage
             scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
+            await self._assert_within_tournament_hours(scheduled_at)
             update_fields['scheduled_at'] = scheduled_at
 
         if comment is not None:
@@ -515,6 +520,8 @@ class MatchService:
             scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
+
+        await self._assert_within_tournament_hours(scheduled_at)
 
         # Resolve every player before touching the match row so a missing user
         # doesn't leave an orphan Match behind.
@@ -941,6 +948,21 @@ class MatchService:
                 match, user,
                 acknowledged=is_actor,
                 auto=is_actor,
+            )
+
+    async def _assert_within_tournament_hours(self, scheduled_at: datetime) -> None:
+        """Raise ValueError if scheduled_at (UTC) falls outside the configured window for its date."""
+        eastern_dt = to_eastern(scheduled_at)
+        d = eastern_dt.date()
+        window = await SystemConfigService.get_tournament_window_for_date(d)
+        if window is None:
+            return
+        open_t, close_t = window
+        start_time = eastern_dt.time().replace(second=0, microsecond=0)
+        if start_time < open_t or start_time >= close_t:
+            raise ValueError(
+                f"Matches on {d} can only start between "
+                f"{open_t.strftime('%H:%M')} and {close_t.strftime('%H:%M')} (US/Eastern)."
             )
 
     # Private helper methods

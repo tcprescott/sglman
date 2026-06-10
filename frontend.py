@@ -12,7 +12,7 @@ from nicegui import app, ui
 from application.utils.environment import validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.auth import create as auth_create
-from pages import admin, home, triforce_texts, volunteer
+from pages import admin, availability, home, triforce_texts, volunteer
 
 app.add_middleware(AuthMiddleware)
 
@@ -58,6 +58,7 @@ def init(fastapi_app: FastAPI) -> None:
 
     auth_create()
     admin.create()
+    availability.create()
     home.create()
     triforce_texts.create()
     volunteer.create()
