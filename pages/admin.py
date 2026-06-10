@@ -11,6 +11,7 @@ from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from pages.admin_tabs.admin_help import admin_help_page
+from pages.admin_tabs.admin_system_config import admin_system_config_page
 from theme.base import BaseLayout
 
 
@@ -84,6 +85,8 @@ def create() -> None:
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': admin_triforce_texts_page})
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
+        if is_staff:
+            tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
         tabs.append({'label': 'Help', 'icon': 'help', 'content': admin_help_page})
 
         base_layout = BaseLayout(tabs=tabs, default_tab=tab, page_name='admin', user=user, show_admin=True)
