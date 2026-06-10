@@ -343,7 +343,7 @@ class MatchTableView:
                             <q-btn v-if="props.value && props.value.some(item => item[2] == {discord_id_js})"
                                    icon="undo" color="negative" size="sm"
                                    @click="$parent.$emit('undo_{singular}', props.row)" style="margin-right: 6px;" />
-                            <q-btn v-if="props.value && !props.value.some(item => item[2] == {discord_id_js})"
+                            <q-btn v-if="props.value && !props.value.some(item => item[2] == {discord_id_js}) && !props.row.players.some(p => p[3] == {discord_id_js})"
                                    icon="assignment" color="primary" size="sm"
                                    @click="$parent.$emit('signup_{singular}', props.row)" style="margin-right: 6px;" />
                         </div>
@@ -826,7 +826,7 @@ class MatchTableView:
                                        style="margin-right: 8px;">
                                     Undo
                                 </q-btn>
-                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item[2] == field.discord_id)"
+                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item[2] == field.discord_id) && !props.row.players.some(p => p[3] == field.discord_id)"
                                        icon="assignment" color="primary" size="sm"
                                        @click="$parent.$emit('signup_' + field.key.slice(0, -1), props.row)"
                                        style="margin-right: 8px;">

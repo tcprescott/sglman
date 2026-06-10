@@ -30,6 +30,7 @@ def bypass_auth(monkeypatch):
 def service():
     svc = object.__new__(MatchService)
     svc.repository = MagicMock()
+    svc.repository.get_players = AsyncMock(return_value=[])
     svc.stream_room_repository = MagicMock()
     svc.tournament_repository = MagicMock()
     svc.user_repository = MagicMock()
@@ -165,17 +166,17 @@ class TestFormatMatchForDisplay:
 
     def test_players_formatted_as_tuples(self, service):
         player = SimpleNamespace(
-            user=SimpleNamespace(preferred_name="Alice"),
+            user=SimpleNamespace(preferred_name="Alice", discord_id="111"),
             finish_rank=1,
             assigned_station="A",
         )
         result = service._format_match_for_display(make_match(players=[player]))
-        assert result["players"] == [("Alice", 1, "A")]
+        assert result["players"] == [("Alice", 1, "A", "111")]
 
     def test_multiple_players_all_included(self, service):
         players = [
-            SimpleNamespace(user=SimpleNamespace(preferred_name="Alice"), finish_rank=1, assigned_station="A"),
-            SimpleNamespace(user=SimpleNamespace(preferred_name="Bob"), finish_rank=2, assigned_station="B"),
+            SimpleNamespace(user=SimpleNamespace(preferred_name="Alice", discord_id="111"), finish_rank=1, assigned_station="A"),
+            SimpleNamespace(user=SimpleNamespace(preferred_name="Bob", discord_id="222"), finish_rank=2, assigned_station="B"),
         ]
         result = service._format_match_for_display(make_match(players=players))
         assert len(result["players"]) == 2
@@ -557,3 +558,56 @@ class TestAcknowledgeMatch:
         assert call.kwargs["acknowledged"] is True
         assert call.kwargs["auto"] is False
         service.audit_service.write_log.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# player / crew mutual exclusion
+# ---------------------------------------------------------------------------
+
+
+class TestPlayerCrewMutualExclusion:
+    async def test_create_match_raises_when_player_is_commentator(self, service):
+        user = SimpleNamespace(id=1, preferred_name="Alice")
+        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        with pytest.raises(ValueError, match="commentator"):
+            await service.create_match(
+                tournament_id=1,
+                scheduled_date="2025-01-15",
+                scheduled_time="14:30",
+                player_ids=[1],
+                commentator_ids=[1],
+            )
+
+    async def test_create_match_raises_when_player_is_tracker(self, service):
+        user = SimpleNamespace(id=1, preferred_name="Alice")
+        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        with pytest.raises(ValueError, match="tracker"):
+            await service.create_match(
+                tournament_id=1,
+                scheduled_date="2025-01-15",
+                scheduled_time="14:30",
+                player_ids=[1],
+                tracker_ids=[1],
+            )
+
+    async def test_update_match_raises_when_player_assigned_as_commentator(self, service):
+        match = make_match(commentators=[], trackers=[])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=7)])
+        with pytest.raises(ValueError, match="commentator"):
+            await service.update_match(match_id=1, player_ids=[7], commentator_ids=[7])
+
+    async def test_update_match_raises_when_existing_player_added_as_tracker(self, service):
+        match = make_match(commentators=[], trackers=[])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=7)])
+        with pytest.raises(ValueError, match="tracker"):
+            await service.update_match(match_id=1, tracker_ids=[7])
+
+    async def test_signup_crew_raises_when_user_is_a_player(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_match()
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
+        with pytest.raises(ValueError, match="[Pp]layer"):
+            await service.signup_crew(match_id=1, user=user, role="commentator")

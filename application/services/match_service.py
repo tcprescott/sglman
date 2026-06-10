@@ -272,6 +272,12 @@ class MatchService:
                     raise ValueError(f"User {track_id} not found")
                 trackers.append(user)
 
+        player_id_set = {u.id for u in players}
+        if player_id_set & {u.id for u in commentators}:
+            raise ValueError("Players cannot be assigned as commentators for the same match")
+        if player_id_set & {u.id for u in trackers}:
+            raise ValueError("Players cannot be assigned as trackers for the same match")
+
         # Create match
         match = await self.repository.create(
             tournament_id=tournament_id,
@@ -387,6 +393,13 @@ class MatchService:
         else:
             new_player_ids = old_player_ids
         players_changed = old_player_ids != new_player_ids
+
+        effective_commentator_ids = set(commentator_ids) if commentator_ids is not None else {c.user_id for c in match.commentators}
+        effective_tracker_ids = set(tracker_ids) if tracker_ids is not None else {t.user_id for t in match.trackers}
+        if new_player_ids & effective_commentator_ids:
+            raise ValueError("Players cannot be assigned as commentators for the same match")
+        if new_player_ids & effective_tracker_ids:
+            raise ValueError("Players cannot be assigned as trackers for the same match")
 
         # Build update fields
         update_fields = {}
@@ -806,7 +819,11 @@ class MatchService:
         crew_list = match.commentators if role == 'commentator' else match.trackers
         if any(c.user_id == user.id for c in crew_list):
             raise ValueError(f"User already signed up as {role}")
-        
+
+        players = await self.repository.get_players(match)
+        if any(p.user_id == user.id for p in players):
+            raise ValueError("Players cannot sign up as crew for their own match")
+
         # Create crew entry (not approved by default)
         if role == 'commentator':
             await self.commentator_repository.create(match=match, user=user, approved=False)
@@ -990,7 +1007,7 @@ class MatchService:
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
             'state': state,
             'state_timestamp': state_timestamp,
-            'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station) for p in match.players],
+            'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station, str(p.user.discord_id) if p.user.discord_id else None) for p in match.players],
             'acknowledgments': acknowledgments_summary,
             'stream_room': match.stream_room.name if match.stream_room else '',
             'stream_room_url': (
