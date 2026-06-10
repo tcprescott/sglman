@@ -72,7 +72,13 @@ def schedule():
                     <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                 </div>
                 <!-- Scheduled state -->
-                <span v-else>{{ props.value || 'Scheduled' }}</span>
+                <div v-else style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="schedule" class="st-neutral" size="sm" />
+                        <span>{{ props.value || 'Scheduled' }}</span>
+                    </div>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
+                </div>
             </q-td>''',
             'body-cell-generated_seed': '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                 <span v-if="props.value">
@@ -107,6 +113,7 @@ def schedule():
             admin_controls=False,
             extra_slots=extra_slots,
             on_edit=on_edit if discord_id else None,
+            grid_breakpoint='lt.lg',
         )
 
         # Initial table load

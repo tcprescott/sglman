@@ -17,9 +17,10 @@ class MatchTableView:
     
     def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
-                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None):
+                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None, grid_breakpoint='lt.md'):
         self.columns = columns
         self.get_query = get_query
+        self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
         self.can_crud = can_crud
         self.player_discord_id = player_discord_id
@@ -171,7 +172,7 @@ class MatchTableView:
                 rows=[],
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
-            ).classes('match-table match-table-container').props(':grid="Quasar.Screen.lt.md"')
+            ).classes('match-table match-table-container').props(f':grid="Quasar.Screen.{self.grid_breakpoint}"')
             self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable match id (or other key field)
         self.table.add_slot('body-cell-id', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
@@ -953,7 +954,13 @@ class MatchTableView:
                     </div>
                     
                     <!-- Fallback for Scheduled or other states -->
-                    <span v-else>{{{{ props.row[field.key] || 'Scheduled' }}}}</span>
+                    <div v-else style="display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <q-icon name="schedule" class="st-neutral" size="sm" />
+                            <span>{{{{ props.row[field.key] || 'Scheduled' }}}}</span>
+                        </div>
+                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
+                    </div>
                 </template>
 
                 <!-- For generated_seed field, truncate long URLs -->

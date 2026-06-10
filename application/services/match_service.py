@@ -991,6 +991,8 @@ class MatchService:
             state_timestamp = format_eastern_datetime(match.started_at)
         elif match.seated_at:
             state_timestamp = format_eastern_datetime(match.seated_at)
+        else:
+            state_timestamp = format_eastern_datetime(match.created_at)
 
         ack_by_user: Dict[int, MatchAcknowledgment] = {
             a.user_id: a for a in (acknowledgments or [])
