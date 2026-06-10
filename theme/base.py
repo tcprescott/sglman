@@ -1,5 +1,6 @@
 from nicegui import app, ui
 
+from application.utils.easter_eggs import random_fact
 from models import User
 
 
@@ -8,14 +9,15 @@ class BaseLayout:
 
     def __init__(
         self,
-        copyright_text: str = "© 2026 Thomas Prescott",
+        copyright_text: str | None = None,
         default_tab: str = None,
         tabs: list = None,
         user: User = None,
         show_admin: bool = False,
         **_kwargs
     ):
-        self.copyright_text = copyright_text
+        self._copyright = copyright_text if copyright_text is not None else "© 2026 Thomas Prescott"
+        self._fact = random_fact() if copyright_text is None else None
         self.tabs = tabs
         self.user = user
         self.dark_mode = None
@@ -40,6 +42,16 @@ class BaseLayout:
         self.dark_mode = ui.dark_mode()
         self.dark_mode.value = dark_pref
         ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+        ui.add_head_html(
+            '<script>'
+            'console.log('
+            '"%c\U0001f3a2 SGL On Site%c — did you know? '
+            'Cats have been known to ride roller coasters purely for the airtime.",'
+            '"color:#E0A82E;font-weight:bold;font-size:14px",'
+            '"color:#9C6B12"'
+            ');'
+            '</script>'
+        )
         # Phoenix brand palette: gold primary, ember secondary; semantic
         # positive/negative/warning intentionally left at Quasar defaults.
         ui.colors(primary='#9C6B12', secondary='#C24E12', accent='#E0A82E')
@@ -128,7 +140,10 @@ class BaseLayout:
     def _render_footer(self) -> None:
         """Render the footer with copyright text."""
         with ui.footer().classes('q-pa-md footer-dark-override'):
-            ui.label(self.copyright_text).classes('text-caption')
+            with ui.row().classes('w-full justify-between items-center'):
+                ui.label(self._copyright).classes('text-caption')
+                if self._fact:
+                    ui.label(self._fact).classes('text-caption text-right')
 
     async def _render_tab_panels(self) -> None:
         """Render tab panel content with programmatically controlled panel switching."""

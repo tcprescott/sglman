@@ -11,10 +11,12 @@ from typing import AsyncGenerator
 
 from application.services.discord_service import get_discord_bot
 from application.services import discord_queue
+from application.utils.easter_eggs import random_fact
 from application.utils.mock_discord import is_mock_discord
 import asyncio
 from aerich import Command
 from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
 from tortoise import Tortoise
 
 import frontend
@@ -85,6 +87,15 @@ app: FastAPI = FastAPI(
     docs_url="/api/docs",  # Customize the Swagger UI URL
     redoc_url="/api/redoc",  # Customize the ReDoc URL
 )
+
+class FunFactMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers['X-Fun-Fact'] = random_fact()
+        return response
+
+app.add_middleware(FunFactMiddleware)
+
 app.include_router(
     api.router,
     prefix='/api',
