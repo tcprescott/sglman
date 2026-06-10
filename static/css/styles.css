@@ -16,6 +16,15 @@
     --sgl-room-header-bg: var(--sgl-charcoal);
     --sgl-room-header-text: var(--sgl-gold);
     --sgl-header-bg: var(--sgl-gold-deep);  /* light mode: amber bar (white header text stays AA-legible) */
+
+    /* Warm phoenix-tinted dark-mode surface scale — one coherent elevation ramp
+       so dark mode reads as deliberate steps, not blotchy mismatched grays.
+       --sgl-charcoal (#17120D) is the darkest "bookend" (header/footer). */
+    --sgl-dark-bg:        #1c1714;  /* page body — warm near-black */
+    --sgl-dark-surface:   #241e19;  /* cards, filter cards, grid cards, odd rows */
+    --sgl-dark-surface-2: #2c2520;  /* even rows — subtle warm zebra */
+    --sgl-dark-border:    #3a322b;  /* borders */
+    --sgl-dark-muted:     #b0a59a;  /* muted text — legible on dark */
 }
 
 .body--dark,
@@ -23,6 +32,19 @@
     --sgl-link: var(--sgl-gold);
     --sgl-section-title: var(--sgl-gold);
     --sgl-header-bg: var(--sgl-charcoal);  /* dark mode: keep the charcoal bar */
+
+    /* Override Quasar's own dark tokens so every default-styled surface (cards,
+       dialogs, drawer, tab panels, menus) inherits the warm scale in one place
+       instead of being patched element-by-element. */
+    --q-dark-page: var(--sgl-dark-bg);
+    --q-dark:      var(--sgl-dark-surface);
+}
+
+/* The page body paints the visible background behind all (transparent) layout
+   wrappers; Quasar hardcodes it to a cool #121212, so set it warm explicitly
+   to match the surfaces above and kill the "full black" splotch. */
+body.body--dark {
+    background: var(--sgl-dark-bg);
 }
 
 /* In dark mode, brighten primary/secondary *text and icons* to the vibrant
@@ -36,6 +58,29 @@
 .body--dark .text-secondary,
 .q-dark .text-secondary {
     color: #E8631A !important;
+}
+
+/* Muted text (#666/#888 stays legible on white) lifts to a warm light gray on
+   dark surfaces so timestamps, form labels and filter labels remain readable. */
+.body--dark .input-label,
+.body--dark .required-legend,
+.body--dark .match-filter-label,
+.body--dark .text-muted,
+.body--dark .text-italic,
+.body--dark .cell-timestamp,
+.q-dark .input-label,
+.q-dark .required-legend,
+.q-dark .match-filter-label,
+.q-dark .text-muted,
+.q-dark .text-italic,
+.q-dark .cell-timestamp {
+    color: var(--sgl-dark-muted);
+}
+
+/* Inline timestamp spans inside table cell templates */
+.cell-timestamp {
+    font-size: 0.75rem;
+    color: #666;
 }
 
 /* Brand header — warm charcoal in both modes so white icons stay legible */
@@ -480,39 +525,39 @@
 /* Dark mode overrides for user table */
 .body--dark .user-table th,
 .body--dark .user-table td {
-    border-right: 1px solid #444;
+    border-right: 1px solid var(--sgl-dark-border);
 }
 
 .body--dark .user-table tr:nth-child(even) {
-    background-color: #2b2b2b;
+    background-color: var(--sgl-dark-surface-2);
 }
 
 .body--dark .user-table tr:nth-child(odd) {
-    background-color: #1f1f1f;
+    background-color: var(--sgl-dark-surface);
 }
 
 .q-dark .user-table th,
 .q-dark .user-table td {
-    border-right: 1px solid #444;
+    border-right: 1px solid var(--sgl-dark-border);
 }
 
 .q-dark .user-table tr:nth-child(even) {
-    background-color: #2b2b2b;
+    background-color: var(--sgl-dark-surface-2);
 }
 
 .q-dark .user-table tr:nth-child(odd) {
-    background-color: #1f1f1f;
+    background-color: var(--sgl-dark-surface);
 }
 
 /* Mobile grid card dark styling */
 .body--dark .user-grid-card {
-    background: #1e1e1e !important;
-    border-color: #444 !important;
+    background: var(--sgl-dark-surface) !important;
+    border-color: var(--sgl-dark-border) !important;
 }
 
 .q-dark .user-grid-card {
-    background: #1e1e1e !important;
-    border-color: #444 !important;
+    background: var(--sgl-dark-surface) !important;
+    border-color: var(--sgl-dark-border) !important;
 }
 
 /* Tournament Table Styles */
@@ -563,39 +608,39 @@
 /* Dark mode overrides for tournament table */
 .body--dark .tournament-table th,
 .body--dark .tournament-table td {
-    border-right: 1px solid #444;
+    border-right: 1px solid var(--sgl-dark-border);
 }
 
 .body--dark .tournament-table tr:nth-child(even) {
-    background-color: #2b2b2b;
+    background-color: var(--sgl-dark-surface-2);
 }
 
 .body--dark .tournament-table tr:nth-child(odd) {
-    background-color: #1f1f1f;
+    background-color: var(--sgl-dark-surface);
 }
 
 .q-dark .tournament-table th,
 .q-dark .tournament-table td {
-    border-right: 1px solid #444;
+    border-right: 1px solid var(--sgl-dark-border);
 }
 
 .q-dark .tournament-table tr:nth-child(even) {
-    background-color: #2b2b2b;
+    background-color: var(--sgl-dark-surface-2);
 }
 
 .q-dark .tournament-table tr:nth-child(odd) {
-    background-color: #1f1f1f;
+    background-color: var(--sgl-dark-surface);
 }
 
 /* Mobile grid card dark styling for tournament */
 .body--dark .tournament-grid-card {
-    background: #1e1e1e !important;
-    border-color: #444 !important;
+    background: var(--sgl-dark-surface) !important;
+    border-color: var(--sgl-dark-border) !important;
 }
 
 .q-dark .tournament-grid-card {
-    background: #1e1e1e !important;
-    border-color: #444 !important;
+    background: var(--sgl-dark-surface) !important;
+    border-color: var(--sgl-dark-border) !important;
 }
 
 /* Match Table Styles */
@@ -659,28 +704,28 @@
 /* Dark mode overrides for match table */
 .body--dark .match-table th,
 .body--dark .match-table td {
-    border-right: 1px solid #444;
+    border-right: 1px solid var(--sgl-dark-border);
 }
 
 .body--dark .match-table tr:nth-child(even) {
-    background-color: #2b2b2b;
+    background-color: var(--sgl-dark-surface-2);
 }
 
 .body--dark .match-table tr:nth-child(odd) {
-    background-color: #1f1f1f;
+    background-color: var(--sgl-dark-surface);
 }
 
 .q-dark .match-table th,
 .q-dark .match-table td {
-    border-right: 1px solid #444;
+    border-right: 1px solid var(--sgl-dark-border);
 }
 
 .q-dark .match-table tr:nth-child(even) {
-    background-color: #2b2b2b;
+    background-color: var(--sgl-dark-surface-2);
 }
 
 .q-dark .match-table tr:nth-child(odd) {
-    background-color: #1f1f1f;
+    background-color: var(--sgl-dark-surface);
 }
 
 /* Match filters card styling */
@@ -692,22 +737,22 @@
 }
 
 .body--dark .match-filters-card {
-    background-color: #1f1f1f !important;
+    background-color: var(--sgl-dark-surface) !important;
 }
 
 .q-dark .match-filters-card {
-    background-color: #1f1f1f !important;
+    background-color: var(--sgl-dark-surface) !important;
 }
 
 /* Match grid card dark styling */
 .body--dark .match-grid-card {
-    background: #1e1e1e !important;
-    border-color: #444 !important;
+    background: var(--sgl-dark-surface) !important;
+    border-color: var(--sgl-dark-border) !important;
 }
 
 .q-dark .match-grid-card {
-    background: #1e1e1e !important;
-    border-color: #444 !important;
+    background: var(--sgl-dark-surface) !important;
+    border-color: var(--sgl-dark-border) !important;
 }
 
 /* Match filter layout */
@@ -751,11 +796,11 @@
 }
 
 .body--dark .footer-dark-override {
-    background-color: #1e1e1e !important;
-    color: #aaa !important;
+    background-color: var(--sgl-charcoal) !important;
+    color: var(--sgl-dark-muted) !important;
 }
 
 .q-dark .footer-dark-override {
-    background-color: #1e1e1e !important;
-    color: #aaa !important;
+    background-color: var(--sgl-charcoal) !important;
+    color: var(--sgl-dark-muted) !important;
 }

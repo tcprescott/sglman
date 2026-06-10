@@ -13,6 +13,7 @@ from application.services.discord_service import get_discord_bot
 from application.services import discord_queue
 from application.utils.easter_eggs import random_fact
 from application.utils.mock_discord import is_mock_discord
+from application.utils.sentry import init_sentry
 import asyncio
 from aerich import Command
 from fastapi import FastAPI
@@ -96,6 +97,10 @@ the same role checks that gate the web UI apply here. A token marked
 
 Click **Authorize** and paste your token to try the endpoints below.
 """
+
+# Initialize Sentry before the app/middleware are constructed so its
+# instrumentation wraps the request path. No-op when SENTRY_DSN is unset.
+init_sentry()
 
 app: FastAPI = FastAPI(
     title="SGL On Site API",

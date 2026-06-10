@@ -6,6 +6,7 @@ import secrets
 from typing import Iterable, Optional
 from urllib.parse import parse_qs, quote, urlparse
 
+import sentry_sdk
 from fastapi import Request
 from nicegui import Client, app, ui
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -113,6 +114,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if not path.startswith('/_nicegui') and _matches_protected_route(path):
                 app.storage.user['referrer_path'] = path
                 return RedirectResponse('/login')
+        else:
+            # Attach the logged-in user to Sentry so error events show who hit them.
+            sentry_sdk.set_user({
+                'id': str(app.storage.user.get('discord_id')),
+                'username': app.storage.user.get('username'),
+            })
         return await call_next(request)
 
 def create() -> None:
