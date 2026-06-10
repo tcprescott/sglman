@@ -9,6 +9,7 @@ from typing import Optional, Union
 
 from tortoise.transactions import in_transaction
 
+from application import match_events
 from application.repositories import CommentatorRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -91,6 +92,8 @@ class CrewService:
         if approved:
             await self._request_crew_acknowledgment(crew_member, crew_type)
 
+        match_events.publish(crew_member.match.id)
+
         return crew_member
 
     async def approve_crew_member(
@@ -145,6 +148,8 @@ class CrewService:
                     'match_id': crew_member.match_id,
                 },
             )
+
+        match_events.publish(crew_member.match_id)
 
         return crew_member
 

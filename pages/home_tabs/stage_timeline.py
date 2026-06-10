@@ -1,5 +1,6 @@
 """Stage Timeline page - displays a daily calendar view of matches per stream room."""
 
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,7 @@ from nicegui import app, background_tasks, ui
 from application.services import AuthService, MatchService
 from application.utils.timezone import format_eastern_time
 from models import Match, User
+from theme.realtime import register_view
 
 
 async def stage_timeline_tab():
@@ -190,6 +192,19 @@ async def stage_timeline_tab():
         today_btn.on('click', lambda: background_tasks.create(go_today()))
         go_btn.on('click', lambda: background_tasks.create(go_to_date()))
         refresh_btn.on('click', lambda: background_tasks.create(load_timeline()))
+
+        # Live updates: reload when any match changes, debounced so a multi-step
+        # action (e.g. create with players + crew) triggers at most one rebuild.
+        reload_token = {'n': 0}
+
+        async def on_remote_change(match_id, change_type):
+            reload_token['n'] += 1
+            mine = reload_token['n']
+            await asyncio.sleep(0.5)
+            if mine == reload_token['n']:
+                await load_timeline()
+
+        register_view(on_remote_change)
 
         # Initial load
         await load_timeline()

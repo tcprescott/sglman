@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date
 
 from models import Match, MatchAcknowledgment, MatchPlayers, User, StreamRoom
+from application import match_events
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
@@ -321,6 +322,8 @@ class MatchService:
         if is_stream_candidate:
             discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
 
+        match_events.publish(match.id, match_events.CREATED)
+
         return match
 
     async def update_match(
@@ -465,6 +468,8 @@ class MatchService:
                 notified_ids = await self._collect_notified_discord_ids(match)
                 discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
 
+        match_events.publish(match.id)
+
         return match
 
     async def submit_match_request(
@@ -534,6 +539,8 @@ class MatchService:
         notified_ids = await self._collect_notified_discord_ids(match)
         discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
 
+        match_events.publish(match.id, match_events.CREATED)
+
         return match
 
     async def set_stream_candidate(
@@ -566,6 +573,8 @@ class MatchService:
             notified_ids = await self._collect_notified_discord_ids(match)
             discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
 
+        match_events.publish(match.id)
+
         return match
 
     async def assign_stage(
@@ -591,6 +600,8 @@ class MatchService:
             AuditActions.MATCH_STAGE_ASSIGNED if stream_room_id is not None else AuditActions.MATCH_STAGE_CLEARED,
             {'match_id': match.id, 'stream_room_id': stream_room_id},
         )
+
+        match_events.publish(match.id)
 
         return match
 
@@ -630,8 +641,10 @@ class MatchService:
             },
         )
 
+        match_events.publish(match.id)
+
         return match
-    
+
     async def ensure_players_enrolled(
         self,
         tournament_id: int,
@@ -665,6 +678,7 @@ class MatchService:
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
         )
+        match_events.publish(match_id, match_events.DELETED)
 
     async def seat_players(self, match_id: int, actor: Optional[User] = None) -> Match:
         """Mark match players as seated."""
@@ -687,6 +701,8 @@ class MatchService:
         msg = self.match_schedule_service._create_checked_in_dm_message(match.id, match.tournament.name)
         discord_queue.enqueue(self.match_schedule_service.notify_match_participants(match, msg))
 
+        match_events.publish(match.id)
+
         return match
 
     async def finish_match(self, match_id: int, actor: Optional[User] = None) -> Match:
@@ -708,6 +724,8 @@ class MatchService:
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_FINISHED, {'match_id': match.id},
         )
+
+        match_events.publish(match.id)
 
         return match
 
@@ -752,6 +770,8 @@ class MatchService:
                 'ranks': {str(k): v for k, v in ranks.items()},
             },
         )
+
+        match_events.publish(match.id)
 
         return match
 
@@ -798,6 +818,8 @@ class MatchService:
             {'match_id': match_id, 'role': role},
         )
 
+        match_events.publish(match_id)
+
     async def undo_crew_signup(
         self,
         match_id: int,
@@ -840,6 +862,8 @@ class MatchService:
             {'match_id': match_id, 'role': role},
         )
 
+        match_events.publish(match_id)
+
     async def acknowledge_match(self, match_id: int, user: User) -> MatchAcknowledgment:
         """Mark a match as acknowledged by the given player.
 
@@ -863,6 +887,7 @@ class MatchService:
             AuditActions.MATCH_ACKNOWLEDGED,
             {'match_id': match.id, 'tournament_id': match.tournament_id},
         )
+        match_events.publish(match.id)
         return ack
 
     async def _seed_acknowledgments(

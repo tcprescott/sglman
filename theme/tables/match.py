@@ -4,6 +4,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchService, MatchWatcherService, UserService
 from theme.dialog import ConfirmationDialog, UserDialog
+from theme.realtime import register_view
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -173,9 +174,15 @@ class MatchTableView:
             ).classes('match-table match-table-container').props(':grid="Quasar.Screen.lt.md"')
             self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable match id (or other key field)
-        self.table.add_slot('body-cell-id', '''<q-td :props="props">
+        self.table.add_slot('body-cell-id', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
             <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link">{{ props.value }}</a>
         </q-td>''')
+
+        # Pass-through slots so plain columns also flash on a live update.
+        for plain_col in ('tournament', 'scheduled_at'):
+            self.table.add_slot(f'body-cell-{plain_col}', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+                {{ props.value }}
+            </q-td>''')
         
         # Add the item slot for grid view
         self.render_grid_slot()
@@ -208,7 +215,7 @@ class MatchTableView:
         self.table.on('acknowledge_match', lambda event: background_tasks.create(handle_acknowledge_match(event.args, context.client)))
         # Add slot for player names with winner indicator
         if self.admin_controls and self.can_crud:
-            self.table.add_slot('body-cell-players', '''<q-td :props="props">
+            self.table.add_slot('body-cell-players', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div>
                         <template v-for="(player, idx) in props.value">
@@ -237,7 +244,7 @@ class MatchTableView:
                 </div>
             </q-td>''')
         elif self.admin_controls:
-            self.table.add_slot('body-cell-players', '''<q-td :props="props">
+            self.table.add_slot('body-cell-players', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                 <div>
                     <template v-for="(player, idx) in props.value">
                         <div style="display: flex; align-items: center; gap: 4px;">
@@ -260,7 +267,7 @@ class MatchTableView:
                 </div>
             </q-td>''')
         else:
-            self.table.add_slot('body-cell-players', f'''<q-td :props="props">
+            self.table.add_slot('body-cell-players', f'''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                 <div>
                     <template v-for="(player, idx) in props.value">
                         <div style="display: flex; align-items: center; gap: 4px;">
@@ -290,7 +297,7 @@ class MatchTableView:
         if self.admin_controls and self.can_crud:
             for role in ['commentators', 'trackers']:
                 singular = role[:-1]
-                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <div class="wrap">
                         <template v-for="(item, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
@@ -310,7 +317,7 @@ class MatchTableView:
                 </q-td>''')
         elif self.admin_controls:
             for role in ['commentators', 'trackers']:
-                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <div class="wrap">
                         <template v-for="(item, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
@@ -330,7 +337,7 @@ class MatchTableView:
         else:
             for role in ['commentators', 'trackers']:
                 singular = role[:-1]
-                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props">
+                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <div class="wrap">
                         <div style="margin-bottom: 6px;">
                             <q-btn v-if="props.value && props.value.some(item => item[2] == {discord_id_js})"
@@ -521,7 +528,7 @@ class MatchTableView:
         self.table.on('acknowledge_tracker', lambda event: background_tasks.create(handle_acknowledge_crew('tracker', event, context.client)))
 
         if discord_id:
-            self.table.add_slot('body-cell-watch', '''<q-td :props="props">
+            self.table.add_slot('body-cell-watch', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                 <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
                        :color="props.row._watching ? 'primary' : 'grey'"
                        size="sm" flat round
@@ -534,7 +541,7 @@ class MatchTableView:
         # Admin-specific slots and handlers
         if self.admin_controls:
             if self.on_generate_seed is not None:
-                self.table.add_slot('body-cell-generated_seed', '''<q-td :props="props">
+                self.table.add_slot('body-cell-generated_seed', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <q-btn v-if="props.row.tournament_seed_generator && !props.value"
                            :loading="props.row._generating_seed"
                            :disabled="props.row._generating_seed"
@@ -555,7 +562,7 @@ class MatchTableView:
 
             # State column with context-aware actions
             if self.on_seat is not None or self.on_start is not None or self.on_finish is not None or self.on_confirm is not None:
-                self.table.add_slot('body-cell-state', '''<q-td :props="props">
+                self.table.add_slot('body-cell-state', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <!-- Scheduled state: show Check In button -->
                     <q-btn v-if="props.value === 'Scheduled'" @click="$parent.$emit('seat', props)"
                            icon="chair" color="primary" size="sm">
@@ -621,7 +628,7 @@ class MatchTableView:
                     self.table.on('confirm', lambda event: background_tasks.create(self._handle_confirm(event)))
 
             if self.on_edit_stream_room is not None:
-                self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
+                self.table.add_slot('body-cell-stream_room', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <q-btn v-if="!props.value && !props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
                            icon="movie" color="primary" size="sm">
                         Assign
@@ -642,11 +649,23 @@ class MatchTableView:
             self.table.on('edit_match', lambda event: background_tasks.create(self._handle_edit(event)))
 
         if self.on_edit_stream_room is None:
-            self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
+            self.table.add_slot('body-cell-stream_room', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                 <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.value }}</a>
                 <span v-else-if="props.value">{{ props.value }}</span>
                 <span v-else>-</span>
             </q-td>''')
+
+        # Live updates: react to match changes made by other users.
+        register_view(self._on_remote_change)
+
+    async def _on_remote_change(self, match_id, change_type):
+        """Apply a match change broadcast from another user's action."""
+        from application import match_events
+        if change_type == match_events.CREATED:
+            await self.refresh()  # a new match may not have a row yet
+        else:
+            # 'changed' updates in place; 'deleted' removes the row.
+            await self.update_row_by_id(match_id, flash=True)
 
     async def refresh(self, *_args):
         """Refresh table data using service layer."""
@@ -747,7 +766,7 @@ class MatchTableView:
         ])
         
         self.table.add_slot('item', f'''
-    <div class="q-pa-md q-mb-sm match-grid-card" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+    <div class="q-pa-md q-mb-sm match-grid-card" :class="props.row._flash ? 'sgl-row-flash' : ''" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
         <div v-for="field in [
             {js_field_array}
         ]" :key="field.key" class="row items-center q-mb-xs">
@@ -1060,10 +1079,11 @@ class MatchTableView:
         if match_id is not None and self.on_edit_stream_room:
             await self.on_edit_stream_room(match_id)
 
-    async def update_row_by_id(self, match_id):
+    async def update_row_by_id(self, match_id, flash=False):
         """
         Update a single row in the table by its match ID, only if the row is currently visible.
-        Uses service layer to fetch match data.
+        Uses service layer to fetch match data. When ``flash`` is set, the refreshed row
+        briefly highlights so viewers notice a change made elsewhere.
         """
         # Find the index of the row with the given match_id
         idx = next((i for i, row in enumerate(self.table.rows)
@@ -1081,8 +1101,21 @@ class MatchTableView:
             return
 
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
+        if flash:
+            match_data['_flash'] = True
         self.table.rows[idx] = match_data
         self.table.update()
+        if flash:
+            self._schedule_flash_clear(match_id)
+
+    def _schedule_flash_clear(self, match_id):
+        """Clear the transient highlight on a row a moment after it was set."""
+        def clear():
+            i = next((j for j, r in enumerate(self.table.rows) if r.get('id') == match_id), None)
+            if i is not None and self.table.rows[i].get('_flash'):
+                self.table.rows[i]['_flash'] = False
+                self.table.update()
+        ui.timer(1.6, clear, once=True)
 
     async def _handle_toggle_watch(self, event):
         row = event.args if isinstance(event.args, dict) else {}

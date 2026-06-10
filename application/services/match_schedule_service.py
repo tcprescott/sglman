@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime
 from typing import Callable, Dict, Tuple, Optional
 
+from application import match_events
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services import discord_queue
 from application.services.audit_service import AuditActions, AuditService
@@ -59,6 +60,7 @@ class MatchScheduleService:
         )
         await match.fetch_related('tournament')
         discord_queue.enqueue(self.notify_match_participants(match, build_message(match)))
+        match_events.publish(match.id)
 
     async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
         def check() -> None:
@@ -201,6 +203,8 @@ class MatchScheduleService:
                         'seed_url': seed_url,
                     },
                 )
+
+                match_events.publish(match.id)
 
                 return True, message, seed_url
                 

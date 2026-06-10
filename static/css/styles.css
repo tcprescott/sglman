@@ -646,6 +646,16 @@
     background-color: #ffffff;
 }
 
+/* Transient highlight for rows/cards updated live by another user's action. */
+@keyframes sglRowFlash {
+    from { background-color: rgba(33, 150, 243, 0.35); }
+    to   { background-color: transparent; }
+}
+
+.sgl-row-flash {
+    animation: sglRowFlash 1.6s ease-out;
+}
+
 /* Dark mode overrides for match table */
 .body--dark .match-table th,
 .body--dark .match-table td {
