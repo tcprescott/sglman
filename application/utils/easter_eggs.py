@@ -59,35 +59,117 @@ CAT_FACTS = [
 ]
 
 
-BALATRO_TIPS = [
-    # Scoring fundamentals
-    "Score is Chips × Mult — pushing Mult usually beats grinding Chips.",
-    "Planet cards level up a poker hand's base Chips and Mult permanently.",
-    "Playing a hand levels nothing — only Planet cards raise a hand's level.",
-    "A leveled-up Flush can carry an entire run; Four Fingers makes flushes far easier.",
-    "Stone cards add Chips but have no rank or suit, so they never break a flush or straight.",
+BALATRO_FACTS = [
+    # Development
+    "Balatro was made almost entirely by a single anonymous developer who goes by LocalThunk.",
+    "LocalThunk spent more than two years building Balatro as a hobby project.",
+    "LocalThunk has said he isn't much of a poker player — the game just uses the deck.",
+    "Balatro was inspired by the deckbuilder Luck Be a Landlord and a poker-based mini-game.",
+    "The game was published by Playstack and released on February 20, 2024.",
 
-    # Jokers
-    "Jokers score left to right — order them so multipliers land after your Chips and +Mult.",
-    "Blueprint copies the Joker to its right; Brainstorm copies the leftmost Joker.",
-    "A Negative Joker takes no slot — the best way to break the 5-Joker cap.",
-    "Baron gives ×Mult for every King held in hand, not played — build around holding Kings.",
-    "Mime retriggers every card's held-in-hand effect; pair it with Steel or Baron.",
+    # Design & details
+    "Balatro is a roguelike deckbuilder built around scoring poker hands, not playing real poker.",
+    "Its grinning joker mascot is named Jimbo.",
+    "The name 'Balatro' comes from a Latin word for a jester, babbler, or buffoon.",
+    "Every run is powered by Jokers — stacking their effects is the heart of the game.",
+    "Balatro uses a deliberately lo-fi, CRT-style visual filter for its retro look.",
 
-    # Enhanced cards
-    "Steel cards give ×1.5 Mult while held in hand, even when you don't play them.",
-    "Glass cards are ×2 Mult but shatter on a roll — high risk, high reward.",
-    "Gold cards pay $3 at end of round if held in hand.",
-    "Lucky cards have a 1-in-5 shot at +20 Mult and 1-in-15 at +$20.",
+    # Reception & impact
+    "Balatro was nominated for Game of the Year at The Game Awards 2024.",
+    "It swept multiple BAFTA Games Awards in 2025, including Best Game.",
+    "Balatro sold over a million copies within its first two weeks.",
+    "By the end of 2024 Balatro had sold more than five million copies.",
+    "Balatro briefly received an adults-only rating in Europe over its card-and-chip imagery, which was later overturned.",
+    "Despite using poker chips, Balatro involves no real money or gambling whatsoever.",
+    "Balatro launched on PC and consoles before arriving on mobile, where it topped paid-app charts.",
+]
 
-    # Strategy
-    "Discards are a resource — toss hands you don't need to dig for your build.",
-    "Skipping a small blind grants a tag and saves your hands for the boss.",
-    "Read boss blinds before committing: some debuff a suit, face cards, or your most-played hand.",
-    "Reroll the shop early for a build-defining Joker; money snowballs through interest.",
-    "Hold cash near multiples of $5 — you earn $1 interest per $5, capped at $25.",
+
+DIABLO_FACTS = [
+    # Series & lore
+    "The Diablo series began in 1996 and is set in the dark fantasy world of Sanctuary.",
+    "Diablo, the 'Lord of Terror,' is one of the three Prime Evils alongside Mephisto and Baal.",
+    "Sanctuary was created by the renegade angel Inarius and the demon Lilith.",
+    "Nephalem — the powerful offspring of angels and demons — are the ancestors of humanity.",
+
+    # Diablo II
+    "Diablo II launched on June 29, 2000 and was one of the fastest-selling PC games of its era.",
+    "Diablo II's base classes were the Amazon, Necromancer, Barbarian, Sorceress, and Paladin.",
+    "The Lord of Destruction expansion (2001) added Act V plus the Assassin and Druid classes.",
+    "The Horadric Cube let players transmute items and combine runes into powerful runewords.",
+    "Diablo II's Secret Cow Level is reached using Wirt's Leg and a Tome of Town Portal in the Cube.",
+    "Diablo II: Resurrected, a full remaster, arrived in September 2021.",
+
+    # Diablo IV
+    "Diablo IV released on June 6, 2023 as the series' first fully open-world entry.",
+    "Its main antagonist is Lilith, the 'Daughter of Hatred' and daughter of Mephisto.",
+    "Diablo IV launched with the Barbarian, Sorcerer, Druid, Rogue, and Necromancer classes.",
+    "Diablo IV grossed $666 million in its first five days — a figure Blizzard happily leaned into.",
+    "It was the fastest-selling game in Blizzard's history.",
+    "The Vessel of Hatred expansion (2024) added the Spiritborn class and the jungle region of Nahantu.",
+]
+
+
+WOW_FACTS = [
+    # History
+    "World of Warcraft launched on November 23, 2004 and is set on the world of Azeroth.",
+    "At its 2010 peak, WoW had more than 12 million subscribers.",
+    "WoW holds a Guinness World Record as the most popular subscription-based MMORPG.",
+    "WoW's original level cap was 60.",
+    "WoW Classic, a re-release of the original 2004 game, launched in 2019.",
+
+    # Expansions & story
+    "Wrath of the Lich King (2008) pitted players against Arthas Menethil, the Lich King.",
+    "The War Within (2024) kicked off WoW's multi-expansion Worldsoul Saga.",
+    "WoW's expansions include The Burning Crusade, Cataclysm, Legion, Shadowlands, and Dragonflight.",
+    "The game is split between two warring factions: the Alliance and the Horde.",
+    "Major capital cities include the Alliance's Ironforge and the Horde's Orgrimmar.",
+
+    # Culture & trivia
+    "The 2005 'Corrupted Blood' plague accidentally escaped its raid and was later studied by epidemiologists.",
+    "The 'Leeroy Jenkins' battle cry became an internet legend after a 2005 WoW guild video.",
+    "Murlocs — the burbling fish-people — are among WoW's most iconic creatures.",
+    "Blizzard's annual BlizzCon convention grew largely out of WoW's popularity.",
+    "Azeroth's two original continents at launch were the Eastern Kingdoms and Kalimdor.",
+    "WoW was developed and published by Blizzard Entertainment.",
+]
+
+
+HAMILTON_FACTS = [
+    # Creation
+    "Hamilton's music, lyrics, and book were all written by Lin-Manuel Miranda.",
+    "The musical is based on Ron Chernow's 2004 biography of Alexander Hamilton.",
+    "Miranda debuted an early version at a 2009 White House poetry event as 'The Hamilton Mixtape.'",
+    "Hamilton blends hip-hop, R&B, pop, and soul with traditional show tunes.",
+    "The show deliberately casts actors of color as America's Founding Fathers.",
+
+    # Production
+    "Hamilton premiered Off-Broadway at The Public Theater in early 2015.",
+    "It opened on Broadway at the Richard Rodgers Theatre in August 2015.",
+    "The original cast featured Leslie Odom Jr. as Aaron Burr and Daveed Diggs as Lafayette and Jefferson.",
+    "Phillipa Soo, Renée Elise Goldsberry, and Jasmine Cephas Jones originated the three Schuyler sisters.",
+    "A filmed version of the original cast premiered on Disney+ in July 2020.",
+
+    # Awards & legacy
+    "Hamilton received a record 16 Tony nominations in 2016 and won 11.",
+    "Hamilton won the 2016 Pulitzer Prize for Drama.",
+    "Leslie Odom Jr. won the Tony for Best Actor in a Musical for playing Aaron Burr.",
+    "The original cast recording won the Grammy for Best Musical Theater Album.",
+]
+
+
+CLOVERPIT_TIPS = [
+    "Cloverpit is a slot-machine roguelike from indie studio Panik Arcade, released in 2025.",
+    "In Cloverpit you're trapped in a cramped room, feeding a slot machine to pay off escalating debt.",
+    "Charms modify Cloverpit's slot machine — stacking the right ones is how you chase a saving jackpot.",
+    "Miss one of Cloverpit's debt deadlines and the run is over.",
+    "Cloverpit wraps its gambling loop in a tense, claustrophobic horror atmosphere.",
+    "The clovers and lucky symbols of Cloverpit play into its desperate escape-the-pit theme.",
 ]
 
 
 def random_fact() -> str:
-    return random.choice(COASTER_FACTS + CAT_FACTS + BALATRO_TIPS)
+    return random.choice(
+        COASTER_FACTS + CAT_FACTS + BALATRO_FACTS
+        + DIABLO_FACTS + WOW_FACTS + HAMILTON_FACTS + CLOVERPIT_TIPS
+    )
