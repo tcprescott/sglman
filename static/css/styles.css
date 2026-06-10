@@ -1,5 +1,48 @@
 /* SGL On Site Custom Styles */
 
+/* Brand palette — "SpeedGaming Live 2026: The New Age" phoenix theme.
+   Mode-aware aliases default to light-mode-safe (deep) values and switch to
+   bright gold under .body--dark / .q-dark. Inline styles may reference these
+   var()s directly so links adapt to the active mode. */
+:root {
+    --sgl-gold: #E0A82E;        /* brand gold — dark-mode links/titles, accents */
+    --sgl-gold-deep: #9C6B12;   /* light-mode links/titles (contrast on white) */
+    --sgl-ember: #E8631A;       /* secondary / ember-orange accent */
+    --sgl-ember-deep: #C24E12;  /* ember for light-mode text/borders */
+    --sgl-charcoal: #17120D;    /* warm near-black for header/footer surfaces */
+
+    --sgl-link: var(--sgl-gold-deep);
+    --sgl-section-title: var(--sgl-gold-deep);
+    --sgl-room-header-bg: var(--sgl-charcoal);
+    --sgl-room-header-text: var(--sgl-gold);
+    --sgl-header-bg: var(--sgl-gold-deep);  /* light mode: amber bar (white header text stays AA-legible) */
+}
+
+.body--dark,
+.q-dark {
+    --sgl-link: var(--sgl-gold);
+    --sgl-section-title: var(--sgl-gold);
+    --sgl-header-bg: var(--sgl-charcoal);  /* dark mode: keep the charcoal bar */
+}
+
+/* In dark mode, brighten primary/secondary *text and icons* to the vibrant
+   gold/ember so they stay legible on dark surfaces. Filled .bg-primary buttons
+   intentionally keep the deeper hue so their white labels retain contrast. */
+.body--dark .text-primary,
+.q-dark .text-primary {
+    color: #E0A82E !important;
+}
+
+.body--dark .text-secondary,
+.q-dark .text-secondary {
+    color: #E8631A !important;
+}
+
+/* Brand header — warm charcoal in both modes so white icons stay legible */
+.sgl-header {
+    background-color: var(--sgl-header-bg);
+}
+
 /* Layout & Container Styles */
 .page-container {
     width: 100%;
@@ -49,7 +92,7 @@
     font-size: 1.5em;
     font-weight: bold;
     margin-bottom: 1em;
-    color: #1976d2;
+    color: var(--sgl-section-title);
 }
 
 .subsection-title {
@@ -171,7 +214,7 @@
 }
 
 .icon-primary {
-    color: #1976d2;
+    color: var(--sgl-link);
     margin-right: 0.5em;
 }
 
@@ -210,14 +253,19 @@
 }
 
 .text-link {
-    color: #1976d2;
+    color: var(--sgl-link);
     text-decoration: underline;
 }
 
 .table-link {
-    color: #1976d2;
+    color: var(--sgl-link);
     text-decoration: underline;
     cursor: pointer;
+}
+
+/* NiceGUI ui.link() defaults to blue — adopt the brand link color */
+.nicegui-link {
+    color: var(--sgl-link);
 }
 
 .italic-note {
@@ -238,8 +286,8 @@
 .room-header {
     width: 100%;
     align-items: center;
-    background-color: #1976d2;
-    color: white;
+    background-color: var(--sgl-room-header-bg);
+    color: var(--sgl-room-header-text);
     padding: 0.5em;
     border-radius: 4px;
 }

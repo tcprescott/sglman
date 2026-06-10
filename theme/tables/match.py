@@ -544,7 +544,7 @@ class MatchTableView:
                     </q-btn>
                     <span v-if="props.value">
                         <template v-if="/^https?:\\/\\//.test(props.value)">
-                            <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;" :title="props.value">
+                            <a :href="props.value" target="_blank" style="color: var(--sgl-link); text-decoration: underline;" :title="props.value">
                                 {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
                             </a>
                         </template>
@@ -627,7 +627,8 @@ class MatchTableView:
                         Assign
                     </q-btn>
                     <template v-else>
-                        <span>{{ props.value }}</span>
+                        <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.value }}</a>
+                        <span v-else-if="props.value">{{ props.value }}</span>
                         <q-badge v-if="props.row.is_stream_candidate && !props.value" color="amber" label="candidate" class="q-ml-xs" />
                         <q-btn v-if="!props.value && props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
                                icon="movie" color="primary" size="sm" class="q-ml-xs">
@@ -639,6 +640,13 @@ class MatchTableView:
 
         if self.on_edit is not None:
             self.table.on('edit_match', lambda event: background_tasks.create(self._handle_edit(event)))
+
+        if self.on_edit_stream_room is None:
+            self.table.add_slot('body-cell-stream_room', '''<q-td :props="props">
+                <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.value }}</a>
+                <span v-else-if="props.value">{{ props.value }}</span>
+                <span v-else>-</span>
+            </q-td>''')
 
     async def refresh(self, *_args):
         """Refresh table data using service layer."""
@@ -747,7 +755,7 @@ class MatchTableView:
             <div class="col-8">
                 <!-- For fields with click events like match ID -->
                 <template v-if="field.event">
-                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: var(--sgl-link); text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
                 </template>
 
                 <!-- For array fields like players -->
@@ -940,7 +948,7 @@ class MatchTableView:
                     </q-btn>
                     <template v-if="props.row[field.key]">
                         <a v-if="props.row[field.key].startsWith('https://') || props.row[field.key].startsWith('http://')"
-                           :href="props.row[field.key]" target="_blank" style="color: #1976d2; text-decoration: underline;">
+                           :href="props.row[field.key]" target="_blank" style="color: var(--sgl-link); text-decoration: underline;">
                             {{{{ props.row[field.key].length > 40 ? props.row[field.key].substring(0, 40) + '...' : props.row[field.key] }}}}
                         </a>
                         <span v-else>
@@ -977,7 +985,8 @@ class MatchTableView:
 
                 <!-- For stream_room field with admin button -->
                 <template v-else-if="field.key === 'stream_room'">
-                    <span v-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
+                    <a v-if="props.row[field.key] && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+                    <span v-else-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
                     <q-badge v-if="props.row.is_stream_candidate && !props.row[field.key]" color="amber" label="candidate" class="q-ml-xs" />
                     <q-btn v-if="{'true' if (self.admin_controls and self.can_crud) else 'false'} && !props.row[field.key]"
                            @click="$parent.$emit('edit-stream-room', {{ key: props.row.id }})"

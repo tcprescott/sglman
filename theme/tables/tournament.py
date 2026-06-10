@@ -58,7 +58,7 @@ class TournamentTableView:
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Name:</div>
                 <div class="col-8">
-                    <a href="#" @click="$parent.$emit('edit_tournament', { row: props.row })" style="color: #1976d2; text-decoration: underline;">{{ props.row.name }}</a>
+                    <a href="#" @click="$parent.$emit('edit_tournament', { row: props.row })" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.name }}</a>
                 </div>
             </div>
             <div class="row items-center q-mb-xs">
@@ -91,7 +91,7 @@ class TournamentTableView:
             </div>
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Players:</div>
-                <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" style="color: #1976d2; text-decoration: underline;">{{ props.row.player_count }}</a></div>
+                <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.player_count }}</a></div>
             </div>
         </div>
         ''')

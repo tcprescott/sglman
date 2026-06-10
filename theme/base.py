@@ -40,6 +40,9 @@ class BaseLayout:
         self.dark_mode = ui.dark_mode()
         self.dark_mode.value = dark_pref
         ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+        # Phoenix brand palette: gold primary, ember secondary; semantic
+        # positive/negative/warning intentionally left at Quasar defaults.
+        ui.colors(primary='#9C6B12', secondary='#C24E12', accent='#E0A82E')
         self._render_header()
         self._render_drawer()
         self._render_footer()
@@ -59,7 +62,7 @@ class BaseLayout:
                 dark_btn_ref['btn'].props(f"icon={icon}")
                 dark_btn_ref['btn'].update()
 
-        with ui.header().classes(replace='row items-center'):
+        with ui.header().classes(replace='row items-center sgl-header'):
             ui.button(
                 icon='menu',
                 on_click=lambda: self._drawer.toggle()

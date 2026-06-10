@@ -967,6 +967,12 @@ class MatchService:
             'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station) for p in match.players],
             'acknowledgments': acknowledgments_summary,
             'stream_room': match.stream_room.name if match.stream_room else '',
+            'stream_room_url': (
+                match.stream_room.stream_url
+                if match.stream_room and match.stream_room.stream_url
+                and match.stream_room.stream_url.lower().startswith(('http://', 'https://'))
+                else ''
+            ),
             'is_stream_candidate': match.is_stream_candidate,
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',

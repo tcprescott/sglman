@@ -175,7 +175,7 @@ def _render_utilization_chart(rooms) -> None:
                 'type': 'bar',
                 'stack': 'utilization',
                 'data': scheduled,
-                'itemStyle': {'color': '#1976D2'},
+                'itemStyle': {'color': '#B5791C'},
             },
             {
                 'name': 'Gap hours',

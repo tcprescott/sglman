@@ -97,7 +97,7 @@ class UserTableView:
                 <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
                 <div class="col-8">
                 <template v-if="field.event">
-                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: #1976d2; text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: var(--sgl-link); text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
                 </template>
                 <template v-else-if="field.bool">
                     {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}

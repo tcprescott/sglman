@@ -79,7 +79,7 @@ def render_player_dashboard():
             'body-cell-generated_seed': '''<q-td :props="props">
                 <span v-if="props.value">
                     <template v-if="/^https?:\\/\\//.test(props.value)">
-                        <a :href="props.value" target="_blank" style="color: #1976d2; text-decoration: underline;" :title="props.value">
+                        <a :href="props.value" target="_blank" style="color: var(--sgl-link); text-decoration: underline;" :title="props.value">
                             {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
                         </a>
                     </template>

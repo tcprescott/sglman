@@ -127,8 +127,9 @@ async def capacity_page(
                         'type': 'line',
                         'data': player_counts,
                         'smooth': True,
-                        'areaStyle': {'color': 'rgba(25, 118, 210, 0.18)'},
-                        'lineStyle': {'width': 2, 'color': '#1976D2'},
+                        'itemStyle': {'color': '#B5791C'},
+                        'areaStyle': {'color': 'rgba(181, 121, 28, 0.18)'},
+                        'lineStyle': {'width': 2, 'color': '#B5791C'},
                     },
                     {
                         'name': 'On-stream players',
