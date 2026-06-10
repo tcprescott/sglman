@@ -314,11 +314,12 @@ body.body--dark {
 
 /* Brand header — amber bar in light mode, charcoal in dark; the ember→gold
    strip along the bottom is the signature accent. */
+/* No position override here: Quasar pins the header via its own fixed-top
+   positioning, which the ::after strip also anchors to. */
 .sgl-header {
     background-color: var(--sgl-header-bg);
     min-height: 56px;
     padding: 0 var(--space-3);
-    position: relative;
     box-shadow: var(--shadow-1);
 }
 
