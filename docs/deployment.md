@@ -103,6 +103,8 @@ Every variable the application reads:
 | `MOCK_DISCORD` | no | off | `application/utils/mock_discord.py` | Truthy values: `1`, `true`, `yes` (case-insensitive). Bypasses OAuth and stubs `DiscordService` — see [features/mock-discord.md](features/mock-discord.md). **Refused when `ENVIRONMENT=production`** (see below). |
 | `OOTR_API_KEY` | no | — | `application/services/seedgen_service.py` | Only needed for Ocarina of Time Randomizer seed generation. Missing key raises `ValueError` at generation time, not at startup. |
 | `SMMAP_SPOILER_TOKEN` | no | built-in token | `application/services/seedgen_service.py` | Overrides the default spoiler token sent to maprando.com for Super Metroid Map Rando seeds. |
+| `SENTRY_DSN` | no | `''` | `application/utils/sentry.py` | When set, enables Sentry error reporting; events are tagged with `ENVIRONMENT` and carry the logged-in user's Discord ID/username. No-op when blank. |
+| `SENTRY_TRACES_SAMPLE_RATE` | no | `0` | `application/utils/sentry.py` | Fraction (`0`–`1`) of requests traced for performance. Errors-only by default; only read when `SENTRY_DSN` is set. |
 
 See [reference/authentication.md](reference/authentication.md) for how the OAuth variables are wired into the login flow.
 

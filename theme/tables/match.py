@@ -577,7 +577,7 @@ class MatchTableView:
                         </q-btn>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="check" color="grey" size="xs" />
-                            <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                            <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                         </div>
                     </div>
                     
@@ -589,7 +589,7 @@ class MatchTableView:
                         </q-btn>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="play_arrow" color="blue" size="xs" />
-                            <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                            <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                         </div>
                     </div>
                     
@@ -601,7 +601,7 @@ class MatchTableView:
                         </q-btn>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="flag" color="orange" size="xs" />
-                            <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                            <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                         </div>
                     </div>
                     
@@ -611,7 +611,7 @@ class MatchTableView:
                             <q-icon name="verified" color="green" size="sm" />
                             <span style="font-weight: 500;">{{ props.value }}</span>
                         </div>
-                        <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                        <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                     </div>
                     
                     <!-- Fallback -->
@@ -888,7 +888,7 @@ class MatchTableView:
                         </q-btn>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="check" color="grey" size="xs" />
-                            <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                            <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                         </div>
                     </div>
                     
@@ -901,7 +901,7 @@ class MatchTableView:
                         </q-btn>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="play_arrow" color="blue" size="xs" />
-                            <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                            <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                         </div>
                     </div>
                     
@@ -914,7 +914,7 @@ class MatchTableView:
                         </q-btn>
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="flag" color="orange" size="xs" />
-                            <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                            <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                         </div>
                     </div>
                     
@@ -924,7 +924,7 @@ class MatchTableView:
                             <q-icon name="verified" color="green" size="sm" />
                             <span style="font-weight: 500;">{{{{ props.row[field.key] }}}}</span>
                         </div>
-                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                     </div>
                     
                     <!-- Non-admin views: show state with icon and timestamp -->
@@ -933,21 +933,21 @@ class MatchTableView:
                             <q-icon name="flag" color="orange" size="sm" />
                             <span>{{{{ props.row[field.key] }}}}</span>
                         </div>
-                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                     </div>
                     <div v-else-if="props.row[field.key] === 'Started'" style="display: flex; flex-direction: column; gap: 4px;">
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="play_arrow" color="blue" size="sm" />
                             <span>{{{{ props.row[field.key] }}}}</span>
                         </div>
-                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                     </div>
                     <div v-else-if="props.row[field.key] === 'Checked In'" style="display: flex; flex-direction: column; gap: 4px;">
                         <div style="display: flex; align-items: center; gap: 4px;">
                             <q-icon name="check" color="grey" size="sm" />
                             <span>{{{{ props.row[field.key] }}}}</span>
                         </div>
-                        <span style="font-size: 0.75rem; color: #666;">{{{{ props.row.state_timestamp }}}}</span>
+                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
                     </div>
                     
                     <!-- Fallback for Scheduled or other states -->

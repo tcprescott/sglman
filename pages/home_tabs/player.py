@@ -29,7 +29,6 @@ def render_player_dashboard():
             return
 
         columns = [
-            {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
             {'name': 'scheduled_at', 'label': 'Scheduled At', 'field': 'scheduled_at'},
             {'name': 'state', 'label': 'State', 'field': 'state'},
@@ -47,7 +46,7 @@ def render_player_dashboard():
                         <q-icon name="verified" color="green" size="sm" />
                         <span style="font-weight: 500;">{{ props.value }}</span>
                     </div>
-                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                 </div>
                 <!-- Finished state -->
                 <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
@@ -55,7 +54,7 @@ def render_player_dashboard():
                         <q-icon name="flag" color="orange" size="sm" />
                         <span>{{ props.value }}</span>
                     </div>
-                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                 </div>
                 <!-- Started state -->
                 <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
@@ -63,7 +62,7 @@ def render_player_dashboard():
                         <q-icon name="play_arrow" color="blue" size="sm" />
                         <span>{{ props.value }}</span>
                     </div>
-                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                 </div>
                 <!-- Checked In state -->
                 <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
@@ -71,7 +70,7 @@ def render_player_dashboard():
                         <q-icon name="check" color="grey" size="sm" />
                         <span>{{ props.value }}</span>
                     </div>
-                    <span style="font-size: 0.75rem; color: #666;">{{ props.row.state_timestamp }}</span>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
                 </div>
                 <!-- Scheduled state -->
                 <span v-else>{{ props.value || 'Scheduled' }}</span>
