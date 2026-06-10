@@ -131,9 +131,19 @@ class TestFormatMatchForDisplay:
         assert result["stream_room"] == ""
 
     def test_stream_room_name_when_set(self, service):
-        match = make_match(stream_room=SimpleNamespace(name="Stage 1"))
+        match = make_match(stream_room=SimpleNamespace(name="Stage 1", stream_url="https://twitch.tv/sglive1"))
         result = service._format_match_for_display(match)
         assert result["stream_room"] == "Stage 1"
+        assert result["stream_room_url"] == "https://twitch.tv/sglive1"
+
+    def test_stream_room_url_empty_when_none(self, service):
+        result = service._format_match_for_display(make_match(stream_room=None))
+        assert result["stream_room_url"] == ""
+
+    def test_stream_room_url_empty_for_invalid_scheme(self, service):
+        match = make_match(stream_room=SimpleNamespace(name="Stage 1", stream_url="javascript:alert(1)"))
+        result = service._format_match_for_display(match)
+        assert result["stream_room_url"] == ""
 
     def test_seed_empty_when_none(self, service):
         result = service._format_match_for_display(make_match(generated_seed=None))
