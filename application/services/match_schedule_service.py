@@ -6,7 +6,7 @@ Handles match scheduling operations like seating, finishing, and seed generation
 
 import asyncio
 from datetime import datetime
-from typing import Dict, Tuple, Optional
+from typing import Callable, Dict, Tuple, Optional
 
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services import discord_queue
@@ -30,79 +30,93 @@ class MatchScheduleService:
         self.seedgen_service = SeedGenerationService()
         self.audit_service = AuditService()
 
-    async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
+    async def _transition(
+        self,
+        match: Match,
+        actor: Optional[User],
+        *,
+        action_verb: str,
+        check: Callable[[], None],
+        timestamp_field: str,
+        audit_action: str,
+        build_message: Callable[[Match], str],
+    ) -> None:
+        """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
+
+        ``check`` raises ValueError on a precondition failure; ``build_message`` is
+        called after the tournament relation is fetched.
+        """
         await AuthService.ensure(
             await AuthService.can_transition_match(actor, match),
-            f"User cannot seat match {match.id}",
+            f"User cannot {action_verb} match {match.id}",
         )
-        if match.seated_at:
-            raise ValueError("Match is already checked in")
+        check()
 
-        match.seated_at = datetime.now()
+        setattr(match, timestamp_field, datetime.now())
         await match.save()
         await self.audit_service.write_log(
-            actor, AuditActions.MATCH_SEATED, {'match_id': match.id},
+            actor, audit_action, {'match_id': match.id},
         )
         await match.fetch_related('tournament')
-        msg = self._create_checked_in_dm_message(match.id, match.tournament.name)
-        discord_queue.enqueue(self.notify_match_participants(match, msg))
+        discord_queue.enqueue(self.notify_match_participants(match, build_message(match)))
+
+    async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
+        def check() -> None:
+            if match.seated_at:
+                raise ValueError("Match is already checked in")
+        await self._transition(
+            match, actor,
+            action_verb="seat",
+            check=check,
+            timestamp_field="seated_at",
+            audit_action=AuditActions.MATCH_SEATED,
+            build_message=lambda m: self._create_checked_in_dm_message(m.id, m.tournament.name),
+        )
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
-        await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
-            f"User cannot start match {match.id}",
+        def check() -> None:
+            if not match.seated_at:
+                raise ValueError("Match must be checked in before starting")
+            if match.started_at:
+                raise ValueError("Match is already started")
+        await self._transition(
+            match, actor,
+            action_verb="start",
+            check=check,
+            timestamp_field="started_at",
+            audit_action=AuditActions.MATCH_STARTED,
+            build_message=lambda m: self._create_state_changed_dm_message(m.id, m.tournament.name, "Started"),
         )
-        if not match.seated_at:
-            raise ValueError("Match must be checked in before starting")
-        if match.started_at:
-            raise ValueError("Match is already started")
-
-        match.started_at = datetime.now()
-        await match.save()
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_STARTED, {'match_id': match.id},
-        )
-        await match.fetch_related('tournament')
-        msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Started")
-        discord_queue.enqueue(self.notify_match_participants(match, msg))
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
-        await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
-            f"User cannot finish match {match.id}",
+        def check() -> None:
+            if not match.started_at:
+                raise ValueError("Match must be started before finishing")
+            if match.finished_at:
+                raise ValueError("Match is already finished")
+        await self._transition(
+            match, actor,
+            action_verb="finish",
+            check=check,
+            timestamp_field="finished_at",
+            audit_action=AuditActions.MATCH_FINISHED,
+            build_message=lambda m: self._create_state_changed_dm_message(m.id, m.tournament.name, "Finished"),
         )
-        if not match.started_at:
-            raise ValueError("Match must be started before finishing")
-        if match.finished_at:
-            raise ValueError("Match is already finished")
-
-        match.finished_at = datetime.now()
-        await match.save()
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_FINISHED, {'match_id': match.id},
-        )
-        await match.fetch_related('tournament')
-        msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Finished")
-        discord_queue.enqueue(self.notify_match_participants(match, msg))
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
-        await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
-            f"User cannot confirm match {match.id}",
+        def check() -> None:
+            if not match.finished_at:
+                raise ValueError("Match must be finished before confirming")
+            if match.confirmed_at:
+                raise ValueError("Match is already confirmed")
+        await self._transition(
+            match, actor,
+            action_verb="confirm",
+            check=check,
+            timestamp_field="confirmed_at",
+            audit_action=AuditActions.MATCH_CONFIRMED,
+            build_message=lambda m: self._create_state_changed_dm_message(m.id, m.tournament.name, "Confirmed"),
         )
-        if not match.finished_at:
-            raise ValueError("Match must be finished before confirming")
-        if match.confirmed_at:
-            raise ValueError("Match is already confirmed")
-
-        match.confirmed_at = datetime.now()
-        await match.save()
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_CONFIRMED, {'match_id': match.id},
-        )
-        await match.fetch_related('tournament')
-        msg = self._create_state_changed_dm_message(match.id, match.tournament.name, "Confirmed")
-        discord_queue.enqueue(self.notify_match_participants(match, msg))
     
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
         """
