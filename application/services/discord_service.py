@@ -302,19 +302,13 @@ class DiscordService:
         except Exception as e:
             return False, f"Failed to retrieve roles: {str(e)}"
 
-    async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
-        """
-        Add a role to a user in a given guild.
-
-        Args:
-            guild_id: Target guild ID
-            user_id: Target user ID (member)
-            role_id: Role ID to add
-            reason: Optional audit log reason
-
-        Returns:
-            (success, message)
-        """
+    async def _modify_role(
+        self, guild_id: int, user_id: int, role_id: int, reason: Optional[str], *, add: bool,
+    ) -> Tuple[bool, str]:
+        """Add or remove a guild role for a member, depending on ``add``."""
+        gerund = "adding" if add else "removing"
+        past = "added to" if add else "removed from"
+        verb = "add" if add else "remove"
         try:
             if self._bot is None:
                 return False, "Discord bot not initialized"
@@ -344,14 +338,32 @@ class DiscordService:
             if role is None:
                 return False, "Role not found in guild"
 
-            await member.add_roles(role, reason=reason)
-            return True, "Role added to user"
+            if add:
+                await member.add_roles(role, reason=reason)
+            else:
+                await member.remove_roles(role, reason=reason)
+            return True, f"Role {past} user"
         except discord.Forbidden:
             return False, "Bot lacks permissions or role hierarchy prevents this action"
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while adding role: {str(e)}"
+            return False, f"Discord HTTP error while {gerund} role: {str(e)}"
         except Exception as e:
-            return False, f"Failed to add role: {str(e)}"
+            return False, f"Failed to {verb} role: {str(e)}"
+
+    async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Add a role to a user in a given guild.
+
+        Args:
+            guild_id: Target guild ID
+            user_id: Target user ID (member)
+            role_id: Role ID to add
+            reason: Optional audit log reason
+
+        Returns:
+            (success, message)
+        """
+        return await self._modify_role(guild_id, user_id, role_id, reason, add=True)
 
     async def remove_role_from_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
         """
@@ -366,42 +378,7 @@ class DiscordService:
         Returns:
             (success, message)
         """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            guild = self._bot.get_guild(guild_id) or await self._bot.fetch_guild(guild_id)
-            if guild is None:
-                return False, "Guild not found"
-
-            member = guild.get_member(user_id)
-            if member is None:
-                try:
-                    member = await guild.fetch_member(user_id)
-                except discord.NotFound:
-                    return False, "Member not found in guild"
-
-            role = guild.get_role(role_id)
-            if role is None:
-                try:
-                    roles_list = await guild.fetch_roles()  # type: ignore[attr-defined]
-                    role = next((r for r in roles_list if r.id == role_id), None)
-                except Exception:
-                    role = None
-
-            if role is None:
-                return False, "Role not found in guild"
-
-            await member.remove_roles(role, reason=reason)
-            return True, "Role removed from user"
-        except discord.Forbidden:
-            return False, "Bot lacks permissions or role hierarchy prevents this action"
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while removing role: {str(e)}"
-        except Exception as e:
-            return False, f"Failed to remove role: {str(e)}"
+        return await self._modify_role(guild_id, user_id, role_id, reason, add=False)
 
 
 class MockDiscordService:

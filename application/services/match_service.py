@@ -423,11 +423,11 @@ class MatchService:
 
         # Update commentators if provided
         if commentator_ids is not None:
-            await self._sync_commentators(match, commentator_ids)
+            await self._sync_crew(match, commentator_ids, self.commentator_repository)
 
         # Update trackers if provided
         if tracker_ids is not None:
-            await self._sync_trackers(match, tracker_ids)
+            await self._sync_crew(match, tracker_ids, self.tracker_repository)
 
         audit_details: Dict[str, Any] = {
             'match_id': match.id,
@@ -1037,41 +1037,23 @@ class MatchService:
             if user:
                 await self.repository.remove_player(match, user)
     
-    async def _sync_commentators(self, match: Match, new_ids: List[int]) -> None:
-        """Sync match commentators to new list."""
-        existing = await self.commentator_repository.get_by_match(match)
+    async def _sync_crew(self, match: Match, new_ids: List[int], repository) -> None:
+        """Sync a match's crew (commentators or trackers) to the given user-id list."""
+        existing = await repository.get_by_match(match)
         existing_map = {c.user_id: c for c in existing}
         existing_ids = set(existing_map.keys())
         new_ids_set = set(new_ids)
-        
+
         # Add new
         for uid in new_ids_set - existing_ids:
             user = await self.user_repository.get_by_id(uid)
             if not user:
                 raise ValueError(f"User {uid} not found")
-            await self.commentator_repository.create(match=match, user=user, approved=True)
-        
+            await repository.create(match=match, user=user, approved=True)
+
         # Remove old
         for uid in existing_ids - new_ids_set:
-            await self.commentator_repository.delete(existing_map[uid])
-    
-    async def _sync_trackers(self, match: Match, new_ids: List[int]) -> None:
-        """Sync match trackers to new list."""
-        existing = await self.tracker_repository.get_by_match(match)
-        existing_map = {t.user_id: t for t in existing}
-        existing_ids = set(existing_map.keys())
-        new_ids_set = set(new_ids)
-        
-        # Add new
-        for uid in new_ids_set - existing_ids:
-            user = await self.user_repository.get_by_id(uid)
-            if not user:
-                raise ValueError(f"User {uid} not found")
-            await self.tracker_repository.create(match=match, user=user, approved=True)
-        
-        # Remove old
-        for uid in existing_ids - new_ids_set:
-            await self.tracker_repository.delete(existing_map[uid])
+            await repository.delete(existing_map[uid])
 
     async def _collect_notified_discord_ids(self, match: Match) -> list:
         """
