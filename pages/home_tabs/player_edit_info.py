@@ -159,6 +159,11 @@ async def render_edit_info_tab():
             show_saved()
             mark_clean()
 
+        # Auto-save status indicator (updated by the on_change handlers above).
+        with ui.row().classes('row-centered'):
+            status_icon = ui.icon('check', size='xs').classes('text-muted')
+            status_label = ui.label('All changes are saved automatically').classes('text-muted')
+
         # Personal Information Section
         with ui.card().classes('card-full-width'):
             ui.label('Personal Information').classes('section-title')
@@ -243,11 +248,6 @@ async def render_edit_info_tab():
         # Tournament Sections
         render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)
         render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
-
-        # Auto-save status indicator (updated by the on_change handlers above).
-        with ui.row().classes('row-centered'):
-            status_icon = ui.icon('check', size='xs').classes('text-muted')
-            status_label = ui.label('All changes are saved automatically').classes('text-muted')
 
         # API token management (self-contained; saves independently of the form above)
         await render_api_tokens_section(user)

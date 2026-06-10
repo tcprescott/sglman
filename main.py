@@ -134,7 +134,6 @@ app.add_middleware(FunFactMiddleware)
 app.include_router(
     api.router,
     prefix='/api',
-    tags=['api'],
 )
 
 frontend.init(app)

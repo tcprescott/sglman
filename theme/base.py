@@ -28,7 +28,7 @@ class BaseLayout:
 
         self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
         if user is not None:
-            self.top_menu.append({'label': 'Triforce Texts', 'icon': 'img:/static/triforce.svg', 'url': '/triforcetexts'})
+            self.top_menu.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'url': '/triforcetexts'})
         if show_admin:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
 

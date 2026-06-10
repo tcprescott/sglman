@@ -1,6 +1,6 @@
 """Triforce Text submission page (public, Discord OAuth required)."""
 
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from application.services import (
     AuthService,
@@ -116,30 +116,28 @@ def create() -> None:
                     )
 
             @ui.refreshable
-            def submissions_list() -> None:
-                async def render():
-                    rows = await service.list_user_submissions(tournament_id, user)
-                    if not rows:
-                        ui.label('You have no submissions yet.').classes('text-caption text-grey-7')
-                        return
-                    for entry in rows:
-                        status = (
-                            'Pending' if entry.approved is None
-                            else 'Approved' if entry.approved
-                            else 'Rejected'
-                        )
-                        color = (
-                            'orange' if entry.approved is None
-                            else 'positive' if entry.approved
-                            else 'negative'
-                        )
-                        with ui.card().classes('w-full q-mb-sm'):
-                            with ui.row().classes('items-center justify-between w-full'):
-                                ui.label(entry.text).classes(
-                                    'q-py-xs'
-                                ).style('white-space: pre-line; font-family: monospace;')
-                                ui.badge(status, color=color)
-                background_tasks.create(render())
+            async def submissions_list() -> None:
+                rows = await service.list_user_submissions(tournament_id, user)
+                if not rows:
+                    ui.label('You have no submissions yet.').classes('text-caption text-grey-7')
+                    return
+                for entry in rows:
+                    status = (
+                        'Pending' if entry.approved is None
+                        else 'Approved' if entry.approved
+                        else 'Rejected'
+                    )
+                    color = (
+                        'orange' if entry.approved is None
+                        else 'positive' if entry.approved
+                        else 'negative'
+                    )
+                    with ui.card().classes('w-full q-mb-sm'):
+                        with ui.row().classes('items-center justify-between w-full'):
+                            ui.label(entry.text).classes(
+                                'q-py-xs'
+                            ).style('white-space: pre-line; font-family: monospace;')
+                            ui.badge(status, color=color)
 
             async def on_submit():
                 lines = [inp.value or '' for inp in line_inputs]
@@ -157,9 +155,9 @@ def create() -> None:
                 ui.button(
                     'Submit',
                     icon='send',
-                    on_click=lambda: background_tasks.create(on_submit()),
+                    on_click=on_submit,
                 ).props('color=primary')
 
             ui.separator().classes('separator-spacing')
             ui.label('Your Submissions').classes('text-h6')
-            submissions_list()
+            await submissions_list()

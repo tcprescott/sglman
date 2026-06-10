@@ -108,18 +108,14 @@ async def admin_triforce_texts_page() -> None:
                                         ui.button(
                                             'Approve',
                                             icon='check',
-                                            on_click=lambda _, eid=entry.id: background_tasks.create(
-                                                _moderate(eid, True)
-                                            ),
+                                            on_click=lambda _, eid=entry.id: _moderate(eid, True),
                                         ).props('color=positive dense').props(
                                             'disable' if entry.approved is True else ''
                                         )
                                         ui.button(
                                             'Reject',
                                             icon='close',
-                                            on_click=lambda _, eid=entry.id: background_tasks.create(
-                                                _moderate(eid, False)
-                                            ),
+                                            on_click=lambda _, eid=entry.id: _moderate(eid, False),
                                         ).props('color=negative dense').props(
                                             'disable' if entry.approved is False else ''
                                         )

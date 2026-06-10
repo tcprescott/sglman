@@ -80,7 +80,7 @@ The **Player** tab shows your personal match schedule — only matches you are e
 - Use this tab to quickly see what is coming up for you without the full tournament schedule.
 """)
 
-        with ui.expansion('Triforce Texts', icon='img:/static/triforce.svg').classes('card-full-width'):
+        with ui.expansion('Triforce Texts', icon='svguse:/static/triforce.svg#triforce|0 0 512 512').classes('card-full-width'):
             ui.markdown("""
 Some ALTTP tournaments collect **Triforce Text** submissions — the three lines of custom text shown on the triforce screen at the end of a game.
 

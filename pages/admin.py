@@ -81,7 +81,7 @@ def create() -> None:
         if is_staff or is_stream_manager:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
         if is_staff or is_ta_any:
-            tabs.append({'label': 'Triforce Texts', 'icon': 'img:/static/triforce.svg', 'content': admin_triforce_texts_page})
+            tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': admin_triforce_texts_page})
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
         tabs.append({'label': 'Help', 'icon': 'help', 'content': admin_help_page})
