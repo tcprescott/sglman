@@ -15,6 +15,7 @@ from typing import List, Optional
 from application.repositories.triforce_text_repository import TriforceTextRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.seedgen_service import SeedGenerationService
 from models import Tournament, TriforceText, User
 
 
@@ -59,8 +60,15 @@ class TriforceTextService:
         tournament = await Tournament.get_or_none(id=tournament_id)
         if tournament is None:
             raise ValueError("Tournament not found.")
-        if not tournament.is_active:
+        if not tournament.is_active or not SeedGenerationService.supports_triforce_texts(
+            tournament.seed_generator
+        ):
             raise ValueError("This tournament is not accepting submissions.")
+        if not (await AuthService.is_staff(user) or await AuthService.is_triforce_submitter(user)):
+            raise ValueError(
+                "Submitting triforce texts is a paid feature. See the tournament page "
+                "for how to get access."
+            )
 
         cleaned = self._validate_lines(lines)
         text = "\n".join(cleaned)
@@ -80,6 +88,13 @@ class TriforceTextService:
             },
         )
         return created
+
+    async def list_supporting_tournaments(self) -> List[Tournament]:
+        """Active tournaments whose generator can embed triforce texts."""
+        return await Tournament.filter(
+            is_active=True,
+            seed_generator__in=list(SeedGenerationService.TRIFORCE_TEXT_RANDOMIZERS),
+        ).order_by('name')
 
     async def list_user_submissions(
         self, tournament_id: int, user: User

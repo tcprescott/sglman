@@ -43,8 +43,10 @@ class TestStreamRooms:
 class TestTriforce:
     async def test_submit_and_moderate(self, db, app):
         _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])
-        player, player_raw = await create_user_token(username='player')
-        t = await Tournament.create(name='Cup', is_active=True)
+        player, player_raw = await create_user_token(
+            username='player', roles=[Role.TRIFORCE_SUBMITTER]
+        )
+        t = await Tournament.create(name='Cup', is_active=True, seed_generator='alttpr')
 
         async with client_for(app, player_raw) as player_c, client_for(app, staff_raw) as staff_c:
             submitted = await player_c.post(
@@ -66,8 +68,8 @@ class TestTriforce:
             assert approved.json()['approved'] is True
 
     async def test_submit_invalid_lines(self, db, app):
-        _, raw = await create_user_token(username='player')
-        t = await Tournament.create(name='Cup', is_active=True)
+        _, raw = await create_user_token(username='player', roles=[Role.TRIFORCE_SUBMITTER])
+        t = await Tournament.create(name='Cup', is_active=True, seed_generator='alttpr')
         async with client_for(app, raw) as c:
             # Only 2 lines -> service requires exactly 3 -> 400.
             resp = await c.post('/api/triforce-texts', json={'tournament_id': t.id, 'lines': ['A', 'B']})

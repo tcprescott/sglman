@@ -43,6 +43,22 @@ class AuthService:
         return await AuthService.has_role(user, Role.STREAM_MANAGER)
 
     @staticmethod
+    async def is_triforce_submitter(user: Optional[User]) -> bool:
+        return await AuthService.has_role(user, Role.TRIFORCE_SUBMITTER)
+
+    @staticmethod
+    async def can_submit_triforce_text(user: Optional[User], tournament: Tournament) -> bool:
+        """Submitting requires the paid Triforce Submitter role (staff override),
+        and the tournament must be active with a generator that supports texts."""
+        from application.services.seedgen_service import SeedGenerationService
+
+        if not tournament.is_active:
+            return False
+        if not SeedGenerationService.supports_triforce_texts(tournament.seed_generator):
+            return False
+        return await AuthService.is_staff(user) or await AuthService.is_triforce_submitter(user)
+
+    @staticmethod
     async def is_tournament_admin(user: Optional[User], tournament_id: int) -> bool:
         if user is None:
             return False

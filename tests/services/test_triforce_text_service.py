@@ -8,18 +8,21 @@ import pytest
 
 from application.services.audit_service import AuditActions
 from application.services.triforce_text_service import TriforceTextService
-from models import AuditLog, Tournament, TriforceText, User
+from models import AuditLog, Role, Tournament, TriforceText, User, UserRole
 
 
 pytestmark = pytest.mark.asyncio
 
 
-async def _make_user(discord_id: int, name: str) -> User:
-    return await User.create(discord_id=discord_id, username=name, display_name=name)
+async def _make_user(discord_id: int, name: str, submitter: bool = True) -> User:
+    user = await User.create(discord_id=discord_id, username=name, display_name=name)
+    if submitter:
+        await UserRole.create(user=user, role=Role.TRIFORCE_SUBMITTER)
+    return user
 
 
 async def _make_tournament(admins: list[User]) -> Tournament:
-    t = await Tournament.create(name='Test', is_active=True)
+    t = await Tournament.create(name='Test', is_active=True, seed_generator='alttpr')
     for a in admins:
         await t.admins.add(a)
     return t
@@ -63,6 +66,32 @@ async def test_submit_rejects_inactive_tournament(db):
     t = await Tournament.create(name='Closed', is_active=False)
     with pytest.raises(ValueError, match="not accepting"):
         await svc.submit(t.id, ['hi', '', ''], user)
+
+
+async def test_submit_rejects_unsupported_generator(db):
+    svc = TriforceTextService()
+    user = await _make_user(1, 'alice')
+    t = await Tournament.create(name='OoT', is_active=True, seed_generator='ootr')
+    with pytest.raises(ValueError, match="not accepting"):
+        await svc.submit(t.id, ['hi', '', ''], user)
+
+
+async def test_submit_requires_paid_role(db):
+    svc = TriforceTextService()
+    user = await _make_user(1, 'alice', submitter=False)
+    t = await _make_tournament([])
+    with pytest.raises(ValueError, match="paid"):
+        await svc.submit(t.id, ['hi', '', ''], user)
+
+
+async def test_list_supporting_tournaments(db):
+    svc = TriforceTextService()
+    supported = await Tournament.create(name='ALTTP', is_active=True, seed_generator='alttpr')
+    await Tournament.create(name='OoT', is_active=True, seed_generator='ootr')
+    await Tournament.create(name='Closed', is_active=False, seed_generator='alttpr')
+
+    rows = await svc.list_supporting_tournaments()
+    assert [t.id for t in rows] == [supported.id]
 
 
 async def test_submit_writes_pending_row_and_audit(db):

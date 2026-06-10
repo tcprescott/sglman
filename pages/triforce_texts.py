@@ -2,7 +2,12 @@
 
 from nicegui import background_tasks, ui
 
-from application.services import TriforceTextService, current_user_from_storage
+from application.services import (
+    AuthService,
+    SeedGenerationService,
+    TriforceTextService,
+    current_user_from_storage,
+)
 from middleware.auth import protected_page
 from models import Tournament
 from theme.base import BaseLayout
@@ -17,6 +22,43 @@ _HELP_TEXT = (
 
 
 def create() -> None:
+    @protected_page('/triforcetexts')
+    async def triforce_texts_index_page():
+        ui.page_title('Triforce Texts')
+
+        user = await current_user_from_storage()
+        await BaseLayout(page_name='triforce_texts', user=user).render()
+
+        tournaments = await TriforceTextService().list_supporting_tournaments()
+
+        with ui.column().classes('page-container-narrow'):
+            with ui.row().classes('header-row'):
+                ui.label('Triforce Texts').classes('page-title')
+
+            ui.label(
+                'Submit custom text for the end-game triforce screen of supported '
+                'tournaments. Choose a tournament below.'
+            ).classes('text-caption text-grey-7')
+            ui.separator().classes('separator-spacing')
+
+            if not tournaments:
+                ui.label(
+                    'No tournaments are currently accepting triforce text submissions.'
+                ).classes('text-grey-7')
+                return
+
+            for tournament in tournaments:
+                with ui.card().classes('w-full q-mb-sm'):
+                    with ui.row().classes('items-center justify-between w-full'):
+                        ui.label(tournament.name).classes('text-subtitle1')
+                        ui.button(
+                            'Open',
+                            icon='arrow_forward',
+                            on_click=lambda _, tid=tournament.id: ui.navigate.to(
+                                f'/triforcetexts/{tid}'
+                            ),
+                        ).props('color=primary dense')
+
     @protected_page('/triforcetexts/{tournament_id}')
     async def triforce_texts_page(tournament_id: int):
         ui.page_title('Triforce Text Submission')
@@ -37,9 +79,29 @@ def create() -> None:
 
         service = TriforceTextService()
 
+        accepts = tournament.is_active and SeedGenerationService.supports_triforce_texts(
+            tournament.seed_generator
+        )
+        can_submit = await AuthService.can_submit_triforce_text(user, tournament)
+
         with ui.column().classes('page-container-narrow'):
             with ui.row().classes('header-row'):
                 ui.label(f'Triforce Texts — {tournament.name}').classes('page-title')
+
+            if not accepts:
+                ui.label(
+                    'This tournament is not accepting triforce text submissions.'
+                ).classes('text-grey-7')
+                return
+
+            if not can_submit:
+                if tournament.triforce_access_message:
+                    ui.markdown(tournament.triforce_access_message)
+                else:
+                    ui.label(
+                        'Submitting triforce texts is a paid option for this tournament.'
+                    ).classes('text-grey-7')
+                return
 
             ui.label(_HELP_TEXT).classes('text-caption text-grey-7')
             ui.separator().classes('separator-spacing')

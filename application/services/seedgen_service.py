@@ -10,6 +10,7 @@ import json
 import os
 import random
 import urllib.parse
+from typing import Optional
 
 import aiohttp
 import yaml
@@ -18,7 +19,7 @@ from pyz3r import ALTTPR
 
 class SeedGenerationService:
     """Service for generating seeds for various randomizers."""
-    
+
     # Available randomizers
     AVAILABLE_RANDOMIZERS = [
         'alttpr',
@@ -28,7 +29,14 @@ class SeedGenerationService:
         'ootr',
         'test',
     ]
-    
+
+    # Randomizers whose generator can embed community triforce texts.
+    TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}
+
+    @classmethod
+    def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
+        return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
+
     async def generate_seed(self, randomizer: str) -> str:
         """
         Generate a seed for the specified randomizer.

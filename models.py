@@ -8,6 +8,7 @@ class Role(str, Enum):
     STAFF = 'staff'
     PROCTOR = 'proctor'
     STREAM_MANAGER = 'stream_manager'
+    TRIFORCE_SUBMITTER = 'triforce_submitter'
 
 class User(Model):
     id = fields.IntField(pk=True)
@@ -95,6 +96,7 @@ class Tournament(Model):
     bracket_url = fields.CharField(max_length=255, null=True)
     rules_url = fields.CharField(max_length=255, null=True)
     tournament_format = fields.CharField(max_length=255, null=True)
+    triforce_access_message = fields.TextField(null=True)
     average_match_duration = fields.IntField(null=True)  # in minutes
     max_match_duration = fields.IntField(null=True)  # in minutes
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')

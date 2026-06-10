@@ -58,7 +58,7 @@ async def seed() -> None:
         ("100000000000000001", "staff_user",   "Staff User",   Role.STAFF),
         ("100000000000000002", "proctor_user", "Proctor User", Role.PROCTOR),
         ("100000000000000003", "sm_user",      "SM User",      Role.STREAM_MANAGER),
-        ("100000000000000004", "player_one",   "Player One",   None),
+        ("100000000000000004", "player_one",   "Player One",   Role.TRIFORCE_SUBMITTER),
         ("100000000000000005", "player_two",   "Player Two",   None),
         ("100000000000000006", "player_three", "Player Three", None),
         ("100000000000000007", "player_four",  "Player Four",  None),

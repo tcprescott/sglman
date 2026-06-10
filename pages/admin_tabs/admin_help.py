@@ -104,7 +104,7 @@ The **Stream Rooms** tab (Staff and Stream Managers) manages the named stages sh
 - Inactive rooms no longer appear in match creation dropdowns but retain their history.
 """)
 
-        with ui.expansion('Triforce Texts', icon='star').classes('card-full-width'):
+        with ui.expansion('Triforce Texts', icon='img:/static/triforce.svg').classes('card-full-width'):
             ui.markdown("""
 The **Triforce Texts** tab (Staff and Tournament Admins) moderates player text submissions for ALTTP tournaments.
 

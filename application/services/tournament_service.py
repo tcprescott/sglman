@@ -28,6 +28,7 @@ class TournamentService:
         bracket_url: Optional[str] = None,
         rules_url: Optional[str] = None,
         tournament_format: Optional[str] = None,
+        triforce_access_message: Optional[str] = None,
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
         is_active: bool = True,
@@ -54,6 +55,7 @@ class TournamentService:
             bracket_url=bracket_url.strip() if bracket_url else None,
             rules_url=rules_url.strip() if rules_url else None,
             tournament_format=tournament_format.strip() if tournament_format else None,
+            triforce_access_message=triforce_access_message.strip() if triforce_access_message else None,
             average_match_duration=average_match_duration,
             max_match_duration=max_match_duration,
             is_active=is_active,
@@ -79,6 +81,7 @@ class TournamentService:
         bracket_url: Optional[str] = None,
         rules_url: Optional[str] = None,
         tournament_format: Optional[str] = None,
+        triforce_access_message: Optional[str] = None,
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
         is_active: Optional[bool] = None,
@@ -111,6 +114,10 @@ class TournamentService:
             update_data['rules_url'] = rules_url.strip() if rules_url else None
         if tournament_format is not None:
             update_data['tournament_format'] = tournament_format.strip() if tournament_format else None
+        if triforce_access_message is not None:
+            update_data['triforce_access_message'] = (
+                triforce_access_message.strip() if triforce_access_message else None
+            )
         if average_match_duration is not None:
             update_data['average_match_duration'] = average_match_duration
         if max_match_duration is not None:

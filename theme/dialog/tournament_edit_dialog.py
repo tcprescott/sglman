@@ -45,6 +45,12 @@ class TournamentDialog:
                     'Tournament Format',
                     value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '',
                 ).classes('input-full-width')
+                triforce_access_message_input = ui.textarea(
+                    'Triforce Text Access Message',
+                    value=self.tournament.triforce_access_message if self.tournament and self.tournament.triforce_access_message else '',
+                ).classes('input-full-width').props(
+                    'hint="Shown (as markdown) to users without submit access — e.g. how to purchase it."'
+                )
                 with ui.row().classes('gap-2'):
                     average_match_duration_input = ui.number(
                         'Avg Match Duration (min)',
@@ -94,6 +100,7 @@ class TournamentDialog:
                                 bracket_url=bracket_url_input.value,
                                 rules_url=rules_url_input.value,
                                 tournament_format=tournament_format_input.value,
+                                triforce_access_message=triforce_access_message_input.value,
                                 average_match_duration=average_match_duration_input.value,
                                 max_match_duration=max_match_duration_input.value,
                                 is_active=is_active_checkbox.value,
@@ -114,6 +121,7 @@ class TournamentDialog:
                             bracket_url=bracket_url_input.value,
                             rules_url=rules_url_input.value,
                             tournament_format=tournament_format_input.value,
+                            triforce_access_message=triforce_access_message_input.value,
                             average_match_duration=average_match_duration_input.value,
                             max_match_duration=max_match_duration_input.value,
                             is_active=is_active_checkbox.value,

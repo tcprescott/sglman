@@ -19,6 +19,7 @@ class TournamentResponse(BaseModel):
     bracket_url: Optional[str] = None
     rules_url: Optional[str] = None
     tournament_format: Optional[str] = None
+    triforce_access_message: Optional[str] = None
     average_match_duration: Optional[int] = None
     max_match_duration: Optional[int] = None
     staff_administered: bool

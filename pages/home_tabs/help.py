@@ -80,12 +80,13 @@ The **Player** tab shows your personal match schedule — only matches you are e
 - Use this tab to quickly see what is coming up for you without the full tournament schedule.
 """)
 
-        with ui.expansion('Triforce Texts', icon='star').classes('card-full-width'):
+        with ui.expansion('Triforce Texts', icon='img:/static/triforce.svg').classes('card-full-width'):
             ui.markdown("""
 Some ALTTP tournaments collect **Triforce Text** submissions — the three lines of custom text shown on the triforce screen at the end of a game.
 
 **Submitting your text**
-- You will receive a direct link to the submission page for your tournament: `/triforcetexts/{tournament_id}`
+- Open the **Triforce Texts** menu entry to see the tournaments accepting submissions, then pick yours.
+- Submitting is a paid option — if you don't yet have access, the tournament page explains how to get it.
 - Enter up to three lines of text (subject to the tournament's character limits).
 - Submissions are reviewed and approved by tournament staff before use.
 

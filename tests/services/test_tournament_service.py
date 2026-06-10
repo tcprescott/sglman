@@ -106,12 +106,14 @@ class TestCreateTournament:
             bracket_url=' https://challonge.com/x ',
             rules_url=' https://r.x ',
             tournament_format=' DE ',
+            triforce_access_message=' Buy access at https://shop.x ',
             actor=make_user(),
         )
         kwargs = service.repository.create.await_args.kwargs
         assert kwargs['bracket_url'] == 'https://challonge.com/x'
         assert kwargs['rules_url'] == 'https://r.x'
         assert kwargs['tournament_format'] == 'DE'
+        assert kwargs['triforce_access_message'] == 'Buy access at https://shop.x'
 
     async def test_non_staff_actor_denied(self, service, monkeypatch):
         from application.services import auth_service
@@ -148,6 +150,16 @@ class TestUpdateTournament:
         t = make_tournament()
         with pytest.raises(ValueError, match='name cannot be empty'):
             await service.update_tournament(t, name='   ', actor=make_user())
+
+    async def test_triforce_access_message_stripped_and_cleared(self, service):
+        t = make_tournament()
+        await service.update_tournament(
+            t, triforce_access_message=' how to buy ', actor=make_user(),
+        )
+        assert service.repository.update.await_args.kwargs['triforce_access_message'] == 'how to buy'
+
+        await service.update_tournament(t, triforce_access_message='', actor=make_user())
+        assert service.repository.update.await_args.kwargs['triforce_access_message'] is None
 
     async def test_seed_generator_explicit_value_passed_through(self, service):
         # Real generators like 'alttpr' should land in update_data.

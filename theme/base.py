@@ -27,6 +27,8 @@ class BaseLayout:
         self._tab_item_refs: dict = {}
 
         self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
+        if user is not None:
+            self.top_menu.append({'label': 'Triforce Texts', 'icon': 'img:/static/triforce.svg', 'url': '/triforcetexts'})
         if show_admin:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
 

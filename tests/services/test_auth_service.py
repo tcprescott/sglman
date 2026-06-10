@@ -298,6 +298,53 @@ class TestGrantRoles:
 
 
 # ---------------------------------------------------------------------------
+# can_submit_triforce_text — paid global role + generator capability
+# ---------------------------------------------------------------------------
+
+
+def make_triforce_tournament(is_active=True, seed_generator='alttpr'):
+    return SimpleNamespace(id=1, is_active=is_active, seed_generator=seed_generator)
+
+
+class TestTriforceSubmit:
+    async def test_is_triforce_submitter(self, patch_roles):
+        patch_roles({Role.TRIFORCE_SUBMITTER})
+        assert await AuthService.is_triforce_submitter(make_user()) is True
+        patch_roles({Role.PROCTOR})
+        assert await AuthService.is_triforce_submitter(make_user()) is False
+
+    async def test_submitter_can_submit_to_supported_active_tournament(self, patch_roles):
+        patch_roles({Role.TRIFORCE_SUBMITTER})
+        assert await AuthService.can_submit_triforce_text(
+            make_user(), make_triforce_tournament()
+        ) is True
+
+    async def test_staff_override_can_submit(self, patch_roles):
+        patch_roles({Role.STAFF})
+        assert await AuthService.can_submit_triforce_text(
+            make_user(), make_triforce_tournament()
+        ) is True
+
+    async def test_no_role_cannot_submit(self, patch_roles):
+        patch_roles(set())
+        assert await AuthService.can_submit_triforce_text(
+            make_user(), make_triforce_tournament()
+        ) is False
+
+    async def test_unsupported_generator_blocks_submit(self, patch_roles):
+        patch_roles({Role.TRIFORCE_SUBMITTER})
+        assert await AuthService.can_submit_triforce_text(
+            make_user(), make_triforce_tournament(seed_generator='ootr')
+        ) is False
+
+    async def test_inactive_tournament_blocks_submit(self, patch_roles):
+        patch_roles({Role.TRIFORCE_SUBMITTER})
+        assert await AuthService.can_submit_triforce_text(
+            make_user(), make_triforce_tournament(is_active=False)
+        ) is False
+
+
+# ---------------------------------------------------------------------------
 # ensure() raises PermissionError
 # ---------------------------------------------------------------------------
 
