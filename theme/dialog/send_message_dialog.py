@@ -1,5 +1,6 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 from application.services import DiscordService
+from theme.dialog._helpers import dialog_header, submit_on_enter
 
 class SendMessageDialog:
     def __init__(self, user, send_callback=None):
@@ -11,11 +12,7 @@ class SendMessageDialog:
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label('Send Message').classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header('Send Message', dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 message_input = ui.textarea(
                     label='Message',
@@ -43,10 +40,7 @@ class SendMessageDialog:
                     backward=lambda v: bool(v and v.strip()),
                 )
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(send_message())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, send_message)
             dialog.open()
 
     async def send(self, user, message):

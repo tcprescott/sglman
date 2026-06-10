@@ -4,6 +4,7 @@ from nicegui import ui
 
 from models import Commentator, Tracker
 from application.services import CrewService, current_user_from_storage
+from theme.dialog._helpers import dialog_header
 
 
 class ApproveCrewDialog:
@@ -17,11 +18,7 @@ class ApproveCrewDialog:
     async def open(self):
         with ui.dialog() as self.dialog:
             with ui.card().classes('dialog-card'):
-                with ui.row().classes('items-center q-pa-sm'):
-                    ui.label(f'Approve {self.crew_type.capitalize()}').classes('text-h6 q-ma-none')
-                    ui.space()
-                    ui.button(icon='close', on_click=self.dialog.close).props('flat round dense').tooltip('Close')
-                ui.separator()
+                dialog_header(f'Approve {self.crew_type.capitalize()}', self.dialog)
                 with ui.column().classes('q-pa-md gap-2'):
                     ui.label(f'Name: {self.crew_member.user.preferred_name}')
                     approved_checkbox = ui.checkbox('Approved', value=self.crew_member.approved)

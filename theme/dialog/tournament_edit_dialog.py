@@ -1,6 +1,7 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from application.services import SeedGenerationService, TournamentService, current_user_from_storage
+from theme.dialog._helpers import dialog_header, submit_on_enter
 
 
 class TournamentDialog:
@@ -16,11 +17,7 @@ class TournamentDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label(title).classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label('* required').classes('required-legend')
                 name_input = ui.input(
@@ -148,8 +145,5 @@ class TournamentDialog:
                     backward=lambda v: bool(v and v.strip()),
                 )
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()

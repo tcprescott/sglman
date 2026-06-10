@@ -1,8 +1,9 @@
 """Dialog for editing StreamRoom details"""
 
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from application.services import StreamRoomService, current_user_from_storage
+from theme.dialog._helpers import dialog_header, submit_on_enter
 from models import StreamRoom
 
 
@@ -27,11 +28,7 @@ class StreamRoomEditDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label(title).classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 name_input = ui.input('Room Name', value=default_name).classes('input-full-width')
                 url_input = ui.input('Stream URL', value=default_url).classes('input-full-width')
@@ -77,8 +74,5 @@ class StreamRoomEditDialog:
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if self.stream_room else 'Create', on_click=submit).props('color=primary')
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()

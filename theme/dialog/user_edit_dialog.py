@@ -1,8 +1,9 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from application.repositories import TournamentRepository
 from application.services import AuthService, TournamentService, UserService, current_user_from_storage
 from models import Role, User
+from theme.dialog._helpers import dialog_header, submit_on_enter
 from theme.dialog.send_message_dialog import SendMessageDialog
 
 
@@ -53,11 +54,7 @@ class UserDialog(BaseUserDialog):
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label('Edit Profile').classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header('Edit Profile', dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.input('Username', value=self.user.username if self.user else '').props(
                     'readonly' if self.user else ''
@@ -116,10 +113,7 @@ class UserDialog(BaseUserDialog):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save', on_click=submit).props('color=primary')
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()
 
 
@@ -137,11 +131,7 @@ class AdminUserDialog(BaseUserDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label(title).classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 if is_create:
                     ui.label('* required').classes('required-legend')
@@ -315,8 +305,5 @@ class AdminUserDialog(BaseUserDialog):
                 else:
                     ui.button('Save', on_click=submit).props('color=primary')
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()

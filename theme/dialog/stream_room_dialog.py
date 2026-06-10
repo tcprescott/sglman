@@ -1,7 +1,8 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from application.services import current_user_from_storage
 from models import Match
+from theme.dialog._helpers import dialog_header, submit_on_enter
 from theme.dialog.match_dialog import BaseMatchDialog
 
 
@@ -14,11 +15,7 @@ class StreamRoomDialog(BaseMatchDialog):
         default_stream_room = self.match.stream_room_id if self.match.stream_room_id else None
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label('Assign Stage').classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header('Assign Stage', dialog)
             with ui.column().classes('q-pa-md'):
                 stream_room_options = {None: '(None)'}
                 stream_room_options.update({s.id: s.name for s in stream_rooms})
@@ -57,8 +54,5 @@ class StreamRoomDialog(BaseMatchDialog):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save', on_click=submit).props('color=primary')
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()

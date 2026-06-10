@@ -1,5 +1,7 @@
 from nicegui import ui
 
+from theme.dialog._helpers import dialog_header
+
 
 class ConfirmationDialog:
     def __init__(self, message: str = "Are you sure?", on_confirm=None, confirm_text="Confirm", cancel_text="Cancel"):
@@ -12,11 +14,7 @@ class ConfirmationDialog:
     def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label('Confirm').classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header('Confirm', dialog)
             with ui.column().classes('q-pa-md'):
                 ui.label(self.message)
             ui.separator()

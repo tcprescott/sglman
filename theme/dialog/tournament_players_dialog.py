@@ -1,6 +1,7 @@
 from nicegui import ui
 
 from application.repositories import TournamentRepository
+from theme.dialog._helpers import dialog_header
 
 
 class TournamentPlayersDialog:
@@ -11,11 +12,7 @@ class TournamentPlayersDialog:
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label(f'Players — {self.tournament.name}').classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header(f'Players — {self.tournament.name}', dialog)
             with ui.column().classes('q-pa-md'):
                 players = await TournamentRepository.get_enrolled_players(self.tournament)
                 if not players:

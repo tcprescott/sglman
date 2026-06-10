@@ -15,6 +15,7 @@ from application.utils.timezone import (
     now_eastern,
 )
 from models import Match
+from theme.dialog._helpers import dialog_header, submit_on_enter
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -197,11 +198,7 @@ class AdminMatchDialog(BaseMatchDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label(title).classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label('* required').classes('required-legend')
 
@@ -417,10 +414,7 @@ class AdminMatchDialog(BaseMatchDialog):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if self.match else 'Create', on_click=submit).props('color=primary')
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()
 
 
@@ -456,11 +450,7 @@ class UserMatchDialog(BaseMatchDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
-            with ui.row().classes('items-center q-pa-sm'):
-                ui.label(title).classes('text-h6 q-ma-none')
-                ui.space()
-                ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
-            ui.separator()
+            dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 if not tournaments:
                     ui.label(
@@ -630,8 +620,5 @@ class UserMatchDialog(BaseMatchDialog):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if self.match else 'Submit', on_click=submit).props('color=primary')
 
-            def on_keydown(e):
-                if e.args and e.args.get('key') == 'Enter':
-                    background_tasks.create(submit())
-            dialog.on('keydown', on_keydown)
+            submit_on_enter(dialog, submit)
             dialog.open()
