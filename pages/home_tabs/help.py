@@ -85,11 +85,11 @@ The **Player** tab shows your personal match schedule — only matches you are e
 Some ALTTP tournaments collect **Triforce Text** submissions — the three lines of custom text shown on the triforce screen at the end of a game.
 
 **Submitting your text**
-- Open the **Triforce Texts** menu entry to see the tournaments accepting submissions, then pick yours.
-- Submitting is a paid option — if you don't yet have access, the tournament page explains how to get it.
+- Open the **Triforce Texts** tab to see the tournaments accepting submissions, then pick yours.
+- Submitting is a paid option — if you don't yet have access, the tournament explains how to get it.
 - Enter up to three lines of text (subject to the tournament's character limits).
 - Submissions are reviewed and approved by tournament staff before use.
 
 **Editing your submission**
-- You can update your submission until it is approved. Return to the same link and edit your entry.
+- You can update your submission until it is approved. Return to the same tab and edit your entry.
 """)

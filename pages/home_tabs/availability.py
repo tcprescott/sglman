@@ -1,9 +1,8 @@
-"""Player Availability Page (self-service for any logged-in player)."""
+"""Home My Availability tab (self-service for any logged-in player)."""
 
 from datetime import timedelta
 
-from nicegui import app, ui
-from middleware.auth import protected_page
+from nicegui import ui
 
 from application.services import SystemConfigService, current_user_from_storage
 from application.services.player_availability_service import PlayerAvailabilityService
@@ -14,7 +13,6 @@ from application.utils.timezone import (
     to_eastern,
 )
 from models import VolunteerAvailabilityStatus
-from theme.base import BaseLayout
 
 
 _STATUS_OPTIONS = {
@@ -24,35 +22,12 @@ _STATUS_OPTIONS = {
 }
 
 
-def create() -> None:
-    @protected_page('/availability')
-    async def availability_page(tab: str = None) -> None:
-        ui.page_title('Speedgaming Live Onsite - My Availability')
-        discord_id = app.storage.user.get('discord_id', None)
-        from models import User
-        from application.services import AuthService
-        user = await User.get_or_none(discord_id=discord_id)
-        if user is None:
-            with ui.row():
-                ui.label('You must be logged in to view this page.').classes('text-error')
-            return
+async def availability_tab() -> None:
+    user = await current_user_from_storage()
+    if user is None:
+        ui.label('You must be logged in.').classes('text-error')
+        return
 
-        show_admin = await AuthService.can_view_admin(user)
-        show_volunteer = await AuthService.is_volunteer(user)
-
-        async def render_content():
-            await _availability_content(user)
-
-        tabs = [
-            {'label': 'My Availability', 'icon': 'event_available', 'content': render_content},
-        ]
-        await BaseLayout(
-            tabs=tabs, default_tab=tab, page_name='availability', user=user,
-            show_admin=show_admin, show_volunteer=show_volunteer,
-        ).render()
-
-
-async def _availability_content(user) -> None:
     service = PlayerAvailabilityService()
 
     event_start, event_end = await SystemConfigService.get_event_window()

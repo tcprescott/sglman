@@ -1,4 +1,4 @@
-"""Triforce Text submission page (public, Discord OAuth required)."""
+"""Home Triforce Texts tab (inline tournament selection + submission)."""
 
 from nicegui import ui
 
@@ -8,9 +8,7 @@ from application.services import (
     TriforceTextService,
     current_user_from_storage,
 )
-from middleware.auth import protected_page
 from models import Tournament
-from theme.base import BaseLayout
 
 
 _HELP_TEXT = (
@@ -21,15 +19,17 @@ _HELP_TEXT = (
 )
 
 
-def create() -> None:
-    @protected_page('/triforcetexts')
-    async def triforce_texts_index_page():
-        ui.page_title('Triforce Texts')
+async def triforce_texts_tab() -> None:
+    user = await current_user_from_storage()
+    if user is None:
+        ui.label('You must be logged in.').classes('text-error')
+        return
 
-        user = await current_user_from_storage()
-        await BaseLayout(page_name='triforce_texts', user=user).render()
+    service = TriforceTextService()
+    state: dict = {'tournament_id': None}
 
-        tournaments = await TriforceTextService().list_supporting_tournaments()
+    async def _render_index() -> None:
+        tournaments = await service.list_supporting_tournaments()
 
         with ui.column().classes('page-container-narrow'):
             with ui.row().classes('header-row'):
@@ -47,6 +47,10 @@ def create() -> None:
                 ).classes('text-grey-7')
                 return
 
+            def _open(tid: int) -> None:
+                state['tournament_id'] = tid
+                content.refresh()
+
             for tournament in tournaments:
                 with ui.card().classes('w-full q-mb-sm'):
                     with ui.row().classes('items-center justify-between w-full'):
@@ -54,30 +58,20 @@ def create() -> None:
                         ui.button(
                             'Open',
                             icon='arrow_forward',
-                            on_click=lambda _, tid=tournament.id: ui.navigate.to(
-                                f'/triforcetexts/{tid}'
-                            ),
+                            on_click=lambda _, tid=tournament.id: _open(tid),
                         ).props('color=primary dense')
 
-    @protected_page('/triforcetexts/{tournament_id}')
-    async def triforce_texts_page(tournament_id: int):
-        ui.page_title('Triforce Text Submission')
-
-        user = await current_user_from_storage()
-        if user is None:
-            await BaseLayout(page_name='triforce_texts').render()
-            ui.label('User not found in the database.').classes('text-error')
-            return
+    async def _render_submission(tournament_id: int) -> None:
+        def _back() -> None:
+            state['tournament_id'] = None
+            content.refresh()
 
         tournament = await Tournament.get_or_none(id=tournament_id)
         if tournament is None:
-            await BaseLayout(page_name='triforce_texts', user=user).render()
-            ui.label('Tournament not found.').classes('text-error')
+            with ui.column().classes('page-container-narrow'):
+                ui.button('Back', icon='arrow_back', on_click=_back).props('flat color=primary')
+                ui.label('Tournament not found.').classes('text-error')
             return
-
-        await BaseLayout(page_name='triforce_texts', user=user).render()
-
-        service = TriforceTextService()
 
         accepts = tournament.is_active and SeedGenerationService.supports_triforce_texts(
             tournament.seed_generator
@@ -85,7 +79,8 @@ def create() -> None:
         can_submit = await AuthService.can_submit_triforce_text(user, tournament)
 
         with ui.column().classes('page-container-narrow'):
-            with ui.row().classes('header-row'):
+            with ui.row().classes('header-row items-center'):
+                ui.button('Back', icon='arrow_back', on_click=_back).props('flat color=primary')
                 ui.label(f'Triforce Texts — {tournament.name}').classes('page-title')
 
             if not accepts:
@@ -161,3 +156,12 @@ def create() -> None:
             ui.separator().classes('separator-spacing')
             ui.label('Your Submissions').classes('text-h6')
             await submissions_list()
+
+    @ui.refreshable
+    async def content() -> None:
+        if state['tournament_id'] is None:
+            await _render_index()
+        else:
+            await _render_submission(state['tournament_id'])
+
+    await content()
