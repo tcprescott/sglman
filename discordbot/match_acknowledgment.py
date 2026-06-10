@@ -6,6 +6,8 @@ import logging
 
 import discord
 
+from discordbot._ack_common import make_acknowledged_view, send_ephemeral
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,27 +25,8 @@ def make_match_acknowledgment_view(match_id: int) -> discord.ui.View:
     return view
 
 
-def make_acknowledged_view() -> discord.ui.View:
-    """Create a Discord View with a disabled Acknowledged button."""
-    view = discord.ui.View(timeout=None)
-    view.add_item(discord.ui.Button(
-        label='Acknowledged',
-        style=discord.ButtonStyle.secondary,
-        custom_id=f'{CUSTOM_ID_PREFIX}:acknowledged',
-        disabled=True,
-    ))
-    return view
-
-
 async def _send(interaction: discord.Interaction, message: str) -> None:
-    """Send a reply via followup if defer succeeded, else fall back to response."""
-    try:
-        if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
-        else:
-            await interaction.response.send_message(message, ephemeral=True)
-    except Exception:
-        logger.exception("Failed to send Discord match_ack response")
+    await send_ephemeral(interaction, message, log_label=CUSTOM_ID_PREFIX)
 
 
 async def handle_match_acknowledgment_interaction(interaction: discord.Interaction) -> None:
@@ -89,7 +72,7 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
 
         try:
-            await interaction.message.edit(view=make_acknowledged_view())
+            await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))
         except Exception:
             logger.warning("Could not disable match_ack button (match_id=%s)", match_id)
 
