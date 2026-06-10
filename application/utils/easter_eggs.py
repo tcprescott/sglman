@@ -59,5 +59,35 @@ CAT_FACTS = [
 ]
 
 
+BALATRO_TIPS = [
+    # Scoring fundamentals
+    "Score is Chips × Mult — pushing Mult usually beats grinding Chips.",
+    "Planet cards level up a poker hand's base Chips and Mult permanently.",
+    "Playing a hand levels nothing — only Planet cards raise a hand's level.",
+    "A leveled-up Flush can carry an entire run; Four Fingers makes flushes far easier.",
+    "Stone cards add Chips but have no rank or suit, so they never break a flush or straight.",
+
+    # Jokers
+    "Jokers score left to right — order them so multipliers land after your Chips and +Mult.",
+    "Blueprint copies the Joker to its right; Brainstorm copies the leftmost Joker.",
+    "A Negative Joker takes no slot — the best way to break the 5-Joker cap.",
+    "Baron gives ×Mult for every King held in hand, not played — build around holding Kings.",
+    "Mime retriggers every card's held-in-hand effect; pair it with Steel or Baron.",
+
+    # Enhanced cards
+    "Steel cards give ×1.5 Mult while held in hand, even when you don't play them.",
+    "Glass cards are ×2 Mult but shatter on a roll — high risk, high reward.",
+    "Gold cards pay $3 at end of round if held in hand.",
+    "Lucky cards have a 1-in-5 shot at +20 Mult and 1-in-15 at +$20.",
+
+    # Strategy
+    "Discards are a resource — toss hands you don't need to dig for your build.",
+    "Skipping a small blind grants a tag and saves your hands for the boss.",
+    "Read boss blinds before committing: some debuff a suit, face cards, or your most-played hand.",
+    "Reroll the shop early for a build-defining Joker; money snowballs through interest.",
+    "Hold cash near multiples of $5 — you earn $1 interest per $5, capped at $25.",
+]
+
+
 def random_fact() -> str:
-    return random.choice(COASTER_FACTS + CAT_FACTS)
+    return random.choice(COASTER_FACTS + CAT_FACTS + BALATRO_TIPS)
