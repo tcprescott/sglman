@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.match_schedule_service import MatchScheduleService
+from application.utils.discord_messages import seed_dm, stream_candidate_dm
 
 
 class MockTournament:
@@ -204,21 +205,21 @@ class TestFullLifecycle:
             await service.confirm_match(match)
 
 
-class TestCreateStreamCandidateDmMessage:
-    def test_contains_match_id(self, service):
-        msg = service._create_stream_candidate_dm_message(42, "ALttPR Open", "2025-01-15 14:30 EST")
+class TestStreamCandidateDm:
+    def test_contains_match_id(self):
+        msg = stream_candidate_dm(42, "ALttPR Open", "2025-01-15 14:30 EST")
         assert "42" in msg
 
-    def test_contains_tournament_name(self, service):
-        msg = service._create_stream_candidate_dm_message(1, "ALttPR Open", "2025-01-15 14:30 EST")
+    def test_contains_tournament_name(self):
+        msg = stream_candidate_dm(1, "ALttPR Open", "2025-01-15 14:30 EST")
         assert "ALttPR Open" in msg
 
-    def test_contains_scheduled_at(self, service):
-        msg = service._create_stream_candidate_dm_message(1, "Test", "2025-01-15 14:30 EST")
+    def test_contains_scheduled_at(self):
+        msg = stream_candidate_dm(1, "Test", "2025-01-15 14:30 EST")
         assert "2025-01-15 14:30 EST" in msg
 
-    def test_is_non_empty_string(self, service):
-        msg = service._create_stream_candidate_dm_message(1, "Test", "")
+    def test_is_non_empty_string(self):
+        msg = stream_candidate_dm(1, "Test", "")
         assert isinstance(msg, str)
         assert len(msg) > 0
 
@@ -326,26 +327,26 @@ class TestNotifyStreamCandidateSubscribers:
             await service.notify_stream_candidate_subscribers(match, [])
 
 
-class TestCreateSeedDmMessage:
-    def test_contains_player_name(self, service):
-        msg = service._create_seed_dm_message("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
+class TestSeedDm:
+    def test_contains_player_name(self):
+        msg = seed_dm("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
         assert "Alice" in msg
 
-    def test_contains_match_id(self, service):
-        msg = service._create_seed_dm_message("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
+    def test_contains_match_id(self):
+        msg = seed_dm("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
         assert "42" in msg
 
-    def test_contains_tournament_name(self, service):
-        msg = service._create_seed_dm_message("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
+    def test_contains_tournament_name(self):
+        msg = seed_dm("Alice", 42, "ALttPR Open", "https://alttpr.com/h/abc")
         assert "ALttPR Open" in msg
 
-    def test_contains_seed_url(self, service):
+    def test_contains_seed_url(self):
         url = "https://alttpr.com/h/abc123"
-        msg = service._create_seed_dm_message("Alice", 42, "ALttPR Open", url)
+        msg = seed_dm("Alice", 42, "ALttPR Open", url)
         assert url in msg
 
-    def test_is_non_empty_string(self, service):
-        msg = service._create_seed_dm_message("Bob", 1, "OoTR", "https://ootrandomizer.com/seed/1")
+    def test_is_non_empty_string(self):
+        msg = seed_dm("Bob", 1, "OoTR", "https://ootrandomizer.com/seed/1")
         assert isinstance(msg, str)
         assert len(msg) > 0
 

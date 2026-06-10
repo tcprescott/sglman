@@ -15,6 +15,13 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
+from application.utils.discord_messages import (
+    acknowledgment_request_dm,
+    checked_in_dm,
+    seed_dm,
+    state_changed_dm,
+    stream_candidate_dm,
+)
 from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, MatchWatcher, User
 
 
@@ -72,7 +79,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="seated_at",
             audit_action=AuditActions.MATCH_SEATED,
-            build_message=lambda m: self._create_checked_in_dm_message(m.id, m.tournament.name),
+            build_message=lambda m: checked_in_dm(m.id, m.tournament.name),
         )
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -87,7 +94,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="started_at",
             audit_action=AuditActions.MATCH_STARTED,
-            build_message=lambda m: self._create_state_changed_dm_message(m.id, m.tournament.name, "Started"),
+            build_message=lambda m: state_changed_dm(m.id, m.tournament.name, "Started"),
         )
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -102,7 +109,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="finished_at",
             audit_action=AuditActions.MATCH_FINISHED,
-            build_message=lambda m: self._create_state_changed_dm_message(m.id, m.tournament.name, "Finished"),
+            build_message=lambda m: state_changed_dm(m.id, m.tournament.name, "Finished"),
         )
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -117,7 +124,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="confirmed_at",
             audit_action=AuditActions.MATCH_CONFIRMED,
-            build_message=lambda m: self._create_state_changed_dm_message(m.id, m.tournament.name, "Confirmed"),
+            build_message=lambda m: state_changed_dm(m.id, m.tournament.name, "Confirmed"),
         )
     
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
@@ -182,11 +189,11 @@ class MatchScheduleService:
                 async def _send_seed_dms() -> None:
                     for player in match.players:
                         if player.user.discord_id and player.user.dm_notifications:
-                            dm_message = self._create_seed_dm_message(
+                            dm_message = seed_dm(
                                 player.user.display_name or player.user.username,
                                 match.id,
                                 match.tournament.name,
-                                seed_url
+                                seed_url,
                             )
                             await self.discord_service.send_dm(player.user.discord_id, dm_message)
 
@@ -258,63 +265,6 @@ class MatchScheduleService:
         except Exception as e:
             print(f"[notify_match_participants] Unexpected error for match {match.id}: {e}")
 
-    def _create_scheduled_dm_message(
-        self,
-        match_id: int,
-        tournament_name: str,
-        scheduled_at_display: str,
-    ) -> str:
-        return (
-            f"A match has been scheduled for you in **{tournament_name}**.\n\n"
-            f"Match ID: {match_id}\n"
-            f"Scheduled for: {scheduled_at_display}\n\n"
-            f"Good luck!"
-        )
-
-    def _create_rescheduled_dm_message(
-        self,
-        match_id: int,
-        tournament_name: str,
-        new_scheduled_at_display: str,
-    ) -> str:
-        return (
-            f"Your match in **{tournament_name}** has been rescheduled.\n\n"
-            f"Match ID: {match_id}\n"
-            f"New time: {new_scheduled_at_display}\n\n"
-            f"Please update your calendar."
-        )
-
-    def _create_acknowledgment_request_dm_message(
-        self,
-        match_id: int,
-        tournament_name: str,
-        scheduled_at_display: str,
-        *,
-        rescheduled: bool,
-        stream_room_name: str = '',
-        player_names: Optional[list[str]] = None,
-    ) -> str:
-        if rescheduled:
-            details = (
-                f"Your match in **{tournament_name}** has been rescheduled.\n\n"
-                f"Match ID: {match_id}\n"
-                f"New time: {scheduled_at_display}"
-            )
-        else:
-            details = (
-                f"A match has been scheduled for you in **{tournament_name}**.\n\n"
-                f"Match ID: {match_id}\n"
-                f"Scheduled for: {scheduled_at_display}"
-            )
-        if stream_room_name:
-            details += f"\nStream Room: {stream_room_name}"
-        if player_names:
-            details += f"\nPlayers: {', '.join(player_names)}"
-        return (
-            f"{details}\n\n"
-            f"Click **Acknowledge** below to confirm you've seen this."
-        )
-
     async def notify_match_crew(self, match: Match, message: str) -> None:
         """
         Send a DM to approved commentators, trackers, and watchers for a match.
@@ -380,7 +330,7 @@ class MatchScheduleService:
             scheduled_display = format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
             players = await MatchPlayers.filter(match=match).prefetch_related('user')
             player_names = [p.user.preferred_name for p in players]
-            message = self._create_acknowledgment_request_dm_message(
+            message = acknowledgment_request_dm(
                 match.id, match.tournament.name, scheduled_display,
                 rescheduled=rescheduled,
                 stream_room_name=match.stream_room.name if match.stream_room else '',
@@ -400,26 +350,6 @@ class MatchScheduleService:
                     print(f"[notify_acknowledgment_request] DM failed for {ack.user.discord_id}: {err}")
         except Exception as e:
             print(f"[notify_acknowledgment_request] Unexpected error for match {match.id}: {e}")
-
-    def _create_checked_in_dm_message(
-        self,
-        match_id: int,
-        tournament_name: str,
-    ) -> str:
-        return (
-            f"Match ID {match_id} in **{tournament_name}** has been checked in. "
-            f"The match is about to begin — good luck!"
-        )
-
-    def _create_state_changed_dm_message(
-        self,
-        match_id: int,
-        tournament_name: str,
-        new_state: str,
-    ) -> str:
-        return (
-            f"Match ID {match_id} in **{tournament_name}** is now: **{new_state}**."
-        )
 
     async def notify_tournament_subscribers_scheduled(
         self,
@@ -474,8 +404,8 @@ class MatchScheduleService:
             if match.scheduled_at:
                 from application.utils.timezone import format_eastern_display
                 scheduled_display = format_eastern_display(match.scheduled_at)
-            msg = self._create_stream_candidate_dm_message(
-                match.id, match.tournament.name, scheduled_display
+            msg = stream_candidate_dm(
+                match.id, match.tournament.name, scheduled_display,
             )
             for user in subscribers:
                 if user.discord_id not in exclude_discord_ids:
@@ -487,41 +417,3 @@ class MatchScheduleService:
         except Exception as e:
             print(f"[notify_stream_candidate_subscribers] Unexpected error for match {match.id}: {e}")
 
-    def _create_stream_candidate_dm_message(
-        self,
-        match_id: int,
-        tournament_name: str,
-        scheduled_at_display: str,
-    ) -> str:
-        return (
-            f"Match ID {match_id} in **{tournament_name}** has been flagged as a potential stream match!\n\n"
-            f"Scheduled for: {scheduled_at_display}\n\n"
-            f"Use the buttons below to sign up as crew."
-        )
-
-    def _create_seed_dm_message(
-        self, 
-        player_name: str, 
-        match_id: int, 
-        tournament_name: str, 
-        seed_url: str
-    ) -> str:
-        """
-        Create a DM message for seed notification.
-        
-        Args:
-            player_name: Player's display name
-            match_id: Match ID
-            tournament_name: Tournament name
-            seed_url: Generated seed URL
-            
-        Returns:
-            Formatted DM message
-        """
-        return (
-            f"Hello {player_name},\n\n"
-            f"A seed has been generated for your upcoming match (ID: {match_id}) "
-            f"in the tournament '{tournament_name}'.\n\n"
-            f"{seed_url}\n\n"
-            f"Good luck and have fun!"
-        )

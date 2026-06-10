@@ -23,6 +23,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
+from application.utils.discord_messages import checked_in_dm, scheduled_dm, rescheduled_dm
 from application.utils.timezone import (
     parse_eastern_datetime,
     format_eastern_datetime,
@@ -308,7 +309,7 @@ class MatchService:
 
         # Notify participants of the newly scheduled match
         await match.fetch_related('tournament')
-        msg = self.match_schedule_service._create_scheduled_dm_message(
+        msg = scheduled_dm(
             match.id,
             match.tournament.name,
             format_eastern_display(match.scheduled_at),
@@ -459,7 +460,7 @@ class MatchService:
             ))
             if scheduled_at_changed:
                 await match.fetch_related('tournament')
-                msg = self.match_schedule_service._create_rescheduled_dm_message(
+                msg = rescheduled_dm(
                     match.id,
                     match.tournament.name,
                     format_eastern_display(new_scheduled_at),
@@ -531,7 +532,7 @@ class MatchService:
         await self._seed_acknowledgments(match, player_ids, actor)
 
         await match.fetch_related('tournament')
-        msg = self.match_schedule_service._create_scheduled_dm_message(
+        msg = scheduled_dm(
             match.id, match.tournament.name, format_eastern_display(match.scheduled_at),
         )
         discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
@@ -698,7 +699,7 @@ class MatchService:
         )
 
         await match.fetch_related('tournament')
-        msg = self.match_schedule_service._create_checked_in_dm_message(match.id, match.tournament.name)
+        msg = checked_in_dm(match.id, match.tournament.name)
         discord_queue.enqueue(self.match_schedule_service.notify_match_participants(match, msg))
 
         match_events.publish(match.id)

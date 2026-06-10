@@ -15,6 +15,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.discord_service import DiscordService
+from application.utils.discord_messages import crew_assignment_dm
 from application.utils.timezone import format_eastern_display
 from models import Commentator, Tracker, User
 
@@ -169,18 +170,15 @@ class CrewService:
             return
 
         match = crew_member.match
-        lines = [f"You've been approved as {crew_type} for Match ID {match.id}."]
-        if match.title:
-            lines.append(f"**Match:** {match.title}")
-        if match.scheduled_at:
-            lines.append(f"**Scheduled:** {format_eastern_display(match.scheduled_at)}")
-        if match.stream_room:
-            lines.append(f"**Stream Room:** {match.stream_room.name}")
         players = await match.players.all().prefetch_related('user')
-        if players:
-            lines.append(f"**Players:** {', '.join(p.user.preferred_name for p in players)}")
-        lines.append("Please click below to acknowledge your assignment.")
-        message = "\n".join(lines)
+        message = crew_assignment_dm(
+            crew_type=crew_type,
+            match_id=match.id,
+            match_title=match.title or None,
+            scheduled_at_display=format_eastern_display(match.scheduled_at) if match.scheduled_at else '',
+            stream_room_name=match.stream_room.name if match.stream_room else None,
+            player_names=[p.user.preferred_name for p in players] if players else None,
+        )
         discord_queue.enqueue(
             self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id,

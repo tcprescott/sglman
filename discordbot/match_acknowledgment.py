@@ -6,6 +6,11 @@ import logging
 
 import discord
 
+from application.utils.discord_messages import (
+    match_ack_confirmation,
+    MSG_NO_ACCOUNT,
+    MSG_UNEXPECTED_ERROR_MATCH,
+)
 from discordbot._ack_common import make_acknowledged_view, send_ephemeral
 
 
@@ -59,10 +64,7 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
     try:
         user = await UserRepository().get_by_discord_id(str(interaction.user.id))
         if not user:
-            await _send(
-                interaction,
-                'You do not have an SGL On Site account. Please log in at the website first.',
-            )
+            await _send(interaction, MSG_NO_ACCOUNT)
             return
 
         await MatchService().acknowledge_match(match_id, user)
@@ -76,16 +78,9 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         except Exception:
             logger.warning("Could not disable match_ack button (match_id=%s)", match_id)
 
-        confirmation = f'You have acknowledged Match ID {match_id}.'
-        if player_names:
-            confirmation += f' Players: {player_names}.'
-        confirmation += ' Thanks!'
-        await _send(interaction, confirmation)
+        await _send(interaction, match_ack_confirmation(match_id, player_names))
     except ValueError as e:
         await _send(interaction, str(e))
     except Exception:
         logger.exception("Match acknowledgment handler failed (match_id=%s)", match_id)
-        await _send(
-            interaction,
-            'An unexpected error occurred. Please try again or use the website to acknowledge.',
-        )
+        await _send(interaction, MSG_UNEXPECTED_ERROR_MATCH)

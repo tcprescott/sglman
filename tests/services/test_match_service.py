@@ -424,7 +424,6 @@ def _setup_create_match_mocks(service):
     service.tournament_repository.is_player_enrolled_by_id = AsyncMock(return_value=True)
     service.repository.add_player = AsyncMock()
 
-    service.match_schedule_service._create_scheduled_dm_message = MagicMock(return_value="scheduled msg")
     service.match_schedule_service.notify_match_participants = AsyncMock()
     service.match_schedule_service.notify_tournament_subscribers_scheduled = AsyncMock()
     service.match_schedule_service.notify_stream_candidate_subscribers = AsyncMock()

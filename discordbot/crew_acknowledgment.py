@@ -6,6 +6,11 @@ import logging
 
 import discord
 
+from application.utils.discord_messages import (
+    crew_ack_confirmation,
+    MSG_NO_ACCOUNT,
+    MSG_UNEXPECTED_ERROR_CREW,
+)
 from discordbot._ack_common import make_acknowledged_view, send_ephemeral
 
 
@@ -62,10 +67,7 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
     try:
         user = await UserRepository().get_by_discord_id(str(interaction.user.id))
         if not user:
-            await _send(
-                interaction,
-                'You do not have an SGL On Site account. Please log in at the website first.',
-            )
+            await _send(interaction, MSG_NO_ACCOUNT)
             return
 
         crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
@@ -80,16 +82,9 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
         except Exception:
             logger.warning("Could not disable crew_ack button (crew_id=%s)", crew_id)
 
-        confirmation = f'You have acknowledged your {crew_type} assignment for Match ID {match_id}.'
-        if player_names:
-            confirmation += f' Players: {player_names}.'
-        confirmation += ' Thanks!'
-        await _send(interaction, confirmation)
+        await _send(interaction, crew_ack_confirmation(crew_type, match_id, player_names))
     except ValueError as e:
         await _send(interaction, str(e))
     except Exception:
         logger.exception("Crew acknowledgment handler failed (crew_id=%s)", crew_id)
-        await _send(
-            interaction,
-            'An unexpected error occurred. Please try again or use the website to acknowledge.',
-        )
+        await _send(interaction, MSG_UNEXPECTED_ERROR_CREW)
