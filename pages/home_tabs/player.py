@@ -43,7 +43,7 @@ def render_player_dashboard():
                 <!-- Confirmed state -->
                 <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="verified" color="green" size="sm" />
+                        <q-icon name="verified" class="st-ok" size="sm" />
                         <span style="font-weight: 500;">{{ props.value }}</span>
                     </div>
                     <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
@@ -51,7 +51,7 @@ def render_player_dashboard():
                 <!-- Finished state -->
                 <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="flag" color="orange" size="sm" />
+                        <q-icon name="flag" class="st-pending" size="sm" />
                         <span>{{ props.value }}</span>
                     </div>
                     <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
@@ -59,7 +59,7 @@ def render_player_dashboard():
                 <!-- Started state -->
                 <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="play_arrow" color="blue" size="sm" />
+                        <q-icon name="play_arrow" class="st-live" size="sm" />
                         <span>{{ props.value }}</span>
                     </div>
                     <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
@@ -67,7 +67,7 @@ def render_player_dashboard():
                 <!-- Checked In state -->
                 <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="check" color="grey" size="sm" />
+                        <q-icon name="check" class="st-neutral" size="sm" />
                         <span>{{ props.value }}</span>
                     </div>
                     <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>

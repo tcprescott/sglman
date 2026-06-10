@@ -1,5 +1,81 @@
 /* SGL On Site Custom Styles */
 
+/* ---------------------------------------------------------------------------
+   Self-hosted fonts (SIL OFL, served from /static/fonts)
+   Fraunces       — display serif for titles/wordmark
+   Atkinson Hyperlegible — body/UI sans
+   IBM Plex Mono  — match IDs, times, timestamps
+--------------------------------------------------------------------------- */
+@font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/static/fonts/fraunces-latin-600-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/static/fonts/fraunces-latin-700-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Atkinson Hyperlegible';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/atkinson-hyperlegible-latin-400-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Atkinson Hyperlegible';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/atkinson-hyperlegible-latin-400-italic.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Atkinson Hyperlegible';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('/static/fonts/atkinson-hyperlegible-latin-700-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'IBM Plex Mono';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Brand palette — "SpeedGaming Live 2026: The New Age" phoenix theme.
    Mode-aware aliases default to light-mode-safe (deep) values and switch to
    bright gold under .body--dark / .q-dark. Inline styles may reference these
@@ -25,6 +101,53 @@
     --sgl-dark-surface-2: #2c2520;  /* even rows — subtle warm zebra */
     --sgl-dark-border:    #3a322b;  /* borders */
     --sgl-dark-muted:     #b0a59a;  /* muted text — legible on dark */
+
+    /* Typography */
+    --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+    /* Status colors — warm-tuned to sit with the phoenix palette (not stock
+       Material). Light values hold ≥4.5:1 on white; dark variants lift under
+       .body--dark / .q-dark. */
+    --status-ok:        #557A1F;  /* warm olive green */
+    --status-pending:   #B45309;  /* burnt amber */
+    --status-live:      #0E7470;  /* deep teal — complementary pop on warm field */
+    --status-neutral:   #6B6258;  /* warm gray */
+    --status-cancelled: #B3362B;  /* brick red */
+
+    /* Mode-aware surfaces: light values here, re-aliased to the dark scale
+       below so a single rule serves both modes. */
+    --surface: #FFFFFF;
+    --surface-alt: #FAF5EC;   /* warm cream — zebra rows, filter cards, footer */
+    --page-bg: #F7F2E9;
+
+    --border-subtle: #EAE1D2;
+    --border-strong: #D8CBB6;
+
+    /* Spacing scale */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 1rem;
+    --space-4: 1.5rem;
+    --space-5: 2rem;
+    --space-6: 3rem;
+
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+
+    /* Warm umber-tinted shadows (never pure black on the light theme) */
+    --shadow-1: 0 1px 2px rgba(46, 32, 12, 0.07), 0 1px 4px rgba(46, 32, 12, 0.05);
+    --shadow-2: 0 2px 6px rgba(46, 32, 12, 0.10), 0 6px 16px rgba(46, 32, 12, 0.08);
+    --shadow-3: 0 10px 32px rgba(46, 32, 12, 0.16);
+
+    /* Motion */
+    --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --dur-fast: 120ms;
+    --dur-med: 220ms;
 }
 
 .body--dark,
@@ -38,13 +161,74 @@
        instead of being patched element-by-element. */
     --q-dark-page: var(--sgl-dark-bg);
     --q-dark:      var(--sgl-dark-surface);
+
+    /* Lifted status variants for dark surfaces */
+    --status-ok:        #A8C46B;
+    --status-pending:   #F0A848;
+    --status-live:      #52B8AE;
+    --status-neutral:   var(--sgl-dark-muted);
+    --status-cancelled: #E06650;
+
+    --surface: var(--sgl-dark-surface);
+    --surface-alt: var(--sgl-dark-surface-2);
+    --page-bg: var(--sgl-dark-bg);
+
+    --border-subtle: var(--sgl-dark-border);
+    --border-strong: #4A4036;
+
+    --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.45);
+    --shadow-3: 0 12px 36px rgba(0, 0, 0, 0.55);
 }
 
-/* The page body paints the visible background behind all (transparent) layout
-   wrappers; Quasar hardcodes it to a cool #121212, so set it warm explicitly
-   to match the surfaces above and kill the "full black" splotch. */
+/* Base typography — wins over Quasar's Roboto default because this sheet loads
+   after the framework CSS. Components that set their own family are re-pointed
+   explicitly. */
+body {
+    font-family: var(--font-body);
+}
+
+.q-table,
+.q-btn,
+.q-field,
+.q-item {
+    font-family: var(--font-body);
+}
+
+/* Atmosphere: a faint warm glow at the top of the page so the canvas reads as
+   lit, not flat-default. The page body paints the visible background behind
+   all (transparent) layout wrappers; Quasar hardcodes dark to a cool #121212,
+   so both modes are set explicitly. */
+body {
+    background: radial-gradient(1100px 520px at 50% -180px,
+        #FCF8F0 0%, var(--page-bg) 65%) fixed;
+}
+
 body.body--dark {
-    background: var(--sgl-dark-bg);
+    background: radial-gradient(1100px 520px at 50% -180px,
+        #251d14 0%, var(--sgl-dark-bg) 65%) fixed;
+}
+
+/* Brand focus ring and selection */
+:focus-visible {
+    outline: 2px solid var(--sgl-gold);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+::selection {
+    background: rgba(224, 168, 46, 0.30);
+}
+
+.body--dark ::selection {
+    background: rgba(224, 168, 46, 0.40);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
 }
 
 /* In dark mode, brighten primary/secondary *text and icons* to the vibrant
@@ -77,15 +261,122 @@ body.body--dark {
     color: var(--sgl-dark-muted);
 }
 
-/* Inline timestamp spans inside table cell templates */
-.cell-timestamp {
-    font-size: 0.75rem;
-    color: #666;
+/* Status utility classes — consumed by Vue slot templates and .classes() */
+.st-ok        { color: var(--status-ok); }
+.st-ok-strong { color: var(--status-ok); font-weight: 700; }
+.st-pending   { color: var(--status-pending); }
+.st-live      { color: var(--status-live); }
+.st-neutral   { color: var(--status-neutral); }
+.st-cancelled { color: var(--status-cancelled); }
+
+/* Status chips — tinted pill replacing raw q-badge colors */
+.sgl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--chip-c) 14%, transparent);
+    color: var(--chip-c);
+    border: 1px solid color-mix(in srgb, var(--chip-c) 35%, transparent);
 }
 
-/* Brand header — warm charcoal in both modes so white icons stay legible */
+.sgl-chip--ok        { --chip-c: var(--status-ok); }
+.sgl-chip--pending   { --chip-c: var(--status-pending); }
+.sgl-chip--live      { --chip-c: var(--status-live); }
+.sgl-chip--neutral   { --chip-c: var(--status-neutral); }
+.sgl-chip--cancelled { --chip-c: var(--status-cancelled); }
+.sgl-chip--candidate { --chip-c: var(--sgl-gold-deep); }
+
+.body--dark .sgl-chip--candidate,
+.q-dark .sgl-chip--candidate {
+    --chip-c: var(--sgl-gold);
+}
+
+/* Monospace data cells — match IDs, scheduled times, timestamps */
+.cell-id,
+.cell-time {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Inline timestamp spans inside table cell templates */
+.cell-timestamp {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--status-neutral);
+}
+
+/* Brand header — amber bar in light mode, charcoal in dark; the ember→gold
+   strip along the bottom is the signature accent. */
 .sgl-header {
     background-color: var(--sgl-header-bg);
+    min-height: 56px;
+    padding: 0 var(--space-3);
+    position: relative;
+    box-shadow: var(--shadow-1);
+}
+
+.sgl-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--sgl-ember) 0%, var(--sgl-gold) 45%, var(--sgl-gold) 100%);
+}
+
+.sgl-wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: #fff;
+    letter-spacing: 0.02em;
+    margin-left: var(--space-2);
+}
+
+.body--dark .sgl-wordmark,
+.q-dark .sgl-wordmark {
+    color: var(--sgl-gold);
+}
+
+/* Drawer navigation */
+.q-drawer {
+    background: var(--surface);
+    border-right: 1px solid var(--border-subtle);
+}
+
+.q-drawer .q-item {
+    border-radius: var(--radius-sm);
+    margin: 2px var(--space-2);
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.q-drawer .q-item:hover {
+    background: color-mix(in srgb, var(--sgl-gold) 8%, transparent);
+}
+
+.q-drawer .q-item--active {
+    background: color-mix(in srgb, var(--sgl-gold) 14%, transparent);
+    box-shadow: inset 3px 0 0 var(--sgl-gold-deep);
+    color: var(--sgl-section-title);
+    font-weight: 700;
+}
+
+.body--dark .q-drawer .q-item--active,
+.q-dark .q-drawer .q-item--active {
+    box-shadow: inset 3px 0 0 var(--sgl-gold);
+}
+
+.q-drawer .text-h6 {
+    font-family: var(--font-display);
+    color: var(--sgl-section-title);
 }
 
 /* Layout & Container Styles */
@@ -127,27 +418,35 @@ body.body--dark {
 .mb-1 { margin-bottom: 1em; }
 .ml-1 { margin-left: 1em; }
 
-/* Header & Title Styles */
+/* Header & Title Styles — display serif carries the brand voice */
 .page-title {
+    font-family: var(--font-display);
+    font-weight: 600;
     font-size: 2em;
-    font-weight: bold;
+    letter-spacing: 0.01em;
 }
 
 .section-title {
+    font-family: var(--font-display);
+    font-weight: 600;
     font-size: 1.5em;
-    font-weight: bold;
+    letter-spacing: 0.01em;
     margin-bottom: 1em;
     color: var(--sgl-section-title);
 }
 
 .subsection-title {
+    font-family: var(--font-display);
+    font-weight: 600;
     font-size: 1.3em;
-    font-weight: bold;
+    letter-spacing: 0.01em;
 }
 
 .large-title {
+    font-family: var(--font-display);
+    font-weight: 600;
     font-size: 1.8em;
-    font-weight: bold;
+    letter-spacing: 0.01em;
     margin: 0 1em;
 }
 
@@ -157,7 +456,15 @@ body.body--dark {
     margin-bottom: 1.5em;
 }
 
-/* Card Styles */
+/* Card Styles — hairline border + warm low shadow instead of stock Quasar
+   elevation */
+.q-card {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-1);
+    background: var(--surface);
+}
+
 .card-padding {
     padding: 1.5em;
 }
@@ -190,12 +497,12 @@ body.body--dark {
 .input-label {
     font-weight: 500;
     margin-bottom: 0.3em;
-    color: #666;
+    color: var(--status-neutral);
 }
 
 .required-legend {
     font-size: 0.8em;
-    color: #888;
+    color: var(--status-neutral);
     font-style: italic;
     margin-top: -0.25em;
     margin-bottom: 0.5em;
@@ -225,7 +532,35 @@ body.body--dark {
     }
 }
 
+.q-dialog .q-card {
+    border-radius: var(--radius-lg);
+    border-top: 3px solid var(--sgl-gold);
+    box-shadow: var(--shadow-3);
+}
+
+.q-dialog__backdrop {
+    background: rgba(23, 18, 13, 0.55);
+}
+
 /* Button & Action Styles */
+.q-btn {
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    transition: box-shadow var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+
+/* Flatten Quasar's default raised elevation (it lives on ::before) so filled
+   buttons read as quiet solids that lift on hover. */
+.q-btn:not(.q-btn--flat):not(.q-btn--outline)::before {
+    box-shadow: none;
+}
+
+.q-btn:not(.q-btn--flat):not(.q-btn--outline):hover {
+    box-shadow: var(--shadow-1);
+}
+
 .button-row {
     width: 100%;
     justify-content: flex-end;
@@ -249,12 +584,12 @@ body.body--dark {
 
 /* Icon Styles */
 .icon-large {
-    color: #FF9800;
+    color: var(--status-pending);
     margin-bottom: 0.5em;
 }
 
 .icon-error {
-    color: #f44336;
+    color: var(--status-cancelled);
     margin-bottom: 0.5em;
 }
 
@@ -269,31 +604,31 @@ body.body--dark {
 
 /* Text & Label Styles */
 .text-muted {
-    color: #666;
+    color: var(--status-neutral);
     font-size: 1.2em;
     margin-bottom: 1em;
 }
 
 .text-italic {
-    color: #666;
+    color: var(--status-neutral);
     font-size: 1.2em;
 }
 
 .text-gray {
-    color: gray;
+    color: var(--status-neutral);
 }
 
 .text-success {
-    color: #4CAF50;
+    color: var(--status-ok);
 }
 
 .text-warning {
-    color: #FF9800;
+    color: var(--status-pending);
     font-style: italic;
 }
 
 .text-error {
-    color: red;
+    color: var(--status-cancelled);
     font-weight: bold;
 }
 
@@ -334,12 +669,14 @@ body.body--dark {
     background-color: var(--sgl-room-header-bg);
     color: var(--sgl-room-header-text);
     padding: 0.5em;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 
 .room-name {
+    font-family: var(--font-display);
+    font-weight: 600;
     font-size: 1.3em;
-    font-weight: bold;
+    letter-spacing: 0.01em;
 }
 
 .room-link {
@@ -356,9 +693,17 @@ body.body--dark {
 .match-card {
     width: 100%;
     margin-bottom: 0.5em;
+    transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.match-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-2);
 }
 
 .match-time {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 1.2em;
     font-weight: bold;
     min-width: 60px;
@@ -388,7 +733,7 @@ body.body--dark {
 }
 
 .empty-state {
-    color: gray;
+    color: var(--status-neutral);
     font-style: italic;
     text-align: center;
     padding: 2em;
@@ -447,21 +792,21 @@ body.body--dark {
     width: 400px;
 }
 
-/* Border Utilities */
+/* Border Utilities — status rails on timeline cards */
 .border-left-green {
-    border-left: 4px solid #4CAF50;
+    border-left: 4px solid var(--status-ok);
 }
 
 .border-left-orange {
-    border-left: 4px solid #FF9800;
+    border-left: 4px solid var(--status-pending);
 }
 
 .border-left-gray {
-    border-left: 4px solid #9E9E9E;
+    border-left: 4px solid var(--status-neutral);
 }
 
 .border-left-blue {
-    border-left: 4px solid #2196F3;
+    border-left: 4px solid var(--status-live);
 }
 
 /* Visibility Utilities */
@@ -476,106 +821,81 @@ body.body--dark {
     right: 20px;
 }
 
-/* User Table Styles */
-.user-table th,
-.user-table td {
-    border-right: 1px solid #ccc;
-}
-
-.user-table td {
-    text-align: left;
-}
-
-/* Allow wrapping for long strings */
-.user-table td .wrap {
-    display: block;
-    white-space: normal !important;
-    word-break: normal;
-    overflow-wrap: break-word;
-    max-width: 320px;
-}
-
-.user-table th {
-    text-align: center;
-}
-
-.user-table th:last-child,
-.user-table td:last-child {
-    border-right: none;
-}
-
-.user-table {
+/* ---------------------------------------------------------------------------
+   Data tables (match / user / tournament families)
+   Horizontal rules only — no vertical grid lines — with an uppercase caps
+   header row and warm zebra. Surface tokens re-alias under dark mode, so one
+   set of rules serves both modes. Grid mode (Quasar.Screen.lt.md) renders
+   item slots, not <table>, and is styled via the *-grid-card classes below.
+--------------------------------------------------------------------------- */
+.match-table,
+.user-table,
+.tournament-table {
     border-collapse: collapse;
 }
 
-/* Force user/tournament tables to fill their container width */
-.user-table-container .q-table__middle,
-.user-table-container table.q-table {
-    width: 100%;
-}
-
-.user-table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.user-table tr:nth-child(odd) {
-    background-color: #ffffff;
-}
-
-/* Dark mode overrides for user table */
-.body--dark .user-table th,
-.body--dark .user-table td {
-    border-right: 1px solid var(--sgl-dark-border);
-}
-
-.body--dark .user-table tr:nth-child(even) {
-    background-color: var(--sgl-dark-surface-2);
-}
-
-.body--dark .user-table tr:nth-child(odd) {
-    background-color: var(--sgl-dark-surface);
-}
-
-.q-dark .user-table th,
-.q-dark .user-table td {
-    border-right: 1px solid var(--sgl-dark-border);
-}
-
-.q-dark .user-table tr:nth-child(even) {
-    background-color: var(--sgl-dark-surface-2);
-}
-
-.q-dark .user-table tr:nth-child(odd) {
-    background-color: var(--sgl-dark-surface);
-}
-
-/* Mobile grid card dark styling */
-.body--dark .user-grid-card {
-    background: var(--sgl-dark-surface) !important;
-    border-color: var(--sgl-dark-border) !important;
-}
-
-.q-dark .user-grid-card {
-    background: var(--sgl-dark-surface) !important;
-    border-color: var(--sgl-dark-border) !important;
-}
-
-/* Tournament Table Styles */
-.tournament-table-container .q-table__middle,
-.tournament-table-container table.q-table {
-    width: 100%;
-}
-
+.match-table th,
+.match-table td,
+.user-table th,
+.user-table td,
 .tournament-table th,
 .tournament-table td {
-    border-right: 1px solid #ccc;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
+.match-table td,
+.user-table td,
 .tournament-table td {
     text-align: left;
+    font-variant-numeric: tabular-nums;
 }
 
-/* Allow wrapping and truncation for long fields */
+.match-table thead th,
+.user-table thead th,
+.tournament-table thead th {
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sgl-gold-deep);
+    background: var(--surface-alt);
+    border-bottom: 2px solid color-mix(in srgb, var(--sgl-gold-deep) 45%, transparent);
+}
+
+.body--dark .match-table thead th,
+.body--dark .user-table thead th,
+.body--dark .tournament-table thead th,
+.q-dark .match-table thead th,
+.q-dark .user-table thead th,
+.q-dark .tournament-table thead th {
+    color: var(--sgl-gold);
+    background: #201a15;
+    border-bottom-color: color-mix(in srgb, var(--sgl-gold) 40%, transparent);
+}
+
+.match-table tbody tr:nth-child(even),
+.user-table tbody tr:nth-child(even),
+.tournament-table tbody tr:nth-child(even) {
+    background-color: var(--surface-alt);
+}
+
+.match-table tbody tr:nth-child(odd),
+.user-table tbody tr:nth-child(odd),
+.tournament-table tbody tr:nth-child(odd) {
+    background-color: var(--surface);
+}
+
+.match-table tbody tr:hover,
+.user-table tbody tr:hover,
+.tournament-table tbody tr:hover {
+    background-color: color-mix(in srgb, var(--sgl-gold) 7%, transparent);
+}
+
+/* Allow wrapping for long strings — target the inner wrapper element placed
+   inside the q-td, not the td itself */
+.user-table td .wrap,
 .tournament-table td .wrap {
     display: block;
     white-space: normal !important;
@@ -584,77 +904,6 @@ body.body--dark {
     max-width: 320px;
 }
 
-.tournament-table th {
-    text-align: center;
-}
-
-.tournament-table th:last-child,
-.tournament-table td:last-child {
-    border-right: none;
-}
-
-.tournament-table {
-    border-collapse: collapse;
-}
-
-.tournament-table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.tournament-table tr:nth-child(odd) {
-    background-color: #ffffff;
-}
-
-/* Dark mode overrides for tournament table */
-.body--dark .tournament-table th,
-.body--dark .tournament-table td {
-    border-right: 1px solid var(--sgl-dark-border);
-}
-
-.body--dark .tournament-table tr:nth-child(even) {
-    background-color: var(--sgl-dark-surface-2);
-}
-
-.body--dark .tournament-table tr:nth-child(odd) {
-    background-color: var(--sgl-dark-surface);
-}
-
-.q-dark .tournament-table th,
-.q-dark .tournament-table td {
-    border-right: 1px solid var(--sgl-dark-border);
-}
-
-.q-dark .tournament-table tr:nth-child(even) {
-    background-color: var(--sgl-dark-surface-2);
-}
-
-.q-dark .tournament-table tr:nth-child(odd) {
-    background-color: var(--sgl-dark-surface);
-}
-
-/* Mobile grid card dark styling for tournament */
-.body--dark .tournament-grid-card {
-    background: var(--sgl-dark-surface) !important;
-    border-color: var(--sgl-dark-border) !important;
-}
-
-.q-dark .tournament-grid-card {
-    background: var(--sgl-dark-surface) !important;
-    border-color: var(--sgl-dark-border) !important;
-}
-
-/* Match Table Styles */
-.match-table th,
-.match-table td {
-    border-right: 1px solid #ccc;
-}
-
-.match-table td {
-    text-align: left;
-}
-
-/* Allow wrapping for long lists of names in table view for specific columns */
-/* Target the inner wrapper element placed inside the q-td, not the td itself */
 .match-table td .wrap {
     display: block;
     white-space: normal !important;
@@ -670,30 +919,17 @@ body.body--dark {
     overflow-wrap: break-word;
 }
 
-.match-table th {
-    text-align: center;
-}
-
-.match-table th:last-child,
-.match-table td:last-child {
-    border-right: none;
-}
-
-.match-table {
-    border-collapse: collapse;
-}
-
-.match-table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.match-table tr:nth-child(odd) {
-    background-color: #ffffff;
+/* Force tables to fill their container width */
+.user-table-container .q-table__middle,
+.user-table-container table.q-table,
+.tournament-table-container .q-table__middle,
+.tournament-table-container table.q-table {
+    width: 100%;
 }
 
 /* Transient highlight for rows/cards updated live by another user's action. */
 @keyframes sglRowFlash {
-    from { background-color: rgba(33, 150, 243, 0.35); }
+    from { background-color: rgba(224, 168, 46, 0.35); }
     to   { background-color: transparent; }
 }
 
@@ -701,31 +937,15 @@ body.body--dark {
     animation: sglRowFlash 1.6s ease-out;
 }
 
-/* Dark mode overrides for match table */
-.body--dark .match-table th,
-.body--dark .match-table td {
-    border-right: 1px solid var(--sgl-dark-border);
-}
-
-.body--dark .match-table tr:nth-child(even) {
-    background-color: var(--sgl-dark-surface-2);
-}
-
-.body--dark .match-table tr:nth-child(odd) {
-    background-color: var(--sgl-dark-surface);
-}
-
-.q-dark .match-table th,
-.q-dark .match-table td {
-    border-right: 1px solid var(--sgl-dark-border);
-}
-
-.q-dark .match-table tr:nth-child(even) {
-    background-color: var(--sgl-dark-surface-2);
-}
-
-.q-dark .match-table tr:nth-child(odd) {
-    background-color: var(--sgl-dark-surface);
+/* Mobile grid cards — the slot templates carry inline #fff/#eee styles, so
+   token overrides need !important; the vars switch per mode on their own. */
+.match-grid-card,
+.user-grid-card,
+.tournament-grid-card {
+    background: var(--surface) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-1);
 }
 
 /* Match filters card styling */
@@ -733,26 +953,7 @@ body.body--dark {
     width: 100%;
     padding: 1em;
     margin-bottom: 1em;
-    background-color: #f5f5f5;
-}
-
-.body--dark .match-filters-card {
-    background-color: var(--sgl-dark-surface) !important;
-}
-
-.q-dark .match-filters-card {
-    background-color: var(--sgl-dark-surface) !important;
-}
-
-/* Match grid card dark styling */
-.body--dark .match-grid-card {
-    background: var(--sgl-dark-surface) !important;
-    border-color: var(--sgl-dark-border) !important;
-}
-
-.q-dark .match-grid-card {
-    background: var(--sgl-dark-surface) !important;
-    border-color: var(--sgl-dark-border) !important;
+    background-color: var(--surface-alt);
 }
 
 /* Match filter layout */
@@ -770,7 +971,7 @@ body.body--dark {
 .match-filter-label {
     font-size: 0.85em;
     font-weight: 500;
-    color: #666;
+    color: var(--status-neutral);
     margin-bottom: 0.3em;
 }
 
@@ -791,15 +992,14 @@ body.body--dark {
 
 /* Footer Styles */
 .footer-dark-override {
-    background-color: #f5f5f5;
-    color: #666;
+    background-color: var(--surface-alt);
+    color: var(--status-neutral);
+    border-top: 1px solid var(--border-subtle);
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
 }
 
-.body--dark .footer-dark-override {
-    background-color: var(--sgl-charcoal) !important;
-    color: var(--sgl-dark-muted) !important;
-}
-
+.body--dark .footer-dark-override,
 .q-dark .footer-dark-override {
     background-color: var(--sgl-charcoal) !important;
     color: var(--sgl-dark-muted) !important;

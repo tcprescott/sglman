@@ -85,7 +85,7 @@ class BaseMatchDialog:
             def clear():
                 setattr(self, attr_flag, True)
                 btn.disable()
-                btn.props('outline color=gray')
+                btn.props('outline')
 
             if is_relation:
                 btn_disabled = getattr(self.match, f'{match_attr}_id', None) is None
@@ -296,14 +296,14 @@ class AdminMatchDialog(BaseMatchDialog):
                             for ack in acks:
                                 with ui.row().classes('items-center'):
                                     if ack.acknowledged_at:
-                                        ui.icon('check_circle').props('color=green')
+                                        ui.icon('check_circle').classes('st-ok')
                                         suffix = ' (auto)' if ack.auto_acknowledged else ''
                                         ui.label(
                                             f'{ack.user.preferred_name}{suffix} — '
                                             f'{format_eastern_display(ack.acknowledged_at)}'
                                         )
                                     else:
-                                        ui.icon('schedule').props('color=orange')
+                                        ui.icon('schedule').classes('st-pending')
                                         ui.label(f'{ack.user.preferred_name} — pending').classes('text-grey-6')
 
             async def submit():

@@ -43,6 +43,16 @@ class BaseLayout:
         dark_pref = bool(app.storage.user.get('dark_mode', False))
         self.dark_mode = ui.dark_mode()
         self.dark_mode.value = dark_pref
+        # Preload only the above-the-fold fonts; the remaining weights load on demand.
+        for font_file in (
+            'atkinson-hyperlegible-latin-400-normal',
+            'fraunces-latin-600-normal',
+            'ibm-plex-mono-latin-400-normal',
+        ):
+            ui.add_head_html(
+                f'<link rel="preload" href="/static/fonts/{font_file}.woff2" '
+                'as="font" type="font/woff2" crossorigin>'
+            )
         ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
         ui.add_head_html(
             '<script>'
@@ -54,9 +64,19 @@ class BaseLayout:
             ');'
             '</script>'
         )
-        # Phoenix brand palette: gold primary, ember secondary; semantic
-        # positive/negative/warning intentionally left at Quasar defaults.
-        ui.colors(primary='#9C6B12', secondary='#C24E12', accent='#E0A82E')
+        # Phoenix brand palette: gold primary, ember secondary; semantic colors
+        # warm-tuned to match the --status-* tokens in styles.css so notify
+        # toasts and negative buttons sit with the palette instead of stock
+        # Material green/red.
+        ui.colors(
+            primary='#9C6B12',
+            secondary='#C24E12',
+            accent='#E0A82E',
+            positive='#557A1F',
+            negative='#B3362B',
+            warning='#B45309',
+            info='#0E7470',
+        )
         self._render_header()
         self._render_drawer()
         self._render_footer()
@@ -81,6 +101,7 @@ class BaseLayout:
                 icon='menu',
                 on_click=lambda: self._drawer.toggle()
             ).props('flat color=white')
+            ui.label('SGL On Site').classes('sgl-wordmark')
 
             if self.user:
                 ui.label(self.user.preferred_name).classes('text-lg user-name')
@@ -104,9 +125,6 @@ class BaseLayout:
     def _render_drawer(self) -> None:
         """Render the left drawer with navigation links and optional tab navigation."""
         with ui.left_drawer(value=False).props('breakpoint=600 show-if-above bordered') as self._drawer:
-            ui.label('SGL On Site').classes('text-h6 q-pa-md')
-            ui.separator()
-
             with ui.list().props('padding'):
                 for item in self.top_menu:
                     with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple'):
