@@ -12,6 +12,7 @@ from .crew import crew_page
 from .dashboard import dashboard_page
 from .match_ops import match_ops_page
 from .stream_rooms import stream_rooms_page
+from .volunteers import volunteers_page
 
 
 _REPORT_HANDLERS = {
@@ -19,6 +20,7 @@ _REPORT_HANDLERS = {
     'match_ops': match_ops_page,
     'crew': crew_page,
     'stream_rooms': stream_rooms_page,
+    'volunteers': volunteers_page,
     'audit': audit_page,
 }
 

@@ -245,6 +245,57 @@ def crew_assignment_dm(
 
 
 # ---------------------------------------------------------------------------
+# Volunteer scheduling
+# ---------------------------------------------------------------------------
+
+def _volunteer_shift_lines(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+) -> list[str]:
+    title = position_name
+    if label:
+        title = f"{position_name} — {label}"
+    lines = [f"**Position:** {title}"]
+    if starts_display:
+        lines.append(f"**Start:** {starts_display}")
+    if ends_display:
+        lines.append(f"**End:** {ends_display}")
+    return lines
+
+
+def volunteer_assignment_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+) -> str:
+    """DM sent when a volunteer is assigned to a shift."""
+    lines = ["You've been scheduled for a volunteer shift at SGLive."]
+    lines += _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    lines.append("Please click below to acknowledge your shift.")
+    return "\n".join(lines)
+
+
+def volunteer_reminder_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+) -> str:
+    """Reminder DM sent ahead of a volunteer shift."""
+    lines = ["⏰ Reminder: you have an upcoming volunteer shift."]
+    lines += _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    lines.append("Please click below to acknowledge your shift.")
+    return "\n".join(lines)
+
+
+def volunteer_ack_confirmation(position_name: str) -> str:
+    return f"Thanks! Your **{position_name}** shift is acknowledged."
+
+
+# ---------------------------------------------------------------------------
 # Match acknowledgment ephemeral replies  (discordbot/match_acknowledgment.py)
 # ---------------------------------------------------------------------------
 

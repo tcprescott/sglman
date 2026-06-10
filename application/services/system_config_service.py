@@ -17,6 +17,7 @@ KEY_EVENT_START_DATE = 'event_start_date'
 KEY_EVENT_END_DATE = 'event_end_date'
 KEY_MAX_CONCURRENT_PLAYERS = 'max_concurrent_players'
 KEY_MAX_CONCURRENT_STAGES = 'max_concurrent_stages'
+KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
 
 
 class SystemConfigService:
@@ -112,3 +113,8 @@ class SystemConfigService:
         if default is not None:
             return default
         return await StreamRoom.filter(is_active=True).count()
+
+    @staticmethod
+    async def get_volunteer_reminder_lead_minutes(default: int = 60) -> int:
+        value = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
+        return value if value is not None and value > 0 else default

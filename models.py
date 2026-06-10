@@ -9,6 +9,14 @@ class Role(str, Enum):
     PROCTOR = 'proctor'
     STREAM_MANAGER = 'stream_manager'
     TRIFORCE_SUBMITTER = 'triforce_submitter'
+    VOLUNTEER = 'volunteer'
+    VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
+
+
+class VolunteerAvailabilityStatus(str, Enum):
+    AVAILABLE = 'available'
+    UNAVAILABLE = 'unavailable'
+    PREFERRED = 'preferred'
 
 class User(Model):
     id = fields.IntField(pk=True)
@@ -41,6 +49,11 @@ class User(Model):
     triforce_texts = fields.ReverseRelation["TriforceText"]
     triforce_texts_moderated = fields.ReverseRelation["TriforceText"]
     api_tokens = fields.ReverseRelation["ApiToken"]
+    volunteer_profile = fields.ReverseRelation["VolunteerProfile"]
+    volunteer_assignments = fields.ReverseRelation["VolunteerAssignment"]
+    volunteer_assignments_made = fields.ReverseRelation["VolunteerAssignment"]
+    volunteer_qualifications = fields.ReverseRelation["VolunteerQualification"]
+    volunteer_availability = fields.ReverseRelation["VolunteerAvailability"]
 
     @property
     def preferred_name(self) -> str:
@@ -320,3 +333,109 @@ class TriforceText(Model):
 
     class Meta:
         table = 'triforcetext'
+
+
+class VolunteerProfile(Model):
+    """Per-user opt-in record for onsite volunteering.
+
+    A user may hold ``Role.VOLUNTEER`` without having opted in; only users with
+    ``opted_in_at`` set are assignable / appear in the coordinator's pool.
+    """
+
+    id = fields.IntField(pk=True)
+    user = fields.OneToOneField('models.User', related_name='volunteer_profile', on_delete=fields.CASCADE)
+    opted_in_at = fields.DatetimeField(null=True)
+    note = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'volunteerprofile'
+
+
+class VolunteerPosition(Model):
+    """A coordinator-defined volunteer job (e.g. Check-in Desk, Race Proctor)."""
+
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255, unique=True)
+    description = fields.TextField(null=True)
+    color = fields.CharField(max_length=32, null=True)
+    display_order = fields.IntField(default=0)
+    is_active = fields.BooleanField(default=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    shifts = fields.ReverseRelation["VolunteerShift"]
+    qualifications = fields.ReverseRelation["VolunteerQualification"]
+
+    class Meta:
+        table = 'volunteerposition'
+
+
+class VolunteerShift(Model):
+    """A fillable slot-set for a position over a time window (UTC)."""
+
+    id = fields.IntField(pk=True)
+    position = fields.ForeignKeyField('models.VolunteerPosition', related_name='shifts', on_delete=fields.CASCADE)
+    starts_at = fields.DatetimeField(index=True)
+    ends_at = fields.DatetimeField()
+    label = fields.CharField(max_length=100, null=True)
+    slots_needed = fields.IntField(default=1)
+    notes = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    assignments = fields.ReverseRelation["VolunteerAssignment"]
+
+    class Meta:
+        table = 'volunteershift'
+
+
+class VolunteerAssignment(Model):
+    """A volunteer placed into a shift."""
+
+    id = fields.IntField(pk=True)
+    shift = fields.ForeignKeyField('models.VolunteerShift', related_name='assignments', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='volunteer_assignments', on_delete=fields.CASCADE)
+    assigned_by = fields.ForeignKeyField('models.User', related_name='volunteer_assignments_made', null=True, on_delete=fields.SET_NULL)
+    auto_generated = fields.BooleanField(default=False)
+    acknowledged_at = fields.DatetimeField(null=True)
+    reminder_sent_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'volunteerassignment'
+        unique_together = (('shift', 'user'),)
+
+
+class VolunteerQualification(Model):
+    """Capability matrix: which positions a user can fill."""
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='volunteer_qualifications', on_delete=fields.CASCADE)
+    position = fields.ForeignKeyField('models.VolunteerPosition', related_name='qualifications', on_delete=fields.CASCADE)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'volunteerqualification'
+        unique_together = (('user', 'position'),)
+
+
+class VolunteerAvailability(Model):
+    """A window a volunteer self-declares (UTC)."""
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='volunteer_availability', on_delete=fields.CASCADE)
+    starts_at = fields.DatetimeField(index=True)
+    ends_at = fields.DatetimeField()
+    status = fields.CharEnumField(VolunteerAvailabilityStatus, default=VolunteerAvailabilityStatus.AVAILABLE, max_length=20)
+    note = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'volunteeravailability'

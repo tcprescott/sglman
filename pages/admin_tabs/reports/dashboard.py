@@ -42,6 +42,12 @@ REPORT_CARDS = [
         'description': 'Hours scheduled per stage, gaps, and unplaced candidates.',
     },
     {
+        'key': 'volunteers',
+        'title': 'Volunteer Coverage',
+        'icon': 'volunteer_activism',
+        'description': 'Per-shift filled vs needed counts, highlighting understaffed shifts.',
+    },
+    {
         'key': 'audit',
         'title': 'Audit Log',
         'icon': 'fact_check',

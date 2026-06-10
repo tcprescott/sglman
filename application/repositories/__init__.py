@@ -18,6 +18,11 @@ from .tracker_repository import TrackerRepository
 from .triforce_text_repository import TriforceTextRepository
 from .user_repository import UserRepository
 from .user_role_repository import UserRoleRepository
+from .volunteer_assignment_repository import VolunteerAssignmentRepository
+from .volunteer_availability_repository import VolunteerAvailabilityRepository
+from .volunteer_position_repository import VolunteerPositionRepository
+from .volunteer_profile_repository import VolunteerProfileRepository
+from .volunteer_shift_repository import VolunteerShiftRepository
 
 __all__ = [
     'ApiTokenRepository',
@@ -33,4 +38,9 @@ __all__ = [
     'TriforceTextRepository',
     'UserRepository',
     'UserRoleRepository',
+    'VolunteerAssignmentRepository',
+    'VolunteerAvailabilityRepository',
+    'VolunteerPositionRepository',
+    'VolunteerProfileRepository',
+    'VolunteerShiftRepository',
 ]

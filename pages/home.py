@@ -32,4 +32,8 @@ def create() -> None:
             {'label': 'Help', 'icon': 'help', 'content': help_tab},
         ]
         show_admin = await AuthService.can_view_admin(user)
-        await BaseLayout(tabs=tabs, default_tab=tab, page_name='home', user=user, show_admin=show_admin).render()
+        show_volunteer = await AuthService.is_volunteer(user)
+        await BaseLayout(
+            tabs=tabs, default_tab=tab, page_name='home', user=user,
+            show_admin=show_admin, show_volunteer=show_volunteer,
+        ).render()

@@ -21,6 +21,7 @@ from api.routers import (
     tournaments,
     triforce,
     users,
+    volunteers,
 )
 
 router = APIRouter()
@@ -37,5 +38,6 @@ router.include_router(notifications.router)
 router.include_router(audit.router)
 router.include_router(system_config.router)
 router.include_router(tokens.router)
+router.include_router(volunteers.router)
 
 __all__ = ['router']

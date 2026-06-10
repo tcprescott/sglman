@@ -114,6 +114,20 @@ class AuthService:
         return await AuthService.is_staff(user) or await AuthService.is_stream_manager(user)
 
     @staticmethod
+    async def is_volunteer(user: Optional[User]) -> bool:
+        """Holds the overall Volunteer role (access the Volunteer section, opt in)."""
+        return await AuthService.has_role(user, Role.VOLUNTEER)
+
+    @staticmethod
+    async def is_volunteer_coordinator(user: Optional[User]) -> bool:
+        return await AuthService.has_role(user, Role.VOLUNTEER_COORDINATOR)
+
+    @staticmethod
+    async def can_manage_volunteers(user: Optional[User]) -> bool:
+        """Manage volunteer positions, shifts, and assignments (admin side)."""
+        return await AuthService.is_staff(user) or await AuthService.is_volunteer_coordinator(user)
+
+    @staticmethod
     async def can_assign_match_stream(user: Optional[User], match: Match) -> bool:
         """Set a match's stream_room or is_stream_candidate flag.
         Stream Managers can do this globally; TAs can do it for their own tournaments.

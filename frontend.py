@@ -12,7 +12,7 @@ from nicegui import app, ui
 from application.utils.environment import validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.auth import create as auth_create
-from pages import admin, home, triforce_texts
+from pages import admin, home, triforce_texts, volunteer
 
 app.add_middleware(AuthMiddleware)
 
@@ -60,6 +60,7 @@ def init(fastapi_app: FastAPI) -> None:
     admin.create()
     home.create()
     triforce_texts.create()
+    volunteer.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

@@ -47,6 +47,9 @@ def get_discord_bot() -> commands.Bot:
                 elif custom_id.startswith('crew_ack:'):
                     from discordbot.crew_acknowledgment import handle_crew_acknowledgment_interaction
                     await handle_crew_acknowledgment_interaction(interaction)
+                elif custom_id.startswith('volunteer_ack:'):
+                    from discordbot.volunteer_acknowledgment import handle_volunteer_acknowledgment_interaction
+                    await handle_volunteer_acknowledgment_interaction(interaction)
                 elif custom_id.startswith('match_watch:'):
                     from discordbot.watch_buttons import handle_unwatch_interaction
                     await handle_unwatch_interaction(interaction)
@@ -188,6 +191,34 @@ class DiscordService:
             from discordbot.crew_acknowledgment import make_crew_acknowledgment_view
             user = await self._bot.fetch_user(user_id)
             view = make_crew_acknowledgment_view(crew_type, crew_id)
+            await user.send(message, view=view)
+            return True, "Message sent successfully."
+        except discord.NotFound:
+            return False, "User not found"
+        except discord.Forbidden:
+            return False, "Cannot send DM to this user (DMs may be disabled)"
+        except discord.HTTPException as e:
+            return False, f"Failed to send message: {str(e)}"
+        except Exception as e:
+            return False, f"Discord bot error: {str(e)}"
+
+    async def send_dm_with_volunteer_acknowledgment_button(
+        self,
+        user_id: int,
+        message: str,
+        assignment_id: int,
+    ) -> Tuple[bool, str]:
+        """Send a DM to a Discord user with a volunteer shift acknowledgment button."""
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            from discordbot.volunteer_acknowledgment import make_volunteer_acknowledgment_view
+            user = await self._bot.fetch_user(user_id)
+            view = make_volunteer_acknowledgment_view(assignment_id)
             await user.send(message, view=view)
             return True, "Message sent successfully."
         except discord.NotFound:
@@ -406,6 +437,10 @@ class MockDiscordService:
 
     async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int) -> Tuple[bool, str]:
         print(f"[MOCK Discord DM] -> {user_id} ({crew_type} {crew_id}, ack button): {message}")
+        return True, "Message sent (mock)"
+
+    async def send_dm_with_volunteer_acknowledgment_button(self, user_id: int, message: str, assignment_id: int) -> Tuple[bool, str]:
+        print(f"[MOCK Discord DM] -> {user_id} (volunteer assignment {assignment_id}, ack button): {message}")
         return True, "Message sent (mock)"
 
     async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:

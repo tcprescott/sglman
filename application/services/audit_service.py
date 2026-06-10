@@ -81,6 +81,22 @@ class AuditActions:
     APITOKEN_CREATED = 'apitoken.created'
     APITOKEN_REVOKED = 'apitoken.revoked'
 
+    # Volunteer scheduling
+    VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
+    VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'
+    VOLUNTEER_POSITION_CREATED = 'volunteer.position_created'
+    VOLUNTEER_POSITION_UPDATED = 'volunteer.position_updated'
+    VOLUNTEER_POSITION_DELETED = 'volunteer.position_deleted'
+    VOLUNTEER_SHIFT_CREATED = 'volunteer.shift_created'
+    VOLUNTEER_SHIFT_UPDATED = 'volunteer.shift_updated'
+    VOLUNTEER_SHIFT_DELETED = 'volunteer.shift_deleted'
+    VOLUNTEER_ASSIGNED = 'volunteer.assigned'
+    VOLUNTEER_UNASSIGNED = 'volunteer.unassigned'
+    VOLUNTEER_ACKNOWLEDGED = 'volunteer.acknowledged'
+    VOLUNTEER_AVAILABILITY_UPDATED = 'volunteer.availability_updated'
+    VOLUNTEER_DRAFT_GENERATED = 'volunteer.draft_generated'
+    VOLUNTEER_DRAFT_CLEARED = 'volunteer.draft_cleared'
+
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
     if details is None:

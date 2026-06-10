@@ -14,6 +14,7 @@ class BaseLayout:
         tabs: list = None,
         user: User = None,
         show_admin: bool = False,
+        show_volunteer: bool = False,
         **_kwargs
     ):
         self._copyright = copyright_text if copyright_text is not None else "© 2026 Thomas Prescott"
@@ -29,6 +30,8 @@ class BaseLayout:
         self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
         if user is not None:
             self.top_menu.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'url': '/triforcetexts'})
+        if show_volunteer:
+            self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
         if show_admin:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
 

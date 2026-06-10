@@ -21,6 +21,11 @@ from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
 from .triforce_text_service import TriforceTextService
 from .user_service import UserService
+from .volunteer_autoschedule_service import VolunteerAutoscheduleService
+from .volunteer_availability_service import VolunteerAvailabilityService
+from .volunteer_position_service import VolunteerPositionService
+from .volunteer_profile_service import VolunteerProfileService
+from .volunteer_schedule_service import VolunteerScheduleService
 
 __all__ = [
     'ApiTokenService',
@@ -40,4 +45,9 @@ __all__ = [
     'TournamentService',
     'TriforceTextService',
     'UserService',
+    'VolunteerAutoscheduleService',
+    'VolunteerAvailabilityService',
+    'VolunteerPositionService',
+    'VolunteerProfileService',
+    'VolunteerScheduleService',
 ]

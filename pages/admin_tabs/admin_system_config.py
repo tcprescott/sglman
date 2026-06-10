@@ -10,6 +10,7 @@ from application.services.system_config_service import (
     KEY_EVENT_START_DATE,
     KEY_MAX_CONCURRENT_PLAYERS,
     KEY_MAX_CONCURRENT_STAGES,
+    KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
 
 
@@ -32,6 +33,7 @@ async def admin_system_config_page() -> None:
     end_date = await SystemConfigService.get_date(KEY_EVENT_END_DATE)
     max_players = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_PLAYERS)
     max_stages = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_STAGES)
+    reminder_lead = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -53,6 +55,11 @@ async def admin_system_config_page() -> None:
                 'Max Concurrent Stages', value=max_stages, min=1, format='%d',
             ).classes('w-full')
             ui.label('Blank defaults to the number of active stream rooms.').classes('text-caption text-grey')
+
+            reminder_lead_input = ui.number(
+                'Volunteer Reminder Lead (minutes)', value=reminder_lead, min=1, format='%d',
+            ).classes('w-full')
+            ui.label('How far ahead of a shift to DM volunteers. Blank uses 60 minutes.').classes('text-caption text-grey')
 
         async def save():
             actor = await current_user_from_storage()
@@ -76,11 +83,13 @@ async def admin_system_config_page() -> None:
 
                 players_raw = int_str(players_input.value)
                 stages_raw = int_str(stages_input.value)
+                reminder_raw = int_str(reminder_lead_input.value)
 
                 await SystemConfigService.set_raw(KEY_EVENT_START_DATE, start_raw, actor)
                 await SystemConfigService.set_raw(KEY_EVENT_END_DATE, end_raw, actor)
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_PLAYERS, players_raw, actor)
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_STAGES, stages_raw, actor)
+                await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return
