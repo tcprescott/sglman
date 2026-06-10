@@ -1,5 +1,7 @@
 """Player Edit Info Tab - Allows players to edit their personal information and tournament registrations."""
 
+import asyncio
+
 from nicegui import app, ui
 
 from application.services import UserService
@@ -33,7 +35,26 @@ async def render_edit_info_tab():
 
     def mark_clean():
         ui.run_javascript('window.sglman_dirty = false;')
-    
+
+    # Subtle auto-save status indicator (elements created near the end of the form).
+    status_icon = None
+    status_label = None
+
+    def show_saving():
+        status_icon.props('name=sync').classes(replace='text-muted')
+        status_label.set_text('Saving…')
+        status_label.classes(replace='text-muted')
+
+    def show_saved():
+        status_icon.props('name=check').classes(replace='text-muted')
+        status_label.set_text('Saved')
+        status_label.classes(replace='text-muted')
+
+    def show_error(message):
+        status_icon.props('name=error').classes(replace='text-warning')
+        status_label.set_text(message)
+        status_label.classes(replace='text-warning')
+
     with ui.column().classes('page-container-narrow'):
         # Header
         with ui.row().classes('header-row'):
@@ -65,6 +86,49 @@ async def render_edit_info_tab():
         player_tournaments = tournament_data['player_tournaments']
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
+        personal_token = {'n': 0}
+
+        async def on_personal_change():
+            mark_dirty()
+            personal_token['n'] += 1
+            mine = personal_token['n']
+            await asyncio.sleep(0.8)
+            if mine != personal_token['n']:
+                return
+            show_saving()
+            try:
+                await user_service.update_user_personal_info(
+                    user=user,
+                    actor=user,
+                    display_name=display_name_input.value,
+                    pronouns=pronouns_input.value,
+                    dm_notifications=dm_checkbox.value,
+                )
+            except ValueError as e:
+                show_error(str(e))
+                ui.notify(str(e), color='warning')
+                return
+            show_saved()
+            mark_clean()
+
+        async def on_tournament_change():
+            mark_dirty()
+            selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)
+            show_saving()
+            try:
+                await user_service.manage_tournament_enrollments(
+                    user=user,
+                    actor=user,
+                    tournament_ids=selected_ids,
+                    is_update=True,
+                )
+            except ValueError as e:
+                show_error(str(e))
+                ui.notify(str(e), color='warning')
+                return
+            show_saved()
+            mark_clean()
+
         # Personal Information Section
         with ui.card().classes('card-full-width'):
             ui.label('Personal Information').classes('section-title')
@@ -77,7 +141,7 @@ async def render_edit_info_tab():
                         '',
                         value=user.display_name or '',
                         placeholder=display_name_hint,
-                        on_change=lambda _: mark_dirty(),
+                        on_change=on_personal_change,
                     ).classes('input-full-width').props('outlined dense')
 
                 with ui.column():
@@ -86,7 +150,7 @@ async def render_edit_info_tab():
                         '',
                         value=user.pronouns or '',
                         placeholder='e.g. they/them',
-                        on_change=lambda _: mark_dirty(),
+                        on_change=on_personal_change,
                     ).classes('input-full-width').props('outlined dense')
 
         with ui.card().classes('card-full-width'):
@@ -94,7 +158,7 @@ async def render_edit_info_tab():
             dm_checkbox = ui.checkbox(
                 'Receive Discord DM notifications for match updates',
                 value=user.dm_notifications,
-                on_change=lambda _: mark_dirty(),
+                on_change=on_personal_change,
             )
 
         tournament_checkboxes = {}
@@ -119,7 +183,7 @@ async def render_edit_info_tab():
                                 tournament_checkboxes[t.id] = ui.checkbox(
                                     t.name,
                                     value=checked,
-                                    on_change=lambda _: mark_dirty(),
+                                    on_change=on_tournament_change,
                                 ).classes('input-full-width')
                         # Fill empty cells if less than columns
                         for _ in range(columns - len(row)):
@@ -129,29 +193,10 @@ async def render_edit_info_tab():
         render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)
         render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
 
-        async def save_info():
-            await user_service.update_user_personal_info(
-                user=user,
-                actor=user,
-                display_name=display_name_input.value,
-                pronouns=pronouns_input.value,
-                dm_notifications=dm_checkbox.value,
-            )
-
-            selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)
-            await user_service.update_user_tournament_registrations(
-                user=user,
-                actor=user,
-                selected_tournament_ids=selected_ids,
-                current_registrations=user_tournaments,
-            )
-
-            mark_clean()
-            ui.notify('Information updated successfully!', color='positive', icon='check_circle')
-
-        # Save Button
-        with ui.row().classes('button-row'):
-            ui.button('Save Changes', icon='save', on_click=save_info).props('color=primary size=lg')
+        # Auto-save status indicator (updated by the on_change handlers above).
+        with ui.row().classes('row-centered'):
+            status_icon = ui.icon('check', size='xs').classes('text-muted')
+            status_label = ui.label('All changes are saved automatically').classes('text-muted')
 
         # API token management (self-contained; saves independently of the form above)
         await render_api_tokens_section(user)
