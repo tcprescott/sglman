@@ -11,7 +11,6 @@ from pages.admin_tabs.admin_users import admin_users_page
 from pages.admin_tabs.admin_volunteers import admin_volunteers_page
 from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
-from pages.admin_tabs.admin_help import admin_help_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
@@ -97,7 +96,6 @@ def create() -> None:
             tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'content': admin_discord_roles_page})
         if is_staff:
             tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
-        tabs.append({'label': 'Help', 'icon': 'help', 'content': admin_help_page})
 
         base_layout = BaseLayout(
             tabs=tabs, default_tab=tab, page_name='admin', user=user,
