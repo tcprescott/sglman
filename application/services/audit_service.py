@@ -63,6 +63,12 @@ class AuditActions:
     USER_ROLE_REVOKED = 'user.role_revoked'
     USER_TOURNAMENT_ENROLLMENT_UPDATED = 'user.tournament_enrollment_updated'
 
+    # Discord role mapping / sync
+    DISCORD_ROLE_MAPPING_ADDED = 'discord_role.mapping_added'
+    DISCORD_ROLE_MAPPING_REMOVED = 'discord_role.mapping_removed'
+    ROLE_DISCORD_SYNC_GRANTED = 'role.discord_sync_granted'
+    ROLE_DISCORD_SYNC_REVOKED = 'role.discord_sync_revoked'
+
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'
     STREAM_ROOM_UPDATED = 'stream_room.updated'

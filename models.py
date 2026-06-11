@@ -12,6 +12,11 @@ class Role(str, Enum):
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
 
 
+class RoleSource(str, Enum):
+    MANUAL = 'manual'
+    DISCORD = 'discord'
+
+
 class VolunteerAvailabilityStatus(str, Enum):
     AVAILABLE = 'available'
     UNAVAILABLE = 'unavailable'
@@ -315,11 +320,26 @@ class UserRole(Model):
     user = fields.ForeignKeyField('models.User', related_name='roles')
     role = fields.CharEnumField(Role, max_length=32)
     granted_by = fields.ForeignKeyField('models.User', related_name='granted_roles', null=True)
+    source = fields.CharEnumField(RoleSource, max_length=16, default=RoleSource.MANUAL)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('user', 'role')
         table = 'userrole'
+
+
+class DiscordRoleMapping(Model):
+    id = fields.IntField(pk=True)
+    guild_id = fields.BigIntField()
+    discord_role_id = fields.BigIntField()
+    discord_role_name = fields.CharField(max_length=100)
+    app_role = fields.CharEnumField(Role, max_length=32)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('guild_id', 'discord_role_id', 'app_role')
+        table = 'discordrolemapping'
 
 class TriforceText(Model):
     id = fields.IntField(pk=True)

@@ -11,7 +11,7 @@ from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from models import Role, Tournament, TournamentPlayers, User
+from models import Role, RoleSource, Tournament, TournamentPlayers, User
 
 
 class UserService:
@@ -223,7 +223,7 @@ class UserService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can grant roles",
         )
-        await self.role_repository.add(target, role, granted_by=actor)
+        await self.role_repository.add(target, role, granted_by=actor, source=RoleSource.MANUAL)
         await self.audit_service.write_log(
             actor,
             AuditActions.USER_ROLE_GRANTED,

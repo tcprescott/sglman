@@ -68,17 +68,26 @@ erDiagram
 
 ## Enums
 
-Both enums are `str`-valued and stored via `CharEnumField`.
+These enums are `str`-valued and stored via `CharEnumField`.
 
 ### `Role`
 
-Used by `UserRole.role` (`max_length=32`). Authorization checks are made through `AuthService` — see [role-based-auth.md](../features/role-based-auth.md).
+Used by `UserRole.role` and `DiscordRoleMapping.app_role` (`max_length=32`). Authorization checks are made through `AuthService` — see [role-based-auth.md](../features/role-based-auth.md).
 
 | Value | Meaning |
 |---|---|
 | `STAFF` = `'staff'` | Full staff access |
 | `PROCTOR` = `'proctor'` | Match proctoring |
 | `STREAM_MANAGER` = `'stream_manager'` | Stream/stage management |
+
+### `RoleSource`
+
+Used by `UserRole.source` (`max_length=16`, default `MANUAL`). Distinguishes roles a Staff member granted by hand from roles derived automatically from Discord, so the login-time sync only ever revokes the roles it created — see [discord-role-sync.md](../features/discord-role-sync.md).
+
+| Value | Meaning |
+|---|---|
+| `MANUAL` = `'manual'` | Granted by a Staff member (or pre-existing); never auto-revoked |
+| `DISCORD` = `'discord'` | Granted by the Discord role sync; revoked when the mapped Discord role is lost |
 
 ### `MatchNotificationLevel`
 
@@ -115,15 +124,29 @@ Properties: `preferred_name` returns `display_name` if it is truthy, otherwise `
 
 #### `UserRole`
 
-Junction table mapping users to global `Role` values; records who granted the role. No `updated_at` field.
+Junction table mapping users to global `Role` values; records who granted the role and whether it was granted manually or synced from Discord. No `updated_at` field.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `user` | FK → `User` | not null | `related_name='roles'` |
 | `role` | `CharEnumField(Role)` | not null | `max_length=32` |
-| `granted_by` | FK → `User` | null | `related_name='granted_roles'` |
+| `granted_by` | FK → `User` | null | `related_name='granted_roles'`; null for Discord-synced rows |
+| `source` | `CharEnumField(RoleSource)` | not null, default `MANUAL` | `max_length=16`; manual grants are never auto-revoked by the Discord sync |
 
 Constraints: `unique_together ('user', 'role')`; `Meta.table = 'userrole'`.
+
+#### `DiscordRoleMapping`
+
+Maps a Discord guild role to an application `Role`. Consulted at login by the Discord role sync; managed by Staff on the admin **Discord Roles** tab — see [discord-role-sync.md](../features/discord-role-sync.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `guild_id` | `BigIntField` | not null | Discord guild snowflake |
+| `discord_role_id` | `BigIntField` | not null | Discord role snowflake |
+| `discord_role_name` | `CharField(100)` | not null | Cached label for the admin table |
+| `app_role` | `CharEnumField(Role)` | not null | `max_length=32` |
+
+Constraints: `unique_together ('guild_id', 'discord_role_id', 'app_role')`; `Meta.table = 'discordrolemapping'`. A Discord role may map to several app roles and vice-versa.
 
 ### Tournament
 
@@ -564,10 +587,24 @@ Serves `UserRole` ([`user_role_repository.py`](../../application/repositories/us
 
 | Method | Description |
 |---|---|
-| `add(user: User, role: Role, granted_by: Optional[User] = None) -> UserRole` | Idempotent grant via `get_or_create`; `granted_by` is recorded only when the row is created |
+| `add(user: User, role: Role, granted_by=None, source=RoleSource.MANUAL) -> UserRole` | Idempotent grant via `get_or_create`. A `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation |
 | `remove(user: User, role: Role) -> int` | Revoke; returns number of rows deleted |
 | `list_for_user(user: User) -> List[UserRole]` | All role rows for a user |
+| `list_for_user_by_source(user: User, source: RoleSource) -> List[UserRole]` | Role rows for a user filtered by source (used by the Discord sync to find revocable rows) |
 | `list_users_with_role(role: Role) -> List[User]` | Users holding a role, resolved via prefetched rows |
+
+### `DiscordRoleMappingRepository`
+
+Serves `DiscordRoleMapping` ([`discord_role_mapping_repository.py`](../../application/repositories/discord_role_mapping_repository.py)).
+
+| Method | Description |
+|---|---|
+| `get_by_id(mapping_id: int) -> Optional[DiscordRoleMapping]` | Lookup by primary key |
+| `get_all() -> List[DiscordRoleMapping]` | All mappings, ordered by Discord role name then app role |
+| `list_for_guild(guild_id: int) -> List[DiscordRoleMapping]` | Mappings scoped to one guild |
+| `get_match(guild_id, discord_role_id, app_role) -> Optional[DiscordRoleMapping]` | Exact-tuple lookup used to reject duplicates |
+| `create(guild_id, discord_role_id, discord_role_name, app_role) -> DiscordRoleMapping` | Insert a mapping |
+| `delete(mapping: DiscordRoleMapping) -> None` | Delete a mapping |
 
 ## Migrations
 

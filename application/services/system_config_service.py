@@ -20,6 +20,7 @@ KEY_MAX_CONCURRENT_PLAYERS = 'max_concurrent_players'
 KEY_MAX_CONCURRENT_STAGES = 'max_concurrent_stages'
 KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
 KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
+KEY_DISCORD_SYNC_GUILD_ID = 'discord_role_sync_guild_id'
 
 
 class SystemConfigService:
@@ -60,6 +61,11 @@ class SystemConfigService:
             return int(raw)
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    async def get_discord_sync_guild_id() -> Optional[int]:
+        """Return the Discord guild id used for login-time role sync, or None."""
+        return await SystemConfigService.get_int(KEY_DISCORD_SYNC_GUILD_ID)
 
     @staticmethod
     async def get_date(key: str, default: Optional[date] = None) -> Optional[date]:

@@ -28,6 +28,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
 | `AuthService` / `current_user_from_storage` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew approval and acknowledgment | [crew-management.md](../features/crew-management.md) |
+| `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord-role-sync.md](../features/discord-role-sync.md) |
 | `discord_queue` (module) | [discord_queue.py](../../application/services/discord_queue.py) | Serialized background Discord sends | [discord-integration.md](discord-integration.md) |
 | `DiscordService` / `MockDiscordService` | [discord_service.py](../../application/services/discord_service.py) | Bot DMs, button views, guild roles | [discord-integration.md](discord-integration.md) |
 | `MatchScheduleService` | [match_schedule_service.py](../../application/services/match_schedule_service.py) | Match lifecycle transitions, seed rolls, DM fan-out | [discord-notifications.md](../features/discord-notifications.md) |
@@ -99,6 +100,19 @@ Crew (commentator/tracker) approval workflow and crew-side acknowledgment. Signu
 | `acknowledge_crew_assignment(crew_id, crew_type, user)` | `Commentator \| Tracker` | Crew member confirms their own approved assignment. Rejects other users and unapproved rows (`ValueError`); already-acknowledged rows are a silent no-op. |
 
 Collaborators: `CommentatorRepository`, `TrackerRepository`, `AuditService`, `DiscordService` (via `discord_queue`). Consumers: `theme/dialog/approve_crew_dialog.py`, `theme/tables/match.py` (web acknowledge button), `discordbot/crew_acknowledgment.py` (DM button handler).
+
+### discord_role_mapping_service.py — DiscordRoleMappingService
+
+CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discord guild roles onto application roles. Feature doc: [discord-role-sync.md](../features/discord-role-sync.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_all_mappings()` / `list_mappings(guild_id)` | `List[DiscordRoleMapping]` | All mappings, or those scoped to one guild. |
+| `add_mapping(guild_id, discord_role_id, discord_role_name, app_role, actor)` | `DiscordRoleMapping` | Staff-only; rejects exact duplicates (`ValueError`); audits `discord_role.mapping_added`. |
+| `remove_mapping(mapping_id, actor)` | `None` | Staff-only; `ValueError` if missing; audits `discord_role.mapping_removed`. |
+| `sync_user_roles(user)` | `dict` | Full-syncs the user's Discord-sourced roles. **Never raises** — fails open on any error so login is never blocked. Grants mapped roles the user lacks (`source=discord`), revokes Discord-sourced roles no longer present, and never touches `source=manual` rows. Returns a `{'granted', 'revoked', 'skipped'}` summary. |
+
+Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `SystemConfigService.get_discord_sync_guild_id`, `AuthService`, `AuditService`. Consumers: `middleware/auth.py` (OAuth callback calls `sync_user_roles`), `pages/admin_tabs/admin_discord_roles.py` (mapping management UI).
 
 ### discord_queue.py — module functions
 

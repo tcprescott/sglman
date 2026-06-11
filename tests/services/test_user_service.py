@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.user_service import UserService
-from models import Role
+from models import Role, RoleSource
 
 
 @pytest.fixture(autouse=True)
@@ -315,7 +315,9 @@ class TestRoleManagement:
         target = make_user(user_id=7)
         actor = make_user(user_id=1)
         await service.grant_role(target, Role.PROCTOR, actor)
-        service.role_repository.add.assert_awaited_once_with(target, Role.PROCTOR, granted_by=actor)
+        service.role_repository.add.assert_awaited_once_with(
+            target, Role.PROCTOR, granted_by=actor, source=RoleSource.MANUAL
+        )
         action = service.audit_service.write_log.await_args.args[1]
         assert action == 'user.role_granted'
         assert service.audit_service.write_log.await_args.args[2]['role'] == Role.PROCTOR.value

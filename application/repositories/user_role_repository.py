@@ -6,18 +6,28 @@ Handles database operations for the userrole join table.
 
 from typing import List, Optional
 
-from models import Role, User, UserRole
+from models import Role, RoleSource, User, UserRole
 
 
 class UserRoleRepository:
     """Repository for UserRole data access."""
 
     @staticmethod
-    async def add(user: User, role: Role, granted_by: Optional[User] = None) -> UserRole:
-        instance, _ = await UserRole.get_or_create(
+    async def add(
+        user: User,
+        role: Role,
+        granted_by: Optional[User] = None,
+        source: RoleSource = RoleSource.MANUAL,
+    ) -> UserRole:
+        instance, created = await UserRole.get_or_create(
             user=user, role=role,
-            defaults={'granted_by': granted_by},
+            defaults={'granted_by': granted_by, 'source': source},
         )
+        # A manual grant pins the role so a later Discord sync won't revoke it.
+        if not created and source == RoleSource.MANUAL and instance.source != RoleSource.MANUAL:
+            instance.source = RoleSource.MANUAL
+            instance.granted_by = granted_by
+            await instance.save()
         return instance
 
     @staticmethod
@@ -27,6 +37,10 @@ class UserRoleRepository:
     @staticmethod
     async def list_for_user(user: User) -> List[UserRole]:
         return await UserRole.filter(user=user)
+
+    @staticmethod
+    async def list_for_user_by_source(user: User, source: RoleSource) -> List[UserRole]:
+        return await UserRole.filter(user=user, source=source)
 
     @staticmethod
     async def list_users_with_role(role: Role) -> List[User]:

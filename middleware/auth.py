@@ -14,6 +14,7 @@ from starlette.responses import RedirectResponse
 from zenora import APIClient
 
 from application.services.auth_service import AuthService, current_user_from_storage
+from application.services.discord_role_mapping_service import DiscordRoleMappingService
 from application.utils.mock_discord import is_mock_discord
 from models import Role, User
 
@@ -192,6 +193,10 @@ def create() -> None:
                 user.username = current_user.username
                 user.access_token = access_token
                 await user.save()
+
+            # Map the user's Discord guild roles onto application roles.
+            # Self-defensive: never raises, so login is never blocked.
+            await DiscordRoleMappingService().sync_user_roles(user)
 
             referrer = app.storage.user.get('referrer_path', '/')
             # Avoid redirecting to login/callback

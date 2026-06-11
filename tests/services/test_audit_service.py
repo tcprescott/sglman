@@ -182,3 +182,7 @@ class TestAuditActionsConstants:
         assert AuditActions.MATCH_CREATED == 'match.created'
         assert AuditActions.USER_ROLE_GRANTED == 'user.role_granted'
         assert AuditActions.SYSTEM_CONFIG_UPDATED == 'system_config.updated'
+        assert AuditActions.DISCORD_ROLE_MAPPING_ADDED == 'discord_role.mapping_added'
+        assert AuditActions.DISCORD_ROLE_MAPPING_REMOVED == 'discord_role.mapping_removed'
+        assert AuditActions.ROLE_DISCORD_SYNC_GRANTED == 'role.discord_sync_granted'
+        assert AuditActions.ROLE_DISCORD_SYNC_REVOKED == 'role.discord_sync_revoked'

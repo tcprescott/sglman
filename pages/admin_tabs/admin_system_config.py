@@ -4,8 +4,14 @@ from datetime import date, time
 
 from nicegui import ui
 
-from application.services import AuthService, SystemConfigService, current_user_from_storage
+from application.services import (
+    AuthService,
+    DiscordService,
+    SystemConfigService,
+    current_user_from_storage,
+)
 from application.services.system_config_service import (
+    KEY_DISCORD_SYNC_GUILD_ID,
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,
     KEY_MAX_CONCURRENT_PLAYERS,
@@ -36,6 +42,14 @@ async def admin_system_config_page() -> None:
     reminder_lead = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
+
+    sync_guild_id = await SystemConfigService.get_discord_sync_guild_id()
+    guild_ok, guild_payload = await DiscordService().list_guilds()
+    guild_options: dict[int, str] = {}
+    if guild_ok and isinstance(guild_payload, list):
+        guild_options = {int(g['id']): str(g['name']) for g in guild_payload}
+    if sync_guild_id and sync_guild_id not in guild_options:
+        guild_options[sync_guild_id] = f'Guild {sync_guild_id}'
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -86,6 +100,19 @@ async def admin_system_config_page() -> None:
                 hours_inputs[current] = {'open': open_input, 'close': close_input}
             current += timedelta(days=1)
 
+        # --- Discord role sync ---
+        ui.separator().classes('separator-spacing')
+        ui.label('Discord Role Sync').classes('text-subtitle1 text-bold')
+        ui.label(
+            'Select the Discord server whose member roles are mapped to application '
+            'roles when a user signs in. Configure the mappings on the Discord Roles tab.'
+        ).classes('text-caption text-grey')
+        guild_select = ui.select(
+            options=guild_options, value=sync_guild_id, label='Discord Server',
+        ).props('clearable').classes('w-full')
+        if not guild_options:
+            ui.label('The bot is not connected to any servers yet.').classes('text-caption text-grey')
+
         async def save():
             actor = await current_user_from_storage()
             try:
@@ -124,6 +151,9 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_STAGES, stages_raw, actor)
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
+
+                guild_raw = str(int(guild_select.value)) if guild_select.value else ''
+                await SystemConfigService.set_raw(KEY_DISCORD_SYNC_GUILD_ID, guild_raw, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return

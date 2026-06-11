@@ -16,7 +16,7 @@ Defined in `models.py` as `Role(str, Enum)`:
 | `proctor` | Race monitors | Match management; seat/start/finish |
 | `stream_manager` | Stream desk | Stage assignment; stream candidate flag |
 
-Roles are stored in the `UserRole` junction table. Each row records who granted the role (`granted_by` FK to User) and when.
+Roles are stored in the `UserRole` junction table. Each row records who granted the role (`granted_by` FK to User), when, and its `source` (`manual` vs `discord`). Roles can be granted by hand by Staff **or** synced automatically from a user's Discord roles at login — see [discord-role-sync.md](discord-role-sync.md). The sync only ever revokes the `discord`-sourced roles it created; `manual` grants are preserved.
 
 ## Key Files
 
@@ -27,6 +27,7 @@ Roles are stored in the `UserRole` junction table. Each row records who granted 
 | `middleware/auth.py` | `@protected_page` — enforces login + optional role at page level |
 | `pages/admin.py` | Uses `AuthService.can_view_admin()` to gate dashboard access |
 | `theme/dialog/user_edit_dialog.py` | Admin grants/revokes roles via checkboxes |
+| `application/services/discord_role_mapping_service.py` | Login-time Discord→app role sync (`sync_user_roles`) |
 
 ## Auth Service API
 

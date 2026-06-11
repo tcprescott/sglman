@@ -97,8 +97,11 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `list_guild_roles` | `(guild_id: int)` | Roles for a guild as `[{"id", "name"}]`. Resolves the guild via cache then `fetch_guild` fallback; prefers `guild.fetch_roles()`, falls back to cached `guild.roles`. |
 | `add_role_to_user` | `(guild_id, user_id, role_id, reason: Optional[str] = None)` | Adds a guild role to a member. Resolves member via cache then `fetch_member`; resolves role via cache then `fetch_roles`. `reason` goes to the Discord audit log. |
 | `remove_role_from_user` | `(guild_id, user_id, role_id, reason: Optional[str] = None)` | Mirror of `add_role_to_user` using `member.remove_roles`. |
+| `get_member_role_ids` | `(guild_id, user_id)` | `(True, {role_id, ...})` for the member's current roles (`@everyone` excluded). When the member is not in the guild, returns `(True, set())`. On a hard failure (bot not ready, API error) returns `(False, reason)` so callers can fail open. Powers the login-time role sync — see [discord-role-sync.md](../features/discord-role-sync.md). |
 
-The guild/role helpers currently have no callers in the codebase; they exist as API surface only.
+`add_role_to_user` / `remove_role_from_user` currently have no callers; they exist as API surface only. `get_member_role_ids` is called by `DiscordRoleMappingService.sync_user_roles` during OAuth login.
+
+> **Privileged intent.** Reading guild members requires the **Server Members Intent**, enabled both in code (`intents.members = True`, already set) **and** toggled on for the bot application in the Discord Developer Portal. The bot must also be invited to the guild (`bot` scope). Without these, `get_member_role_ids` returns errors / empty sets and the sync is a safe no-op.
 
 Every send method runs the same guard ladder before touching the API, mapped to error strings:
 
@@ -133,6 +136,7 @@ if not success:
 - `get_bot()` returns `None`.
 - `list_guilds()` returns `(True, [{"id": 1, "name": "Mock Guild"}])`; `list_guild_roles()` returns two fixed mock roles.
 - `add_role_to_user` / `remove_role_from_user` print a `[MOCK Discord] add_role/remove_role ...` line and return success.
+- `get_member_role_ids()` prints a line and returns `(True, set())`, so the login-time role sync runs as a safe no-op in mock mode.
 
 Button interactions are **not** testable in mock mode (no bot connection); see [mock-discord.md](../features/mock-discord.md).
 

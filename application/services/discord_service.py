@@ -4,7 +4,7 @@ Discord Service - Business Logic Layer
 Handles Discord-related operations like sending DMs.
 """
 
-from typing import Tuple, Optional, List, Dict, Union
+from typing import Tuple, Optional, List, Dict, Set, Union
 import discord
 from discord.ext import commands
 
@@ -411,6 +411,42 @@ class DiscordService:
         """
         return await self._modify_role(guild_id, user_id, role_id, reason, add=False)
 
+    async def get_member_role_ids(self, guild_id: int, user_id: int) -> Tuple[bool, Union[Set[int], str]]:
+        """
+        Retrieve the set of Discord role IDs a member currently holds in a guild.
+
+        Returns:
+            Tuple[success, data]
+            - On success: (True, {role_id, ...}); the ``@everyone`` role is excluded.
+            - When the user is not a member of the guild: (True, set())
+            - On a hard failure (bot not ready, API error): (False, error_message)
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+
+            guild = self._bot.get_guild(guild_id) or await self._bot.fetch_guild(guild_id)
+            if guild is None:
+                return False, "Guild not found"
+
+            member = guild.get_member(user_id)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(user_id)
+                except discord.NotFound:
+                    return True, set()
+
+            # Exclude @everyone, whose role id equals the guild id.
+            return True, {r.id for r in member.roles if r.id != guild_id}
+        except discord.Forbidden:
+            return False, "Bot lacks permissions to read guild members"
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while reading member roles: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to read member roles: {str(e)}"
+
 
 class MockDiscordService:
     """Stub Discord service for local development without a real bot.
@@ -466,6 +502,10 @@ class MockDiscordService:
     async def remove_role_from_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
         print(f"[MOCK Discord] remove_role guild={guild_id} user={user_id} role={role_id} reason={reason!r}")
         return True, "Role removed (mock)"
+
+    async def get_member_role_ids(self, guild_id: int, user_id: int) -> Tuple[bool, Union[Set[int], str]]:
+        print(f"[MOCK Discord] get_member_role_ids guild={guild_id} user={user_id}")
+        return True, set()
 
 
 from application.utils.mock_discord import is_mock_discord  # noqa: E402

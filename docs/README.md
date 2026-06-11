@@ -46,6 +46,7 @@ Implementation notes for each shipped feature.
 | [features/audit-logging.md](features/audit-logging.md) | Audit trail for admin actions (`AuditService`, action conventions) |
 | [features/crew-management.md](features/crew-management.md) | Commentator/tracker signup, approval, acknowledgment |
 | [features/discord-notifications.md](features/discord-notifications.md) | Match lifecycle DM notifications and fan-out |
+| [features/discord-role-sync.md](features/discord-role-sync.md) | Map Discord guild roles to app roles at login |
 | [features/match-acknowledgment.md](features/match-acknowledgment.md) | Player and crew match acknowledgment flows |
 | [features/match-watcher.md](features/match-watcher.md) | Watch any match for state-change DMs |
 | [features/mock-discord.md](features/mock-discord.md) | `MOCK_DISCORD` development mode |
