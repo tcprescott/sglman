@@ -8,6 +8,7 @@ between repositories. They should NOT know about UI components.
 from .api_token_service import ApiTokenService
 from .audit_service import AuditService
 from .auth_service import AuthService, current_user_from_storage
+from .challonge_service import ChallongeService
 from .crew_service import CrewService
 from .discord_service import DiscordService
 from .match_service import MatchService
@@ -33,6 +34,7 @@ __all__ = [
     'ApiTokenService',
     'AuditService',
     'AuthService',
+    'ChallongeService',
     'CrewService',
     'current_user_from_storage',
     'DiscordService',

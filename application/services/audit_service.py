@@ -84,6 +84,15 @@ class AuditActions:
     # Player availability
     PLAYER_AVAILABILITY_UPDATED = 'player.availability_updated'
 
+    # Challonge integration
+    CHALLONGE_CONNECTED = 'challonge.connected'
+    CHALLONGE_DISCONNECTED = 'challonge.disconnected'
+    CHALLONGE_PLAYER_LINKED = 'challonge.player_linked'
+    CHALLONGE_PLAYER_UNLINKED = 'challonge.player_unlinked'
+    CHALLONGE_TOURNAMENT_LINKED = 'challonge.tournament_linked'
+    CHALLONGE_BRACKET_SYNCED = 'challonge.bracket_synced'
+    CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
+
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'

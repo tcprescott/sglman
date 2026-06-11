@@ -12,6 +12,7 @@ from nicegui import app, ui
 from application.utils.environment import validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.auth import create as auth_create
+from middleware.challonge_oauth import create as challonge_oauth_create
 from pages import admin, home, volunteer
 
 app.add_middleware(AuthMiddleware)
@@ -57,6 +58,7 @@ def init(fastapi_app: FastAPI) -> None:
     fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
     auth_create()
+    challonge_oauth_create()
     admin.create()
     home.create()
     volunteer.create()

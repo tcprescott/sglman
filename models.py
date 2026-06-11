@@ -28,6 +28,11 @@ class User(Model):
     pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
     dm_notifications = fields.BooleanField(default=True)
+    # Verified Challonge identity (captured via one-time OAuth, scope ``me``).
+    # Identity only — we do not retain a player's Challonge access token.
+    challonge_user_id = fields.CharField(max_length=64, null=True)
+    challonge_username = fields.CharField(max_length=255, null=True)
+    challonge_linked_at = fields.DatetimeField(null=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
@@ -53,6 +58,7 @@ class User(Model):
     volunteer_assignments_made = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_qualifications = fields.ReverseRelation["VolunteerQualification"]
     volunteer_availability = fields.ReverseRelation["VolunteerAvailability"]
+    challonge_participations = fields.ReverseRelation["ChallongeParticipant"]
 
     @property
     def preferred_name(self) -> str:
@@ -111,6 +117,8 @@ class Tournament(Model):
     triforce_access_message = fields.TextField(null=True)
     average_match_duration = fields.IntField(null=True)  # in minutes
     max_match_duration = fields.IntField(null=True)  # in minutes
+    challonge_tournament_id = fields.CharField(max_length=64, null=True)
+    challonge_tournament_url = fields.CharField(max_length=255, null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -128,6 +136,8 @@ class Tournament(Model):
     announcements = fields.ReverseRelation["Announcement"]
     notification_preferences = fields.ReverseRelation["TournamentNotificationPreference"]
     triforce_texts = fields.ReverseRelation["TriforceText"]
+    challonge_participants = fields.ReverseRelation["ChallongeParticipant"]
+    challonge_matches = fields.ReverseRelation["ChallongeMatch"]
 
 class Match(Model):
     id = fields.IntField(pk=True)
@@ -147,6 +157,7 @@ class Match(Model):
 
     # related fields
     acknowledgments = fields.ReverseRelation["MatchAcknowledgment"]
+    challonge_match = fields.ReverseRelation["ChallongeMatch"]
 
     @property
     def is_seated(self) -> bool:
@@ -463,3 +474,79 @@ class PlayerAvailability(Model):
 
     class Meta:
         table = 'playeravailability'
+
+
+class ChallongeMatchState(str, Enum):
+    """Mirrors Challonge's match states relevant to scheduling."""
+
+    PENDING = 'pending'   # participants not yet fully determined
+    OPEN = 'open'         # both participants known and ready to play
+    COMPLETE = 'complete' # result recorded on Challonge
+
+
+class ChallongeConnection(Model):
+    """Single shared SGL service-account OAuth connection to Challonge.
+
+    Only one connection is meaningful at a time; the most recently saved row is
+    authoritative. Tokens are privileged secrets — surfaced only to STAFF and
+    never logged.
+    """
+
+    id = fields.IntField(pk=True)
+    access_token = fields.CharField(max_length=512)
+    refresh_token = fields.CharField(max_length=512, null=True)
+    token_expires_at = fields.DatetimeField(null=True)
+    scopes = fields.CharField(max_length=255, null=True)
+    challonge_username = fields.CharField(max_length=255, null=True)
+    connected_by = fields.ForeignKeyField('models.User', related_name='challonge_connections', null=True, on_delete=fields.SET_NULL)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'challongeconnection'
+
+
+class ChallongeParticipant(Model):
+    """A Challonge participant in a linked tournament, mirrored into sglman.
+
+    ``user`` is resolved by matching ``challonge_user_id`` to a player who has
+    linked their Challonge identity; it stays null for participants we can't map
+    to an sglman user.
+    """
+
+    id = fields.IntField(pk=True)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='challonge_participants', on_delete=fields.CASCADE)
+    challonge_participant_id = fields.CharField(max_length=64)
+    name = fields.CharField(max_length=255, null=True)
+    challonge_user_id = fields.CharField(max_length=64, null=True)
+    user = fields.ForeignKeyField('models.User', related_name='challonge_participations', null=True, on_delete=fields.SET_NULL)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'challongeparticipant'
+        unique_together = (('tournament', 'challonge_participant_id'),)
+
+
+class ChallongeMatch(Model):
+    """A Challonge bracket match mirrored into sglman.
+
+    ``match`` links to the scheduled sglman :class:`Match` once a player has
+    scheduled it; it is null while the matchup is still unscheduled.
+    """
+
+    id = fields.IntField(pk=True)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='challonge_matches', on_delete=fields.CASCADE)
+    challonge_match_id = fields.CharField(max_length=64)
+    round = fields.IntField(null=True)
+    state = fields.CharEnumField(ChallongeMatchState, default=ChallongeMatchState.PENDING, max_length=20)
+    participant1 = fields.ForeignKeyField('models.ChallongeParticipant', related_name='matches_as_p1', null=True, on_delete=fields.SET_NULL)
+    participant2 = fields.ForeignKeyField('models.ChallongeParticipant', related_name='matches_as_p2', null=True, on_delete=fields.SET_NULL)
+    winner_participant = fields.ForeignKeyField('models.ChallongeParticipant', related_name='matches_as_winner', null=True, on_delete=fields.SET_NULL)
+    match = fields.ForeignKeyField('models.Match', related_name='challonge_match', null=True, on_delete=fields.SET_NULL)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'challongematch'
+        unique_together = (('tournament', 'challonge_match_id'),)

@@ -1,0 +1,98 @@
+"""Admin Challonge integration page (STAFF).
+
+Manages the shared SGL Challonge service-account connection and lists the
+tournaments linked to a Challonge bracket with a per-tournament Sync action.
+"""
+
+from nicegui import background_tasks, ui
+
+from application.services import AuthService, ChallongeService, current_user_from_storage
+from application.utils.timezone import format_eastern_display
+from models import Tournament
+
+
+async def admin_challonge_page() -> None:
+    actor = await current_user_from_storage()
+    is_staff = await AuthService.is_staff(actor)
+    service = ChallongeService()
+
+    with ui.column().classes('page-container-narrow'):
+        with ui.row().classes('header-row'):
+            ui.label('Challonge Integration').classes('page-title')
+        ui.separator().classes('separator-spacing')
+
+        @ui.refreshable
+        async def connection_card() -> None:
+            status = await service.get_connection_status()
+            with ui.card().classes('w-full'):
+                if not status.get('configured'):
+                    ui.label('Challonge is not configured.').classes('text-error')
+                    ui.label(
+                        'Set CHALLONGE_CLIENT_ID and CHALLONGE_CLIENT_SECRET (or MOCK_CHALLONGE for '
+                        'local dev) to enable the integration.'
+                    ).classes('text-muted')
+                    return
+
+                if status.get('connected'):
+                    with ui.row().classes('items-center'):
+                        ui.icon('link', color='positive')
+                        ui.label(f"Connected as {status.get('challonge_username') or 'unknown'}").classes('text-bold')
+                    if status.get('scopes'):
+                        ui.label(f"Scopes: {status['scopes']}").classes('text-caption text-muted')
+                    if status.get('token_expires_at'):
+                        ui.label(
+                            f"Token expires: {format_eastern_display(status['token_expires_at'])}"
+                        ).classes('text-caption text-muted')
+                    if is_staff:
+                        ui.button('Disconnect', icon='link_off', on_click=disconnect).props('flat color=negative')
+                else:
+                    ui.label('The SGL Challonge account is not connected.').classes('text-muted')
+                    if is_staff:
+                        ui.button(
+                            'Connect Challonge', icon='link',
+                            on_click=lambda: ui.navigate.to('/challonge/connect'),
+                        ).props('color=primary')
+
+        async def disconnect() -> None:
+            try:
+                await service.disconnect(actor)
+                ui.notify('Challonge disconnected.', color='positive')
+            except ValueError as e:
+                ui.notify(str(e), color='warning')
+            await connection_card.refresh()
+
+        await connection_card()
+
+        ui.label('Linked tournaments').classes('section-title q-mt-md')
+
+        @ui.refreshable
+        async def linked_tournaments() -> None:
+            tournaments = await Tournament.filter(challonge_tournament_id__isnull=False).order_by('name')
+            if not tournaments:
+                ui.label('No tournaments are linked to Challonge yet. Link one from its edit dialog '
+                         'on the Tournaments tab.').classes('text-muted')
+                return
+            for t in tournaments:
+                with ui.row().classes('items-center w-full'):
+                    ui.label(t.name).classes('text-bold')
+                    if t.challonge_tournament_url:
+                        ui.link('bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
+                    ui.space()
+                    ui.button(
+                        'Sync', icon='sync',
+                        on_click=lambda _=None, tid=t.id: background_tasks.create(sync_one(tid)),
+                    ).props('flat color=primary')
+
+        async def sync_one(tournament_id: int) -> None:
+            try:
+                result = await service.sync_bracket(tournament_id, actor)
+                ui.notify(
+                    f"Synced {result['participants']} participants, {result['matches']} matches.",
+                    color='positive',
+                )
+            except ValueError as e:
+                ui.notify(str(e), color='warning')
+            except Exception as e:  # noqa: BLE001
+                ui.notify(f'Sync failed: {e}', color='negative')
+
+        await linked_tournaments()

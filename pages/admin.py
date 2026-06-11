@@ -13,6 +13,7 @@ from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from pages.admin_tabs.admin_help import admin_help_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
+from pages.admin_tabs.admin_challonge import admin_challonge_page
 from theme.base import BaseLayout
 
 
@@ -89,6 +90,8 @@ def create() -> None:
             tabs.append({'label': 'Volunteers', 'icon': 'volunteer_activism', 'content': admin_volunteers_page})
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
+        if is_staff:
+            tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'content': admin_challonge_page})
         if is_staff:
             tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
         tabs.append({'label': 'Help', 'icon': 'help', 'content': admin_help_page})

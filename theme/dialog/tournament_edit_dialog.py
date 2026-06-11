@@ -1,6 +1,11 @@
 from nicegui import ui
 
-from application.services import SeedGenerationService, TournamentService, current_user_from_storage
+from application.services import (
+    ChallongeService,
+    SeedGenerationService,
+    TournamentService,
+    current_user_from_storage,
+)
 from theme.dialog._helpers import dialog_header, submit_on_enter
 
 
@@ -10,6 +15,7 @@ class TournamentDialog:
         self.on_submit = on_submit
         self.dialog = None
         self.tournament_service = TournamentService()
+        self.challonge_service = ChallongeService()
 
     async def open(self):
         is_create = self.tournament is None
@@ -82,6 +88,47 @@ class TournamentDialog:
                         'Active',
                         value=self.tournament.is_active if self.tournament else True,
                     )
+
+                if self.tournament and self.challonge_service.is_configured():
+                    ui.separator()
+                    ui.label('Challonge').classes('text-bold')
+                    challonge_status = ui.label().classes('text-caption text-muted')
+
+                    def render_challonge_status() -> None:
+                        if self.tournament.challonge_tournament_id:
+                            challonge_status.set_text(
+                                f"Linked to Challonge tournament {self.tournament.challonge_tournament_id}"
+                            )
+                        else:
+                            challonge_status.set_text('Not linked to a Challonge tournament.')
+
+                    render_challonge_status()
+                    challonge_input = ui.input(
+                        'Challonge tournament ID or URL',
+                        value=self.tournament.challonge_tournament_url or self.tournament.challonge_tournament_id or '',
+                    ).classes('input-full-width')
+
+                    async def link_and_sync() -> None:
+                        value = (challonge_input.value or '').strip()
+                        if not value:
+                            with self.dialog:
+                                ui.notify('Enter a Challonge tournament ID or URL.', color='warning')
+                            return
+                        try:
+                            actor = await current_user_from_storage()
+                            await self.challonge_service.link_tournament(self.tournament.id, value, actor)
+                            await self.tournament.refresh_from_db()
+                            with self.dialog:
+                                ui.notify('Linked and synced with Challonge.', color='positive')
+                                render_challonge_status()
+                        except ValueError as e:
+                            with self.dialog:
+                                ui.notify(str(e), color='warning')
+                        except Exception as e:  # noqa: BLE001
+                            with self.dialog:
+                                ui.notify(f'Challonge link failed: {e}', color='negative')
+
+                    ui.button('Link & Sync', icon='sync', on_click=link_and_sync).props('flat color=primary')
 
             async def submit():
                 if not (name_input.value or '').strip():

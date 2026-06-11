@@ -2,7 +2,9 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.services import MatchService
+from application.services import ChallongeService, MatchService, current_user_from_storage
+from models import User
+from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
 
@@ -10,6 +12,7 @@ from theme.tables.match import MatchTableView
 def render_player_dashboard():
     discord_id = app.storage.user.get('discord_id', None)
     match_service = MatchService()
+    challonge_service = ChallongeService()
     
     with ui.column().classes('page-container'):
         # Header section
@@ -27,6 +30,55 @@ def render_player_dashboard():
                 ui.label('You must be logged in to view this page.').classes('text-muted')
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
+
+        # Challonge: upcoming bracket matches the player can schedule in a few clicks.
+        challonge_container = ui.column().classes('w-full')
+
+        async def refresh_challonge():
+            challonge_container.clear()
+            if not challonge_service.is_configured():
+                return
+            user = await User.get_or_none(discord_id=discord_id)
+            if user is None:
+                return
+            matches = await challonge_service.list_unscheduled_matches_for_user(user)
+            if not matches:
+                return
+            with challonge_container:
+                with ui.card().classes('card-full-width'):
+                    ui.label('Upcoming matches to schedule').classes('section-title')
+                    ui.label('From your Challonge bracket. Pick a time and your opponent confirms.').classes(
+                        'text-caption text-grey-7'
+                    )
+                    for cm in matches:
+                        me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
+                        opponent = cm.participant2 if me_is_p1 else cm.participant1
+                        opponent_name = opponent.name if opponent else 'TBD'
+                        opponent_linked = opponent is not None and opponent.user_id is not None
+                        with ui.row().classes('items-center full-width q-my-xs'):
+                            ui.label(cm.tournament.name).classes('text-bold')
+                            ui.label(f'vs {opponent_name}')
+                            if cm.round is not None:
+                                ui.label(f'Round {cm.round}').classes('text-caption text-muted')
+                            ui.space()
+                            if opponent_linked:
+                                async def do_schedule(_=None, m=cm, oname=opponent_name):
+                                    actor = await current_user_from_storage()
+
+                                    async def after():
+                                        await refresh_challonge()
+                                        await table_view.refresh()
+
+                                    dialog = ChallongeScheduleDialog(
+                                        m, actor=actor, opponent_name=oname, on_submit=after,
+                                    )
+                                    await dialog.open()
+
+                                ui.button('Schedule', icon='event', on_click=do_schedule).props('color=primary flat')
+                            else:
+                                disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
+                                disabled_btn.disable()
+                                disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
 
         columns = [
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
@@ -103,4 +155,5 @@ def render_player_dashboard():
             player_discord_id=discord_id
         )
         background_tasks.create(table_view.refresh())
+        background_tasks.create(refresh_challonge())
 

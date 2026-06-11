@@ -8,6 +8,7 @@ They should NOT contain business logic - only data fetching/persistence.
 from .api_token_repository import ApiTokenRepository
 from .player_availability_repository import PlayerAvailabilityRepository
 from .audit_repository import AuditRepository
+from .challonge_repository import ChallongeRepository
 from .commentator_repository import CommentatorRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
@@ -29,6 +30,7 @@ __all__ = [
     'ApiTokenRepository',
     'PlayerAvailabilityRepository',
     'AuditRepository',
+    'ChallongeRepository',
     'CommentatorRepository',
     'MatchAcknowledgmentRepository',
     'MatchRepository',

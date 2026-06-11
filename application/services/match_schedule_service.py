@@ -139,6 +139,18 @@ class MatchScheduleService:
             audit_action=AuditActions.MATCH_CONFIRMED,
             build_message=lambda m: state_changed_dm(m.tournament.name, "Confirmed", **_match_descriptor(m)),
         )
+
+        # Push the confirmed result to Challonge when this match mirrors a
+        # bracket match. Fire-and-forget so a Challonge outage never blocks
+        # confirmation; failures are visible via audit and the manual re-push.
+        async def _push_challonge_result() -> None:
+            from application.services.challonge_service import ChallongeService
+            try:
+                await ChallongeService().push_result_if_linked(match, actor)
+            except Exception as e:  # noqa: BLE001 - logged, retried manually
+                print(f"[challonge] auto-push failed for match {match.id}: {e}")
+
+        discord_queue.enqueue(_push_challonge_result())
     
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
         """

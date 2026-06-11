@@ -7,6 +7,7 @@ from nicegui import app, ui
 from application.services import TournamentNotificationService, UserService
 from models import User
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
+from pages.home_tabs.challonge_link_section import render_challonge_link_section
 
 
 async def render_edit_info_tab():
@@ -248,6 +249,9 @@ async def render_edit_info_tab():
         # Tournament Sections
         render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)
         render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
+
+        # Challonge account linking (self-contained)
+        await render_challonge_link_section(user)
 
         # API token management (self-contained; saves independently of the form above)
         await render_api_tokens_section(user)
