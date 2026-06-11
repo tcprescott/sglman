@@ -4,13 +4,40 @@ Discord Service - Business Logic Layer
 Handles Discord-related operations like sending DMs.
 """
 
+import logging
 from typing import Tuple, Optional, List, Dict, Set, Union
 import discord
 from discord.ext import commands
 
+logger = logging.getLogger(__name__)
+
 
 # Shared bot instance (singleton pattern)
 _bot_instance: Optional[commands.Bot] = None
+
+
+async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
+    """Re-sync a member's app roles when their Discord roles change.
+
+    Runs in the bot event loop on ``GUILD_MEMBER_UPDATE`` / member-remove
+    events. Lazily imports services to avoid a circular import with
+    ``discord_role_mapping_service``. Best-effort: logs and swallows so a bad
+    event can never crash the gateway connection.
+    """
+    try:
+        from application.services.system_config_service import SystemConfigService
+        from application.services.discord_role_mapping_service import DiscordRoleMappingService
+        from models import User
+
+        sync_guild_id = await SystemConfigService.get_discord_sync_guild_id()
+        if not sync_guild_id or sync_guild_id != guild_id:
+            return
+        user = await User.get_or_none(discord_id=discord_user_id)
+        if user is None:
+            return
+        await DiscordRoleMappingService().sync_user_roles(user)
+    except Exception:
+        logger.exception('Live role sync failed for discord_id=%s', discord_user_id)
 
 
 def get_discord_bot() -> commands.Bot:
@@ -53,6 +80,19 @@ def get_discord_bot() -> commands.Bot:
                 elif custom_id.startswith('match_watch:'):
                     from discordbot.watch_buttons import handle_unwatch_interaction
                     await handle_unwatch_interaction(interaction)
+
+        @_bot_instance.event
+        async def on_member_update(before: discord.Member, after: discord.Member):
+            # Only act when role membership actually changed (the event also
+            # fires for nick/avatar/timeout updates).
+            if {r.id for r in before.roles} == {r.id for r in after.roles}:
+                return
+            await _sync_member_roles(after.guild.id, after.id)
+
+        @_bot_instance.event
+        async def on_member_remove(member: discord.Member):
+            # Left/kicked/banned: re-sync strips their Discord-sourced roles.
+            await _sync_member_roles(member.guild.id, member.id)
 
     return _bot_instance
 
