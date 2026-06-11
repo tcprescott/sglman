@@ -1,6 +1,5 @@
 from nicegui import app, ui
 
-from application.utils.easter_eggs import random_fact
 from models import User
 
 
@@ -18,7 +17,6 @@ class BaseLayout:
         **_kwargs
     ):
         self._copyright = copyright_text if copyright_text is not None else "© 2026 Thomas Prescott"
-        self._fact = random_fact() if copyright_text is None else None
         self.tabs = tabs
         self.user = user
         self.dark_mode = None
@@ -160,11 +158,9 @@ class BaseLayout:
 
     def _render_footer(self) -> None:
         """Render the footer with copyright text."""
-        with ui.footer().classes('q-pa-md footer-dark-override'):
+        with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
             with ui.row().classes('w-full justify-between items-center'):
                 ui.label(self._copyright).classes('text-caption')
-                if self._fact:
-                    ui.label(self._fact).classes('text-caption text-right')
 
     async def _render_tab_panels(self) -> None:
         """Render tab panel content with programmatically controlled panel switching."""

@@ -9,7 +9,6 @@ class Role(str, Enum):
     PROCTOR = 'proctor'
     STREAM_MANAGER = 'stream_manager'
     TRIFORCE_SUBMITTER = 'triforce_submitter'
-    VOLUNTEER = 'volunteer'
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
 
 
@@ -338,8 +337,8 @@ class TriforceText(Model):
 class VolunteerProfile(Model):
     """Per-user opt-in record for onsite volunteering.
 
-    A user may hold ``Role.VOLUNTEER`` without having opted in; only users with
-    ``opted_in_at`` set are assignable / appear in the coordinator's pool.
+    Any logged-in user can opt in; only users with ``opted_in_at`` set are
+    assignable / appear in the coordinator's pool.
     """
 
     id = fields.IntField(pk=True)

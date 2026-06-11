@@ -145,13 +145,8 @@ async def seed() -> None:
     print("  matches ok")
 
     # --- Volunteer scheduling -------------------------------------------
-    # Staff coordinates; several users become opted-in volunteers.
+    # Staff coordinates; any logged-in user can opt in to volunteer.
     await UserRole.get_or_create(user=staff, role=Role.VOLUNTEER_COORDINATOR, defaults={"granted_by": None})
-    volunteer_usernames = [
-        "proctor_user", "sm_user", "player_one", "player_two", "player_three", "player_four",
-    ]
-    for uname in volunteer_usernames:
-        await UserRole.get_or_create(user=users[uname], role=Role.VOLUNTEER, defaults={"granted_by": None})
 
     # Positions (arbitrary, coordinator-defined)
     position_specs = [

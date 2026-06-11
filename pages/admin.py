@@ -49,7 +49,6 @@ def create() -> None:
         is_staff = Role.STAFF in roles
         is_proctor = Role.PROCTOR in roles
         is_stream_manager = Role.STREAM_MANAGER in roles
-        is_volunteer = Role.VOLUNTEER in roles
         is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
         is_ta_any = await user.admin_tournaments.all().exists()
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
@@ -96,6 +95,6 @@ def create() -> None:
 
         base_layout = BaseLayout(
             tabs=tabs, default_tab=tab, page_name='admin', user=user,
-            show_admin=True, show_volunteer=is_volunteer,
+            show_admin=True, show_volunteer=user is not None,
         )
         await base_layout.render()

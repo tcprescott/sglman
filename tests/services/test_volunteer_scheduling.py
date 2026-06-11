@@ -53,7 +53,7 @@ async def _staff():
 
 
 async def _opted_in_volunteer(name):
-    user = await _user(name, roles=[Role.VOLUNTEER])
+    user = await _user(name)
     await VolunteerProfileService().opt_in(user)
     return user
 
@@ -241,7 +241,7 @@ async def test_reminder_loop_fires_once(db, monkeypatch):
     shift = await VolunteerShift.create(
         position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4),
     )
-    vol = await _user('reminded', roles=[Role.VOLUNTEER])
+    vol = await _user('reminded')
     await VolunteerAssignment.create(shift=shift, user=vol)
 
     await volunteer_reminder._tick()
@@ -271,7 +271,7 @@ async def test_reminder_skips_far_future_shift(db, monkeypatch):
     shift = await VolunteerShift.create(
         position=pos, starts_at=far, ends_at=far + timedelta(hours=4),
     )
-    vol = await _user('later', roles=[Role.VOLUNTEER])
+    vol = await _user('later')
     await VolunteerAssignment.create(shift=shift, user=vol)
 
     await volunteer_reminder._tick()
@@ -281,17 +281,17 @@ async def test_reminder_skips_far_future_shift(db, monkeypatch):
 
 # --- reminder pool / profile ---------------------------------------------
 
-async def test_assignable_pool_requires_role_and_optin(db):
+async def test_assignable_pool_is_opted_in_users(db):
     await _staff()
-    has_both = await _opted_in_volunteer('both')
-    # Opted in (auto-creates profile via opt_in) but no VOLUNTEER role:
-    role_less = await _user('roleless')
-    await VolunteerProfileService().get_or_create(role_less)
-    # Role but not opted in:
-    not_opted = await _user('notopted', roles=[Role.VOLUNTEER])
+    opted = await _opted_in_volunteer('opted')
+    # Profile exists but never opted in -> excluded.
+    not_opted = await _user('notopted')
+    await VolunteerProfileService().get_or_create(not_opted)
+    # No profile at all -> excluded.
+    no_profile = await _user('noprofile')
 
     pool = await VolunteerProfileService().assignable_volunteers()
     ids = {u.id for u in pool}
-    assert has_both.id in ids
-    assert role_less.id not in ids
+    assert opted.id in ids
     assert not_opted.id not in ids
+    assert no_profile.id not in ids

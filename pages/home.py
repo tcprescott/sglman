@@ -37,7 +37,7 @@ def create() -> None:
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})
         tabs.append({'label': 'Help', 'icon': 'help', 'content': help_tab})
         show_admin = await AuthService.can_view_admin(user)
-        show_volunteer = await AuthService.is_volunteer(user)
+        show_volunteer = user is not None
         await BaseLayout(
             tabs=tabs, default_tab=tab, page_name='home', user=user,
             show_admin=show_admin, show_volunteer=show_volunteer,

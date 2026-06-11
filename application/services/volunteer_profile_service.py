@@ -1,8 +1,8 @@
 """
 Volunteer Profile Service - Business Logic Layer
 
-Self-service opt-in for users who hold ``Role.VOLUNTEER``, plus the assignable
-pool used by the coordinator UI and the auto-scheduler.
+Self-service opt-in available to any logged-in user, plus the assignable pool
+used by the coordinator UI and the auto-scheduler.
 """
 
 from datetime import datetime, timezone
@@ -10,8 +10,7 @@ from typing import List, Optional
 
 from application.repositories import VolunteerProfileRepository
 from application.services.audit_service import AuditActions, AuditService
-from application.services.auth_service import AuthService
-from models import Role, User, UserRole, VolunteerProfile
+from models import User, VolunteerProfile
 
 
 class VolunteerProfileService:
@@ -29,10 +28,6 @@ class VolunteerProfileService:
         return bool(profile and profile.opted_in_at)
 
     async def opt_in(self, user: User, note: Optional[str] = None) -> VolunteerProfile:
-        await AuthService.ensure(
-            await AuthService.is_volunteer(user),
-            "You need the Volunteer role before you can opt in.",
-        )
         profile = await self.repository.get_or_create_for_user(user)
         if profile.opted_in_at is None:
             profile.opted_in_at = datetime.now(timezone.utc)
@@ -59,15 +54,9 @@ class VolunteerProfileService:
         return profile
 
     async def assignable_volunteers(self) -> List[User]:
-        """Users who hold ``Role.VOLUNTEER`` and have opted in, ordered by name."""
+        """All users who have opted in, ordered by name."""
         opted_in_ids = set(await self.repository.opted_in_user_ids())
         if not opted_in_ids:
             return []
-        role_ids = set(
-            await UserRole.filter(role=Role.VOLUNTEER).values_list('user_id', flat=True)
-        )
-        eligible = opted_in_ids & role_ids
-        if not eligible:
-            return []
-        users = await User.filter(id__in=list(eligible))
+        users = await User.filter(id__in=list(opted_in_ids))
         return sorted(users, key=lambda u: u.preferred_name.lower())

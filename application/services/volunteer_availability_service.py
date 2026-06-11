@@ -15,7 +15,6 @@ from application.repositories import (
     VolunteerProfileRepository,
 )
 from application.services.audit_service import AuditActions, AuditService
-from application.services.auth_service import AuthService
 from models import User, VolunteerAvailability, VolunteerAvailabilityStatus
 
 
@@ -36,10 +35,6 @@ class VolunteerAvailabilityService:
         windows: Sequence[Tuple[datetime, datetime, VolunteerAvailabilityStatus, Optional[str]]],
     ) -> List[VolunteerAvailability]:
         """Replace the user's availability with the supplied windows (self-service)."""
-        await AuthService.ensure(
-            await AuthService.is_volunteer(user),
-            "You need the Volunteer role to set availability.",
-        )
         profile = await self.profile_repository.get_for_user(user)
         if not profile or profile.opted_in_at is None:
             raise ValueError("Opt in to volunteering before setting your availability.")
