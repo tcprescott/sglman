@@ -39,9 +39,8 @@ class BaseLayout:
 
     async def render(self) -> None:
         """Render the complete layout with header, drawer, footer, and optional tabbed content."""
-        dark_pref = bool(app.storage.user.get('dark_mode', False))
-        self.dark_mode = ui.dark_mode()
-        self.dark_mode.value = dark_pref
+        dark_pref = app.storage.user.get('dark_mode')  # None ⇒ auto: match the client's system theme
+        self.dark_mode = ui.dark_mode(dark_pref)
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
         for font_file in (
             'atkinson-hyperlegible-latin-400-normal',
@@ -84,7 +83,7 @@ class BaseLayout:
 
     def _render_header(self) -> None:
         """Render the header with burger menu button and user controls."""
-        dark_pref = bool(app.storage.user.get('dark_mode', False))
+        dark_pref = app.storage.user.get('dark_mode')
         dark_btn_ref = {'btn': None}
 
         def toggle_dark_mode():
@@ -115,7 +114,11 @@ class BaseLayout:
                     text='Login with Discord'
                 ).props('flat color=white').classes('login-button')
 
-            dark_icon = 'light_mode' if dark_pref else 'dark_mode'
+            dark_icon = (
+                'brightness_auto' if dark_pref is None
+                else 'light_mode' if dark_pref
+                else 'dark_mode'
+            )
             dark_btn_ref['btn'] = ui.button(
                 icon=dark_icon,
                 on_click=toggle_dark_mode
