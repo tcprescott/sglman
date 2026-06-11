@@ -19,6 +19,8 @@ class VolunteerPositionResponse(BaseModel):
     color: Optional[str] = None
     display_order: int
     is_active: bool
+    shift_length_minutes: Optional[int] = None
+    stagger_minutes: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
@@ -29,6 +31,8 @@ class VolunteerPositionCreate(BaseModel):
     color: Optional[str] = None
     display_order: int = 0
     is_active: bool = True
+    shift_length_minutes: Optional[int] = None
+    stagger_minutes: Optional[int] = None
 
 
 class VolunteerPositionUpdate(BaseModel):
@@ -37,6 +41,8 @@ class VolunteerPositionUpdate(BaseModel):
     color: Optional[str] = None
     display_order: Optional[int] = None
     is_active: Optional[bool] = None
+    shift_length_minutes: Optional[int] = None
+    stagger_minutes: Optional[int] = None
 
 
 # --- Assignments ----------------------------------------------------------

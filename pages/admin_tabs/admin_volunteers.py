@@ -196,7 +196,7 @@ async def admin_volunteers_page() -> None:
             await schedule_service.generate_day_shifts(
                 actor, state['day'], [p.id for p in positions], STANDARD_BLOCKS,
             )
-            ui.notify('Generated standard shifts.', color='positive')
+            ui.notify('Generated shifts (staggered where configured).', color='positive')
             grid.refresh()
 
         async def auto_fill() -> None:

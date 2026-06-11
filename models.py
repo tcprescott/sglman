@@ -361,12 +361,21 @@ class VolunteerPosition(Model):
     color = fields.CharField(max_length=32, null=True)
     display_order = fields.IntField(default=0)
     is_active = fields.BooleanField(default=True)
+    # When both are set, the shift generator produces staggered rolling shifts
+    # for this position instead of fixed shared blocks (overlapping windows
+    # offset by ``stagger_minutes`` so handoffs happen one at a time).
+    shift_length_minutes = fields.IntField(null=True)
+    stagger_minutes = fields.IntField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
     # related fields
     shifts = fields.ReverseRelation["VolunteerShift"]
     qualifications = fields.ReverseRelation["VolunteerQualification"]
+
+    @property
+    def is_staggered(self) -> bool:
+        return bool(self.shift_length_minutes and self.stagger_minutes)
 
     class Meta:
         table = 'volunteerposition'

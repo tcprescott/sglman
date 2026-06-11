@@ -19,6 +19,24 @@ class VolunteerPositionService:
         self.repository = VolunteerPositionRepository()
         self.audit_service = AuditService()
 
+    @staticmethod
+    def _validate_stagger(
+        shift_length_minutes: Optional[int], stagger_minutes: Optional[int],
+    ) -> None:
+        """Validate a position's stagger config (both unset = fixed blocks)."""
+        if shift_length_minutes is None and stagger_minutes is None:
+            return
+        if shift_length_minutes is None or stagger_minutes is None:
+            raise ValueError(
+                "Set both shift length and stagger interval, or leave both blank."
+            )
+        if shift_length_minutes <= 0 or stagger_minutes <= 0:
+            raise ValueError("Shift length and stagger interval must be positive.")
+        if stagger_minutes > shift_length_minutes:
+            raise ValueError(
+                "Stagger interval cannot exceed the shift length (it would leave coverage gaps)."
+            )
+
     async def list_all(self) -> List[VolunteerPosition]:
         return await self.repository.list_all()
 
@@ -36,6 +54,8 @@ class VolunteerPositionService:
         color: Optional[str] = None,
         display_order: int = 0,
         is_active: bool = True,
+        shift_length_minutes: Optional[int] = None,
+        stagger_minutes: Optional[int] = None,
     ) -> VolunteerPosition:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
@@ -46,9 +66,11 @@ class VolunteerPositionService:
             raise ValueError("Position name is required.")
         if await VolunteerPosition.filter(name=name).exists():
             raise ValueError(f"A position named '{name}' already exists.")
+        self._validate_stagger(shift_length_minutes, stagger_minutes)
         position = await self.repository.create(
             name=name, description=description, color=color,
             display_order=display_order, is_active=is_active,
+            shift_length_minutes=shift_length_minutes, stagger_minutes=stagger_minutes,
         )
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_POSITION_CREATED,
@@ -68,6 +90,11 @@ class VolunteerPositionService:
             if await VolunteerPosition.filter(name=new_name).exclude(id=position.id).exists():
                 raise ValueError(f"A position named '{new_name}' already exists.")
             fields['name'] = new_name
+        if 'shift_length_minutes' in fields or 'stagger_minutes' in fields:
+            self._validate_stagger(
+                fields.get('shift_length_minutes', position.shift_length_minutes),
+                fields.get('stagger_minutes', position.stagger_minutes),
+            )
         position = await self.repository.update(position, **fields)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_POSITION_UPDATED,

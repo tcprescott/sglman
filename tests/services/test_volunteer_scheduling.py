@@ -81,6 +81,75 @@ async def test_generate_day_shifts_counts_and_midnight(db):
         assert (s.ends_at - s.starts_at) == timedelta(hours=4)
 
 
+# --- staggered generation -------------------------------------------------
+
+def test_validate_stagger_rules():
+    from application.services.volunteer_position_service import VolunteerPositionService
+    validate = VolunteerPositionService._validate_stagger
+
+    validate(None, None)   # both unset -> fixed blocks
+    validate(240, 120)     # overlapping rolling shifts
+    validate(240, 240)     # back-to-back, still continuous coverage
+
+    with pytest.raises(ValueError, match='both'):
+        validate(240, None)
+    with pytest.raises(ValueError, match='both'):
+        validate(None, 120)
+    with pytest.raises(ValueError, match='positive'):
+        validate(240, 0)
+    with pytest.raises(ValueError, match='exceed'):
+        validate(120, 240)
+
+
+async def test_generate_day_shifts_staggered_position(db):
+    staff = await _staff()
+    tech = await VolunteerPosition.create(
+        name='Broadcast Tech', shift_length_minutes=240, stagger_minutes=120,
+    )
+    # Coverage 08:00–20:00; 4h shifts starting every 2h.
+    blocks = [
+        ('Shift 1', '08:00', '12:00'),
+        ('Shift 2', '12:00', '16:00'),
+        ('Shift 3', '16:00', '20:00'),
+    ]
+
+    shifts = await VolunteerScheduleService().generate_day_shifts(
+        staff, '2026-10-04', [tech.id], blocks,
+    )
+    shifts = sorted(shifts, key=lambda s: s.starts_at)
+    # Starts at 08,10,12,14,16,18 -> 6 rolling shifts, each a single slot.
+    assert len(shifts) == 6
+    assert all(s.slots_needed == 1 and s.label is None for s in shifts)
+    # Consecutive starts are offset by the 2h stagger (handoffs don't bunch up).
+    for earlier, later in zip(shifts, shifts[1:]):
+        assert later.starts_at - earlier.starts_at == timedelta(hours=2)
+    # Full shifts run 4h; the final one is clamped to the 20:00 coverage end.
+    assert all(s.ends_at - s.starts_at == timedelta(hours=4) for s in shifts[:-1])
+    assert shifts[-1].ends_at - shifts[-1].starts_at == timedelta(hours=2)
+    assert shifts[-1].ends_at == shifts[-2].ends_at  # both land on 20:00
+
+
+async def test_generate_day_shifts_mixes_staggered_and_fixed(db):
+    staff = await _staff()
+    fixed = await VolunteerPosition.create(name='Check-in')
+    tech = await VolunteerPosition.create(
+        name='Broadcast Tech', shift_length_minutes=240, stagger_minutes=120,
+    )
+    blocks = [('Shift 1', '08:00', '12:00'), ('Shift 2', '12:00', '16:00')]
+
+    shifts = await VolunteerScheduleService().generate_day_shifts(
+        staff, '2026-10-04', [fixed.id, tech.id], blocks,
+    )
+    fixed_shifts = [s for s in shifts if s.position_id == fixed.id]
+    tech_shifts = [s for s in shifts if s.position_id == tech.id]
+    # The plain position keeps its two discrete labelled blocks.
+    assert len(fixed_shifts) == 2
+    assert {s.label for s in fixed_shifts} == {'Shift 1', 'Shift 2'}
+    # The staggered position rolls across 08:00–16:00: starts 08,10,12,14.
+    assert len(tech_shifts) == 4
+    assert all(s.label is None for s in tech_shifts)
+
+
 # --- assign ---------------------------------------------------------------
 
 async def test_assign_then_duplicate_and_overlap_rejected(db):

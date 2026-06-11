@@ -31,6 +31,8 @@ class VolunteerPositionRepository:
         color: Optional[str] = None,
         display_order: int = 0,
         is_active: bool = True,
+        shift_length_minutes: Optional[int] = None,
+        stagger_minutes: Optional[int] = None,
     ) -> VolunteerPosition:
         return await VolunteerPosition.create(
             name=name,
@@ -38,6 +40,8 @@ class VolunteerPositionRepository:
             color=color,
             display_order=display_order,
             is_active=is_active,
+            shift_length_minutes=shift_length_minutes,
+            stagger_minutes=stagger_minutes,
         )
 
     @staticmethod

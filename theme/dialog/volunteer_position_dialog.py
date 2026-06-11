@@ -21,6 +21,8 @@ class VolunteerPositionDialog:
         default_desc = (self.position.description or '') if editing else ''
         default_order = self.position.display_order if editing else 0
         default_active = self.position.is_active if editing else True
+        default_length = self.position.shift_length_minutes if editing else None
+        default_stagger = self.position.stagger_minutes if editing else None
         title = 'Edit Position' if editing else 'Add Position'
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
@@ -31,11 +33,27 @@ class VolunteerPositionDialog:
                 desc_input = ui.input('Description', value=default_desc).classes('input-full-width')
                 order_input = ui.number('Display Order', value=default_order, format='%d').classes('input-full-width')
                 active_checkbox = ui.checkbox('Active', value=default_active)
+                length_input = ui.number(
+                    'Shift length (min)', value=default_length, format='%d',
+                ).classes('input-full-width')
+                stagger_input = ui.number(
+                    'Stagger interval (min)', value=default_stagger, format='%d',
+                ).classes('input-full-width')
+                ui.label(
+                    'Leave both blank for fixed shared blocks; set both to stagger handoffs.'
+                ).classes('text-caption text-grey')
+
+            def _opt_int(value):
+                if value is None or value == '':
+                    return None
+                return int(value)
 
             async def submit():
                 actor = await current_user_from_storage()
                 try:
                     order_value = int(order_input.value or 0)
+                    length_value = _opt_int(length_input.value)
+                    stagger_value = _opt_int(stagger_input.value)
                     if editing:
                         result = await self.service.update(
                             actor, self.position,
@@ -43,6 +61,8 @@ class VolunteerPositionDialog:
                             description=(desc_input.value or '').strip() or None,
                             display_order=order_value,
                             is_active=active_checkbox.value,
+                            shift_length_minutes=length_value,
+                            stagger_minutes=stagger_value,
                         )
                     else:
                         result = await self.service.create(
@@ -51,6 +71,8 @@ class VolunteerPositionDialog:
                             description=(desc_input.value or '').strip() or None,
                             display_order=order_value,
                             is_active=active_checkbox.value,
+                            shift_length_minutes=length_value,
+                            stagger_minutes=stagger_value,
                         )
                     dialog.close()
                     if self.on_submit:

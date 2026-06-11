@@ -164,6 +164,14 @@ async def seed() -> None:
         positions[name] = p
         default_slots[name] = slots
 
+    # Broadcast Tech rotates a rolling crew: 4h shifts starting every 2h, so the
+    # techs hand off one at a time instead of all ending together.
+    broadcast_tech = positions["Broadcast Tech"]
+    if broadcast_tech.shift_length_minutes is None:
+        broadcast_tech.shift_length_minutes = 240
+        broadcast_tech.stagger_minutes = 120
+        await broadcast_tech.save()
+
     # Opt-in profiles (player_four stays opted-out to exercise the gate)
     opted_in = ["proctor_user", "sm_user", "player_one", "player_two", "player_three"]
     now_utc = datetime.now(timezone.utc)
@@ -218,6 +226,23 @@ async def seed() -> None:
     for day in event_days[:2]:
         day_str = day.isoformat()
         for pos_name, pos in positions.items():
+            if pos.is_staggered:
+                # Rolling windows across the same overall day span (08:00–00:00).
+                coverage_start = parse_eastern_datetime(day_str, blocks[0][1])
+                coverage_end = parse_eastern_datetime(day_str, blocks[-1][2])
+                if coverage_end <= coverage_start:
+                    coverage_end = coverage_end + timedelta(days=1)
+                length = timedelta(minutes=pos.shift_length_minutes)
+                stagger = timedelta(minutes=pos.stagger_minutes)
+                cursor = coverage_start
+                while cursor < coverage_end:
+                    await VolunteerShift.get_or_create(
+                        position=pos, starts_at=cursor,
+                        defaults={"ends_at": min(cursor + length, coverage_end),
+                                  "slots_needed": 1},
+                    )
+                    cursor += stagger
+                continue
             for label, start_hhmm, end_hhmm in blocks:
                 starts_at = parse_eastern_datetime(day_str, start_hhmm)
                 ends_at = parse_eastern_datetime(day_str, end_hhmm)

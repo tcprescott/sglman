@@ -14,6 +14,7 @@ from tortoise.transactions import in_transaction
 
 from application.repositories import (
     VolunteerAssignmentRepository,
+    VolunteerPositionRepository,
     VolunteerShiftRepository,
 )
 from application.services import discord_queue
@@ -26,7 +27,7 @@ from application.utils.timezone import (
     parse_eastern_datetime,
     to_eastern,
 )
-from models import User, VolunteerAssignment, VolunteerShift
+from models import User, VolunteerAssignment, VolunteerPosition, VolunteerShift
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class VolunteerScheduleService:
     def __init__(self):
         self.shift_repository = VolunteerShiftRepository()
         self.assignment_repository = VolunteerAssignmentRepository()
+        self.position_repository = VolunteerPositionRepository()
         self.audit_service = AuditService()
         self.discord_service = DiscordService()
 
@@ -84,11 +86,16 @@ class VolunteerScheduleService:
         position_ids: Sequence[int],
         blocks: Sequence[Tuple[str, str, str]],
     ) -> List[VolunteerShift]:
-        """Create position × time-block shifts for one event day.
+        """Create shifts for one event day.
 
         ``blocks`` is a sequence of ``(label, start_hhmm, end_hhmm)`` in Eastern.
         A block whose end is at or before its start (e.g. 20:00–00:00) is treated
         as crossing midnight into the next day.
+
+        Positions configured with ``shift_length_minutes``/``stagger_minutes``
+        instead get staggered rolling shifts spanning the same overall day window
+        (first block start → last block end), so their crew hands off one at a
+        time rather than all together.
         """
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
@@ -97,16 +104,14 @@ class VolunteerScheduleService:
         created: List[VolunteerShift] = []
         async with in_transaction():
             for position_id in position_ids:
-                for label, start_hhmm, end_hhmm in blocks:
-                    starts_at = parse_eastern_datetime(date_str, start_hhmm)
-                    ends_at = parse_eastern_datetime(date_str, end_hhmm)
-                    if ends_at <= starts_at:
-                        ends_at = ends_at + timedelta(days=1)
-                    created.append(
-                        await self.shift_repository.create(
-                            position_id=position_id, starts_at=starts_at,
-                            ends_at=ends_at, label=label or None,
-                        )
+                position = await self.position_repository.get_by_id(position_id)
+                if position is not None and position.is_staggered:
+                    created.extend(
+                        await self._generate_staggered(position, date_str, blocks)
+                    )
+                else:
+                    created.extend(
+                        await self._generate_blocks(position_id, date_str, blocks)
                     )
             await self.audit_service.write_log(
                 actor, AuditActions.VOLUNTEER_SHIFT_CREATED,
@@ -114,6 +119,48 @@ class VolunteerScheduleService:
                  'position_ids': list(position_ids)},
             )
         return created
+
+    async def _generate_blocks(
+        self, position_id: int, date_str: str,
+        blocks: Sequence[Tuple[str, str, str]],
+    ) -> List[VolunteerShift]:
+        """Create one fixed shift per block for a position."""
+        out: List[VolunteerShift] = []
+        for label, start_hhmm, end_hhmm in blocks:
+            starts_at = parse_eastern_datetime(date_str, start_hhmm)
+            ends_at = parse_eastern_datetime(date_str, end_hhmm)
+            if ends_at <= starts_at:
+                ends_at = ends_at + timedelta(days=1)
+            out.append(
+                await self.shift_repository.create(
+                    position_id=position_id, starts_at=starts_at,
+                    ends_at=ends_at, label=label or None,
+                )
+            )
+        return out
+
+    async def _generate_staggered(
+        self, position: VolunteerPosition, date_str: str,
+        blocks: Sequence[Tuple[str, str, str]],
+    ) -> List[VolunteerShift]:
+        """Create staggered rolling shifts spanning the day's coverage window."""
+        coverage_start = parse_eastern_datetime(date_str, blocks[0][1])
+        coverage_end = parse_eastern_datetime(date_str, blocks[-1][2])
+        if coverage_end <= coverage_start:
+            coverage_end = coverage_end + timedelta(days=1)
+        shift_length = timedelta(minutes=position.shift_length_minutes)
+        stagger = timedelta(minutes=position.stagger_minutes)
+        out: List[VolunteerShift] = []
+        cursor = coverage_start
+        while cursor < coverage_end:
+            ends_at = min(cursor + shift_length, coverage_end)
+            out.append(
+                await self.shift_repository.create(
+                    position_id=position.id, starts_at=cursor, ends_at=ends_at,
+                )
+            )
+            cursor += stagger
+        return out
 
     async def update_shift(self, actor: User, shift: VolunteerShift, **fields) -> VolunteerShift:
         await AuthService.ensure(
