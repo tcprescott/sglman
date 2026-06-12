@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.match_service import MatchService
+from application.utils.timezone import format_eastern_datetime
 
 
 @pytest.fixture(autouse=True)
@@ -62,6 +63,7 @@ def make_match(**overrides):
         started_at=None,
         finished_at=None,
         confirmed_at=None,
+        created_at=datetime(2025, 1, 1, 12, 0),
         scheduled_at=datetime(2025, 1, 15, 19, 30),
         comment=None,
         tournament=SimpleNamespace(name="Test Tournament", seed_generator=None),
@@ -127,9 +129,11 @@ class TestFormatMatchForDisplay:
         result = service._format_match_for_display(make_match())
         assert result["state"] == "Scheduled"
 
-    def test_state_timestamp_is_none_when_scheduled(self, service):
+    def test_state_timestamp_falls_back_to_created_at_when_scheduled(self, service):
         result = service._format_match_for_display(make_match())
-        assert result["state_timestamp"] is None
+        assert result["state_timestamp"] == format_eastern_datetime(
+            datetime(2025, 1, 1, 12, 0)
+        )
 
     def test_stream_room_empty_when_none(self, service):
         result = service._format_match_for_display(make_match(stream_room=None))
