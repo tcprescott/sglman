@@ -1,5 +1,6 @@
 """Request schemas for match write actions."""
 
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -67,3 +68,7 @@ class CrewSignupRequest(BaseModel):
 class SeedResultResponse(BaseModel):
     message: str
     seed_url: Optional[str] = None
+
+
+class MatchSuggestionResponse(BaseModel):
+    suggested_at: datetime = Field(..., description="Suggested match start time (UTC)")

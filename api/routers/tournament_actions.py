@@ -1,8 +1,11 @@
 """Tournament write endpoints (create/update/delete, admin & crew-coordinator membership)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
 
-from api.dependencies import ServiceErrorRoute, require_write_actor
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
+from api.schemas.match_actions import MatchSuggestionResponse
 from api.schemas.tournament_actions import (
     MembershipRequest,
     TournamentCreateRequest,
@@ -10,7 +13,7 @@ from api.schemas.tournament_actions import (
 )
 from api.schemas.tournaments import TournamentResponse
 from application.repositories import UserRepository
-from application.services import TournamentService
+from application.services import MatchSuggestionService, TournamentService
 from models import Tournament, User
 
 router = APIRouter(prefix="/tournaments", tags=["Tournaments"], route_class=ServiceErrorRoute)
@@ -65,6 +68,20 @@ async def update_tournament(
 async def delete_tournament(tournament_id: int, actor: User = Depends(require_write_actor)):
     tournament = await _load_tournament_or_404(tournament_id)
     await TournamentService().delete_tournament(tournament, actor=actor)
+
+
+@router.get(
+    "/{tournament_id}/match-suggestion",
+    response_model=MatchSuggestionResponse,
+    summary="Suggest a match start time for the given players",
+)
+async def suggest_match_time(
+    tournament_id: int,
+    player_ids: List[int] = Query(..., description="User IDs of the players"),
+    actor: User = Depends(require_api_actor),
+):
+    suggested_at = await MatchSuggestionService().suggest_match_time(tournament_id, player_ids)
+    return MatchSuggestionResponse(suggested_at=suggested_at)
 
 
 @router.post("/{tournament_id}/admins", summary="Add a tournament admin (Staff only)")

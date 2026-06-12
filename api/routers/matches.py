@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api._match_view import MATCH_PREFETCH, serialize_match
 from api.dependencies import ServiceErrorRoute, require_api_actor
 from api.schemas.matches import MatchResponse
-from models import Match
+from application.services import MatchWatcherService
+from models import Match, User
 
 router = APIRouter(
     prefix="/matches",
@@ -51,6 +52,24 @@ async def get_matches(
 
     query = query.prefetch_related(*MATCH_PREFETCH)
     matches = await query.order_by('scheduled_at').limit(limit)
+    return [serialize_match(match) for match in matches]
+
+
+@router.get(
+    "/watching",
+    response_model=List[MatchResponse],
+    summary="List matches you are watching",
+    description="Matches the authenticated user has opted in to receive Discord updates for.",
+)
+async def get_watched_matches(actor: User = Depends(require_api_actor)):
+    match_ids = await MatchWatcherService().list_watched_match_ids(actor)
+    if not match_ids:
+        return []
+    matches = (
+        await Match.filter(id__in=match_ids)
+        .prefetch_related(*MATCH_PREFETCH)
+        .order_by('scheduled_at')
+    )
     return [serialize_match(match) for match in matches]
 
 

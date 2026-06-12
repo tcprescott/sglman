@@ -21,7 +21,7 @@ from api.schemas.match_actions import (
     StreamCandidateRequest,
 )
 from api.schemas.matches import MatchResponse
-from application.services import MatchScheduleService, MatchService
+from application.services import MatchScheduleService, MatchService, MatchWatcherService
 from models import Match, User
 
 router = APIRouter(prefix="/matches", tags=["Matches"], route_class=ServiceErrorRoute)
@@ -170,3 +170,14 @@ async def undo_crew_signup(match_id: int, role: str, actor: User = Depends(requi
 async def acknowledge_match(match_id: int, actor: User = Depends(require_write_actor)):
     await MatchService().acknowledge_match(match_id, actor)
     return {"detail": "Match acknowledged"}
+
+
+@router.post("/{match_id}/watch", status_code=status.HTTP_200_OK, summary="Watch a match for updates")
+async def watch_match(match_id: int, actor: User = Depends(require_write_actor)):
+    await MatchWatcherService().watch(match_id, actor)
+    return {"detail": "Watching match"}
+
+
+@router.delete("/{match_id}/watch", status_code=status.HTTP_204_NO_CONTENT, summary="Stop watching a match")
+async def unwatch_match(match_id: int, actor: User = Depends(require_write_actor)):
+    await MatchWatcherService().unwatch(match_id, actor)

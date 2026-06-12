@@ -59,6 +59,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 - `POST /matches/{id}/stream-candidate` · `/stage` · `/stations`.
 - Lifecycle: `POST /matches/{id}/seat` · `/start` · `/finish` · `/confirm` · `/result` · `/seed`.
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.
+- Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
 
 ### Crew (`/api/crew`)
 - `POST /crew/{crew_type}/{crew_id}/approval` — approve/reject (Staff/TA/Crew Coordinator).
@@ -68,6 +69,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 - `GET /tournaments` · `GET /tournaments/{id}`.
 - `POST` · `PATCH /{id}` · `DELETE /{id}`.
 - `POST/DELETE /{id}/admins` and `/{id}/crew-coordinators` (Staff).
+- `GET /tournaments/{id}/match-suggestion?player_ids=` — suggested UTC start time for the given players (400 if no slot fits).
 
 ### Stream rooms (`/api/stream-rooms`)
 - `GET` (list/detail) · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
@@ -76,6 +78,9 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 - `GET /users` (Staff) · `GET /users/me` · `GET /users/{id}` (self or Staff).
 - `POST /users` (Staff) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments`.
 - `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff).
+
+### Player availability (`/api/users/me/availability`)
+- `GET` (own windows) · `PUT` (replace all windows) · `DELETE` (clear). Self-service for any authenticated user; windows feed match-time suggestions.
 
 ### Triforce texts (`/api/triforce-texts`)
 - `GET /mine` (own) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
@@ -92,6 +97,9 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 
 ### API tokens (`/api/tokens`)
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
+
+### Discord role mappings (`/api/discord-role-mappings`)
+- `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → app-role mappings (Staff).
 
 ## Tests
 

@@ -10,9 +10,11 @@ from fastapi import APIRouter
 from api.routers import (
     audit,
     crew,
+    discord_role_mappings,
     match_actions,
     matches,
     notifications,
+    player_availability,
     stream_room_actions,
     stream_rooms,
     system_config,
@@ -33,11 +35,13 @@ router.include_router(tournament_actions.router)
 router.include_router(stream_rooms.router)
 router.include_router(stream_room_actions.router)
 router.include_router(users.router)
+router.include_router(player_availability.router)
 router.include_router(triforce.router)
 router.include_router(notifications.router)
 router.include_router(audit.router)
 router.include_router(system_config.router)
 router.include_router(tokens.router)
 router.include_router(volunteers.router)
+router.include_router(discord_role_mappings.router)
 
 __all__ = ['router']
