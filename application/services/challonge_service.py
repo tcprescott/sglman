@@ -47,12 +47,10 @@ def _base_url() -> str:
     return os.getenv('BASE_URL', 'http://localhost:8000').rstrip('/')
 
 
-def _service_redirect_uri() -> str:
-    return os.getenv('CHALLONGE_SERVICE_REDIRECT_URI') or f"{_base_url()}/challonge/oauth/callback"
-
-
-def _player_redirect_uri() -> str:
-    return os.getenv('CHALLONGE_PLAYER_REDIRECT_URI') or f"{_base_url()}/challonge/link/callback"
+def _redirect_uri() -> str:
+    # One registered redirect URI serves both the service-account and the
+    # per-player flows; Challonge OAuth apps only validate against a single URI.
+    return os.getenv('CHALLONGE_REDIRECT_URI') or f"{_base_url()}/challonge/oauth/callback"
 
 
 def _service_scopes() -> str:
@@ -87,22 +85,18 @@ class ChallongeService:
     @staticmethod
     def service_authorize_url(state: str) -> str:
         return build_authorize_url(
-            os.getenv('CHALLONGE_CLIENT_ID', ''), _service_redirect_uri(), _service_scopes(), state,
+            os.getenv('CHALLONGE_CLIENT_ID', ''), _redirect_uri(), _service_scopes(), state,
         )
 
     @staticmethod
     def player_authorize_url(state: str) -> str:
         return build_authorize_url(
-            os.getenv('CHALLONGE_CLIENT_ID', ''), _player_redirect_uri(), _PLAYER_SCOPES, state,
+            os.getenv('CHALLONGE_CLIENT_ID', ''), _redirect_uri(), _PLAYER_SCOPES, state,
         )
 
     @staticmethod
-    def service_redirect_uri() -> str:
-        return _service_redirect_uri()
-
-    @staticmethod
-    def player_redirect_uri() -> str:
-        return _player_redirect_uri()
+    def redirect_uri() -> str:
+        return _redirect_uri()
 
     # ------------------------------------------------------------------
     # Client factories
@@ -243,7 +237,7 @@ class ChallongeService:
 
         Returns {'user_id', 'username'}. The token is used once and discarded.
         """
-        payload = await self._oauth_client().exchange_code(code, _player_redirect_uri())
+        payload = await self._oauth_client().exchange_code(code, _redirect_uri())
         access = payload.get('access_token')
         if not access:
             raise ChallongeAPIError(f"Challonge token response missing access_token: {payload}")
@@ -251,7 +245,7 @@ class ChallongeService:
 
     async def exchange_service_code(self, code: str) -> Dict[str, Any]:
         """Exchange the service account's authorization code for a token payload."""
-        return await self._oauth_client().exchange_code(code, _service_redirect_uri())
+        return await self._oauth_client().exchange_code(code, _redirect_uri())
 
     # ------------------------------------------------------------------
     # Tournament linking + bracket sync
