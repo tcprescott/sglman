@@ -12,6 +12,7 @@ from .challonge_service import ChallongeService
 from .crew_service import CrewService
 from .discord_role_mapping_service import DiscordRoleMappingService
 from .discord_service import DiscordService
+from .feedback_service import FeedbackService
 from .match_service import MatchService
 from .match_schedule_service import MatchScheduleService
 from .match_suggestion_service import MatchSuggestionService
@@ -40,6 +41,7 @@ __all__ = [
     'current_user_from_storage',
     'DiscordRoleMappingService',
     'DiscordService',
+    'FeedbackService',
     'MatchService',
     'MatchScheduleService',
     'MatchSuggestionService',

@@ -57,6 +57,10 @@ Implementation notes for each shipped feature.
 | [features/triforce-texts.md](features/triforce-texts.md) | Player triforce-text submission and moderation |
 | [features/ux-improvements.md](features/ux-improvements.md) | UX fixes shipped from the UX audit |
 
+## Proposals (not yet implemented)
+
+- [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (per-domain tenants, central super-admin interface, one-bot-many-guilds Discord). Design only; no code shipped.
+
 ## Historical / point-in-time
 
 - [design.md](design.md) — original requirements sketch (superseded by [architecture.md](architecture.md))

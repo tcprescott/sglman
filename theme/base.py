@@ -160,10 +160,18 @@ class BaseLayout:
         ui.navigate.history.push(f'?tab={label}')
 
     def _render_footer(self) -> None:
-        """Render the footer with copyright text."""
+        """Render the footer with copyright text and (for logged-in users) feedback."""
+        from theme.dialog import FeedbackDialog
+
         with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
             with ui.row().classes('w-full justify-between items-center'):
                 ui.label(self._copyright).classes('text-caption')
+                if self.user:
+                    ui.button(
+                        'Feedback',
+                        icon='feedback',
+                        on_click=lambda: FeedbackDialog(self.user).open(),
+                    ).props('flat dense').classes('footer-feedback-btn')
 
     async def _render_tab_panels(self) -> None:
         """Render tab panel content with programmatically controlled panel switching."""

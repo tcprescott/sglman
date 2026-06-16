@@ -87,6 +87,10 @@ class AuditActions:
     APITOKEN_CREATED = 'apitoken.created'
     APITOKEN_REVOKED = 'apitoken.revoked'
 
+    # In-app feedback
+    FEEDBACK_SUBMITTED = 'feedback.submitted'
+    FEEDBACK_REVIEWED = 'feedback.reviewed'
+
     # Player availability
     PLAYER_AVAILABILITY_UPDATED = 'player.availability_updated'
 

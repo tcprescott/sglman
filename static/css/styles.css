@@ -1005,3 +1005,9 @@ body.body--dark {
     background-color: var(--sgl-charcoal) !important;
     color: var(--sgl-dark-muted) !important;
 }
+
+/* Inherit the footer's text color so the button reads correctly in both
+   light (cream) and dark (charcoal) footer surfaces. */
+.footer-feedback-btn {
+    color: inherit !important;
+}

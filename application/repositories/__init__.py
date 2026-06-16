@@ -11,6 +11,7 @@ from .audit_repository import AuditRepository
 from .challonge_repository import ChallongeRepository
 from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
+from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
@@ -34,6 +35,7 @@ __all__ = [
     'ChallongeRepository',
     'CommentatorRepository',
     'DiscordRoleMappingRepository',
+    'FeedbackRepository',
     'MatchAcknowledgmentRepository',
     'MatchRepository',
     'MatchWatcherRepository',

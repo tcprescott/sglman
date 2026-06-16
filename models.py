@@ -22,6 +22,19 @@ class VolunteerAvailabilityStatus(str, Enum):
     UNAVAILABLE = 'unavailable'
     PREFERRED = 'preferred'
 
+
+class FeedbackCategory(str, Enum):
+    BUG = 'bug'
+    SUGGESTION = 'suggestion'
+    PRAISE = 'praise'
+    OTHER = 'other'
+
+
+class FeedbackStatus(str, Enum):
+    NEW = 'new'
+    REVIEWED = 'reviewed'
+
+
 class User(Model):
     id = fields.IntField(pk=True)
     discord_id = fields.BigIntField(unique=True)
@@ -58,6 +71,7 @@ class User(Model):
     triforce_texts = fields.ReverseRelation["TriforceText"]
     triforce_texts_moderated = fields.ReverseRelation["TriforceText"]
     api_tokens = fields.ReverseRelation["ApiToken"]
+    feedback_submissions = fields.ReverseRelation["Feedback"]
     volunteer_profile = fields.ReverseRelation["VolunteerProfile"]
     volunteer_assignments = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_assignments_made = fields.ReverseRelation["VolunteerAssignment"]
@@ -91,6 +105,28 @@ class ApiToken(Model):
 
     class Meta:
         table = 'apitoken'
+
+
+class Feedback(Model):
+    """An in-app feedback submission from a logged-in attendee.
+
+    Captures the submitting ``user``, a free-text ``message`` and ``category``,
+    and the ``page_url`` (path + query, including any ``?tab=``) the user was on
+    when they submitted, so staff have the context to act on it.
+    """
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField('models.User', related_name='feedback_submissions', on_delete=fields.CASCADE)
+    category = fields.CharEnumField(FeedbackCategory, default=FeedbackCategory.OTHER, max_length=20)
+    message = fields.TextField()
+    page_url = fields.CharField(max_length=512)
+    status = fields.CharEnumField(FeedbackStatus, default=FeedbackStatus.NEW, max_length=20)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'feedback'
+
 
 class UserTeams(Model):
     id = fields.IntField(pk=True)
