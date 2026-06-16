@@ -6,9 +6,12 @@
 - Discord role mappings (Staff)
 """
 
+from datetime import timedelta
+
 import pytest
 
-from models import Match, Role, Tournament, User
+from application.utils.timezone import now_eastern
+from models import Match, Role, SystemConfiguration, Tournament, User
 from tests.api_helpers import build_api_app, client_for, create_user_token
 
 
@@ -120,6 +123,11 @@ class TestPlayerAvailability:
 class TestMatchSuggestion:
     async def test_suggests_a_time(self, db, app):
         _, raw = await create_user_token(username='ta')
+        today = now_eastern().date()
+        await SystemConfiguration.create(name='event_start_date', value=today.isoformat())
+        await SystemConfiguration.create(
+            name='event_end_date', value=(today + timedelta(days=2)).isoformat(),
+        )
         t = await Tournament.create(name='Cup', is_active=True, average_match_duration=60)
         p1 = await User.create(discord_id=201, username='p1')
         p2 = await User.create(discord_id=202, username='p2')
