@@ -43,6 +43,13 @@ async def admin_challonge_page() -> None:
                         ui.label(
                             f"Token expires: {format_eastern_display(status['token_expires_at'])}"
                         ).classes('text-caption text-muted')
+                    quota = status.get('request_quota')
+                    used = status.get('request_usage', 0)
+                    if quota:
+                        warn = used >= quota * 0.8
+                        ui.label(
+                            f"API requests this month: {used} / {quota}"
+                        ).classes('text-caption ' + ('text-error' if warn else 'text-muted'))
                     if is_staff:
                         ui.button('Disconnect', icon='link_off', on_click=disconnect).props('flat color=negative')
                 else:
@@ -77,6 +84,11 @@ async def admin_challonge_page() -> None:
                     ui.label(t.name).classes('text-bold')
                     if t.challonge_tournament_url:
                         ui.link('bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
+                    synced = (
+                        format_eastern_display(t.challonge_last_synced_at)
+                        if t.challonge_last_synced_at else 'never'
+                    )
+                    ui.label(f'Last synced: {synced}').classes('text-caption text-muted')
                     ui.space()
                     ui.button(
                         'Sync', icon='sync',
@@ -85,7 +97,7 @@ async def admin_challonge_page() -> None:
 
         async def sync_one(tournament_id: int) -> None:
             try:
-                result = await service.sync_bracket(tournament_id, actor)
+                result = await service.sync_bracket(tournament_id, actor, force=True)
                 ui.notify(
                     f"Synced {result['participants']} participants, {result['matches']} matches.",
                     color='positive',
@@ -94,5 +106,7 @@ async def admin_challonge_page() -> None:
                 ui.notify(str(e), color='warning')
             except Exception as e:  # noqa: BLE001
                 ui.notify(f'Sync failed: {e}', color='negative')
+            await linked_tournaments.refresh()
+            await connection_card.refresh()
 
         await linked_tournaments()

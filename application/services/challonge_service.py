@@ -39,6 +39,13 @@ from models import (
 # Refresh the service token slightly before it actually expires.
 _TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
 
+# Collapse rapid repeat syncs (double-clicks, webhook bursts) — a non-forced
+# sync within this window of the last one is treated as a no-op.
+_SYNC_THROTTLE_WINDOW = timedelta(seconds=60)
+
+# The Challonge plan's monthly request quota, surfaced in the admin UI.
+CHALLONGE_MONTHLY_QUOTA = 500
+
 _DEFAULT_SERVICE_SCOPES = 'me tournaments:read matches:read matches:write participants:read'
 _PLAYER_SCOPES = 'me'
 
@@ -107,6 +114,7 @@ class ChallongeService:
         return cls(
             client_id=os.getenv('CHALLONGE_CLIENT_ID', ''),
             client_secret=os.getenv('CHALLONGE_CLIENT_SECRET', ''),
+            on_request=self.repository.increment_api_usage,
         )
 
     def _api_client(self) -> ChallongeClient:
@@ -116,6 +124,7 @@ class ChallongeService:
             client_id=os.getenv('CHALLONGE_CLIENT_ID', ''),
             client_secret=os.getenv('CHALLONGE_CLIENT_SECRET', ''),
             token_provider=self.get_valid_access_token,
+            on_request=self.repository.increment_api_usage,
         )
 
     # ------------------------------------------------------------------
@@ -198,14 +207,20 @@ class ChallongeService:
 
     async def get_connection_status(self) -> Dict[str, Any]:
         connection = await self.repository.get_connection()
+        usage = await self.repository.get_monthly_usage()
+        base = {
+            'configured': self.is_configured(),
+            'request_usage': usage,
+            'request_quota': CHALLONGE_MONTHLY_QUOTA,
+        }
         if connection is None:
-            return {'connected': False, 'configured': self.is_configured()}
+            return {'connected': False, **base}
         return {
             'connected': True,
-            'configured': self.is_configured(),
             'challonge_username': connection.challonge_username,
             'scopes': connection.scopes,
             'token_expires_at': connection.token_expires_at,
+            **base,
         }
 
     # ------------------------------------------------------------------
@@ -283,10 +298,11 @@ class ChallongeService:
 
         identifier = self.parse_tournament_identifier(id_or_url)
         try:
-            remote = await self._api_client().get_tournament(identifier)
+            full = await self._api_client().get_tournament_full(identifier)
         except ChallongeAPIError as e:
             raise ValueError(f"Could not find that Challonge tournament: {e}") from e
 
+        remote = full['tournament']
         tournament.challonge_tournament_id = remote.get('id') or identifier
         tournament.challonge_tournament_url = remote.get('url')
         await tournament.save()
@@ -296,10 +312,12 @@ class ChallongeService:
             {'tournament_id': tournament.id, 'challonge_tournament_id': tournament.challonge_tournament_id},
         )
 
-        await self.sync_bracket(tournament_id, actor)
+        # The full fetch already carries the bracket, so mirror it without a
+        # second round-trip.
+        await self._mirror_bracket(tournament, full['participants'], full['matches'], actor)
         return tournament
 
-    async def sync_bracket(self, tournament_id: int, actor: User) -> Dict[str, int]:
+    async def sync_bracket(self, tournament_id: int, actor: User, force: bool = False) -> Dict[str, int]:
         tournament = await self.tournament_repository.get_by_id(tournament_id)
         if tournament is None:
             raise ValueError(f"Tournament {tournament_id} not found")
@@ -307,13 +325,48 @@ class ChallongeService:
             await AuthService.can_edit_tournament(actor, tournament),
             "You do not have permission to sync this tournament",
         )
+        return await self._sync_tournament(tournament, actor, force=force)
+
+    async def _sync_tournament(
+        self, tournament: Tournament, actor: User, force: bool = False,
+    ) -> Dict[str, int]:
+        """Fetch + mirror a linked bracket. Permission is the caller's concern.
+
+        Shared by the admin sync action, the post-push auto re-sync, and the
+        webhook receiver. A non-forced call within the throttle window of the
+        last successful sync is a no-op (returns cached counts, no API request).
+        """
         if not tournament.challonge_tournament_id:
             raise ValueError("This tournament is not linked to a Challonge tournament yet.")
 
-        client = self._api_client()
-        remote_participants = await client.list_participants(tournament.challonge_tournament_id)
-        remote_matches = await client.list_matches(tournament.challonge_tournament_id)
+        if not force and self._synced_recently(tournament):
+            return {
+                'participants': await self.repository.count_participants(tournament),
+                'matches': await self.repository.count_matches(tournament),
+                'skipped': True,
+            }
 
+        full = await self._api_client().get_tournament_full(tournament.challonge_tournament_id)
+        result = await self._mirror_bracket(
+            tournament, full['participants'], full['matches'], actor,
+        )
+        await self.repository.set_last_synced_at(tournament, datetime.now(timezone.utc))
+        return result
+
+    @staticmethod
+    def _synced_recently(tournament: Tournament) -> bool:
+        last = _as_aware_utc(tournament.challonge_last_synced_at)
+        if last is None:
+            return False
+        return datetime.now(timezone.utc) - last < _SYNC_THROTTLE_WINDOW
+
+    async def _mirror_bracket(
+        self,
+        tournament: Tournament,
+        remote_participants: List[Dict[str, Any]],
+        remote_matches: List[Dict[str, Any]],
+        actor: User,
+    ) -> Dict[str, int]:
         # Participants -> resolve to linked sglman users by Challonge account id.
         participant_by_cid: Dict[str, Any] = {}
         for rp in remote_participants:
@@ -448,6 +501,15 @@ class ChallongeService:
             {'match_id': match.id, 'challonge_match_id': cmatch.challonge_match_id,
              'winner_participant_id': winner_pid},
         )
+
+        # The push advanced the bracket (next-round matches now open). Re-sync
+        # once so those newly-open matches surface locally without a manual
+        # Sync. Failures here must not undo the successful push.
+        try:
+            await self._sync_tournament(cmatch.tournament, actor, force=True)
+        except (ValueError, ChallongeAPIError) as e:
+            print(f"[challonge] post-push re-sync failed for tournament "
+                  f"{cmatch.tournament_id}: {e}")
 
     @staticmethod
     def _participant_id_for_user(cmatch: ChallongeMatch, user_id: int) -> Optional[str]:

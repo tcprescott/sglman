@@ -6,12 +6,13 @@ mirror (participants + matches), and their links to sglman users/matches.
 No business logic.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from tortoise.expressions import Q
 
 from models import (
+    ChallongeApiUsage,
     ChallongeConnection,
     ChallongeMatch,
     ChallongeMatchState,
@@ -153,6 +154,41 @@ class ChallongeRepository:
     async def link_match(challonge_match: ChallongeMatch, match: Match) -> None:
         challonge_match.match = match
         await challonge_match.save()
+
+    @staticmethod
+    async def count_participants(tournament: Tournament) -> int:
+        return await ChallongeParticipant.filter(tournament=tournament).count()
+
+    @staticmethod
+    async def count_matches(tournament: Tournament) -> int:
+        return await ChallongeMatch.filter(tournament=tournament).count()
+
+    @staticmethod
+    async def set_last_synced_at(tournament: Tournament, when: datetime) -> None:
+        tournament.challonge_last_synced_at = when
+        await tournament.save(update_fields=['challonge_last_synced_at'])
+
+    # ------------------------------------------------------------------
+    # API-usage tally (per UTC calendar month)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _current_period() -> str:
+        return datetime.now(timezone.utc).strftime('%Y-%m')
+
+    @staticmethod
+    async def increment_api_usage(count: int = 1) -> None:
+        period = ChallongeRepository._current_period()
+        usage, _ = await ChallongeApiUsage.get_or_create(
+            period=period, defaults={'request_count': 0},
+        )
+        usage.request_count += count
+        await usage.save(update_fields=['request_count', 'updated_at'])
+
+    @staticmethod
+    async def get_monthly_usage(period: Optional[str] = None) -> int:
+        period = period or ChallongeRepository._current_period()
+        usage = await ChallongeApiUsage.get_or_none(period=period)
+        return usage.request_count if usage else 0
 
     @staticmethod
     async def unscheduled_open_matches_for_user(user: User) -> List[ChallongeMatch]:

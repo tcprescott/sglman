@@ -160,6 +160,7 @@ class Tournament(Model):
     max_match_duration = fields.IntField(null=True)  # in minutes
     challonge_tournament_id = fields.CharField(max_length=64, null=True)
     challonge_tournament_url = fields.CharField(max_length=255, null=True)
+    challonge_last_synced_at = fields.DatetimeField(null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -606,3 +607,21 @@ class ChallongeMatch(Model):
     class Meta:
         table = 'challongematch'
         unique_together = (('tournament', 'challonge_match_id'),)
+
+
+class ChallongeApiUsage(Model):
+    """Per-calendar-month tally of real outbound Challonge API requests.
+
+    One row per ``YYYY-MM`` period; incremented at the client's single HTTP
+    choke point so we can show consumption against the monthly quota and decide
+    whether more capacity is needed.
+    """
+
+    id = fields.IntField(pk=True)
+    period = fields.CharField(max_length=7, unique=True)  # 'YYYY-MM' (UTC)
+    request_count = fields.IntField(default=0)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'challongeapiusage'

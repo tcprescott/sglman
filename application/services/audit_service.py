@@ -102,6 +102,7 @@ class AuditActions:
     CHALLONGE_TOURNAMENT_LINKED = 'challonge.tournament_linked'
     CHALLONGE_BRACKET_SYNCED = 'challonge.bracket_synced'
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
+    CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
 
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'

@@ -35,6 +35,7 @@ TOKEN_URL = 'https://api.challonge.com/oauth/token'
 BASE_URL = 'https://api.challonge.com/v2.1'
 
 TokenProvider = Callable[..., Awaitable[str]]
+RequestHook = Callable[[], Awaitable[None]]
 
 
 class ChallongeAPIError(Exception):
@@ -113,10 +114,17 @@ class ChallongeClient:
         client_id: str,
         client_secret: str,
         token_provider: Optional[TokenProvider] = None,
+        on_request: Optional[RequestHook] = None,
     ):
         self.client_id = client_id
         self.client_secret = client_secret
         self._token_provider = token_provider
+        self._on_request = on_request
+
+    async def _count_request(self) -> None:
+        """Notify the configured hook of one real outbound HTTP request."""
+        if self._on_request is not None:
+            await self._on_request()
 
     # ------------------------------------------------------------------
     # OAuth (explicit-token / no-connection context)
@@ -141,6 +149,7 @@ class ChallongeClient:
         })
 
     async def _token_request(self, data: Dict[str, str]) -> Dict[str, Any]:
+        await self._count_request()
         async with aiohttp.ClientSession() as session:
             async with session.post(TOKEN_URL, data=data) as resp:
                 payload = await resp.json()
@@ -179,6 +188,35 @@ class ChallongeClient:
     async def list_matches(self, tournament_id: str) -> List[Dict[str, Any]]:
         data = await self._authed_request('GET', f'/tournaments/{tournament_id}/matches.json')
         return [_normalize_match(r) for r in (data.get('data') or [])]
+
+    async def get_tournament_full(self, tournament_id: str) -> Dict[str, Any]:
+        """Fetch a tournament with its participants and matches in one request.
+
+        Challonge embeds the associated participant/match records via the
+        ``include_participants`` / ``include_matches`` flags, collapsing what
+        would otherwise be three calls into one. Embedded resources arrive in
+        the JSON:API ``included`` array, partitioned by ``type``.
+        """
+        data = await self._authed_request(
+            'GET',
+            f'/tournaments/{tournament_id}.json?include_participants=1&include_matches=1',
+        )
+        resource = data.get('data') or {}
+        tournament = {
+            'id': str(resource.get('id')),
+            'name': _attr(resource, 'name'),
+            'url': _attr(resource, 'full_challonge_url', 'url'),
+            'state': _attr(resource, 'state'),
+        }
+        participants: List[Dict[str, Any]] = []
+        matches: List[Dict[str, Any]] = []
+        for included in (data.get('included') or []):
+            kind = (included.get('type') or '').lower()
+            if kind in ('participant', 'participants'):
+                participants.append(_normalize_participant(included))
+            elif kind in ('match', 'matches'):
+                matches.append(_normalize_match(included))
+        return {'tournament': tournament, 'participants': participants, 'matches': matches}
 
     async def update_match(
         self,
@@ -225,6 +263,7 @@ class ChallongeClient:
         }
 
     async def _raw_get(self, path: str, token: str) -> Dict[str, Any]:
+        await self._count_request()
         async with aiohttp.ClientSession() as session:
             async with session.get(BASE_URL + path, headers=self._headers(token)) as resp:
                 return await self._parse(resp)
@@ -236,12 +275,14 @@ class ChallongeClient:
             raise ChallongeAPIError('No token provider configured for authenticated calls')
         token = await self._token_provider()
         async with aiohttp.ClientSession() as session:
+            await self._count_request()
             async with session.request(
                 method, BASE_URL + path, headers=self._headers(token), json=json,
             ) as resp:
                 if resp.status == 401:
                     # Token may have expired between refresh checks — force one refresh + retry.
                     token = await self._token_provider(force_refresh=True)
+                    await self._count_request()
                     async with session.request(
                         method, BASE_URL + path, headers=self._headers(token), json=json,
                     ) as retry:
@@ -312,6 +353,13 @@ class MockChallongeClient(ChallongeClient):
 
     async def list_matches(self, tournament_id: str) -> List[Dict[str, Any]]:
         return [dict(m) for m in _MOCK_MATCHES]
+
+    async def get_tournament_full(self, tournament_id: str) -> Dict[str, Any]:
+        return {
+            'tournament': await self.get_tournament(tournament_id),
+            'participants': [dict(p) for p in _MOCK_PARTICIPANTS],
+            'matches': [dict(m) for m in _MOCK_MATCHES],
+        }
 
     async def update_match(self, tournament_id, match_id, winner_participant_id,
                            loser_participant_id, winner_score='1', loser_score='0') -> None:

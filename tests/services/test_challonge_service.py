@@ -125,15 +125,18 @@ class TestSyncBracket:
         tournament = await Tournament.create(name='T', challonge_tournament_id='T1')
 
         api = MagicMock()
-        api.list_participants = AsyncMock(return_value=[
-            {'participant_id': '9001', 'name': 'Alice', 'challonge_user_id': '1001', 'username': 'alice'},
-            {'participant_id': '9002', 'name': 'Bob', 'challonge_user_id': '9999', 'username': 'bob'},
-        ])
-        api.list_matches = AsyncMock(return_value=[
-            {'match_id': '8001', 'state': 'open', 'round': 1,
-             'player1_participant_id': '9001', 'player2_participant_id': '9002',
-             'winner_participant_id': None},
-        ])
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'underway'},
+            'participants': [
+                {'participant_id': '9001', 'name': 'Alice', 'challonge_user_id': '1001', 'username': 'alice'},
+                {'participant_id': '9002', 'name': 'Bob', 'challonge_user_id': '9999', 'username': 'bob'},
+            ],
+            'matches': [
+                {'match_id': '8001', 'state': 'open', 'round': 1,
+                 'player1_participant_id': '9001', 'player2_participant_id': '9002',
+                 'winner_participant_id': None},
+            ],
+        })
 
         result = await make_service(api=api).sync_bracket(tournament.id, actor)
         assert result == {'participants': 2, 'matches': 1}
@@ -153,6 +156,27 @@ class TestSyncBracket:
         tournament = await Tournament.create(name='T')  # no challonge id
         with pytest.raises(ValueError, match='not linked'):
             await make_service().sync_bracket(tournament.id, actor)
+
+    async def test_throttles_repeat_sync_without_force(self, db):
+        actor = await make_user(1, 'admin')
+        tournament = await Tournament.create(name='T', challonge_tournament_id='T1')
+
+        api = MagicMock()
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'underway'},
+            'participants': [], 'matches': [],
+        })
+        service = make_service(api=api)
+
+        await service.sync_bracket(tournament.id, actor)
+        # Second non-forced sync within the throttle window must not hit the API.
+        result = await service.sync_bracket(tournament.id, actor)
+        assert result.get('skipped') is True
+        api.get_tournament_full.assert_awaited_once()
+
+        # Forcing overrides the throttle.
+        await service.sync_bracket(tournament.id, actor, force=True)
+        assert api.get_tournament_full.await_count == 2
 
 
 # ----------------------------------------------------------------------
@@ -259,6 +283,11 @@ class TestPushMatchResult:
         actor, match, _ = await self._setup()
         api = MagicMock()
         api.update_match = AsyncMock()
+        # The push triggers a single post-push re-sync to mirror bracket advancement.
+        api.get_tournament_full = AsyncMock(return_value={
+            'tournament': {'id': 'T1', 'name': 'T', 'url': None, 'state': 'underway'},
+            'participants': [], 'matches': [],
+        })
         await make_service(api=api).push_match_result(match, actor)
         api.update_match.assert_awaited_once()
         _, kwargs = api.update_match.call_args
@@ -266,6 +295,7 @@ class TestPushMatchResult:
         assert kwargs['loser_participant_id'] == '200'
         assert kwargs['match_id'] == '8001'
         assert kwargs['tournament_id'] == 'T1'
+        api.get_tournament_full.assert_awaited_once()
 
     async def test_no_winner_recorded_raises(self, db):
         actor, match, _ = await self._setup(winner_rank_set=False)
