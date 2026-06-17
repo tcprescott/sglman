@@ -45,6 +45,11 @@ class UserTableView:
             <span v-if="props.value" class="wrap" :title="props.value">{{ props.value.toString().length > 24 ? props.value.toString().substring(0, 21) + '...' : props.value }}</span>
             <span v-else>-</span>
         </q-td>''')
+        # Show a dash when the user hasn't linked a Challonge account.
+        self.table.add_slot('body-cell-challonge', '''<q-td :props="props">
+            <span v-if="props.value">{{ props.value }}</span>
+            <span v-else class="text-grey-7">-</span>
+        </q-td>''')
         # Display roles as comma-separated chips. props.value is a comma-separated string.
         self.table.add_slot('body-cell-roles', '''<q-td :props="props">
             <template v-if="props.value">
@@ -135,6 +140,7 @@ class UserTableView:
             'preferred_name': u.preferred_name or '',
             'pronouns': u.pronouns or '',
             'discord_id': u.discord_id,
+            'challonge': u.challonge_username or u.challonge_user_id or '',
             'is_active': u.is_active,
             'roles': ', '.join(role_labels),
             'created_at': format_eastern_display(u.created_at),

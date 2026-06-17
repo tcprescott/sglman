@@ -173,7 +173,7 @@ Seed generation suppresses the notification when the service reports a generatio
 `admin_users_page()` (Staff-only by tab visibility) — user management.
 
 - A `UserTableView` with the toolbar suppressed (`show_toolbar=False`); the page renders its own row with **Add User** (opens `AdminUserDialog`) and a refresh button.
-- Columns: Username, Display Name, Pronouns, Roles.
+- Columns: Username, Display Name, Pronouns, Challonge (linked account, `-` when unlinked), Roles.
 - A filter card with a multi-select over the three global `Role` values plus two pseudo-filters, `_tournament_admin` and `_crew_coordinator`. `get_query()` composes the queryset: global roles via `roles__role__in`, the pseudo-filters via `admin_tournaments__isnull=False` / `crew_coordinated_tournaments__isnull=False`, finished with `.distinct()`.
 - Username clicks open `AdminUserDialog` for that user (wired inside `UserTableView`).
 
@@ -363,7 +363,7 @@ A Delete button appears in edit mode. `on_submit` receives the match (edit) or n
 
 **`AdminUserDialog`** — staff-only: it verifies `AuthService.is_staff(actor)` on open and refuses otherwise. Add/edit form ("Add User" / "Edit User"):
 
-- Username (required and editable only on create; read-only on edit), Display Name, Pronouns, Active checkbox, Discord ID (create only).
+- Username (required and editable only on create; read-only on edit), Display Name, Pronouns, Active checkbox, Discord ID (create only). On edit, a read-only "Challonge account" field shows the linked Challonge username/id (or "Not linked"); it's hidden when the Challonge integration isn't configured.
 - A Roles multi-select over the global `Role` enum, and three tournament multi-selects: Player enrollments, "Tournament Admin of", "Crew Coordinator of".
 - On save it diffs each selection against current state: `UserService.grant_role` / `revoke_role` per added/removed role, and `TournamentService.add_admin` / `remove_admin` and `add_crew_coordinator` / `remove_crew_coordinator` per membership change. Create mode goes through `UserService.create_user` first, then applies the same syncs to the new user.
 - Edit mode adds a **Send Message** button opening `SendMessageDialog`. See [../features/role-based-auth.md](../features/role-based-auth.md).
@@ -422,7 +422,7 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 ### `UserTableView` (`theme/tables/user.py`)
 
 - Optional toolbar (`show_toolbar=False` lets the caller render its own, as the admin Users tab does; otherwise an Add User button when `submit_user_callback` is set, plus refresh).
-- Slots: clickable Username (emits `edit_user` → `AdminUserDialog`), Active icon, truncated Discord ID, and Roles rendered as `q-chip`s split from a comma-separated string.
+- Slots: clickable Username (emits `edit_user` → `AdminUserDialog`), Active icon, truncated Discord ID, linked Challonge account (`-` when unlinked), and Roles rendered as `q-chip`s split from a comma-separated string.
 - `refresh()` orders by username and prefetches `roles`, `admin_tournaments`, `crew_coordinated_tournaments`; `_format_user_row` title-cases role names and appends `TA(n)` / `CC(n)` markers for tournament-scoped roles. Timestamps format through `format_eastern_display`.
 - `render_grid_slot()` generates the mobile card from the column list; `update_row_by_id` refreshes a single row.
 

@@ -1,7 +1,13 @@
 from nicegui import ui
 
 from application.repositories import TournamentRepository
-from application.services import AuthService, TournamentService, UserService, current_user_from_storage
+from application.services import (
+    AuthService,
+    ChallongeService,
+    TournamentService,
+    UserService,
+    current_user_from_storage,
+)
 from models import Role, User
 from theme.dialog._helpers import dialog_header, submit_on_enter
 from theme.dialog.send_message_dialog import SendMessageDialog
@@ -145,6 +151,12 @@ class AdminUserDialog(BaseUserDialog):
                 pronouns_input = ui.input(
                     'Pronouns', value=self.user.pronouns if self.user else ''
                 ).classes('input-full-width')
+                if self.user and ChallongeService.is_configured():
+                    linked_challonge = self.user.challonge_username or self.user.challonge_user_id
+                    ui.input(
+                        'Challonge account',
+                        value=linked_challonge or 'Not linked',
+                    ).props('readonly').classes('input-full-width')
                 is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
                 if is_create:
                     discord_id_input = ui.input(

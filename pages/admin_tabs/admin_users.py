@@ -25,6 +25,7 @@ def admin_users_page() -> None:
             {'name': 'username', 'label': 'Username', 'field': 'username'},
             {'name': 'preferred_name', 'label': 'Display Name', 'field': 'preferred_name'},
             {'name': 'pronouns', 'label': 'Pronouns', 'field': 'pronouns'},
+            {'name': 'challonge', 'label': 'Challonge', 'field': 'challonge'},
             {'name': 'roles', 'label': 'Roles', 'field': 'roles'},
         ]
 
