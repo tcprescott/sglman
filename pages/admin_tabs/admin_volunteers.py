@@ -16,7 +16,9 @@ from application.utils.timezone import (
     parse_eastern_datetime,
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
+from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 
 
 # Standard four 4-hour shift blocks (Eastern), matching the 2025 schedule.
@@ -69,8 +71,6 @@ async def admin_volunteers_page() -> None:
                     grid.refresh()
                 day_select.on_value_change(on_day_change)
 
-                ui.button('Generate standard shifts', icon='auto_awesome_motion',
-                          on_click=lambda: generate_shifts()).props('flat color=primary')
                 ui.button('Auto-fill from availability', icon='smart_toy',
                           on_click=lambda: auto_fill()).props('flat color=primary')
                 ui.button('Clear draft', icon='clear_all',
@@ -84,22 +84,34 @@ async def admin_volunteers_page() -> None:
         @ui.refreshable
         async def grid() -> None:
             win_start, win_end = _day_window(state['day'])
-            shifts = await schedule_service.list_shifts_for_window(win_start, win_end)
-            if not shifts:
-                ui.label('No shifts for this day yet. Use "Generate standard shifts" or add '
-                         'positions, then generate.').classes('italic-note')
+            positions = await position_service.list_active()
+            if not positions:
+                ui.label('No active positions yet. Use "Manage positions" to add one.') \
+                    .classes('italic-note')
                 return
 
+            shifts = await schedule_service.list_shifts_for_window(win_start, win_end)
             by_position: dict = {}
             for shift in shifts:
-                by_position.setdefault(shift.position_id, {'name': shift.position.name, 'shifts': []})
-                by_position[shift.position_id]['shifts'].append(shift)
+                by_position.setdefault(shift.position_id, []).append(shift)
 
-            for pos in by_position.values():
+            for position in positions:
                 with ui.card().classes('full-width q-pa-sm q-mb-sm'):
-                    ui.label(pos['name']).classes('text-subtitle1')
+                    with ui.row().classes('items-center justify-between full-width'):
+                        ui.label(position.name).classes('text-subtitle1')
+                        with ui.row().classes('gap-1'):
+                            ui.button('Generate standard shifts', icon='auto_awesome_motion',
+                                      on_click=lambda p=position: generate_shifts(p)) \
+                                .props('flat dense color=primary')
+                            ui.button('Add shift', icon='add',
+                                      on_click=lambda p=position: open_shift_dialog(position=p)) \
+                                .props('flat dense color=primary')
+                    pos_shifts = by_position.get(position.id, [])
+                    if not pos_shifts:
+                        ui.label('No shifts for this day yet.').classes('italic-note q-pa-sm')
+                        continue
                     with ui.row().classes('gap-2 items-stretch').style('flex-wrap: wrap;'):
-                        for shift in sorted(pos['shifts'], key=lambda s: s.starts_at):
+                        for shift in sorted(pos_shifts, key=lambda s: s.starts_at):
                             _render_shift_card(shift)
 
         def _render_shift_card(shift) -> None:
@@ -116,8 +128,16 @@ async def admin_volunteers_page() -> None:
                 ).classes('text-caption')
                 for assignment in shift.assignments:
                     _render_assignment_chip(shift, assignment)
-                ui.button('Assign', icon='person_add',
-                          on_click=lambda s=shift: open_assign_dialog(s)).props('flat dense color=primary')
+                with ui.row().classes('items-center gap-1'):
+                    ui.button('Assign', icon='person_add',
+                              on_click=lambda s=shift: open_assign_dialog(s)).props('flat dense color=primary')
+                    ui.space()
+                    ui.button(icon='edit',
+                              on_click=lambda s=shift: open_shift_dialog(shift=s)) \
+                        .props('flat dense').tooltip('Edit shift')
+                    ui.button(icon='delete', color='negative',
+                              on_click=lambda s=shift: confirm_delete_shift(s)) \
+                        .props('flat dense').tooltip('Delete shift')
 
         def _render_assignment_chip(shift, assignment: VolunteerAssignment) -> None:
             name = assignment.user.preferred_name if assignment.user else 'Unknown'
@@ -188,16 +208,40 @@ async def admin_volunteers_page() -> None:
                 ui.button('Assign', on_click=do_assign).props('dense flat color=primary')
 
         # --- Actions -----------------------------------------------------
-        async def generate_shifts() -> None:
-            positions = await position_service.list_active()
-            if not positions:
-                ui.notify('Add at least one active position first.', color='warning')
-                return
+        async def generate_shifts(position) -> None:
             await schedule_service.generate_day_shifts(
-                actor, state['day'], [p.id for p in positions], STANDARD_BLOCKS,
+                actor, state['day'], [position.id], STANDARD_BLOCKS,
             )
-            ui.notify('Generated shifts (staggered where configured).', color='positive')
+            ui.notify(f'Generated shifts for {position.name} (staggered where configured).',
+                      color='positive')
             grid.refresh()
+
+        async def open_shift_dialog(shift=None, position=None) -> None:
+            async def after(_):
+                grid.refresh()
+            await VolunteerShiftDialog(
+                shift=shift, position=position, default_day=state['day'], on_submit=after,
+            ).open()
+
+        async def confirm_delete_shift(shift) -> None:
+            assigned = len(shift.assignments)
+            message = 'Delete this shift?'
+            if assigned:
+                message = (f'This shift has {assigned} assigned volunteer(s). '
+                           'Deleting it removes those assignments. Continue?')
+
+            async def on_confirm() -> None:
+                confirm.dialog.close()
+                try:
+                    await schedule_service.delete_shift(actor, shift)
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify('Shift deleted.', color='info')
+                grid.refresh()
+
+            confirm = ConfirmationDialog(message=message, on_confirm=on_confirm, confirm_text='Delete')
+            confirm.open()
 
         async def auto_fill() -> None:
             win_start, win_end = _day_window(state['day'])
