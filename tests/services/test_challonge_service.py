@@ -335,3 +335,27 @@ class TestPlayerLink:
         assert user.challonge_user_id is None
         assert user.challonge_username is None
         assert user.challonge_linked_at is None
+
+
+class TestParticipantTournamentIds:
+    async def test_returns_only_tournaments_user_participates_in(self, db):
+        user = await make_user(1, 'alice', challonge_user_id='1001')
+        other = await make_user(2, 'bob', challonge_user_id='1002')
+        in_t = await Tournament.create(name='In', challonge_tournament_id='T1')
+        other_t = await Tournament.create(name='Other', challonge_tournament_id='T2')
+        await ChallongeParticipant.create(
+            tournament=in_t, challonge_participant_id='9001', name='P1',
+            challonge_user_id=user.challonge_user_id, user=user,
+        )
+        await ChallongeParticipant.create(
+            tournament=other_t, challonge_participant_id='9002', name='P2',
+            challonge_user_id=other.challonge_user_id, user=other,
+        )
+
+        ids = await make_service().participant_tournament_ids(user)
+        assert ids == {in_t.id}
+
+    async def test_empty_when_not_a_participant(self, db):
+        user = await make_user(1, 'alice', challonge_user_id='1001')
+        await Tournament.create(name='In', challonge_tournament_id='T1')
+        assert await make_service().participant_tournament_ids(user) == set()

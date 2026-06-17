@@ -4,7 +4,7 @@ import asyncio
 
 from nicegui import app, ui
 
-from application.services import TournamentNotificationService, UserService
+from application.services import ChallongeService, TournamentNotificationService, UserService
 from models import User
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import render_challonge_link_section
@@ -87,6 +87,18 @@ async def render_edit_info_tab():
         player_tournaments = tournament_data['player_tournaments']
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
+        # Challonge-linked tournaments handle participation automatically via the
+        # bracket mirror, so their opt-in checkbox is read-only and reflects
+        # bracket membership rather than a manual choice.
+        challonge_service = ChallongeService()
+        account_linked = bool(user.challonge_user_id)
+        challonge_participant_ids = await challonge_service.participant_tournament_ids(user)
+        # Existing manual enrollments for linked tournaments must be preserved
+        # untouched when the player edits their other (manual) selections.
+        challonge_enrolled_ids = {
+            t.id for t in tournaments if t.challonge_tournament_id and t.id in selected_tournament_ids
+        }
+
         # Per-tournament match notification preferences
         notification_service = TournamentNotificationService()
         active_tournaments = await notification_service.get_active_tournaments()
@@ -129,6 +141,9 @@ async def render_edit_info_tab():
         async def on_tournament_change():
             mark_dirty()
             selected_ids = set(tid for tid, cb in tournament_checkboxes.items() if cb.value)
+            # Challonge-managed enrollments aren't editable here; carry them
+            # through so the full-set update doesn't drop them.
+            selected_ids |= challonge_enrolled_ids
             show_saving()
             try:
                 await user_service.manage_tournament_enrollments(
@@ -235,16 +250,42 @@ async def render_edit_info_tab():
                 for row in rows:
                     with ui.row().classes('row-spacing'):
                         for t in row:
-                            checked = t.id in selected_tournament_ids
                             with ui.column().classes('flex-1'):
-                                tournament_checkboxes[t.id] = ui.checkbox(
-                                    t.name,
-                                    value=checked,
-                                    on_change=on_tournament_change,
-                                ).classes('input-full-width')
+                                if t.challonge_tournament_id:
+                                    render_challonge_tournament(t)
+                                else:
+                                    tournament_checkboxes[t.id] = ui.checkbox(
+                                        t.name,
+                                        value=t.id in selected_tournament_ids,
+                                        on_change=on_tournament_change,
+                                    ).classes('input-full-width')
                         # Fill empty cells if less than columns
                         for _ in range(columns - len(row)):
                             ui.column().classes('flex-1')
+
+        def render_challonge_tournament(t):
+            """Read-only opt-in for a Challonge-linked tournament.
+
+            Participation is driven by the synced bracket, so the checkbox is
+            disabled and just reflects bracket membership. Players who haven't
+            linked their Challonge account get a call to action to do so.
+            """
+            in_bracket = t.id in challonge_participant_ids
+            checkbox = ui.checkbox(t.name, value=in_bracket).classes('input-full-width')
+            checkbox.props('disable')
+            checkbox.tooltip('Enrollment for this tournament is managed automatically through Challonge.')
+            if account_linked:
+                ui.label('Enrollment managed automatically via Challonge.').classes(
+                    'text-caption text-grey-7'
+                )
+            else:
+                ui.label('Link your Challonge account to be enrolled automatically.').classes(
+                    'text-caption text-grey-7'
+                )
+                ui.button(
+                    'Link Challonge account', icon='link',
+                    on_click=lambda: ui.navigate.to('/challonge/link'),
+                ).props('flat dense color=primary size=sm')
 
         # Tournament Sections
         render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)

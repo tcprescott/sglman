@@ -7,7 +7,7 @@ No business logic.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from tortoise.expressions import Q
 
@@ -111,6 +111,11 @@ class ChallongeRepository:
     @staticmethod
     async def list_participants(tournament: Tournament) -> List[ChallongeParticipant]:
         return await ChallongeParticipant.filter(tournament=tournament).prefetch_related('user')
+
+    @staticmethod
+    async def participant_tournament_ids_for_user(user: User) -> Set[int]:
+        rows = await ChallongeParticipant.filter(user=user).values_list('tournament_id', flat=True)
+        return set(rows)
 
     # ------------------------------------------------------------------
     # Matches

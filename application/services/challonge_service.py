@@ -13,7 +13,7 @@ participants; their tokens are not retained.
 
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from application.repositories import ChallongeRepository, TournamentRepository
@@ -237,6 +237,14 @@ class ChallongeService:
             actor, AuditActions.CHALLONGE_PLAYER_LINKED,
             {'user_id': user.id, 'challonge_user_id': challonge_user_id, 'challonge_username': challonge_username},
         )
+
+    async def participant_tournament_ids(self, user: User) -> Set[int]:
+        """Tournament IDs whose mirrored Challonge bracket includes this user.
+
+        Bracket membership is what drives tournament participation for linked
+        tournaments, so the UI reads this instead of manual opt-in records.
+        """
+        return await self.repository.participant_tournament_ids_for_user(user)
 
     async def unlink_player(self, user: User, actor: User) -> None:
         user.challonge_user_id = None
