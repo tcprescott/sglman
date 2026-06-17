@@ -10,6 +10,7 @@ read (GET) endpoints.
 """
 
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
@@ -17,6 +18,8 @@ from typing import List, Optional, Tuple
 from application.repositories.api_token_repository import ApiTokenRepository
 from application.services.audit_service import AuditActions, AuditService
 from models import ApiToken, User
+
+logger = logging.getLogger(__name__)
 
 TOKEN_PREFIX = 'sglman_pat_'
 
@@ -92,11 +95,17 @@ class ApiTokenService:
         if not raw_token:
             return None
         token = await self.repository.get_by_hash(_hash_token(raw_token))
-        if token is None or token.revoked_at is not None:
+        if token is None:
+            logger.warning('API token auth failed: unknown token (prefix=%s)', raw_token[:17])
+            return None
+        if token.revoked_at is not None:
+            logger.warning('API token auth failed: revoked token id=%s', token.id)
             return None
         now = datetime.now(timezone.utc)
         if token.expires_at is not None and token.expires_at <= now:
+            logger.warning('API token auth failed: expired token id=%s', token.id)
             return None
 
         await self.repository.touch_last_used(token, now)
+        logger.debug('API token auth succeeded: token id=%s', token.id)
         return token.user, token

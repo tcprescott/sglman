@@ -93,9 +93,9 @@ async def _finish_service_connect(user, code: str | None) -> None:
             payload = await service.exchange_service_code(code)
             await service.save_service_connection(payload, user)
             ui.notify('Challonge account connected.', color='positive')
-        except Exception as e:  # noqa: BLE001 - surface any failure to the user
+        except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge service connection failed')
-            ui.notify(f'Could not connect Challonge: {e}', color='negative')
+            ui.notify('Could not connect Challonge. Please try again.', color='negative')
     ui.navigate.to(_ADMIN_RETURN)
 
 
@@ -108,9 +108,9 @@ async def _finish_player_link(user, code: str | None) -> None:
             me = await service.exchange_player_code(code)
             await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
             ui.notify('Challonge account linked.', color='positive')
-        except Exception as e:  # noqa: BLE001 - surface any failure to the user
+        except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge player linking failed')
-            ui.notify(f'Could not link Challonge: {e}', color='negative')
+            ui.notify('Could not link Challonge. Please try again.', color='negative')
     ui.navigate.to(_PROFILE_RETURN)
 
 

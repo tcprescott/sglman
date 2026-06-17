@@ -33,6 +33,12 @@ def validate_security_config() -> None:
         )
 
     if is_production():
+        if len(storage_secret) < 32:
+            raise RuntimeError(
+                'STORAGE_SECRET must be at least 32 characters in production: it '
+                'signs the session store the entire authorization model trusts. '
+                'Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.'
+            )
         if not (os.environ.get('DB_USERNAME') or '').strip():
             raise RuntimeError('DB_USERNAME must be set in production.')
         if not (os.environ.get('DB_PASSWORD') or '').strip():

@@ -187,11 +187,9 @@ def create() -> None:
 
             user, created = await User.get_or_create(discord_id=current_user.id, defaults={
                 'username': current_user.username,
-                'access_token': access_token
             })
             if not created:
                 user.username = current_user.username
-                user.access_token = access_token
                 await user.save()
 
             # Map the user's Discord guild roles onto application roles.

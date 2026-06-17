@@ -5,8 +5,9 @@ Exposes a single ``router`` (aggregating every domain sub-router) that
 personal bearer token; see :mod:`api.dependencies`.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from api.rate_limit import rate_limit
 from api.routers import (
     audit,
     crew,
@@ -26,7 +27,7 @@ from api.routers import (
     volunteers,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(rate_limit)])
 router.include_router(matches.router)
 router.include_router(match_actions.router)
 router.include_router(crew.router)

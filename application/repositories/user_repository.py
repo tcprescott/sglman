@@ -60,7 +60,6 @@ class UserRepository:
         display_name: Optional[str] = None,
         pronouns: Optional[str] = None,
         is_active: bool = True,
-        access_token: Optional[str] = None,
     ) -> User:
         return await User.create(
             username=username,
@@ -68,7 +67,6 @@ class UserRepository:
             display_name=display_name,
             pronouns=pronouns,
             is_active=is_active,
-            access_token=access_token,
         )
 
     @staticmethod

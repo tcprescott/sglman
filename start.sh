@@ -3,9 +3,11 @@
 # use path of this example as working directory; enables starting this script from anywhere
 cd "$(dirname "$0")"
 
-# load .env file if it exists
+# load .env file if it exists (auto-export each assignment; avoids word-splitting)
 if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    . ./.env
+    set +a
 fi
 
 

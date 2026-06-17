@@ -11,12 +11,34 @@ the NiceGUI pages, and the Discord bot (all run in the same process), plus any
 
 import logging
 import os
+from typing import Any, Dict, Optional
 
 import sentry_sdk
 
 from application.utils.environment import get_environment
 
 logger = logging.getLogger(__name__)
+
+# Request headers that must never leave the process in an error report.
+_SENSITIVE_HEADERS = {'authorization', 'cookie', 'set-cookie', 'x-api-key'}
+
+
+def _scrub_event(event: Dict[str, Any], hint: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Strip auth headers and cookies from outgoing Sentry events.
+
+    Defense in depth alongside ``send_default_pii=False``: ensures bearer
+    tokens / session cookies are never transmitted even if an integration
+    attaches request data.
+    """
+    request = event.get('request')
+    if isinstance(request, dict):
+        headers = request.get('headers')
+        if isinstance(headers, dict):
+            for name in list(headers):
+                if name.lower() in _SENSITIVE_HEADERS:
+                    headers[name] = '[Filtered]'
+        request.pop('cookies', None)
+    return event
 
 
 def init_sentry() -> None:
@@ -39,7 +61,8 @@ def init_sentry() -> None:
     sentry_sdk.init(
         dsn=dsn,
         environment=get_environment(),
-        send_default_pii=True,
+        send_default_pii=False,
+        before_send=_scrub_event,
         traces_sample_rate=traces_sample_rate,
     )
     logger.info('Sentry initialized (environment=%s).', get_environment())

@@ -14,6 +14,12 @@ RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false 
 # Copy app code
 COPY . .
 
+# Run as an unprivileged user rather than root
+RUN useradd --create-home --uid 10001 appuser \
+    && chmod +x start.sh \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Expose port (default: 8000)
 EXPOSE 8000
 
