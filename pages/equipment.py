@@ -73,7 +73,7 @@ def create() -> None:
                                 f'({format_eastern_display(open_loan.checked_out_at)})'
                             ).classes('italic-note')
                         if can_manage and asset.private_notes:
-                            with ui.card().classes('q-pa-sm bg-amber-1'):
+                            with ui.card().classes('q-pa-sm bg-amber-1 text-grey-10'):
                                 ui.label('Private notes').classes('text-caption text-bold')
                                 ui.label(asset.private_notes)
 
