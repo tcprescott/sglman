@@ -69,3 +69,7 @@ class VolunteerShiftRepository:
     @staticmethod
     async def delete(shift: VolunteerShift) -> None:
         await shift.delete()
+
+    @staticmethod
+    async def delete_all() -> int:
+        return await VolunteerShift.all().delete()

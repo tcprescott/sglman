@@ -77,6 +77,8 @@ async def admin_volunteers_page() -> None:
                           on_click=lambda: clear_draft()).props('flat color=negative')
                 ui.button('Manage positions', icon='badge',
                           on_click=lambda: open_positions_dialog()).props('flat')
+                ui.button('Reset all volunteer data', icon='delete_forever',
+                          on_click=lambda: open_reset_dialog()).props('flat color=negative')
 
         # --- Grid --------------------------------------------------------
         grid_container = ui.column().classes('full-width')
@@ -259,6 +261,38 @@ async def admin_volunteers_page() -> None:
             removed = await autoschedule_service.clear_draft(actor, win_start, win_end)
             ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
             grid.refresh()
+
+        def open_reset_dialog() -> None:
+            CONFIRM_PHRASE = 'yes please delete all shifts'
+            with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+                ui.label('Reset all volunteer data').classes('text-subtitle1 q-pa-sm text-negative')
+                ui.separator()
+                with ui.column().classes('q-pa-md gap-3'):
+                    ui.label(
+                        'This will permanently delete ALL shifts and assignments across every day. '
+                        'This cannot be undone.'
+                    ).classes('text-body2')
+                    ui.label(f'Type "{CONFIRM_PHRASE}" to confirm:').classes('text-caption')
+                    confirm_input = ui.input().classes('full-width')
+
+                    async def do_reset() -> None:
+                        if confirm_input.value.strip().lower() != CONFIRM_PHRASE:
+                            ui.notify('Confirmation text does not match.', color='warning')
+                            return
+                        dialog.close()
+                        try:
+                            deleted = await schedule_service.reset_all_shifts(actor)
+                        except (ValueError, PermissionError) as e:
+                            ui.notify(str(e), color='warning')
+                            return
+                        ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
+                        grid.refresh()
+
+                ui.separator()
+                with ui.row().classes('justify-end q-pa-sm gap-2'):
+                    ui.button('Cancel', on_click=dialog.close).props('flat')
+                    ui.button('Delete everything', on_click=do_reset).props('color=negative')
+            dialog.open()
 
         # --- Positions manager ------------------------------------------
         async def open_positions_dialog() -> None:

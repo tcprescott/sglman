@@ -190,6 +190,17 @@ class VolunteerScheduleService:
             actor, AuditActions.VOLUNTEER_SHIFT_DELETED, {'shift_id': shift_id},
         )
 
+    async def reset_all_shifts(self, actor: User) -> int:
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can manage shifts.",
+        )
+        deleted = await self.shift_repository.delete_all()
+        await self.audit_service.write_log(
+            actor, AuditActions.VOLUNTEER_SHIFTS_RESET, {'deleted_count': deleted},
+        )
+        return deleted
+
     # --- Assignments ------------------------------------------------------
 
     async def assign(

@@ -127,6 +127,7 @@ class AuditActions:
     VOLUNTEER_AVAILABILITY_UPDATED = 'volunteer.availability_updated'
     VOLUNTEER_DRAFT_GENERATED = 'volunteer.draft_generated'
     VOLUNTEER_DRAFT_CLEARED = 'volunteer.draft_cleared'
+    VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
 
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
