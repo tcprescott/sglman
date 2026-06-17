@@ -123,6 +123,31 @@ class AuthService:
         return await AuthService.is_staff(user) or await AuthService.is_volunteer_coordinator(user)
 
     @staticmethod
+    async def is_equipment_manager(user: Optional[User]) -> bool:
+        return await AuthService.has_role(user, Role.EQUIPMENT_MANAGER)
+
+    @staticmethod
+    async def is_volunteer(user: Optional[User]) -> bool:
+        return await AuthService.has_role(user, Role.VOLUNTEER)
+
+    @staticmethod
+    async def can_manage_equipment(user: Optional[User]) -> bool:
+        """Create/edit/delete lending assets and view private notes/owner."""
+        return await AuthService.is_staff(user) or await AuthService.is_equipment_manager(user)
+
+    @staticmethod
+    async def can_checkout_equipment(user: Optional[User]) -> bool:
+        """Check equipment out (volunteers may only check out to themselves)."""
+        if await AuthService.can_manage_equipment(user):
+            return True
+        return await AuthService.is_volunteer(user)
+
+    @staticmethod
+    async def can_checkin_equipment(user: Optional[User]) -> bool:
+        """Check equipment back in."""
+        return await AuthService.can_manage_equipment(user)
+
+    @staticmethod
     async def can_assign_match_stream(user: Optional[User], match: Match) -> bool:
         """Set a match's stream_room or is_stream_candidate flag.
         Stream Managers can do this globally; TAs can do it for their own tournaments.

@@ -831,7 +831,8 @@ body.body--dark {
 --------------------------------------------------------------------------- */
 .match-table,
 .user-table,
-.tournament-table {
+.tournament-table,
+.equipment-table {
     border-collapse: collapse;
 }
 
@@ -840,21 +841,25 @@ body.body--dark {
 .user-table th,
 .user-table td,
 .tournament-table th,
-.tournament-table td {
+.tournament-table td,
+.equipment-table th,
+.equipment-table td {
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
 }
 
 .match-table td,
 .user-table td,
-.tournament-table td {
+.tournament-table td,
+.equipment-table td {
     text-align: left;
     font-variant-numeric: tabular-nums;
 }
 
 .match-table thead th,
 .user-table thead th,
-.tournament-table thead th {
+.tournament-table thead th,
+.equipment-table thead th {
     text-align: center;
     font-size: 0.72rem;
     font-weight: 700;
@@ -868,9 +873,11 @@ body.body--dark {
 .body--dark .match-table thead th,
 .body--dark .user-table thead th,
 .body--dark .tournament-table thead th,
+.body--dark .equipment-table thead th,
 .q-dark .match-table thead th,
 .q-dark .user-table thead th,
-.q-dark .tournament-table thead th {
+.q-dark .tournament-table thead th,
+.q-dark .equipment-table thead th {
     color: var(--sgl-gold);
     background: #201a15;
     border-bottom-color: color-mix(in srgb, var(--sgl-gold) 40%, transparent);
@@ -878,19 +885,22 @@ body.body--dark {
 
 .match-table tbody tr:nth-child(even),
 .user-table tbody tr:nth-child(even),
-.tournament-table tbody tr:nth-child(even) {
+.tournament-table tbody tr:nth-child(even),
+.equipment-table tbody tr:nth-child(even) {
     background-color: var(--surface-alt);
 }
 
 .match-table tbody tr:nth-child(odd),
 .user-table tbody tr:nth-child(odd),
-.tournament-table tbody tr:nth-child(odd) {
+.tournament-table tbody tr:nth-child(odd),
+.equipment-table tbody tr:nth-child(odd) {
     background-color: var(--surface);
 }
 
 .match-table tbody tr:hover,
 .user-table tbody tr:hover,
-.tournament-table tbody tr:hover {
+.tournament-table tbody tr:hover,
+.equipment-table tbody tr:hover {
     background-color: color-mix(in srgb, var(--sgl-gold) 7%, transparent);
 }
 
@@ -924,7 +934,9 @@ body.body--dark {
 .user-table-container .q-table__middle,
 .user-table-container table.q-table,
 .tournament-table-container .q-table__middle,
-.tournament-table-container table.q-table {
+.tournament-table-container table.q-table,
+.equipment-table-container .q-table__middle,
+.equipment-table-container table.q-table {
     width: 100%;
 }
 
@@ -942,7 +954,8 @@ body.body--dark {
    token overrides need !important; the vars switch per mode on their own. */
 .match-grid-card,
 .user-grid-card,
-.tournament-grid-card {
+.tournament-grid-card,
+.equipment-grid-card {
     background: var(--surface) !important;
     border: 1px solid var(--border-subtle) !important;
     border-radius: var(--radius-md) !important;
@@ -987,6 +1000,11 @@ body.body--dark {
 }
 
 .tournament-table-container {
+    margin-top: 1em;
+    width: 100%;
+}
+
+.equipment-table-container {
     margin-top: 1em;
     width: 100%;
 }

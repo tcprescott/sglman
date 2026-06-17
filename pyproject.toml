@@ -23,6 +23,7 @@ python-dotenv = "^1.1.1"
 discord-py = "^2.6.3"
 pyz3r = "^6.1.0"
 sentry-sdk = {extras = ["fastapi"], version = "^2.62.0"}
+qrcode = {extras = ["pil"], version = "^8.2"}
 
 
 

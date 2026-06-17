@@ -14,6 +14,7 @@ from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
+from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
 from theme.base import BaseLayout
 
@@ -52,10 +53,11 @@ def create() -> None:
         is_proctor = Role.PROCTOR in roles
         is_stream_manager = Role.STREAM_MANAGER in roles
         is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
+        is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
         is_ta_any = await user.admin_tournaments.all().exists()
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
 
-        if not (is_staff or is_proctor or is_stream_manager or is_ta_any or is_cc_any):
+        if not (is_staff or is_proctor or is_stream_manager or is_equipment_manager or is_ta_any or is_cc_any):
             await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
             with ui.row():
                 ui.label('You do not have permission to view this page.').classes('text-error')
@@ -95,6 +97,8 @@ def create() -> None:
             tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'content': admin_challonge_page})
         if is_staff:
             tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'content': admin_discord_roles_page})
+        if is_staff or is_equipment_manager:
+            tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': admin_equipment_page})
         if is_staff:
             tabs.append({'label': 'Feedback', 'icon': 'feedback', 'content': admin_feedback_page})
         if is_staff:

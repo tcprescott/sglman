@@ -3,6 +3,7 @@ from nicegui import app, ui
 from application.services import AuthService
 from models import User
 from pages.home_tabs.availability import availability_tab
+from pages.home_tabs.equipment import equipment_tab
 from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.player import render_player_dashboard
 from pages.home_tabs.stage_timeline import stage_timeline_tab
@@ -34,6 +35,7 @@ def create() -> None:
         if user is not None:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})
+            tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': equipment_tab})
         show_admin = await AuthService.can_view_admin(user)
         show_volunteer = user is not None
         await BaseLayout(

@@ -10,6 +10,8 @@ class Role(str, Enum):
     STREAM_MANAGER = 'stream_manager'
     TRIFORCE_SUBMITTER = 'triforce_submitter'
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
+    EQUIPMENT_MANAGER = 'equipment_manager'
+    VOLUNTEER = 'volunteer'
 
 
 class RoleSource(str, Enum):
@@ -33,6 +35,12 @@ class FeedbackCategory(str, Enum):
 class FeedbackStatus(str, Enum):
     NEW = 'new'
     REVIEWED = 'reviewed'
+
+
+class EquipmentStatus(str, Enum):
+    AVAILABLE = 'available'
+    CHECKED_OUT = 'checked_out'
+    RETIRED = 'retired'
 
 
 class User(Model):
@@ -71,6 +79,10 @@ class User(Model):
     triforce_texts_moderated = fields.ReverseRelation["TriforceText"]
     api_tokens = fields.ReverseRelation["ApiToken"]
     feedback_submissions = fields.ReverseRelation["Feedback"]
+    owned_equipment = fields.ReverseRelation["Equipment"]
+    equipment_loans = fields.ReverseRelation["EquipmentLoan"]
+    equipment_checkouts_performed = fields.ReverseRelation["EquipmentLoan"]
+    equipment_checkins_performed = fields.ReverseRelation["EquipmentLoan"]
     volunteer_profile = fields.ReverseRelation["VolunteerProfile"]
     volunteer_assignments = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_assignments_made = fields.ReverseRelation["VolunteerAssignment"]
@@ -125,6 +137,58 @@ class Feedback(Model):
 
     class Meta:
         table = 'feedback'
+
+
+class Equipment(Model):
+    """A physical asset available for lending at live events.
+
+    Each asset gets an auto-assigned, unique ``asset_number`` (a scannable QR
+    code on its page encodes the asset's URL). ``owner_user`` records who owns
+    the asset; a ``null`` owner means it belongs to SpeedGaming Live. ``status``
+    is kept in sync with open loans by the service layer (the single writer).
+    """
+
+    id = fields.IntField(pk=True)
+    asset_number = fields.IntField(unique=True)
+    name = fields.CharField(max_length=255)
+    description = fields.TextField(null=True)
+    private_notes = fields.TextField(null=True)
+    owner_user = fields.ForeignKeyField(
+        'models.User', related_name='owned_equipment', null=True, on_delete=fields.SET_NULL
+    )
+    status = fields.CharEnumField(EquipmentStatus, default=EquipmentStatus.AVAILABLE, max_length=20)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    loans = fields.ReverseRelation["EquipmentLoan"]
+
+    @property
+    def owner_label(self) -> str:
+        return self.owner_user.preferred_name if self.owner_user else 'SpeedGaming Live'
+
+    class Meta:
+        table = 'equipment'
+
+
+class EquipmentLoan(Model):
+    """A single checkout of an :class:`Equipment` asset.
+
+    The open loan (``checked_in_at`` is null) identifies the current holder;
+    closed loans form the asset's full lending history.
+    """
+
+    id = fields.IntField(pk=True)
+    equipment = fields.ForeignKeyField('models.Equipment', related_name='loans', on_delete=fields.CASCADE)
+    borrower = fields.ForeignKeyField('models.User', related_name='equipment_loans')
+    checked_out_by = fields.ForeignKeyField('models.User', related_name='equipment_checkouts_performed')
+    checked_out_at = fields.DatetimeField(auto_now_add=True)
+    checked_in_at = fields.DatetimeField(null=True)
+    checked_in_by = fields.ForeignKeyField(
+        'models.User', related_name='equipment_checkins_performed', null=True
+    )
+
+    class Meta:
+        table = 'equipmentloan'
 
 
 class UserTeams(Model):

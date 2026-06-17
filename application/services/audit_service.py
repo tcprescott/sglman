@@ -91,6 +91,13 @@ class AuditActions:
     FEEDBACK_SUBMITTED = 'feedback.submitted'
     FEEDBACK_REVIEWED = 'feedback.reviewed'
 
+    # Equipment lending
+    EQUIPMENT_CREATED = 'equipment.created'
+    EQUIPMENT_UPDATED = 'equipment.updated'
+    EQUIPMENT_DELETED = 'equipment.deleted'
+    EQUIPMENT_CHECKED_OUT = 'equipment.checked_out'
+    EQUIPMENT_CHECKED_IN = 'equipment.checked_in'
+
     # Player availability
     PLAYER_AVAILABILITY_UPDATED = 'player.availability_updated'
 
