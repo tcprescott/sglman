@@ -246,6 +246,39 @@ class ChallongeService:
         """
         return await self.repository.participant_tournament_ids_for_user(user)
 
+    async def link_player_manually(
+        self,
+        user: User,
+        challonge_user_id: str,
+        challonge_username: Optional[str],
+        actor: User,
+    ) -> None:
+        """Staff override to link a user to a Challonge account by id.
+
+        Mirrors the OAuth ``record_player_link`` but is initiated by Staff (e.g.
+        for a player who can't complete the OAuth flow). The id must be unique
+        since participant matching resolves a single user per Challonge id.
+        """
+        cuid = (challonge_user_id or '').strip()
+        if not cuid:
+            raise ValueError('A Challonge account id is required to link this user.')
+        existing = await User.filter(challonge_user_id=cuid).exclude(id=user.id).first()
+        if existing is not None:
+            raise ValueError(f'That Challonge account is already linked to {existing.username}.')
+        user.challonge_user_id = cuid
+        user.challonge_username = (challonge_username or '').strip() or None
+        user.challonge_linked_at = datetime.now(timezone.utc)
+        await user.save()
+        await self.audit_service.write_log(
+            actor, AuditActions.CHALLONGE_PLAYER_LINKED,
+            {
+                'user_id': user.id,
+                'challonge_user_id': cuid,
+                'challonge_username': user.challonge_username,
+                'manual': True,
+            },
+        )
+
     async def set_player_username(
         self, user: User, challonge_username: Optional[str], actor: User,
     ) -> None:

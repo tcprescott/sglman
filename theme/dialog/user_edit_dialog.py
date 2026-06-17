@@ -152,6 +152,7 @@ class AdminUserDialog(BaseUserDialog):
                     'Pronouns', value=self.user.pronouns if self.user else ''
                 ).classes('input-full-width')
                 challonge_username_input = None
+                challonge_id_input = None
                 if self.user and ChallongeService.is_configured():
                     if self.user.challonge_user_id:
                         challonge_username_input = ui.input(
@@ -161,8 +162,12 @@ class AdminUserDialog(BaseUserDialog):
                             f'clearable hint="Linked account id: {self.user.challonge_user_id}"'
                         ).classes('input-full-width')
                     else:
-                        ui.input('Challonge account', value='Not linked').props(
-                            'readonly'
+                        ui.label(
+                            'No Challonge account linked. Enter the account id to link manually.'
+                        ).classes('text-caption text-grey-7')
+                        challonge_id_input = ui.input('Challonge account id').classes('input-full-width')
+                        challonge_username_input = ui.input(
+                            'Challonge username (optional)'
                         ).classes('input-full-width')
                 is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
                 if is_create:
@@ -255,10 +260,18 @@ class AdminUserDialog(BaseUserDialog):
                                 is_active=is_active_checkbox.value,
                                 actor=actor,
                             )
-                            if challonge_username_input is not None:
-                                await ChallongeService().set_player_username(
+                            if self.user.challonge_user_id:
+                                if challonge_username_input is not None:
+                                    await ChallongeService().set_player_username(
+                                        self.user,
+                                        challonge_username_input.value,
+                                        actor=actor,
+                                    )
+                            elif challonge_id_input is not None and (challonge_id_input.value or '').strip():
+                                await ChallongeService().link_player_manually(
                                     self.user,
-                                    challonge_username_input.value,
+                                    challonge_id_input.value,
+                                    challonge_username_input.value if challonge_username_input else None,
                                     actor=actor,
                                 )
                             await self._update_tournament_enrollments(

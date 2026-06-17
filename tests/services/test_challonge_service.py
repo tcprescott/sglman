@@ -361,6 +361,30 @@ class TestPlayerLink:
         with pytest.raises(ValueError):
             await make_service().set_player_username(user, 'whatever', actor=user)
 
+    async def test_link_player_manually(self, db):
+        admin = await make_user(1, 'admin')
+        user = await make_user(2, 'bob')  # not linked
+        await make_service().link_player_manually(user, ' 2002 ', ' bob_c ', actor=admin)
+        await user.refresh_from_db()
+        assert user.challonge_user_id == '2002'
+        assert user.challonge_username == 'bob_c'
+        assert user.challonge_linked_at is not None
+
+    async def test_link_player_manually_requires_id(self, db):
+        admin = await make_user(1, 'admin')
+        user = await make_user(2, 'bob')
+        with pytest.raises(ValueError):
+            await make_service().link_player_manually(user, '   ', None, actor=admin)
+
+    async def test_link_player_manually_rejects_duplicate_id(self, db):
+        admin = await make_user(1, 'admin')
+        await make_user(2, 'alice', challonge_user_id='3003')
+        user = await make_user(3, 'bob')
+        with pytest.raises(ValueError):
+            await make_service().link_player_manually(user, '3003', None, actor=admin)
+        await user.refresh_from_db()
+        assert user.challonge_user_id is None
+
 
 class TestParticipantTournamentIds:
     async def test_returns_only_tournaments_user_participates_in(self, db):
