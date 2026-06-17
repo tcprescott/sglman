@@ -94,3 +94,31 @@ class VolunteerAvailabilityService:
                 elif result is None:
                     result = VolunteerAvailabilityStatus.AVAILABLE
         return result
+
+    @staticmethod
+    def effective_segments(
+        windows: Sequence[VolunteerAvailability], start: datetime, end: datetime,
+    ) -> List[Tuple[datetime, datetime, Optional[VolunteerAvailabilityStatus]]]:
+        """Split ``[start, end]`` into maximal segments of constant availability.
+
+        Overlapping windows are resolved by :meth:`covers` precedence
+        (unavailable > preferred > available). Segments with no overlapping
+        window carry a ``None`` status. Adjacent segments of equal status are
+        merged so the result is the minimal set of contiguous spans.
+        """
+        if end <= start:
+            return []
+        boundaries = {start, end}
+        for w in windows:
+            if w.ends_at > start and w.starts_at < end:
+                boundaries.add(max(w.starts_at, start))
+                boundaries.add(min(w.ends_at, end))
+        points = sorted(boundaries)
+        segments: List[Tuple[datetime, datetime, Optional[VolunteerAvailabilityStatus]]] = []
+        for seg_start, seg_end in zip(points, points[1:]):
+            status = VolunteerAvailabilityService.covers(windows, seg_start, seg_end)
+            if segments and segments[-1][2] == status:
+                segments[-1] = (segments[-1][0], seg_end, status)
+            else:
+                segments.append((seg_start, seg_end, status))
+        return segments
