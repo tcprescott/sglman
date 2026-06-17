@@ -274,6 +274,8 @@ async def render_edit_info_tab():
             checkbox = ui.checkbox(t.name, value=in_bracket).classes('input-full-width')
             checkbox.props('disable')
             checkbox.tooltip('Enrollment for this tournament is managed automatically through Challonge.')
+            if t.challonge_tournament_url:
+                ui.link('View bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
             if account_linked:
                 ui.label('Enrollment managed automatically via Challonge.').classes(
                     'text-caption text-grey-7'
