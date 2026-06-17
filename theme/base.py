@@ -94,11 +94,11 @@ class BaseLayout:
                 dark_btn_ref['btn'].props(f"icon={icon}")
                 dark_btn_ref['btn'].update()
 
-        with ui.header().classes(replace='row items-center sgl-header'):
+        with ui.header().classes(replace='row items-center no-wrap sgl-header'):
             ui.button(
                 icon='menu',
                 on_click=lambda: self._drawer.toggle()
-            ).props('flat color=white')
+            ).props('flat color=white').classes('sgl-burger')
             ui.label('SGL On Site').classes('sgl-wordmark')
 
             if self.user:

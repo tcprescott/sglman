@@ -347,6 +347,25 @@ body.body--dark {
     color: var(--sgl-gold);
 }
 
+.sgl-burger .q-icon {
+    font-size: 1.6rem;
+}
+
+@media (max-width: 600px) {
+    .sgl-header {
+        padding: 0 var(--space-2);
+    }
+
+    .sgl-header .user-name {
+        display: none;
+    }
+
+    .sgl-wordmark {
+        font-size: 1rem;
+        margin-left: var(--space-1);
+    }
+}
+
 /* Drawer navigation */
 .q-drawer {
     background: var(--surface);
