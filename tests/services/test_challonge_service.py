@@ -336,6 +336,31 @@ class TestPlayerLink:
         assert user.challonge_username is None
         assert user.challonge_linked_at is None
 
+    async def test_set_username_updates_linked_account(self, db):
+        user = await make_user(1, 'alice', challonge_user_id='1001')
+        user.challonge_username = 'old_name'
+        await user.save()
+
+        await make_service().set_player_username(user, '  new_name  ', actor=user)
+        await user.refresh_from_db()
+        assert user.challonge_username == 'new_name'
+        # The stable account id is untouched by a username edit.
+        assert user.challonge_user_id == '1001'
+
+    async def test_set_username_blank_clears_it(self, db):
+        user = await make_user(1, 'alice', challonge_user_id='1001')
+        user.challonge_username = 'old_name'
+        await user.save()
+
+        await make_service().set_player_username(user, '   ', actor=user)
+        await user.refresh_from_db()
+        assert user.challonge_username is None
+
+    async def test_set_username_requires_linked_account(self, db):
+        user = await make_user(1, 'alice')  # no challonge_user_id
+        with pytest.raises(ValueError):
+            await make_service().set_player_username(user, 'whatever', actor=user)
+
 
 class TestParticipantTournamentIds:
     async def test_returns_only_tournaments_user_participates_in(self, db):

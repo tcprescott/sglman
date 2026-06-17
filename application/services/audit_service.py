@@ -106,6 +106,7 @@ class AuditActions:
     CHALLONGE_DISCONNECTED = 'challonge.disconnected'
     CHALLONGE_PLAYER_LINKED = 'challonge.player_linked'
     CHALLONGE_PLAYER_UNLINKED = 'challonge.player_unlinked'
+    CHALLONGE_PLAYER_USERNAME_UPDATED = 'challonge.player_username_updated'
     CHALLONGE_TOURNAMENT_LINKED = 'challonge.tournament_linked'
     CHALLONGE_BRACKET_SYNCED = 'challonge.bracket_synced'
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'

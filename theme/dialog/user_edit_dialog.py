@@ -151,12 +151,19 @@ class AdminUserDialog(BaseUserDialog):
                 pronouns_input = ui.input(
                     'Pronouns', value=self.user.pronouns if self.user else ''
                 ).classes('input-full-width')
+                challonge_username_input = None
                 if self.user and ChallongeService.is_configured():
-                    linked_challonge = self.user.challonge_username or self.user.challonge_user_id
-                    ui.input(
-                        'Challonge account',
-                        value=linked_challonge or 'Not linked',
-                    ).props('readonly').classes('input-full-width')
+                    if self.user.challonge_user_id:
+                        challonge_username_input = ui.input(
+                            'Challonge username',
+                            value=self.user.challonge_username or '',
+                        ).props(
+                            f'clearable hint="Linked account id: {self.user.challonge_user_id}"'
+                        ).classes('input-full-width')
+                    else:
+                        ui.input('Challonge account', value='Not linked').props(
+                            'readonly'
+                        ).classes('input-full-width')
                 is_active_checkbox = ui.checkbox('Active', value=self.user.is_active if self.user else True)
                 if is_create:
                     discord_id_input = ui.input(
@@ -248,6 +255,12 @@ class AdminUserDialog(BaseUserDialog):
                                 is_active=is_active_checkbox.value,
                                 actor=actor,
                             )
+                            if challonge_username_input is not None:
+                                await ChallongeService().set_player_username(
+                                    self.user,
+                                    challonge_username_input.value,
+                                    actor=actor,
+                                )
                             await self._update_tournament_enrollments(
                                 user_tournaments, tournament_multiselect, actor,
                             )

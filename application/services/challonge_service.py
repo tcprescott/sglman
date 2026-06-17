@@ -246,6 +246,27 @@ class ChallongeService:
         """
         return await self.repository.participant_tournament_ids_for_user(user)
 
+    async def set_player_username(
+        self, user: User, challonge_username: Optional[str], actor: User,
+    ) -> None:
+        """Manually correct the linked Challonge username (Staff override).
+
+        Participant matching keys off ``challonge_user_id``; this only fixes the
+        display username, so it requires an already-linked account.
+        """
+        if not user.challonge_user_id:
+            raise ValueError('This user has no linked Challonge account to edit.')
+        new_username = (challonge_username or '').strip() or None
+        if new_username == user.challonge_username:
+            return
+        old_username = user.challonge_username
+        user.challonge_username = new_username
+        await user.save()
+        await self.audit_service.write_log(
+            actor, AuditActions.CHALLONGE_PLAYER_USERNAME_UPDATED,
+            {'user_id': user.id, 'old_username': old_username, 'new_username': new_username},
+        )
+
     async def unlink_player(self, user: User, actor: User) -> None:
         user.challonge_user_id = None
         user.challonge_username = None
