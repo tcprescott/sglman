@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
-from api.dependencies import ServiceErrorRoute, require_staff, require_write_actor
+from api.dependencies import ServiceErrorRoute, require_staff, require_staff_write
 from api.schemas.discord_role_mappings import (
     DiscordRoleMappingCreate,
     DiscordRoleMappingResponse,
@@ -46,7 +46,7 @@ async def list_mappings(
     summary="Create a Discord role mapping (Staff only)",
 )
 async def add_mapping(
-    body: DiscordRoleMappingCreate, actor: User = Depends(require_write_actor),
+    body: DiscordRoleMappingCreate, actor: User = Depends(require_staff_write),
 ):
     return await DiscordRoleMappingService().add_mapping(
         guild_id=body.guild_id,
@@ -62,5 +62,5 @@ async def add_mapping(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a Discord role mapping (Staff only)",
 )
-async def remove_mapping(mapping_id: int, actor: User = Depends(require_write_actor)):
+async def remove_mapping(mapping_id: int, actor: User = Depends(require_staff_write)):
     await DiscordRoleMappingService().remove_mapping(mapping_id, actor=actor)

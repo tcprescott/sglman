@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from api.dependencies import ServiceErrorRoute, require_staff, require_write_actor
+from api.dependencies import ServiceErrorRoute, require_staff, require_staff_write
 from api.schemas.config import ConfigEntryResponse, ConfigValueUpdate
 from application.services import SystemConfigService
 from models import SystemConfiguration, User
@@ -38,5 +38,5 @@ async def get_config(key: str, actor: User = Depends(require_staff)):
     response_model=ConfigEntryResponse,
     summary="Set a configuration entry (Staff only)",
 )
-async def set_config(key: str, body: ConfigValueUpdate, actor: User = Depends(require_write_actor)):
+async def set_config(key: str, body: ConfigValueUpdate, actor: User = Depends(require_staff_write)):
     return await SystemConfigService.set_raw(key, body.value, actor)

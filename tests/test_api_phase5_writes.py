@@ -105,3 +105,37 @@ class TestConfig:
         async with client_for(app, raw) as c:
             resp = await c.put('/api/config/max_concurrent_players', json={'value': '40'})
             assert resp.status_code == 403
+
+    async def test_read_only_staff_token_cannot_set_config(self, db, app):
+        """require_staff_write rejects read-only tokens even for Staff."""
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF], read_only=True)
+        async with client_for(app, raw) as c:
+            resp = await c.put('/api/config/max_concurrent_players', json={'value': '40'})
+            assert resp.status_code == 403
+
+
+class TestDiscordRoleMappingWrites:
+    _BODY = {
+        'guild_id': 1,
+        'discord_role_id': 2,
+        'discord_role_name': 'Mods',
+        'app_role': 'staff',
+    }
+
+    async def test_staff_creates_mapping(self, db, app):
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            resp = await c.post('/api/discord-role-mappings', json=self._BODY)
+            assert resp.status_code == 201
+
+    async def test_non_staff_cannot_create_mapping(self, db, app):
+        _, raw = await create_user_token(username='plain')
+        async with client_for(app, raw) as c:
+            resp = await c.post('/api/discord-role-mappings', json=self._BODY)
+            assert resp.status_code == 403
+
+    async def test_read_only_staff_token_cannot_create_mapping(self, db, app):
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF], read_only=True)
+        async with client_for(app, raw) as c:
+            resp = await c.post('/api/discord-role-mappings', json=self._BODY)
+            assert resp.status_code == 403

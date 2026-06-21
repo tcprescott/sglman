@@ -91,7 +91,12 @@ async def triforce_texts_tab() -> None:
 
             if not can_submit:
                 if tournament.triforce_access_message:
-                    ui.markdown(tournament.triforce_access_message)
+                    # Rendered as plain text (not markdown/HTML): this field is
+                    # writable by per-tournament admins and shown to all players,
+                    # so HTML passthrough would be a stored-XSS vector.
+                    ui.label(tournament.triforce_access_message).style(
+                        'white-space: pre-wrap'
+                    )
                 else:
                     ui.label(
                         'Submitting triforce texts is a paid option for this tournament.'

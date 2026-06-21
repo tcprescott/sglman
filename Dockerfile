@@ -9,7 +9,9 @@ RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /va
 
 # Copy poetry files and install dependencies
 COPY pyproject.toml poetry.lock ./
-RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi
+# --only main keeps test/dev tooling out of the runtime image (smaller image,
+# smaller attack surface).
+RUN pip install --no-cache-dir poetry && poetry config virtualenvs.create false && poetry install --only main --no-interaction --no-ansi
 
 # Copy app code
 COPY . .
