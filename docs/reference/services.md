@@ -1,6 +1,6 @@
 # Service Layer Reference
 
-_Method-level reference for `application/services/` (all 16 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
+_Method-level reference for `application/services/` (all 29 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
 
 ## Pattern & conventions
 
@@ -12,7 +12,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 - **`PermissionError` for authorization failures.** Permission gates run through `AuthService.ensure(allowed, message)`, which raises `PermissionError`. UI handlers that gate-protected services catch both (see `pages/admin_tabs/admin_schedule.py`).
 - **Audit logging** uses `AuditService.write_log(actor, action, details)` with `verb.object` action constants from `AuditActions`. The actor is required — `write_log` raises `ValueError` when actor is `None`. See [audit-logging.md](../features/audit-logging.md) and the [CLAUDE.md conventions](../../CLAUDE.md).
 - **The `actor` parameter.** Mutating methods take the acting `User` as a trailing `actor` parameter (or `user` when the action is inherently self-service, e.g. `acknowledge_match`, `signup_crew`, `watch`). The same object feeds both the permission gate and the audit entry; callers resolve it once via `current_user_from_storage()`.
-- **Stateless instances.** Services hold only repository/service references; instantiate per request (`MatchService()`) or call static methods on the class (`AuthService`, `SystemConfigService`). The two intentional pieces of module/class state are `MatchScheduleService._seed_locks` (per-match seed-generation locks) and the `discord_queue` module's queue/worker.
+- **Stateless instances.** Services hold only repository/service references; instantiate per request (`MatchService()`) or call static methods on the class (`AuthService`, `SystemConfigService`). The intentional pieces of module/class state are `MatchScheduleService._seed_locks` (per-match seed-generation locks), the `discord_queue` module's queue/worker, and the `volunteer_reminder` module's background loop task.
 - **`(ok, message)` tuple returns** are the exception, not the rule, and exist only where failure is routine and must not raise:
   - `DiscordService.send_dm*`, `add_role_to_user`, `remove_role_from_user` → `(bool, str)`
   - `DiscordService.list_guilds`, `list_guild_roles` → `(bool, data_or_error)`
@@ -25,15 +25,21 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
+| `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Personal API access token issue/revoke/authenticate | [rest-api.md](rest-api.md) |
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
 | `AuthService` / `current_user_from_storage` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
+| `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew approval and acknowledgment | [crew-management.md](../features/crew-management.md) |
 | `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord-role-sync.md](../features/discord-role-sync.md) |
 | `discord_queue` (module) | [discord_queue.py](../../application/services/discord_queue.py) | Serialized background Discord sends | [discord-integration.md](discord-integration.md) |
 | `DiscordService` / `MockDiscordService` | [discord_service.py](../../application/services/discord_service.py) | Bot DMs, button views, guild roles | [discord-integration.md](discord-integration.md) |
+| `EquipmentService` | [equipment_service.py](../../application/services/equipment_service.py) | Lending-asset CRUD and checkout/check-in workflow | — |
+| `FeedbackService` | [feedback_service.py](../../application/services/feedback_service.py) | In-app feedback submission and review | — |
 | `MatchScheduleService` | [match_schedule_service.py](../../application/services/match_schedule_service.py) | Match lifecycle transitions, seed rolls, DM fan-out | [discord-notifications.md](../features/discord-notifications.md) |
 | `MatchService` | [match_service.py](../../application/services/match_service.py) | Match CRUD, display formatting, crew signup, acknowledgments | [match-acknowledgment.md](../features/match-acknowledgment.md) |
+| `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-watcher.md](../features/match-watcher.md) |
+| `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
@@ -42,14 +48,33 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
+| `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
+| `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
+| `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
+| `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
+| `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
+| `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-All classes and `current_user_from_storage` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); `discord_queue` is imported as a module (`from application.services import discord_queue`).
+All classes and `current_user_from_storage` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); `discord_queue` and `volunteer_reminder` are imported as modules (`from application.services import discord_queue`).
+
+### api_token_service.py — ApiTokenService
+
+Issues, lists, revokes, and authenticates personal API access tokens. Only the SHA-256 hash of a token is persisted; the plaintext (prefixed `sglman_pat_`) is returned exactly once, at creation. A token authenticates as its owning `User` and inherits that user's permissions; a `read_only` token is restricted to read (GET) endpoints by the API auth layer. Used by the REST API; see [rest-api.md](rest-api.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `create_token(actor, name, read_only=False, expires_at=None)` | `(ApiToken, str)` | Create a token for `actor`; returns the record and the **raw token** (only chance to capture it). Non-empty name required; `expires_at` must be in the future (else `ValueError`). Audits `apitoken.created`. |
+| `list_tokens(actor)` | `list[ApiToken]` | The actor's own active (non-revoked) tokens. |
+| `revoke_token(actor, token_id)` | `None` | Revoke; `ValueError` for unknown/already-revoked tokens, `PermissionError` when the token belongs to another user. Audits `apitoken.revoked`. |
+| `authenticate(raw_token)` | `(User, ApiToken) \| None` | Resolve a raw bearer token to its owner. Returns `None` for unknown/revoked/expired tokens (logged as warnings); on success updates `last_used_at`. |
+
+Collaborators: `ApiTokenRepository`, `AuditService`. Consumers: the REST API authentication layer (bearer-token auth) and the token-management UI.
 
 ### audit_service.py — AuditService
 
 Writes and queries `AuditLog` rows. Every mutating service action records who did what, with JSON-encoded details. Canonical doc: [audit-logging.md](../features/audit-logging.md).
 
-**`AuditActions`** is a plain constants class holding every namespaced `verb.object` action string used in the codebase — one place to grep when reviewing audit coverage. Namespaces covered: `match.*` (lifecycle, CRUD, stage/station assignment, stream-candidate flag, watchers, seed rolls), `crew.*` (signups, approval, acknowledgment), `tournament.*` (CRUD, TA/CC grants), `user.*` (CRUD, profile edits, activation, roles, enrollments), `stream_room.*` (CRUD), `system_config.*` (updates), and `triforce_text.*` (submission/moderation lifecycle). Add a new constant here when introducing a new action; never pass literal strings.
+**`AuditActions`** is a plain constants class holding every namespaced `verb.object` action string used in the codebase — one place to grep when reviewing audit coverage. Namespaces covered: `match.*` (lifecycle, CRUD, stage/station assignment, stream-candidate flag, watchers, seed rolls), `crew.*` (signups, approval, acknowledgment), `tournament.*` (CRUD, TA/CC grants), `user.*` (CRUD, profile edits, activation, roles, enrollments), `stream_room.*` (CRUD), `system_config.*` (updates), `triforce_text.*` (submission/moderation lifecycle), `apitoken.*` (issue/revoke), `feedback.*` (submission/review), `equipment.*` (asset CRUD, checkout/check-in), `challonge.*` (connection, player/tournament linking, bracket sync, result push), `volunteer.*` (opt-in, position/shift CRUD, assignment, acknowledgment, drafts), and `player_availability.*` (window updates). Add a new constant here when introducing a new action; never pass literal strings.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -72,6 +97,9 @@ Stateless authorization policy: every check is a `@staticmethod` taking `User | 
 | `is_staff(user)` | `bool` | Holds `Role.STAFF`. |
 | `is_proctor(user)` | `bool` | Holds `Role.PROCTOR`. |
 | `is_stream_manager(user)` | `bool` | Holds `Role.STREAM_MANAGER`. |
+| `is_volunteer_coordinator(user)` | `bool` | Holds `Role.VOLUNTEER_COORDINATOR`. |
+| `is_equipment_manager(user)` | `bool` | Holds `Role.EQUIPMENT_MANAGER`. |
+| `is_volunteer(user)` | `bool` | Holds `Role.VOLUNTEER`. |
 | `is_tournament_admin(user, tournament_id)` | `bool` | Listed in `Tournament.admins`. |
 | `is_crew_coordinator_of(user, tournament_id)` | `bool` | Listed in `Tournament.crew_coordinators`. |
 | `can_view_admin(user)` | `bool` | Any global role, or TA/CC of any tournament. |
@@ -80,6 +108,10 @@ Stateless authorization policy: every check is a `@staticmethod` taking `User | 
 | `can_transition_match(user, match)` | `bool` | Staff, Proctor, or TA — gates seat/start/finish/confirm, seed rolls, station assignment. |
 | `can_approve_crew(user, match)` | `bool` | Staff, TA, or CC of the match's tournament. |
 | `can_manage_stream_rooms(user)` | `bool` | Staff or Stream Manager — gates StreamRoom CRUD. |
+| `can_manage_volunteers(user)` | `bool` | Staff or Volunteer Coordinator — gates volunteer position/shift/assignment management and the auto-scheduler. |
+| `can_manage_equipment(user)` | `bool` | Staff or Equipment Manager — gates asset CRUD and check-in. |
+| `can_checkout_equipment(user)` | `bool` | Manager (any borrower) or Volunteer (self-checkout only). |
+| `can_checkin_equipment(user)` | `bool` | Staff or Equipment Manager. |
 | `can_assign_match_stream(user, match)` | `bool` | Stream Manager globally, or TA of the match's tournament — gates stage assignment and the stream-candidate flag. |
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
 | `ensure(allowed, message="Permission denied")` | `None` | Raises `PermissionError(message)` when `allowed` is falsy; the standard gate inside mutating services. |
@@ -87,6 +119,36 @@ Stateless authorization policy: every check is a `@staticmethod` taking `User | 
 **Module-level helper:** `current_user_from_storage() -> User | None` resolves the session's `discord_id` from `app.storage.user` to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
 
 Consumers: `middleware/auth.py` (`protected_page` role enforcement), nearly every page and dialog (`pages/home.py`, `pages/admin.py`, `pages/admin_tabs/*`, `theme/dialog/*`, `theme/tables/*`), and all mutating services via `ensure`.
+
+### challonge_service.py — ChallongeService
+
+Coordinates the Challonge integration: one shared SGL service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock_challongepy).
+
+| Method | Returns | Description |
+|---|---|---|
+| `is_configured()` (static) | `bool` | OAuth app credentials are present (or mock is on). |
+| `service_authorize_url(state)` / `player_authorize_url(state)` (static) | `str` | Challonge OAuth authorize URL for the service-account / per-player flow. |
+| `redirect_uri()` (static) | `str` | The single registered OAuth redirect URI (both flows). |
+| `get_valid_access_token(force_refresh=False)` | `str` | Live service access token, refreshing when expiring/forced; `ValueError` when not connected or no refresh token is available. |
+| `save_service_connection(token_payload, actor)` | `ChallongeConnection` | Staff-only; stores the service-account tokens and connected username; audits `challonge.connected`. |
+| `disconnect(actor)` | `None` | Staff-only; clears the connection; audits `challonge.disconnected`. |
+| `get_connection_status()` | `dict` | `{connected, configured, request_usage, request_quota, ...}` for the admin UI. |
+| `record_player_link(user, challonge_user_id, challonge_username, actor)` | `None` | Persist a player's linked Challonge identity (OAuth path); audits `challonge.player_linked`. |
+| `participant_tournament_ids(user)` | `set[int]` | Tournament ids whose mirrored bracket includes this user. |
+| `link_player_manually(user, challonge_user_id, challonge_username, actor)` | `None` | Staff override linking a user by Challonge id; rejects ids already linked elsewhere (`ValueError`); audits `challonge.player_linked` with `manual: True`. |
+| `set_player_username(user, challonge_username, actor)` | `None` | Staff override correcting the display username on an already-linked account; audits `challonge.player_username_updated`. |
+| `unlink_player(user, actor)` | `None` | Clear a user's Challonge link; audits `challonge.player_unlinked`. |
+| `exchange_player_code(code)` | `dict` | Exchange a player's auth code and return `{user_id, username}` (token used once, discarded). |
+| `exchange_service_code(code)` | `dict` | Exchange the service-account auth code for a token payload. |
+| `parse_tournament_identifier(id_or_url)` (static) | `str` | Extract a Challonge identifier from a raw id or URL (handles subdomain brackets). |
+| `link_tournament(tournament_id, id_or_url, actor)` | `Tournament` | Gated by `can_edit_tournament`; fetches the bracket, stores the link, and mirrors participants/matches in the same round-trip; audits `challonge.tournament_linked`. |
+| `sync_bracket(tournament_id, actor, force=False)` | `dict[str, int]` | Gated by `can_edit_tournament`; re-fetch and mirror the bracket; non-forced calls inside the throttle window are a no-op (`{skipped: True}`). Audits `challonge.bracket_synced`. |
+| `list_unscheduled_matches_for_user(user)` | `list[ChallongeMatch]` | Open bracket matchups for the user not yet scheduled locally. |
+| `schedule_challonge_match(challonge_match_pk, scheduled_date, scheduled_time, actor, comment=None)` | `Match` | Schedule an open matchup via `MatchService.submit_match_request` and link it; `ValueError` for already-scheduled/not-ready matches or unlinked players. |
+| `push_result_if_linked(match, actor)` | `bool` | Push the result only when the match mirrors a Challonge match; returns whether a push was attempted (used by the confirm flow). |
+| `push_match_result(match, actor)` | `None` | Report the recorded winner/loser to Challonge, then force a re-sync to surface newly-opened next-round matches; audits `challonge.result_pushed`. |
+
+Collaborators: `ChallongeRepository`, `TournamentRepository`, `MatchService`, `AuthService`, `AuditService`, [`challonge_client.py`](#challonge_clientpy) (`ChallongeClient`/`MockChallongeClient`), [`mock_challonge.py`](#mock_challongepy). Consumers: the Challonge OAuth callback middleware, the admin Challonge tab, and the player linking/scheduling pages.
 
 ### crew_service.py — CrewService
 
@@ -149,6 +211,39 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 
 Consumers: `MatchScheduleService` and `CrewService` (notification fan-out), `theme/dialog/send_message_dialog.py` (admin "send DM" dialog).
 
+### equipment_service.py — EquipmentService
+
+Lending-asset management (create/edit/delete, bulk creation with auto-assigned asset numbers) and the checkout/check-in workflow with full loan history. Asset management is gated by `AuthService.can_manage_equipment` (Staff or Equipment Manager); checkout by `can_checkout_equipment` (managers, or Volunteers checking out to themselves only); check-in by `can_checkin_equipment`. Audited under `equipment.*`. Module constant: `MAX_BULK_COUNT = 200`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `create_asset(actor, name, description=None, private_notes=None, owner_user_id=None)` | `Equipment` | Manager-only; auto-assigns the next asset number; non-empty name required; `owner_user_id=None` means SpeedGaming Live. Audits `equipment.created`. |
+| `bulk_create_assets(actor, name, count, description=None, private_notes=None, owner_user_id=None)` | `list[Equipment]` | Manager-only; create `count` (1–200) consecutively numbered assets. |
+| `update_asset(actor, equipment_id, name, description, private_notes, owner_user_id, status=None)` | `Equipment` | Manager-only edit; refuses to set/clear `CHECKED_OUT` status directly (use checkout/check-in). Audits `equipment.updated`. |
+| `delete_asset(actor, equipment_id)` | `None` | Manager-only; refuses an asset with an open loan. Audits `equipment.deleted`. |
+| `checkout(actor, equipment_id, borrower_id=None)` | `EquipmentLoan` | Open a loan; managers may set a `borrower_id`, otherwise the borrower is `actor`. Rejects retired/already-checked-out assets; flips status to `CHECKED_OUT`. Audits `equipment.checked_out`. |
+| `checkin(actor, equipment_id)` | `Equipment` | Close the open loan and flip status to `AVAILABLE`; `ValueError` when not checked out. Audits `equipment.checked_in`. |
+| `list_assets()` | `list[Equipment]` | All assets. |
+| `get_asset(equipment_id)` | `Equipment \| None` | Lookup by id. |
+| `current_loan(equipment)` | `EquipmentLoan \| None` | The open loan for an asset, if any. |
+| `open_loans_by_equipment_id()` | `dict[int, EquipmentLoan]` | All open loans keyed by equipment id (table batch-load). |
+| `loan_history(equipment)` | `list[EquipmentLoan]` | Full loan history for an asset. |
+| `my_checkouts(user)` | `list[EquipmentLoan]` | A user's currently-open loans. |
+
+Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipment detail pages render QR codes via [`qrcode_util.py`](#qrcode_utilpy).
+
+### feedback_service.py — FeedbackService
+
+Records in-app feedback from logged-in attendees and lets admins review it. The submitted category is coerced to a valid `FeedbackCategory` (defaulting to `OTHER`); the page URL is truncated to `PAGE_URL_MAX_LENGTH = 512`. Audited under `feedback.*`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `submit(actor, category, message, page_url)` | `Feedback` | Record a submission from `actor`; non-empty message required (`ValueError`). Audits `feedback.submitted`. |
+| `list_recent(limit=200)` | `list[Feedback]` | Recent submissions for the admin review list. |
+| `mark_reviewed(actor, feedback_id)` | `Feedback` | Admin-only (`can_view_admin`); sets status `REVIEWED`; `ValueError` for unknown id. Audits `feedback.reviewed`. |
+
+Collaborators: `FeedbackRepository`, `AuthService`, `AuditService`. Consumers: the in-app feedback dialog and the admin feedback review tab.
+
 ### match_schedule_service.py — MatchScheduleService
 
 Match lifecycle transitions (seat → start → finish → confirm), seed rolling, and all Discord DM fan-out for match events. Every transition is gated by `AuthService.can_transition_match`, validates ordering (e.g. "Match must be checked in before starting" as `ValueError`), stamps the timestamp, writes the matching `match.*` audit action, and enqueues a participant DM. Feature docs: [discord-notifications.md](../features/discord-notifications.md), [match-acknowledgment.md](../features/match-acknowledgment.md), [match-watcher.md](../features/match-watcher.md).
@@ -203,6 +298,16 @@ The largest service: match CRUD with full notification fan-out, display formatti
 
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `StreamRoomRepository`, `TournamentRepository`, `UserRepository`, `CommentatorRepository`, `TrackerRepository`, `AuditService`, `MatchScheduleService` (notify helpers and DM message builders), `AuthService`, `discord_queue`. Consumers: `theme/tables/match.py` (display rows, signup, acknowledge), `theme/dialog/match_dialog.py` (create/update/delete/request), `theme/dialog/match_result_dialog.py`, `theme/dialog/station_assignment_dialog.py`, `theme/dialog/stream_room_dialog.py` (stage + candidate flag), `pages/home_tabs/schedule.py`, `pages/home_tabs/stage_timeline.py`, `pages/home_tabs/player.py`, `discordbot/crew_signup.py` and `discordbot/match_acknowledgment.py` (DM button handlers).
 
+### match_suggestion_service.py — MatchSuggestionService
+
+Suggests an optimal match start time by finding occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy (and preferring slots all players prefer). Searches the next 4 hours within the configured tournament hours first, then falls back to the full remaining event window. Player availability is honoured: a slot is ineligible if any player with declared windows is unavailable for it. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `suggest_match_time(tournament_id, player_ids)` | `datetime` | Best UTC start time for the match. Raises `ValueError` when no eligible slot exists within the event schedule. |
+
+Collaborators: `PlayerAvailabilityRepository`, `SystemConfigService` (`get_tournament_hours`, `get_event_window`), [`timezone.py`](#timezonepy), queries `Match`/`Tournament` directly. Consumers: the match-request/create dialogs ("suggest time" helper).
+
 ### match_watcher_service.py — MatchWatcherService
 
 Opt-in "watch this match" subscriptions: watchers receive lifecycle DMs without being players or crew. The DM fan-out itself happens in `MatchScheduleService`. Feature doc: [match-watcher.md](../features/match-watcher.md).
@@ -215,6 +320,21 @@ Opt-in "watch this match" subscriptions: watchers receive lifecycle DMs without 
 | `list_watched_match_ids(user)` | `list[int]` | All match ids the user watches (used to mark rows in the schedule table). |
 
 Collaborators: `MatchWatcherRepository`, `MatchRepository`, `AuditService`. Consumers: `theme/tables/match.py` and `theme/dialog/match_dialog.py` (watch toggles), `discordbot/watch_buttons.py` (Unwatch DM button).
+
+### player_availability_service.py — PlayerAvailabilityService
+
+Self-service availability for any logged-in player — unlike volunteer availability there is no role or opt-in gate. A user's windows are replaced wholesale on each save. Windows carry a `VolunteerAvailabilityStatus` (`AVAILABLE`/`PREFERRED`/`UNAVAILABLE`). Audited under `player_availability.*`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `availability_for(user)` | `list[PlayerAvailability]` | The user's declared windows. |
+| `set_windows(user, windows)` | `list[PlayerAvailability]` | Replace the user's availability with `(starts_at, ends_at, status, note)` tuples (each must end after it starts); transactional. Audits `player_availability.updated`. |
+| `clear(user)` | `None` | Delete all of the user's windows; audits `player_availability.updated` with `window_count: 0`. |
+| `availability_map(user_ids, start, end)` | `dict[int, list[PlayerAvailability]]` | user_id → windows overlapping `[start, end]` (batch lookup). |
+| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus \| None` | Strongest signal for a window: an overlapping `UNAVAILABLE` wins; else `PREFERRED` beats `AVAILABLE`; `None` if nothing overlaps. |
+| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status \| None)]` | Split `[start, end]` into maximal constant-availability segments (resolved by `covers` precedence, adjacent equal segments merged). |
+
+Collaborators: `PlayerAvailabilityRepository`, `AuditService`. Consumers: the player availability page and `MatchSuggestionService`.
 
 ### reports_service.py — ReportsService
 
@@ -261,19 +381,24 @@ Collaborators: `StreamRoomRepository`, `AuditService`. Consumers: `theme/dialog/
 
 ### system_config_service.py — SystemConfigService
 
-Typed, static accessors over the `SystemConfiguration` key/value table; used mainly by reports. Module constants name the known keys: `event_start_date`, `event_end_date`, `max_concurrent_players`, `max_concurrent_stages`.
+Typed, static accessors over the `SystemConfiguration` key/value table. Module constants name the known keys: `KEY_EVENT_START_DATE`, `KEY_EVENT_END_DATE`, `KEY_MAX_CONCURRENT_PLAYERS`, `KEY_MAX_CONCURRENT_STAGES`, `KEY_VOLUNTEER_REMINDER_LEAD_MINUTES`, `KEY_TOURNAMENT_HOURS`, `KEY_DISCORD_SYNC_GUILD_ID`.
 
 | Method | Returns | Description |
 |---|---|---|
 | `get_raw(key)` | `str \| None` | Raw stored value. |
 | `set_raw(key, value, actor)` | `SystemConfiguration` | Upsert; Staff-only (`ensure`); audits `system_config.updated` with old/new values. |
 | `get_int(key, default=None)` | `int \| None` | Int parse with fallback on missing/garbage values. |
+| `get_discord_sync_guild_id()` | `int \| None` | Discord guild id used for login-time role sync (read by `DiscordRoleMappingService`). |
 | `get_date(key, default=None)` | `date \| None` | ISO date parse with fallback. |
 | `get_event_window()` | `(date, date)` | Event start/end. Falls back to min/max `Match.scheduled_at`, then to today; clamps end ≥ start. |
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stream rooms. |
+| `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
+| `get_tournament_hours()` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). |
+| `get_tournament_window_for_date(d)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |
+| `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; validates HH:MM format and that close is after open (`ValueError`). |
 
-Consumers: `ReportsService` and `pages/admin_tabs/reports/` (`shared.py`, `capacity.py`, `dashboard.py`).
+Consumers: `ReportsService`, `MatchSuggestionService`, `volunteer_reminder`, `DiscordRoleMappingService`, and `pages/admin_tabs/reports/` (`shared.py`, `capacity.py`, `dashboard.py`).
 
 ### tournament_notification_service.py — TournamentNotificationService
 
@@ -343,7 +468,116 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 
 Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthService`. Consumers: `theme/dialog/user_edit_dialog.py` (admin user management), `pages/home_tabs/player_edit_info.py` (self profile), `theme/tables/match.py` and `pages/home_tabs/schedule.py` (session-user resolution).
 
+## Volunteering
+
+The onsite volunteer subsystem spans five services plus a background reminder loop. The data flow is: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`) and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
+
+### volunteer_profile_service.py — VolunteerProfileService
+
+Opt-in lifecycle (self-service for any logged-in user) plus the assignable-volunteer pool the coordinator UI and auto-scheduler read.
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_or_create(user)` | `VolunteerProfile` | The user's profile, creating an empty one if needed. |
+| `is_opted_in(user)` | `bool` | Whether the user has an `opted_in_at` timestamp. |
+| `opt_in(user, note=None)` | `VolunteerProfile` | Stamp `opted_in_at` (idempotent) and optionally set the note; audits `volunteer.opted_in`. |
+| `opt_out(user)` | `VolunteerProfile` | Clear `opted_in_at`; audits `volunteer.opted_out` only when it was set. |
+| `update_note(user, note)` | `VolunteerProfile` | Set the free-text note (no audit). |
+| `assignable_volunteers()` | `list[User]` | All opted-in users, ordered by preferred name. |
+
+Collaborators: `VolunteerProfileRepository`, `AuditService`.
+
+### volunteer_availability_service.py — VolunteerAvailabilityService
+
+Self-service availability for opted-in volunteers, plus the coordinator-picker lookups that flag who is available for a shift. Windows carry a `VolunteerAvailabilityStatus` and are replaced wholesale on each save. (Mirrors `PlayerAvailabilityService` but requires an active volunteer opt-in.)
+
+| Method | Returns | Description |
+|---|---|---|
+| `availability_for(user)` | `list[VolunteerAvailability]` | The user's declared windows. |
+| `set_windows(user, windows)` | `list[VolunteerAvailability]` | Replace availability with `(starts_at, ends_at, status, note)` tuples; **requires the user to be opted in** (`ValueError`); each window must end after it starts; transactional. Audits `volunteer.availability_updated`. |
+| `clear(user)` | `None` | Delete all windows; audits `volunteer.availability_updated` with `window_count: 0`. |
+| `availability_map(user_ids, start, end)` | `dict[int, list[VolunteerAvailability]]` | user_id → windows overlapping `[start, end]`. |
+| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus \| None` | Strongest signal for a shift (unavailable > preferred > available; `None` if nothing overlaps). |
+| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status \| None)]` | Split `[start, end]` into maximal constant-availability segments. |
+
+Collaborators: `VolunteerAvailabilityRepository`, `VolunteerProfileRepository`, `AuditService`. Consumers: `VolunteerScheduleService` (assignment availability warnings) and `VolunteerAutoscheduleService` (candidate scoring).
+
+### volunteer_position_service.py — VolunteerPositionService
+
+CRUD for the arbitrary, coordinator-defined position/job list. Positions optionally configure staggered rolling shifts via `shift_length_minutes`/`stagger_minutes` (both set or both blank).
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_all()` / `list_active()` | `list[VolunteerPosition]` | All positions, or only active ones. |
+| `get(position_id)` | `VolunteerPosition \| None` | Lookup by id. |
+| `create(actor, name, description=None, color=None, display_order=0, is_active=True, shift_length_minutes=None, stagger_minutes=None)` | `VolunteerPosition` | Coordinator-only; non-empty unique name required; validates the stagger config (positive, stagger ≤ shift length). Audits `volunteer.position_created`. |
+| `update(actor, position, **fields)` | `VolunteerPosition` | Coordinator-only partial update; re-validates name uniqueness and stagger config when those fields change. Audits `volunteer.position_updated`. |
+| `delete(actor, position)` | `None` | Coordinator-only; audits `volunteer.position_deleted`. |
+
+Collaborators: `VolunteerPositionRepository`, `AuthService`, `AuditService`.
+
+### volunteer_schedule_service.py — VolunteerScheduleService
+
+Core shift/assignment operations: creating shifts (including bulk day generation with optional staggered rolling shifts), placing and removing volunteers, self-acknowledgment, and coverage. Mirrors the crew signup/approve/acknowledge flow for Discord notifications. Assignment acknowledgment timestamps are stamped in Eastern.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_shifts_for_window(start, end)` | `list[VolunteerShift]` | Shifts overlapping `[start, end]`. |
+| `get_shift(shift_id)` | `VolunteerShift \| None` | Lookup by id. |
+| `create_shift(actor, position_id, starts_at, ends_at, label=None, slots_needed=1, notes=None)` | `VolunteerShift` | Coordinator-only; requires end after start and ≥1 slot. Audits `volunteer.shift_created`. |
+| `generate_day_shifts(actor, date_str, position_ids, blocks)` | `list[VolunteerShift]` | Coordinator-only; create a day's shifts from `(label, start_HHMM, end_HHMM)` blocks (a block ending ≤ its start crosses midnight). Staggered positions instead get rolling shifts spanning the day window. Transactional; audits `volunteer.shift_created`. |
+| `update_shift(actor, shift, **fields)` | `VolunteerShift` | Coordinator-only partial update; same end>start / slots≥1 validation. Audits `volunteer.shift_updated`. |
+| `delete_shift(actor, shift)` | `None` | Coordinator-only; audits `volunteer.shift_deleted`. |
+| `reset_all_shifts(actor)` | `int` | Coordinator-only; delete every shift; returns the count; audits `volunteer.shifts_reset`. |
+| `assign(actor, shift, user, *, auto_generated=False, notify=True)` | `(VolunteerAssignment, list[str])` | Coordinator-only. Hard-fails (`ValueError`) on duplicate or overlapping assignment; returns soft warnings for overfilled shifts and stated-unavailability. Enqueues an acknowledgment-request DM unless auto-generated. Audits `volunteer.assigned`. |
+| `unassign(actor, assignment)` | `None` | Coordinator-only; audits `volunteer.unassigned`. |
+| `acknowledge(assignment_id, user)` | `VolunteerAssignment` | Self-acknowledge (idempotent); rejects other users' assignments (`ValueError`). Audits `volunteer.acknowledged`. |
+| `assignments_for_user(user, upcoming_after=None)` | `list[VolunteerAssignment]` | A user's assignments, optionally only those starting after a cutoff. |
+| `coverage(start, end)` | `list[dict]` | Per-shift filled/needed counts (flagging understaffed shifts). |
+
+Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPositionRepository`, `VolunteerAvailabilityService`, `DiscordService` (via `discord_queue`), `AuditService`, `AuthService`, [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy). Consumers: the coordinator schedule tab, the volunteer's own shift list, and `discordbot/` (the volunteer-acknowledge DM button).
+
+### volunteer_autoschedule_service.py — VolunteerAutoscheduleService
+
+Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool using qualifications, availability, no-overlap, and hour load-balancing, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
+
+| Method | Returns | Description |
+|---|---|---|
+| `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions); returns `{created, unfilled, pool_size}`. Transactional; audits `volunteer.draft_generated`. |
+| `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. |
+
+Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly. Consumers: the coordinator auto-fill action.
+
+### volunteer_reminder.py — module functions
+
+A lightweight background worker (modeled on `discord_queue`) that periodically finds upcoming volunteer assignments within the configured lead time, enqueues a reminder DM with an acknowledge button, and stamps `reminder_sent_at` so each assignment is reminded only once (the stamp is written before the DM so a delivery failure or restart cannot re-fire). Module constant: `TICK_SECONDS = 60`.
+
+| Function | Returns | Description |
+|---|---|---|
+| `start()` | `None` | Create the loop task on the running event loop (idempotent). Called from `main.py` lifespan startup. |
+| `stop()` (async) | `None` | Cancel the loop and await its exit. Called from lifespan shutdown. |
+
+Collaborators: `VolunteerAssignmentRepository`, `SystemConfigService.get_volunteer_reminder_lead_minutes`, `DiscordService` (via `discord_queue`), [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy). Imported as a module (`from application.services import volunteer_reminder`).
+
 ## Utilities (`application/utils/`)
+
+### challonge_client.py
+
+Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the integration needs, plus OAuth token exchange/refresh ([challonge_client.py](../../application/utils/challonge_client.py)). Returns **normalized** Python dicts so `ChallongeService` never sees the JSON:API wire shape. Authenticated calls obtain a bearer token via an injected `token_provider` callback and transparently refresh-on-401 and retry once; an optional `on_request` hook counts real outbound requests for quota tracking. Module constants: `AUTHORIZE_URL`, `TOKEN_URL`, `BASE_URL`.
+
+| Member | Returns | Description |
+|---|---|---|
+| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | Challonge OAuth authorize URL to redirect the browser to. |
+| `ChallongeAPIError` (exception) | — | Raised on an API error or unexpected payload. |
+| `ChallongeClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
+| `ChallongeClient.refresh(refresh_token)` | `dict` | Exchange a refresh token for a new token payload. |
+| `ChallongeClient.get_me(access_token)` | `{user_id, username}` | The authenticated account identity for a raw token. |
+| `ChallongeClient.get_tournament(tournament_id)` | `{id, name, url, state}` | A tournament's summary. |
+| `ChallongeClient.list_participants(tournament_id)` | `list[dict]` | Normalized participant records. |
+| `ChallongeClient.list_matches(tournament_id)` | `list[dict]` | Normalized match records. |
+| `ChallongeClient.get_tournament_full(tournament_id)` | `{tournament, participants, matches}` | Tournament plus embedded participants and matches in one request. |
+| `ChallongeClient.update_match(tournament_id, match_id, winner_participant_id, loser_participant_id, winner_score='1', loser_score='0')` | `None` | Report a match result (winner flagged `advancing`). |
+| `MockChallongeClient` | — | `MOCK_CHALLONGE` stub returning a canned 4-player single-elim bracket so local dev can click through connect/link/sync/schedule/push. |
 
 ### csv_export.py
 
@@ -355,6 +589,24 @@ CSV rendering for the report tables ([csv_export.py](../../application/utils/csv
 | `timestamped_filename(prefix, ext='csv')` | `str` | `prefix-20251130T143015Z.csv`-style download filename (UTC stamp). |
 
 **CSV-injection safety:** every non-numeric cell whose stripped value starts with `=`, `+`, `-`, or `@` is prefixed with an apostrophe so spreadsheet apps treat it as text rather than a formula. Numbers are exempt (so negative values export cleanly); booleans render as `true`/`false`; datetimes as ISO strings; `None` as empty.
+
+### discord_messages.py
+
+The single source of all Discord DM and ephemeral message text ([discord_messages.py](../../application/utils/discord_messages.py)). Service and handler code imports builder functions and constants from here rather than inlining strings, so wording stays consistent and centrally editable. Messages deliberately never expose raw match id numbers — a match is identified by players, scheduled time, and stage.
+
+Notable members:
+
+- **Shared constants:** `MSG_NO_ACCOUNT`, `MSG_UNEXPECTED_ERROR_MATCH`, `MSG_UNEXPECTED_ERROR_CREW`.
+- **Match scheduling DMs** (sent by `MatchScheduleService`/`MatchService`): `scheduled_dm`, `rescheduled_dm`, `acknowledgment_request_dm`, `checked_in_dm`, `state_changed_dm`, `stream_candidate_dm`, `seed_dm`.
+- **Crew DMs** (`CrewService`): `crew_assignment_dm`.
+- **Volunteer DMs** (`VolunteerScheduleService`, `volunteer_reminder`): `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_ack_confirmation`.
+- **Ephemeral button replies** (`discordbot/`): `match_ack_confirmation`, `crew_ack_confirmation`, `crew_signup_confirmation`, `unwatch_confirmation`.
+
+All builders are pure functions returning `str`; optional fields passed as `None`/`''` are omitted from the rendered message.
+
+### easter_eggs.py
+
+A small bank of trivia strings surfaced in incidental UI spots ([easter_eggs.py](../../application/utils/easter_eggs.py)). `random_fact() -> str` returns a uniformly-random fact drawn from the combined topic lists (roller coasters, cats, Balatro, Diablo, WoW, Hamilton, Cloverpit). No external dependencies or side effects.
 
 ### environment.py
 
@@ -376,6 +628,34 @@ Single helper backing the [`MOCK_DISCORD` development mode](../features/mock-dis
 
 This check is what swaps `DiscordService` for `MockDiscordService` at import time (see [discord_service.py](#discord_servicepy--discordservice-mockdiscordservice-get_discord_bot)).
 
+### mock_challonge.py
+
+The Challonge counterpart to `mock_discord` ([mock_challonge.py](../../application/utils/mock_challonge.py)). Lets local development exercise the full Challonge flow (connect, link, sync, schedule, push results) without a real OAuth app or bracket.
+
+| Function | Returns | Description |
+|---|---|---|
+| `is_mock_challonge()` | `bool` | True when `MOCK_CHALLONGE` is `1`/`true`/`yes`. Because it fakes an authenticated Challonge connection, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
+
+`ChallongeService` reads this to choose `MockChallongeClient` over `ChallongeClient` and to report `is_configured()` as true in mock mode.
+
+### qrcode_util.py
+
+QR code generation for equipment assets ([qrcode_util.py](../../application/utils/qrcode_util.py)). Each code encodes the absolute URL of an asset's detail page (`{BASE_URL}/equipment/{asset_id}`, login required) so scanning jumps straight to it.
+
+| Function | Returns | Description |
+|---|---|---|
+| `asset_url(asset_id)` | `str` | The asset's absolute detail-page URL. |
+| `asset_qr_png_bytes(asset_id)` | `bytes` | The QR code rendered as PNG bytes. |
+| `asset_qr_data_uri(asset_id)` | `str` | The QR code as a `data:image/png;base64` URI for inline `<img>` display. |
+
+### sentry.py
+
+Sentry error-monitoring initialization ([sentry.py](../../application/utils/sentry.py)). Wires the Sentry Python SDK into the process; a no-op unless `SENTRY_DSN` is set, so local dev and tests are unaffected. Once initialized it auto-instruments FastAPI/Starlette and stdlib `logging`, capturing unhandled exceptions and `logger.error`/`logger.exception` records across the request path, NiceGUI pages, and the Discord bot.
+
+| Function | Returns | Description |
+|---|---|---|
+| `init_sentry()` | `None` | Initialize the SDK when `SENTRY_DSN` is configured; must run before the FastAPI app/middleware are built. Sets `environment` from `get_environment()`, `send_default_pii=False`, an optional `SENTRY_TRACES_SAMPLE_RATE`, and a `before_send` hook that scrubs `Authorization`/`Cookie`/`Set-Cookie`/`X-API-Key` headers and cookies from every outgoing event. |
+
 ### timezone.py
 
 Canonical UTC-storage / Eastern-display utilities. Full rules and rationale: [timezone-handling.md](../timezone-handling.md) ([timezone.py](../../application/utils/timezone.py)).
@@ -393,7 +673,7 @@ Canonical UTC-storage / Eastern-display utilities. Full rules and rationale: [ti
 
 ## Testing the service layer
 
-Service tests live in `tests/services/` — one `test_<service>_service.py` module per service (13 of the 16 modules are covered; `discord_queue`, `discord_service`, and `seedgen_service` have no dedicated suite). Key fixtures:
+Service tests live in `tests/services/` — broadly one `test_<service>.py` module per service (covering audit, auth, challonge, crew, discord role-mapping/member-sync, equipment, feedback, match/match-schedule/match-watcher, reports, stream room, system config, tournament/tournament-notification, triforce text, user, and volunteer scheduling). Several modules — including `discord_queue`, `discord_service`, `seedgen_service`, the availability/suggestion services, `volunteer_reminder`, and the volunteer profile/position/availability/autoschedule services — have no dedicated suite. Key fixtures:
 
 - [`tests/conftest.py`](../../tests/conftest.py) provides a function-scoped `db` fixture: a fresh in-memory SQLite database per test via `Tortoise.init(db_url="sqlite://:memory:")` + `generate_schemas()`, torn down by closing connections — no state leaks between tests.
 - [`tests/services/conftest.py`](../../tests/services/conftest.py) adds an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture coroutines instead of running them, letting tests assert that notifications were enqueued while closing the coroutines to avoid "never awaited" warnings.

@@ -35,7 +35,7 @@ Everything runs in **one Uvicorn worker** (`start.sh prod` passes `--workers 1`)
    3. `discord_queue.start()` — starts the background worker that serializes outbound Discord DMs (see [reference/discord-integration.md](reference/discord-integration.md)).
 2. **Lifespan shutdown** — reverse order: `discord_queue.stop()` → `close_discord_bot()` → `Tortoise.close_connections()`.
 
-The FastAPI app is created with `docs_url="/api/docs"` and `redoc_url="/api/redoc"`, and the REST router from [`api.py`](../api.py) is mounted at the `/api` prefix (see [reference/rest-api.md](reference/rest-api.md)).
+The FastAPI app is created with `docs_url="/api/docs"` and `redoc_url="/api/redoc"`, and the REST routers from the [`api/`](../api/) package are mounted at the `/api` prefix (see [reference/rest-api.md](reference/rest-api.md)).
 
 [`frontend.py`](../frontend.py) then attaches the UI:
 
@@ -73,7 +73,7 @@ flowchart LR
         FE["pages/ + theme/<br/>(presentation)"]
         SVC["application/services/<br/>(business logic)"]
         REPO["application/repositories/<br/>(data access)"]
-        API["api.py<br/>GET /api/matches"]
+        API["api/ routers<br/>REST API (token auth)"]
         AUTH["middleware/auth.py<br/>Discord OAuth"]
         BOT["Discord bot (py-cord)<br/>+ discordbot/ handlers"]
         Q["discord_queue<br/>(async DM worker)"]
@@ -85,6 +85,7 @@ flowchart LR
     UI <--> FE
     UI -->|/login, /oauth/callback| AUTH
     FE --> SVC
+    API --> SVC
     API --> REPO
     AUTH --> SVC
     SVC --> REPO
@@ -100,7 +101,7 @@ flowchart LR
 
 Notes on the arrows:
 
-- The REST API ([`api.py`](../api.py)) is read-only and public; it queries the ORM directly (it predates the repository layer and performs only reads).
+- The REST API (the [`api/`](../api/) package) is a full read/write API authenticated by personal access tokens (`Authorization: Bearer …`, see [reference/rest-api.md](reference/rest-api.md)). Newer routers call **into the service layer** like any other presentation layer; the original public `GET /api/matches` read path still queries the ORM directly (it predates the repository layer).
 - Discord button interactions (crew signup, match acknowledgment, unwatch) arrive at the bot and call back **into the service layer** — the bot is a second presentation layer alongside the web UI. See [reference/discord-integration.md](reference/discord-integration.md).
 - Outbound DMs are never sent inline from request handlers; services enqueue them onto `discord_queue` so UI interactions don't block on Discord.
 
@@ -116,15 +117,15 @@ Every top-level entry in the repository, with the doc that covers it:
 |---|---|---|
 | `main.py` | App entry point: lifespan, DB init, bot init, router mounting | this doc |
 | `frontend.py` | NiceGUI ↔ FastAPI integration, static files, page registration | [reference/frontend.md](reference/frontend.md) |
-| `api.py` | Public REST API (`GET /api/matches`) + Pydantic response models | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` | All Tortoise ORM models (20) and enums (2) | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` | Business-logic layer (16 modules) | [reference/services.md](reference/services.md) |
-| `application/repositories/` | Data-access layer (12 repositories) | [reference/data-model.md](reference/data-model.md) |
-| `application/utils/` | Timezone, environment validation, CSV export, mock-Discord flag | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
-| `middleware/` | `auth.py` (Discord OAuth + route protection), `mock_auth.py` (dev login) | [reference/authentication.md](reference/authentication.md) |
-| `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch) | [reference/discord-integration.md](reference/discord-integration.md) |
-| `pages/` | NiceGUI pages: home (4 tabs), admin (role-gated tabs), triforce texts | [reference/frontend.md](reference/frontend.md) |
-| `theme/` | `base.py` layout shell, `dialog/` (12 dialogs), `tables/` (3 table views) | [reference/frontend.md](reference/frontend.md) |
+| `api/` | Public REST API (routers, Pydantic schemas, token auth, rate limiting) | [reference/rest-api.md](reference/rest-api.md) |
+| `models.py` | All Tortoise ORM models (30) and enums (8) | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` | Business-logic layer (29 modules) | [reference/services.md](reference/services.md) |
+| `application/repositories/` | Data-access layer (24 repositories) | [reference/data-model.md](reference/data-model.md) |
+| `application/utils/` | Timezone, environment validation, CSV export, Challonge client, QR codes, Sentry, mock-Discord/Challonge flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
+| `middleware/` | `auth.py` (Discord OAuth + route protection), `mock_auth.py` (dev login), `challonge_oauth.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md) |
+| `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
+| `pages/` | NiceGUI pages: home (7 tabs), admin (role-gated tabs), volunteer, equipment | [reference/frontend.md](reference/frontend.md) |
+| `theme/` | `base.py` layout shell, `dialog/` (dialogs), `tables/` (table views), `realtime.py` | [reference/frontend.md](reference/frontend.md) |
 | `static/` | CSS (and other static assets) served at `/static` | [reference/frontend.md](reference/frontend.md) |
 | `presets/` | Randomizer preset files (alttpr YAML, ootr/smmap JSON) | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | Tortoise connection config + Aerich migration files | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |

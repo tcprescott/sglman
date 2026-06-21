@@ -1,6 +1,6 @@
 # SGLMan — Current Project State
 
-_Last updated: 2026-06-09_
+_Last updated: 2026-06-21_
 
 ## What Is This
 
@@ -38,6 +38,16 @@ The application is functional and in active use. All features listed below are m
 | Triforce delete confirmation | Stable | #31 | `ConfirmationDialog` gates admin triforce-text deletion |
 | Station assignment display | Stable | direct | Admin schedule shows assigned stations per player |
 | Timezone consistency | Stable | #30 | All user-table and report timestamps use Eastern |
+| Discord role sync | Stable | recent | Map Discord guild roles → app roles at login ([discord-role-sync.md](features/discord-role-sync.md)) |
+| Personal API tokens + REST API | Stable | recent | Bearer-token auth, full read/write routers under `api/` ([rest-api.md](reference/rest-api.md)) |
+| In-app feedback | Stable | recent | Logged-in users submit feedback; staff review on admin Feedback tab |
+| Player availability | Stable | recent | Self-service availability windows; feed match-time suggestions |
+| Volunteer scheduling | Stable | recent | Opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders ([data-model.md](reference/data-model.md), [services.md](reference/services.md)) |
+| Equipment lending | Stable | recent | Assets, checkout/check-in, loan history, QR codes; `EQUIPMENT_MANAGER` role |
+| Challonge integration | Stable | recent | Service-account OAuth, bracket mirroring, scheduling, per-player identity linking |
+| Security headers | Stable | #38 | `middleware/security_headers.py` ([security-audit.md](security-audit.md)) |
+
+The four reference docs ([data-model.md](reference/data-model.md), [services.md](reference/services.md), [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md)) carry the method-level detail for the newer subsystems; dedicated feature docs for volunteering, equipment, and Challonge are not yet written.
 
 ## Known Open Issues (from UX Audit, PR #29)
 
@@ -56,7 +66,7 @@ application/services/   ← business logic, validation, audit, Discord notificat
   ↓ calls
 application/repositories/ ← ORM queries (Tortoise)
   ↓ uses
-models.py               ← Tortoise models + Role/MatchNotificationLevel enums
+models.py               ← Tortoise models (30) + enums (8: Role, RoleSource, MatchNotificationLevel, …)
 ```
 
 All datetimes stored UTC; all user-facing times in US/Eastern. See [timezone-handling.md](timezone-handling.md).
@@ -70,7 +80,7 @@ Method-level detail for every file below lives in the [code reference docs](READ
 | File | Purpose |
 |---|---|
 | `main.py` | FastAPI app, DB init, lifespan, Discord bot startup |
-| `api.py` | REST endpoints under `/api` |
+| `api/` | REST routers, Pydantic schemas, token auth, rate limiting under `/api` |
 | `frontend.py` | Registers NiceGUI pages |
 | `models.py` | All Tortoise ORM models + enums |
 | `middleware/auth.py` | Discord OAuth; `@protected_page` decorator; mock mode |
@@ -82,9 +92,11 @@ Method-level detail for every file below lives in the [code reference docs](READ
 | `discordbot/crew_signup.py` | Discord button handler for crew DM signup |
 | `discordbot/match_acknowledgment.py` | Discord button handler for match acknowledgment |
 | `discordbot/watch_buttons.py` | Discord button handler for match watch |
-| `pages/home.py` | Homepage (Schedule / On Air / Profile / Player tabs) |
-| `pages/admin.py` | Admin dashboard (schedule, users, reports, settings tabs) |
-| `pages/triforce_texts.py` | Player triforce text submission |
+| `pages/home.py` | Homepage (Schedule / On Air / Profile / Player / Availability / Triforce / Equipment tabs) |
+| `pages/admin.py` | Admin dashboard (schedule, users, tournaments, stream rooms, volunteers, equipment, challonge, discord roles, feedback, reports, settings) |
+| `pages/volunteer.py` | Volunteer hub (opt-in / availability / my shifts) |
+| `pages/equipment.py` | Equipment asset detail (QR, loan history, checkout/check-in) |
+| `pages/home_tabs/triforce_texts.py` | Player triforce text submission (home tab) |
 
 ## Environment Variables
 

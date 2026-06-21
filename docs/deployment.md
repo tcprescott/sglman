@@ -105,6 +105,14 @@ Every variable the application reads:
 | `SMMAP_SPOILER_TOKEN` | no | built-in token | `application/services/seedgen_service.py` | Overrides the default spoiler token sent to maprando.com for Super Metroid Map Rando seeds. |
 | `SENTRY_DSN` | no | `''` | `application/utils/sentry.py` | When set, enables Sentry error reporting; events are tagged with `ENVIRONMENT` and carry the logged-in user's Discord ID/username. No-op when blank. |
 | `SENTRY_TRACES_SAMPLE_RATE` | no | `0` | `application/utils/sentry.py` | Fraction (`0`–`1`) of requests traced for performance. Errors-only by default; only read when `SENTRY_DSN` is set. |
+| `CHALLONGE_CLIENT_ID` | no | — | `application/services/challonge_service.py` | Challonge OAuth application client ID. The Challonge integration is considered configured only when both this and `CHALLONGE_CLIENT_SECRET` are set; otherwise the admin Challonge tab reports it as unconfigured. |
+| `CHALLONGE_CLIENT_SECRET` | no | — | `application/services/challonge_service.py` | Challonge OAuth client secret; used for the service-account and per-player authorization-code exchanges. |
+| `CHALLONGE_REDIRECT_URI` | no | `{BASE_URL}/challonge/oauth/callback` | `application/services/challonge_service.py` | Override only for non-standard callbacks. Must match the redirect URI registered with the Challonge OAuth app. |
+| `CHALLONGE_SCOPES` | no | `me tournaments:read matches:read matches:write participants:read` | `application/services/challonge_service.py` | Scopes requested for the shared **service-account** connection. Per-player identity linking always uses scope `me` only. |
+| `MOCK_CHALLONGE` | no | off | `application/utils/mock_challonge.py` | Truthy values: `1`, `true`, `yes` (case-insensitive). Swaps in a stub Challonge client/connection for local dev. **Refused when `ENVIRONMENT=production`** (raises `RuntimeError`). |
+| `MOCK_CHALLONGE_IDENTITY` | no | `1` | `application/utils/challonge_client.py` | Which canned mock identity the mock player-OAuth flow returns. Only read under `MOCK_CHALLONGE`. |
+| `API_RATE_LIMIT_PER_MIN` | no | `120` | `api/rate_limit.py` | Per-client request budget per minute for the REST API, keyed by token (or client IP for unauthenticated requests). |
+| `TRUST_PROXY_FORWARDED_FOR` | no | off | `api/rate_limit.py` | Truthy values: `1`, `true`, `yes`, `on`. When set, the rate limiter trusts the `X-Forwarded-For` header for the real client IP — enable only behind a trusted reverse proxy. |
 
 See [reference/authentication.md](reference/authentication.md) for how the OAuth variables are wired into the login flow.
 
