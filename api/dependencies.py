@@ -91,6 +91,24 @@ async def require_staff(actor: User = Depends(require_api_actor)) -> User:
     return actor
 
 
+async def require_staff_write(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> User:
+    """Staff user with a non-read-only token. Use on mutating Staff-only routes
+    so the HTTP-layer gate matches the documented contract while still rejecting
+    read-only tokens (defense in depth alongside the service-layer check)."""
+    user, token = await _resolve_token(creds)
+    if token.read_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This token is read-only and cannot perform write actions",
+        )
+    await AuthService.ensure(
+        await AuthService.is_staff(user), "Staff access required"
+    )
+    return user
+
+
 class ServiceErrorRoute(APIRoute):
     """Translate service-layer exceptions into HTTP responses.
 

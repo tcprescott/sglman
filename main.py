@@ -24,6 +24,7 @@ from tortoise import Tortoise
 
 import frontend
 import api
+from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import TORTOISE_ORM
 
 
@@ -138,6 +139,7 @@ class FunFactMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(FunFactMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(
     api.router,

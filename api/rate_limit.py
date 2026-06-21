@@ -29,15 +29,29 @@ _WINDOW_SECONDS = 60.0
 _hits: Dict[str, Deque[float]] = defaultdict(deque)
 
 
+def _trust_forwarded_for() -> bool:
+    """Whether to derive the client IP from ``X-Forwarded-For``.
+
+    Off by default: the header is client-controlled and trivially spoofable, so
+    trusting it would let an attacker evade IP-based limiting by rotating it.
+    Enable only when the app sits behind a reverse proxy that overwrites the
+    header with the real client IP.
+    """
+    return os.environ.get('TRUST_PROXY_FORWARDED_FOR', '').strip().lower() in (
+        '1', 'true', 'yes', 'on',
+    )
+
+
 def _client_key(request: Request) -> str:
     auth = request.headers.get('authorization')
     if auth:
         # Bucket by the token itself so each token is limited independently;
         # never log or expose this value.
         return f'token:{auth}'
-    forwarded = request.headers.get('x-forwarded-for')
-    if forwarded:
-        return f'ip:{forwarded.split(",")[0].strip()}'
+    if _trust_forwarded_for():
+        forwarded = request.headers.get('x-forwarded-for')
+        if forwarded:
+            return f'ip:{forwarded.split(",")[0].strip()}'
     return f'ip:{request.client.host if request.client else "unknown"}'
 
 
