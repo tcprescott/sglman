@@ -29,8 +29,8 @@ Method-level reference for each layer of the codebase.
 | Doc | Source area |
 |---|---|
 | [reference/data-model.md](reference/data-model.md) | `models.py` (all models, enums, match lifecycle), `application/repositories/`, `migrations/` |
-| [reference/services.md](reference/services.md) | `application/services/` (all 16 modules), `application/utils/` |
-| [reference/rest-api.md](reference/rest-api.md) | `api.py`, FastAPI app metadata in `main.py` |
+| [reference/services.md](reference/services.md) | `application/services/` (all modules), `application/utils/` |
+| [reference/rest-api.md](reference/rest-api.md) | `api/` (routers, schemas, auth, rate limiting), FastAPI app metadata in `main.py` |
 | [reference/authentication.md](reference/authentication.md) | `middleware/auth.py`, `middleware/mock_auth.py`, `AuthService` |
 | [reference/discord-integration.md](reference/discord-integration.md) | `discordbot/`, `discord_service.py`, `discord_queue.py` |
 | [reference/seed-generation.md](reference/seed-generation.md) | `seedgen_service.py`, `presets/` |
@@ -57,6 +57,13 @@ Implementation notes for each shipped feature.
 | [features/triforce-texts.md](features/triforce-texts.md) | Player triforce-text submission and moderation |
 | [features/ux-improvements.md](features/ux-improvements.md) | UX fixes shipped from the UX audit |
 
+Some newer subsystems do not yet have a dedicated feature doc; they are covered at the reference level instead:
+
+- **Volunteering** (opt-in, positions, shifts, assignments, availability, auto-scheduling) — model layer in [reference/data-model.md](reference/data-model.md), services in [reference/services.md](reference/services.md), UI in [reference/frontend.md](reference/frontend.md), endpoints in [reference/rest-api.md](reference/rest-api.md).
+- **Equipment lending** (assets, checkout/check-in, QR codes) — same four reference docs.
+- **Challonge integration** (service-account OAuth, bracket mirroring, scheduling, per-player identity linking) — same four reference docs.
+- **API tokens** and **in-app feedback** — see [reference/rest-api.md](reference/rest-api.md), [reference/services.md](reference/services.md), and [reference/data-model.md](reference/data-model.md).
+
 ## Proposals (not yet implemented)
 
 - [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (per-domain tenants, central super-admin interface, one-bot-many-guilds Discord). Design only; no code shipped.
@@ -74,15 +81,16 @@ Every source area of the repository maps to at least one doc. This table is the 
 |---|---|
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
-| `api.py` | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` — 20 models, 2 enums | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` — 16 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
-| `application/repositories/` — 12 repositories | [reference/data-model.md](reference/data-model.md) |
-| `application/utils/` — 4 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
-| `middleware/` — auth.py, mock_auth.py | [reference/authentication.md](reference/authentication.md) |
-| `discordbot/` — 4 handler modules | [reference/discord-integration.md](reference/discord-integration.md) |
-| `pages/` — 3 pages, home_tabs/, admin_tabs/ (incl. reports/) | [reference/frontend.md](reference/frontend.md) |
-| `theme/` — base.py, 12 dialogs, 3 table views | [reference/frontend.md](reference/frontend.md) |
+| `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
+| `models.py` — 30 models, 8 enums | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` — 29 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
+| `application/repositories/` — 24 repositories | [reference/data-model.md](reference/data-model.md) |
+| `application/utils/` — 10 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
+| `middleware/` — auth.py, mock_auth.py, challonge_oauth.py | [reference/authentication.md](reference/authentication.md); challonge_oauth → [reference/services.md](reference/services.md) (challonge_service) |
+| `middleware/security_headers.py` | [security-audit.md](security-audit.md) |
+| `discordbot/` — 6 handler modules (incl. crew/volunteer acknowledgment, watch buttons) | [reference/discord-integration.md](reference/discord-integration.md) |
+| `pages/` — 4 pages, home_tabs/, volunteer_tabs/, admin_tabs/ (incl. reports/) | [reference/frontend.md](reference/frontend.md) |
+| `theme/` — base.py, dialogs, table views, realtime.py | [reference/frontend.md](reference/frontend.md) |
 | `static/` | [reference/frontend.md](reference/frontend.md) |
 | `presets/` — alttpr/, ootr/, smmap/ | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |

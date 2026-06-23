@@ -66,21 +66,29 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 - `POST /crew/{crew_type}/{crew_id}/acknowledge` — crew member acknowledges their own approved assignment.
 
 ### Tournaments (`/api/tournaments`)
-- `GET /tournaments` · `GET /tournaments/{id}`.
+- `GET /tournaments?active_only=` (`active_only` returns only active tournaments, default `false`) · `GET /tournaments/{id}`.
 - `POST` · `PATCH /{id}` · `DELETE /{id}`.
 - `POST/DELETE /{id}/admins` and `/{id}/crew-coordinators` (Staff).
 - `GET /tournaments/{id}/match-suggestion?player_ids=` — suggested UTC start time for the given players (400 if no slot fits).
 
 ### Stream rooms (`/api/stream-rooms`)
-- `GET` (list/detail) · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
+- `GET /stream-rooms?active_only=` (`active_only` returns only active rooms, default `false`) · `GET /stream-rooms/{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
 
 ### Users & roles (`/api/users`)
-- `GET /users` (Staff) · `GET /users/me` · `GET /users/{id}` (self or Staff).
+- `GET /users?role=` (Staff; `role` optionally filters to users holding that global role) · `GET /users/me` · `GET /users/{id}` (self or Staff).
 - `POST /users` (Staff) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments`.
 - `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff).
 
 ### Player availability (`/api/users/me/availability`)
 - `GET` (own windows) · `PUT` (replace all windows) · `DELETE` (clear). Self-service for any authenticated user; windows feed match-time suggestions.
+
+### Volunteers (`/api/volunteers`)
+Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes are self-service. All routes require an authenticated actor; writes use a non-read-only token.
+- **Positions:** `GET /volunteers/positions?active_only=` (list; `active_only` limits to active positions, default `false`) · `POST /volunteers/positions` (create) · `PATCH /volunteers/positions/{id}` · `DELETE /volunteers/positions/{id}`.
+- **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
+- **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment).
+- **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
+- **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`).
 
 ### Triforce texts (`/api/triforce-texts`)
 - `GET /mine` (own) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
@@ -90,7 +98,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 - `GET /preferences` · `PUT /preferences`.
 
 ### Audit (`/api/audit-logs`)
-- `GET /audit-logs` — filtered, paginated (admin only).
+- `GET /audit-logs` — paginated, admin only. Filters: `start`/`end` (UTC time bounds), `user_id`, `action_contains` (substring match on the action string); paginate with `limit` (1–500, default 100) and `offset` (default 0). Response includes the matching-entry `total`.
 
 ### System config (`/api/config`)
 - `GET /config` · `GET /config/{key}` · `PUT /config/{key}` (Staff).
