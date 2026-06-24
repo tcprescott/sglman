@@ -357,6 +357,41 @@ class TestEnsure:
     async def test_ensure_silent_when_allowed(self):
         await AuthService.ensure(True)  # should not raise
 
+
+# ---------------------------------------------------------------------------
+# can_view_admin — admin global roles or TA/CC membership (NOT proctor/volunteer)
+# ---------------------------------------------------------------------------
+
+
+def make_ta_user(user_id: int = 1):
+    """User whose admin_tournaments.all().exists() resolves True."""
+    user = make_user(user_id)
+    user.admin_tournaments = SimpleNamespace(
+        all=lambda: SimpleNamespace(exists=AsyncMock(return_value=True)),
+    )
+    return user
+
+
+class TestViewAdmin:
+    async def test_none_user_cannot_view_admin(self):
+        assert await AuthService.can_view_admin(None) is False
+
+    async def test_staff_can_view_admin(self, patch_roles):
+        patch_roles({Role.STAFF})
+        assert await AuthService.can_view_admin(make_user()) is True
+
+    async def test_proctor_alone_cannot_view_admin(self, patch_roles):
+        patch_roles({Role.PROCTOR})
+        assert await AuthService.can_view_admin(make_user()) is False
+
+    async def test_volunteer_alone_cannot_view_admin(self, patch_roles):
+        patch_roles({Role.VOLUNTEER})
+        assert await AuthService.can_view_admin(make_user()) is False
+
+    async def test_ta_membership_grants_admin_view(self, patch_roles):
+        patch_roles(set())
+        assert await AuthService.can_view_admin(make_ta_user()) is True
+
     async def test_ensure_message_propagates(self):
         with pytest.raises(PermissionError, match="custom message"):
             await AuthService.ensure(False, "custom message")

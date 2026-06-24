@@ -74,13 +74,13 @@ A leading "Home" tab backed by an `announcements_page` is present but commented 
 
 ### Admin dashboard (`/admin`, `pages/admin.py`)
 
-`admin_dashboard_page(...)` is registered with `@protected_page('/admin')` — login is enforced by the middleware, with no route-level role. The function itself resolves the user, loads roles via `AuthService.get_roles` (including `VOLUNTEER_COORDINATOR` and `EQUIPMENT_MANAGER`), and checks Tournament Admin / Crew Coordinator membership via the `admin_tournaments` / `crew_coordinated_tournaments` relations. A user who is none of Staff / Proctor / Stream Manager / Equipment Manager / Tournament-Admin-of-any / Crew-Coordinator-of-any gets a bare layout and a permission-denied message.
+`admin_dashboard_page(...)` is registered with `@protected_page('/admin')` — login is enforced by the middleware, with no route-level role. The function itself resolves the user, loads roles via `AuthService.get_roles` (including `VOLUNTEER_COORDINATOR` and `EQUIPMENT_MANAGER`), and checks Tournament Admin / Crew Coordinator membership via the `admin_tournaments` / `crew_coordinated_tournaments` relations. A user who is none of Staff / Stream Manager / Equipment Manager / Tournament-Admin-of-any / Crew-Coordinator-of-any gets a bare layout and a permission-denied message. Proctors are **not** admitted — their race/schedule workflow lives on the `/volunteer` page.
 
 Tab visibility by role (a user sees the union of all rows they match). "VC" = Volunteer Coordinator, "EM" = Equipment Manager:
 
 | Tab | Staff | Proctor | Stream Manager | Tournament Admin (any) | Crew Coordinator (any) | VC | EM |
 |---|---|---|---|---|---|---|---|
-| Schedule | yes | yes | — | yes | yes | — | — |
+| Schedule | yes | — | — | yes | yes | — | — |
 | Users | yes | — | — | — | — | — | — |
 | Tournaments | yes | — | — | yes | — | — | — |
 | Stream Rooms | yes | — | yes | — | — | — | — |
@@ -95,7 +95,7 @@ Tab visibility by role (a user sees the union of all rows they match). "VC" = Vo
 
 (Tabs render in this order. The "Settings" tab is the System Configuration page.)
 
-`can_crud = staff or tournament-admin-of-any` is passed into the Schedule tab; proctors and crew coordinators get a read-mostly Schedule — lifecycle buttons but no create/edit/stage-assign (see [Admin schedule](#admin-schedule-pagesadmin_tabsadmin_schedulepy)).
+`can_crud = staff or tournament-admin-of-any` is passed into the Schedule tab; crew coordinators get a read-mostly Schedule — lifecycle buttons but no create/edit/stage-assign (see [Admin schedule](#admin-schedule-pagesadmin_tabsadmin_schedulepy)). Proctors reach the same `admin_schedule_page` (with `can_crud=False`) from the `/volunteer` page instead.
 
 **Deep-link query params.** Besides `tab`, the page accepts `report`, `start`, `end`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, and `page`, all forwarded as a kwargs dict into the Reports tab. Every report filter change navigates to a new `/admin?tab=Reports&report=...` URL, so report state is fully URL-driven and shareable.
 
@@ -191,13 +191,13 @@ The public event schedule with crew signup.
 
 ## Volunteer hub (`/volunteer`, `pages/volunteer.py`)
 
-`volunteer_page(tab: str = None)` resolves the user (login-gated by `@protected_page`) and renders `BaseLayout` with three volunteer tabs (`show_volunteer=True`, `show_admin` via `AuthService.can_view_admin`).
+`volunteer_page(tab: str = None)` is registered with `@protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF])`. It resolves the user, loads roles via `AuthService.get_roles`, and builds tabs by role before rendering `BaseLayout` (`show_volunteer=True`, `show_admin` via `AuthService.can_view_admin`). The self-service tabs show for `VOLUNTEER`; the **Schedule** tab (the proctor race workflow) shows for `PROCTOR` or `STAFF`.
 
-| Tab | Content function | Responsibility |
-|---|---|---|
-| Opt-in | `volunteer_tabs/opt_in.py:opt_in_tab` | Opt in/out of volunteering and edit arrival/departure notes |
-| My Availability | `volunteer_tabs/availability.py:availability_tab` | Volunteer availability windows (gated on being opted in) |
-| My Shifts | `volunteer_tabs/my_shifts.py:my_shifts_tab` | The volunteer's upcoming assigned shifts, with acknowledgment |
+| Tab | Shown to | Content function | Responsibility |
+|---|---|---|---|
+| My Availability | volunteer | `volunteer_tabs/availability.py:availability_tab` | Volunteer availability windows |
+| My Shifts | volunteer | `volunteer_tabs/my_shifts.py:my_shifts_tab` | The volunteer's upcoming assigned shifts, with acknowledgment |
+| Schedule | proctor / staff | `admin_tabs/admin_schedule.py:admin_schedule_page` | Race/schedule workflow — lifecycle buttons + seed rolls; `can_crud=is_staff` (proctors get transition-only, no create/edit) |
 
 ### Opt-in (`pages/volunteer_tabs/opt_in.py`)
 

@@ -13,7 +13,7 @@ Defined in `models.py` as `Role(str, Enum)`:
 | Role | Who Has It | Grants Access To |
 |---|---|---|
 | `staff` | Tournament organizers | Full admin dashboard; all CRUD |
-| `proctor` | Race monitors | Match management; seat/start/finish |
+| `proctor` | Race monitors | Race/schedule workflow on the `/volunteer` page; seat/start/finish/confirm/seed (no Admin access) |
 | `stream_manager` | Stream desk | Stage assignment; stream candidate flag |
 
 Roles are stored in the `UserRole` junction table. Each row records who granted the role (`granted_by` FK to User), when, and its `source` (`manual` vs `discord`). Roles can be granted by hand by Staff **or** synced automatically from a user's Discord roles at login — see [discord-role-sync.md](discord-role-sync.md). The sync only ever revokes the `discord`-sourced roles it created; `manual` grants are preserved.
@@ -39,7 +39,7 @@ user = await current_user_from_storage()          # User | None
 
 await AuthService.has_role(user, Role.STAFF)            # bool
 await AuthService.get_roles(user)                        # set[Role]
-await AuthService.can_view_admin(user)                   # any role or tournament/crew membership
+await AuthService.can_view_admin(user)                   # admin role or tournament/crew membership (not proctor/volunteer)
 await AuthService.can_crud_match(user, match)            # staff or tournament admin
 await AuthService.can_transition_match(user, match)      # staff, proctor, or tournament admin
 await AuthService.can_manage_stream_rooms(user)          # staff or stream_manager
@@ -63,8 +63,8 @@ Unauthenticated users are redirected to `/login`. Users without the required rol
 
 ## Tournament/Crew Access
 
-Users without a global role can still access the admin dashboard if they are:
+Users without an admin global role can still access the admin dashboard if they are:
 - An admin of any tournament (`Tournament.admins` M2M)
 - A crew coordinator of any tournament (`Tournament.crew_coordinators` M2M)
 
-`AuthService.can_view_admin()` checks all three conditions.
+`AuthService.can_view_admin()` checks these conditions. Holding only `PROCTOR` or `VOLUNTEER` does **not** grant admin access — proctors run their race/schedule workflow from the `/volunteer` page.

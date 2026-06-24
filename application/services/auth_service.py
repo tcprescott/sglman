@@ -17,6 +17,10 @@ from models import Match, Role, Tournament, User, UserRole
 class AuthService:
     """Stateless authorization helpers."""
 
+    # Global roles that grant access to the Admin dashboard. Excludes PROCTOR
+    # and VOLUNTEER, whose workflows live on the Volunteer page instead.
+    _ADMIN_ROLES = {Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR}
+
     @staticmethod
     async def get_roles(user: Optional[User]) -> set[Role]:
         if user is None:
@@ -72,10 +76,10 @@ class AuthService:
 
     @staticmethod
     async def can_view_admin(user: Optional[User]) -> bool:
-        """Any global role or any TA/CC tournament membership."""
+        """Any admin global role or any TA/CC tournament membership."""
         if user is None:
             return False
-        if await AuthService.get_roles(user):
+        if await AuthService.get_roles(user) & AuthService._ADMIN_ROLES:
             return True
         if await user.admin_tournaments.all().exists():
             return True

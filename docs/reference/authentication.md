@@ -175,7 +175,7 @@ For the role semantics behind these checks (what staff/proctor/stream_manager me
 | `is_stream_manager(user)` | Shorthand for `has_role(user, Role.STREAM_MANAGER)` |
 | `is_tournament_admin(user, tournament_id)` | User is in that tournament's `admins` M2M |
 | `is_crew_coordinator_of(user, tournament_id)` | User is in that tournament's `crew_coordinators` M2M |
-| `can_view_admin(user)` | Any global role, **or** TA/CC of at least one tournament |
+| `can_view_admin(user)` | An admin global role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), **or** TA/CC of at least one tournament. Excludes `PROCTOR`/`VOLUNTEER` |
 | `can_edit_tournament(user, tournament)` | Staff, or TA of that tournament |
 | `can_crud_match(user, match)` | Staff, or TA of the match's tournament |
 | `can_transition_match(user, match)` | Staff, proctor, or TA of the match's tournament — covers seat/start/finish/confirm, seed rolls, station assignment |
@@ -207,10 +207,10 @@ async def admin_dashboard_page(...):
     is_ta_any = await user.admin_tournaments.all().exists()
     is_cc_any = await user.crew_coordinated_tournaments.all().exists()
 
-    if not (is_staff or is_proctor or is_stream_manager or is_ta_any or is_cc_any):
+    if not (is_staff or is_stream_manager or is_ta_any or is_cc_any):
         ...render denial page; return          # same condition as AuthService.can_view_admin
 
-    if is_staff or is_proctor or is_ta_any or is_cc_any:
+    if is_staff or is_ta_any or is_cc_any:
         tabs.append(...)  # Schedule
     if is_staff:
         tabs.append(...)  # Users
@@ -218,7 +218,7 @@ async def admin_dashboard_page(...):
         tabs.append(...)  # Tournaments, Triforce Texts
 ```
 
-A Tournament Admin with no global role gets the Schedule/Tournaments/Reports tabs but never Users; deeper actions inside the tabs re-check against the specific tournament with `is_tournament_admin` / `is_crew_coordinator_of`.
+Proctors are **not** admitted to `/admin`; their race/schedule workflow lives on the [`/volunteer`](../../pages/volunteer.py) page instead. A Tournament Admin with no global role gets the Schedule/Tournaments/Reports tabs but never Users; deeper actions inside the tabs re-check against the specific tournament with `is_tournament_admin` / `is_crew_coordinator_of`.
 
 ## Mock authentication (dev)
 
