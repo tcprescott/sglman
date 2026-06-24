@@ -124,6 +124,7 @@ class AuditActions:
     VOLUNTEER_ASSIGNED = 'volunteer.assigned'
     VOLUNTEER_UNASSIGNED = 'volunteer.unassigned'
     VOLUNTEER_ACKNOWLEDGED = 'volunteer.acknowledged'
+    VOLUNTEER_CHECKED_IN = 'volunteer.checked_in'
     VOLUNTEER_AVAILABILITY_UPDATED = 'volunteer.availability_updated'
     VOLUNTEER_DRAFT_GENERATED = 'volunteer.draft_generated'
     VOLUNTEER_DRAFT_CLEARED = 'volunteer.draft_cleared'

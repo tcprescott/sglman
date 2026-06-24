@@ -55,6 +55,8 @@ class VolunteerAssignmentResponse(BaseModel):
     auto_generated: bool
     acknowledged_at: Optional[datetime] = None
     reminder_sent_at: Optional[datetime] = None
+    checked_in_at: Optional[datetime] = None
+    checked_in_by_id: Optional[int] = None
     created_at: datetime
 
 

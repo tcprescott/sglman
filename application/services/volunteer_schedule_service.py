@@ -7,7 +7,7 @@ for Discord notifications.
 """
 
 import logging
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.transactions import in_transaction
@@ -285,6 +285,22 @@ class VolunteerScheduleService:
             user, AuditActions.VOLUNTEER_ACKNOWLEDGED,
             {'assignment_id': assignment.id, 'shift_id': assignment.shift_id},
         )
+        return assignment
+
+    async def check_in(self, assignment_id: int, actor: User) -> VolunteerAssignment:
+        """Record that a volunteer appeared for their shift."""
+        if not await AuthService.can_manage_volunteers(actor):
+            raise PermissionError('Only coordinators and staff can record check-ins.')
+        assignment = await self.assignment_repository.get_by_id(assignment_id)
+        if assignment is None:
+            raise ValueError('Assignment not found.')
+        if assignment.checked_in_at is None:
+            assignment.checked_in_at = datetime.now(timezone.utc)
+            assignment.checked_in_by_id = actor.id
+            await assignment.save()
+            await self.audit_service.write_log(
+                actor, AuditActions.VOLUNTEER_CHECKED_IN, {'assignment_id': assignment.id},
+            )
         return assignment
 
     async def assignments_for_user(self, user: User, upcoming_after: Optional[datetime] = None):

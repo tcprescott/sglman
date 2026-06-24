@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from application.repositories import VolunteerProfileRepository
 from application.services.audit_service import AuditActions, AuditService
-from models import User, VolunteerProfile
+from models import Role, User, UserRole, VolunteerProfile
 
 
 class VolunteerProfileService:
@@ -54,9 +54,9 @@ class VolunteerProfileService:
         return profile
 
     async def assignable_volunteers(self) -> List[User]:
-        """All users who have opted in, ordered by name."""
-        opted_in_ids = set(await self.repository.opted_in_user_ids())
-        if not opted_in_ids:
+        """All users with the VOLUNTEER role, ordered by name."""
+        user_ids = await UserRole.filter(role=Role.VOLUNTEER).values_list('user_id', flat=True)
+        if not user_ids:
             return []
-        users = await User.filter(id__in=list(opted_in_ids))
+        users = await User.filter(id__in=list(user_ids))
         return sorted(users, key=lambda u: u.preferred_name.lower())
