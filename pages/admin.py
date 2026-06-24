@@ -8,6 +8,7 @@ from models import Role, User
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
+from pages.admin_tabs.admin_volunteer_roster import admin_volunteer_roster_page
 from pages.admin_tabs.admin_volunteers import admin_volunteers_page
 from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
@@ -90,7 +91,8 @@ def create() -> None:
         if is_staff or is_ta_any:
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': admin_triforce_texts_page})
         if is_staff or is_volunteer_coordinator:
-            tabs.append({'label': 'Volunteers', 'icon': 'volunteer_activism', 'content': admin_volunteers_page})
+            tabs.append({'label': 'Vol. Roster', 'icon': 'people', 'content': admin_volunteer_roster_page})
+            tabs.append({'label': 'Vol. Schedule', 'icon': 'volunteer_activism', 'content': admin_volunteers_page})
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
         if is_staff:

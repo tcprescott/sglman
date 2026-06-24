@@ -18,7 +18,6 @@ from application.utils.timezone import (
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
-from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 
 
@@ -76,8 +75,6 @@ async def admin_volunteers_page() -> None:
                           on_click=lambda: auto_fill()).props('flat color=primary')
                 ui.button('Clear draft', icon='clear_all',
                           on_click=lambda: clear_draft()).props('flat color=negative')
-                ui.button('Volunteer roster', icon='people',
-                          on_click=lambda: open_volunteer_roster_dialog()).props('flat')
                 ui.button('Manage positions', icon='badge',
                           on_click=lambda: open_positions_dialog()).props('flat')
                 ui.button('Reset all volunteer data', icon='delete_forever',
@@ -308,33 +305,6 @@ async def admin_volunteers_page() -> None:
                 with ui.row().classes('justify-end q-pa-sm gap-2'):
                     ui.button('Cancel', on_click=dialog.close).props('flat')
                     ui.button('Delete everything', on_click=do_reset).props('color=negative')
-            dialog.open()
-
-        # --- Volunteer roster -------------------------------------------
-        async def open_volunteer_roster_dialog() -> None:
-            pool = await profile_service.assignable_volunteers()
-            positions = await position_service.list_active()
-
-            with ui.dialog() as dialog, ui.card().classes('dialog-card'):
-                ui.label('Volunteer Roster').classes('text-subtitle1 q-pa-sm')
-                ui.separator()
-                with ui.column().classes('q-pa-sm gap-1').style('max-height: 60vh; overflow-y: auto; min-width: 360px;'):
-                    if not pool:
-                        ui.label('No volunteers in pool.').classes('italic-note q-pa-md')
-                    for volunteer in pool:
-                        with ui.row().classes('items-center justify-between full-width q-px-sm'):
-                            ui.label(volunteer.preferred_name)
-
-                            async def open_profile(u=volunteer) -> None:
-                                await VolunteerProfileDialog(
-                                    user=u, positions=positions,
-                                ).open()
-
-                            ui.button(icon='manage_accounts', on_click=open_profile) \
-                                .props('flat dense').tooltip('View availability & qualifications')
-
-                with ui.row().classes('justify-end q-pa-sm'):
-                    ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()
 
         # --- Positions manager ------------------------------------------
