@@ -51,6 +51,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
+| `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
 | `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
@@ -547,6 +548,18 @@ Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool 
 | `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. |
 
 Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly. Consumers: the coordinator auto-fill action.
+
+### volunteer_qualification_service.py — VolunteerQualificationService
+
+Reads and replaces the set of positions a volunteer is qualified to fill. Qualifications are used by `VolunteerAutoscheduleService` when scoring and ranking candidates for a shift. All writes are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_qualified_position_ids(user)` | `Set[int]` | Position ids the user is qualified for. |
+| `get_qualified_user_ids_for_position(position_id)` | `Set[int]` | User ids qualified for a position. |
+| `set_qualifications(actor, user, position_ids)` | `None` | Coordinator-only; replace the user's qualification set atomically; audits `volunteer.qualifications_updated`. |
+
+Collaborators: `VolunteerQualificationRepository`, `AuthService`, `AuditService`. Consumers: the coordinator volunteer management tab, `VolunteerAutoscheduleService` (reads qualifications directly from the model for performance).
 
 ### volunteer_reminder.py — module functions
 

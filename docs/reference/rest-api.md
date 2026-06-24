@@ -51,6 +51,27 @@ API handlers are a thin presentation layer: they authenticate, then delegate to 
 
 Grouped by domain (tag). See `/api/docs` for parameters, request/response schemas, and examples.
 
+### Router source files
+
+| Router | Source |
+|---|---|
+| Matches (read) | [`api/routers/matches.py`](../../api/routers/matches.py) |
+| Match actions (write) | [`api/routers/match_actions.py`](../../api/routers/match_actions.py) |
+| Crew | [`api/routers/crew.py`](../../api/routers/crew.py) |
+| Tournaments (read) | [`api/routers/tournaments.py`](../../api/routers/tournaments.py) |
+| Tournament actions (write) | [`api/routers/tournament_actions.py`](../../api/routers/tournament_actions.py) |
+| Stream rooms | [`api/routers/stream_rooms.py`](../../api/routers/stream_rooms.py) |
+| Stream room actions | [`api/routers/stream_room_actions.py`](../../api/routers/stream_room_actions.py) |
+| Users | [`api/routers/users.py`](../../api/routers/users.py) |
+| Player availability | [`api/routers/player_availability.py`](../../api/routers/player_availability.py) |
+| Volunteers | [`api/routers/volunteers.py`](../../api/routers/volunteers.py) |
+| Triforce texts | [`api/routers/triforce.py`](../../api/routers/triforce.py) |
+| Notifications | [`api/routers/notifications.py`](../../api/routers/notifications.py) |
+| Audit | [`api/routers/audit.py`](../../api/routers/audit.py) |
+| System config | [`api/routers/system_config.py`](../../api/routers/system_config.py) |
+| API tokens | [`api/routers/tokens.py`](../../api/routers/tokens.py) |
+| Discord role mappings | [`api/routers/discord_role_mappings.py`](../../api/routers/discord_role_mappings.py) |
+
 ### Matches (`/api/matches`)
 - `GET /matches` — list with filters (`match_id`, `stream_room_id`, `tournament_id`, `start_date`, `end_date`, `limit`); only approved crew are exposed.
 - `GET /matches/{id}` — single match.

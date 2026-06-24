@@ -14,6 +14,7 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`discordbot/match_acknowledgment.py`](../../discordbot/match_acknowledgment.py) | Player Acknowledge button + handler (`match_ack:` interactions) |
 | [`discordbot/crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) | Crew Acknowledge button + handler (`crew_ack:` interactions) |
 | [`discordbot/watch_buttons.py`](../../discordbot/watch_buttons.py) | Unwatch button + handler (`match_watch:` interactions) |
+| [`discordbot/volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) | Volunteer shift Acknowledge button + handler (`volunteer_ack:` interactions) |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, queue start/stop in the FastAPI lifespan |
 | [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py) | `is_mock_discord()` flag with production guard |
 | [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | Notification fan-out coroutines and DM message builders |
@@ -75,6 +76,7 @@ sequenceDiagram
 | `crew_signup:` | [`discordbot/crew_signup.py`](../../discordbot/crew_signup.py) → `handle_crew_signup_interaction` |
 | `match_ack:` | [`discordbot/match_acknowledgment.py`](../../discordbot/match_acknowledgment.py) → `handle_match_acknowledgment_interaction` |
 | `crew_ack:` | [`discordbot/crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) → `handle_crew_acknowledgment_interaction` |
+| `volunteer_ack:` | [`discordbot/volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) → `handle_volunteer_acknowledgment_interaction` |
 | `match_watch:` | [`discordbot/watch_buttons.py`](../../discordbot/watch_buttons.py) → `handle_unwatch_interaction` |
 
 Handlers are imported lazily inside `on_interaction`, and `DiscordService` imports the view factories lazily inside its send methods (the `discordbot/` modules in turn import services inside their handler bodies) — this avoids circular imports between the service layer and the bot layer. `discordbot/__init__.py` is empty.
@@ -92,6 +94,7 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 | `send_dm_with_acknowledgment_button` | `(user_id, message, match_id: int)` | DM with the Acknowledge button from `make_match_acknowledgment_view(match_id)`. |
 | `send_dm_with_crew_acknowledgment_button` | `(user_id, message, crew_type: str, crew_id: int)` | DM with the crew Acknowledge button from `make_crew_acknowledgment_view(crew_type, crew_id)`. `crew_type` is `'commentator'` or `'tracker'`; `crew_id` is the `Commentator`/`Tracker` row id. |
 | `send_dm_with_unwatch_button` | `(user_id, message, match_id: int)` | DM with the Unwatch button from `make_unwatch_view(match_id)`. |
+| `send_dm_with_volunteer_acknowledgment_button` | `(user_id, message, assignment_id: int)` | DM with the volunteer shift Acknowledge button from `make_volunteer_acknowledgment_view(assignment_id)`. |
 | `get_bot` | `()` (sync) | Returns the bot instance (or `None` in the mock). |
 | `list_guilds` | `()` | `(True, [{"id": int, "name": str}, ...])` from the bot's cached guild list. |
 | `list_guild_roles` | `(guild_id: int)` | Roles for a guild as `[{"id", "name"}]`. Resolves the guild via cache then `fetch_guild` fallback; prefers `guild.fetch_roles()`, falls back to cached `guild.roles`. |
@@ -180,6 +183,8 @@ Complete `custom_id` grammar (each module exposes its prefix as a `CUSTOM_ID_PRE
 | `match_ack:acknowledged` | `make_acknowledged_view()` (match ack) | None — disabled placeholder after acknowledgment |
 | `crew_ack:commentator:<crew_id>` / `crew_ack:tracker:<crew_id>` | `make_crew_acknowledgment_view(crew_type, crew_id)` | Crew acknowledgment (`crew_id` is the `Commentator`/`Tracker` row id, not a match id) |
 | `crew_ack:acknowledged` | `make_acknowledged_view()` (crew ack) | None — disabled placeholder after acknowledgment |
+| `volunteer_ack:<assignment_id>` | `make_volunteer_acknowledgment_view(assignment_id)` | Volunteer shift acknowledgment |
+| `volunteer_ack:acknowledged` | `make_acknowledged_view(CUSTOM_ID_PREFIX)` (volunteer ack) | None — disabled placeholder after acknowledgment |
 | `match_watch:unwatch:<match_id>` | `make_unwatch_view(match_id)` | Remove watcher |
 
 Common to all four modules: views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s with static `custom_id`s and no callbacks (routing happens in `on_interaction`, above). Handlers parse the `custom_id`, resolve the SGLMan user with `UserRepository().get_by_discord_id(str(interaction.user.id))`, call a service method, and reply **ephemerally**. A malformed `custom_id` yields `Invalid interaction.`; a non-integer id yields `Invalid match ID.` / `Invalid crew ID.`; a Discord user with no SGLMan account gets `You do not have an SGLMan account. Please log in at the website first.`; service `ValueError`s are relayed verbatim as the reply.
@@ -216,6 +221,17 @@ The handler **defers ephemerally first** (the DB work can exceed Discord's 3-sec
 | Handler | `handle_crew_acknowledgment_interaction(interaction)` |
 
 Structurally identical to the match-ack handler (defer + `_send` fallback, view swap, same generic error message). It calls `CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)`, which enforces that the clicker owns the assignment (`You can only acknowledge your own crew assignments.`), that it has been approved (`This <crew_type> assignment has not been approved yet.`), treats repeat clicks as a no-op, sets `acknowledged_at` in a transaction, and audits `crew.acknowledged`. The reply is `You have acknowledged your <crew_type> assignment for Match ID <id>. Players: <names>. Thanks!`. See [crew-management.md](../features/crew-management.md) and [match-acknowledgment.md](../features/match-acknowledgment.md).
+
+### volunteer_acknowledgment.py
+
+| Item | Value |
+|---|---|
+| View factories | `make_volunteer_acknowledgment_view(assignment_id)`, `make_acknowledged_view(CUSTOM_ID_PREFIX)` |
+| Buttons | `Acknowledge` (`ButtonStyle.success`); replaced after use by disabled `Acknowledged` (`ButtonStyle.secondary`) |
+| `custom_id` | `volunteer_ack:<assignment_id>`; the disabled replacement uses `volunteer_ack:acknowledged` |
+| Handler | `handle_volunteer_acknowledgment_interaction(interaction)` |
+
+Structurally identical to the match-ack and crew-ack handlers (defer + `_send` fallback, view swap on the DM, same generic error message). It calls `VolunteerScheduleService().acknowledge(assignment_id, user)`, which enforces that the clicker owns the assignment, treats repeat clicks as a no-op (idempotent), stamps `acknowledged_at` in a transaction, and audits `volunteer.acknowledged`. The reply is produced by `volunteer_ack_confirmation(position_name)` from `discord_messages.py`. Service `ValueError`s are relayed verbatim; any other exception is logged and answered with a generic retry message. See [discord-notifications.md](../features/discord-notifications.md).
 
 ### watch_buttons.py
 
@@ -268,6 +284,8 @@ The crew approval DM has no builder — `CrewService._request_crew_acknowledgmen
 | Match seated (checked in) | `MatchScheduleService.seat_match` / `MatchService.seat_players` → `notify_match_participants` | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) | `handle_unwatch_interaction` → watcher row deleted | [discord-notifications](../features/discord-notifications.md) |
 | Match started / finished / confirmed | `MatchScheduleService.start_match` / `finish_match` / `confirm_match` → `notify_match_participants` (`is now: **Started/Finished/Confirmed**`) | `send_dm` / `send_dm_with_unwatch_button` | Unwatch (watchers only) | same as above | [discord-notifications](../features/discord-notifications.md) |
 | Seed generated | `MatchScheduleService.generate_seed` → enqueues inline `_send_seed_dms()` per opted-in player | `send_dm` | none | n/a — informational (seed URL) | [discord-notifications](../features/discord-notifications.md) |
+| Volunteer shift assigned — ack request | `VolunteerScheduleService.assign(notify=True)` → enqueues `DiscordService.send_dm_with_volunteer_acknowledgment_button(...)` directly | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge | `handle_volunteer_acknowledgment_interaction` → `VolunteerScheduleService.acknowledge` sets `acknowledged_at` | [discord-notifications](../features/discord-notifications.md) |
+| Volunteer shift reminder | `volunteer_reminder` loop → enqueues reminder DM per un-reminded upcoming assignment | `send_dm_with_volunteer_acknowledgment_button` | Acknowledge | same as above | — |
 | Admin direct message | `SendMessageDialog.send` (user edit dialog) — awaited inline, **not** queued | `send_dm` | none | n/a — failure shown via `ui.notify` | — |
 
 Note the asymmetry in lifecycle notifications: scheduling/rescheduling DMs are split (players get the Acknowledge DM via `notify_acknowledgment_request`; crew, watchers, and subscribers get informational variants), while seated/started/finished/confirmed DMs go to everyone at once via `notify_match_participants`.

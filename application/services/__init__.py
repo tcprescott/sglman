@@ -10,6 +10,8 @@ from .audit_service import AuditService
 from .auth_service import AuthService, current_user_from_storage
 from .challonge_service import ChallongeService
 from .crew_service import CrewService
+from . import discord_queue
+from . import volunteer_reminder
 from .discord_role_mapping_service import DiscordRoleMappingService
 from .discord_service import DiscordService
 from .equipment_service import EquipmentService
@@ -41,6 +43,8 @@ __all__ = [
     'ChallongeService',
     'CrewService',
     'current_user_from_storage',
+    'discord_queue',
+    'volunteer_reminder',
     'DiscordRoleMappingService',
     'DiscordService',
     'EquipmentService',
