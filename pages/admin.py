@@ -50,14 +50,13 @@ def create() -> None:
 
         roles = await AuthService.get_roles(user)
         is_staff = Role.STAFF in roles
-        is_proctor = Role.PROCTOR in roles
         is_stream_manager = Role.STREAM_MANAGER in roles
         is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
         is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
         is_ta_any = await user.admin_tournaments.all().exists()
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
 
-        if not (is_staff or is_proctor or is_stream_manager or is_equipment_manager or is_ta_any or is_cc_any):
+        if not (is_staff or is_stream_manager or is_equipment_manager or is_ta_any or is_cc_any):
             await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
             with ui.row():
                 ui.label('You do not have permission to view this page.').classes('text-error')
@@ -79,7 +78,7 @@ def create() -> None:
 
         can_crud = is_staff or is_ta_any
         tabs = []
-        if is_staff or is_proctor or is_ta_any or is_cc_any:
+        if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Schedule', 'icon': 'schedule', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
         if is_staff:
             tabs.append({'label': 'Users', 'icon': 'people', 'content': admin_users_page})

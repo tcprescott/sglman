@@ -93,8 +93,8 @@ Method-level detail for every file below lives in the [code reference docs](READ
 | `discordbot/match_acknowledgment.py` | Discord button handler for match acknowledgment |
 | `discordbot/watch_buttons.py` | Discord button handler for match watch |
 | `pages/home.py` | Homepage (Schedule / On Air / Profile / Player / Availability / Triforce / Equipment tabs) |
-| `pages/admin.py` | Admin dashboard (schedule, users, tournaments, stream rooms, volunteers, equipment, challonge, discord roles, feedback, reports, settings) |
-| `pages/volunteer.py` | Volunteer hub (opt-in / availability / my shifts) |
+| `pages/admin.py` | Admin dashboard (schedule, users, tournaments, stream rooms, volunteers, equipment, challonge, discord roles, feedback, reports, settings); proctors no longer have access |
+| `pages/volunteer.py` | Volunteer hub (availability / my shifts for volunteers; Schedule race workflow for proctors/staff) |
 | `pages/equipment.py` | Equipment asset detail (QR, loan history, checkout/check-in) |
 | `pages/home_tabs/triforce_texts.py` | Player triforce text submission (home tab) |
 

@@ -102,7 +102,7 @@ Stateless authorization policy: every check is a `@staticmethod` taking `User | 
 | `is_volunteer(user)` | `bool` | Holds `Role.VOLUNTEER`. |
 | `is_tournament_admin(user, tournament_id)` | `bool` | Listed in `Tournament.admins`. |
 | `is_crew_coordinator_of(user, tournament_id)` | `bool` | Listed in `Tournament.crew_coordinators`. |
-| `can_view_admin(user)` | `bool` | Any global role, or TA/CC of any tournament. |
+| `can_view_admin(user)` | `bool` | An admin global role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of any tournament. Excludes `PROCTOR`/`VOLUNTEER`. |
 | `can_edit_tournament(user, tournament)` | `bool` | Staff, or TA of that tournament. |
 | `can_crud_match(user, match)` | `bool` | Staff, or TA of the match's tournament. |
 | `can_transition_match(user, match)` | `bool` | Staff, Proctor, or TA — gates seat/start/finish/confirm, seed rolls, station assignment. |
