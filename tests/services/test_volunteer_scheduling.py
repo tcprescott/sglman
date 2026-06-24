@@ -53,9 +53,7 @@ async def _staff():
 
 
 async def _opted_in_volunteer(name):
-    user = await _user(name)
-    await VolunteerProfileService().opt_in(user)
-    return user
+    return await _user(name, roles=[Role.VOLUNTEER])
 
 
 def _at(hour, day=4):
@@ -350,17 +348,13 @@ async def test_reminder_skips_far_future_shift(db, monkeypatch):
 
 # --- reminder pool / profile ---------------------------------------------
 
-async def test_assignable_pool_is_opted_in_users(db):
+async def test_assignable_pool_is_volunteer_role_users(db):
     await _staff()
-    opted = await _opted_in_volunteer('opted')
-    # Profile exists but never opted in -> excluded.
-    not_opted = await _user('notopted')
-    await VolunteerProfileService().get_or_create(not_opted)
-    # No profile at all -> excluded.
-    no_profile = await _user('noprofile')
+    with_role = await _opted_in_volunteer('withvolunteer')
+    # User without VOLUNTEER role -> excluded.
+    no_role = await _user('norole')
 
     pool = await VolunteerProfileService().assignable_volunteers()
     ids = {u.id for u in pool}
-    assert opted.id in ids
-    assert not_opted.id not in ids
-    assert no_profile.id not in ids
+    assert with_role.id in ids
+    assert no_role.id not in ids

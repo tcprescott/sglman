@@ -48,6 +48,8 @@ def _assignment_resp(a) -> VolunteerAssignmentResponse:
         auto_generated=a.auto_generated,
         acknowledged_at=a.acknowledged_at,
         reminder_sent_at=a.reminder_sent_at,
+        checked_in_at=a.checked_in_at,
+        checked_in_by_id=a.checked_in_by_id,
         created_at=a.created_at,
     )
 

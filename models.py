@@ -542,6 +542,8 @@ class VolunteerAssignment(Model):
     auto_generated = fields.BooleanField(default=False)
     acknowledged_at = fields.DatetimeField(null=True)
     reminder_sent_at = fields.DatetimeField(null=True)
+    checked_in_at = fields.DatetimeField(null=True)
+    checked_in_by = fields.ForeignKeyField('models.User', related_name='volunteer_check_ins', null=True, on_delete=fields.SET_NULL)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

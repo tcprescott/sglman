@@ -156,6 +156,19 @@ async def admin_volunteers_page() -> None:
                     grid.refresh()
                 chip.on('remove', lambda a=assignment: remove(a))
 
+                if assignment.checked_in_at:
+                    ui.icon('how_to_reg', color='teal', size='sm').tooltip('Checked in')
+                else:
+                    async def do_check_in(a_id=assignment.id) -> None:
+                        try:
+                            await schedule_service.check_in(a_id, actor)
+                            ui.notify('Volunteer checked in.', color='positive')
+                        except (ValueError, PermissionError) as e:
+                            ui.notify(str(e), color='warning')
+                        grid.refresh()
+                    ui.button(icon='login', on_click=do_check_in) \
+                        .props('flat dense color=teal').tooltip('Check in volunteer')
+
         # --- Assignment picker ------------------------------------------
         async def open_assign_dialog(shift) -> None:
             pool = await profile_service.assignable_volunteers()
@@ -171,8 +184,8 @@ async def admin_volunteers_page() -> None:
                     .classes('text-subtitle1 q-pa-sm')
                 ui.separator()
                 if not pool:
-                    ui.label('No opted-in volunteers available. Volunteers must hold the '
-                             'Volunteer role and opt in.').classes('italic-note q-pa-md')
+                    ui.label('No volunteers in pool. Users must have the Volunteer role assigned.') \
+                        .classes('italic-note q-pa-md')
                 with ui.column().classes('q-pa-sm gap-1').style('max-height: 50vh; overflow-y: auto;'):
                     for volunteer in pool:
                         if volunteer.id in assigned_ids:

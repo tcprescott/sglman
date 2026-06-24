@@ -7,7 +7,6 @@ from nicegui import ui
 
 from application.services import current_user_from_storage, SystemConfigService
 from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_profile_service import VolunteerProfileService
 from application.utils.timezone import (
     format_eastern_date,
     format_eastern_time,
@@ -44,16 +43,7 @@ async def availability_tab() -> None:
         ui.label('You must be logged in.').classes('text-error')
         return
 
-    profile_service = VolunteerProfileService()
     service = VolunteerAvailabilityService()
-
-    if not await profile_service.is_opted_in(user):
-        with ui.column().classes('page-container'):
-            ui.label('My Availability').classes('page-title')
-            ui.separator().classes('separator-spacing')
-            ui.label('Opt in on the "Opt-in" tab before setting your availability.') \
-                .classes('italic-note')
-        return
 
     event_start, event_end = await SystemConfigService.get_event_window()
     existing = await service.availability_for(user)
