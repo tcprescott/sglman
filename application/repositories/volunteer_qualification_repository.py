@@ -28,5 +28,10 @@ class VolunteerQualificationRepository:
                 await VolunteerQualification.create(user_id=user.id, position_id=pid)
 
     @staticmethod
+    async def qualified_user_ids_for_position(position_id: int) -> Set[int]:
+        ids = await VolunteerQualification.filter(position_id=position_id).values_list('user_id', flat=True)
+        return set(ids)
+
+    @staticmethod
     async def list_all() -> List[VolunteerQualification]:
         return await VolunteerQualification.all().prefetch_related('user', 'position')

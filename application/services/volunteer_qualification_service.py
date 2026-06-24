@@ -22,6 +22,9 @@ class VolunteerQualificationService:
     async def get_qualified_position_ids(self, user: User) -> Set[int]:
         return await self.repository.qualified_position_ids(user)
 
+    async def get_qualified_user_ids_for_position(self, position_id: int) -> Set[int]:
+        return await self.repository.qualified_user_ids_for_position(position_id)
+
     async def set_qualifications(
         self,
         actor: User,

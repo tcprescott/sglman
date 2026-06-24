@@ -9,6 +9,7 @@ from application.services.volunteer_autoschedule_service import VolunteerAutosch
 from application.services.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
     format_eastern_date,
@@ -41,6 +42,7 @@ async def admin_volunteers_page() -> None:
     autoschedule_service = VolunteerAutoscheduleService()
     availability_service = VolunteerAvailabilityService()
     profile_service = VolunteerProfileService()
+    qualification_service = VolunteerQualificationService()
 
     event_start, event_end = await SystemConfigService.get_event_window()
     day_options = []
@@ -176,6 +178,10 @@ async def admin_volunteers_page() -> None:
                 [u.id for u in pool], shift.starts_at, shift.ends_at,
             )
             assigned_ids = {a.user_id for a in shift.assignments}
+            qualified_ids = await qualification_service.get_qualified_user_ids_for_position(shift.position_id)
+            # If no qualifications are defined for this position, treat everyone as eligible.
+            has_qualifications = bool(qualified_ids)
+            picker_state = {'show_all': not has_qualifications}
 
             with ui.dialog() as dialog, ui.card().classes('dialog-card'):
                 title = shift.position.name if shift.position else 'Shift'
@@ -186,22 +192,51 @@ async def admin_volunteers_page() -> None:
                 if not pool:
                     ui.label('No volunteers in pool. Users must have the Volunteer role assigned.') \
                         .classes('italic-note q-pa-md')
-                with ui.column().classes('q-pa-sm gap-1').style('max-height: 50vh; overflow-y: auto;'):
-                    for volunteer in pool:
-                        if volunteer.id in assigned_ids:
-                            continue
-                        status = VolunteerAvailabilityService.covers(
-                            avail_map.get(volunteer.id, []), shift.starts_at, shift.ends_at,
-                        )
-                        _render_picker_row(dialog, shift, volunteer, status)
+
+                if has_qualifications:
+                    with ui.row().classes('items-center q-px-sm q-pt-xs'):
+                        def on_show_all_change(e) -> None:
+                            picker_state['show_all'] = e.value
+                            picker_list.refresh()
+                        ui.checkbox('Show unqualified volunteers', value=False,
+                                    on_change=on_show_all_change)
+
+                @ui.refreshable
+                def picker_list() -> None:
+                    visible = [v for v in pool if v.id not in assigned_ids]
+                    if not picker_state['show_all']:
+                        visible = [v for v in visible if v.id in qualified_ids]
+                    with ui.column().classes('q-pa-sm gap-1').style('max-height: 50vh; overflow-y: auto;'):
+                        if not visible:
+                            ui.label('No qualified volunteers available.').classes('italic-note')
+                        for volunteer in visible:
+                            is_qualified = volunteer.id in qualified_ids
+                            status = VolunteerAvailabilityService.covers(
+                                avail_map.get(volunteer.id, []), shift.starts_at, shift.ends_at,
+                            )
+                            _render_picker_row(
+                                dialog, shift, volunteer, status,
+                                show_qualification=picker_state['show_all'] and has_qualifications,
+                                is_qualified=is_qualified,
+                            )
+
+                picker_list()
+
                 with ui.row().classes('justify-end q-pa-sm'):
                     ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
-        def _render_picker_row(dialog, shift, volunteer, status) -> None:
+        def _render_picker_row(
+            dialog, shift, volunteer, status,
+            show_qualification: bool = False,
+            is_qualified: bool = True,
+        ) -> None:
             with ui.row().classes('items-center justify-between full-width'):
                 with ui.row().classes('items-center gap-2'):
                     ui.label(volunteer.preferred_name)
+                    if show_qualification:
+                        if is_qualified:
+                            ui.badge('Qualified', color='primary')
                     if status == VolunteerAvailabilityStatus.PREFERRED:
                         ui.badge('Preferred', color='positive')
                     elif status == VolunteerAvailabilityStatus.AVAILABLE:
