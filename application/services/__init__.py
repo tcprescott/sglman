@@ -28,6 +28,7 @@ from .tournament_service import TournamentService
 from .triforce_text_service import TriforceTextService
 from .user_service import UserService
 from .volunteer_autoschedule_service import VolunteerAutoscheduleService
+from .volunteer_qualification_service import VolunteerQualificationService
 from .volunteer_availability_service import VolunteerAvailabilityService
 from .volunteer_position_service import VolunteerPositionService
 from .volunteer_profile_service import VolunteerProfileService
@@ -59,6 +60,7 @@ __all__ = [
     'UserService',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
+    'VolunteerQualificationService',
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerScheduleService',

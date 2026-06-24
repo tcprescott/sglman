@@ -27,6 +27,7 @@ from .volunteer_assignment_repository import VolunteerAssignmentRepository
 from .volunteer_availability_repository import VolunteerAvailabilityRepository
 from .volunteer_position_repository import VolunteerPositionRepository
 from .volunteer_profile_repository import VolunteerProfileRepository
+from .volunteer_qualification_repository import VolunteerQualificationRepository
 from .volunteer_shift_repository import VolunteerShiftRepository
 
 __all__ = [
@@ -52,5 +53,6 @@ __all__ = [
     'VolunteerAvailabilityRepository',
     'VolunteerPositionRepository',
     'VolunteerProfileRepository',
+    'VolunteerQualificationRepository',
     'VolunteerShiftRepository',
 ]
