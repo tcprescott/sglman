@@ -181,6 +181,24 @@ Standard checklist for a new feature:
 5. Add tests under `tests/services/` (and `tests/` for API or utility code)
 6. Write a feature doc in `docs/features/` and link it from the [documentation index](README.md)
 
+## Claude Code hooks
+
+`.claude/hooks/` contains three shell scripts wired up in `.claude/settings.json` that enforce documentation discipline:
+
+| Hook | Event | What it does |
+|---|---|---|
+| `session-start.sh` | `SessionStart` | Audits source directories against their reference docs; reports undocumented modules and missing `__init__.py` exports |
+| `doc-reminder.sh` | `PostToolUse` Write/Edit | Fires immediately when a tracked Python source file changes; emits the specific reference doc that needs updating |
+| `doc-check.sh` | `Stop` | After every Claude turn, diffs `git HEAD` and outputs a documentation checklist for anything that changed |
+
+**After cloning**, the executable bit must be set on all three scripts. It is stored in the git index, so a normal checkout preserves it — but if you ever re-add the files manually, re-run:
+
+```bash
+git update-index --chmod=+x .claude/hooks/session-start.sh
+git update-index --chmod=+x .claude/hooks/doc-reminder.sh
+git update-index --chmod=+x .claude/hooks/doc-check.sh
+```
+
 ## Repository hygiene notes
 
 - `profile.html` at the repo root is a ~5.7 MB profiling artifact, not source code — don't read, edit, or ship it.
