@@ -1,8 +1,8 @@
 """Dialog for a coordinator to view a volunteer's availability and manage qualifications."""
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import current_user_from_storage
+from application.services import get_user_from_discord_id
 from application.services.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_eastern_date, format_eastern_time
@@ -72,7 +72,7 @@ class VolunteerProfileDialog:
                             checkboxes[position.id] = cb
 
             async def save() -> None:
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 selected_ids = [pid for pid, cb in checkboxes.items() if cb.value]
                 try:
                     await qualification_service.set_qualifications(actor, self.user, selected_ids)
