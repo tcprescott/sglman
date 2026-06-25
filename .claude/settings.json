@@ -86,6 +86,16 @@
             "type": "command",
             "command": "python3 .claude/scripts/check_slot_context.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_markdown_xss.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/enforce_import_resolution.py",
+            "timeout": 10
           }
         ]
       }
@@ -97,6 +107,11 @@
             "type": "command",
             "command": ".claude/hooks/doc-check.sh",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/enforce_import_resolution.py",
+            "timeout": 20
           }
         ]
       }
