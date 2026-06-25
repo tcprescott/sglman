@@ -1,6 +1,6 @@
 """Admin Discord Role Mapping Page"""
 
-from nicegui import app, background_tasks, ui
+from nicegui import Client, app, background_tasks, ui
 
 from application.services import (
     AuthService,
@@ -61,15 +61,16 @@ async def admin_discord_roles_page() -> None:
             ]
             table.update()
 
-        async def delete_mapping(row):
-            try:
-                current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                await service.remove_mapping(row['id'], current)
-            except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
-                return
-            ui.notify('Mapping removed', color='positive')
-            await refresh_table()
+        async def delete_mapping(row, client):
+            async with client:
+                try:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    await service.remove_mapping(row['id'], current)
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify('Mapping removed', color='positive')
+                await refresh_table()
 
         async def open_add_dialog():
             ok, roles_payload = await DiscordService().list_guild_roles(guild_id)
@@ -133,7 +134,7 @@ async def admin_discord_roles_page() -> None:
                 </q-td>
             ''')
 
-            table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args)))
+            table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, Client.current)))
 
         ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Discord Roles' else None)
         background_tasks.create(refresh_table())
