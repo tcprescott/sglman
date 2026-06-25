@@ -4,7 +4,7 @@ Triforce Text Repository - Data Access Layer
 Handles all database operations for the TriforceText model.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from models import Tournament, TriforceText, User
@@ -119,7 +119,7 @@ class TriforceTextRepository:
             triforce_text,
             approved=approved,
             approved_by=actor,
-            approved_at=datetime.now(),
+            approved_at=datetime.now(timezone.utc),
         )
 
     @staticmethod

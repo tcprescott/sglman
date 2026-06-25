@@ -4,7 +4,7 @@ Match Acknowledgment Repository - Data Access Layer
 Handles all database operations for MatchAcknowledgment model.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from models import Match, MatchAcknowledgment, User
@@ -39,7 +39,7 @@ class MatchAcknowledgmentRepository:
         acknowledged: bool,
         auto: bool,
     ) -> MatchAcknowledgment:
-        acknowledged_at = datetime.now() if acknowledged else None
+        acknowledged_at = datetime.now(timezone.utc) if acknowledged else None
         ack, _ = await MatchAcknowledgment.update_or_create(
             match=match,
             user=user,

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -122,9 +122,9 @@ class TestSeatMatch:
 
     async def test_seated_at_is_recent(self, service):
         match = MockMatch()
-        before = datetime.now()
+        before = datetime.now(timezone.utc)
         await service.seat_match(match)
-        after = datetime.now()
+        after = datetime.now(timezone.utc)
         assert before <= match.seated_at <= after
 
     async def test_raises_if_already_seated(self, service):

@@ -191,8 +191,8 @@ class TestTimestampedFilename:
         # Pin the clock so we can assert the exact filename.
         class FixedDateTime:
             @classmethod
-            def utcnow(cls):
-                return datetime(2025, 10, 23, 14, 30, 15)
+            def now(cls, tz=None):
+                return datetime(2025, 10, 23, 14, 30, 15, tzinfo=tz)
 
         monkeypatch.setattr(csv_export, 'datetime', FixedDateTime)
         assert timestamped_filename('peak') == 'peak-20251023T143015Z.csv'

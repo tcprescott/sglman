@@ -5,7 +5,7 @@ Handles match scheduling operations like seating, finishing, and seed generation
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Dict, Tuple, Optional
 
 from application import match_events
@@ -73,7 +73,7 @@ class MatchScheduleService:
         )
         check()
 
-        setattr(match, timestamp_field, datetime.now())
+        setattr(match, timestamp_field, datetime.now(timezone.utc))
         await match.save()
         await self.audit_service.write_log(
             actor, audit_action, {'match_id': match.id},
