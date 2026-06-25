@@ -172,6 +172,17 @@ Used by `Equipment.status` (`max_length=20`, default `AVAILABLE`). Kept in sync 
 | `CHECKED_OUT` = `'checked_out'` | Currently on loan (an open `EquipmentLoan` exists) |
 | `RETIRED` = `'retired'` | No longer in service |
 
+### `StationFormat`
+
+Stored in `SystemConfiguration` under key `station_format`. Controls the validation pattern applied to station assignment strings in the dialog and in `MatchService.assign_stations`. Default is `FREE` to preserve existing behaviour.
+
+| Value | Meaning |
+|---|---|
+| `FREE` = `'free'` | No validation; any string up to 50 characters |
+| `NUMERIC` = `'numeric'` | Integers only (e.g. `1`, `2`, `3`) |
+| `STRUCTURED` = `'structured'` | One letter followed by 1–2 digits (e.g. `A1`, `B12`) |
+| `ALPHANUMERIC` = `'alphanumeric'` | Letters, numbers, hyphens, and spaces up to 20 characters |
+
 ### `ChallongeMatchState`
 
 Used by `ChallongeMatch.state` (`max_length=20`, default `PENDING`). Mirrors the subset of Challonge match states relevant to scheduling.

@@ -8,7 +8,16 @@ and orchestrates between repositories.
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, date
 
-from models import Match, MatchAcknowledgment, MatchPlayers, User, StreamRoom
+import re
+
+from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
+
+_STATION_REGEXES = {
+    StationFormat.FREE:         re.compile(r'^.{0,50}$'),
+    StationFormat.NUMERIC:      re.compile(r'^\d+$'),
+    StationFormat.STRUCTURED:   re.compile(r'^[A-Za-z][0-9]{1,2}$'),
+    StationFormat.ALPHANUMERIC: re.compile(r'^[A-Za-z0-9\-\s]{1,20}$'),
+}
 from application import match_events
 from application.repositories import (
     MatchAcknowledgmentRepository,
@@ -652,6 +661,14 @@ class MatchService:
             await AuthService.can_transition_match(actor, match),
             f"User cannot assign stations for match {match_id}",
         )
+
+        fmt = await SystemConfigService.get_station_format()
+        pattern = _STATION_REGEXES[fmt]
+        for player_id, station in assignments.items():
+            if station and not pattern.fullmatch(station):
+                raise ValueError(
+                    f"Station '{station}' does not match the required format ({fmt.value})"
+                )
 
         for player in match.players:
             if player.id in assignments:

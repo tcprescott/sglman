@@ -16,8 +16,10 @@ from application.services.system_config_service import (
     KEY_EVENT_START_DATE,
     KEY_MAX_CONCURRENT_PLAYERS,
     KEY_MAX_CONCURRENT_STAGES,
+    KEY_STATION_FORMAT,
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
+from models import StationFormat
 
 
 def _date_field(label: str, value: str):
@@ -40,6 +42,7 @@ async def admin_system_config_page() -> None:
     max_players = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_PLAYERS)
     max_stages = await SystemConfigService.get_int(KEY_MAX_CONCURRENT_STAGES)
     reminder_lead = await SystemConfigService.get_int(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES)
+    station_format = await SystemConfigService.get_station_format()
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
 
@@ -76,6 +79,18 @@ async def admin_system_config_page() -> None:
                 'Volunteer Reminder Lead (minutes)', value=reminder_lead, min=1, format='%d',
             ).classes('w-full')
             ui.label('How far ahead of a shift to DM volunteers. Blank uses 60 minutes.').classes('text-caption text-grey')
+
+            station_format_input = ui.select(
+                options={
+                    StationFormat.FREE.value: 'Free text (no validation)',
+                    StationFormat.NUMERIC.value: 'Numeric only (1, 2, 3…)',
+                    StationFormat.STRUCTURED.value: 'Structured ID (A1, B12)',
+                    StationFormat.ALPHANUMERIC.value: 'Alphanumeric (letters, numbers, hyphens)',
+                },
+                value=station_format.value,
+                label='Station Assignment Format',
+            ).classes('w-full')
+            ui.label('Controls the format enforced when assigning stations to match players.').classes('text-caption text-grey')
 
         # --- Per-day tournament hours ---
         from datetime import timedelta
@@ -150,6 +165,7 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_PLAYERS, players_raw, actor)
                 await SystemConfigService.set_raw(KEY_MAX_CONCURRENT_STAGES, stages_raw, actor)
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
+                await SystemConfigService.set_raw(KEY_STATION_FORMAT, station_format_input.value or StationFormat.FREE.value, actor)
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
 
                 guild_raw = str(int(guild_select.value)) if guild_select.value else ''

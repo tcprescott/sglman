@@ -15,8 +15,10 @@ from application.services import system_config_service as sys_cfg_module
 from application.services.system_config_service import (
     KEY_EVENT_START_DATE,
     KEY_EVENT_END_DATE,
+    KEY_STATION_FORMAT,
     SystemConfigService,
 )
+from models import StationFormat
 
 
 @pytest.fixture
@@ -334,3 +336,30 @@ class TestGetMaxConcurrentStages:
             lambda **_kw: FakeFilter(5),
         )
         assert await SystemConfigService.get_max_concurrent_stages() == 5
+
+
+# ---------------------------------------------------------------------------
+# get_station_format
+# ---------------------------------------------------------------------------
+
+
+class TestGetStationFormat:
+    async def test_returns_enum_when_valid_string_stored(self, stub_storage):
+        stub_storage[KEY_STATION_FORMAT] = 'numeric'
+        assert await SystemConfigService.get_station_format() == StationFormat.NUMERIC
+
+    async def test_returns_default_when_key_missing(self, stub_storage):
+        assert await SystemConfigService.get_station_format() == StationFormat.FREE
+
+    async def test_returns_default_when_invalid_value_stored(self, stub_storage):
+        stub_storage[KEY_STATION_FORMAT] = 'not_a_valid_format'
+        assert await SystemConfigService.get_station_format() == StationFormat.FREE
+
+    async def test_returns_custom_default_when_missing(self, stub_storage):
+        result = await SystemConfigService.get_station_format(default=StationFormat.STRUCTURED)
+        assert result == StationFormat.STRUCTURED
+
+    async def test_returns_all_valid_enum_values(self, stub_storage):
+        for fmt in StationFormat:
+            stub_storage[KEY_STATION_FORMAT] = fmt.value
+            assert await SystemConfigService.get_station_format() == fmt
