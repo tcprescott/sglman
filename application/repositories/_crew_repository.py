@@ -5,7 +5,7 @@ Commentator and Tracker have identical persistence shapes, so the actual CRUD
 lives here and the concrete repositories only bind the model class.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Generic, List, Optional, Type, TypeVar
 
 from tortoise.models import Model
@@ -63,7 +63,7 @@ class CrewRepository(Generic[T]):
     @classmethod
     async def acknowledge(cls, crew_member: T) -> T:
         """Mark a crew assignment as acknowledged by the crew member."""
-        return await cls.update(crew_member, acknowledged_at=datetime.now())
+        return await cls.update(crew_member, acknowledged_at=datetime.now(timezone.utc))
 
     @classmethod
     async def clear_acknowledgment(cls, crew_member: T) -> T:

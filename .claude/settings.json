@@ -13,6 +13,16 @@
             "type": "command",
             "command": "python3 .claude/scripts/enforce_async_safety.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/enforce_datetime_safety.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/enforce_migration_safety.py",
+            "timeout": 10
           }
         ]
       },
@@ -60,6 +70,11 @@
           {
             "type": "command",
             "command": "python3 .claude/scripts/check_audit_actions.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_audit_actor.py",
             "timeout": 10
           }
         ]

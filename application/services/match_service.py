@@ -6,7 +6,7 @@ and orchestrates between repositories.
 """
 
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Optional, Dict, Any, Tuple
 
 from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
@@ -733,7 +733,7 @@ class MatchService:
             f"User cannot seat match {match_id}",
         )
 
-        await self.repository.update(match, seated_at=datetime.now())
+        await self.repository.update(match, seated_at=datetime.now(timezone.utc))
 
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_SEATED, {'match_id': match.id},
@@ -768,7 +768,7 @@ class MatchService:
         if not match.seated_at:
             raise ValueError("Cannot finish a match that hasn't been seated")
 
-        await self.repository.update(match, finished_at=datetime.now())
+        await self.repository.update(match, finished_at=datetime.now(timezone.utc))
 
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_FINISHED, {'match_id': match.id},

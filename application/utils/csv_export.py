@@ -2,7 +2,7 @@
 
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Mapping, Sequence
 
 
@@ -29,7 +29,7 @@ def rows_to_csv_bytes(
 
 def timestamped_filename(prefix: str, ext: str = 'csv') -> str:
     """``prefix-20251130T143015Z.csv`` style filename."""
-    stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     return f'{prefix}-{stamp}.{ext}'
 
 
