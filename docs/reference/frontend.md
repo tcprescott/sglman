@@ -18,6 +18,7 @@ At import time it registers `AuthMiddleware` (from [`middleware/auth.py`](../../
 2. Mounts `/static` → `NoCacheStaticFiles(directory="static")`.
 3. Registers pages in order: `auth_create()` (login/logout/oauth pages, or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth_create()` (Challonge link/connect OAuth routes), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
 4. Calls `ui.run_with(fastapi_app, storage_secret=...)` with the stripped `STORAGE_SECRET`. No `mount_path` is given, so `@ui.page` routes live at the site root.
+5. Calls `register_error_handlers(fastapi_app)` ([`middleware/error_handlers.py`](../../middleware/error_handlers.py)) to install themed 40x/50x pages — see [Error pages](#error-pages-middlewareerror_handlerspy) below.
 
 ## Layout system (`theme/base.py`)
 
@@ -31,17 +32,33 @@ Constructor: `BaseLayout(copyright_text=..., default_tab=None, tabs=None, user=N
 - `show_volunteer=True` adds a "Volunteer" entry (→ `/volunteer`) to the drawer's top menu; every page passes it as `user is not None` so any logged-in user sees the link.
 - Callers also pass `page_name=...`; `BaseLayout` absorbs it via `**_kwargs` and does not use it.
 
-`async render()` builds the page in order:
+`async render()` calls the synchronous `render_chrome()` (palette, header, drawer, footer) and then, if `tabs` were supplied, `await`s `_render_tab_panels()`. The split exists so non-async callers — notably the `on_page_exception` 50x error path, which NiceGUI invokes synchronously — can render the full themed shell via `render_chrome()` without awaiting. The page builds in order:
 
 | Step | Method | Behavior |
 |---|---|---|
-| Dark mode | `render()` | Reads `app.storage.user['dark_mode']` into `ui.dark_mode()`, then injects `<link rel="stylesheet" href="/static/css/styles.css">` |
+| Dark mode | `render_chrome()` | Reads `app.storage.user['dark_mode']` into `ui.dark_mode()`, then injects `<link rel="stylesheet" href="/static/css/styles.css">` |
 | Header | `_render_header()` | Burger button toggling the drawer; when `user` is set: `preferred_name` label, Discord avatar (from `app.storage.user['avatar']`), logout button; otherwise a "Login with Discord" button; finally a dark-mode toggle that persists to `app.storage.user['dark_mode']` and swaps its own icon |
 | Drawer | `_render_drawer()` | `ui.left_drawer(value=False)` with `breakpoint=600 show-if-above bordered` (auto-visible on desktop, behind the burger on mobile); top menu items (Home / Admin / Volunteer), then one item per tab; the active tab item carries the Quasar `active` prop |
 | Footer | `_render_footer()` | Copyright label, styled with `.footer-dark-override`; for logged-in users a flat **Feedback** button (`.footer-feedback-btn`) opening `FeedbackDialog` |
 | Tabs | `_render_tab_panels()` | A `ui.tab_panels` whose value is switched programmatically; every tab's content renders eagerly at page load |
 
 **Tab deep-linking.** Tab switching does not reload the page: `_switch_tab(label)` moves the `active` prop in the drawer, sets the tab-panels value, and pushes `?tab={label}` onto browser history via `ui.navigate.history.push`. The reverse direction works because the page functions declare a `tab: str = None` parameter — NiceGUI maps query-string params onto page-function arguments — and pass it as `default_tab`. So `/admin?tab=Reports` opens directly on the Reports tab.
+
+## Error pages (`middleware/error_handlers.py`)
+
+Branded 40x/50x pages, all rendered through the standard `BaseLayout` chrome by **`render_error_page(...)`** in [`theme/error_page.py`](../../theme/error_page.py). The renderer is **synchronous** because NiceGUI invokes the `on_page_exception` hook without awaiting it; the only async work (loading the user to file a report) happens lazily in a button click handler.
+
+NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.app)`) and ships its own "sad face" 404/500 pages, so `register_error_handlers()` installs the overrides on the NiceGUI `app` (not the host FastAPI app):
+
+| Status | Mechanism | Behavior |
+|---|---|---|
+| **404** | `@app.exception_handler(404)` override | Keeps NiceGUI's guard that returns JSON for non-page endpoints (the REST API and raised `HTTPException`s); renders a themed "Page not found" for real UI routes |
+| **403** | `render_error_page(...)` call in [`middleware/auth.py`](../../middleware/auth.py) | The `@protected_page` denial path renders a themed "Forbidden" instead of a bare label |
+| **500** | `app.on_page_exception` | NiceGUI calls this from `create_500_error_page` for exceptions raised inside `@ui.page` builders (where essentially all request handling runs) |
+
+**Traceability.** Every unhandled 500 gets a `uuid4` `error_id` via `log_unhandled_error()`, which logs `UNHANDLED ERROR error_id=<uuid> path=<path>` with `exc_info` (clearly grep-able) and tags `error_id` on the Sentry scope so logs and Sentry events correlate. The error page surfaces the UUID and, for logged-in users, a **"Report this error"** button that opens `FeedbackDialog` prefilled (category `BUG`, message containing `Error reference: <uuid>`) — so the same UUID lands in the feedback row's `message`/`page_url`.
+
+**DEBUG vs production.** Outside production (`is_production()` is false) the 500 page also renders the full traceback for diagnosis; in production it shows only the UUID. This mirrors how `/api/docs` is gated.
 
 ## Pages & routes
 

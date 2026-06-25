@@ -98,9 +98,13 @@ def protected_page(
             if not allowed and allow_tournament_membership:
                 allowed = await AuthService.can_view_admin(user)
             if not allowed:
-                from theme.base import BaseLayout
-                await BaseLayout(page_name='denied').render()
-                ui.label('You do not have permission to view this page.').classes('text-error')
+                from theme.error_page import render_error_page
+                render_error_page(
+                    status_code=403,
+                    headline='Forbidden',
+                    message='You do not have permission to view this page.',
+                    user=user,
+                )
                 return
             return await func(*args, **kwargs)
 
