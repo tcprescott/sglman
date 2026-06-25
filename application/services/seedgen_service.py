@@ -2,7 +2,7 @@
 Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
-Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, MMR, WWR, and Test.
+Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, and Test.
 """
 
 import asyncio
@@ -167,16 +167,6 @@ class SeedGenerationService:
 
         return f"https://maprando.com{data['seed_url']}"
     
-    async def _generate_mmr(self) -> str:
-        """
-        Generate a Majora's Mask Randomizer seed.
-        
-        Returns:
-            URL to the generated seed
-        """
-        # TODO: Implement MMR seed generation
-        return "https://example.com/mmr-seed-url"
-    
     async def _generate_ootr(self) -> str:
         """
         Generate an Ocarina of Time Randomizer seed.
@@ -207,16 +197,6 @@ class SeedGenerationService:
             result = await resp.json()
 
         return f"https://ootrandomizer.com/seed/get?id={result['id']}"
-    
-    async def _generate_wwr(self) -> str:
-        """
-        Generate a Wind Waker Randomizer seed.
-        
-        Returns:
-            URL to the generated seed
-        """
-        # TODO: Implement WWR seed generation
-        return "https://example.com/wwr-seed-url"
     
     async def _generate_test(self) -> str:
         """

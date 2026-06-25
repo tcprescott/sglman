@@ -45,7 +45,9 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'test']
 ```
 
-This class constant drives both the tournament dialog options and `MatchScheduleService`'s validity check. The module docstring lists eight randomizers, but `mmr` and `wwr` are **not** registered here (or in the dispatch map) — their generator methods exist as unreachable TODO stubs.
+This class constant drives both the tournament dialog options and `MatchScheduleService`'s validity check.
+
+Majora's Mask Randomizer (`mmr`) and Wind Waker Randomizer (`wwr`) are intentionally **not** supported. The Wind Waker Randomizer ([wwrando](https://github.com/LagoLunatic/wwrando)) is a desktop-only tool with no public seed-generation HTTP API. The Majora's Mask Randomizer ([mmrandomizer.com](https://mmrandomizer.com/api/docs)) does expose a seed API, but generation endpoints require a manually-issued, heavily-scoped API key (requested via Discord) — there is no key, preset, or usable public contract to integrate against. Their dead TODO-stub generator methods were removed; re-add a `_generate_*` method only once a usable API contract and credentials exist (see [Adding a randomizer](#adding-a-randomizer-or-preset)).
 
 ### Public methods
 
@@ -62,9 +64,7 @@ This class constant drives both the tournament dialog options and `MatchSchedule
 | `_generate_ff1r` | yes | Local URL construction: random seed substituted into a fixed flags URL |
 | `_generate_z1r` | yes | Local string: random seed number + fixed flags string |
 | `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s4.json` |
-| `_generate_mmr` | **no** | TODO stub returning `https://example.com/mmr-seed-url` |
 | `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl25.json` |
-| `_generate_wwr` | **no** | TODO stub returning `https://example.com/wwr-seed-url` |
 | `_generate_test` | yes | 5-second sleep, then a fixed example URL |
 
 ### Error behavior
@@ -96,9 +96,7 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | `ff1r` | Final Fantasy 1 Randomizer | none (URL built locally) | — | — | `https://4-8-6.finalfantasyrandomizer.com/?s=<seed>&f=<flags>` |
 | `z1r` | Zelda 1 Randomizer | none (string built locally) | — | — | `"<seed> - <flags>"` (not a URL) |
 | `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `SMMAP_SPOILER_TOKEN` (optional) | `https://maprando.com<seed_url>` |
-| `mmr` | Majora's Mask Randomizer | not implemented | — | — | stub URL (unreachable) |
 | `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `OOTR_API_KEY` (required) | `https://ootrandomizer.com/seed/get?id=<id>` |
-| `wwr` | Wind Waker Randomizer | not implemented | — | — | stub URL (unreachable) |
 | `test` | — (testing) | none | — | — | fixed example URL after 5 s |
 
 ### alttpr
@@ -117,17 +115,9 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 
 `_generate_smmap` POSTs `multipart/form-data` to `https://maprando.com/randomize` with two parts: `spoiler_token` (from `SMMAP_SPOILER_TOKEN`, falling back to a built-in default literal) and `settings` (the raw JSON text of [`community_race_s4.json`](../../presets/smmap/community_race_s4.json)). The JSON response's `seed_url` path is appended to `https://maprando.com`.
 
-### mmr
-
-`_generate_mmr` is a TODO stub returning `https://example.com/mmr-seed-url`. It is not in the dispatch map or `AVAILABLE_RANDOMIZERS`, so it cannot be selected on a tournament and `generate_seed('mmr')` raises `ValueError`.
-
 ### ootr
 
 `_generate_ootr` loads [`sgl25.json`](../../presets/ootr/sgl25.json) and POSTs it as the JSON body to `https://ootrandomizer.com/api/sglive/seed/create` with query parameters `key=<OOTR_API_KEY>`, `version=8.3.0`, and `encrypt=true` (`raise_for_status=True`). If `OOTR_API_KEY` is unset it raises `ValueError('OOTR_API_KEY is not configured.')` rather than silently sending `key=None`. The response's `id` becomes `https://ootrandomizer.com/seed/get?id=<id>`.
-
-### wwr
-
-`_generate_wwr` is a TODO stub identical in status to `mmr`: unregistered and unreachable through `generate_seed`.
 
 ### test
 
@@ -176,7 +166,7 @@ There is no preset-selection mechanism: each generator method opens its preset p
 
 1. Drop a settings file under `presets/<randomizer>/` if the upstream API takes one (skip for purely local generators like `ff1r`/`z1r`).
 2. Add an `async def _generate_<name>(self) -> str` to [`seedgen_service.py`](../../application/services/seedgen_service.py) that loads the preset, calls the upstream service with `aiohttp` (never blocking `requests`), and returns the seed URL/string. Read any credential from an environment variable and raise `ValueError` with a clear message when it is missing (see `_generate_ootr`).
-3. Register the name in **both** `AVAILABLE_RANDOMIZERS` and the `generator_map` inside `generate_seed` — a method alone is unreachable (see `mmr`/`wwr`).
+3. Register the name in **both** `AVAILABLE_RANDOMIZERS` and the `generator_map` inside `generate_seed` — a method alone is unreachable.
 4. Document the new env var in [`.env.example`](../../.env.example) and [deployment.md](../deployment.md), and add it to the deployment environment.
 5. Select the new name as the tournament's Seed Generator in the tournament dialog; the admin schedule's Generate button picks it up with no further wiring. Update this page and the preset table above.
 
