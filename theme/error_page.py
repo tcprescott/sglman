@@ -94,10 +94,10 @@ def _remember_error_id(error_id: str) -> None:
 
 async def _open_error_report(error_id: str) -> None:
     """Load the current user lazily and open the prefilled feedback dialog."""
-    from application.services.auth_service import current_user_from_storage
+    from application.services.auth_service import get_user_from_discord_id
     from theme.dialog import FeedbackDialog
 
-    user = await current_user_from_storage()
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.notify('Please log in to report this error.', color='warning')
         return

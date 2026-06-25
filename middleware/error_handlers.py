@@ -50,8 +50,8 @@ def log_unhandled_error(exc: BaseException, path: str) -> str:
 async def _current_user_best_effort():
     """Load the logged-in user without letting a failure break the error page."""
     try:
-        from application.services.auth_service import current_user_from_storage
-        return await current_user_from_storage()
+        from application.services.auth_service import get_user_from_discord_id
+        return await get_user_from_discord_id(app.storage.user.get('discord_id'))
     except Exception:
         return None
 
