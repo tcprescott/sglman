@@ -106,6 +106,18 @@ AST-based. Flags `…write_log(actor, "match.created")` — an audit action pass
 as a string literal — and requires an `AuditActions.*` constant instead. Skips
 `tests/` and `audit_service.py` itself.
 
+### Slot-context in background tasks — `scripts/check_slot_context.py` (PostToolUse: Write|Edit)
+CLAUDE.md > NiceGUI patterns: a coroutine run via `background_tasks.create(...)`
+has an empty slot stack, so a `ui.*` call inside it raises *"The current slot
+cannot be determined…"*. AST-based, scoped to presentation files. Resolves each
+`background_tasks.create(fn(...))` to its locally-defined async `fn`, then flags
+any `ui.*(...)` call in `fn` that is **not** wrapped in an `async with <name>:`
+block (the fix pattern — capture `Client.current` at the call site and restore it
+with `async with client:`). An httpx-style `async with httpx.AsyncClient() as c:`
+is a `Call`, not a bare `Name`, so it does not mask a missing slot guard.
+**Deliberately misses** (precision over recall): coroutines imported from another
+module (body not visible) and UI calls reached indirectly through a helper.
+
 ### Syntax validity — `scripts/check_syntax.py` (PostToolUse: Write|Edit)
 `ast.parse` on the resulting `.py` file; rejects an edit that leaves it
 unparseable. This runs first among the AST hooks conceptually — the other AST
