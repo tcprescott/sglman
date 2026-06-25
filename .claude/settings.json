@@ -15,6 +15,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/enforce_safe_commands.py",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -40,6 +50,16 @@
           {
             "type": "command",
             "command": "python3 .claude/scripts/check_syntax.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/enforce_no_orm_writes.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_audit_actions.py",
             "timeout": 10
           }
         ]
