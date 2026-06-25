@@ -63,20 +63,20 @@ def render_player_dashboard():
                                 async def do_schedule(_=None, m=cm, oname=opponent_name):
                                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
-                                async def after():
-                                    challonge_section.refresh()
-                                    await table_view.refresh()
+                                    async def after():
+                                        challonge_section.refresh()
+                                        await table_view.refresh()
 
-                                dialog = ChallongeScheduleDialog(
-                                    m, actor=actor, opponent_name=oname, on_submit=after,
-                                )
-                                await dialog.open()
+                                    dialog = ChallongeScheduleDialog(
+                                        m, actor=actor, opponent_name=oname, on_submit=after,
+                                    )
+                                    await dialog.open()
 
-                            ui.button('Schedule', icon='event', on_click=do_schedule).props('color=primary flat')
-                        else:
-                            disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
-                            disabled_btn.disable()
-                            disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
+                                ui.button('Schedule', icon='event', on_click=do_schedule).props('color=primary flat')
+                            else:
+                                disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
+                                disabled_btn.disable()
+                                disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
 
         columns = [
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
