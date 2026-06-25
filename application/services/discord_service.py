@@ -58,11 +58,11 @@ def get_discord_bot() -> commands.Bot:
         _bot_instance = commands.Bot(command_prefix='!', intents=intents)
         
         @_bot_instance.event
-        async def on_ready():
+        async def on_ready() -> None:
             print(f'Discord bot ready. Logged in as {_bot_instance.user}')
 
         @_bot_instance.event
-        async def on_interaction(interaction: discord.Interaction):
+        async def on_interaction(interaction: discord.Interaction) -> None:
             if interaction.type == discord.InteractionType.component:
                 custom_id = (interaction.data or {}).get('custom_id', '')
                 if custom_id.startswith('crew_signup:'):
@@ -82,7 +82,7 @@ def get_discord_bot() -> commands.Bot:
                     await handle_unwatch_interaction(interaction)
 
         @_bot_instance.event
-        async def on_member_update(before: discord.Member, after: discord.Member):
+        async def on_member_update(before: discord.Member, after: discord.Member) -> None:
             # Only act when role membership actually changed (the event also
             # fires for nick/avatar/timeout updates).
             if {r.id for r in before.roles} == {r.id for r in after.roles}:
@@ -90,7 +90,7 @@ def get_discord_bot() -> commands.Bot:
             await _sync_member_roles(after.guild.id, after.id)
 
         @_bot_instance.event
-        async def on_member_remove(member: discord.Member):
+        async def on_member_remove(member: discord.Member) -> None:
             # Left/kicked/banned: re-sync strips their Discord-sourced roles.
             await _sync_member_roles(member.guild.id, member.id)
 
@@ -100,9 +100,9 @@ def get_discord_bot() -> commands.Bot:
 class DiscordService:
     """Service for Discord-related operations."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._bot = get_discord_bot()
-    
+
     async def send_dm(self, user_id: int, message: str) -> Tuple[bool, str]:
         """
         Send a direct message to a Discord user.
@@ -303,7 +303,7 @@ class DiscordService:
         except Exception as e:
             return False, f"Discord bot error: {str(e)}"
 
-    def get_bot(self):
+    def get_bot(self) -> Optional[commands.Bot]:
         """Get the Discord bot instance."""
         return self._bot
 
@@ -496,7 +496,7 @@ class MockDiscordService:
     notification code paths can be exercised end-to-end.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._bot = None
 
     async def send_dm(self, user_id: int, message: str) -> Tuple[bool, str]:
@@ -523,7 +523,7 @@ class MockDiscordService:
         print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, unwatch button): {message}")
         return True, "Message sent (mock)"
 
-    def get_bot(self):
+    def get_bot(self) -> None:
         return None
 
     async def list_guilds(self) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:

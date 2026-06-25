@@ -18,7 +18,7 @@ from models import PlayerAvailability, User, VolunteerAvailabilityStatus
 class PlayerAvailabilityService:
     """Player-declared availability windows."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = PlayerAvailabilityRepository()
         self.audit_service = AuditService()
 

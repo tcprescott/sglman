@@ -44,7 +44,7 @@ class MatchScheduleService:
     # Class-level lock dictionary for seed generation
     _seed_locks: Dict[int, asyncio.Lock] = {}
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.match_repository = MatchRepository()
         self.acknowledgment_repository = MatchAcknowledgmentRepository()
         self.discord_service = DiscordService()

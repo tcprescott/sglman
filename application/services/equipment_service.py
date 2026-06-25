@@ -19,7 +19,7 @@ MAX_BULK_COUNT = 200
 class EquipmentService:
     """Service for equipment lending operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = EquipmentRepository()
         self.audit_service = AuditService()
 

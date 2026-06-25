@@ -17,7 +17,7 @@ from models import Role, RoleSource, Tournament, TournamentPlayers, User
 class UserService:
     """Service for user-related business operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = UserRepository()
         self.role_repository = UserRoleRepository()
         self.audit_service = AuditService()

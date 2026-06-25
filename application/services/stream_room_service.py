@@ -15,7 +15,7 @@ from models import StreamRoom, User
 class StreamRoomService:
     """Service for stream room-related business operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = StreamRoomRepository()
         self.audit_service = AuditService()
 

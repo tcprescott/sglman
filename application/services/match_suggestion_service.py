@@ -25,7 +25,7 @@ _PRIMARY_WINDOW_HOURS = 4
 class MatchSuggestionService:
     """Suggests match start times that minimise venue occupancy."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.availability_repository = PlayerAvailabilityRepository()
 
     async def suggest_match_time(
@@ -222,7 +222,7 @@ class MatchSuggestionService:
 
     async def _build_availability_map(
         self, player_ids: List[int], start: datetime, end: datetime,
-    ):
+    ) -> dict[int, list]:
         rows = await self.availability_repository.for_users_overlapping(player_ids, start, end)
         out = {}
         for row in rows:

@@ -74,7 +74,7 @@ def _as_aware_utc(dt: Optional[datetime]) -> Optional[datetime]:
 class ChallongeService:
     """Business logic for the Challonge integration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = ChallongeRepository()
         self.tournament_repository = TournamentRepository()
         self.audit_service = AuditService()

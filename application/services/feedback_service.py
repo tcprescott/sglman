@@ -17,7 +17,7 @@ PAGE_URL_MAX_LENGTH = 512
 class FeedbackService:
     """Service for in-app feedback operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = FeedbackRepository()
         self.audit_service = AuditService()
 

@@ -31,7 +31,7 @@ MAX_LINES = 3
 class TriforceTextService:
     """Service for triforce text operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = TriforceTextRepository()
         self.audit_service = AuditService()
 

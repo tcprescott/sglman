@@ -16,7 +16,7 @@ from models import MatchWatcher, User
 class MatchWatcherService:
     """Service for users watching matches for Discord notifications."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = MatchWatcherRepository()
         self.match_repository = MatchRepository()
         self.audit_service = AuditService()

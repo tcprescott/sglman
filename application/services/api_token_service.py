@@ -31,7 +31,7 @@ def _hash_token(raw_token: str) -> str:
 class ApiTokenService:
     """Service for personal API access token operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = ApiTokenRepository()
         self.audit_service = AuditService()
 

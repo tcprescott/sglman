@@ -15,7 +15,7 @@ from models import Tournament, TriforceText, User
 APPROVAL_STATUSES = ('pending', 'approved', 'rejected')
 
 
-def _status_to_approved_filter(status: Optional[str]):
+def _status_to_approved_filter(status: Optional[str]) -> object:
     """Translate a status string into the ``approved`` column filter."""
     if status is None:
         return _UNSET

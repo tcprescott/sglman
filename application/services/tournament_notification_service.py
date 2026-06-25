@@ -7,7 +7,7 @@ from application.repositories import TournamentNotificationRepository, Tournamen
 class TournamentNotificationService:
     """Service for managing per-tournament notification preferences."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = TournamentNotificationRepository()
         self.tournament_repository = TournamentRepository()
 

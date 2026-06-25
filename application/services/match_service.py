@@ -36,7 +36,7 @@ from application.utils.timezone import (
 class MatchService:
     """Service for match-related business operations."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = MatchRepository()
         self.stream_room_repository = StreamRoomRepository()
         self.tournament_repository = TournamentRepository()
