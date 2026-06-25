@@ -22,7 +22,8 @@ tool being used. Each hook receives the tool-call payload as JSON on **stdin**
 |---|---|---|
 | `PreToolUse` | before the tool runs | **block the tool call** (it never executes) |
 | `PostToolUse` | after the tool ran | tool already ran; **stderr is fed back to Claude** to fix |
-| `SessionStart` / `Stop` | session boundaries | (advisory; stdout becomes context) |
+| `SessionStart` | session start | (advisory; stdout becomes context) |
+| `Stop` | end of a turn | **block the turn from ending**; stderr is fed back to Claude to fix |
 
 For our validators, **exit 0 = allow, exit 2 = violation** (the stderr message
 explains what and how to fix). Anything printed to stderr on a non-zero exit is
@@ -118,6 +119,36 @@ is a `Call`, not a bare `Name`, so it does not mask a missing slot guard.
 **Deliberately misses** (precision over recall): coroutines imported from another
 module (body not visible) and UI calls reached indirectly through a helper.
 
+### First-party import resolution — `scripts/enforce_import_resolution.py` (Stop + PostToolUse: Write|Edit)
+Catches an `ImportError`-at-startup left by a rename/refactor: a `from PKG import old_name`
+whose target module no longer defines `old_name` (e.g. the `current_user_from_storage` →
+`get_user_from_discord_id` rename that left **four** stale call sites and broke boot). Resolves
+**first-party** modules only — those whose top segment maps to a repo file/dir (flat layout,
+`package-mode = false`, so first-party detection is by *path existence*, not `__init__.py`). For
+each `from MODULE import name` / `import MODULE.SUB`, it resolves `MODULE` to its file and checks
+the name against what that module actually provides (top-level `def`/`class`, assignment targets,
+its own imports, `__all__`, and submodule files for packages).
+
+- **`Stop` (load-bearing):** whole-repo sweep — the **only** mode that catches a stale import in a
+  file the session never touched (which is exactly how this bug class manifests). Derives the repo
+  root via `git rev-parse`, drains stdin, walks every `.py` (skips `.git`/`__pycache__`/`.claude`).
+- **`PostToolUse: Write|Edit`:** re-checks just the edited file for fast feedback.
+- **Fails open** (never flags) on: a third-party/stdlib module, an unresolved module, a
+  `from x import *` or module-level `__getattr__` in the target, a parse/read error, a
+  namespace-package name, a relative import escaping the repo, or a path under `/.claude/`.
+  Measured **0 false positives** across the tree (~1368 import lines).
+
+### Stored-XSS via markdown/html sinks — `scripts/check_markdown_xss.py` (PostToolUse: Write|Edit)
+NiceGUI's `ui.markdown()` / `ui.html()` pass raw HTML through unsanitized, so rendering a stored,
+user-writable value through them is a stored-XSS sink (the tournament `triforce_access_message`
+finding, `docs/security-audit.md` #1). AST-based, scoped to presentation files. Flags a
+`ui.markdown(arg)` / `ui.html(arg)` whose first positional arg is **not** a pure literal — a
+`Constant`, or an f-string / `+`-concat composed only of literals, is allowed; a `Name`/
+`Attribute`/`Call` (a variable or model field) is flagged. Reserve the sinks for static literals;
+render dynamic text with `ui.label(...).style('white-space: pre-wrap')` or sanitize first.
+**Deliberately misses** (precision over recall): module-qualified `nicegui.ui.markdown(x)` (the
+receiver root isn't a bare `ui`), same tradeoff the ORM-write hook documents.
+
 ### Syntax validity — `scripts/check_syntax.py` (PostToolUse: Write|Edit)
 `ast.parse` on the resulting `.py` file; rejects an edit that leaves it
 unparseable. This runs first among the AST hooks conceptually — the other AST
@@ -128,6 +159,16 @@ Counts lines in the resulting `.py` file. Two tiers: an advisory past 800 lines
 and a stronger "must split" message past 1500, both exit 2 to nudge toward
 splitting modules along the three-layer pattern. Skips `migrations/`
 (aerich-generated).
+
+### Re-running the bug-history audit — `commands/guardrail-audit.md`
+The guardrails above were derived by mining the project's bug history for recurring
+(often AI-generated) failure modes and adding a mechanical check for each. The
+`/guardrail-audit` slash command re-runs that process: it mines both the git history
+**and** the local Claude Code session transcripts (`~/.claude/projects/<repo>/*.jsonl`,
+which capture in-session fixes that never became a commit — a strictly larger sample
+than git), builds a taxonomy, cross-references the existing hooks, and adds guardrails
+for any uncovered, mechanically-detectable class. Run it **locally** (the transcripts
+don't exist in a fresh CI/web container).
 
 ### Pre-existing doc automation — `hooks/*.sh`
 Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
