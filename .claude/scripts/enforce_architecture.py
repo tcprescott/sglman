@@ -12,6 +12,8 @@ Boundaries enforced:
   Repository (application/repositories/)
     → MUST NOT import from application.services
     → MUST NOT import from pages or theme
+  Service (application/services/)
+    → MUST NOT import nicegui (UI/session deps) — except allowlisted files
 """
 
 import json
@@ -24,6 +26,10 @@ IMPORT_RE = re.compile(
     r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))",
     re.MULTILINE,
 )
+
+# Service files permitted to import NiceGUI despite the layer rule.
+# auth_service.py needs app.storage.user for session identity.
+NICEGUI_ALLOWLIST = {"auth_service.py"}
 
 
 def extract_imports(content: str) -> list[str]:
@@ -100,6 +106,18 @@ def check(file_path: str, content: str) -> list[str]:
                     f"  application/repositories/ must never import from pages/ or theme/.\n"
                     f"  Fix: repositories are pure data access — remove all UI dependencies."
                 )
+
+    elif layer == "service":
+        if os.path.basename(file_path) not in NICEGUI_ALLOWLIST:
+            for mod in imports:
+                if mod == "nicegui" or mod.startswith("nicegui."):
+                    violations.append(
+                        f"ARCHITECTURE VIOLATION in '{file_path}':\n"
+                        f"  Service layer imports from NiceGUI: '{mod}'\n"
+                        f"  application/services/ must not import nicegui (no UI/session deps).\n"
+                        f"  Fix: keep UI/session access in the presentation layer; "
+                        f"pass plain values into the service."
+                    )
 
     return violations
 
