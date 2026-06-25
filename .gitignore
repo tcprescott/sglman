@@ -177,4 +177,4 @@ cython_debug/
 .nicegui
 .vscode
 config.yaml
-test_data/
+test_data/.claude/worktrees/
