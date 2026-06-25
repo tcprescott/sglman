@@ -75,6 +75,15 @@ class MatchService:
         acks = await self.ack_repository.list_for_match(match)
         return self._format_match_for_display(match, acks)
 
+    async def get_match_by_id(self, match_id: int) -> Optional[Match]:
+        return await self.repository.get_by_id(match_id)
+
+    async def get_match_players(self, match: Match) -> List[MatchPlayers]:
+        return await self.repository.get_players(match)
+
+    async def list_acknowledgments(self, match: Match) -> List[MatchAcknowledgment]:
+        return await self.ack_repository.list_for_match(match)
+
     async def get_matches_for_display(
         self,
         *,

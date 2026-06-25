@@ -1,6 +1,5 @@
 from nicegui import app, ui
 
-from application.repositories import TournamentRepository
 from application.services import (
     AuthService,
     ChallongeService,
@@ -26,10 +25,10 @@ class BaseUserDialog:
 
     async def _get_tournament_data(self):
         """Fetch tournament data for the user."""
-        tournaments = await TournamentRepository.get_all(active_only=True)
+        tournaments = await self.tournament_service.get_all_tournaments(active_only=True)
         user_tournaments = []
         if self.user:
-            user_tournaments = await TournamentRepository.get_enrolled_players_by_user(self.user)
+            user_tournaments = await self.tournament_service.get_enrolled_players_by_user(self.user)
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
         tournament_options = {str(t.id): t.name for t in tournaments}
         return tournaments, user_tournaments, selected_tournament_ids, tournament_options

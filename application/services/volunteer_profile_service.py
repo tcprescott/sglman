@@ -23,6 +23,9 @@ class VolunteerProfileService:
     async def get_or_create(self, user: User) -> VolunteerProfile:
         return await self.repository.get_or_create_for_user(user)
 
+    async def opted_in_user_ids(self) -> List[int]:
+        return await self.repository.opted_in_user_ids()
+
     async def is_opted_in(self, user: User) -> bool:
         profile = await self.repository.get_for_user(user)
         return bool(profile and profile.opted_in_at)

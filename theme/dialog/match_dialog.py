@@ -1,12 +1,14 @@
 from nicegui import app, background_tasks, ui
 
-from application.services import CrewService, MatchService, MatchSuggestionService, MatchWatcherService, UserService, get_user_from_discord_id
-from application.repositories import (
-    MatchAcknowledgmentRepository,
-    UserRepository,
-    TournamentRepository,
-    StreamRoomRepository,
-    MatchRepository,
+from application.services import (
+    CrewService,
+    MatchService,
+    MatchSuggestionService,
+    MatchWatcherService,
+    StreamRoomService,
+    TournamentService,
+    UserService,
+    get_user_from_discord_id,
 )
 from application.utils.timezone import (
     format_eastern_date,
@@ -35,11 +37,8 @@ class BaseMatchDialog:
         self.match_service = MatchService()
         self.user_service = UserService()
         self.crew_service = CrewService()
-        self.user_repository = UserRepository()
-        self.tournament_repository = TournamentRepository()
-        self.stream_room_repository = StreamRoomRepository()
-        self.match_repository = MatchRepository()
-        self.acknowledgment_repository = MatchAcknowledgmentRepository()
+        self.tournament_service = TournamentService()
+        self.stream_room_service = StreamRoomService()
 
     def _get_default_values(self):
         now = now_eastern()
@@ -177,14 +176,14 @@ class AdminMatchDialog(BaseMatchDialog):
         super().__init__(match, on_submit)
 
     async def open(self):
-        users = await self.user_repository.get_all()
-        stream_rooms = await self.stream_room_repository.get_all()
-        tournaments = await self.tournament_repository.get_all()
+        users = await self.user_service.get_all_users()
+        stream_rooms = await self.stream_room_service.get_all_stream_rooms()
+        tournaments = await self.tournament_service.get_all_tournaments()
 
         defaults = self._get_default_values()
 
         if self.match:
-            players = await self.match_repository.get_players(self.match)
+            players = await self.match_service.get_match_players(self.match)
             player_ids = [p.user_id for p in players]
             commentator_ids = [c.user_id for c in await self.match.commentators]
             tracker_ids = [t.user_id for t in await self.match.trackers]
@@ -219,7 +218,7 @@ class AdminMatchDialog(BaseMatchDialog):
                 ).classes('input-full-width')
 
                 async def get_opted_in_users(tournament_id):
-                    enrolled = await self.tournament_repository.get_enrolled_players_by_tournament_id(tournament_id)
+                    enrolled = await self.tournament_service.get_enrolled_players_by_tournament_id(tournament_id)
                     user_ids = [tp.user_id for tp in enrolled]
                     return [u for u in users if u.id in user_ids]
 
@@ -313,7 +312,7 @@ class AdminMatchDialog(BaseMatchDialog):
                     self._render_clear_buttons()
 
                 if self.match:
-                    acks = await self.acknowledgment_repository.list_for_match(self.match)
+                    acks = await self.match_service.list_acknowledgments(self.match)
                     with ui.column():
                         ui.label('Player Acknowledgments').classes('text-bold')
                         if not acks:
@@ -363,7 +362,7 @@ class AdminMatchDialog(BaseMatchDialog):
 
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 if self.match:
-                    latest_match = await self.match_repository.get_by_id(self.match.id)
+                    latest_match = await self.match_service.get_match_by_id(self.match.id)
                     if latest_match and latest_match.updated_at != self._initial_updated_at:
                         with self.dialog:
                             ui.notify('This match has been modified by another admin. Please reload and try again.', color='warning')
@@ -452,21 +451,21 @@ class UserMatchDialog(BaseMatchDialog):
         self.discord_id = discord_id
 
     async def open(self):
-        users = await self.user_repository.get_all()
+        users = await self.user_service.get_all_users()
 
-        user = await self.user_repository.get_by_discord_id(self.discord_id)
+        user = await self.user_service.get_user_by_discord_id(self.discord_id)
         if not user:
             ui.notify('User not found. Please log in again.', color='negative')
             return
 
-        enrolled_players = await self.tournament_repository.get_enrolled_players_by_user(user)
+        enrolled_players = await self.tournament_service.get_enrolled_players_by_user(user)
         tournament_ids = [tp.tournament_id for tp in enrolled_players]
-        tournaments = await self.tournament_repository.get_by_ids(tournament_ids) if tournament_ids else []
+        tournaments = await self.tournament_service.get_tournaments_by_ids(tournament_ids) if tournament_ids else []
 
         defaults = self._get_default_values()
 
         if self.match:
-            players = await self.match_repository.get_players(self.match)
+            players = await self.match_service.get_match_players(self.match)
             opponent_id = next((p.user_id for p in players if p.user_id != user.id), None)
         else:
             opponent_id = None
@@ -503,7 +502,7 @@ class UserMatchDialog(BaseMatchDialog):
                 show_all_tournaments = ui.checkbox('Show all tournaments', value=False)
 
                 async def get_opted_in_users(tournament_id):
-                    enrolled = await self.tournament_repository.get_enrolled_players_by_tournament_id(tournament_id)
+                    enrolled = await self.tournament_service.get_enrolled_players_by_tournament_id(tournament_id)
                     user_ids = [tp.user_id for tp in enrolled]
                     return [u for u in users if u.id in user_ids and u.discord_id != self.discord_id]
 
@@ -518,7 +517,7 @@ class UserMatchDialog(BaseMatchDialog):
                 async def update_selection_options():
                     tournament_id = selected_tournament.value
 
-                    tournaments_list = await self.tournament_repository.get_all() if show_all_tournaments.value else tournaments
+                    tournaments_list = await self.tournament_service.get_all_tournaments() if show_all_tournaments.value else tournaments
                     selected_tournament.disable()
                     selected_tournament.options = {t.id: t.name for t in tournaments_list}
                     selected_tournament.enable()
@@ -592,10 +591,6 @@ class UserMatchDialog(BaseMatchDialog):
 
                 new_player_ids = [user.id, opp_id]
 
-                is_enrolled = await self.tournament_repository.is_player_enrolled_by_id(tournament_id, user)
-                if not is_enrolled:
-                    await self.tournament_repository.enroll_player_by_id(tournament_id, user)
-
                 try:
                     await self.match_service.ensure_players_enrolled(tournament_id, new_player_ids)
                 except ValueError as e:
@@ -604,7 +599,7 @@ class UserMatchDialog(BaseMatchDialog):
                     return
 
                 if self.match:
-                    latest_match = await self.match_repository.get_by_id(self.match.id)
+                    latest_match = await self.match_service.get_match_by_id(self.match.id)
                     if latest_match and latest_match.updated_at != self._initial_updated_at:
                         with self.dialog:
                             ui.notify('This match has been modified. Please reload and try again.', color='warning')

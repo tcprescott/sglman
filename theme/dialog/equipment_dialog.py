@@ -4,8 +4,7 @@ from typing import Awaitable, Callable, Optional
 
 from nicegui import ui
 
-from application.repositories import UserRepository
-from application.services import EquipmentService
+from application.services import EquipmentService, UserService
 from models import Equipment, User
 from theme.dialog._helpers import dialog_header
 
@@ -31,7 +30,7 @@ class EquipmentDialog:
     async def open(self) -> None:
         is_edit = self.equipment is not None
 
-        users = await UserRepository.get_all()
+        users = await UserService().get_all_users()
         owner_options = {_SGL_OWNER: 'SpeedGaming Live'}
         owner_options.update({str(u.id): u.preferred_name for u in users})
         current_owner = (

@@ -4,12 +4,11 @@ from datetime import datetime, timedelta, timezone
 
 from nicegui import app, ui
 
-from application.repositories.volunteer_qualification_repository import VolunteerQualificationRepository
-from application.repositories.volunteer_profile_repository import VolunteerProfileRepository
 from application.services import AuthService, get_user_from_discord_id
 from application.services.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_eastern_date, format_eastern_time
 from models import VolunteerAvailabilityStatus
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
@@ -38,8 +37,7 @@ async def admin_volunteer_roster_page() -> None:
     profile_service = VolunteerProfileService()
     position_service = VolunteerPositionService()
     availability_service = VolunteerAvailabilityService()
-    qual_repo = VolunteerQualificationRepository()
-    profile_repo = VolunteerProfileRepository()
+    qualification_service = VolunteerQualificationService()
 
     volunteers_by_id: dict = {}
 
@@ -154,9 +152,9 @@ async def admin_volunteer_roster_page() -> None:
             positions = await position_service.list_all()
             position_by_id = {p.id: p for p in positions}
 
-            opted_in_ids = set(await profile_repo.opted_in_user_ids())
+            opted_in_ids = set(await profile_service.opted_in_user_ids())
 
-            all_quals = await qual_repo.list_all()
+            all_quals = await qualification_service.list_all_qualifications()
             qual_map: dict[int, list[str]] = {}
             for q in all_quals:
                 pos = position_by_id.get(q.position_id)
