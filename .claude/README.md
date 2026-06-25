@@ -1,0 +1,176 @@
+# `.claude/` — Claude Code hooks & guardrails
+
+This directory configures how Claude Code behaves in this repo. The headline
+feature is a set of **architecture guardrails**: hooks that mechanically enforce
+the rules in [`CLAUDE.md`](../CLAUDE.md) so they can't be violated by accident,
+instead of relying on the model to remember them.
+
+Everything is wired through [`settings.json`](./settings.json). Validation
+scripts live in [`scripts/`](./scripts/); the older doc-automation hooks live in
+[`hooks/`](./hooks/).
+
+---
+
+## How hooks work here
+
+Claude Code runs a hook **command** at a lifecycle event, matched against the
+tool being used. Each hook receives the tool-call payload as JSON on **stdin**
+(`tool_name`, `tool_input.file_path`, `tool_input.content` / `.new_string` /
+`.command`, …) and signals via its **exit code**:
+
+| Event | When | Exit 2 means |
+|---|---|---|
+| `PreToolUse` | before the tool runs | **block the tool call** (it never executes) |
+| `PostToolUse` | after the tool ran | tool already ran; **stderr is fed back to Claude** to fix |
+| `SessionStart` / `Stop` | session boundaries | (advisory; stdout becomes context) |
+
+For our validators, **exit 0 = allow, exit 2 = violation** (the stderr message
+explains what and how to fix). Anything printed to stderr on a non-zero exit is
+shown to Claude.
+
+### Why some checks are PreToolUse and others PostToolUse
+
+- **Import / command checks are `PreToolUse`.** They only need the incoming text
+  (`content`, `new_string`, or `command`) and are best blocked *before* the
+  write happens. A line-anchored regex on a fragment is reliable.
+- **Whole-file AST checks are `PostToolUse`.** Syntax-, ORM-write-, and
+  audit-checks need to parse the *resulting* file. An `Edit` only gives you the
+  replaced fragment, which often won't parse on its own, so these read the
+  finished file from disk after the write. They can't *prevent* the write, but
+  exit 2 surfaces the problem immediately so the next action is a fix.
+
+---
+
+## The guardrails
+
+### Architecture / layering — `scripts/enforce_architecture.py` (PreToolUse: Write|Edit)
+Enforces the three-layer import boundary (Presentation → Service → Repository):
+
+- `pages/`, `theme/`, `frontend.py` **must not** import from `application.repositories`.
+- `application/repositories/` **must not** import from `application.services`, `pages`, or `theme`.
+- `application/services/` **must not** import `nicegui` — **except** files in `NICEGUI_ALLOWLIST` (currently `auth_service.py`, which legitimately needs `app.storage.user`).
+
+### Event-loop safety — `scripts/enforce_async_safety.py` (PreToolUse: Write|Edit)
+All users share one asyncio loop, so a single blocking call freezes the app.
+
+- **Repo-wide:** `import requests` / `from requests …` (→ `httpx.AsyncClient`), `time.sleep(...)` (→ `await asyncio.sleep(...)`).
+- **Presentation only** (`pages/`, `theme/`, `frontend.py`): `asyncio.create_task(...)` / `ensure_future(...)` (→ `background_tasks.create(...)`). The Discord bot uses raw asyncio legitimately, so it's not checked here.
+
+### No ORM writes in the UI — `scripts/enforce_no_orm_writes.py` (PostToolUse: Write|Edit)
+Presentation may **read** for display but must not **write** to the DB.
+AST-based, scoped to presentation files. Flags a write-method call whose
+receiver chain is rooted at a **known Tortoise model** (names loaded from
+`models.py` at runtime):
+
+- Blocked: `Match.create(...)`, `User.bulk_create(...)`, `Tournament.filter(id=x).update(...)`, `Tournament.filter(id=x).delete()`.
+- Allowed: reads like `Tournament.filter(...).order_by(...)`, `.all()`, `.get(...)` (they don't end in a write method).
+- **Deliberately misses** (precision over recall): bare-instance `obj.save()` (receiver type isn't visible) and module-qualified `models.Match.create()`.
+
+### Safe shell commands — `scripts/enforce_safe_commands.py` (PreToolUse: Bash)
+Inspects `tool_input.command` and blocks:
+
+- `pip install …` → use `poetry add` (the project is Poetry-managed).
+- `git push --force` / `-f` / `--force-with-lease` → no force-pushing shared history.
+- `git commit --no-verify` / `-n` → don't skip git's verification.
+
+### Audit-action constants — `scripts/check_audit_actions.py` (PostToolUse: Write|Edit)
+AST-based. Flags `…write_log(actor, "match.created")` — an audit action passed
+as a string literal — and requires an `AuditActions.*` constant instead. Skips
+`tests/` and `audit_service.py` itself.
+
+### Syntax validity — `scripts/check_syntax.py` (PostToolUse: Write|Edit)
+`ast.parse` on the resulting `.py` file; rejects an edit that leaves it
+unparseable. This runs first among the AST hooks conceptually — the other AST
+hooks exit 0 on a `SyntaxError` so only this one reports it (no double-noise).
+
+### Pre-existing doc automation — `hooks/*.sh`
+Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
+coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
+`doc-check.sh` runs at Stop.
+
+---
+
+## Design principles (apply to any new guardrail)
+
+1. **Fail open.** On malformed stdin, a missing `file_path`, a non-`.py` file,
+   an unreadable file, or a `SyntaxError`, **exit 0**. Only a *real* violation
+   exits 2. A buggy hook must never wedge all edits.
+2. **Self-contained scripts.** Each script re-implements the ~10-line
+   stdin/extract idiom rather than sharing a module, so any hook can be added or
+   removed independently. The small duplication is intentional.
+3. **Low false-positive bias.** Prefer precision (e.g. anchoring ORM writes to
+   known model names) over catching everything. A noisy guardrail gets disabled.
+4. **Skip `.claude/`.** Content checks must ignore files under `/.claude/` —
+   otherwise a hook flags its own pattern literals (see Gotchas).
+
+---
+
+## Adding or adjusting rules
+
+- **New layer/import rule:** extend `classify()` / `check()` in
+  `enforce_architecture.py`.
+- **Allow a specific file to break a rule:** the clean pattern is an allowlist
+  set keyed by basename, like `NICEGUI_ALLOWLIST = {"auth_service.py"}` in
+  `enforce_architecture.py`. For the other scripts, add an early skip near the
+  top of `main()`, e.g.:
+  ```python
+  if file_path.replace("\\", "/").endswith("/some_special_file.py"):
+      sys.exit(0)
+  ```
+- **New blocked command:** add a `(compiled_regex, name, fix)` row to `RULES` in
+  `enforce_safe_commands.py`.
+- **Register a new hook:** add a `{ "type": "command", "command": "...",
+  "timeout": 10 }` entry under the right matcher in `settings.json`. Multiple
+  hooks per matcher all run; any exit 2 wins.
+
+---
+
+## Testing the hooks
+
+Each script reads stdin and exits 0/2, so you can test it directly:
+
+```bash
+echo '{"tool_name":"Write","tool_input":{"file_path":"pages/x.py","content":"from application.repositories.user_repository import UserRepository\n"}}' \
+  | python3 .claude/scripts/enforce_architecture.py ; echo "exit: $?"   # -> 2
+```
+
+The PostToolUse AST scripts read the file from disk, so stage a real file first
+(`printf '…' > pages/_probe.py`) and point `file_path` at it.
+
+### Gotchas we hit (self-reference)
+
+- **A content hook will flag its own example literals.** `enforce_async_safety.py`
+  contains the string `time.sleep` etc.; it skips `/.claude/` so editing the
+  hook scripts doesn't trip them.
+- **The Bash guard scans the command *text*,** so a command that merely
+  *mentions* `pip install` (a test script, a here-doc) is blocked. To run the
+  test suite, put it in a **script file** and run `bash test.sh` — inner
+  subprocesses aren't intercepted, only the top-level Bash tool call is.
+- **Committing is a Bash command too.** A commit message describing the blocked
+  patterns trips the guard. Use `git commit -F <file>` (write the message with
+  the Write tool) so the literals live in a file, not on the command line.
+
+---
+
+## Why we did **not** add ruff
+
+We considered a `ruff check --select ASYNC` hook (ruff 0.15.8 is already
+installed at `/root/.local/bin/ruff`) and **decided against it**:
+
+- **Overlap.** Ruff's `ASYNC` ruleset overlaps `enforce_async_safety.py`, which
+  already blocks the common event-loop blockers. The marginal gain (catching
+  blocking calls beyond the three hardcoded patterns) didn't justify a new
+  dependency in the hook chain.
+- **Fragility as a self-contained hook.** A hook calling a globally-installed
+  `ruff` works in this environment but silently does nothing where ruff isn't on
+  PATH — an inconsistent guardrail.
+- **Cost of doing it "properly."** Full integration means adding `ruff` to
+  `pyproject.toml` dev deps + a `ruff.toml` + a CI step. That's a broader
+  project/tooling change (affects all contributors and CI), and `poetry run
+  ruff` here hits the project's `^3.12` vs the env's 3.11 mismatch, making it
+  finicky to land.
+
+**If revisited:** the right move is full integration (pyproject dep + config +
+CI lint step) so linting is consistent for everyone — not a hook leaning on an
+ad-hoc local binary. Until then, the regex `enforce_async_safety.py` covers the
+high-value cases.
