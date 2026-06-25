@@ -95,9 +95,9 @@ Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=`
 Fetch the authoritative API surface from `nicegui/llms.md` inside the installed package before writing NiceGUI code. The critical anti-patterns (from NiceGUI's official list) — keep these in mind:
 
 - **Never `asyncio.create_task()` / `ensure_future()`** — bare tasks get GC'd and swallow exceptions. Use `background_tasks.create(coro())` (`from nicegui import background_tasks`).
-- **Capture `Client.current` before a background task that calls UI functions** (`ui.notify`, etc.) and restore it inside the task — the slot context is cleared in background tasks:
+- **Capture `context.client` before a background task that calls UI functions** (`ui.notify`, etc.) and restore it inside the task — the slot context is cleared in background tasks. Use `context.client` (`from nicegui import context`), **not** `Client.current` — the latter does not exist in NiceGUI 3.x and raises `AttributeError: type object 'Client' has no attribute 'current'` at runtime:
   ```python
-  table.on('evt', lambda e: background_tasks.create(handle(e.args, Client.current)))
+  table.on('evt', lambda e: background_tasks.create(handle(e.args, context.client)))
 
   async def handle(row, client):
       async with client:

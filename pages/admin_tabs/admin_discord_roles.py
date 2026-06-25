@@ -1,6 +1,6 @@
 """Admin Discord Role Mapping Page"""
 
-from nicegui import Client, app, background_tasks, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AuthService,
@@ -145,7 +145,7 @@ async def admin_discord_roles_page() -> None:
                     ui.button('Add Mapping', icon='add', on_click=open_add_dialog).props('color=primary')
                     ui.button(
                         'Sync All Users', icon='sync',
-                        on_click=lambda: background_tasks.create(sync_all_users(Client.current)),
+                        on_click=lambda: background_tasks.create(sync_all_users(context.client)),
                     ).props('outline color=primary').tooltip(
                         'Apply current mappings to all users now'
                     )
@@ -165,7 +165,7 @@ async def admin_discord_roles_page() -> None:
                 </q-td>
             ''')
 
-            table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, Client.current)))
+            table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, context.client)))
 
         ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Discord Roles' else None)
         background_tasks.create(refresh_table())

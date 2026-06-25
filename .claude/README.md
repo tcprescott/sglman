@@ -149,6 +149,19 @@ render dynamic text with `ui.label(...).style('white-space: pre-wrap')` or sanit
 **Deliberately misses** (precision over recall): module-qualified `nicegui.ui.markdown(x)` (the
 receiver root isn't a bare `ui`), same tradeoff the ORM-write hook documents.
 
+### NiceGUI `Client.current` — `scripts/enforce_nicegui_client_api.py` (PreToolUse: Write|Edit)
+NiceGUI 3.x exposes the per-request client as `context.client` (`from nicegui import
+context`); there is **no** `current` attribute on the `Client` *class*, so `Client.current`
+raises `AttributeError: type object 'Client' has no attribute 'current'` the moment the
+handler fires. This bites the slot-context fix pattern specifically: capturing the client
+for a `background_tasks.create(...)` coroutine with `Client.current` looks right but crashes
+at runtime — commit `bca4d7a` introduced exactly this while *fixing* a slot-context error,
+and it sat live on `main`. Content regex (like `enforce_async_safety.py`): matches
+`\bClient\.current\b` in the incoming fragment and steers to `context.client`. `\bClient`
+won't match a longer name (`MyClient.current`), and the class genuinely has no such
+attribute, so false positives are **0** (measured: 1 hit across 264 `.py` files — the live
+bug itself; `check_slot_context.py`'s doc literal is skipped by the `/.claude/` guard).
+
 ### Syntax validity — `scripts/check_syntax.py` (PostToolUse: Write|Edit)
 `ast.parse` on the resulting `.py` file; rejects an edit that leaves it
 unparseable. This runs first among the AST hooks conceptually — the other AST
