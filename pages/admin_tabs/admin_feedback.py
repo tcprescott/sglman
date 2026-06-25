@@ -1,8 +1,8 @@
 """Admin Feedback Review Page"""
 
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
-from application.services import FeedbackService, current_user_from_storage
+from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
 from models import FeedbackStatus
 
@@ -70,7 +70,7 @@ async def admin_feedback_page() -> None:
 
             async def handle_mark_reviewed(event):
                 row = event.args
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 try:
                     await service.mark_reviewed(actor, row['id'])
                 except (ValueError, PermissionError) as e:

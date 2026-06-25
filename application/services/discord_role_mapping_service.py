@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class DiscordRoleMappingService:
     """Service for Discord-role-to-app-role mappings and login-time sync."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.mapping_repository = DiscordRoleMappingRepository()
         self.role_repository = UserRoleRepository()
         self.audit_service = AuditService()

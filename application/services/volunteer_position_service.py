@@ -15,7 +15,7 @@ from models import User, VolunteerPosition
 class VolunteerPositionService:
     """Manage the arbitrary, coordinator-defined position list."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = VolunteerPositionRepository()
         self.audit_service = AuditService()
 

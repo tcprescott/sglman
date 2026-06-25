@@ -317,7 +317,7 @@ class ReportsService:
                     ws, we = window
                     duration_hours = max(0.0, (we - ws).total_seconds() / 3600.0)
 
-            def bump(entry, slot_total, slot_approved, hours):
+            def bump(entry, slot_total, slot_approved, hours) -> None:
                 entry[f'{slot_total}_total'] += 1
                 if not approved_only:
                     entry['hours_total'] += hours

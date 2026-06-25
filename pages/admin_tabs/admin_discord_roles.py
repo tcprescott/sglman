@@ -1,13 +1,13 @@
 """Admin Discord Role Mapping Page"""
 
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
 from application.services import (
     AuthService,
     DiscordRoleMappingService,
     DiscordService,
     SystemConfigService,
-    current_user_from_storage,
+    get_user_from_discord_id,
 )
 from models import Role
 
@@ -16,7 +16,7 @@ _ROLE_OPTIONS = {r.value: r.value.replace('_', ' ').title() for r in Role}
 
 
 async def admin_discord_roles_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_manage = await AuthService.can_grant_roles(actor)
 
     service = DiscordRoleMappingService()
@@ -63,7 +63,7 @@ async def admin_discord_roles_page() -> None:
 
         async def delete_mapping(row):
             try:
-                current = await current_user_from_storage()
+                current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await service.remove_mapping(row['id'], current)
             except (ValueError, PermissionError) as e:
                 ui.notify(str(e), color='warning')
@@ -93,7 +93,7 @@ async def admin_discord_roles_page() -> None:
                             ui.notify('Select both a Discord role and an application role.', color='warning')
                             return
                         try:
-                            current = await current_user_from_storage()
+                            current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                             await service.add_mapping(
                                 guild_id=guild_id,
                                 discord_role_id=int(discord_select.value),

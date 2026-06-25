@@ -1,4 +1,4 @@
-from nicegui import ui
+from nicegui import app, ui
 
 from application.repositories import TournamentRepository
 from application.services import (
@@ -6,7 +6,7 @@ from application.services import (
     ChallongeService,
     TournamentService,
     UserService,
-    current_user_from_storage,
+    get_user_from_discord_id,
 )
 from models import Role, User
 from theme.dialog._helpers import dialog_header, submit_on_enter
@@ -85,7 +85,7 @@ class UserDialog(BaseUserDialog):
                     with self.dialog:
                         ui.notify('Self-edit dialog requires an existing user.', color='warning')
                     return
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 if actor is None:
                     with self.dialog:
                         ui.notify('You must be logged in to edit your profile.', color='negative')
@@ -127,7 +127,7 @@ class AdminUserDialog(BaseUserDialog):
     """Staff-edit dialog: profile + active flag + roles + TA/CC tournament assignments."""
 
     async def open(self):
-        actor = await current_user_from_storage()
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if actor is None or not await AuthService.is_staff(actor):
             ui.notify('Only Staff can manage users.', color='negative')
             return

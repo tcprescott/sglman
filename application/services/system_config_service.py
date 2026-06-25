@@ -11,7 +11,7 @@ from typing import Dict, Optional, Tuple
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.utils.timezone import EASTERN_TZ, to_eastern
-from models import Match, StreamRoom, SystemConfiguration, User
+from models import Match, StationFormat, StreamRoom, SystemConfiguration, User
 
 
 KEY_EVENT_START_DATE = 'event_start_date'
@@ -21,6 +21,7 @@ KEY_MAX_CONCURRENT_STAGES = 'max_concurrent_stages'
 KEY_VOLUNTEER_REMINDER_LEAD_MINUTES = 'volunteer_reminder_lead_minutes'
 KEY_TOURNAMENT_HOURS = 'tournament_hours_by_date'
 KEY_DISCORD_SYNC_GUILD_ID = 'discord_role_sync_guild_id'
+KEY_STATION_FORMAT = 'station_format'
 
 
 class SystemConfigService:
@@ -153,6 +154,16 @@ class SystemConfigService:
         """Return (open_time, close_time) for the given date, or None if not configured."""
         hours = await SystemConfigService.get_tournament_hours()
         return hours.get(d)
+
+    @staticmethod
+    async def get_station_format(default: StationFormat = StationFormat.FREE) -> StationFormat:
+        raw = await SystemConfigService.get_raw(KEY_STATION_FORMAT)
+        if not raw:
+            return default
+        try:
+            return StationFormat(raw)
+        except ValueError:
+            return default
 
     @staticmethod
     async def set_tournament_hours(

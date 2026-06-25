@@ -21,7 +21,7 @@ from models import User, VolunteerAvailability, VolunteerAvailabilityStatus
 class VolunteerAvailabilityService:
     """Volunteer-declared availability windows."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = VolunteerAvailabilityRepository()
         self.profile_repository = VolunteerProfileRepository()
         self.audit_service = AuditService()

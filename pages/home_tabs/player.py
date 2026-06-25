@@ -2,7 +2,7 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.services import ChallongeService, MatchService, current_user_from_storage
+from application.services import ChallongeService, MatchService, get_user_from_discord_id
 from models import User
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
@@ -32,10 +32,8 @@ def render_player_dashboard():
             return
 
         # Challonge: upcoming bracket matches the player can schedule in a few clicks.
-        challonge_container = ui.column().classes('w-full')
-
-        async def refresh_challonge():
-            challonge_container.clear()
+        @ui.refreshable
+        async def challonge_section():
             if not challonge_service.is_configured():
                 return
             user = await User.get_or_none(discord_id=discord_id)
@@ -63,22 +61,22 @@ def render_player_dashboard():
                             ui.space()
                             if opponent_linked:
                                 async def do_schedule(_=None, m=cm, oname=opponent_name):
-                                    actor = await current_user_from_storage()
+                                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
-                                    async def after():
-                                        await refresh_challonge()
-                                        await table_view.refresh()
+                                async def after():
+                                    challonge_section.refresh()
+                                    await table_view.refresh()
 
-                                    dialog = ChallongeScheduleDialog(
-                                        m, actor=actor, opponent_name=oname, on_submit=after,
-                                    )
-                                    await dialog.open()
+                                dialog = ChallongeScheduleDialog(
+                                    m, actor=actor, opponent_name=oname, on_submit=after,
+                                )
+                                await dialog.open()
 
-                                ui.button('Schedule', icon='event', on_click=do_schedule).props('color=primary flat')
-                            else:
-                                disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
-                                disabled_btn.disable()
-                                disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
+                            ui.button('Schedule', icon='event', on_click=do_schedule).props('color=primary flat')
+                        else:
+                            disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
+                            disabled_btn.disable()
+                            disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
 
         columns = [
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
@@ -154,6 +152,6 @@ def render_player_dashboard():
             extra_slots=extra_slots,
             player_discord_id=discord_id
         )
+        challonge_section()
         background_tasks.create(table_view.refresh())
-        background_tasks.create(refresh_challonge())
 

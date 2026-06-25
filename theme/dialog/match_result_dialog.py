@@ -2,9 +2,9 @@
 
 from typing import Optional, Callable
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import MatchService, current_user_from_storage
+from application.services import MatchService, get_user_from_discord_id
 from models import Match
 
 
@@ -92,7 +92,7 @@ class MatchResultDialog:
 
         winner_id = self.winner_select.value
 
-        actor = await current_user_from_storage()
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if actor is None:
             ui.notify('You must be logged in to record match results.', color='negative')
             return

@@ -3,13 +3,11 @@ Authorization Service - Business Logic Layer
 
 Stateless policy helpers for role-based access control. All checks accept
 a User model (or None). UI code that only has the storage discord_id
-should call current_user_from_storage() once at page entry to resolve the
+should call get_user_from_discord_id() once at page entry to resolve the
 User, then pass it into the helpers.
 """
 
 from typing import Optional
-
-from nicegui import app
 
 from models import Match, Role, Tournament, User, UserRole
 
@@ -171,13 +169,12 @@ class AuthService:
             raise PermissionError(message)
 
 
-async def current_user_from_storage() -> Optional[User]:
-    """Resolve the current request's user from NiceGUI storage to a User model.
+async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]:
+    """Resolve a discord_id (from app.storage.user) to a User model.
 
-    Returns None when the user is not logged in or no longer in the database.
+    Returns None when discord_id is absent or the user is no longer in the database.
     Call once at page entry and pass the result into AuthService helpers.
     """
-    discord_id = app.storage.user.get('discord_id')
     if not discord_id:
         return None
     return await User.get_or_none(discord_id=discord_id)

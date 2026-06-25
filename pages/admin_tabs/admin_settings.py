@@ -1,10 +1,10 @@
 """Admin Settings/Tournaments Management Page"""
 
 
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
 from application.repositories import StreamRoomRepository
-from application.services import AuthService, current_user_from_storage
+from application.services import AuthService, get_user_from_discord_id
 from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
@@ -12,7 +12,7 @@ from theme.tables.tournament import TournamentTableView
 
 
 async def admin_tournaments_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_create = await AuthService.is_staff(actor)
 
     with ui.column().classes('page-container'):
@@ -55,7 +55,7 @@ async def admin_tournaments_page() -> None:
 
 
 async def admin_stream_rooms_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_manage = await AuthService.can_manage_stream_rooms(actor)
 
     with ui.column().classes('page-container-narrow'):

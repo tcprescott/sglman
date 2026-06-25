@@ -9,7 +9,7 @@ out or back in, and managers can edit/delete it.
 from nicegui import app, ui
 from middleware.auth import protected_page
 
-from application.services import AuthService, EquipmentService, current_user_from_storage
+from application.services import AuthService, EquipmentService, get_user_from_discord_id
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes, asset_url
 from application.utils.timezone import format_eastern_display
 from models import User
@@ -113,15 +113,15 @@ def create() -> None:
                             ).classes('text-caption')
 
         async def do_checkout():
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             await open_checkout(actor, asset_id, can_manage=can_manage, on_done=render_detail.refresh)
 
         async def do_checkin():
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             await quick_checkin(actor, asset_id, on_done=render_detail.refresh)
 
         async def edit_asset():
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             asset = await service.get_asset(asset_id)
             if asset is None:
                 ui.notify('Asset not found.', color='warning')

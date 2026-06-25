@@ -1,11 +1,20 @@
 """Station Assignment Dialog - Assign stations to match players"""
 
+import re
 from typing import Optional, Callable
 
-from nicegui import ui
+from nicegui import app, ui
 
-from models import Match
-from application.services import MatchService, current_user_from_storage
+from models import Match, StationFormat
+from application.services import MatchService, get_user_from_discord_id
+from application.services.system_config_service import SystemConfigService
+
+_STATION_REGEXES = {
+    StationFormat.FREE:         re.compile(r'^.{0,50}$'),
+    StationFormat.NUMERIC:      re.compile(r'^\d+$'),
+    StationFormat.STRUCTURED:   re.compile(r'^[A-Za-z][0-9]{1,2}$'),
+    StationFormat.ALPHANUMERIC: re.compile(r'^[A-Za-z0-9\-\s]{1,20}$'),
+}
 
 
 class StationAssignmentDialog:
@@ -33,6 +42,7 @@ class StationAssignmentDialog:
         """Open the dialog and load match data."""
         # Ensure match has players and tournament loaded
         await self.match.fetch_related('tournament', 'players', 'players__user')
+        fmt = await SystemConfigService.get_station_format()
         
         with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 600px; width: 100%;'):
             # Header
@@ -70,7 +80,7 @@ class StationAssignmentDialog:
                             station_input = ui.input(
                                 label='Station',
                                 placeholder='e.g., A1, B2, Station 3',
-                                validation={'Max 50 characters': lambda v: not v or len(v) <= 50},
+                                validation={'Invalid station format': lambda v: not v or _STATION_REGEXES[fmt].fullmatch(v) is not None},
                             ).props('outlined dense maxlength=50').classes('full-width')
 
                             # Pre-fill existing station if available
@@ -97,7 +107,7 @@ class StationAssignmentDialog:
                 station = station_input.value.strip() if station_input.value else None
                 assignments[player_id] = station
 
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             await self.match_service.assign_stations(self.match.id, assignments, actor=actor)
 
             ui.notify(

@@ -1,10 +1,10 @@
-from nicegui import ui
+from nicegui import app, ui
 
 from application.services import (
     ChallongeService,
     SeedGenerationService,
     TournamentService,
-    current_user_from_storage,
+    get_user_from_discord_id,
 )
 from theme.dialog._helpers import dialog_header, submit_on_enter
 
@@ -115,7 +115,7 @@ class TournamentDialog:
                                 ui.notify('Enter a Challonge tournament ID or URL.', color='warning')
                             return
                         try:
-                            actor = await current_user_from_storage()
+                            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                             await self.challonge_service.link_tournament(self.tournament.id, value, actor)
                             await self.tournament.refresh_from_db()
                             with self.dialog:
@@ -136,7 +136,7 @@ class TournamentDialog:
                         ui.notify('Please fill required field(s): Tournament Name.', color='warning')
                     return
                 try:
-                    actor = await current_user_from_storage()
+                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     if self.tournament:
                         with self.dialog:
                             await self.tournament_service.update_tournament(

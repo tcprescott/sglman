@@ -1,8 +1,8 @@
 """Dialog for creating/editing a VolunteerShift."""
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import current_user_from_storage
+from application.services import get_user_from_discord_id
 from application.services.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
@@ -86,7 +86,7 @@ class VolunteerShiftDialog:
                 notes_input = ui.textarea('Notes (optional)', value=default_notes).classes('input-full-width')
 
             async def submit():
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 try:
                     if not position_select.value:
                         raise ValueError('Select a position.')

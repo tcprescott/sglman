@@ -2,9 +2,9 @@
 
 from datetime import timedelta
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import AuthService, SystemConfigService, current_user_from_storage
+from application.services import AuthService, SystemConfigService, get_user_from_discord_id
 from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
 from application.services.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer_position_service import VolunteerPositionService
@@ -32,7 +32,7 @@ STANDARD_BLOCKS = [
 
 
 async def admin_volunteers_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if not await AuthService.can_manage_volunteers(actor):
         ui.label('You do not have permission to manage volunteers.').classes('text-error')
         return

@@ -15,7 +15,7 @@ from models import User
 class VolunteerQualificationService:
     """Read and set qualification records for individual volunteers."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = VolunteerQualificationRepository()
         self.audit_service = AuditService()
 

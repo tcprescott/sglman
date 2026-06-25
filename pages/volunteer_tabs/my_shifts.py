@@ -2,15 +2,15 @@
 
 from datetime import datetime, timezone
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import current_user_from_storage
+from application.services import get_user_from_discord_id
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_eastern_display
 
 
 async def my_shifts_tab() -> None:
-    user = await current_user_from_storage()
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
         return

@@ -1,6 +1,6 @@
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
-from application.services import CrewService, MatchService, MatchSuggestionService, MatchWatcherService, UserService, current_user_from_storage
+from application.services import CrewService, MatchService, MatchSuggestionService, MatchWatcherService, UserService, get_user_from_discord_id
 from application.repositories import (
     MatchAcknowledgmentRepository,
     UserRepository,
@@ -152,7 +152,7 @@ class BaseMatchDialog:
 
     async def _delete_match(self, dialog):
         try:
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             await self.match_service.delete_match(self.match.id, actor=actor)
             with dialog:
                 ui.notify('Match deleted', color='negative')
@@ -361,7 +361,7 @@ class AdminMatchDialog(BaseMatchDialog):
                         ui.notify(f'Error enrolling players: {str(e)}', color='negative')
                     return
 
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 if self.match:
                     latest_match = await self.match_repository.get_by_id(self.match.id)
                     if latest_match and latest_match.updated_at != self._initial_updated_at:

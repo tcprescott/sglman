@@ -13,7 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 from zenora import APIClient
 
-from application.services.auth_service import AuthService, current_user_from_storage
+from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
 from application.utils.mock_discord import is_mock_discord
 from models import Role, User
@@ -90,7 +90,7 @@ def protected_page(
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            user = await current_user_from_storage()
+            user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             allowed = False
             if user is not None and role_list:
                 held = await AuthService.get_roles(user)

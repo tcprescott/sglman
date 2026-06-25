@@ -16,7 +16,7 @@ from models import Role, User, UserRole, VolunteerProfile
 class VolunteerProfileService:
     """Opt-in lifecycle and the assignable-volunteer pool."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = VolunteerProfileRepository()
         self.audit_service = AuditService()
 

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class VolunteerScheduleService:
     """Core volunteer-scheduling operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.shift_repository = VolunteerShiftRepository()
         self.assignment_repository = VolunteerAssignmentRepository()
         self.position_repository = VolunteerPositionRepository()
@@ -303,7 +303,7 @@ class VolunteerScheduleService:
             )
         return assignment
 
-    async def assignments_for_user(self, user: User, upcoming_after: Optional[datetime] = None):
+    async def assignments_for_user(self, user: User, upcoming_after: Optional[datetime] = None) -> List[VolunteerAssignment]:
         return await self.assignment_repository.list_for_user(user, upcoming_after=upcoming_after)
 
     # --- Coverage ---------------------------------------------------------

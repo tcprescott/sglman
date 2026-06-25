@@ -141,7 +141,7 @@ def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
 class AuditService:
     """Service for audit logging operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.repository = AuditRepository()
 
     async def list_logs(

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class CrewService:
     """Service for crew-related business operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.commentator_repository = CommentatorRepository()
         self.tracker_repository = TrackerRepository()
         self.audit_service = AuditService()

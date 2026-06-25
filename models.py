@@ -43,6 +43,13 @@ class EquipmentStatus(str, Enum):
     RETIRED = 'retired'
 
 
+class StationFormat(str, Enum):
+    FREE = 'free'
+    NUMERIC = 'numeric'
+    STRUCTURED = 'structured'
+    ALPHANUMERIC = 'alphanumeric'
+
+
 class User(Model):
     id = fields.IntField(pk=True)
     discord_id = fields.BigIntField(unique=True)

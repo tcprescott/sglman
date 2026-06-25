@@ -1,9 +1,9 @@
 from typing import Callable, Optional, Union
 
-from nicegui import ui
+from nicegui import app, ui
 
 from models import Commentator, Tracker
-from application.services import CrewService, current_user_from_storage
+from application.services import CrewService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_header
 
 
@@ -25,7 +25,7 @@ class ApproveCrewDialog:
 
                 async def save():
                     try:
-                        actor = await current_user_from_storage()
+                        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                         await self.service.update_crew_approval(
                             crew_member=self.crew_member,
                             crew_type=self.crew_type,

@@ -1,12 +1,12 @@
 """Home Triforce Texts tab (inline tournament selection + submission)."""
 
-from nicegui import ui
+from nicegui import app, ui
 
 from application.services import (
     AuthService,
     SeedGenerationService,
     TriforceTextService,
-    current_user_from_storage,
+    get_user_from_discord_id,
 )
 from models import Tournament
 
@@ -20,7 +20,7 @@ _HELP_TEXT = (
 
 
 async def triforce_texts_tab() -> None:
-    user = await current_user_from_storage()
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
         return

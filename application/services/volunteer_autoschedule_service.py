@@ -40,7 +40,7 @@ _AVAIL_RANK = {
 class VolunteerAutoscheduleService:
     """Builds a draft volunteer schedule from availability + qualifications."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.shift_repository = VolunteerShiftRepository()
         self.assignment_repository = VolunteerAssignmentRepository()
         self.profile_service = VolunteerProfileService()

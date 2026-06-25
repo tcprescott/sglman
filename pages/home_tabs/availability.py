@@ -3,9 +3,9 @@
 from datetime import timedelta
 from types import SimpleNamespace
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import SystemConfigService, current_user_from_storage
+from application.services import SystemConfigService, get_user_from_discord_id
 from application.services.player_availability_service import PlayerAvailabilityService
 from application.utils.timezone import (
     format_eastern_date,
@@ -38,7 +38,7 @@ def _status_label(status) -> str:
 
 
 async def availability_tab() -> None:
-    user = await current_user_from_storage()
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
         return

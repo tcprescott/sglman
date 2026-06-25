@@ -1,8 +1,8 @@
 """Dialog for creating/editing a VolunteerPosition."""
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import current_user_from_storage
+from application.services import get_user_from_discord_id
 from application.services.volunteer_position_service import VolunteerPositionService
 from theme.dialog._helpers import dialog_header, submit_on_enter
 from models import VolunteerPosition
@@ -49,7 +49,7 @@ class VolunteerPositionDialog:
                 return int(value)
 
             async def submit():
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 try:
                     order_value = int(order_input.value or 0)
                     length_value = _opt_int(length_input.value)

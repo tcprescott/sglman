@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from nicegui import Client, app, ui
 from starlette.responses import RedirectResponse
 
-from application.services.auth_service import AuthService, current_user_from_storage
+from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
 from application.utils.mock_challonge import is_mock_challonge
 
@@ -38,7 +38,7 @@ _PROFILE_RETURN = '/?tab=Profile'
 def create() -> None:
     @ui.page('/challonge/connect')
     async def challonge_connect() -> RedirectResponse:
-        user = await current_user_from_storage()
+        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
             return RedirectResponse('/login')
         if not await AuthService.is_staff(user):
@@ -55,7 +55,7 @@ def create() -> None:
     @ui.page('/challonge/oauth/callback')
     async def challonge_callback(client: Client) -> None:
         await client.connected()
-        user = await current_user_from_storage()
+        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         service_state = app.storage.user.pop('challonge_service_state', None)
         player_state = app.storage.user.pop('challonge_player_state', None)
         url = await ui.run_javascript('window.location.href')
@@ -71,7 +71,7 @@ def create() -> None:
 
     @ui.page('/challonge/link')
     async def challonge_link() -> RedirectResponse:
-        user = await current_user_from_storage()
+        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
             return RedirectResponse('/login')
         if is_mock_challonge():
