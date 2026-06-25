@@ -15,10 +15,12 @@ CATEGORY_OPTIONS = {
 class FeedbackDialog:
     """Lets a logged-in attendee submit feedback, recording the page they were on."""
 
-    def __init__(self, user: User):
+    def __init__(self, user: User, initial_category: str | None = None, initial_message: str = ''):
         self.user = user
         self.dialog = None
         self.feedback_service = FeedbackService()
+        self.initial_category = initial_category or FeedbackCategory.SUGGESTION.value
+        self.initial_message = initial_message
 
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
@@ -27,11 +29,12 @@ class FeedbackDialog:
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 category_input = ui.select(
                     options=CATEGORY_OPTIONS,
-                    value=FeedbackCategory.SUGGESTION.value,
+                    value=self.initial_category,
                     label='Category',
                 ).classes('full-width')
                 message_input = ui.textarea(
                     label='Message',
+                    value=self.initial_message,
                     placeholder='Tell us what works, what doesn\'t, or what you\'d like to see...',
                 ).props('required autofocus').classes('full-width')
                 ui.label('* required').classes('required-legend')

@@ -121,7 +121,7 @@ Semantics:
 - **No `roles` and `allow_tournament_membership=False`** — the function is registered as-is. Login is enforced only by the middleware; there is no render-time check.
 - **`roles` set** — at render time the user is resolved via `current_user_from_storage()` and must hold **at least one** of the listed global roles (`AuthService.get_roles` intersection).
 - **`allow_tournament_membership=True`** — if the role gate did not pass (or no `roles` were given), `AuthService.can_view_admin(user)` is consulted, so Tournament Admins and Crew Coordinators of any tournament also pass. Intended for pages like the admin dashboard shell whose subset of features is available to per-tournament admins.
-- **Denied** — the wrapper renders `BaseLayout(page_name='denied')` plus a "You do not have permission to view this page." error label and returns. This is a normal 200 page render, not a redirect.
+- **Denied** — the wrapper renders the themed 403 page via `render_error_page(status_code=403, headline='Forbidden', ...)` ([`theme/error_page.py`](../../theme/error_page.py)) and returns. This is a normal 200 page render, not a redirect. See [Error pages](frontend.md#error-pages-middlewareerror_handlerspy).
 
 Current usages: `@protected_page('/admin')` ([`pages/admin.py`](../../pages/admin.py)) and `@protected_page('/triforcetexts/{tournament_id}')` (`pages/triforce_texts.py`) — both login-only, with authorization handled inside the page body. Page registration order is described in [frontend.md](frontend.md).
 

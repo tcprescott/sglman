@@ -39,6 +39,18 @@ class BaseLayout:
 
     async def render(self) -> None:
         """Render the complete layout with header, drawer, footer, and optional tabbed content."""
+        self.render_chrome()
+        if self.tabs:
+            await self._render_tab_panels()
+
+    def render_chrome(self) -> None:
+        """Render the synchronous page frame (palette, header, drawer, footer).
+
+        Split out from :meth:`render` so callers that cannot await — notably the
+        synchronous ``on_page_exception`` error path — can still get the full
+        themed chrome. Tab panels (the only async part) are rendered by
+        :meth:`render`.
+        """
         dark_pref = app.storage.user.get('dark_mode')  # None ⇒ auto: match the client's system theme
         self.dark_mode = ui.dark_mode(dark_pref)
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
@@ -78,8 +90,6 @@ class BaseLayout:
         self._render_header()
         self._render_drawer()
         self._render_footer()
-        if self.tabs:
-            await self._render_tab_panels()
 
     def _render_header(self) -> None:
         """Render the header with burger menu button and user controls."""

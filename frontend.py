@@ -13,6 +13,7 @@ from application.utils.environment import validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.auth import create as auth_create
 from middleware.challonge_oauth import create as challonge_oauth_create
+from middleware.error_handlers import register_error_handlers
 from pages import admin, equipment, home, volunteer
 
 app.add_middleware(AuthMiddleware)
@@ -68,3 +69,4 @@ def init(fastapi_app: FastAPI) -> None:
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root
         storage_secret=(os.environ.get('STORAGE_SECRET') or '').strip(),  # required; enforced by validate_security_config()
     )
+    register_error_handlers(fastapi_app)
