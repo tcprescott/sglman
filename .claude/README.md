@@ -111,6 +111,12 @@ as a string literal — and requires an `AuditActions.*` constant instead. Skips
 unparseable. This runs first among the AST hooks conceptually — the other AST
 hooks exit 0 on a `SyntaxError` so only this one reports it (no double-noise).
 
+### File length — `scripts/check_file_length.py` (PostToolUse: Write|Edit)
+Counts lines in the resulting `.py` file. Two tiers: an advisory past 800 lines
+and a stronger "must split" message past 1500, both exit 2 to nudge toward
+splitting modules along the three-layer pattern. Skips `migrations/`
+(aerich-generated).
+
 ### Pre-existing doc automation — `hooks/*.sh`
 Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
 coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
