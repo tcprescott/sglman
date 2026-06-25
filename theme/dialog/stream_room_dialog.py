@@ -1,6 +1,6 @@
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import current_user_from_storage
+from application.services import get_user_from_discord_id
 from models import Match
 from theme.dialog._helpers import dialog_header, submit_on_enter
 from theme.dialog.match_dialog import BaseMatchDialog
@@ -29,7 +29,7 @@ class StreamRoomDialog(BaseMatchDialog):
             async def submit():
                 stream_room_id = selected_stream_room.value
                 try:
-                    actor = await current_user_from_storage()
+                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     await self.match_service.assign_stage(
                         self.match.id, stream_room_id if stream_room_id else None, actor=actor,
                     )

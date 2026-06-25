@@ -1,8 +1,8 @@
 """Home Equipment tab — inventory browsing and the user's own checkouts."""
 
-from nicegui import background_tasks, context, ui
+from nicegui import app, background_tasks, context, ui
 
-from application.services import AuthService, EquipmentService, current_user_from_storage
+from application.services import AuthService, EquipmentService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
 from theme.dialog import open_checkout, quick_checkin
 
@@ -29,7 +29,7 @@ _MINE_COLUMNS = [
 
 
 async def equipment_tab() -> None:
-    user = await current_user_from_storage()
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if user is None:
         ui.label('You must be logged in.').classes('text-error')
         return
@@ -115,12 +115,12 @@ async def equipment_tab() -> None:
 
                     async def handle_checkout(row, client):
                         with client:
-                            actor = await current_user_from_storage()
+                            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                             await open_checkout(actor, row['id'], can_manage=can_manage, on_done=inventory_table.refresh)
 
                     async def handle_checkin(row, client):
                         with client:
-                            actor = await current_user_from_storage()
+                            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                             await quick_checkin(actor, row['id'], on_done=inventory_table.refresh)
 
                     table.on('view', lambda e: ui.navigate.to(f"/equipment/{e.args['id']}"))

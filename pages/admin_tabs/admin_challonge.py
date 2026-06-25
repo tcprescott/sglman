@@ -4,15 +4,15 @@ Manages the shared SGL Challonge service-account connection and lists the
 tournaments linked to a Challonge bracket with a per-tournament Sync action.
 """
 
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
-from application.services import AuthService, ChallongeService, current_user_from_storage
+from application.services import AuthService, ChallongeService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
 from models import Tournament
 
 
 async def admin_challonge_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     is_staff = await AuthService.is_staff(actor)
     service = ChallongeService()
 

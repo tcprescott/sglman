@@ -1,8 +1,8 @@
 """Dialog for editing StreamRoom details"""
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import StreamRoomService, current_user_from_storage
+from application.services import StreamRoomService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_header, submit_on_enter
 from models import StreamRoom
 
@@ -39,7 +39,7 @@ class StreamRoomEditDialog:
                 url = url_input.value.strip()
                 is_active = is_active_checkbox.value
                 try:
-                    actor = await current_user_from_storage()
+                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     if self.stream_room:
                         result_room = await self.stream_room_service.update_stream_room(
                             self.stream_room,

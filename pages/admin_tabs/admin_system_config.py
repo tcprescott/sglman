@@ -2,13 +2,13 @@
 
 from datetime import date, time
 
-from nicegui import ui
+from nicegui import app, ui
 
 from application.services import (
     AuthService,
     DiscordService,
     SystemConfigService,
-    current_user_from_storage,
+    get_user_from_discord_id,
 )
 from application.services.system_config_service import (
     KEY_DISCORD_SYNC_GUILD_ID,
@@ -34,7 +34,7 @@ def _date_field(label: str, value: str):
 
 
 async def admin_system_config_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     can_edit = await AuthService.is_staff(actor)
 
     start_date = await SystemConfigService.get_date(KEY_EVENT_START_DATE)
@@ -129,7 +129,7 @@ async def admin_system_config_page() -> None:
             ui.label('The bot is not connected to any servers yet.').classes('text-caption text-grey')
 
         async def save():
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             try:
                 start_raw = (start_input.value or '').strip()
                 end_raw = (end_input.value or '').strip()

@@ -1,9 +1,9 @@
 """Admin Schedule Management Page"""
 
 
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
-from application.services import MatchScheduleService, current_user_from_storage
+from application.services import MatchScheduleService, get_user_from_discord_id
 from models import Match
 from theme.dialog import ConfirmationDialog, StationAssignmentDialog, MatchResultDialog
 from theme.dialog.match_dialog import AdminMatchDialog
@@ -53,7 +53,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                 await dialog.open()
 
         async def on_generate_seed(match_id: int):
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             success, message, _ = await match_schedule_service.generate_seed(match_id, actor=actor)
             
             with page_container:
@@ -86,7 +86,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         async def confirm_seating(match: Match):
             try:
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.seat_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
             except PermissionError as e:
@@ -113,7 +113,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         async def confirm_starting(match: Match):
             try:
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.start_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
             except PermissionError as e:
@@ -140,7 +140,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         async def confirm_finishing(match: Match):
             try:
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.finish_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
             except PermissionError as e:
@@ -167,7 +167,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         async def confirm_confirming(match: Match):
             try:
-                actor = await current_user_from_storage()
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.confirm_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
             except PermissionError as e:

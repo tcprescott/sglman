@@ -1,8 +1,8 @@
 """Admin tab for moderating triforce text submissions."""
 
-from nicegui import background_tasks, ui
+from nicegui import app, background_tasks, ui
 
-from application.services import AuthService, TriforceTextService, current_user_from_storage
+from application.services import AuthService, TriforceTextService, get_user_from_discord_id
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
@@ -20,7 +20,7 @@ def _to_status(option: str):
 
 
 async def admin_triforce_texts_page() -> None:
-    actor = await current_user_from_storage()
+    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if actor is None:
         ui.label('User not found.').classes('text-error')
         return

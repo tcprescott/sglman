@@ -3,10 +3,10 @@
 import re
 from typing import Optional, Callable
 
-from nicegui import ui
+from nicegui import app, ui
 
 from models import Match, StationFormat
-from application.services import MatchService, current_user_from_storage
+from application.services import MatchService, get_user_from_discord_id
 from application.services.system_config_service import SystemConfigService
 
 _STATION_REGEXES = {
@@ -107,7 +107,7 @@ class StationAssignmentDialog:
                 station = station_input.value.strip() if station_input.value else None
                 assignments[player_id] = station
 
-            actor = await current_user_from_storage()
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
             await self.match_service.assign_stations(self.match.id, assignments, actor=actor)
 
             ui.notify(

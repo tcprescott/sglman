@@ -2,7 +2,7 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.services import ChallongeService, MatchService, current_user_from_storage
+from application.services import ChallongeService, MatchService, get_user_from_discord_id
 from models import User
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
@@ -42,25 +42,26 @@ def render_player_dashboard():
             matches = await challonge_service.list_unscheduled_matches_for_user(user)
             if not matches:
                 return
-            with ui.card().classes('card-full-width'):
-                ui.label('Upcoming matches to schedule').classes('section-title')
-                ui.label('From your Challonge bracket. Pick a time and your opponent confirms.').classes(
-                    'text-caption text-grey-7'
-                )
-                for cm in matches:
-                    me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
-                    opponent = cm.participant2 if me_is_p1 else cm.participant1
-                    opponent_name = opponent.name if opponent else 'TBD'
-                    opponent_linked = opponent is not None and opponent.user_id is not None
-                    with ui.row().classes('items-center full-width q-my-xs'):
-                        ui.label(cm.tournament.name).classes('text-bold')
-                        ui.label(f'vs {opponent_name}')
-                        if cm.round is not None:
-                            ui.label(f'Round {cm.round}').classes('text-caption text-muted')
-                        ui.space()
-                        if opponent_linked:
-                            async def do_schedule(_=None, m=cm, oname=opponent_name):
-                                actor = await current_user_from_storage()
+            with challonge_container:
+                with ui.card().classes('card-full-width'):
+                    ui.label('Upcoming matches to schedule').classes('section-title')
+                    ui.label('From your Challonge bracket. Pick a time and your opponent confirms.').classes(
+                        'text-caption text-grey-7'
+                    )
+                    for cm in matches:
+                        me_is_p1 = cm.participant1 is not None and cm.participant1.user_id == user.id
+                        opponent = cm.participant2 if me_is_p1 else cm.participant1
+                        opponent_name = opponent.name if opponent else 'TBD'
+                        opponent_linked = opponent is not None and opponent.user_id is not None
+                        with ui.row().classes('items-center full-width q-my-xs'):
+                            ui.label(cm.tournament.name).classes('text-bold')
+                            ui.label(f'vs {opponent_name}')
+                            if cm.round is not None:
+                                ui.label(f'Round {cm.round}').classes('text-caption text-muted')
+                            ui.space()
+                            if opponent_linked:
+                                async def do_schedule(_=None, m=cm, oname=opponent_name):
+                                    actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
                                 async def after():
                                     challonge_section.refresh()
