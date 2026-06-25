@@ -9,6 +9,7 @@ import logging
 from typing import List, Set
 
 from application.repositories.discord_role_mapping_repository import DiscordRoleMappingRepository
+from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -81,6 +82,37 @@ class DiscordRoleMappingService:
         await self.audit_service.write_log(
             actor, AuditActions.DISCORD_ROLE_MAPPING_REMOVED, details
         )
+
+    async def sync_all_users(self, actor: User) -> dict:
+        """Force a Discord-role sync for every user with a Discord account.
+
+        Applies the current mappings immediately instead of waiting for each
+        user to next log in. Reuses the defensive per-user ``sync_user_roles``,
+        so an unreachable Discord or a single bad user never aborts the run.
+        """
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            "Only Staff can sync Discord roles",
+        )
+
+        users = await UserRepository.get_all(has_discord=True)
+        summary = {
+            'users_processed': len(users),
+            'granted': 0,
+            'revoked': 0,
+            'skipped': 0,
+        }
+        for user in users:
+            result = await self.sync_user_roles(user)
+            summary['granted'] += len(result.get('granted') or [])
+            summary['revoked'] += len(result.get('revoked') or [])
+            if result.get('skipped'):
+                summary['skipped'] += 1
+
+        await self.audit_service.write_log(
+            actor, AuditActions.ROLE_DISCORD_SYNC_BULK, dict(summary)
+        )
+        return summary
 
     async def sync_user_roles(self, user: User) -> dict:
         """Full-sync a user's Discord-sourced app roles from their guild roles.

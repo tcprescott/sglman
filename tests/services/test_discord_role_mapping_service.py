@@ -253,6 +253,50 @@ class TestMappingCrud:
 
 
 # ---------------------------------------------------------------------------
+# sync_all_users (bulk)
+# ---------------------------------------------------------------------------
+
+
+class TestSyncAllUsers:
+    async def test_aggregates_and_audits(self, monkeypatch):
+        svc = make_service()
+        users = [make_user(1, 100), make_user(2, 200), make_user(3, 300)]
+        monkeypatch.setattr(drms.UserRepository, 'get_all', AsyncMock(return_value=users))
+        svc.sync_user_roles = AsyncMock(side_effect=[
+            {'granted': ['proctor'], 'revoked': [], 'skipped': None},
+            {'granted': [], 'revoked': ['proctor', 'staff'], 'skipped': None},
+            {'granted': [], 'revoked': [], 'skipped': 'discord_unavailable'},
+        ])
+
+        summary = await svc.sync_all_users(actor=make_user())
+
+        assert summary == {
+            'users_processed': 3, 'granted': 1, 'revoked': 2, 'skipped': 1,
+        }
+        assert svc.sync_user_roles.await_count == 3
+        action = svc.audit_service.write_log.await_args.args[1]
+        assert action == 'role.discord_sync_bulk'
+
+    async def test_non_staff_cannot_sync(self, monkeypatch):
+        async def deny(*_a, **_kw):
+            return False
+
+        async def real_ensure(allowed, message=None):
+            if not allowed:
+                raise PermissionError(message or 'denied')
+
+        monkeypatch.setattr(drms.AuthService, 'can_grant_roles', deny)
+        monkeypatch.setattr(drms.AuthService, 'ensure', real_ensure)
+        get_all = AsyncMock(return_value=[])
+        monkeypatch.setattr(drms.UserRepository, 'get_all', get_all)
+
+        svc = make_service()
+        with pytest.raises(PermissionError):
+            await svc.sync_all_users(actor=make_user())
+        get_all.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
 # Integration: real ORM (in-memory SQLite) exercising the migration columns
 # ---------------------------------------------------------------------------
 
