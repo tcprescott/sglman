@@ -68,6 +68,7 @@ class AuditActions:
     DISCORD_ROLE_MAPPING_REMOVED = 'discord_role.mapping_removed'
     ROLE_DISCORD_SYNC_GRANTED = 'role.discord_sync_granted'
     ROLE_DISCORD_SYNC_REVOKED = 'role.discord_sync_revoked'
+    ROLE_DISCORD_SYNC_BULK = 'role.discord_sync_bulk'
 
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'

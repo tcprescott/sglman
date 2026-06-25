@@ -72,6 +72,31 @@ async def admin_discord_roles_page() -> None:
                 ui.notify('Mapping removed', color='positive')
                 await refresh_table()
 
+        async def sync_all_users(client):
+            async with client:
+                with ui.dialog() as confirm, ui.card():
+                    ui.label(
+                        'Re-sync Discord roles for all users now? This applies the '
+                        'current mappings immediately and may take a moment.'
+                    )
+                    with ui.row().classes('justify-end w-full'):
+                        ui.button('Cancel', on_click=lambda: confirm.submit(False)).props('flat')
+                        ui.button('Sync', icon='sync', on_click=lambda: confirm.submit(True)).props('color=primary')
+                if not await confirm:
+                    return
+                ui.notify('Syncing Discord roles for all users…')
+                try:
+                    current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    result = await service.sync_all_users(current)
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify(
+                    f"Synced {result['users_processed']} users: "
+                    f"{result['granted']} granted, {result['revoked']} revoked",
+                    color='positive',
+                )
+
         async def open_add_dialog():
             ok, roles_payload = await DiscordService().list_guild_roles(guild_id)
             if not ok:
@@ -118,6 +143,12 @@ async def admin_discord_roles_page() -> None:
             with ui.row().classes('full-width'):
                 if can_manage:
                     ui.button('Add Mapping', icon='add', on_click=open_add_dialog).props('color=primary')
+                    ui.button(
+                        'Sync All Users', icon='sync',
+                        on_click=lambda: background_tasks.create(sync_all_users(Client.current)),
+                    ).props('outline color=primary').tooltip(
+                        'Apply current mappings to all users now'
+                    )
                 ui.space()
                 ui.button(
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
