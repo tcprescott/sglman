@@ -5,19 +5,11 @@ Coordinates match-related operations, enforces business rules,
 and orchestrates between repositories.
 """
 
-from typing import List, Optional, Dict, Any, Tuple
-from datetime import datetime, date
-
 import re
+from datetime import datetime, date
+from typing import List, Optional, Dict, Any, Tuple
 
 from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
-
-_STATION_REGEXES = {
-    StationFormat.FREE:         re.compile(r'^.{0,50}$'),
-    StationFormat.NUMERIC:      re.compile(r'^\d+$'),
-    StationFormat.STRUCTURED:   re.compile(r'^[A-Za-z][0-9]{1,2}$'),
-    StationFormat.ALPHANUMERIC: re.compile(r'^[A-Za-z0-9\-\s]{1,20}$'),
-}
 from application import match_events
 from application.repositories import (
     MatchAcknowledgmentRepository,
@@ -40,6 +32,13 @@ from application.utils.timezone import (
     format_eastern_display,
     to_eastern,
 )
+
+_STATION_REGEXES = {
+    StationFormat.FREE:         re.compile(r'^.{0,50}$'),
+    StationFormat.NUMERIC:      re.compile(r'^\d+$'),
+    StationFormat.STRUCTURED:   re.compile(r'^[A-Za-z][0-9]{1,2}$'),
+    StationFormat.ALPHANUMERIC: re.compile(r'^[A-Za-z0-9\-\s]{1,20}$'),
+}
 
 
 class MatchService:
