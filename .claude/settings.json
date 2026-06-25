@@ -81,6 +81,11 @@
             "type": "command",
             "command": "python3 .claude/scripts/check_audit_actor.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_slot_context.py",
+            "timeout": 10
           }
         ]
       }
