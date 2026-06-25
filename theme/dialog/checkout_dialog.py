@@ -5,8 +5,7 @@ from typing import Awaitable, Callable, Optional
 
 from nicegui import ui
 
-from application.repositories import UserRepository
-from application.services import EquipmentService
+from application.services import EquipmentService, UserService
 from models import User
 from theme.dialog._helpers import dialog_header
 
@@ -26,7 +25,7 @@ class CheckoutDialog:
         self.service = EquipmentService()
 
     async def open(self) -> None:
-        users = await UserRepository.get_all()
+        users = await UserService().get_all_users()
         options = {str(u.id): u.preferred_name for u in users}
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             dialog_header('Check out equipment', dialog)

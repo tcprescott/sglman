@@ -9,7 +9,7 @@ from typing import List, Set
 from application.repositories.volunteer_qualification_repository import VolunteerQualificationRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from models import User
+from models import User, VolunteerQualification
 
 
 class VolunteerQualificationService:
@@ -18,6 +18,9 @@ class VolunteerQualificationService:
     def __init__(self) -> None:
         self.repository = VolunteerQualificationRepository()
         self.audit_service = AuditService()
+
+    async def list_all_qualifications(self) -> List[VolunteerQualification]:
+        return await self.repository.list_all()
 
     async def get_qualified_position_ids(self, user: User) -> Set[int]:
         return await self.repository.qualified_position_ids(user)

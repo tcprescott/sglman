@@ -25,6 +25,13 @@ class UserService:
     async def get_user_by_discord_id(self, discord_id: str) -> Optional[User]:
         return await self.repository.get_by_discord_id(discord_id)
 
+    async def get_all_users(
+        self,
+        role: Optional[Role] = None,
+        has_discord: bool = False,
+    ) -> List[User]:
+        return await self.repository.get_all(role=role, has_discord=has_discord)
+
     async def get_current_user_from_storage(self, storage_discord_id: Optional[str]) -> Optional[User]:
         if not storage_discord_id:
             return None

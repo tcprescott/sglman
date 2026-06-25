@@ -207,3 +207,15 @@ class TournamentService:
 
     async def get_tournament_by_id(self, tournament_id: int) -> Optional[Tournament]:
         return await self.repository.get_by_id(tournament_id)
+
+    async def get_tournaments_by_ids(self, tournament_ids: list[int]) -> list[Tournament]:
+        return await self.repository.get_by_ids(tournament_ids)
+
+    async def get_enrolled_players(self, tournament: Tournament) -> list:
+        return await self.repository.get_enrolled_players(tournament)
+
+    async def get_enrolled_players_by_user(self, user: User) -> list:
+        return await self.repository.get_enrolled_players_by_user(user)
+
+    async def get_enrolled_players_by_tournament_id(self, tournament_id: int) -> list:
+        return await self.repository.get_enrolled_players_by_tournament_id(tournament_id)

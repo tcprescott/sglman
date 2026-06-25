@@ -3,8 +3,7 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.repositories import StreamRoomRepository
-from application.services import AuthService, get_user_from_discord_id
+from application.services import AuthService, StreamRoomService, get_user_from_discord_id
 from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
@@ -75,7 +74,7 @@ async def admin_stream_rooms_page() -> None:
         table_container = ui.column().classes('w-full')
 
         async def load_stream_rooms():
-            rooms = await StreamRoomRepository.get_all()
+            rooms = await StreamRoomService().get_all_stream_rooms()
             rows = [
                 {
                     'id': room.id,
@@ -100,7 +99,7 @@ async def admin_stream_rooms_page() -> None:
                 await dialog.open()
 
         async def edit_stream_room(row):
-            room = await StreamRoomRepository.get_by_id(row['id'])
+            room = await StreamRoomService().get_stream_room_by_id(row['id'])
             if not room:
                 ui.notify('Stream room not found.', color='warning')
                 return

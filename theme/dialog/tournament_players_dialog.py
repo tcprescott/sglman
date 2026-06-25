@@ -1,6 +1,6 @@
 from nicegui import ui
 
-from application.repositories import TournamentRepository
+from application.services import TournamentService
 from theme.dialog._helpers import dialog_header
 
 
@@ -14,7 +14,7 @@ class TournamentPlayersDialog:
             self.dialog = dialog
             dialog_header(f'Players — {self.tournament.name}', dialog)
             with ui.column().classes('q-pa-md'):
-                players = await TournamentRepository.get_enrolled_players(self.tournament)
+                players = await TournamentService().get_enrolled_players(self.tournament)
                 if not players:
                     ui.label('No players enrolled.').classes('text-grey-7')
                 else:
