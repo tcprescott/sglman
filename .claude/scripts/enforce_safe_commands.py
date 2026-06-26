@@ -14,6 +14,8 @@ Blocks:
   aerich downgrade                           → reverts DB migrations (data loss)
   rm -rf                                      → irreversible recursive delete
   dropdb / DROP TABLE|DATABASE               → destroys data
+  git add .env / committing .env             → never commit secrets
+  cat/echo .env                               → don't print secrets to the transcript
 """
 
 import json
@@ -66,6 +68,16 @@ RULES = [
         re.compile(r"\bdropdb\b|\bDROP\s+(?:TABLE|DATABASE)\b", re.IGNORECASE),
         "dropdb / DROP TABLE|DATABASE",
         "this destroys data irrecoverably — do not drop databases or tables from a tool call.",
+    ),
+    (
+        re.compile(r"\bgit\s+(?:add|commit)\b[^\n]*?\.env\b(?!\.example)"),
+        "git add/commit .env",
+        ".env holds real secrets and must never be committed — it is gitignored on purpose.",
+    ),
+    (
+        re.compile(r"\b(?:cat|less|more|head|tail|xxd|od|strings)\b[^\n]*?\.env\b(?!\.example)"),
+        "printing .env",
+        "don't dump .env to the transcript — it exposes secrets. Read individual values via os.environ in code instead.",
     ),
 ]
 

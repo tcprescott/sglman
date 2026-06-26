@@ -101,6 +101,21 @@
             "type": "command",
             "command": "python3 .claude/scripts/enforce_import_resolution.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_layer_exports.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_secret_leak.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/run_related_tests.py",
+            "timeout": 60
           }
         ]
       }
@@ -117,6 +132,16 @@
             "type": "command",
             "command": "python3 .claude/scripts/enforce_import_resolution.py",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_migration_drift.py",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/run_full_tests.py",
+            "timeout": 120
           }
         ]
       }

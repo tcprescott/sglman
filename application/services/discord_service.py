@@ -550,5 +550,9 @@ class MockDiscordService:
 
 from application.utils.mock_discord import is_mock_discord  # noqa: E402
 
+# Stable handle to the real implementation; survives the mock swap below so tests
+# can exercise the real error branches regardless of MOCK_DISCORD.
+_RealDiscordService = DiscordService
+
 if is_mock_discord():
     DiscordService = MockDiscordService  # type: ignore[misc,assignment]

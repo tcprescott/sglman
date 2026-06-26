@@ -101,6 +101,8 @@ Inspects `tool_input.command` and blocks:
 - `git reset --hard`, `git clean -f`, `git checkout -- .` → irreversible working-tree loss.
 - `aerich downgrade` → reverts DB migrations (data loss).
 - `rm -rf`, `dropdb`, `DROP TABLE|DATABASE` → irreversible deletes / data destruction.
+- `git add`/`git commit` of `.env`, and `cat`/`head`/`tail`/`xxd`/… of `.env` → never
+  commit or dump real secrets (`.env.example` is exempt via a negative lookahead).
 
 ### Audit-action constants — `scripts/check_audit_actions.py` (PostToolUse: Write|Edit)
 AST-based. Flags `…write_log(actor, "match.created")` — an audit action passed
@@ -172,6 +174,46 @@ Counts lines in the resulting `.py` file. Two tiers: an advisory past 800 lines
 and a stronger "must split" message past 1500, both exit 2 to nudge toward
 splitting modules along the three-layer pattern. Skips `migrations/`
 (aerich-generated).
+
+### Layer exports — `scripts/check_layer_exports.py` (PostToolUse: Write|Edit)
+CLAUDE.md "Adding a new feature" step 4 requires exporting new services/repos from
+each package's `__init__.py`; forgetting it means `from application.services import
+FooService` fails at import. AST-based, scoped to `application/services/*_service.py`
+and `application/repositories/*_repository.py`. Collects top-level public classes
+ending in `Service` / `Repository` and confirms each is both imported **and** listed
+in `__all__` in the sibling `__init__.py`. Skips the `__init__.py` files themselves;
+fails open on read/parse errors.
+
+### Hardcoded secrets — `scripts/check_secret_leak.py` (PostToolUse: Write|Edit)
+Secrets must come from `os.environ` / `os.getenv`, never be committed as literals.
+Flags (1) any string matching the Discord bot-token shape, and (2) AST assignments
+to a secret-named variable (`*_SECRET`/`*_TOKEN`/`*_PASSWORD`/`*_API_KEY`, etc.)
+whose value is a hardcoded string literal. Low false-positive bias: requires the
+literal to be ≥12 chars and not a placeholder (`your…`, `changeme`, `example`,
+`<…>`, …). Skips `tests/`, `/.claude/`, and `.env.example`.
+
+### Migration drift — `scripts/check_migration_drift.py` (Stop)
+The mirror of `enforce_migration_safety.py`: that blocks hand-editing generated
+migrations; this catches editing `models.py` and forgetting to generate one. At
+Stop, if `git diff`/untracked shows `models.py` changed but no file under
+`migrations/models/` was added or modified, it blocks the turn and points to
+`poetry run aerich migrate && poetry run aerich upgrade`. Drains stdin (Stop hooks
+hang otherwise); fails open if git is unavailable.
+
+### Related tests on edit — `scripts/run_related_tests.py` (PostToolUse: Write|Edit)
+Runs just the pytest file matching an edited module so regressions surface in-loop
+(CI runs the whole suite separately). Maps `application/services/foo_service.py` →
+`tests/services/test_foo_service.py` (and analogous repo/api/test mappings), runs
+only test files that exist with `MOCK_DISCORD=true poetry run pytest -q <file>`, and
+exits 2 with the captured output on failure. Fails open (exit 0) if no matching test
+exists, on timeout (50s margin under the 60s hook timeout), or if poetry is missing.
+
+### Full suite at turn end — `scripts/run_full_tests.py` (Stop)
+Runs `poetry run pytest -q` at Stop, but **gated** like `doc-check.sh`: only when
+`git diff`/untracked shows a changed non-test `.py` under `application/`, `api/`,
+`pages/`, `theme/`, `discordbot/`, `models.py`, or `frontend.py`. Blocks the turn
+with the captured output on failure. Drains stdin; fails open on timeout (110s) or
+missing poetry so a slow/absent toolchain never wedges the turn.
 
 ### Re-running the bug-history audit — `commands/guardrail-audit.md`
 The guardrails above were derived by mining the project's bug history for recurring

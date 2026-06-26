@@ -85,8 +85,12 @@ class TestMockDiscordService:
 
 @pytest.fixture
 def real_svc_not_ready(monkeypatch):
-    """DiscordService backed by a stub bot that is never 'ready'."""
-    from application.services.discord_service import DiscordService
+    """DiscordService backed by a stub bot that is never 'ready'.
+
+    Uses the real implementation explicitly (`_RealDiscordService`), which survives
+    the MOCK_DISCORD swap, so these error branches are exercised in both run modes.
+    """
+    from application.services.discord_service import _RealDiscordService
 
     stub_bot = MagicMock()
     stub_bot.is_ready.return_value = False
@@ -96,7 +100,7 @@ def real_svc_not_ready(monkeypatch):
         lambda: stub_bot,
     )
 
-    svc = object.__new__(DiscordService)
+    svc = object.__new__(_RealDiscordService)
     svc._bot = stub_bot
     return svc
 
