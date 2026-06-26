@@ -1,10 +1,10 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for [`models.py`](../../models.py) (all 30 models and its eight enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for [`models.py`](../../models.py) (all 36 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 ## Overview
 
-Persistence is [Tortoise ORM](https://tortoise.github.io/) 0.24 on PostgreSQL via the `asyncpg` backend. A single `default` connection is built from environment variables in [`migrations/tortoise_config.py`](../../migrations/tortoise_config.py) (see [Migrations](#migrations)). For the database's place in the overall system see [architecture.md](../architecture.md); for the MySQL→PostgreSQL history and Docker topology see [postgresql-migration.md](../features/postgresql-migration.md) and [deployment.md](../deployment.md).
+Persistence is [Tortoise ORM](https://tortoise.github.io/) 0.24 on PostgreSQL via the `asyncpg` backend. A single `default` connection is built from environment variables in [`migrations/tortoise_config.py`](../../migrations/tortoise_config.py) (see [Migrations](#migrations)). For the database's place in the overall system see [architecture.md](../architecture.md); for the Docker topology and operations see [deployment.md](../deployment.md).
 
 Conventions shared by all models:
 
@@ -757,8 +757,8 @@ Serves `AuditLog` ([`audit_repository.py`](../../application/repositories/audit_
 
 | Method | Description |
 |---|---|
-| `list(*, start=None, end=None, user_id=None, action_contains=None, limit=100, offset=0) -> List[AuditLog]` | Filtered, paginated list (date range, actor, case-insensitive action substring), newest first, `user` prefetched |
-| `count(*, start=None, end=None, user_id=None, action_contains=None) -> int` | Row count for the same filters (pagination totals) |
+| `async list(*, start=None, end=None, user_id=None, action_contains=None, limit=100, offset=0) -> List[AuditLog]` | Filtered, paginated list (date range, actor, case-insensitive action substring), newest first, `user` prefetched |
+| `async count(*, start=None, end=None, user_id=None, action_contains=None) -> int` | Row count for the same filters (pagination totals) |
 
 ### `CommentatorRepository`
 
@@ -766,15 +766,15 @@ Serves `Commentator` ([`commentator_repository.py`](../../application/repositori
 
 | Method | Description |
 |---|---|
-| `get_by_id(commentator_id: int) -> Optional[Commentator]` | Lookup by primary key |
-| `get_by_match(match: Match) -> List[Commentator]` | All commentators for a match, `user` prefetched |
-| `get_by_match_and_user(match: Match, user: User) -> Optional[Commentator]` | Single signup row for a match/user pair |
-| `create(match: Match, user: User, approved: bool = False) -> Commentator` | Insert a signup |
-| `update(commentator: Commentator, **fields) -> Commentator` | Apply arbitrary field updates and save |
-| `delete(commentator: Commentator) -> None` | Delete the row |
-| `approve(commentator: Commentator) -> Commentator` | Sets `approved=True` (via `update`) |
-| `acknowledge(commentator: Commentator) -> Commentator` | Sets `acknowledged_at=datetime.now()` |
-| `clear_acknowledgment(commentator: Commentator) -> Commentator` | Resets `acknowledged_at` to `None` |
+| `async get_by_id(commentator_id: int) -> Optional[Commentator]` | Lookup by primary key |
+| `async get_by_match(match: Match) -> List[Commentator]` | All commentators for a match, `user` prefetched |
+| `async get_by_match_and_user(match: Match, user: User) -> Optional[Commentator]` | Single signup row for a match/user pair |
+| `async create(match: Match, user: User, approved: bool = False) -> Commentator` | Insert a signup |
+| `async update(commentator: Commentator, **fields) -> Commentator` | Apply arbitrary field updates and save |
+| `async delete(commentator: Commentator) -> None` | Delete the row |
+| `async approve(commentator: Commentator) -> Commentator` | Sets `approved=True` (via `update`) |
+| `async acknowledge(commentator: Commentator) -> Commentator` | Sets `acknowledged_at=datetime.now()` |
+| `async clear_acknowledgment(commentator: Commentator) -> Commentator` | Resets `acknowledged_at` to `None` |
 
 ### `MatchAcknowledgmentRepository`
 
@@ -782,12 +782,12 @@ Serves `MatchAcknowledgment` ([`match_acknowledgment_repository.py`](../../appli
 
 | Method | Description |
 |---|---|
-| `list_for_match(match: Match) -> List[MatchAcknowledgment]` | All acknowledgment rows for a match, `user` prefetched |
-| `list_for_matches(match_ids: List[int]) -> Dict[int, List[MatchAcknowledgment]]` | One query for many matches, grouped by match id; every requested id gets a (possibly empty) list |
-| `get(match: Match, user: User) -> Optional[MatchAcknowledgment]` | Single row for a match/user pair |
-| `upsert(match: Match, user: User, *, acknowledged: bool, auto: bool) -> MatchAcknowledgment` | `update_or_create`; sets `acknowledged_at` to now (or `None`), `auto_acknowledged` only when acknowledging |
-| `delete_for_match(match: Match) -> int` | Bulk-delete all rows for a match; returns count |
-| `delete_for_user(match: Match, user: User) -> None` | Delete one user's row for a match |
+| `async list_for_match(match: Match) -> List[MatchAcknowledgment]` | All acknowledgment rows for a match, `user` prefetched |
+| `async list_for_matches(match_ids: List[int]) -> Dict[int, List[MatchAcknowledgment]]` | One query for many matches, grouped by match id; every requested id gets a (possibly empty) list |
+| `async get(match: Match, user: User) -> Optional[MatchAcknowledgment]` | Single row for a match/user pair |
+| `async upsert(match: Match, user: User, *, acknowledged: bool, auto: bool) -> MatchAcknowledgment` | `update_or_create`; sets `acknowledged_at` to now (or `None`), `auto_acknowledged` only when acknowledging |
+| `async delete_for_match(match: Match) -> int` | Bulk-delete all rows for a match; returns count |
+| `async delete_for_user(match: Match, user: User) -> None` | Delete one user's row for a match |
 
 ### `MatchRepository`
 
@@ -795,14 +795,14 @@ Serves `Match` and `MatchPlayers` ([`match_repository.py`](../../application/rep
 
 | Method | Description |
 |---|---|
-| `get_by_id(match_id: int, prefetch_relations: bool = True) -> Optional[Match]` | Lookup by id; optionally prefetches `tournament`, `players(+user)`, `stream_room`, `generated_seed`, `commentators(+user)`, `trackers(+user)` |
-| `get_all(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None, prefetch_relations=True) -> List[Match]` | Filtered list ordered by `scheduled_at`; `only_upcoming` means `finished_at IS NULL`; `user_discord_id` restricts to matches the user plays in; same prefetch set as `get_by_id` |
-| `create(tournament_id: int, scheduled_at: datetime, comment=None, stream_room_id=None, is_stream_candidate=False) -> Match` | Insert a match |
-| `update(match: Match, **fields) -> Match` | `setattr` each field and save |
-| `delete(match: Match) -> None` | Delete the match |
-| `add_player(match: Match, user: User) -> MatchPlayers` | Insert a `MatchPlayers` row |
-| `remove_player(match: Match, user: User) -> None` | Delete the first matching `MatchPlayers` row, if any |
-| `get_players(match: Match) -> List[MatchPlayers]` | Player rows for a match, `user` prefetched |
+| `async get_by_id(match_id: int, prefetch_relations: bool = True) -> Optional[Match]` | Lookup by id; optionally prefetches `tournament`, `players(+user)`, `stream_room`, `generated_seed`, `commentators(+user)`, `trackers(+user)` |
+| `async get_all(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None, prefetch_relations=True) -> List[Match]` | Filtered list ordered by `scheduled_at`; `only_upcoming` means `finished_at IS NULL`; `user_discord_id` restricts to matches the user plays in; same prefetch set as `get_by_id` |
+| `async create(tournament_id: int, scheduled_at: datetime, comment=None, stream_room_id=None, is_stream_candidate=False) -> Match` | Insert a match |
+| `async update(match: Match, **fields) -> Match` | `setattr` each field and save |
+| `async delete(match: Match) -> None` | Delete the match |
+| `async add_player(match: Match, user: User) -> MatchPlayers` | Insert a `MatchPlayers` row |
+| `async remove_player(match: Match, user: User) -> None` | Delete the first matching `MatchPlayers` row, if any |
+| `async get_players(match: Match) -> List[MatchPlayers]` | Player rows for a match, `user` prefetched |
 
 ### `MatchWatcherRepository`
 
@@ -810,15 +810,15 @@ Serves `MatchWatcher` ([`match_watcher_repository.py`](../../application/reposit
 
 | Method | Description |
 |---|---|
-| `get_by_id(watcher_id: int) -> Optional[MatchWatcher]` | Lookup by primary key |
-| `get_by_match(match: Match) -> List[MatchWatcher]` | Watchers of a match, `user` prefetched |
-| `get_by_match_and_user(match: Match, user: User) -> Optional[MatchWatcher]` | Single watch row for a match/user pair |
-| `get_by_user(user: User) -> List[MatchWatcher]` | All watch rows for a user |
-| `get_match_ids_for_user(user: User) -> List[int]` | Watched match ids only (`values_list`) |
-| `is_watching(match_id: int, user_id: int) -> bool` | Existence check by ids |
-| `get_or_create(match: Match, user: User) -> Tuple[MatchWatcher, bool]` | Idempotent watch; bool is "created" |
-| `delete(watcher: MatchWatcher) -> None` | Delete a row |
-| `delete_by_match_and_user(match: Match, user: User) -> bool` | Delete by pair; `True` if a row was removed |
+| `async get_by_id(watcher_id: int) -> Optional[MatchWatcher]` | Lookup by primary key |
+| `async get_by_match(match: Match) -> List[MatchWatcher]` | Watchers of a match, `user` prefetched |
+| `async get_by_match_and_user(match: Match, user: User) -> Optional[MatchWatcher]` | Single watch row for a match/user pair |
+| `async get_by_user(user: User) -> List[MatchWatcher]` | All watch rows for a user |
+| `async get_match_ids_for_user(user: User) -> List[int]` | Watched match ids only (`values_list`) |
+| `async is_watching(match_id: int, user_id: int) -> bool` | Existence check by ids |
+| `async get_or_create(match: Match, user: User) -> Tuple[MatchWatcher, bool]` | Idempotent watch; bool is "created" |
+| `async delete(watcher: MatchWatcher) -> None` | Delete a row |
+| `async delete_by_match_and_user(match: Match, user: User) -> bool` | Delete by pair; `True` if a row was removed |
 
 ### `StreamRoomRepository`
 
@@ -826,12 +826,12 @@ Serves `StreamRoom` ([`stream_room_repository.py`](../../application/repositorie
 
 | Method | Description |
 |---|---|
-| `get_by_id(stream_room_id: int) -> Optional[StreamRoom]` | Lookup by primary key |
-| `get_all() -> List[StreamRoom]` | All rooms ordered by name |
-| `get_all_as_dict() -> dict[int, str]` | id → name map for select options |
-| `create(name: str, stream_url=None, is_active=True) -> StreamRoom` | Insert a room |
-| `update(stream_room: StreamRoom, **fields) -> None` | `setattr` each field and save |
-| `delete(stream_room: StreamRoom) -> None` | Delete the room |
+| `async get_by_id(stream_room_id: int) -> Optional[StreamRoom]` | Lookup by primary key |
+| `async get_all() -> List[StreamRoom]` | All rooms ordered by name |
+| `async get_all_as_dict() -> dict[int, str]` | id → name map for select options |
+| `async create(name: str, stream_url=None, is_active=True) -> StreamRoom` | Insert a room |
+| `async update(stream_room: StreamRoom, **fields) -> None` | `setattr` each field and save |
+| `async delete(stream_room: StreamRoom) -> None` | Delete the room |
 
 ### `TournamentNotificationRepository`
 
@@ -839,11 +839,11 @@ Serves `TournamentNotificationPreference` ([`tournament_notification_repository.
 
 | Method | Description |
 |---|---|
-| `get_by_user_and_tournament(user: User, tournament: Tournament) -> Optional[TournamentNotificationPreference]` | Single preference row |
-| `get_all_for_user(user: User) -> List[TournamentNotificationPreference]` | All of a user's preferences, `tournament` prefetched |
-| `upsert(user: User, tournament: Tournament, match_notifications: MatchNotificationLevel) -> TournamentNotificationPreference` | `get_or_create` then set the level and save |
-| `get_match_notification_subscribers(tournament_id: int, has_stream_room: bool) -> List[User]` | Users qualifying for a match-scheduled DM: `ALL` always; `STREAMED`/`STREAMED_AND_CANDIDATES` only when a stream room is assigned; drops users without `discord_id` or with `dm_notifications` off |
-| `get_stream_candidate_subscribers(tournament_id: int) -> List[User]` | `STREAMED_AND_CANDIDATES` opt-ins, same DM-ability filter |
+| `async get_by_user_and_tournament(user: User, tournament: Tournament) -> Optional[TournamentNotificationPreference]` | Single preference row |
+| `async get_all_for_user(user: User) -> List[TournamentNotificationPreference]` | All of a user's preferences, `tournament` prefetched |
+| `async upsert(user: User, tournament: Tournament, match_notifications: MatchNotificationLevel) -> TournamentNotificationPreference` | `get_or_create` then set the level and save |
+| `async get_match_notification_subscribers(tournament_id: int, has_stream_room: bool) -> List[User]` | Users qualifying for a match-scheduled DM: `ALL` always; `STREAMED`/`STREAMED_AND_CANDIDATES` only when a stream room is assigned; drops users without `discord_id` or with `dm_notifications` off |
+| `async get_stream_candidate_subscribers(tournament_id: int) -> List[User]` | `STREAMED_AND_CANDIDATES` opt-ins, same DM-ability filter |
 
 ### `TournamentRepository`
 
@@ -851,21 +851,21 @@ Serves `Tournament` and `TournamentPlayers` ([`tournament_repository.py`](../../
 
 | Method | Description |
 |---|---|
-| `get_by_id(tournament_id: int, prefetch_players: bool = False) -> Optional[Tournament]` | Lookup by id; optional `players(+user)` prefetch |
-| `get_by_ids(tournament_ids: List[int]) -> List[Tournament]` | Bulk lookup ordered by name |
-| `get_all(active_only=False, staff_only=False, prefetch_players=False) -> List[Tournament]` | All tournaments ordered by name; filters on `is_active` / `staff_administered` |
-| `get_all_as_dict(active_only=False, staff_only=False) -> dict[int, str]` | id → name map for select options |
-| `create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False) -> Tournament` | Insert a tournament |
-| `update(tournament: Tournament, **fields) -> None` | `setattr` each field and save |
-| `delete(tournament: Tournament) -> None` | Delete the tournament |
-| `enroll_player(tournament: Tournament, user) -> TournamentPlayers` | Insert an enrollment row |
-| `unenroll_player(tournament: Tournament, user) -> None` | Bulk-delete matching enrollment rows |
-| `get_enrolled_players(tournament: Tournament) -> List` | Enrollment rows for a tournament, `user` prefetched |
-| `get_enrolled_players_by_user(user) -> List` | A user's enrollments, `tournament` prefetched |
-| `get_enrolled_players_by_tournament_id(tournament_id: int) -> List` | Enrollment rows by tournament id, `user` prefetched |
-| `is_player_enrolled(tournament: Tournament, user) -> bool` | Existence check |
-| `is_player_enrolled_by_id(tournament_id: int, user) -> bool` | Existence check by tournament id |
-| `enroll_player_by_id(tournament_id: int, user) -> TournamentPlayers` | Insert an enrollment row by tournament id |
+| `async get_by_id(tournament_id: int, prefetch_players: bool = False) -> Optional[Tournament]` | Lookup by id; optional `players(+user)` prefetch |
+| `async get_by_ids(tournament_ids: List[int]) -> List[Tournament]` | Bulk lookup ordered by name |
+| `async get_all(active_only=False, staff_only=False, prefetch_players=False) -> List[Tournament]` | All tournaments ordered by name; filters on `is_active` / `staff_administered` |
+| `async get_all_as_dict(active_only=False, staff_only=False) -> dict[int, str]` | id → name map for select options |
+| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False) -> Tournament` | Insert a tournament |
+| `async update(tournament: Tournament, **fields) -> None` | `setattr` each field and save |
+| `async delete(tournament: Tournament) -> None` | Delete the tournament |
+| `async enroll_player(tournament: Tournament, user) -> TournamentPlayers` | Insert an enrollment row |
+| `async unenroll_player(tournament: Tournament, user) -> None` | Bulk-delete matching enrollment rows |
+| `async get_enrolled_players(tournament: Tournament) -> List` | Enrollment rows for a tournament, `user` prefetched |
+| `async get_enrolled_players_by_user(user) -> List` | A user's enrollments, `tournament` prefetched |
+| `async get_enrolled_players_by_tournament_id(tournament_id: int) -> List` | Enrollment rows by tournament id, `user` prefetched |
+| `async is_player_enrolled(tournament: Tournament, user) -> bool` | Existence check |
+| `async is_player_enrolled_by_id(tournament_id: int, user) -> bool` | Existence check by tournament id |
+| `async enroll_player_by_id(tournament_id: int, user) -> TournamentPlayers` | Insert an enrollment row by tournament id |
 
 ### `TrackerRepository`
 
@@ -873,15 +873,15 @@ Serves `Tracker` ([`tracker_repository.py`](../../application/repositories/track
 
 | Method | Description |
 |---|---|
-| `get_by_id(tracker_id: int) -> Optional[Tracker]` | Lookup by primary key |
-| `get_by_match(match: Match) -> List[Tracker]` | All trackers for a match, `user` prefetched |
-| `get_by_match_and_user(match: Match, user: User) -> Optional[Tracker]` | Single signup row for a match/user pair |
-| `create(match: Match, user: User, approved: bool = False) -> Tracker` | Insert a signup |
-| `update(tracker: Tracker, **fields) -> Tracker` | Apply arbitrary field updates and save |
-| `delete(tracker: Tracker) -> None` | Delete the row |
-| `approve(tracker: Tracker) -> Tracker` | Sets `approved=True` |
-| `acknowledge(tracker: Tracker) -> Tracker` | Sets `acknowledged_at=datetime.now()` |
-| `clear_acknowledgment(tracker: Tracker) -> Tracker` | Resets `acknowledged_at` to `None` |
+| `async get_by_id(tracker_id: int) -> Optional[Tracker]` | Lookup by primary key |
+| `async get_by_match(match: Match) -> List[Tracker]` | All trackers for a match, `user` prefetched |
+| `async get_by_match_and_user(match: Match, user: User) -> Optional[Tracker]` | Single signup row for a match/user pair |
+| `async create(match: Match, user: User, approved: bool = False) -> Tracker` | Insert a signup |
+| `async update(tracker: Tracker, **fields) -> Tracker` | Apply arbitrary field updates and save |
+| `async delete(tracker: Tracker) -> None` | Delete the row |
+| `async approve(tracker: Tracker) -> Tracker` | Sets `approved=True` |
+| `async acknowledge(tracker: Tracker) -> Tracker` | Sets `acknowledged_at=datetime.now()` |
+| `async clear_acknowledgment(tracker: Tracker) -> Tracker` | Resets `acknowledged_at` to `None` |
 
 ### `TriforceTextRepository`
 
@@ -889,16 +889,16 @@ Serves `TriforceText` ([`triforce_text_repository.py`](../../application/reposit
 
 | Method | Description |
 |---|---|
-| `get_by_id(text_id: int) -> Optional[TriforceText]` | Lookup by id; prefetches `tournament`, `user`, `approved_by` |
-| `list_by_tournament(tournament: Tournament, status: Optional[str] = None) -> List[TriforceText]` | Texts for a tournament filtered by status (`None` = all), newest first, `user`/`approved_by` prefetched |
-| `list_by_tournament_and_user(tournament: Tournament, user: User) -> List[TriforceText]` | A player's own submissions, newest first |
-| `list_approved(tournament: Tournament) -> List[TriforceText]` | All approved texts for a tournament |
-| `list_approved_user_buckets(tournament: Tournament) -> List[Optional[int]]` | Distinct submitter ids with ≥1 approved text; includes a `None` bucket for texts whose submitter was deleted (FK set null), keeping them in rotation for balanced selection |
-| `list_approved_by_user(tournament: Tournament, user_id: Optional[int]) -> List[TriforceText]` | Approved texts in one submitter bucket |
-| `create(tournament: Tournament, user: Optional[User], text: str, author: Optional[str]) -> TriforceText` | Insert with `approved=None` (pending) |
-| `update(triforce_text: TriforceText, **changes) -> TriforceText` | Apply arbitrary field updates and save |
-| `set_moderation(triforce_text: TriforceText, approved: bool, actor: User) -> TriforceText` | Sets `approved`, `approved_by=actor`, `approved_at=datetime.now()` |
-| `delete(triforce_text: TriforceText) -> None` | Delete the row |
+| `async get_by_id(text_id: int) -> Optional[TriforceText]` | Lookup by id; prefetches `tournament`, `user`, `approved_by` |
+| `async list_by_tournament(tournament: Tournament, status: Optional[str] = None) -> List[TriforceText]` | Texts for a tournament filtered by status (`None` = all), newest first, `user`/`approved_by` prefetched |
+| `async list_by_tournament_and_user(tournament: Tournament, user: User) -> List[TriforceText]` | A player's own submissions, newest first |
+| `async list_approved(tournament: Tournament) -> List[TriforceText]` | All approved texts for a tournament |
+| `async list_approved_user_buckets(tournament: Tournament) -> List[Optional[int]]` | Distinct submitter ids with ≥1 approved text; includes a `None` bucket for texts whose submitter was deleted (FK set null), keeping them in rotation for balanced selection |
+| `async list_approved_by_user(tournament: Tournament, user_id: Optional[int]) -> List[TriforceText]` | Approved texts in one submitter bucket |
+| `async create(tournament: Tournament, user: Optional[User], text: str, author: Optional[str]) -> TriforceText` | Insert with `approved=None` (pending) |
+| `async update(triforce_text: TriforceText, **changes) -> TriforceText` | Apply arbitrary field updates and save |
+| `async set_moderation(triforce_text: TriforceText, approved: bool, actor: User) -> TriforceText` | Sets `approved`, `approved_by=actor`, `approved_at=datetime.now()` |
+| `async delete(triforce_text: TriforceText) -> None` | Delete the row |
 
 ### `UserRepository`
 
@@ -906,14 +906,14 @@ Serves `User` ([`user_repository.py`](../../application/repositories/user_reposi
 
 | Method | Description |
 |---|---|
-| `get_by_id(user_id: int) -> Optional[User]` | Lookup by primary key |
-| `get_by_discord_id(discord_id: str) -> Optional[User]` | Lookup by Discord snowflake |
-| `get_all(role: Optional[Role] = None, has_discord: bool = False) -> List[User]` | All users ordered by username; `role` filters through the `userrole` join (distinct); `has_discord` excludes null `discord_id` |
-| `search_by_name(search_term: str, limit: int = 20) -> List[User]` | Case-insensitive name search; note it filters on `preferred_name`, which is a Python property rather than a database column |
-| `create(username: str, discord_id=None, display_name=None, pronouns=None, is_active=True, access_token=None) -> User` | Insert a user |
-| `update(user: User, **fields) -> None` | `setattr` each field and save |
-| `delete(user: User) -> None` | Delete the user |
-| `update_discord_info(user: User, username: str, discriminator=None, avatar=None) -> None` | Refresh Discord profile data; note `discriminator`/`avatar` are not fields on `User` |
+| `async get_by_id(user_id: int) -> Optional[User]` | Lookup by primary key |
+| `async get_by_discord_id(discord_id: str) -> Optional[User]` | Lookup by Discord snowflake |
+| `async get_all(role: Optional[Role] = None, has_discord: bool = False) -> List[User]` | All users ordered by username; `role` filters through the `userrole` join (distinct); `has_discord` excludes null `discord_id` |
+| `async search_by_name(search_term: str, limit: int = 20) -> List[User]` | Case-insensitive name search; note it filters on `preferred_name`, which is a Python property rather than a database column |
+| `async create(username: str, discord_id=None, display_name=None, pronouns=None, is_active=True, access_token=None) -> User` | Insert a user |
+| `async update(user: User, **fields) -> None` | `setattr` each field and save |
+| `async delete(user: User) -> None` | Delete the user |
+| `async update_discord_info(user: User, username: str, discriminator=None, avatar=None) -> None` | Refresh Discord profile data; note `discriminator`/`avatar` are not fields on `User` |
 
 ### `UserRoleRepository`
 
@@ -921,11 +921,11 @@ Serves `UserRole` ([`user_role_repository.py`](../../application/repositories/us
 
 | Method | Description |
 |---|---|
-| `add(user: User, role: Role, granted_by=None, source=RoleSource.MANUAL) -> UserRole` | Idempotent grant via `get_or_create`. A `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation |
-| `remove(user: User, role: Role) -> int` | Revoke; returns number of rows deleted |
-| `list_for_user(user: User) -> List[UserRole]` | All role rows for a user |
-| `list_for_user_by_source(user: User, source: RoleSource) -> List[UserRole]` | Role rows for a user filtered by source (used by the Discord sync to find revocable rows) |
-| `list_users_with_role(role: Role) -> List[User]` | Users holding a role, resolved via prefetched rows |
+| `async add(user: User, role: Role, granted_by=None, source=RoleSource.MANUAL) -> UserRole` | Idempotent grant via `get_or_create`. A `MANUAL` grant on an existing Discord-sourced row upgrades its `source` to `MANUAL`, pinning it against future Discord revocation |
+| `async remove(user: User, role: Role) -> int` | Revoke; returns number of rows deleted |
+| `async list_for_user(user: User) -> List[UserRole]` | All role rows for a user |
+| `async list_for_user_by_source(user: User, source: RoleSource) -> List[UserRole]` | Role rows for a user filtered by source (used by the Discord sync to find revocable rows) |
+| `async list_users_with_role(role: Role) -> List[User]` | Users holding a role, resolved via prefetched rows |
 
 ### `DiscordRoleMappingRepository`
 
@@ -933,12 +933,12 @@ Serves `DiscordRoleMapping` ([`discord_role_mapping_repository.py`](../../applic
 
 | Method | Description |
 |---|---|
-| `get_by_id(mapping_id: int) -> Optional[DiscordRoleMapping]` | Lookup by primary key |
-| `get_all() -> List[DiscordRoleMapping]` | All mappings, ordered by Discord role name then app role |
-| `list_for_guild(guild_id: int) -> List[DiscordRoleMapping]` | Mappings scoped to one guild |
-| `get_match(guild_id, discord_role_id, app_role) -> Optional[DiscordRoleMapping]` | Exact-tuple lookup used to reject duplicates |
-| `create(guild_id, discord_role_id, discord_role_name, app_role) -> DiscordRoleMapping` | Insert a mapping |
-| `delete(mapping: DiscordRoleMapping) -> None` | Delete a mapping |
+| `async get_by_id(mapping_id: int) -> Optional[DiscordRoleMapping]` | Lookup by primary key |
+| `async get_all() -> List[DiscordRoleMapping]` | All mappings, ordered by Discord role name then app role |
+| `async list_for_guild(guild_id: int) -> List[DiscordRoleMapping]` | Mappings scoped to one guild |
+| `async get_match(guild_id, discord_role_id, app_role) -> Optional[DiscordRoleMapping]` | Exact-tuple lookup used to reject duplicates |
+| `async create(guild_id, discord_role_id, discord_role_name, app_role) -> DiscordRoleMapping` | Insert a mapping |
+| `async delete(mapping: DiscordRoleMapping) -> None` | Delete a mapping |
 
 ### Newer subsystem repositories
 
@@ -975,7 +975,7 @@ src_folder = "./."
 
 **Automatic upgrade on startup.** `init_db()` in [`main.py`](../../main.py), called from the FastAPI lifespan, runs `aerich.Command(tortoise_config=TORTOISE_ORM, app='models', location='./migrations')`, then `command.init()` and `command.upgrade()` before `Tortoise.init(config=TORTOISE_ORM)` — so pending migrations are applied on every application start, with no manual step in deployment.
 
-**Migration history.** The history was squashed into a single init migration, [`migrations/models/0_20260608213149_init.py`](../../migrations/models/0_20260608213149_init.py), with later migrations adding the equipment, volunteering, availability, Challonge, API-token, and feedback tables. Together they create all model tables, the two M2M through tables (`"TournamentAdmins"`, `"TournamentCrewCoordinators"` with unique `(tournament_id, user_id)` indexes), and the `aerich` bookkeeping table. Its `downgrade()` returns empty SQL, so the init migration is not reversible. The earlier MySQL-era migrations were regenerated for PostgreSQL — see [postgresql-migration.md](../features/postgresql-migration.md).
+**Migration history.** The history was squashed into a single init migration, [`migrations/models/0_20260608213149_init.py`](../../migrations/models/0_20260608213149_init.py), with later migrations adding the equipment, volunteering, availability, Challonge, API-token, and feedback tables. Together they create all model tables, the two M2M through tables (`"TournamentAdmins"`, `"TournamentCrewCoordinators"` with unique `(tournament_id, user_id)` indexes), and the `aerich` bookkeeping table. Its `downgrade()` returns empty SQL, so the init migration is not reversible.
 
 **Developer workflow.** After changing `models.py`:
 

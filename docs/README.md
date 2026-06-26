@@ -50,12 +50,9 @@ Implementation notes for each shipped feature.
 | [features/match-acknowledgment.md](features/match-acknowledgment.md) | Player and crew match acknowledgment flows |
 | [features/match-watcher.md](features/match-watcher.md) | Watch any match for state-change DMs |
 | [features/mock-discord.md](features/mock-discord.md) | `MOCK_DISCORD` development mode |
-| [features/postgresql-migration.md](features/postgresql-migration.md) | MySQL→PostgreSQL move, Docker setup, GHCR publishing |
 | [features/role-based-auth.md](features/role-based-auth.md) | Role system (staff/proctor/stream_manager) and permission matrix |
-| [features/test-coverage.md](features/test-coverage.md) | Test suite scope and known gaps |
 | [features/tournament-notifications.md](features/tournament-notifications.md) | Per-tournament notification preference levels |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player triforce-text submission and moderation |
-| [features/ux-improvements.md](features/ux-improvements.md) | UX fixes shipped from the UX audit |
 
 Some newer subsystems do not yet have a dedicated feature doc; they are covered at the reference level instead:
 
@@ -68,11 +65,6 @@ Some newer subsystems do not yet have a dedicated feature doc; they are covered 
 
 - [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (per-domain tenants, central super-admin interface, one-bot-many-guilds Discord). Design only; no code shipped.
 
-## Historical / point-in-time
-
-- [design.md](design.md) — original requirements sketch (superseded by [architecture.md](architecture.md))
-- [ux-audit.md](ux-audit.md) — full UX audit (point-in-time; fixes tracked in [features/ux-improvements.md](features/ux-improvements.md))
-
 ## Coverage map
 
 Every source area of the repository maps to at least one doc. This table is the audit trail for "100% coverage"; if you add a top-level module or directory, add a row here and cover it.
@@ -82,12 +74,13 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` — 30 models, 8 enums | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` — 29 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
-| `application/repositories/` — 24 repositories | [reference/data-model.md](reference/data-model.md) |
+| `models.py` — 36 models (35 domain + a TestModel test fixture), 9 enums | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` — 30 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
+| `application/repositories/` — 25 repositories | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` — 10 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
 | `middleware/` — auth.py, mock_auth.py, challonge_oauth.py | [reference/authentication.md](reference/authentication.md); challonge_oauth → [reference/services.md](reference/services.md) (challonge_service) |
-| `middleware/security_headers.py` | [security-audit.md](security-audit.md) |
+| `middleware/security_headers.py` | [deployment.md](deployment.md) |
+| `middleware/error_handlers.py` | [reference/rest-api.md](reference/rest-api.md) |
 | `discordbot/` — 6 handler modules (incl. crew/volunteer acknowledgment, watch buttons) | [reference/discord-integration.md](reference/discord-integration.md) |
 | `pages/` — 4 pages, home_tabs/, volunteer_tabs/, admin_tabs/ (incl. reports/) | [reference/frontend.md](reference/frontend.md) |
 | `theme/` — base.py, dialogs, table views, realtime.py | [reference/frontend.md](reference/frontend.md) |
@@ -95,7 +88,7 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `presets/` — alttpr/, ootr/, smmap/ | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
 | `scripts/seed_dev.py` | [development.md](development.md) |
-| `tests/` | [development.md](development.md), [features/test-coverage.md](features/test-coverage.md) |
+| `tests/` | [development.md](development.md) |
 | `start.sh`, `Dockerfile`, `docker-compose.yml` | [deployment.md](deployment.md) |
 | `.env.example` — every variable | [deployment.md](deployment.md) |
 | `.github/workflows/` — test.yml, publish.yml | [development.md](development.md), [deployment.md](deployment.md) |

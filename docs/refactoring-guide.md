@@ -279,7 +279,6 @@ async def on_generate_seed(match_id: int):
         if seed_generator:
             seed_url = await seed_generator()
             match.generated_seed = await GeneratedSeeds.create(
-                tournament=match.tournament,
                 seed_url=seed_url,
                 seed_info=f"Generated seed for match {match.id}"
             )
@@ -296,10 +295,10 @@ async def on_generate_seed(match_id: int):
 **Example AFTER:**
 ```python
 # pages/admin_tabs/admin_schedule.py
-from application.services import MatchService
+from application.services import MatchScheduleService
 
 async def on_generate_seed(match_id: int):
-    service = MatchService()
+    service = MatchScheduleService()
     
     try:
         await service.generate_seed(match_id)
@@ -310,7 +309,7 @@ async def on_generate_seed(match_id: int):
     except Exception as e:
         ui.notify(f'Error generating seed: {e}', color='negative')
 
-# And in MatchService:
+# And in MatchScheduleService:
 async def generate_seed(self, match_id: int) -> str:
     """Generate a seed for a match and notify players."""
     match = await self.repository.get_by_id(match_id, prefetch_relations=True)
@@ -331,7 +330,6 @@ async def generate_seed(self, match_id: int) -> str:
     
     # Save to database
     generated_seed = await GeneratedSeeds.create(
-        tournament=match.tournament,
         seed_url=seed_url,
         seed_info=f"Generated seed for match {match.id}"
     )
@@ -387,7 +385,7 @@ async def test_create_match_validation():
 ```python
 async def test_generate_seed():
     mock_repo = Mock(spec=MatchRepository)
-    service = MatchService()
+    service = MatchScheduleService()
     service.repository = mock_repo
     
     # Test without touching the database
@@ -426,16 +424,10 @@ match_data = await service.get_match_for_display(123)
 
 ### Completed
 - ✅ `MatchRepository` - Full CRUD for matches
-- ✅ `MatchService` - Business logic for match operations
-
-### In Progress
-- 🔄 Refactor admin_schedule.py to use MatchService
-
-### To Do
-- ⏳ `TournamentRepository` and `TournamentService`
-- ⏳ `UserRepository` and `UserService`
-- ⏳ `CrewRepository` and `CrewService` (commentators/trackers)
-- ⏳ Refactor remaining UI components
+- ✅ `MatchService` / `MatchScheduleService` - Business logic for match operations
+- ✅ `TournamentRepository` and `TournamentService`
+- ✅ `UserRepository` and `UserService`
+- ✅ `CrewRepository` and `CrewService` (commentators/trackers)
 
 ## Best Practices
 

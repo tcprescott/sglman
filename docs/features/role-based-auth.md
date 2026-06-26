@@ -12,9 +12,13 @@ Defined in `models.py` as `Role(str, Enum)`:
 
 | Role | Who Has It | Grants Access To |
 |---|---|---|
-| `staff` | Tournament organizers | Full admin dashboard; all CRUD |
+| `staff` | Tournament organizers | Full admin dashboard; all CRUD; grant/revoke roles |
 | `proctor` | Race monitors | Race/schedule workflow on the `/volunteer` page; seat/start/finish/confirm/seed (no Admin access) |
-| `stream_manager` | Stream desk | Stage assignment; stream candidate flag |
+| `stream_manager` | Stream desk | Admin dashboard; stage assignment; stream candidate flag; CRUD on stream rooms |
+| `triforce_submitter` | Paid submitters | Submit Triforce texts on active tournaments whose generator supports them (no Admin access) |
+| `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, and assignments |
+| `equipment_manager` | Equipment leads | Admin dashboard; CRUD on lending assets; check equipment in/out; view private notes/owner |
+| `volunteer` | General volunteers | Volunteer workflows on the `/volunteer` page; check equipment out to themselves (no Admin access) |
 
 Roles are stored in the `UserRole` junction table. Each row records who granted the role (`granted_by` FK to User), when, and its `source` (`manual` vs `discord`). Roles can be granted by hand by Staff **or** synced automatically from a user's Discord roles at login — see [discord-role-sync.md](discord-role-sync.md). The sync only ever revokes the `discord`-sourced roles it created; `manual` grants are preserved.
 
@@ -32,10 +36,11 @@ Roles are stored in the `UserRole` junction table. Each row records who granted 
 ## Auth Service API
 
 ```python
-from application.services.auth_service import AuthService, current_user_from_storage
+from application.services import AuthService, get_user_from_discord_id
 from models import Role
+from nicegui import app
 
-user = await current_user_from_storage()          # User | None
+user = await get_user_from_discord_id(app.storage.user.get('discord_id'))   # User | None
 
 await AuthService.has_role(user, Role.STAFF)            # bool
 await AuthService.get_roles(user)                        # set[Role]
@@ -67,4 +72,4 @@ Users without an admin global role can still access the admin dashboard if they 
 - An admin of any tournament (`Tournament.admins` M2M)
 - A crew coordinator of any tournament (`Tournament.crew_coordinators` M2M)
 
-`AuthService.can_view_admin()` checks these conditions. Holding only `PROCTOR` or `VOLUNTEER` does **not** grant admin access — proctors run their race/schedule workflow from the `/volunteer` page.
+`AuthService.can_view_admin()` checks these conditions. Holding only `PROCTOR`, `TRIFORCE_SUBMITTER`, or `VOLUNTEER` does **not** grant admin access — proctors and volunteers run their workflow from the `/volunteer` page. The admin-granting roles are `STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, and `VOLUNTEER_COORDINATOR`.

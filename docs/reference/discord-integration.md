@@ -17,7 +17,8 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`discordbot/volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) | Volunteer shift Acknowledge button + handler (`volunteer_ack:` interactions) |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, queue start/stop in the FastAPI lifespan |
 | [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py) | `is_mock_discord()` flag with production guard |
-| [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | Notification fan-out coroutines and DM message builders |
+| [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | Notification fan-out coroutines |
+| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | DM/embed text builders (public functions) + ephemeral confirmation strings |
 | [`application/services/crew_service.py`](../../application/services/crew_service.py) | Crew approval → crew acknowledgment DM |
 
 ## Architecture overview
@@ -198,7 +199,7 @@ Common to all four modules: views are `discord.ui.View(timeout=None)` holding pl
 | `custom_id` | `crew_signup:<role>:<match_id>` where `<role>` ∈ `commentator` \| `tracker` |
 | Handler | `handle_crew_signup_interaction(interaction)` |
 
-The handler validates the role token, loads the match via `MatchService().repository.get_by_id(match_id, prefetch_relations=False)`, and rejects with `Match not found.` or — when `finished_at` is set — `This match has already finished. Crew signup is closed.`. On success it calls `MatchService.signup_crew(match_id, user, role)` (creates an unapproved `Commentator`/`Tracker` row, audits `crew.signup_created`) and replies `You have been signed up as a **<role>** for Match ID <id>. Awaiting admin approval.` A duplicate signup surfaces the service's `ValueError` (`User already signed up as <role>`). No defer, no message edit — the buttons stay live for other recipients of the same fan-out. See [crew-management.md](../features/crew-management.md).
+The handler validates the role token, loads the match via `MatchService().repository.get_by_id(match_id, prefetch_relations=False)`, and rejects with `Match not found.` or — when `finished_at` is set — `This match has already finished. Crew signup is closed.`. On success it calls `MatchService.signup_crew(match_id, user, role)` (creates an unapproved `Commentator`/`Tracker` row, audits `crew.signup_created`) and replies with `crew_signup_confirmation(role, player_names)`: `You have been signed up as a **<role>** for the match (<players>). Awaiting admin approval.` (the player names are joined from the match's players; the parenthetical is omitted when there are none). A duplicate signup surfaces the service's `ValueError` (`User already signed up as <role>`). No defer, no message edit — the buttons stay live for other recipients of the same fan-out. See [crew-management.md](../features/crew-management.md).
 
 ### match_acknowledgment.py
 
@@ -209,7 +210,7 @@ The handler validates the role token, loads the match via `MatchService().reposi
 | `custom_id` | `match_ack:ack:<match_id>`; the disabled replacement uses `match_ack:acknowledged` |
 | Handler | `handle_match_acknowledgment_interaction(interaction)` |
 
-The handler **defers ephemerally first** (the DB work can exceed Discord's 3-second interaction deadline) and replies through a `_send()` helper that uses `interaction.followup` when the defer succeeded, falling back to `interaction.response`. It calls `MatchService().acknowledge_match(match_id, user)` (validates the clicker is a current player, upserts `MatchAcknowledgment.acknowledged_at`, audits `match.acknowledged`), then edits the original DM's view to the disabled `Acknowledged` button (failure to edit only logs a warning), and replies `You have acknowledged Match ID <id>. Players: <names>. Thanks!`. Service `ValueError`s (not a participant, already acknowledged) are relayed; any other exception is logged and answered with `An unexpected error occurred. Please try again or use the website to acknowledge.` See [match-acknowledgment.md](../features/match-acknowledgment.md).
+The handler **defers ephemerally first** (the DB work can exceed Discord's 3-second interaction deadline) and replies through a `_send()` helper that uses `interaction.followup` when the defer succeeded, falling back to `interaction.response`. It calls `MatchService().acknowledge_match(match_id, user)` (validates the clicker is a current player, upserts `MatchAcknowledgment.acknowledged_at`, audits `match.acknowledged`), then edits the original DM's view to the disabled `Acknowledged` button (failure to edit only logs a warning), and replies via `match_ack_confirmation(player_names)`: `You have acknowledged your match (<player names>). Thanks!`. Service `ValueError`s (not a participant, already acknowledged) are relayed; any other exception is logged and answered with `An unexpected error occurred. Please try again or use the website to acknowledge.` See [match-acknowledgment.md](../features/match-acknowledgment.md).
 
 ### crew_acknowledgment.py
 
@@ -220,7 +221,7 @@ The handler **defers ephemerally first** (the DB work can exceed Discord's 3-sec
 | `custom_id` | `crew_ack:<crew_type>:<crew_id>` where `<crew_type>` ∈ `commentator` \| `tracker`; disabled replacement uses `crew_ack:acknowledged` |
 | Handler | `handle_crew_acknowledgment_interaction(interaction)` |
 
-Structurally identical to the match-ack handler (defer + `_send` fallback, view swap, same generic error message). It calls `CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)`, which enforces that the clicker owns the assignment (`You can only acknowledge your own crew assignments.`), that it has been approved (`This <crew_type> assignment has not been approved yet.`), treats repeat clicks as a no-op, sets `acknowledged_at` in a transaction, and audits `crew.acknowledged`. The reply is `You have acknowledged your <crew_type> assignment for Match ID <id>. Players: <names>. Thanks!`. See [crew-management.md](../features/crew-management.md) and [match-acknowledgment.md](../features/match-acknowledgment.md).
+Structurally identical to the match-ack handler (defer + `_send` fallback, view swap, same generic error message). It calls `CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)`, which enforces that the clicker owns the assignment (`You can only acknowledge your own crew assignments.`), that it has been approved (`This <crew_type> assignment has not been approved yet.`), treats repeat clicks as a no-op, sets `acknowledged_at` in a transaction, and audits `crew.acknowledged`. The reply is produced by `crew_ack_confirmation(crew_type, player_names)`: `You have acknowledged your <crew_type> assignment (<player names>). Thanks!`. See [crew-management.md](../features/crew-management.md) and [match-acknowledgment.md](../features/match-acknowledgment.md).
 
 ### volunteer_acknowledgment.py
 
@@ -242,7 +243,7 @@ Structurally identical to the match-ack and crew-ack handlers (defer + `_send` f
 | `custom_id` | `match_watch:unwatch:<match_id>` |
 | Handler | `handle_unwatch_interaction(interaction)` |
 
-The Unwatch button rides along on lifecycle DMs sent to watchers (there is no "watch" button in Discord — watching starts from the web schedule). The handler calls `MatchWatcherService().unwatch(match_id, user)`, which deletes the `MatchWatcher` row and audits `match.watcher_removed`, returning whether a row was removed. Reply: `You are no longer watching match ID <id>.` or `You were not watching match ID <id>.`. No defer, no view edit. See [match-watcher.md](../features/match-watcher.md).
+The Unwatch button rides along on lifecycle DMs sent to watchers (there is no "watch" button in Discord — watching starts from the web schedule). The handler calls `MatchWatcherService().unwatch(match_id, user)`, which deletes the `MatchWatcher` row and audits `match.watcher_removed`, returning whether a row was removed. Reply produced by `unwatch_confirmation(player_names, was_watching)`: `You are no longer watching the match (<player names>).` or `You were not watching the match (<player names>).`. No defer, no view edit. See [match-watcher.md](../features/match-watcher.md).
 
 ## Message flows
 
@@ -257,19 +258,23 @@ Recipient selection helpers:
 
 ### DM message builders
 
-Message text is produced by private `_create_*_dm_message` helpers on `MatchScheduleService` (all times formatted with `format_eastern_display` — see [timezone-handling.md](../timezone-handling.md)):
+Message text is produced by **public functions** in [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) — not by methods on any service. Services import the builders they need (`match_schedule_service.py`, `match_service.py`, `crew_service.py`, `volunteer_schedule_service.py`) and the interaction handlers import the ephemeral confirmation strings. Times are formatted with `format_eastern_display` at the call site before being passed in (see [timezone-handling.md](../timezone-handling.md)); each builder takes optional fields and suppresses any that are empty/`None`.
 
 | Builder | Used for | Content |
 |---|---|---|
-| `_create_scheduled_dm_message` | New-match info DM (crew/subscribers) | Tournament name, match id, scheduled time |
-| `_create_rescheduled_dm_message` | Reschedule info DM (crew/subscribers) | Tournament name, match id, new time |
-| `_create_acknowledgment_request_dm_message` | Player ack request (scheduled and rescheduled variants) | Match details plus optional stream room and player names; ends with `Click **Acknowledge** below to confirm you've seen this.` |
-| `_create_checked_in_dm_message` | Seated transition | "checked in … about to begin" |
-| `_create_state_changed_dm_message` | Started / Finished / Confirmed transitions | `Match ID <id> in **<tournament>** is now: **<state>**.` |
-| `_create_stream_candidate_dm_message` | Stream-candidate alert | Flag announcement + scheduled time + "Use the buttons below to sign up as crew." |
-| `_create_seed_dm_message` | Seed generation | Greeting, match/tournament, seed URL |
+| `scheduled_dm` | New-match info DM (crew/subscribers) | Tournament name, players, scheduled time, stage |
+| `rescheduled_dm` | Reschedule info DM (crew/subscribers) | Tournament name, players, new time, stage |
+| `acknowledgment_request_dm` | Player ack request (scheduled and rescheduled variants, selected by `rescheduled=`) | Match details plus optional stream room and player names; ends with `Click **Acknowledge** below to confirm you've seen this.` |
+| `checked_in_dm` | Seated transition | "checked in … about to begin" |
+| `state_changed_dm` | Started / Finished / Confirmed transitions | `Your match in **<tournament>** is now: **<state>**.` (plus an optional info block) |
+| `stream_candidate_dm` | Stream-candidate alert | Flag announcement + scheduled time + "Use the buttons below to sign up as crew." |
+| `seed_dm` | Seed generation | Greeting, match/tournament, seed URL |
+| `crew_assignment_dm` | Crew approval DM | Crew type, match title, players, scheduled time, stage; ends with "Please click below to acknowledge your assignment." |
+| `volunteer_assignment_dm` / `volunteer_reminder_dm` | Volunteer shift assigned / reminder | Position, label, shift start/end |
 
-The crew approval DM has no builder — `CrewService._request_crew_acknowledgment` assembles it inline from the match title, scheduled time, stream room, and player list.
+The crew approval DM is built by `crew_assignment_dm(...)`; `CrewService._request_crew_acknowledgment` calls it with the match title, scheduled time, stream room, and player list, then enqueues the send.
+
+Ephemeral confirmation/reply strings live in the same module — e.g. `crew_signup_confirmation(role, player_names)` (includes the player names, e.g. `for the match (A vs B)`), `match_ack_confirmation`, `crew_ack_confirmation`, `volunteer_ack_confirmation`, and `unwatch_confirmation`.
 
 ### Flow table
 

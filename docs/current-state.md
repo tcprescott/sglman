@@ -1,6 +1,6 @@
 # SGLMan — Current Project State
 
-_Last updated: 2026-06-21_
+_Last updated: 2026-06-25_
 
 ## What Is This
 
@@ -45,17 +45,13 @@ The application is functional and in active use. All features listed below are m
 | Volunteer scheduling | Stable | recent | Opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders ([data-model.md](reference/data-model.md), [services.md](reference/services.md)) |
 | Equipment lending | Stable | recent | Assets, checkout/check-in, loan history, QR codes; `EQUIPMENT_MANAGER` role |
 | Challonge integration | Stable | recent | Service-account OAuth, bracket mirroring, scheduling, per-player identity linking |
-| Security headers | Stable | #38 | `middleware/security_headers.py` ([security-audit.md](security-audit.md)) |
+| Security headers | Stable | #38 | `middleware/security_headers.py` ([deployment.md](deployment.md)) |
 
 The four reference docs ([data-model.md](reference/data-model.md), [services.md](reference/services.md), [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md)) carry the method-level detail for the newer subsystems; dedicated feature docs for volunteering, equipment, and Challonge are not yet written.
 
-## Known Open Issues (from UX Audit, PR #29)
+## Known Open Issues
 
-The UX audit (`docs/ux-audit.md`) logged 4 critical and 23 major findings. Most have been addressed by PRs #30–#33. Remaining open items tracked as GitHub issues:
-
-- **Theme 4** (feedback after empty-message send): `send_message_dialog.py` still sends blank DMs if textarea is empty — no guard on `send_callback`. Filed as issue.
-- **Theme 5** (station assignment format validation): free-text station field has no format enforcement.
-- **Themes 6–12**: Remaining major/minor polish items. None block core workflows.
+The UX audit findings (tooltips, required-field validation, delete confirmations, timezone consistency) have all been addressed by PRs #30–#33. No known issues currently block core workflows; remaining polish items are tracked as GitHub issues.
 
 ## Architecture Summary
 
@@ -66,7 +62,7 @@ application/services/   ← business logic, validation, audit, Discord notificat
   ↓ calls
 application/repositories/ ← ORM queries (Tortoise)
   ↓ uses
-models.py               ← Tortoise models (30) + enums (8: Role, RoleSource, MatchNotificationLevel, …)
+models.py               ← Tortoise models (36) + enums (9: Role, RoleSource, MatchNotificationLevel, …)
 ```
 
 All datetimes stored UTC; all user-facing times in US/Eastern. See [timezone-handling.md](timezone-handling.md).
@@ -92,8 +88,8 @@ Method-level detail for every file below lives in the [code reference docs](READ
 | `discordbot/crew_signup.py` | Discord button handler for crew DM signup |
 | `discordbot/match_acknowledgment.py` | Discord button handler for match acknowledgment |
 | `discordbot/watch_buttons.py` | Discord button handler for match watch |
-| `pages/home.py` | Homepage (Schedule / On Air / Profile / Player / Availability / Triforce / Equipment tabs) |
-| `pages/admin.py` | Admin dashboard (schedule, users, tournaments, stream rooms, volunteers, equipment, challonge, discord roles, feedback, reports, settings); proctors no longer have access |
+| `pages/home.py` | Homepage (Schedule / On Air / Profile / Player tabs; logged-in users also get My Availability / Triforce Texts / Equipment) |
+| `pages/admin.py` | Admin dashboard (Schedule, Users, Tournaments, Stream Rooms, Triforce Texts, Volunteers, Reports, Challonge, Discord Roles, Equipment, Feedback, Settings); tabs shown per role |
 | `pages/volunteer.py` | Volunteer hub (availability / my shifts for volunteers; Schedule race workflow for proctors/staff) |
 | `pages/equipment.py` | Equipment asset detail (QR, loan history, checkout/check-in) |
 | `pages/home_tabs/triforce_texts.py` | Player triforce text submission (home tab) |

@@ -2,7 +2,7 @@
 
 _The operations reference for deploying and running SGLMan: container topology, the authoritative environment-variable table, startup behavior, and runbook. Part of the [documentation index](README.md)._
 
-SGLMan ships as a single application container plus PostgreSQL, orchestrated by [`docker-compose.yml`](../docker-compose.yml). For how the stack got here (MySQL → PostgreSQL move, original Docker/GHCR PRs), see [features/postgresql-migration.md](features/postgresql-migration.md) — this page documents the current setup going forward.
+SGLMan ships as a single application container plus PostgreSQL, orchestrated by [`docker-compose.yml`](../docker-compose.yml). This page documents the current setup and operations.
 
 ## Topology
 
@@ -52,11 +52,11 @@ SGLMan ships as a single application container plus PostgreSQL, orchestrated by 
 [`Dockerfile`](../Dockerfile) is a single stage on `python:3.12-slim`:
 
 1. `apt-get install build-essential libpq-dev` — compiler toolchain and PostgreSQL client headers for native wheels.
-2. `COPY pyproject.toml poetry.lock` then `pip install poetry`, `poetry config virtualenvs.create false`, `poetry install --no-interaction --no-ansi`. **No virtualenv** — dependencies go into the system interpreter, so both `poetry run …` and plain `python` work inside the container. Copying only the lockfiles first keeps the dependency layer cached until `poetry.lock` changes.
+2. `COPY pyproject.toml poetry.lock` then `pip install poetry`, `poetry config virtualenvs.create false`, `poetry install --only main --no-interaction --no-ansi`. **No virtualenv** — dependencies go into the system interpreter, so both `poetry run …` and plain `python` work inside the container. Copying only the lockfiles first keeps the dependency layer cached until `poetry.lock` changes.
 3. `COPY . .` — application code last, so code changes do not invalidate the dependency layer.
 4. `EXPOSE 8000`; `CMD ["./start.sh", "prod"]`.
 
-Note: `poetry install` runs without `--only main`, so dev-group dependencies (pytest, ipython) are included in the image.
+Note: `poetry install` runs with `--only main`, so dev-group dependencies (pytest, ipython) are kept out of the runtime image — smaller image, smaller attack surface.
 
 ### GHCR publishing
 

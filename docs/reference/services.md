@@ -1,17 +1,17 @@
 # Service Layer Reference
 
-_Method-level reference for `application/services/` (all 29 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
+_Method-level reference for `application/services/` (all 30 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
 
 ## Pattern & conventions
 
 Services are the business-logic layer of the [three-layer architecture](../refactoring-guide.md): pages and dialogs call services, services call repositories, repositories touch the ORM. The rules below are codebase-wide; see [CLAUDE.md](../../CLAUDE.md) for the full convention list.
 
 - **Services own business rules.** Validation, permission gates, cross-entity coordination, audit logging, and Discord notification fan-out all live here. Repositories (see [data-model.md](data-model.md)) stay free of business logic; UI stays free of writes.
-- **No NiceGUI imports.** Services never render or notify the UI. (The one deliberate exception: `auth_service.current_user_from_storage` reads `nicegui.app.storage` because resolving the session user is its entire job.)
+- **No NiceGUI imports.** Services never render or notify the UI; resolving the session user from `app.storage` happens in the page layer, which passes the `discord_id` into `get_user_from_discord_id`.
 - **`ValueError` for user-facing errors.** Validation failures ("Match must have at least one player", "Tournament not found") raise `ValueError`; the UI catches it and shows `ui.notify(str(e), color='warning')`.
 - **`PermissionError` for authorization failures.** Permission gates run through `AuthService.ensure(allowed, message)`, which raises `PermissionError`. UI handlers that gate-protected services catch both (see `pages/admin_tabs/admin_schedule.py`).
 - **Audit logging** uses `AuditService.write_log(actor, action, details)` with `verb.object` action constants from `AuditActions`. The actor is required — `write_log` raises `ValueError` when actor is `None`. See [audit-logging.md](../features/audit-logging.md) and the [CLAUDE.md conventions](../../CLAUDE.md).
-- **The `actor` parameter.** Mutating methods take the acting `User` as a trailing `actor` parameter (or `user` when the action is inherently self-service, e.g. `acknowledge_match`, `signup_crew`, `watch`). The same object feeds both the permission gate and the audit entry; callers resolve it once via `current_user_from_storage()`.
+- **The `actor` parameter.** Mutating methods take the acting `User` as a trailing `actor` parameter (or `user` when the action is inherently self-service, e.g. `acknowledge_match`, `signup_crew`, `watch`). The same object feeds both the permission gate and the audit entry; callers resolve it once via `get_user_from_discord_id(app.storage.user.get('discord_id'))`.
 - **Stateless instances.** Services hold only repository/service references; instantiate per request (`MatchService()`) or call static methods on the class (`AuthService`, `SystemConfigService`). The intentional pieces of module/class state are `MatchScheduleService._seed_locks` (per-match seed-generation locks), the `discord_queue` module's queue/worker, and the `volunteer_reminder` module's background loop task.
 - **`(ok, message)` tuple returns** are the exception, not the rule, and exist only where failure is routine and must not raise:
   - `DiscordService.send_dm*`, `add_role_to_user`, `remove_role_from_user` → `(bool, str)`
@@ -27,7 +27,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 |---|---|---|---|
 | `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Personal API access token issue/revoke/authenticate | [rest-api.md](rest-api.md) |
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
-| `AuthService` / `current_user_from_storage` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
+| `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew approval and acknowledgment | [crew-management.md](../features/crew-management.md) |
 | `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord-role-sync.md](../features/discord-role-sync.md) |
@@ -56,7 +56,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-All classes and `current_user_from_storage` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); `discord_queue` and `volunteer_reminder` are imported as modules (`from application.services import discord_queue`).
+All classes and `get_user_from_discord_id` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); `discord_queue` and `volunteer_reminder` are imported as modules (`from application.services import discord_queue`).
 
 ### api_token_service.py — ApiTokenService
 
@@ -87,9 +87,9 @@ Writes and queries `AuditLog` rows. Every mutating service action records who di
 
 Collaborators: `AuditRepository`. Consumers: every mutating service (writer side); the audit log viewer at `pages/admin_tabs/reports/audit.py` (reader side).
 
-### auth_service.py — AuthService and current_user_from_storage
+### auth_service.py — AuthService and get_user_from_discord_id
 
-Stateless authorization policy: every check is a `@staticmethod` taking `User | None` and returning a bool (no exceptions for "not allowed" — that is `ensure`'s job). Deep dive: [authentication.md](authentication.md); role semantics: [role-based-auth.md](../features/role-based-auth.md).
+Stateless authorization policy: every check is a `@staticmethod async def` taking `User | None` and returning a bool (no exceptions for "not allowed" — that is `ensure`'s job). Deep dive: [authentication.md](authentication.md); role semantics: [role-based-auth.md](../features/role-based-auth.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -117,7 +117,7 @@ Stateless authorization policy: every check is a `@staticmethod` taking `User | 
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
 | `ensure(allowed, message="Permission denied")` | `None` | Raises `PermissionError(message)` when `allowed` is falsy; the standard gate inside mutating services. |
 
-**Module-level helper:** `current_user_from_storage() -> User | None` resolves the session's `discord_id` from `app.storage.user` to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
+**Module-level helper:** `get_user_from_discord_id(discord_id) -> User | None` resolves a Discord id — typically `app.storage.user.get('discord_id')`, read in the page layer — to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
 
 Consumers: `middleware/auth.py` (`protected_page` role enforcement), nearly every page and dialog (`pages/home.py`, `pages/admin.py`, `pages/admin_tabs/*`, `theme/dialog/*`, `theme/tables/*`), and all mutating services via `ensure`.
 
@@ -455,7 +455,7 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | Method | Returns | Description |
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` | `User \| None` | Lookup by Discord id. |
-| `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (parameterized variant of `current_user_from_storage`). |
+| `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
 | `get_active_tournaments_categorized()` | `dict[str, list[Tournament]]` | Active tournaments split into `staff_tournaments` / `player_tournaments` / `all_tournaments`. |
 | `get_user_tournament_registrations(user)` | `list[TournamentPlayers]` | The user's enrollment rows. |
 | `update_user_personal_info(user, actor, display_name=None, pronouns=None, dm_notifications=None)` | `User` | Self-profile edit (page-level auth assumed); blank strings become `None`; audits only when something changed. |
@@ -692,4 +692,4 @@ Service tests live in `tests/services/` — broadly one `test_<service>.py` modu
 - [`tests/services/conftest.py`](../../tests/services/conftest.py) adds an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture coroutines instead of running them, letting tests assert that notifications were enqueued while closing the coroutines to avoid "never awaited" warnings.
 - `asyncio_mode = "auto"` is set in `pyproject.toml`, so async test functions need no decorator.
 
-For the full development workflow (running tests, CI) see [development.md](../development.md); for suite scope and known gaps see [test-coverage.md](../features/test-coverage.md).
+For the full development workflow (running tests, CI, suite scope and known gaps) see [development.md](../development.md).

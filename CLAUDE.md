@@ -79,10 +79,10 @@ Detail: [docs/timezone-handling.md](docs/timezone-handling.md).
 Role-based via the `UserRole` junction table (`Role` enum: `STAFF`, `PROCTOR`, `STREAM_MANAGER`) — there is **no** `permission` field on `User`. Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
 
 ```python
-from application.services.auth_service import AuthService, current_user_from_storage
+from application.services import AuthService, get_user_from_discord_id
 from models import Role
 
-user = await current_user_from_storage()          # User | None
+user = await get_user_from_discord_id(app.storage.user.get('discord_id'))  # User | None
 await AuthService.has_role(user, Role.STAFF)        # bool
 await AuthService.get_roles(user)                   # set[Role]
 await AuthService.can_view_admin(user)              # any admin role / membership

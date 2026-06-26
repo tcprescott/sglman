@@ -42,7 +42,7 @@ The FastAPI app is created with `docs_url="/api/docs"` and `redoc_url="/api/redo
 - `validate_security_config()` refuses to start with an insecure configuration (missing `STORAGE_SECRET`; missing DB credentials in production). Separately, `is_mock_discord()` raises at startup if `MOCK_DISCORD` is enabled while `ENVIRONMENT=production`.
 - The `static/` directory is mounted at `/static`; in development (`ENVIRONMENT=development`, the default) a `NoCacheStaticFiles` wrapper adds `no-cache` headers so CSS/JS edits show up on refresh.
 - `AuthMiddleware` (Discord OAuth session enforcement) is registered on the NiceGUI app at import time.
-- The auth routes and the three page modules (`pages/admin.py`, `pages/home.py`, `pages/triforce_texts.py`) are registered, and `ui.run_with(fastapi_app, storage_secret=...)` mounts NiceGUI onto the FastAPI app at the root path.
+- The auth routes and the four page modules (`pages/admin.py`, `pages/home.py`, `pages/volunteer.py`, `pages/equipment.py`) are registered, and `ui.run_with(fastapi_app, storage_secret=...)` mounts NiceGUI onto the FastAPI app at the root path.
 
 `main.py` is not run directly — `start.sh dev|prod` loads `.env` and launches Uvicorn (dev mode adds `--reload`).
 
@@ -118,9 +118,9 @@ Every top-level entry in the repository, with the doc that covers it:
 | `main.py` | App entry point: lifespan, DB init, bot init, router mounting | this doc |
 | `frontend.py` | NiceGUI ↔ FastAPI integration, static files, page registration | [reference/frontend.md](reference/frontend.md) |
 | `api/` | Public REST API (routers, Pydantic schemas, token auth, rate limiting) | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` | All Tortoise ORM models (30) and enums (8) | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` | Business-logic layer (29 modules) | [reference/services.md](reference/services.md) |
-| `application/repositories/` | Data-access layer (24 repositories) | [reference/data-model.md](reference/data-model.md) |
+| `models.py` | All Tortoise ORM models (36) and enums (9) | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` | Business-logic layer (30 modules) | [reference/services.md](reference/services.md) |
+| `application/repositories/` | Data-access layer (25 repositories) | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` | Timezone, environment validation, CSV export, Challonge client, QR codes, Sentry, mock-Discord/Challonge flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
 | `middleware/` | `auth.py` (Discord OAuth + route protection), `mock_auth.py` (dev login), `challonge_oauth.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md) |
 | `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
@@ -130,7 +130,7 @@ Every top-level entry in the repository, with the doc that covers it:
 | `presets/` | Randomizer preset files (alttpr YAML, ootr/smmap JSON) | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | Tortoise connection config + Aerich migration files | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
 | `scripts/` | `seed_dev.py` — idempotent local dev fixtures | [development.md](development.md) |
-| `tests/` | pytest suite (API, utils, and `tests/services/`) | [development.md](development.md), [features/test-coverage.md](features/test-coverage.md) |
+| `tests/` | pytest suite (API, utils, and `tests/services/`) | [development.md](development.md) |
 | `docs/` | This documentation | [README.md](README.md) |
 | `start.sh` | Dev/prod Uvicorn launcher, loads `.env` | [deployment.md](deployment.md) |
 | `Dockerfile`, `docker-compose.yml` | Container build and postgres+app stack | [deployment.md](deployment.md) |

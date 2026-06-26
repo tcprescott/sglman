@@ -124,13 +124,10 @@ print(eastern_str)  # "2025-01-15 14:00 EST"
 
 ## Migration Considerations
 
-If you have existing data in the database:
-- Existing naive datetimes will be treated as UTC by the timezone utilities
-- If existing data was entered as Eastern without timezone awareness, you may need a one-time migration to convert them properly
-- Consider adding a migration script if historical data needs timezone correction
+The database is PostgreSQL and the `match` table's `scheduled_at` (along with the other `*_at` columns) was created as `TIMESTAMPTZ` in the initial schema, so values have always been stored timezone-aware (UTC). There is no historical data that was persisted as naive Eastern times, and no shift-by-N-hours migration is required.
 
-## Migration SQL
+If you ever do need a one-time correction in Postgres, operate on the timezone-aware column directly with an interval, e.g.:
 ```sql
-UPDATE `match`
-SET scheduled_at = DATE_ADD(scheduled_at, INTERVAL 4 HOUR);
+UPDATE "match"
+SET scheduled_at = scheduled_at + INTERVAL '4 hours';
 ```

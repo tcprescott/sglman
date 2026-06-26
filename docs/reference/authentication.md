@@ -69,7 +69,7 @@ Session keys in `app.storage.user`:
 | Key | Written by | Purpose |
 |---|---|---|
 | `authenticated` | callback / mock login | `bool` flag that `AuthMiddleware` checks |
-| `discord_id` | callback / mock login | Identity key; resolved to a `User` row by `current_user_from_storage()` |
+| `discord_id` | callback / mock login | Identity key; resolved to a `User` row by `get_user_from_discord_id(discord_id)` |
 | `username` | callback / mock login | Display convenience |
 | `avatar` | callback (`avatar_url`; `None` in mock mode) | Display convenience |
 | `oauth_state` | `/login` | One-time CSRF token; popped by the callback |
@@ -77,10 +77,10 @@ Session keys in `app.storage.user`:
 
 `User` row writes on every successful login (`User.get_or_create(discord_id=...)`):
 
-- **New user** — created with `discord_id`, `username`, and `access_token`.
-- **Existing user** — `username` and `access_token` are overwritten and saved; all other fields (including `display_name`) are untouched.
+- **New user** — created with `discord_id` and `username`.
+- **Existing user** — `username` is overwritten and saved; all other fields (including `display_name`) are untouched.
 
-The Discord `access_token` lives only on the `User` row (never in the session); nothing outside the callback currently reads it back. Roles are never written at login — they come solely from `UserRole` rows and tournament memberships (see [features/role-based-auth.md](../features/role-based-auth.md)).
+The Discord `access_token` is **not persisted**: the callback uses it only in-process to fetch the current Discord user (via a short-lived bearer `APIClient`), and it is never written to the `User` row or the session. Roles are never written at login by the callback itself — `DiscordRoleMappingService().sync_user_roles(user)` may map guild roles onto `UserRole` rows, but role checks otherwise come solely from `UserRole` rows and tournament memberships (see [features/role-based-auth.md](../features/role-based-auth.md)).
 
 The post-login redirect target is `app.storage.user.get('referrer_path', '/')`; if it is one of `/login`, `/logout`, or `/oauth/callback` it falls back to `/`.
 
@@ -119,11 +119,11 @@ Semantics:
 
 - Adds `path` to the module-level `protected_routes` registry (consumed by `AuthMiddleware`), then registers the function with `ui.page(path, **page_kwargs)`.
 - **No `roles` and `allow_tournament_membership=False`** — the function is registered as-is. Login is enforced only by the middleware; there is no render-time check.
-- **`roles` set** — at render time the user is resolved via `current_user_from_storage()` and must hold **at least one** of the listed global roles (`AuthService.get_roles` intersection).
+- **`roles` set** — at render time the user is resolved via `get_user_from_discord_id(app.storage.user.get('discord_id'))` and must hold **at least one** of the listed global roles (`AuthService.get_roles` intersection).
 - **`allow_tournament_membership=True`** — if the role gate did not pass (or no `roles` were given), `AuthService.can_view_admin(user)` is consulted, so Tournament Admins and Crew Coordinators of any tournament also pass. Intended for pages like the admin dashboard shell whose subset of features is available to per-tournament admins.
 - **Denied** — the wrapper renders the themed 403 page via `render_error_page(status_code=403, headline='Forbidden', ...)` ([`theme/error_page.py`](../../theme/error_page.py)) and returns. This is a normal 200 page render, not a redirect. See [Error pages](frontend.md#error-pages-middlewareerror_handlerspy).
 
-Current usages: `@protected_page('/admin')` ([`pages/admin.py`](../../pages/admin.py)) and `@protected_page('/triforcetexts/{tournament_id}')` (`pages/triforce_texts.py`) — both login-only, with authorization handled inside the page body. Page registration order is described in [frontend.md](frontend.md).
+Current usages: `@protected_page('/admin')` ([`pages/admin.py`](../../pages/admin.py)) and `@protected_page('/equipment/{asset_id}')` ([`pages/equipment.py`](../../pages/equipment.py)) — both login-only, with authorization handled inside the page body — plus `@protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF])` ([`pages/volunteer.py`](../../pages/volunteer.py)), which uses the render-time role gate. Triforce text editing is no longer a standalone protected route: it lives as a Triforce Texts tab on the home page and inside the admin dashboard. Page registration order is described in [frontend.md](frontend.md).
 
 Note that on a login-only protected page, a user whose session is valid but whose `User` row no longer exists reaches the page body with no render-time gate — the page must handle that itself (as `pages/admin.py` does, below).
 
@@ -140,7 +140,7 @@ The original destination is preserved server-side in the session (`referrer_path
 `_matches_protected_route` matches each entry in `protected_routes`:
 
 - Plain paths match by **exact string equality** (no prefix matching — `/admin/foo` would not match `/admin`).
-- Paths containing `{param}` placeholders are compiled to anchored regexes, each placeholder replaced with `[^/]+`, so dynamic NiceGUI routes like `/triforcetexts/{tournament_id}` match concrete request paths like `/triforcetexts/3`.
+- Paths containing `{param}` placeholders are compiled to anchored regexes, each placeholder replaced with `[^/]+`, so dynamic NiceGUI routes like `/equipment/{asset_id}` match concrete request paths like `/equipment/3`.
 
 ## Session storage & security
 
@@ -150,7 +150,8 @@ The original destination is preserved server-side in the session (`referrer_path
 
 | Check | Environment | Notes |
 |---|---|---|
-| `STORAGE_SECRET` non-empty (after strip) | always | Presence-only check; the error message and [`.env.example`](../../.env.example) direct operators to a strong random value (e.g. `secrets.token_urlsafe(32)`) |
+| `STORAGE_SECRET` non-empty (after strip) | always | Presence check; the error message and [`.env.example`](../../.env.example) direct operators to a strong random value (e.g. `secrets.token_urlsafe(32)`) |
+| `STORAGE_SECRET` length **≥ 32** (after strip) | production only | Enforced in addition to the presence check; a shorter secret aborts startup with a `RuntimeError` |
 | `DB_USERNAME` non-empty | production only | |
 | `DB_PASSWORD` non-empty | production only | |
 
@@ -158,11 +159,11 @@ The original destination is preserved server-side in the session (`referrer_path
 
 The `MOCK_DISCORD` production refusal is **not** part of `validate_security_config()` — it lives in `is_mock_discord()` ([`application/utils/mock_discord.py`](../../application/utils/mock_discord.py)), which raises `RuntimeError` whenever `MOCK_DISCORD` is truthy (`1`/`true`/`yes`, case-insensitive) while `ENVIRONMENT=production`. Because `middleware/auth.py` calls `is_mock_discord()` at import time, this also aborts startup. Rationale: mock mode turns `/login` into an unauthenticated impersonate-anyone page (see below), which is a complete authentication bypass.
 
-`/logout` clears the whole session; there is no server-side session table to invalidate. Discord access tokens are stored on `User` rows, not in the session.
+`/logout` clears the whole session; there is no server-side session table to invalidate. The Discord access token is never persisted — neither in the session nor on the `User` row — so there is nothing token-shaped to revoke at logout.
 
 ## Authorization API (`AuthService`)
 
-[`AuthService`](../../application/services/auth_service.py) is a stateless collection of async static methods. Every check accepts `Optional[User]` and treats `None` as "no access" — callers never need a guard. The intended pattern: resolve the user **once** at page entry with `current_user_from_storage()`, then pass the model into the helpers. All checks query the database live; nothing is cached.
+[`AuthService`](../../application/services/auth_service.py) is a stateless collection of async static methods. Every check accepts `Optional[User]` and treats `None` as "no access" — callers never need a guard. The intended pattern: resolve the user **once** at page entry with `get_user_from_discord_id(app.storage.user.get('discord_id'))`, then pass the model into the helpers. All checks query the database live; nothing is cached.
 
 For the role semantics behind these checks (what staff/proctor/stream_manager mean, TA/CC membership), see [features/role-based-auth.md](../features/role-based-auth.md). For the rest of the service layer, see [services.md](services.md).
 
@@ -185,13 +186,13 @@ For the role semantics behind these checks (what staff/proctor/stream_manager me
 | `can_grant_roles(user)` | Staff only — grant/revoke `UserRole` rows and tournament `admins`/`crew_coordinators` |
 | `ensure(allowed, message='Permission denied')` | Raises `PermissionError(message)` when `allowed` is falsy — for service-layer guard clauses |
 
-The module also exports a helper:
+The module also exports a helper (re-exported from [`application/services`](../../application/services/__init__.py)):
 
 ```python
-async def current_user_from_storage() -> Optional[User]
+async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]
 ```
 
-Reads `discord_id` from `app.storage.user` and returns `User.get_or_none(discord_id=...)` — `None` when not logged in **or** when the user row has been deleted since login.
+Takes the `discord_id` read from `app.storage.user` and returns `User.get_or_none(discord_id=...)` — `None` when `discord_id` is absent (not logged in) **or** when the user row has been deleted since login.
 
 ### Worked example: per-tournament gating in `pages/admin.py`
 
@@ -204,10 +205,13 @@ async def admin_dashboard_page(...):
     ...
     roles = await AuthService.get_roles(user)
     is_staff = Role.STAFF in roles
+    is_stream_manager = Role.STREAM_MANAGER in roles
+    is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
+    is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
     is_ta_any = await user.admin_tournaments.all().exists()
     is_cc_any = await user.crew_coordinated_tournaments.all().exists()
 
-    if not (is_staff or is_stream_manager or is_ta_any or is_cc_any):
+    if not (is_staff or is_stream_manager or is_equipment_manager or is_ta_any or is_cc_any):
         ...render denial page; return          # same condition as AuthService.can_view_admin
 
     if is_staff or is_ta_any or is_cc_any:
@@ -216,6 +220,8 @@ async def admin_dashboard_page(...):
         tabs.append(...)  # Users
     if is_staff or is_ta_any:
         tabs.append(...)  # Tournaments, Triforce Texts
+    if is_staff or is_equipment_manager:
+        tabs.append(...)  # Equipment
 ```
 
 Proctors are **not** admitted to `/admin`; their race/schedule workflow lives on the [`/volunteer`](../../pages/volunteer.py) page instead. A Tournament Admin with no global role gets the Schedule/Tournaments/Reports tabs but never Users; deeper actions inside the tabs re-check against the specific tournament with `is_tournament_admin` / `is_crew_coordinator_of`.

@@ -35,6 +35,3 @@ reverse proxy. Security-relevant configuration is validated at startup
   the web UI and the Discord bot).
 - Data access is exclusively through the Tortoise ORM (no raw SQL).
 - Dependencies are scanned with `pip-audit` in CI (`.github/workflows/security.yml`).
-
-A point-in-time security review lives in
-[`docs/security-audit.md`](docs/security-audit.md).

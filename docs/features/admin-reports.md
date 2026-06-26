@@ -15,6 +15,7 @@ A multi-report framework in the admin dashboard under the "Reports" tab. Reports
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
 | Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person |
 | Stream Room Utilization | `stream_rooms.py` | Per-stage scheduled hours, gaps, back-to-back transitions |
+| Volunteer Coverage | `volunteers.py` | Per-shift filled vs. needed counts over a date range, highlighting understaffed shifts |
 | Audit Log | `audit.py` | Searchable/filterable view of all admin actions (expandable detail rows, paginated) |
 
 ## Key Files

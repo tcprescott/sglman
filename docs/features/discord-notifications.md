@@ -43,14 +43,14 @@ Defined in `models.py` as `MatchNotificationLevel`:
 | `streamed_and_candidates` | Stream-assigned + stream candidate matches |
 | `all` | Every scheduled match |
 
-Managed via `TournamentNotificationPreference` model and `tournament_notification_dialog.py`.
+Managed via `TournamentNotificationPreference` model and `pages/home_tabs/player_edit_info.py`.
 
 ## Mock Mode
 
-When `MOCK_DISCORD=true`, `DiscordService.send_dm()` logs the message instead of sending it. No Discord token required in dev.
+When `MOCK_DISCORD=true`, `DiscordService` is swapped for `MockDiscordService`, whose `send_dm()` prints the message to stdout (e.g. `[MOCK Discord DM] -> <user_id>: <message>`) instead of sending it. No Discord token required in dev.
 
 ## Testing
 
-Notification fan-out logic is tested in `tests/test_match_service.py`. Discord DM delivery is not unit-tested (requires live Discord; covered by integration only).
+Notification fan-out logic is tested in `tests/services/test_match_schedule_service.py`. Discord DM delivery is not unit-tested (requires live Discord; covered by integration only).
 
 **See also:** [reference/discord-integration.md](../reference/discord-integration.md) — implementation reference for the bot, DM queue, and button handlers.

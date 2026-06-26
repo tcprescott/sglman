@@ -68,7 +68,6 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/admin` | [`pages/admin.py`](../../pages/admin.py) | Login required (`@protected_page`); content gated by role |
 | `/volunteer` | [`pages/volunteer.py`](../../pages/volunteer.py) | Login required (`@protected_page`); volunteer self-service hub |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
-| `/triforcetexts/{tournament_id}` | [`pages/triforce_texts.py`](../../pages/triforce_texts.py) | Login required (`@protected_page`, path-param route) |
 | `/login`, `/logout`, `/oauth/callback` | `middleware/auth.py` | See [authentication.md](authentication.md) |
 
 Each page module exposes a `create()` function that registers its `@ui.page` route; `frontend.init()` calls them.
@@ -102,7 +101,8 @@ Tab visibility by role (a user sees the union of all rows they match). "VC" = Vo
 | Tournaments | yes | — | — | yes | — | — | — |
 | Stream Rooms | yes | — | yes | — | — | — | — |
 | Triforce Texts | yes | — | — | yes | — | — | — |
-| Volunteers | yes | — | — | — | — | yes | — |
+| Vol. Roster | yes | — | — | — | — | yes | — |
+| Vol. Schedule | yes | — | — | — | — | yes | — |
 | Reports | yes | — | — | yes | yes | — | — |
 | Challonge | yes | — | — | — | — | — | — |
 | Discord Roles | yes | — | — | — | — | — | — |
@@ -116,14 +116,7 @@ Tab visibility by role (a user sees the union of all rows they match). "VC" = Vo
 
 **Deep-link query params.** Besides `tab`, the page accepts `report`, `start`, `end`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, and `page`, all forwarded as a kwargs dict into the Reports tab. Every report filter change navigates to a new `/admin?tab=Reports&report=...` URL, so report state is fully URL-driven and shareable.
 
-### Triforce texts (`/triforcetexts/{tournament_id}`, `pages/triforce_texts.py`)
-
-Player-facing submission page for ALTTP triforce-screen text (behavior doc: [../features/triforce-texts.md](../features/triforce-texts.md)). Flow:
-
-1. `@protected_page` enforces login (the middleware matches the `{tournament_id}` placeholder against request paths); the page then validates the user row and the `Tournament` by id, rendering an error inside `BaseLayout` if either is missing.
-2. Three `ui.input` lines (`maxlength=19` each) plus help text describing the allowed characters.
-3. **Submit** calls `TriforceTextService.submit(tournament_id, lines, user)`; `ValueError` → warning notify (content/character validation lives in the service); success clears the inputs and refreshes the list.
-4. "Your Submissions" is a `@ui.refreshable` card list from `TriforceTextService.list_user_submissions`, each entry badged Pending (orange) / Approved (green) / Rejected (red).
+Triforce texts has no standalone route: player submission lives in the home **Triforce Texts** tab ([`pages/home_tabs/triforce_texts.py`](../../pages/home_tabs/triforce_texts.py)) and admin moderation in the admin **Triforce Texts** tab ([`pages/admin_tabs/triforce_texts.py`](../../pages/admin_tabs/triforce_texts.py)) — behavior doc: [../features/triforce-texts.md](../features/triforce-texts.md).
 
 ## Home tabs (`pages/home_tabs/`)
 
@@ -148,11 +141,11 @@ Two further modules render **inside** the Profile tab rather than as standalone 
 
 The public event schedule with crew signup.
 
-- Header "Schedule & Crew Signup" with either a login button or a **Manage Notifications** button that opens `TournamentNotificationDialog` ([../features/tournament-notifications.md](../features/tournament-notifications.md)).
+- Header "Schedule & Crew Signup" with a **Login with Discord** button when logged out. (Per-tournament notification preferences are managed on the Profile tab — see [../features/tournament-notifications.md](../features/tournament-notifications.md).)
 - A `MatchTableView` with `admin_controls=False`. Columns: ID, Tournament, Scheduled At, State, Players, Stage, Generated Seed, Commentators, Trackers — plus Watch when logged in ([../features/match-watcher.md](../features/match-watcher.md)).
 - `extra_slots` supply read-only state cells (per-state icon + timestamp) and a truncating seed-link cell.
 - Clicking a match ID (logged-in only) opens `UserMatchDialog` for that match and refreshes the table on submit.
-- Services: `MatchService.get_all_matches_for_schedule()` for data; `UserService.get_current_user_from_storage` to resolve the user for the notification dialog.
+- Services: `MatchService.get_all_matches_for_schedule()` for data; the logged-in `discord_id` is read from `app.storage.user` and passed into `UserMatchDialog`.
 
 ### On Air (`pages/home_tabs/stage_timeline.py`)
 
@@ -192,7 +185,7 @@ The public event schedule with crew signup.
 
 ### Triforce Texts (`pages/home_tabs/triforce_texts.py`)
 
-`triforce_texts_tab()` — inline tournament selection plus submission (the standalone `/triforcetexts/{tournament_id}` page covers the same flow for a single tournament).
+`triforce_texts_tab()` — inline tournament selection plus submission.
 
 - A `@ui.refreshable` `content()` switches between an index (cards from `TriforceTextService.list_supporting_tournaments`, each with an Open button) and a per-tournament submission view selected by an in-memory `state['tournament_id']`.
 - The submission view gates on `tournament.is_active` + `SeedGenerationService.supports_triforce_texts` and on `AuthService.can_submit_triforce_text`; ineligible players see the tournament's `triforce_access_message` (rendered as plain text to avoid stored XSS) or a paid-option notice.
@@ -216,13 +209,9 @@ The public event schedule with crew signup.
 | My Shifts | volunteer | `volunteer_tabs/my_shifts.py:my_shifts_tab` | The volunteer's upcoming assigned shifts, with acknowledgment |
 | Schedule | proctor / staff | `admin_tabs/admin_schedule.py:admin_schedule_page` | Race/schedule workflow — lifecycle buttons + seed rolls; `can_crud=is_staff` (proctors get transition-only, no create/edit) |
 
-### Opt-in (`pages/volunteer_tabs/opt_in.py`)
-
-`opt_in_tab()` — a `@ui.refreshable` status card backed by `VolunteerProfileService.get_or_create`. When not opted in: an **Opt in to volunteer** button (with an optional notes textarea) calling `service.opt_in`. When opted in: **Save notes** (`update_note`) and **Opt out** (`opt_out`).
-
 ### My Availability (`pages/volunteer_tabs/availability.py`)
 
-`availability_tab()` — the volunteer counterpart of the home My-Availability tab. Identical window-row + effective-graph UI, but short-circuits with a prompt to opt in first when `VolunteerProfileService.is_opted_in(user)` is false; persists through `VolunteerAvailabilityService.set_windows`.
+`availability_tab()` — the volunteer counterpart of the home My-Availability tab. Identical window-row + effective-graph UI (login required); persists through `VolunteerAvailabilityService.set_windows`.
 
 ### My Shifts (`pages/volunteer_tabs/my_shifts.py`)
 
@@ -236,7 +225,8 @@ The public event schedule with crew signup.
 | [`admin_users.py`](../../pages/admin_tabs/admin_users.py) | Users | User management with role filtering |
 | [`admin_settings.py`](../../pages/admin_tabs/admin_settings.py) | Tournaments, Stream Rooms | Tournament CRUD; stream room CRUD |
 | [`triforce_texts.py`](../../pages/admin_tabs/triforce_texts.py) | Triforce Texts | Moderation queue for triforce-text submissions |
-| [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Volunteers | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
+| [`admin_volunteer_roster.py`](../../pages/admin_tabs/admin_volunteer_roster.py) | Vol. Roster | Coordinator volunteer roster |
+| [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Vol. Schedule | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
 | [`reports/`](../../pages/admin_tabs/reports/__init__.py) | Reports | Read-only analytics — see [Reports subsystem](#reports-subsystem-pagesadmin_tabsreports) |
 | [`admin_challonge.py`](../../pages/admin_tabs/admin_challonge.py) | Challonge | Manage the shared Challonge connection and per-tournament bracket sync |
 | [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Discord Roles | Map Discord roles to application roles for sign-in role sync |
@@ -297,9 +287,16 @@ Two tab functions live in this module.
 - The list is a `@ui.refreshable` section re-rendered after every moderation action.
 - Services: `TriforceTextService.list_for_moderation`, `.moderate(text_id, approved, actor)`, `.delete(text_id, actor)`.
 
+### Admin volunteer roster (`pages/admin_tabs/admin_volunteer_roster.py`)
+
+`admin_volunteer_roster_page()` — the "Vol. Roster" tab (refuses unless `AuthService.can_manage_volunteers(actor)`).
+
+- A `ui.table` (grid-card mode on small screens) of the assignable volunteer pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In (check/cancel icon from `opted_in_user_ids`), Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (Eastern, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
+- The manage button emits `manage_volunteer`, opening `VolunteerProfileDialog` (active positions from `VolunteerPositionService.list_active`) to view availability and edit qualifications; the table reloads on submit and via a refresh button.
+
 ### Admin volunteers (`pages/admin_tabs/admin_volunteers.py`)
 
-`admin_volunteers_page()` — the coordinator scheduling grid (refuses unless `AuthService.can_manage_volunteers(actor)`).
+`admin_volunteers_page()` — the "Vol. Schedule" tab, the coordinator scheduling grid (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
 - A controls card: an event-day select, **Auto-fill from availability** (`VolunteerAutoscheduleService.generate_draft`), **Clear draft** (`clear_draft`), **Manage positions** (opens an inline positions dialog wiring `VolunteerPositionDialog`), and a guarded **Reset all volunteer data** dialog (type-to-confirm → `VolunteerScheduleService.reset_all_shifts`).
 - A `@ui.refreshable` `grid()` renders one card per active position (`VolunteerPositionService.list_active`), each with **Generate standard shifts** and **Add shift** (→ `VolunteerShiftDialog`) and a shift card per shift (filled/needed badge, edit/delete, and an **Assign** picker dialog).
@@ -452,7 +449,6 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | [`stream_room_dialog.py`](../../theme/dialog/stream_room_dialog.py) | `StreamRoomDialog` | Assign a match to a stage + stream-candidate flag | Admin schedule Stage column |
 | [`stream_room_edit_dialog.py`](../../theme/dialog/stream_room_edit_dialog.py) | `StreamRoomEditDialog` | Create/edit a `StreamRoom` | Admin Stream Rooms tab |
 | [`tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | `TournamentDialog` | Create/edit a tournament | Admin Tournaments tab |
-| [`tournament_notification_dialog.py`](../../theme/dialog/tournament_notification_dialog.py) | `TournamentNotificationDialog` | Per-tournament DM notification level | Home Schedule "Manage Notifications" |
 | [`tournament_players_dialog.py`](../../theme/dialog/tournament_players_dialog.py) | `TournamentPlayersDialog` | Read-only enrolled-player list | Player-count link in tournament table |
 | [`send_message_dialog.py`](../../theme/dialog/send_message_dialog.py) | `SendMessageDialog` | Send a Discord DM to a user | `AdminUserDialog` "Send Message" |
 | [`user_edit_dialog.py`](../../theme/dialog/user_edit_dialog.py) | `BaseUserDialog`, `UserDialog`, `AdminUserDialog` | Profile / full user editing | Admin Users tab; player-name click in match tables |

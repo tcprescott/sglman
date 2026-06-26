@@ -7,7 +7,7 @@ _Added: PR #5 | Status: Stable_
 Enables local development without a live Discord application or bot token. When `MOCK_DISCORD=true`:
 
 1. **OAuth bypass** — `/login` renders a user picker instead of redirecting to Discord OAuth. Any user in the database can be selected and their identity is stored in session. A "Create test user" shortcut is also available.
-2. **DiscordService stubbed** — All `DiscordService` methods (send_dm, get_guild_member, etc.) return mock/no-op responses. No real Discord API calls are made.
+2. **DiscordService stubbed** — `DiscordService` is swapped for `MockDiscordService`, which mirrors the real public surface and returns success/no-op responses (logging to stdout) so notification code paths run end-to-end. No real Discord API calls are made. Stub methods: `send_dm`, `send_dm_with_crew_buttons`, `send_dm_with_acknowledgment_button`, `send_dm_with_crew_acknowledgment_button`, `send_dm_with_volunteer_acknowledgment_button`, `send_dm_with_unwatch_button`, `get_bot`, `list_guilds`, `list_guild_roles`, `add_role_to_user`, `remove_role_from_user`, `get_member_role_ids`.
 3. **Bot interactions** — Discord button interactions (acknowledgment, crew signup, watch) are not testable in mock mode since there is no bot connection. Test these flows against a real Discord dev server.
 
 ## How to Enable
@@ -23,12 +23,16 @@ No `DISCORD_TOKEN` required when mock mode is active.
 
 | File | Role |
 |---|---|
-| `middleware/auth.py` | Detects `MOCK_DISCORD`; renders user-picker at `/login` instead of OAuth redirect |
-| `application/services/discord_service.py` | `DiscordService` — all methods short-circuit when mock mode detected |
+| `application/utils/mock_discord.py` | `is_mock_discord()` — single source of truth for the flag; refuses to start if enabled in production |
+| `middleware/auth.py` | Detects `MOCK_DISCORD` and delegates the `/login` route to `mock_auth` instead of the OAuth redirect |
+| `middleware/mock_auth.py` | Renders the user-picker login page that impersonates an existing user (or creates a new one) |
+| `application/services/discord_service.py` | Defines `MockDiscordService`; aliases `DiscordService = MockDiscordService` when mock mode is detected |
 
 ## Development Workflow
 
 ```bash
+./start.sh mock            # shortcut: sets ENVIRONMENT=development, MOCK_DISCORD=true, MOCK_CHALLONGE=true
+# or, to mock only Discord:
 MOCK_DISCORD=true ./start.sh dev
 # Navigate to http://localhost:8000/login
 # Pick any existing user from the dropdown

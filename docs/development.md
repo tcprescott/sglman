@@ -149,22 +149,45 @@ Layout:
 | Path | Covers |
 |---|---|
 | `tests/test_api_matches.py` | `GET /matches` integration tests — mounts only the API router on a minimal FastAPI app and calls it through an httpx `ASGITransport` client |
+| `tests/test_api_reads.py`, `test_api_match_writes.py`, `test_api_admin_writes.py`, `test_api_phase5_writes.py`, `test_api_coverage_gaps.py` | REST API read/write endpoint suites (via the same `ASGITransport` client; `tests/api_helpers.py` holds shared setup) |
+| `tests/test_api_tokens.py` | API-token auth on REST endpoints |
 | `tests/test_csv_export.py` | CSV export |
 | `tests/test_timezone.py` | Eastern↔UTC utilities |
-| `tests/services/` | Service-layer suites: `test_audit_service.py`, `test_auth_service.py`, `test_crew_service.py`, `test_match_schedule_service.py`, `test_match_service.py`, `test_match_watcher_service.py`, `test_reports_service.py`, `test_stream_room_service.py`, `test_system_config_service.py`, `test_tournament_notification_service.py`, `test_tournament_service.py`, `test_triforce_text_service.py`, `test_user_service.py` |
+| `tests/test_error_handlers.py`, `test_rate_limit.py`, `test_security_hardening.py` | Error-handler responses, rate limiting, security hardening |
+| `tests/services/` | Service-layer suites: `test_api_token_service.py`, `test_audit_service.py`, `test_auth_service.py`, `test_challonge_service.py`, `test_crew_service.py`, `test_discord_member_sync.py`, `test_discord_queue.py`, `test_discord_role_mapping_service.py`, `test_discord_service.py`, `test_equipment_service.py`, `test_feedback_service.py`, `test_match_schedule_service.py`, `test_match_service.py`, `test_match_suggestion_service.py`, `test_match_watcher_service.py`, `test_player_availability_service.py`, `test_reports_service.py`, `test_seedgen_service.py`, `test_stream_room_service.py`, `test_system_config_service.py`, `test_tournament_notification_service.py`, `test_tournament_service.py`, `test_triforce_text_service.py`, `test_user_service.py`, and the volunteer suites (`test_volunteer_autoschedule_service.py`, `test_volunteer_availability_service.py`, `test_volunteer_position_service.py`, `test_volunteer_profile_service.py`, `test_volunteer_qualification_service.py`, `test_volunteer_reminder.py`, `test_volunteer_schedule_service.py`, `test_volunteer_scheduling.py`) |
 
 Fixtures from the conftests:
 
 - [`tests/conftest.py`](../tests/conftest.py) — a function-scoped `db` fixture that spins up an **in-memory SQLite** database via `Tortoise.init` + `generate_schemas`. Each test gets a fresh schema; closing the connection discards all rows. (SQLite catches logic errors but not PostgreSQL-specific query behavior.)
 - `tests/services/conftest.py` — an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture (and later close) enqueued coroutines, so tests can assert that notifications were sent without a bot connection or "never awaited" warnings.
 
-For the coverage inventory and known gaps, see [features/test-coverage.md](features/test-coverage.md).
+### Coverage & known gaps
+
+What the main suites assert, for orientation:
+
+- **Timezone** — Eastern↔UTC parse/format, DST boundaries.
+- **CSV export** — formula-injection escaping, filename generation.
+- **API** — endpoint filters, limits, approved-crew filtering, and read/write coverage including API-token auth.
+- **Audit / Auth** — write/list/filter audit logs; role checks and permission helpers.
+- **Crew / Match / Match schedule** — approval and acknowledgment flow, match CRUD, crew signup, lifecycle transitions (seat/start/finish/confirm) and their notifications.
+- **Match watcher** — watch/unwatch and watched-match queries.
+- **Reports / Stream room / System config** — report aggregation, stream-room CRUD, config get/set and typed accessors.
+- **Tournament / Tournament notification** — tournament CRUD, admin/coordinator management, notification-preference upserts.
+- **Triforce text / User** — submission and moderation; profile updates, roles, enrollments.
+
+Not covered:
+
+- Discord bot interaction handlers (`discordbot/`) — require a live Discord connection.
+- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests.
+- OAuth flow (`middleware/auth.py`) — requires live Discord OAuth.
+- Repository layer — exercised only indirectly through service tests.
+- Seed generation against real randomizer APIs (network calls).
+
+There is no coverage tooling configured (`pytest-cov` is not a dev dependency).
 
 ## Continuous integration
 
-[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs on pushes to `main` and on pull requests targeting `main`. The single `pytest` job runs on `ubuntu-latest` across a Python matrix of **3.10, 3.11, and 3.12**, with these steps: checkout, set up Python, `pipx install poetry`, cache the Poetry virtualenv (keyed on `poetry.lock`), `poetry install --no-interaction`, `poetry run pytest -q`.
-
-> **Known inconsistency:** the workflow matrix includes Python 3.10 and 3.11, while `pyproject.toml` requires `python = "^3.12"`. Both facts are as found in the repository; the sub-3.12 matrix entries conflict with the declared requirement.
+[`.github/workflows/test.yml`](../.github/workflows/test.yml) runs on pushes to `main` and on pull requests targeting `main`. The single `pytest` job runs on `ubuntu-latest` across a Python matrix of **3.12 only** (matching the `python = "^3.12"` requirement in `pyproject.toml`), with these steps: checkout, set up Python, `pipx install poetry`, cache the Poetry virtualenv (keyed on `poetry.lock`), `poetry install --no-interaction`, `poetry run pytest -q`.
 
 Container image publishing is handled separately by `.github/workflows/publish.yml` (see [deployment.md](deployment.md)).
 

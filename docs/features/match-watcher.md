@@ -4,7 +4,7 @@ _Added: PR #9 | Status: Stable_
 
 ## What It Does
 
-Any logged-in user can "watch" a match to receive Discord DMs when its state changes (seated, started, finished, stage assigned). This is separate from player acknowledgment — watchers are observers, not participants.
+Any logged-in user can "watch" a match to receive Discord DMs when its state changes (checked in/seated, started, finished, confirmed). This is separate from player acknowledgment — watchers are observers, not participants.
 
 ## Key Files
 
@@ -15,7 +15,7 @@ Any logged-in user can "watch" a match to receive Discord DMs when its state cha
 | `application/services/match_watcher_service.py` | `MatchWatcherService` — `watch`/`unwatch`, query watched matches |
 | `application/services/match_schedule_service.py` | Includes watcher fan-out in notify methods |
 | `pages/home_tabs/schedule.py` | Shows watch/unwatch button on each match row |
-| `theme/dialog/match_dialog.py` | Admin can see watcher count on a match |
+| `theme/dialog/match_dialog.py` | Watch/unwatch toggle button in the match dialog |
 
 ## How It Works
 
