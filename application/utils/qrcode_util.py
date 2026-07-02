@@ -5,18 +5,15 @@ scanning it jumps straight to ``/equipment/{asset_id}`` (login required).
 """
 
 import base64
-import os
 from io import BytesIO
 
 import qrcode
 
-
-def _base_url() -> str:
-    return os.getenv('BASE_URL', 'http://localhost:8000').rstrip('/')
+from application.utils.environment import get_base_url
 
 
 def asset_url(asset_id: int) -> str:
-    return f"{_base_url()}/equipment/{asset_id}"
+    return f"{get_base_url()}/equipment/{asset_id}"
 
 
 def asset_qr_png_bytes(asset_id: int) -> bytes:

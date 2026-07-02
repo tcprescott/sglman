@@ -15,6 +15,7 @@ from zenora import APIClient
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
+from application.utils.environment import get_base_url
 from application.utils.mock_discord import is_mock_discord
 from models import Role, User
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Supporting variables
 referrer_path = None
 
-_base_url = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+_base_url = get_base_url()
 _client_id = os.getenv("DISCORD_CLIENT_ID")
 _redirect_url = os.getenv("REDIRECT_URL") or f"{_base_url}/oauth/callback"
 

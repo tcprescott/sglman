@@ -284,6 +284,12 @@ class TestSignupCrew:
         with pytest.raises(ValueError, match="not found"):
             await service.signup_crew(match_id=999, user=MagicMock(), role="commentator")
 
+    async def test_raises_when_match_finished(self, service):
+        match = make_match(finished_at=datetime(2025, 1, 16, 20, 0))
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already finished"):
+            await service.signup_crew(match_id=1, user=SimpleNamespace(id=42), role="commentator")
+
     async def test_raises_when_commentator_already_signed_up(self, service):
         user = SimpleNamespace(id=42)
         match = make_match(commentators=[SimpleNamespace(user_id=42)])
@@ -377,30 +383,9 @@ class TestUndoCrewSignup:
         service.repository.get_by_id.assert_not_awaited()
 
 
-# ---------------------------------------------------------------------------
-# finish_match (MatchService, not MatchScheduleService)
-# ---------------------------------------------------------------------------
-
-
-class TestMatchServiceFinishMatch:
-    async def test_raises_when_match_not_found(self, service):
-        service.repository.get_by_id = AsyncMock(return_value=None)
-        with pytest.raises(ValueError, match="not found"):
-            await service.finish_match(match_id=999)
-
-    async def test_raises_when_not_seated(self, service):
-        match = make_match(seated_at=None)
-        service.repository.get_by_id = AsyncMock(return_value=match)
-        with pytest.raises(ValueError, match="hasn't been seated"):
-            await service.finish_match(match_id=1)
-
-    async def test_updates_finished_at(self, service):
-        match = make_match(seated_at=datetime.now())
-        service.repository.get_by_id = AsyncMock(return_value=match)
-        service.repository.update = AsyncMock(return_value=match)
-        await service.finish_match(match_id=1)
-        call_kwargs = service.repository.update.call_args
-        assert "finished_at" in call_kwargs.kwargs
+# Lifecycle transitions (seat/start/finish/confirm) are owned by
+# MatchScheduleService._transition; see tests/services/test_match_schedule_service.py.
+# The permissive MatchService.seat_players/finish_match duplicates were removed.
 
 
 # ---------------------------------------------------------------------------

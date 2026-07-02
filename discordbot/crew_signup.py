@@ -67,13 +67,9 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
         await interaction.response.send_message('Match not found.', ephemeral=True)
         return
 
-    if match.finished_at is not None:
-        await interaction.response.send_message(
-            'This match has already finished. Crew signup is closed.',
-            ephemeral=True,
-        )
-        return
-
+    # The "match finished -> signup closed" rule now lives in
+    # MatchService.signup_crew (raised as ValueError, handled below) so the web
+    # UI and REST API enforce it too.
     try:
         await match_service.signup_crew(match_id, user, role)
 

@@ -731,61 +731,10 @@ class MatchService:
         )
         match_events.publish(match_id, match_events.DELETED)
 
-    async def seat_players(self, match_id: int, actor: Optional[User] = None) -> Match:
-        """Mark match players as seated."""
-        match = await self.repository.get_by_id(match_id)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
-
-        await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
-            f"User cannot seat match {match_id}",
-        )
-
-        await self.repository.update(match, seated_at=datetime.now(timezone.utc))
-
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_SEATED, {'match_id': match.id},
-        )
-
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
-        msg = checked_in_dm(
-            match.tournament.name,
-            player_names=[p.user.preferred_name for p in match.players],
-            scheduled_at_display=(
-                format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
-            ),
-            stream_room_name=match.stream_room.name if match.stream_room else '',
-        )
-        discord_queue.enqueue(self.match_schedule_service.notify_match_participants(match, msg))
-
-        match_events.publish(match.id)
-
-        return match
-
-    async def finish_match(self, match_id: int, actor: Optional[User] = None) -> Match:
-        """Mark match as finished."""
-        match = await self.repository.get_by_id(match_id)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
-
-        await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
-            f"User cannot finish match {match_id}",
-        )
-
-        if not match.seated_at:
-            raise ValueError("Cannot finish a match that hasn't been seated")
-
-        await self.repository.update(match, finished_at=datetime.now(timezone.utc))
-
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_FINISHED, {'match_id': match.id},
-        )
-
-        match_events.publish(match.id)
-
-        return match
+    # Match lifecycle transitions (seat / start / finish / confirm) live solely
+    # in MatchScheduleService._transition, which enforces the ordering rules and
+    # emits state-change notifications. Earlier permissive seat_players /
+    # finish_match duplicates were removed to keep one lifecycle path.
 
     async def record_match_result(
         self,
@@ -858,7 +807,12 @@ class MatchService:
         match = await self.repository.get_by_id(match_id, prefetch_relations=True)
         if not match:
             raise ValueError(f"Match {match_id} not found")
-        
+
+        # Crew signup closes once the match is finished. Enforced here (not in a
+        # single caller) so the web UI, REST API, and Discord button all honor it.
+        if match.finished_at is not None:
+            raise ValueError("This match has already finished. Crew signup is closed.")
+
         # Check if user already signed up
         crew_list = match.commentators if role == 'commentator' else match.trackers
         if any(c.user_id == user.id for c in crew_list):
