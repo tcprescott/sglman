@@ -133,28 +133,27 @@ def _setup_create_match_mocks(service):
     service.tournament_repository.is_player_enrolled_by_id = AsyncMock(return_value=True)
     service.repository.add_player = AsyncMock()
 
-    service.match_schedule_service.notify_match_participants = AsyncMock()
-    service.match_schedule_service.notify_tournament_subscribers_scheduled = AsyncMock()
-    service.match_schedule_service.notify_stream_candidate_subscribers = AsyncMock()
-
-    # Avoid real ORM queries in _collect_notified_discord_ids
-    service._collect_notified_discord_ids = AsyncMock(return_value=[111])
+    # create_match delegates the whole scheduled-notification fan-out to
+    # MatchScheduleService.notify_match_scheduled (its internals — ack request,
+    # crew, subscribers, stream-candidate — are covered in
+    # test_match_schedule_service.py).
+    service.match_schedule_service.notify_match_scheduled = AsyncMock()
 
     return match, user
 
 
 class TestCreateMatchSubscriberNotifications:
-    async def test_tournament_subscriber_notification_called(self, service):
-        match, _ = _setup_create_match_mocks(service)
+    async def test_notify_match_scheduled_called(self, service):
+        _setup_create_match_mocks(service)
         await service.create_match(
             tournament_id=1,
             scheduled_date="2025-01-15",
             scheduled_time="14:30",
             player_ids=[1],
         )
-        service.match_schedule_service.notify_tournament_subscribers_scheduled.assert_called_once()
+        service.match_schedule_service.notify_match_scheduled.assert_awaited_once()
 
-    async def test_stream_candidate_notification_not_called_when_flag_false(self, service):
+    async def test_stream_candidate_flag_false_by_default(self, service):
         _setup_create_match_mocks(service)
         await service.create_match(
             tournament_id=1,
@@ -163,9 +162,10 @@ class TestCreateMatchSubscriberNotifications:
             player_ids=[1],
             is_stream_candidate=False,
         )
-        service.match_schedule_service.notify_stream_candidate_subscribers.assert_not_called()
+        _, kwargs = service.match_schedule_service.notify_match_scheduled.call_args
+        assert kwargs["is_stream_candidate"] is False
 
-    async def test_stream_candidate_notification_called_when_flag_true(self, service):
+    async def test_stream_candidate_flag_passed_through_when_true(self, service):
         match, _ = _setup_create_match_mocks(service)
         match.is_stream_candidate = True
         service.repository.create = AsyncMock(return_value=match)
@@ -176,22 +176,8 @@ class TestCreateMatchSubscriberNotifications:
             player_ids=[1],
             is_stream_candidate=True,
         )
-        service.match_schedule_service.notify_stream_candidate_subscribers.assert_called_once()
-
-    async def test_subscriber_notification_receives_excluded_ids(self, service):
-        _setup_create_match_mocks(service)
-        service._collect_notified_discord_ids = AsyncMock(return_value=[111, 222])
-        await service.create_match(
-            tournament_id=1,
-            scheduled_date="2025-01-15",
-            scheduled_time="14:30",
-            player_ids=[1],
-        )
-        call_args = service.match_schedule_service.notify_tournament_subscribers_scheduled.call_args
-        # Third positional arg is exclude_discord_ids
-        exclude_ids = call_args.args[2]
-        assert 111 in exclude_ids
-        assert 222 in exclude_ids
+        _, kwargs = service.match_schedule_service.notify_match_scheduled.call_args
+        assert kwargs["is_stream_candidate"] is True
 
 
 # ---------------------------------------------------------------------------

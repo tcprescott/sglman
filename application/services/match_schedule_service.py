@@ -19,6 +19,8 @@ from application.services.seedgen_service import SeedGenerationService
 from application.utils.discord_messages import (
     acknowledgment_request_dm,
     checked_in_dm,
+    rescheduled_dm,
+    scheduled_dm,
     seed_dm,
     state_changed_dm,
     stream_candidate_dm,
@@ -467,4 +469,63 @@ class MatchScheduleService:
             logger.exception(
                 "notify_stream_candidate_subscribers unexpected error for match %s", match.id
             )
+
+    async def notify_match_scheduled(
+        self,
+        match: Match,
+        *,
+        rescheduled: bool = False,
+        is_stream_candidate: bool = False,
+    ) -> None:
+        """Fan out the scheduled/rescheduled notifications for a match.
+
+        Loads the tournament/players/stream-room relations and computes the
+        already-notified exclude list inline, then enqueues (in order): the
+        per-player acknowledgment request, the crew DM, the tournament-subscriber
+        signup DMs, and — only for a brand-new stream candidate — the
+        stream-candidate subscriber DMs. Shared by create/update/request flows.
+        """
+        await match.fetch_related('tournament', 'players__user', 'stream_room')
+        build_message = rescheduled_dm if rescheduled else scheduled_dm
+        msg = build_message(
+            match.tournament.name,
+            format_eastern_display(match.scheduled_at),
+            player_names=[p.user.preferred_name for p in match.players],
+            stream_room_name=match.stream_room.name if match.stream_room else '',
+        )
+        discord_queue.enqueue(self.notify_acknowledgment_request(match, rescheduled=rescheduled))
+        discord_queue.enqueue(self.notify_match_crew(match, msg))
+
+        # Collect IDs already notified to avoid duplicates in subscriber fan-out
+        notified_ids = await self._collect_notified_discord_ids(match)
+        discord_queue.enqueue(self.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
+        if is_stream_candidate:
+            discord_queue.enqueue(self.notify_stream_candidate_subscribers(match, notified_ids))
+
+    async def notify_stream_candidate(self, match: Match) -> None:
+        """Enqueue stream-candidate subscriber DMs for a match just flagged as a
+        stream candidate (used when toggling the flag outside the scheduling flow)."""
+        await match.fetch_related('tournament')
+        notified_ids = await self._collect_notified_discord_ids(match)
+        discord_queue.enqueue(self.notify_stream_candidate_subscribers(match, notified_ids))
+
+    async def _collect_notified_discord_ids(self, match: Match) -> list:
+        """
+        Return the discord_ids of players and approved crew for a match.
+        Used to deduplicate tournament-subscriber notifications.
+        """
+        ids: list = []
+        players = await MatchPlayers.filter(match=match).prefetch_related('user')
+        for mp in players:
+            if mp.user.discord_id:
+                ids.append(mp.user.discord_id)
+        commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+        for c in commentators:
+            if c.user.discord_id and c.user.discord_id not in ids:
+                ids.append(c.user.discord_id)
+        trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+        for t in trackers:
+            if t.user.discord_id and t.user.discord_id not in ids:
+                ids.append(t.user.discord_id)
+        return ids
 

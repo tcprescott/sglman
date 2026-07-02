@@ -25,10 +25,8 @@ from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
-from application.utils.discord_messages import scheduled_dm, rescheduled_dm
 from application.utils.timezone import (
     parse_eastern_datetime,
-    format_eastern_display,
     to_eastern,
 )
 
@@ -280,21 +278,9 @@ class MatchService:
         await self._seed_acknowledgments(match, player_ids, actor)
 
         # Notify participants of the newly scheduled match
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
-        msg = scheduled_dm(
-            match.tournament.name,
-            format_eastern_display(match.scheduled_at),
-            player_names=[p.user.preferred_name for p in match.players],
-            stream_room_name=match.stream_room.name if match.stream_room else '',
+        await self.match_schedule_service.notify_match_scheduled(
+            match, rescheduled=False, is_stream_candidate=is_stream_candidate,
         )
-        discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
-        discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
-
-        # Collect IDs already notified to avoid duplicates in subscriber fan-out
-        notified_ids = await self._collect_notified_discord_ids(match)
-        discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
-        if is_stream_candidate:
-            discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
 
         match_events.publish(match.id, match_events.CREATED)
 
@@ -436,20 +422,14 @@ class MatchService:
 
         if scheduled_at_changed or players_changed:
             await self._seed_acknowledgments(match, list(new_player_ids), actor)
-            discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(
-                match, rescheduled=scheduled_at_changed,
-            ))
             if scheduled_at_changed:
-                await match.fetch_related('tournament', 'players__user', 'stream_room')
-                msg = rescheduled_dm(
-                    match.tournament.name,
-                    format_eastern_display(new_scheduled_at),
-                    player_names=[p.user.preferred_name for p in match.players],
-                    stream_room_name=match.stream_room.name if match.stream_room else '',
-                )
-                discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
-                notified_ids = await self._collect_notified_discord_ids(match)
-                discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
+                # Time changed: fan out the full reschedule notification.
+                await self.match_schedule_service.notify_match_scheduled(match, rescheduled=True)
+            else:
+                # Only the player set changed: just re-request acknowledgments.
+                discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(
+                    match, rescheduled=False,
+                ))
 
         match_events.publish(match.id)
 
@@ -515,17 +495,7 @@ class MatchService:
 
         await self._seed_acknowledgments(match, player_ids, actor)
 
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
-        msg = scheduled_dm(
-            match.tournament.name,
-            format_eastern_display(match.scheduled_at),
-            player_names=[p.user.preferred_name for p in match.players],
-            stream_room_name=match.stream_room.name if match.stream_room else '',
-        )
-        discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
-        discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
-        notified_ids = await self._collect_notified_discord_ids(match)
-        discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
+        await self.match_schedule_service.notify_match_scheduled(match, rescheduled=False)
 
         match_events.publish(match.id, match_events.CREATED)
 
@@ -557,9 +527,7 @@ class MatchService:
         )
 
         if flag and not was_candidate:
-            await match.fetch_related('tournament')
-            notified_ids = await self._collect_notified_discord_ids(match)
-            discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
+            await self.match_schedule_service.notify_stream_candidate(match)
 
         match_events.publish(match.id)
 
@@ -843,24 +811,3 @@ class MatchService:
         # Remove old
         for uid in existing_ids - new_ids_set:
             await repository.delete(existing_map[uid])
-
-    async def _collect_notified_discord_ids(self, match: Match) -> list:
-        """
-        Return the discord_ids of players and approved crew for a match.
-        Used to deduplicate tournament-subscriber notifications.
-        """
-        from models import MatchPlayers, Commentator, Tracker
-        ids: list = []
-        players = await MatchPlayers.filter(match=match).prefetch_related('user')
-        for mp in players:
-            if mp.user.discord_id:
-                ids.append(mp.user.discord_id)
-        commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
-        for c in commentators:
-            if c.user.discord_id and c.user.discord_id not in ids:
-                ids.append(c.user.discord_id)
-        trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
-        for t in trackers:
-            if t.user.discord_id and t.user.discord_id not in ids:
-                ids.append(t.user.discord_id)
-        return ids
