@@ -13,6 +13,10 @@ fi
 
 if [ "$1" = "prod" ]; then
     echo "Starting Uvicorn server in production mode..."
+    # Force production security posture (hidden API docs, HSTS, strict
+    # STORAGE_SECRET/DB-credential checks, mock-mode refusal) rather than
+    # depending on the operator's .env to set it.
+    export ENVIRONMENT=production
     poetry run uvicorn main:app --workers 1 --log-level info --port 8000 --host 0.0.0.0
 elif [ "$1" = "dev" ]; then
     echo "Starting Uvicorn server in development mode..."

@@ -9,12 +9,15 @@ Attached as a dependency on the aggregating API router so it covers every REST
 endpoint without touching the NiceGUI frontend mounted on the same app.
 """
 
+import hashlib
 import os
 import time
 from collections import defaultdict, deque
 from typing import Deque, Dict
 
 from fastapi import HTTPException, Request, status
+
+from application.services.api_token_service import TOKEN_PREFIX
 
 
 def _limit_per_minute() -> int:
@@ -27,6 +30,19 @@ def _limit_per_minute() -> int:
 _WINDOW_SECONDS = 60.0
 # key -> timestamps of requests within the current window
 _hits: Dict[str, Deque[float]] = defaultdict(deque)
+_last_sweep = 0.0
+
+
+def _sweep(now: float) -> None:
+    """Drop keys whose window has fully expired so idle/garbage keys don't
+    accumulate. Runs at most once per window."""
+    global _last_sweep
+    if now - _last_sweep < _WINDOW_SECONDS:
+        return
+    _last_sweep = now
+    cutoff = now - _WINDOW_SECONDS
+    for key in [k for k, b in _hits.items() if not b or b[-1] < cutoff]:
+        del _hits[key]
 
 
 def _trust_forwarded_for() -> bool:
@@ -42,17 +58,26 @@ def _trust_forwarded_for() -> bool:
     )
 
 
-def _client_key(request: Request) -> str:
-    auth = request.headers.get('authorization')
-    if auth:
-        # Bucket by the token itself so each token is limited independently;
-        # never log or expose this value.
-        return f'token:{auth}'
+def _client_ip_key(request: Request) -> str:
     if _trust_forwarded_for():
         forwarded = request.headers.get('x-forwarded-for')
         if forwarded:
             return f'ip:{forwarded.split(",")[0].strip()}'
     return f'ip:{request.client.host if request.client else "unknown"}'
+
+
+def _client_key(request: Request) -> str:
+    auth = request.headers.get('authorization')
+    if auth:
+        token = auth[7:].strip() if auth[:7].lower() == 'bearer ' else auth.strip()
+        # Only bucket by a *well-formed* token so each real token is limited
+        # independently. Garbage/rotating tokens fall through to the IP key so a
+        # flood of random bearer values can't get a fresh bucket each request
+        # (bypass) or grow _hits without bound. Store only a hash, never the raw
+        # secret, as the key.
+        if token.startswith(TOKEN_PREFIX) and len(token) >= len(TOKEN_PREFIX) + 20:
+            return f'token:{hashlib.sha256(token.encode()).hexdigest()}'
+    return _client_ip_key(request)
 
 
 async def rate_limit(request: Request) -> None:
