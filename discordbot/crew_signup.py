@@ -33,8 +33,7 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
     custom_id format: 'crew_signup:<role>:<match_id>'
     Responds ephemerally so only the clicking user sees the result.
     """
-    from application.repositories import UserRepository
-    from application.services import MatchService
+    from application.services import CrewService, MatchService, UserService
 
     custom_id = (interaction.data or {}).get('custom_id', '')
     parts = custom_id.split(':')
@@ -53,7 +52,7 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
         await interaction.response.send_message('Invalid role.', ephemeral=True)
         return
 
-    user = await UserRepository().get_by_discord_id(str(interaction.user.id))
+    user = await UserService().get_user_by_discord_id(str(interaction.user.id))
     if not user:
         await interaction.response.send_message(
             'You do not have an SGLMan account. Please log in at the website first.',
@@ -62,20 +61,18 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
         return
 
     match_service = MatchService()
-    match = await match_service.repository.get_by_id(match_id, prefetch_relations=False)
+    match = await match_service.get_by_id(match_id, prefetch_relations=False)
     if not match:
         await interaction.response.send_message('Match not found.', ephemeral=True)
         return
 
     # The "match finished -> signup closed" rule now lives in
-    # MatchService.signup_crew (raised as ValueError, handled below) so the web
+    # CrewService.signup_crew (raised as ValueError, handled below) so the web
     # UI and REST API enforce it too.
     try:
-        await match_service.signup_crew(match_id, user, role)
+        await CrewService().signup_crew(match_id, user, role)
 
-        from models import MatchPlayers
-        players = await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
-        player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
+        player_names = await match_service.get_player_names(match_id)
 
         await interaction.response.send_message(
             crew_signup_confirmation(role, player_names),

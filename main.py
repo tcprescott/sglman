@@ -109,6 +109,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Initializes and tears down the database and Discord bot on application startup and shutdown.
     """
     await init_db()
+    # Importing discordbot registers its interaction handlers and DM view
+    # factories with discord_service's registries — the one-way wiring that
+    # replaced the old bidirectional import cycle (see
+    # docs/reviews/2026-07-project-structure-review.md, roadmap item 21).
+    import discordbot  # noqa: F401
     await init_discord_bot()
     discord_queue.start()
     volunteer_reminder.start()

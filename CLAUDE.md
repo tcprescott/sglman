@@ -36,6 +36,7 @@ Presentation (pages/, theme/)  →  Service (application/services/)  →  Reposi
 - **Presentation** renders NiceGUI, handles interaction, calls services, catches their errors and shows `ui.notify()`. No business logic; no ORM *writes*. Read-only ORM lookups for simple display are acceptable but repositories are preferred.
 - **Service** enforces rules/validation, coordinates repositories, writes audit logs, sends Discord notifications. Raises `ValueError` for user-facing errors. Must not import NiceGUI.
 - **Repository** is pure data access (CRUD, queries, `prefetch_related`). No business logic, audit, or notifications.
+- **Entry surfaces** — `api/` (REST routers) and `discordbot/` (Discord interaction handlers) are peers of the web UI presentation layer: they call services and may do read-only *load-or-404* model lookups (the sanctioned shape is `Tournament.get_or_none(...)` in `api/routers/tournament_actions.py`), but must **not** import `application.repositories` or reach through `service.repository.*`. Route reads through a service method (e.g. `get_user_from_discord_id`, `UserService.get_user_by_id`, `MatchService.get_by_id`). `enforce_architecture.py` classifies both as presentation and enforces this.
 
 See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern and examples.
 

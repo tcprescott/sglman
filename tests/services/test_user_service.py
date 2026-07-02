@@ -432,3 +432,83 @@ class TestUpdateUserTournamentRegistrations:
         )
         create_mock.assert_not_called()
         service.audit_service.write_log.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# provision_from_discord_login
+# ---------------------------------------------------------------------------
+
+
+class TestProvisionFromDiscordLogin:
+    async def test_new_account_is_audited_and_not_username_synced(self, service):
+        new_user = make_user(user_id=7, username='newbie', discord_id='999')
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(new_user, True))
+
+        user, created = await service.provision_from_discord_login(999, 'newbie')
+
+        assert (user, created) == (new_user, True)
+        service.repository.update.assert_not_awaited()
+        service.audit_service.write_log.assert_awaited_once()
+        actor, action, details = service.audit_service.write_log.await_args.args
+        assert actor is new_user
+        assert action == 'user.provisioned'
+        assert details['source'] == 'discord_login'
+        assert details['target_user_id'] == 7
+        assert details['discord_id'] == '999'
+
+    async def test_existing_active_user_synced_without_audit(self, service):
+        existing = make_user(user_id=3, username='old_name', is_active=True)
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(existing, False))
+
+        user, created = await service.provision_from_discord_login(123, 'new_name')
+
+        assert (user, created) == (existing, False)
+        service.repository.update.assert_awaited_once_with(existing, username='new_name')
+        service.audit_service.write_log.assert_not_awaited()
+
+    async def test_existing_inactive_user_not_synced_or_audited(self, service):
+        inactive = make_user(user_id=4, is_active=False)
+        service.repository.get_or_create_by_discord_id = AsyncMock(return_value=(inactive, False))
+
+        await service.provision_from_discord_login(123, 'new_name')
+
+        service.repository.update.assert_not_awaited()
+        service.audit_service.write_log.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# create_mock_login_user
+# ---------------------------------------------------------------------------
+
+
+class TestCreateMockLoginUser:
+    async def test_creates_user_with_roles_and_audits(self, service):
+        new_user = make_user(user_id=9, username='dev', discord_id='555')
+        service.repository.create = AsyncMock(return_value=new_user)
+
+        user = await service.create_mock_login_user(
+            discord_id=555,
+            username='dev',
+            display_name='Dev',
+            role_values=[Role.STAFF.value, Role.PROCTOR.value],
+        )
+
+        assert user is new_user
+        assert service.role_repository.add.await_count == 2
+        service.audit_service.write_log.assert_awaited_once()
+        actor, action, details = service.audit_service.write_log.await_args.args
+        assert actor is new_user
+        assert action == 'user.provisioned'
+        assert details['source'] == 'mock_login'
+        assert details['roles'] == [Role.STAFF.value, Role.PROCTOR.value]
+
+    async def test_audits_even_with_no_roles(self, service):
+        new_user = make_user(user_id=10, username='dev2', discord_id='556')
+        service.repository.create = AsyncMock(return_value=new_user)
+
+        await service.create_mock_login_user(discord_id=556, username='dev2')
+
+        service.role_repository.add.assert_not_awaited()
+        _, action, details = service.audit_service.write_log.await_args.args
+        assert action == 'user.provisioned'
+        assert details['roles'] == []

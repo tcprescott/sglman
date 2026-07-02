@@ -62,7 +62,7 @@ Admin dashboard → Reports tab → Audit Log report. Supports:
 
 Audit entries are written for all major create/update/delete operations across these `AuditActions` namespaces:
 - Matches (all lifecycle transitions, seed rolls, stage/station assignment, stream candidates, watchers)
-- Users (role grants/revokes, profile updates, activation, tournament enrollment)
+- Users (creation, login provisioning, role grants/revokes, profile updates, activation, tournament enrollment)
 - Tournaments (create/update/delete, admin/crew-coordinator membership)
 - Crew (signup created/removed, approval changed, acknowledged)
 - Triforce texts (submit/approve/reject/delete)

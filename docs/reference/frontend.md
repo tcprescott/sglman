@@ -16,7 +16,7 @@ At import time it registers `AuthMiddleware` (from [`middleware/auth.py`](../../
 
 1. Calls `validate_security_config()` ([`application/utils/environment.py`](../../application/utils/environment.py)) — aborts startup if `STORAGE_SECRET` is empty, and in production also requires `DB_USERNAME` / `DB_PASSWORD`.
 2. Mounts `/static` → `NoCacheStaticFiles(directory="static")`.
-3. Registers pages in order: `auth_create()` (login/logout/oauth pages, or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth_create()` (Challonge link/connect OAuth routes), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
+3. Registers pages in order: `auth.create()` (login/logout/oauth pages from [`pages/auth.py`](../../pages/auth.py), or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth.create()` (Challonge link/connect OAuth routes from [`pages/challonge_oauth.py`](../../pages/challonge_oauth.py)), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
 4. Calls `ui.run_with(fastapi_app, storage_secret=...)` with the stripped `STORAGE_SECRET`. No `mount_path` is given, so `@ui.page` routes live at the site root.
 5. Calls `register_error_handlers(fastapi_app)` ([`middleware/error_handlers.py`](../../middleware/error_handlers.py)) to install themed 40x/50x pages — see [Error pages](#error-pages-middlewareerror_handlerspy) below.
 
@@ -68,7 +68,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/admin` | [`pages/admin.py`](../../pages/admin.py) | Login required (`@protected_page`); content gated by role |
 | `/volunteer` | [`pages/volunteer.py`](../../pages/volunteer.py) | Login required (`@protected_page`); volunteer self-service hub |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
-| `/login`, `/logout`, `/oauth/callback` | `middleware/auth.py` | See [authentication.md](authentication.md) |
+| `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md) |
 
 Each page module exposes a `create()` function that registers its `@ui.page` route; `frontend.init()` calls them.
 
@@ -538,9 +538,9 @@ The largest UI component, used by the home Schedule and Player tabs and the admi
 
 **Constructor flags**: `admin_controls` (admin slots and lifecycle buttons), `can_crud` (edit/approve affordances within admin mode), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_edit_stream_room`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided.
 
-**Filters** — a card with three multi-selects (Tournament, Stage, State) and a refresh button. Tournament/stage options load asynchronously from `MatchService.get_tournaments_for_filter` / `get_stream_rooms_for_filter`. Filter values persist per user in `app.storage.user` (`tournament_filter`, `stream_room_filter`, `state_filter`); state defaults to Scheduled + Checked In + Started. Admin mode adds an **Auto-refresh** checkbox driving a cancellable 5-second `_auto_refresh_loop` (`background_tasks.create` + `asyncio.sleep`).
+**Filters** — a card with three multi-selects (Tournament, Stage, State) and a refresh button. Tournament/stage options load asynchronously from `MatchDisplayService.get_tournaments_for_filter` / `get_stream_rooms_for_filter` (the view holds a `MatchDisplayService` as `self.display_service`). Filter values persist per user in `app.storage.user` (`tournament_filter`, `stream_room_filter`, `state_filter`); state defaults to Scheduled + Checked In + Started. Admin mode adds an **Auto-refresh** checkbox driving a cancellable 5-second `_auto_refresh_loop` (`background_tasks.create` + `asyncio.sleep`).
 
-**Data flow** — `refresh()` calls `MatchService.get_matches_for_display(tournament_ids, stream_room_ids, only_upcoming=False, user_discord_id)`, applies the state filter client-side, then merges per-row `_watching` flags from `MatchWatcherService.list_watched_match_ids`. `update_row_by_id(match_id)` re-fetches one row via `MatchService.get_match_for_display` (deleting the row if the match is gone, preserving `_watching`); `delete_row_by_id` removes a row from the UI only.
+**Data flow** — `refresh()` calls `MatchDisplayService.get_matches_for_display(tournament_ids, stream_room_ids, only_upcoming=False, user_discord_id)`, applies the state filter client-side, then merges per-row `_watching` flags from `MatchWatcherService.list_watched_match_ids`. `update_row_by_id(match_id)` re-fetches one row via `MatchDisplayService.get_match_for_display` (deleting the row if the match is gone, preserving `_watching`); `delete_row_by_id` removes a row from the UI only.
 
 **Cell rendering** — the players cell shows acknowledgment icons (green check / orange clock with timestamp tooltips, `(auto)` markers) and bolds the winner; admin mode also shows each player's station in italics. Commentator/tracker cells color names by approval (green approved / orange pending) with the same acknowledgment icons. The admin Seed column shows a Generate button (with client-side `_generating_seed` spinner state) when the tournament has a seed generator and no seed exists; existing seeds render as truncated links. The admin State column renders the next lifecycle action per state — Scheduled → Check In, Checked In → Start, Started → Finish, Finished → Confirm — each with the previous transition's timestamp; Confirmed renders an icon + timestamp. The Stage column shows an Assign button for unassigned matches and an amber "candidate" badge for stream candidates.
 
@@ -555,8 +555,8 @@ The largest UI component, used by the home Schedule and Player tabs and the admi
 | `assign_stations` | Players-column button (admin + crud) | `on_assign_stations(match_id)` |
 | `edit_player` | Player name link | opens `UserDialog` for that player |
 | `edit_commentator` / `edit_tracker` | Crew name link (admin + crud) | opens `ApproveCrewDialog`, row refresh on approve |
-| `signup_commentator` / `signup_tracker` | Sign Up button (non-admin) | `ConfirmationDialog` → `MatchService.signup_crew` |
-| `undo_commentator` / `undo_tracker` | Undo button (non-admin) | `ConfirmationDialog` → `MatchService.undo_crew_signup` |
+| `signup_commentator` / `signup_tracker` | Sign Up button (non-admin) | `ConfirmationDialog` → `CrewService.signup_crew` |
+| `undo_commentator` / `undo_tracker` | Undo button (non-admin) | `ConfirmationDialog` → `CrewService.undo_crew_signup` |
 | `acknowledge_match` | Player's own Acknowledge button | `MatchService.acknowledge_match` (client captured via `context.client`, restored with `with client:`) |
 | `acknowledge_commentator` / `acknowledge_tracker` | Crew member's own Acknowledge button | `CrewService.acknowledge_crew_assignment` (crew id read from the row payload) |
 | `toggle_watch` | Watch column button (logged-in) | `MatchWatcherService.watch` / `unwatch`, flips `_watching` locally |

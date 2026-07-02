@@ -161,11 +161,11 @@ async def assign(shift_id: int, payload: AssignRequest, actor: User = Depends(re
 
 @router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Remove an assignment")
 async def unassign(assignment_id: int, actor: User = Depends(require_write_actor)):
-    from application.repositories import VolunteerAssignmentRepository
-    assignment = await VolunteerAssignmentRepository.get_by_id(assignment_id)
+    service = VolunteerScheduleService()
+    assignment = await service.get_assignment(assignment_id)
     if assignment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
-    await VolunteerScheduleService().unassign(actor, assignment)
+    await service.unassign(actor, assignment)
 
 
 @router.post("/assignments/{assignment_id}/acknowledge", response_model=VolunteerAssignmentResponse, summary="Acknowledge your assignment")

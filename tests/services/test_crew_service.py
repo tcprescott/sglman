@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -40,6 +41,9 @@ def service():
     svc.tracker_repository = MagicMock()
     svc.tracker_repository.acknowledge = AsyncMock(side_effect=lambda c: c)
     svc.tracker_repository.get_by_id = AsyncMock()
+    svc.match_repository = MagicMock()
+    svc.match_repository.get_by_id = AsyncMock()
+    svc.match_repository.get_players = AsyncMock(return_value=[])
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
     svc.discord_service = MagicMock()
@@ -47,6 +51,18 @@ def service():
         return_value=(True, 'sent')
     )
     return svc
+
+
+def make_signup_match(**overrides):
+    """A lightweight match stand-in for crew signup/undo tests."""
+    defaults = dict(
+        id=1,
+        finished_at=None,
+        commentators=[],
+        trackers=[],
+    )
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
 
 
 def make_user(user_id=1, discord_id='12345'):
@@ -200,3 +216,125 @@ class TestUpdateCrewApproval:
 
         assert crew.approved is True
         service.audit_service.write_log.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# signup_crew
+# ---------------------------------------------------------------------------
+
+
+class TestSignupCrew:
+    async def test_raises_for_invalid_role(self, service):
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.signup_crew(match_id=1, user=MagicMock(), role="referee")
+
+    async def test_raises_when_match_not_found(self, service):
+        service.match_repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError, match="not found"):
+            await service.signup_crew(match_id=999, user=MagicMock(), role="commentator")
+
+    async def test_raises_when_match_finished(self, service):
+        match = make_signup_match(finished_at=datetime(2025, 1, 16, 20, 0))
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already finished"):
+            await service.signup_crew(match_id=1, user=SimpleNamespace(id=42), role="commentator")
+
+    async def test_raises_when_commentator_already_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_signup_match(commentators=[SimpleNamespace(user_id=42)])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already signed up"):
+            await service.signup_crew(match_id=1, user=user, role="commentator")
+
+    async def test_raises_when_tracker_already_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_signup_match(trackers=[SimpleNamespace(user_id=42)])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already signed up"):
+            await service.signup_crew(match_id=1, user=user, role="tracker")
+
+    async def test_creates_commentator_when_valid(self, service):
+        user = SimpleNamespace(id=99)
+        match = make_signup_match(commentators=[])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        service.commentator_repository.create = AsyncMock()
+        await service.signup_crew(match_id=1, user=user, role="commentator")
+        service.commentator_repository.create.assert_awaited_once_with(
+            match=match, user=user, approved=False
+        )
+
+    async def test_creates_tracker_when_valid(self, service):
+        user = SimpleNamespace(id=99)
+        match = make_signup_match(trackers=[])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        service.tracker_repository.create = AsyncMock()
+        await service.signup_crew(match_id=1, user=user, role="tracker")
+        service.tracker_repository.create.assert_awaited_once_with(
+            match=match, user=user, approved=False
+        )
+
+    async def test_invalid_role_check_precedes_db_lookup(self, service):
+        service.match_repository.get_by_id = AsyncMock()
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.signup_crew(match_id=1, user=MagicMock(), role="judge")
+        service.match_repository.get_by_id.assert_not_awaited()
+
+    async def test_raises_when_user_is_a_player(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_signup_match()
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        service.match_repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
+        with pytest.raises(ValueError, match="[Pp]layer"):
+            await service.signup_crew(match_id=1, user=user, role="commentator")
+
+
+# ---------------------------------------------------------------------------
+# undo_crew_signup
+# ---------------------------------------------------------------------------
+
+
+class TestUndoCrewSignup:
+    async def test_raises_for_invalid_role(self, service):
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.undo_crew_signup(match_id=1, user=MagicMock(), role="referee")
+
+    async def test_raises_when_match_not_found(self, service):
+        service.match_repository.get_by_id = AsyncMock(return_value=None)
+        with pytest.raises(ValueError, match="not found"):
+            await service.undo_crew_signup(match_id=999, user=MagicMock(), role="commentator")
+
+    async def test_raises_when_commentator_not_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_signup_match(commentators=[])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="not signed up"):
+            await service.undo_crew_signup(match_id=1, user=user, role="commentator")
+
+    async def test_raises_when_tracker_not_signed_up(self, service):
+        user = SimpleNamespace(id=42)
+        match = make_signup_match(trackers=[])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="not signed up"):
+            await service.undo_crew_signup(match_id=1, user=user, role="tracker")
+
+    async def test_deletes_commentator_when_found(self, service):
+        user = SimpleNamespace(id=42)
+        crew_member = SimpleNamespace(user_id=42, delete=AsyncMock())
+        match = make_signup_match(commentators=[crew_member])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        await service.undo_crew_signup(match_id=1, user=user, role="commentator")
+        crew_member.delete.assert_awaited_once()
+
+    async def test_deletes_tracker_when_found(self, service):
+        user = SimpleNamespace(id=42)
+        crew_member = SimpleNamespace(user_id=42, delete=AsyncMock())
+        match = make_signup_match(trackers=[crew_member])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        await service.undo_crew_signup(match_id=1, user=user, role="tracker")
+        crew_member.delete.assert_awaited_once()
+
+    async def test_invalid_role_check_precedes_db_lookup(self, service):
+        service.match_repository.get_by_id = AsyncMock()
+        with pytest.raises(ValueError, match="Invalid role"):
+            await service.undo_crew_signup(match_id=1, user=MagicMock(), role="judge")
+        service.match_repository.get_by_id.assert_not_awaited()

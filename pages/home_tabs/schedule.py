@@ -95,7 +95,7 @@ def schedule():
         async def on_edit(match_id: int):
             if not discord_id:
                 return
-            match = await match_service.repository.get_by_id(match_id)
+            match = await match_service.get_by_id(match_id)
             if not match:
                 ui.notify('Match not found.', color='warning')
                 return

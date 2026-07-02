@@ -382,6 +382,90 @@ class TestNotifyStreamCandidateSubscribers:
             await service.notify_stream_candidate_subscribers(match, [])
 
 
+class TestNotifyMatchScheduled:
+    """The collapsed scheduled/rescheduled fan-out shared by create/update/request."""
+
+    @staticmethod
+    def _wire(service):
+        # Sub-notifications are passed to the queue (never awaited here), so plain
+        # MagicMocks avoid 'coroutine never awaited' noise; _collect is awaited.
+        service.notify_acknowledgment_request = MagicMock()
+        service.notify_match_crew = MagicMock()
+        service.notify_tournament_subscribers_scheduled = MagicMock()
+        service.notify_stream_candidate_subscribers = MagicMock()
+        service._collect_notified_discord_ids = AsyncMock(return_value=[111])
+
+    async def test_enqueues_ack_crew_and_subscribers(self, service):
+        self._wire(service)
+        match = MockMatch()
+        with patch('application.services.match_schedule_service.discord_queue.enqueue') as enqueue:
+            await service.notify_match_scheduled(match, rescheduled=False, is_stream_candidate=False)
+
+        _, ack_kwargs = service.notify_acknowledgment_request.call_args
+        assert ack_kwargs == {'rescheduled': False}
+        subs_args = service.notify_tournament_subscribers_scheduled.call_args.args
+        assert subs_args[0] is match
+        assert subs_args[2] == [111]
+        service.notify_stream_candidate_subscribers.assert_not_called()
+        assert enqueue.call_count == 3
+
+    async def test_stream_candidate_enqueued_when_flagged(self, service):
+        self._wire(service)
+        match = MockMatch()
+        with patch('application.services.match_schedule_service.discord_queue.enqueue') as enqueue:
+            await service.notify_match_scheduled(match, rescheduled=False, is_stream_candidate=True)
+
+        candidate_args = service.notify_stream_candidate_subscribers.call_args.args
+        assert candidate_args[0] is match
+        assert candidate_args[1] == [111]
+        assert enqueue.call_count == 4
+
+    async def test_rescheduled_flag_forwarded_to_ack_request(self, service):
+        self._wire(service)
+        match = MockMatch()
+        with patch('application.services.match_schedule_service.discord_queue.enqueue'):
+            await service.notify_match_scheduled(match, rescheduled=True)
+
+        _, ack_kwargs = service.notify_acknowledgment_request.call_args
+        assert ack_kwargs == {'rescheduled': True}
+
+
+class TestNotifyStreamCandidate:
+    async def test_enqueues_stream_candidate_subscribers(self, service):
+        service.notify_stream_candidate_subscribers = MagicMock()
+        service._collect_notified_discord_ids = AsyncMock(return_value=[111, 222])
+        match = MockMatch()
+        with patch('application.services.match_schedule_service.discord_queue.enqueue') as enqueue:
+            await service.notify_stream_candidate(match)
+
+        args = service.notify_stream_candidate_subscribers.call_args.args
+        assert args[0] is match
+        assert args[1] == [111, 222]
+        assert enqueue.call_count == 1
+
+
+class TestCollectNotifiedDiscordIds:
+    @staticmethod
+    def _patch_query(target, rows):
+        mock_qs = MagicMock()
+        mock_qs.prefetch_related = MagicMock(return_value=AsyncMock(return_value=rows)())
+        return patch(target, return_value=mock_qs)
+
+    async def test_dedupes_players_and_approved_crew(self, service):
+        match = MockMatch()
+        player = SimpleNamespace(user=SimpleNamespace(discord_id=111))
+        commentator = SimpleNamespace(user=SimpleNamespace(discord_id=222))
+        # Tracker shares the commentator's id — should be deduped away.
+        tracker = SimpleNamespace(user=SimpleNamespace(discord_id=222))
+
+        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match_schedule_service.Commentator.filter', [commentator]), \
+             self._patch_query('application.services.match_schedule_service.Tracker.filter', [tracker]):
+            ids = await service._collect_notified_discord_ids(match)
+
+        assert ids == [111, 222]
+
+
 class TestSeedDm:
     def test_contains_player_name(self):
         msg = seed_dm("Alice", "ALttPR Open", "https://alttpr.com/h/abc")

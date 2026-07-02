@@ -11,7 +11,7 @@ Because the bot reads guild membership directly (it has the `members` intent), t
 ## How It Works
 
 1. A Staff member picks the Discord server on the admin **Settings** tab (stored in `SystemConfiguration` under `discord_role_sync_guild_id`) and defines mappings on the admin **Discord Roles** tab (`DiscordRoleMapping` rows).
-2. On OAuth login, `middleware/auth.py` calls `DiscordRoleMappingService().sync_user_roles(user)` after the `User` is created/updated and before the redirect.
+2. On OAuth login, the `/oauth/callback` route in `pages/auth.py` calls `DiscordRoleMappingService().sync_user_roles(user)` after the `User` is created/updated and before the redirect.
 3. `sync_user_roles`:
    - Resolves the configured guild id; if none, it is a no-op.
    - Reads the member's Discord role ids via `DiscordService.get_member_role_ids(guild_id, discord_id)`.

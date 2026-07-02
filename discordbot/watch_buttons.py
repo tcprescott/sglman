@@ -31,8 +31,7 @@ async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:
     custom_id format: 'match_watch:unwatch:<match_id>'
     Responds ephemerally so only the clicking user sees the result.
     """
-    from application.repositories import UserRepository
-    from application.services import MatchWatcherService
+    from application.services import MatchService, MatchWatcherService, UserService
 
     custom_id = (interaction.data or {}).get('custom_id', '')
     parts = custom_id.split(':')
@@ -46,7 +45,7 @@ async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:
         await interaction.response.send_message('Invalid match ID.', ephemeral=True)
         return
 
-    user = await UserRepository().get_by_discord_id(str(interaction.user.id))
+    user = await UserService().get_user_by_discord_id(str(interaction.user.id))
     if not user:
         await interaction.response.send_message(
             'You do not have an SGLMan account. Please log in at the website first.',
@@ -60,9 +59,7 @@ async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:
         await interaction.response.send_message(str(e), ephemeral=True)
         return
 
-    from models import MatchPlayers
-    players = await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
-    player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
+    player_names = await MatchService().get_player_names(match_id)
 
     await interaction.response.send_message(
         unwatch_confirmation(player_names, was_watching=removed),

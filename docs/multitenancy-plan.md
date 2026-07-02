@@ -93,7 +93,7 @@ Create `application/tenant_context.py` (contextvar + `set/get/require` + `tenant
 - `application/services/auth_service.py` — tenant-aware roles, super-admin, membership.
 - `middleware/tenant.py` (new), `middleware/auth.py`, `frontend.py` — middleware order, membership gate, session namespacing, central OAuth.
 - `application/services/discord_service.py`, `discord_queue.py`, `discord_role_mapping_service.py`, `volunteer_reminder.py` — guild→tenant routing, `tenant_scope`.
-- `middleware/challonge_oauth.py`, `application/services/challonge_service.py` — per-tenant connection, central callback.
+- `pages/challonge_oauth.py`, `application/services/challonge_service.py` — per-tenant connection, central callback.
 - `api/dependencies.py` — set tenant context from token.
 - New: `application/tenant_context.py`, `application/services/tenant_service.py`, `pages/superadmin.py`, `scripts/seed_tenant.py`.
 - `migrations/` — regenerated.

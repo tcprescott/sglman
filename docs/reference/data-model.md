@@ -759,7 +759,7 @@ Serves `Match` and `MatchPlayers` ([`match_repository.py`](../../application/rep
 | `async delete(match: Match) -> None` | Delete the match |
 | `async add_player(match: Match, user: User) -> MatchPlayers` | Insert a `MatchPlayers` row |
 | `async remove_player(match: Match, user: User) -> None` | Delete the first matching `MatchPlayers` row, if any |
-| `async get_players(match: Match) -> List[MatchPlayers]` | Player rows for a match, `user` prefetched |
+| `async get_players(match: Match \| int) -> List[MatchPlayers]` | Player rows for a match (accepts a `Match` or its id), `user` prefetched |
 
 ### `MatchWatcherRepository`
 

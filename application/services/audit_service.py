@@ -56,6 +56,7 @@ class AuditActions:
 
     # User
     USER_CREATED = 'user.created'
+    USER_PROVISIONED = 'user.provisioned'
     USER_PROFILE_UPDATED = 'user.profile_updated'
     USER_SELF_PROFILE_UPDATED = 'user.self_profile_updated'
     USER_ACTIVATION_CHANGED = 'user.activation_changed'

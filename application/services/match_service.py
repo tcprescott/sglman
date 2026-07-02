@@ -25,11 +25,8 @@ from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
-from application.utils.discord_messages import scheduled_dm, rescheduled_dm
 from application.utils.timezone import (
     parse_eastern_datetime,
-    format_eastern_datetime,
-    format_eastern_display,
     to_eastern,
 )
 
@@ -55,84 +52,30 @@ class MatchService:
         self.audit_service = AuditService()
         self.match_schedule_service = MatchScheduleService()
     
-    async def get_match_for_display(
-        self,
-        match_id: int
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Get a match with all related data formatted for display.
-
-        Args:
-            match_id: The match ID
-
-        Returns:
-            Dictionary with match data or None
-        """
-        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            return None
-
-        acks = await self.ack_repository.list_for_match(match)
-        return self._format_match_for_display(match, acks)
-
     async def get_match_by_id(self, match_id: int) -> Optional[Match]:
         return await self.repository.get_by_id(match_id)
+
+    async def get_by_id(
+        self, match_id: int, prefetch_relations: bool = True
+    ) -> Optional[Match]:
+        """Read-only load-or-None lookup for presentation/bot callers.
+
+        Exposed so entry surfaces (pages/, api/, discordbot/) never reach
+        through ``match_service.repository`` for a simple read.
+        """
+        return await self.repository.get_by_id(match_id, prefetch_relations=prefetch_relations)
 
     async def get_match_players(self, match: Match) -> List[MatchPlayers]:
         return await self.repository.get_players(match)
 
+    async def get_player_names(self, match_id: int) -> str:
+        """Comma-joined preferred names of a match's players (``''`` if none)."""
+        players = await self.repository.get_players(match_id)
+        return ', '.join(p.user.preferred_name for p in players) if players else ''
+
     async def list_acknowledgments(self, match: Match) -> List[MatchAcknowledgment]:
         return await self.ack_repository.list_for_match(match)
 
-    async def get_matches_for_display(
-        self,
-        *,
-        tournament_ids: Optional[List[int]] = None,
-        stream_room_ids: Optional[List[int]] = None,
-        only_upcoming: bool = False,
-        user_discord_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Get matches formatted for table display.
-
-        Args:
-            tournament_ids: Filter by tournament IDs
-            stream_room_ids: Filter by stream room IDs
-            only_upcoming: Only return unfinished matches
-            user_discord_id: Filter by player discord ID
-
-        Returns:
-            List of formatted match dictionaries
-        """
-        matches = await self.repository.get_all(
-            tournament_ids=tournament_ids,
-            stream_room_ids=stream_room_ids,
-            only_upcoming=only_upcoming,
-            user_discord_id=user_discord_id,
-            prefetch_relations=True
-        )
-
-        ack_map = await self.ack_repository.list_for_matches([m.id for m in matches])
-        return [self._format_match_for_display(m, ack_map.get(m.id, [])) for m in matches]
-    
-    async def get_tournaments_for_filter(self) -> Dict[int, str]:
-        """
-        Get all tournaments formatted for filter dropdown.
-        
-        Returns:
-            Dict mapping tournament ID to name
-        """
-        return await self.tournament_repository.get_all_as_dict()
-    
-    async def get_stream_rooms_for_filter(self) -> Dict[int, str]:
-        """
-        Get all stream rooms formatted for filter dropdown.
-        
-        Returns:
-            Dict mapping stream room ID to name
-        """
-        return await self.stream_room_repository.get_all_as_dict()
-    
     async def get_all_matches_for_schedule(self) -> List[Match]:
         """
         Get all matches for the public schedule view.
@@ -140,9 +83,7 @@ class MatchService:
         Returns:
             List of matches with all related data prefetched
         """
-        return await Match.all().prefetch_related(
-            'tournament', 'players', 'stream_room', 'generated_seed'
-        ).order_by('scheduled_at')
+        return await self.repository.get_all_for_schedule()
     
     async def get_matches_for_date(
         self,
@@ -161,24 +102,9 @@ class MatchService:
         Returns:
             List of matches with all related data prefetched
         """
-        start_of_day = datetime.combine(target_date, datetime.min.time())
-        end_of_day = datetime.combine(target_date, datetime.max.time())
-        
-        query = Match.filter(
-            scheduled_at__gte=start_of_day,
-            scheduled_at__lte=end_of_day
+        return await self.repository.get_for_date(
+            target_date, exclude_finished, require_stream_room
         )
-        
-        if exclude_finished:
-            query = query.filter(finished_at=None)
-        
-        if require_stream_room:
-            query = query.exclude(stream_room=None)
-        
-        return await query.prefetch_related(
-            'tournament', 'stream_room', 'players', 'players__user',
-            'commentators', 'commentators__user', 'trackers', 'trackers__user'
-        ).order_by('scheduled_at')
     
     async def group_matches_by_stream_room(
         self,
@@ -212,7 +138,7 @@ class MatchService:
         Returns:
             List of matches where the player is participating
         """
-        return await Match.filter(players__user__discord_id=discord_id)
+        return await self.repository.get_for_player(discord_id)
     
     async def create_match(
         self,
@@ -335,21 +261,9 @@ class MatchService:
         await self._seed_acknowledgments(match, player_ids, actor)
 
         # Notify participants of the newly scheduled match
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
-        msg = scheduled_dm(
-            match.tournament.name,
-            format_eastern_display(match.scheduled_at),
-            player_names=[p.user.preferred_name for p in match.players],
-            stream_room_name=match.stream_room.name if match.stream_room else '',
+        await self.match_schedule_service.notify_match_scheduled(
+            match, rescheduled=False, is_stream_candidate=is_stream_candidate,
         )
-        discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
-        discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
-
-        # Collect IDs already notified to avoid duplicates in subscriber fan-out
-        notified_ids = await self._collect_notified_discord_ids(match)
-        discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
-        if is_stream_candidate:
-            discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
 
         match_events.publish(match.id, match_events.CREATED)
 
@@ -491,20 +405,14 @@ class MatchService:
 
         if scheduled_at_changed or players_changed:
             await self._seed_acknowledgments(match, list(new_player_ids), actor)
-            discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(
-                match, rescheduled=scheduled_at_changed,
-            ))
             if scheduled_at_changed:
-                await match.fetch_related('tournament', 'players__user', 'stream_room')
-                msg = rescheduled_dm(
-                    match.tournament.name,
-                    format_eastern_display(new_scheduled_at),
-                    player_names=[p.user.preferred_name for p in match.players],
-                    stream_room_name=match.stream_room.name if match.stream_room else '',
-                )
-                discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
-                notified_ids = await self._collect_notified_discord_ids(match)
-                discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
+                # Time changed: fan out the full reschedule notification.
+                await self.match_schedule_service.notify_match_scheduled(match, rescheduled=True)
+            else:
+                # Only the player set changed: just re-request acknowledgments.
+                discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(
+                    match, rescheduled=False,
+                ))
 
         match_events.publish(match.id)
 
@@ -570,17 +478,7 @@ class MatchService:
 
         await self._seed_acknowledgments(match, player_ids, actor)
 
-        await match.fetch_related('tournament', 'players__user', 'stream_room')
-        msg = scheduled_dm(
-            match.tournament.name,
-            format_eastern_display(match.scheduled_at),
-            player_names=[p.user.preferred_name for p in match.players],
-            stream_room_name=match.stream_room.name if match.stream_room else '',
-        )
-        discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(match, rescheduled=False))
-        discord_queue.enqueue(self.match_schedule_service.notify_match_crew(match, msg))
-        notified_ids = await self._collect_notified_discord_ids(match)
-        discord_queue.enqueue(self.match_schedule_service.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
+        await self.match_schedule_service.notify_match_scheduled(match, rescheduled=False)
 
         match_events.publish(match.id, match_events.CREATED)
 
@@ -612,9 +510,7 @@ class MatchService:
         )
 
         if flag and not was_candidate:
-            await match.fetch_related('tournament')
-            notified_ids = await self._collect_notified_discord_ids(match)
-            discord_queue.enqueue(self.match_schedule_service.notify_stream_candidate_subscribers(match, notified_ids))
+            await self.match_schedule_service.notify_stream_candidate(match)
 
         match_events.publish(match.id)
 
@@ -782,104 +678,6 @@ class MatchService:
 
         return match
 
-    async def signup_crew(
-        self,
-        match_id: int,
-        user: User,
-        role: str
-    ) -> None:
-        """
-        Sign up a user as crew (commentator or tracker) for a match.
-        
-        Args:
-            match_id: Match ID
-            user: User signing up
-            role: 'commentator' or 'tracker'
-            
-        Raises:
-            ValueError: If role is invalid or user already signed up
-        """
-        # Validate role
-        if role not in ['commentator', 'tracker']:
-            raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
-        
-        # Get match with crew prefetched
-        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
-
-        # Crew signup closes once the match is finished. Enforced here (not in a
-        # single caller) so the web UI, REST API, and Discord button all honor it.
-        if match.finished_at is not None:
-            raise ValueError("This match has already finished. Crew signup is closed.")
-
-        # Check if user already signed up
-        crew_list = match.commentators if role == 'commentator' else match.trackers
-        if any(c.user_id == user.id for c in crew_list):
-            raise ValueError(f"User already signed up as {role}")
-
-        players = await self.repository.get_players(match)
-        if any(p.user_id == user.id for p in players):
-            raise ValueError("Players cannot sign up as crew for their own match")
-
-        # Create crew entry (not approved by default)
-        if role == 'commentator':
-            await self.commentator_repository.create(match=match, user=user, approved=False)
-        else:
-            await self.tracker_repository.create(match=match, user=user, approved=False)
-
-        await self.audit_service.write_log(
-            user,
-            AuditActions.CREW_SIGNUP_CREATED,
-            {'match_id': match_id, 'role': role},
-        )
-
-        match_events.publish(match_id)
-
-    async def undo_crew_signup(
-        self,
-        match_id: int,
-        user: User,
-        role: str
-    ) -> None:
-        """
-        Remove a user's crew signup (commentator or tracker) from a match.
-        
-        Args:
-            match_id: Match ID
-            user: User to remove
-            role: 'commentator' or 'tracker'
-            
-        Raises:
-            ValueError: If role is invalid or user not signed up
-        """
-        # Validate role
-        if role not in ['commentator', 'tracker']:
-            raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
-        
-        # Get match with crew prefetched
-        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
-        
-        # Find crew member
-        crew_list = match.commentators if role == 'commentator' else match.trackers
-        crew_member = next((c for c in crew_list if c.user_id == user.id), None)
-        
-        if not crew_member:
-            raise ValueError(f"User is not signed up as {role}")
-        
-        # Delete crew entry
-        await crew_member.delete()
-
-        await self.audit_service.write_log(
-            user,
-            AuditActions.CREW_SIGNUP_REMOVED,
-            {'match_id': match_id, 'role': role},
-        )
-
-        match_events.publish(match_id)
-
     async def acknowledge_match(self, match_id: int, user: User) -> MatchAcknowledgment:
         """Mark a match as acknowledged by the given player.
 
@@ -946,122 +744,6 @@ class MatchService:
 
     # Private helper methods
 
-    def _get_match_state(self, match: Match) -> str:
-        """
-        Determine the current state of a match based on its timestamps.
-        
-        Business logic for match state progression:
-        - Confirmed: match has confirmed_at timestamp
-        - Finished: match has finished_at timestamp
-        - Started: match has started_at timestamp
-        - Checked In: match has seated_at timestamp
-        - Scheduled: default state
-        
-        Args:
-            match: Match object
-            
-        Returns:
-            State string: 'Confirmed', 'Finished', 'Started', 'Checked In', or 'Scheduled'
-        """
-        if match.confirmed_at:
-            return 'Confirmed'
-        elif match.finished_at:
-            return 'Finished'
-        elif match.started_at:
-            return 'Started'
-        elif match.seated_at:
-            return 'Checked In'
-        else:
-            return 'Scheduled'
-    
-    def _format_match_for_display(
-        self,
-        match: Match,
-        acknowledgments: Optional[List[MatchAcknowledgment]] = None,
-    ) -> Dict[str, Any]:
-        """Format a match object for UI display."""
-        # Get state and corresponding timestamp
-        state = self._get_match_state(match)
-        state_timestamp = None
-
-        if match.confirmed_at:
-            state_timestamp = format_eastern_datetime(match.confirmed_at)
-        elif match.finished_at:
-            state_timestamp = format_eastern_datetime(match.finished_at)
-        elif match.started_at:
-            state_timestamp = format_eastern_datetime(match.started_at)
-        elif match.seated_at:
-            state_timestamp = format_eastern_datetime(match.seated_at)
-        else:
-            state_timestamp = format_eastern_datetime(match.created_at)
-
-        ack_by_user: Dict[int, MatchAcknowledgment] = {
-            a.user_id: a for a in (acknowledgments or [])
-        }
-        acknowledgments_summary = []
-        for p in match.players:
-            user_id = getattr(p, 'user_id', None) or getattr(p.user, 'id', None)
-            ack = ack_by_user.get(user_id) if user_id is not None else None
-            acknowledged = ack is not None and ack.acknowledged_at is not None
-            ts_display = (
-                format_eastern_display(ack.acknowledged_at)
-                if acknowledged and ack and ack.acknowledged_at else ''
-            )
-            discord_id = getattr(p.user, 'discord_id', None)
-            acknowledgments_summary.append((
-                p.user.preferred_name,
-                acknowledged,
-                bool(ack and ack.auto_acknowledged),
-                ts_display,
-                str(discord_id) if discord_id else None,
-            ))
-
-        return {
-            'id': match.id,
-            'tournament': match.tournament.name if match.tournament else '',
-            'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
-            'state': state,
-            'state_timestamp': state_timestamp,
-            'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station, str(p.user.discord_id) if p.user.discord_id else None) for p in match.players],
-            'acknowledgments': acknowledgments_summary,
-            'stream_room': match.stream_room.name if match.stream_room else '',
-            'stream_room_url': (
-                match.stream_room.stream_url
-                if match.stream_room and match.stream_room.stream_url
-                and match.stream_room.stream_url.lower().startswith(('http://', 'https://'))
-                else ''
-            ),
-            'is_stream_candidate': match.is_stream_candidate,
-            'seed': match.generated_seed.seed_url if match.generated_seed else '',
-            'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
-            'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
-            'commentators': [
-                (
-                    c.user.preferred_name,
-                    c.approved,
-                    c.user.discord_id,
-                    c.acknowledged_at is not None,
-                    format_eastern_display(c.acknowledged_at) if c.acknowledged_at else '',
-                    c.id,
-                )
-                for c in match.commentators
-            ],
-            'trackers': [
-                (
-                    t.user.preferred_name,
-                    t.approved,
-                    t.user.discord_id,
-                    t.acknowledged_at is not None,
-                    format_eastern_display(t.acknowledged_at) if t.acknowledged_at else '',
-                    t.id,
-                )
-                for t in match.trackers
-            ],
-            # Keep these for backward compatibility with existing code that may reference them
-            'seated': format_eastern_datetime(match.seated_at) if match.seated_at else '',
-            'finished': format_eastern_datetime(match.finished_at) if match.finished_at else '',
-        }
-    
     async def _ensure_tournament_enrollment(self, user: User, tournament_id: int) -> None:
         """Ensure user is enrolled in tournament."""
         is_enrolled = await self.tournament_repository.is_player_enrolled_by_id(
@@ -1112,24 +794,3 @@ class MatchService:
         # Remove old
         for uid in existing_ids - new_ids_set:
             await repository.delete(existing_map[uid])
-
-    async def _collect_notified_discord_ids(self, match: Match) -> list:
-        """
-        Return the discord_ids of players and approved crew for a match.
-        Used to deduplicate tournament-subscriber notifications.
-        """
-        from models import MatchPlayers, Commentator, Tracker
-        ids: list = []
-        players = await MatchPlayers.filter(match=match).prefetch_related('user')
-        for mp in players:
-            if mp.user.discord_id:
-                ids.append(mp.user.discord_id)
-        commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
-        for c in commentators:
-            if c.user.discord_id and c.user.discord_id not in ids:
-                ids.append(c.user.discord_id)
-        trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
-        for t in trackers:
-            if t.user.discord_id and t.user.discord_id not in ids:
-                ids.append(t.user.discord_id)
-        return ids

@@ -7,7 +7,7 @@ Reads a Claude Code tool-execution payload from stdin and exits with:
   2 — violation found (stderr describes exactly what was wrong)
 
 Boundaries enforced:
-  Presentation (pages/, theme/, frontend.py)
+  Presentation (pages/, theme/, frontend.py, api/, discordbot/)
     → MUST NOT import from application.repositories
   Repository (application/repositories/)
     → MUST NOT import from application.services
@@ -42,7 +42,13 @@ def extract_imports(content: str) -> list[str]:
 
 
 def classify(path: str) -> str | None:
-    """Return 'presentation', 'service', 'repository', or None."""
+    """Return 'presentation', 'service', 'repository', or None.
+
+    api/ (REST routers) and discordbot/ (Discord interaction handlers) are
+    entry surfaces — a second and third presentation layer alongside the web
+    UI — so they obey the same rule: they may call services and do read-only
+    load-or-404 model lookups, but must never import application.repositories.
+    """
     norm = path.replace("\\", "/")
     if (
         "/pages/" in norm
@@ -50,6 +56,10 @@ def classify(path: str) -> str | None:
         or "/theme/" in norm
         or norm.endswith("/theme")
         or norm.endswith("frontend.py")
+        or "/api/" in norm
+        or norm.startswith("api/")
+        or "/discordbot/" in norm
+        or norm.startswith("discordbot/")
     ):
         return "presentation"
     if "/application/services/" in norm or norm.endswith("/application/services"):
@@ -78,8 +88,8 @@ def check(file_path: str, content: str) -> list[str]:
                 violations.append(
                     f"ARCHITECTURE VIOLATION in '{file_path}':\n"
                     f"  Presentation layer imports from repository layer: '{mod}'\n"
-                    f"  pages/ and theme/ must never import directly from "
-                    f"application/repositories/.\n"
+                    f"  pages/, theme/, api/, and discordbot/ must never import "
+                    f"directly from application/repositories/.\n"
                     f"  Fix: route all data access through application/services/ instead."
                 )
 

@@ -41,8 +41,7 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
     custom_id format: 'match_ack:ack:<match_id>'
     Responds ephemerally so only the clicking user sees the result.
     """
-    from application.repositories import UserRepository
-    from application.services import MatchService
+    from application.services import MatchService, UserService
 
     try:
         await interaction.response.defer(ephemeral=True)
@@ -62,16 +61,15 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         return
 
     try:
-        user = await UserRepository().get_by_discord_id(str(interaction.user.id))
+        user = await UserService().get_user_by_discord_id(str(interaction.user.id))
         if not user:
             await _send(interaction, MSG_NO_ACCOUNT)
             return
 
-        await MatchService().acknowledge_match(match_id, user)
+        match_service = MatchService()
+        await match_service.acknowledge_match(match_id, user)
 
-        from models import MatchPlayers
-        players = await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
-        player_names = ', '.join(p.user.preferred_name for p in players) if players else ''
+        player_names = await match_service.get_player_names(match_id)
 
         try:
             await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))

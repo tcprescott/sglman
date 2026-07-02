@@ -1,52 +1,15 @@
 import functools
-import logging
-import os
 import re
-import secrets
 from typing import Iterable, Optional
-from urllib.parse import parse_qs, quote, urlparse
 
 import sentry_sdk
 from fastapi import Request
-from nicegui import Client, app, ui
+from nicegui import app, ui
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
-from zenora import APIClient
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
-from application.services.discord_role_mapping_service import DiscordRoleMappingService
-from application.utils.environment import get_base_url
-from application.utils.mock_discord import is_mock_discord
-from models import Role, User
-
-logger = logging.getLogger(__name__)
-
-# Supporting variables
-referrer_path = None
-
-_base_url = get_base_url()
-_client_id = os.getenv("DISCORD_CLIENT_ID")
-_redirect_url = os.getenv("REDIRECT_URL") or f"{_base_url}/oauth/callback"
-
-config = {
-    "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
-    "DISCORD_CLIENT_SECRET": os.getenv("DISCORD_CLIENT_SECRET"),
-    "REDIRECT_URL": _redirect_url,
-    "DISCORD_CLIENT_ID": _client_id,
-    "OAUTH_URL": os.getenv("OAUTH_URL") or (
-        f"https://discord.com/api/oauth2/authorize"
-        f"?client_id={_client_id}"
-        f"&redirect_uri={quote(_redirect_url, safe='')}"
-        f"&response_type=code"
-        f"&scope=identify"
-    ),
-    "STORAGE_SECRET": os.getenv("STORAGE_SECRET")
-}
-
-discordClient = (
-    APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
-    if not is_mock_discord() else None
-)
+from models import Role
 
 # Registry of routes that require authentication; populated by protected_page decorator.
 # Plain strings match exactly; entries containing ``{param}`` placeholders are
@@ -127,100 +90,3 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 'username': app.storage.user.get('username'),
             })
         return await call_next(request)
-
-def create() -> None:
-    if is_mock_discord():
-        from middleware import mock_auth
-        mock_auth.create()
-        return
-
-    @ui.page('/login')
-    def login(client: Client) -> Optional[RedirectResponse]:
-        if app.storage.user.get('authenticated', False):
-            return RedirectResponse('/')
-        # CSRF protection: bind this login attempt to a one-time state token
-        # that must come back on the OAuth callback.
-        state = secrets.token_urlsafe(32)
-        app.storage.user['oauth_state'] = state
-        sep = '&' if '?' in config["OAUTH_URL"] else '?'
-        return RedirectResponse(f'{config["OAUTH_URL"]}{sep}state={quote(state, safe="")}')
-
-    @ui.page('/logout')
-    def logout(client: Client) -> Optional[RedirectResponse]:
-        app.storage.user.clear()
-        return RedirectResponse('/')
-
-    @ui.page('/oauth/callback')
-    async def oauth_callback(client: Client):
-        await client.connected()
-        url = await ui.run_javascript('window.location.href')
-        expected_state = app.storage.user.pop('oauth_state', None)
-        try:
-            parsed_url = urlparse(url)
-            params = parse_qs(parsed_url.query)
-
-            if 'error' in params:
-                logger.warning('OAuth callback returned error: %s', params.get('error'))
-                ui.notify('Discord login was cancelled or denied.', color='warning')
-                ui.navigate.to('/login')
-                return
-
-            returned_state = (params.get('state') or [None])[0]
-            if not expected_state or returned_state != expected_state:
-                logger.warning('OAuth state mismatch on callback.')
-                ui.notify('Login session expired or invalid. Please try again.', color='warning')
-                ui.navigate.to('/login')
-                return
-
-            code = (params.get('code') or [None])[0]
-            if not code:
-                logger.warning('OAuth callback missing authorization code.')
-                ui.notify('Login failed. Please try again.', color='warning')
-                ui.navigate.to('/login')
-                return
-
-            access_token = discordClient.oauth.get_access_token(code, config["REDIRECT_URL"]).access_token
-            bearer_client = APIClient(access_token, bearer=True)
-            current_user = bearer_client.users.get_current_user()
-
-            user, created = await User.get_or_create(discord_id=current_user.id, defaults={
-                'username': current_user.username,
-            })
-
-            # Deactivated accounts cannot log in (mirrors the REST API's
-            # is_active rejection in api/dependencies.py).
-            if not user.is_active:
-                logger.warning('Inactive account %s attempted web login', current_user.id)
-                app.storage.user.clear()
-                ui.notify(
-                    'This account is inactive. Contact staff if you believe this is a mistake.',
-                    color='negative',
-                )
-                ui.navigate.to('/login')
-                return
-
-            if not created:
-                user.username = current_user.username
-                await user.save()
-
-            app.storage.user.update({
-                'username': current_user.username,
-                'avatar': current_user.avatar_url,
-                'authenticated': True,
-                'discord_id': current_user.id
-            })
-
-            # Map the user's Discord guild roles onto application roles.
-            # Self-defensive: never raises, so login is never blocked.
-            await DiscordRoleMappingService().sync_user_roles(user)
-
-            referrer = app.storage.user.get('referrer_path', '/')
-            # Avoid redirecting to login/callback
-            if referrer in ['/login', '/logout', '/oauth/callback']:
-                referrer = '/'
-            ui.navigate.to(referrer)
-            app.storage.user.pop('referrer_path', None)
-        except Exception:
-            logger.exception('Unexpected error during OAuth callback')
-            ui.notify('An unexpected error occurred during login. Please try again.', color='negative')
-            ui.navigate.to('/login')

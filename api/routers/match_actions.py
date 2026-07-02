@@ -21,7 +21,7 @@ from api.schemas.match_actions import (
     StreamCandidateRequest,
 )
 from api.schemas.matches import MatchResponse
-from application.services import MatchScheduleService, MatchService, MatchWatcherService
+from application.services import CrewService, MatchScheduleService, MatchService, MatchWatcherService
 from models import Match, User
 
 router = APIRouter(prefix="/matches", tags=["Matches"], route_class=ServiceErrorRoute)
@@ -157,13 +157,13 @@ async def generate_seed(match_id: int, actor: User = Depends(require_write_actor
 
 @router.post("/{match_id}/crew", status_code=status.HTTP_201_CREATED, summary="Sign yourself up as crew")
 async def signup_crew(match_id: int, body: CrewSignupRequest, actor: User = Depends(require_write_actor)):
-    await MatchService().signup_crew(match_id, actor, body.role)
+    await CrewService().signup_crew(match_id, actor, body.role)
     return {"detail": f"Signed up as {body.role}"}
 
 
 @router.delete("/{match_id}/crew/{role}", status_code=status.HTTP_204_NO_CONTENT, summary="Undo your crew signup")
 async def undo_crew_signup(match_id: int, role: str, actor: User = Depends(require_write_actor)):
-    await MatchService().undo_crew_signup(match_id, actor, role)
+    await CrewService().undo_crew_signup(match_id, actor, role)
 
 
 @router.post("/{match_id}/acknowledge", status_code=status.HTTP_200_OK, summary="Acknowledge your match")

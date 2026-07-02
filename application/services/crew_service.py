@@ -10,7 +10,7 @@ from typing import Optional, Union
 from tortoise.transactions import in_transaction
 
 from application import match_events
-from application.repositories import CommentatorRepository, TrackerRepository
+from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services import discord_queue
@@ -29,8 +29,107 @@ class CrewService:
     def __init__(self) -> None:
         self.commentator_repository = CommentatorRepository()
         self.tracker_repository = TrackerRepository()
+        self.match_repository = MatchRepository()
         self.audit_service = AuditService()
         self.discord_service = DiscordService()
+
+    async def signup_crew(
+        self,
+        match_id: int,
+        user: User,
+        role: str
+    ) -> None:
+        """
+        Sign up a user as crew (commentator or tracker) for a match.
+
+        Args:
+            match_id: Match ID
+            user: User signing up
+            role: 'commentator' or 'tracker'
+
+        Raises:
+            ValueError: If role is invalid or user already signed up
+        """
+        # Validate role
+        if role not in ['commentator', 'tracker']:
+            raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
+
+        # Get match with crew prefetched
+        match = await self.match_repository.get_by_id(match_id, prefetch_relations=True)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+
+        # Crew signup closes once the match is finished. Enforced here (not in a
+        # single caller) so the web UI, REST API, and Discord button all honor it.
+        if match.finished_at is not None:
+            raise ValueError("This match has already finished. Crew signup is closed.")
+
+        # Check if user already signed up
+        crew_list = match.commentators if role == 'commentator' else match.trackers
+        if any(c.user_id == user.id for c in crew_list):
+            raise ValueError(f"User already signed up as {role}")
+
+        players = await self.match_repository.get_players(match)
+        if any(p.user_id == user.id for p in players):
+            raise ValueError("Players cannot sign up as crew for their own match")
+
+        # Create crew entry (not approved by default)
+        if role == 'commentator':
+            await self.commentator_repository.create(match=match, user=user, approved=False)
+        else:
+            await self.tracker_repository.create(match=match, user=user, approved=False)
+
+        await self.audit_service.write_log(
+            user,
+            AuditActions.CREW_SIGNUP_CREATED,
+            {'match_id': match_id, 'role': role},
+        )
+
+        match_events.publish(match_id)
+
+    async def undo_crew_signup(
+        self,
+        match_id: int,
+        user: User,
+        role: str
+    ) -> None:
+        """
+        Remove a user's crew signup (commentator or tracker) from a match.
+
+        Args:
+            match_id: Match ID
+            user: User to remove
+            role: 'commentator' or 'tracker'
+
+        Raises:
+            ValueError: If role is invalid or user not signed up
+        """
+        # Validate role
+        if role not in ['commentator', 'tracker']:
+            raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
+
+        # Get match with crew prefetched
+        match = await self.match_repository.get_by_id(match_id, prefetch_relations=True)
+        if not match:
+            raise ValueError(f"Match {match_id} not found")
+
+        # Find crew member
+        crew_list = match.commentators if role == 'commentator' else match.trackers
+        crew_member = next((c for c in crew_list if c.user_id == user.id), None)
+
+        if not crew_member:
+            raise ValueError(f"User is not signed up as {role}")
+
+        # Delete crew entry
+        await crew_member.delete()
+
+        await self.audit_service.write_log(
+            user,
+            AuditActions.CREW_SIGNUP_REMOVED,
+            {'match_id': match_id, 'role': role},
+        )
+
+        match_events.publish(match_id)
 
     async def get_crew_member_by_id(
         self,

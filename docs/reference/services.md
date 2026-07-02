@@ -29,14 +29,15 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
 | `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
-| `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew approval and acknowledgment | [crew-management.md](../features/crew-management.md) |
+| `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [crew-management.md](../features/crew-management.md) |
 | `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord-role-sync.md](../features/discord-role-sync.md) |
 | `discord_queue` (module) | [discord_queue.py](../../application/services/discord_queue.py) | Serialized background Discord sends | [discord-integration.md](discord-integration.md) |
 | `DiscordService` / `MockDiscordService` | [discord_service.py](../../application/services/discord_service.py) | Bot DMs, button views, guild roles | [discord-integration.md](discord-integration.md) |
 | `EquipmentService` | [equipment_service.py](../../application/services/equipment_service.py) | Lending-asset CRUD and checkout/check-in workflow | — |
 | `FeedbackService` | [feedback_service.py](../../application/services/feedback_service.py) | In-app feedback submission and review | — |
+| `MatchDisplayService` | [match_display_service.py](../../application/services/match_display_service.py) | Read + format matches into table-row dicts (filters, display shape) | [frontend.md](frontend.md) |
 | `MatchScheduleService` | [match_schedule_service.py](../../application/services/match_schedule_service.py) | Match lifecycle transitions, seed rolls, DM fan-out | [discord-notifications.md](../features/discord-notifications.md) |
-| `MatchService` | [match_service.py](../../application/services/match_service.py) | Match CRUD, display formatting, crew signup, acknowledgments | [match-acknowledgment.md](../features/match-acknowledgment.md) |
+| `MatchService` | [match_service.py](../../application/services/match_service.py) | Match CRUD, lifecycle, station/stage, acknowledgments | [match-acknowledgment.md](../features/match-acknowledgment.md) |
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-watcher.md](../features/match-watcher.md) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
@@ -153,16 +154,18 @@ Collaborators: `ChallongeRepository`, `TournamentRepository`, `MatchService`, `A
 
 ### crew_service.py — CrewService
 
-Crew (commentator/tracker) approval workflow and crew-side acknowledgment. Signup itself lives on `MatchService.signup_crew`. Feature doc: [crew-management.md](../features/crew-management.md).
+Crew (commentator/tracker) self-signup, the approval workflow, and crew-side acknowledgment. Feature doc: [crew-management.md](../features/crew-management.md).
 
 | Method | Returns | Description |
 |---|---|---|
+| `signup_crew(match_id, user, role)` | `None` | Self-signup as `'commentator'` or `'tracker'`, unapproved by default; rejects an invalid role, a finished match, a duplicate signup, and a user who is a player in the match; audits `crew.signup_created`. |
+| `undo_crew_signup(match_id, user, role)` | `None` | Remove one's own crew signup; audits `crew.signup_removed`. |
 | `get_crew_member_by_id(crew_id, crew_type)` | `Commentator \| Tracker \| None` | Fetch by row id; `crew_type` must be `'commentator'` or `'tracker'` (else `ValueError`). |
 | `update_crew_approval(crew_member, crew_type, approved, actor=None)` | `Commentator \| Tracker` | Approve/unapprove. Gated by `can_approve_crew`; refreshes from DB to narrow approval races; no-ops (no audit, no DM) when state already matches; unapproval clears `acknowledged_at`; approval enqueues an acknowledgment-request DM. |
 | `approve_crew_member(crew_member, crew_type, actor=None)` | `Commentator \| Tracker` | Convenience wrapper for `update_crew_approval(..., approved=True)`. |
 | `acknowledge_crew_assignment(crew_id, crew_type, user)` | `Commentator \| Tracker` | Crew member confirms their own approved assignment. Rejects other users and unapproved rows (`ValueError`); already-acknowledged rows are a silent no-op. |
 
-Collaborators: `CommentatorRepository`, `TrackerRepository`, `AuditService`, `DiscordService` (via `discord_queue`). Consumers: `theme/dialog/approve_crew_dialog.py`, `theme/tables/match.py` (web acknowledge button), `discordbot/crew_acknowledgment.py` (DM button handler).
+Collaborators: `CommentatorRepository`, `TrackerRepository`, `MatchRepository` (signup match lookup), `AuditService`, `DiscordService` (via `discord_queue`). Consumers: `theme/dialog/approve_crew_dialog.py`, `theme/tables/match.py` (web signup/undo + acknowledge buttons), `api/routers/match_actions.py` (REST signup/undo), `discordbot/crew_signup.py` and `discordbot/crew_acknowledgment.py` (DM button handlers).
 
 ### discord_role_mapping_service.py — DiscordRoleMappingService
 
@@ -245,6 +248,19 @@ Records in-app feedback from logged-in attendees and lets admins review it. The 
 
 Collaborators: `FeedbackRepository`, `AuthService`, `AuditService`. Consumers: the in-app feedback dialog and the admin feedback review tab.
 
+### match_display_service.py — MatchDisplayService
+
+Read-only view-model assembly for the match tables: fetches matches (and their acknowledgments) via repositories and formats them into the plain dicts the NiceGUI slot templates consume. Extracted from `MatchService` so the latter keeps only lifecycle logic — no writes, audit, or notifications here. Feature doc: [frontend.md](frontend.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL). |
+| `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. |
+| `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
+| `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
+
+Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`. Consumers: `theme/tables/match.py` (`self.display_service` — filters, `refresh`, and single-row updates).
+
 ### match_schedule_service.py — MatchScheduleService
 
 Match lifecycle transitions (seat → start → finish → confirm), seed rolling, and all Discord DM fan-out for match events. Every transition is gated by `AuthService.can_transition_match`, validates ordering (e.g. "Match must be checked in before starting" as `ValueError`), stamps the timestamp, writes the matching `match.*` audit action, and enqueues a participant DM. Feature docs: [discord-notifications.md](../features/discord-notifications.md), [match-acknowledgment.md](../features/match-acknowledgment.md), [match-watcher.md](../features/match-watcher.md).
@@ -261,25 +277,23 @@ Match lifecycle transitions (seat → start → finish → confirm), seed rollin
 | `notify_acknowledgment_request(match, *, rescheduled)` | `None` | DM each player whose acknowledgment is still pending with an Acknowledge button; message wording switches on `rescheduled`. Never raises. |
 | `notify_tournament_subscribers_scheduled(match, message, exclude_discord_ids)` | `None` | DM tournament-notification subscribers (filtered by whether the match has a stream room) with crew signup buttons, skipping already-notified ids. Never raises. |
 | `notify_stream_candidate_subscribers(match, exclude_discord_ids)` | `None` | DM stream-candidate subscribers with crew signup buttons. Skipped entirely when the match already has a stream room (those subscribers were already notified). Never raises. |
+| `notify_match_scheduled(match, *, rescheduled=False, is_stream_candidate=False)` | `None` | The collapsed scheduled/rescheduled fan-out shared by `create_match`/`update_match`/`submit_match_request`: loads relations, computes the exclude list, then enqueues the ack request + crew DM + tournament-subscriber DMs (+ stream-candidate DMs when flagged). Awaited by the caller; the individual sub-notifications run on the queue. |
+| `notify_stream_candidate(match)` | `None` | Standalone stream-candidate fan-out for `set_stream_candidate` (fetch + collect exclude + enqueue the subscriber DMs). |
 
-The `notify_*` methods are designed to run **inside** the `discord_queue` worker: callers enqueue them rather than awaiting. All DM recipients are filtered by `User.dm_notifications` and the presence of a `discord_id`.
+The per-recipient `notify_*` methods are designed to run **inside** the `discord_queue` worker: callers enqueue them rather than awaiting. All DM recipients are filtered by `User.dm_notifications` and the presence of a `discord_id`.
 
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentNotificationRepository`, `DiscordService`, `SeedGenerationService`, `AuditService`, `discord_queue`. Consumers: `pages/admin_tabs/admin_schedule.py` (seat/start/finish/confirm/seed buttons), `MatchService` (reuses the notify helpers and DM message builders).
 
 ### match_service.py — MatchService
 
-The largest service: match CRUD with full notification fan-out, display formatting for the match tables, schedule queries, crew signup, station/stage assignment, results, and player acknowledgments.
+Match CRUD with full notification fan-out, schedule queries, station/stage assignment, results, and player acknowledgments. Table display formatting now lives in [`MatchDisplayService`](#match_display_servicepy--matchdisplayservice) and crew signup/undo in [`CrewService`](#crew_servicepy--crewservice); the schedule-query methods below delegate to `MatchRepository`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL). |
-| `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. |
-| `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
-| `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
-| `get_all_matches_for_schedule()` | `list[Match]` | Every match with relations prefetched, ordered by `scheduled_at` (public schedule tab). |
-| `get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)` | `list[Match]` | A day's matches with players/crew prefetched (stage timeline). |
+| `get_all_matches_for_schedule()` | `list[Match]` | Every match with relations prefetched, ordered by `scheduled_at` (public schedule tab). Delegates to `MatchRepository.get_all_for_schedule`. |
+| `get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)` | `list[Match]` | A day's matches with players/crew prefetched (stage timeline). Delegates to `MatchRepository.get_for_date`. |
 | `group_matches_by_stream_room(matches)` | `dict[int, (StreamRoom, list[Match])]` | Group prefetched matches by stream room. |
-| `get_matches_for_player(discord_id)` | `list[Match]` | Matches where the Discord user is a player. |
+| `get_matches_for_player(discord_id)` | `list[Match]` | Matches where the Discord user is a player. Delegates to `MatchRepository.get_for_player`. |
 | `create_match(tournament_id, scheduled_date, scheduled_time, player_ids, comment=None, stream_room_id=None, commentator_ids=None, tracker_ids=None, is_stream_candidate=False, actor=None)` | `Match` | Admin match creation — see flow below. Staff or TA of the target tournament. |
 | `update_match(match_id, *, tournament_id=None, scheduled_date=None, scheduled_time=None, player_ids=None, commentator_ids=None, tracker_ids=None, comment=None, clear_seated/clear_started/clear_finished/clear_confirmed/clear_seed=False, actor=None)` | `Match` | Partial update; syncs player/crew lists; can clear lifecycle timestamps and the seed; audits `match.updated`; re-runs acknowledgment + notification fan-out when the time or player set changed. Gated by `can_crud_match`. |
 | `submit_match_request(tournament_id, scheduled_date, scheduled_time, player_ids, actor, comment=None)` | `Match` | Player-initiated creation: the actor must be one of the players (`PermissionError` otherwise) — bypasses the TA/Staff gate without granting other powers. Audits `match.requested` and runs the same acknowledgment/notification fan-out as `create_match`. |
@@ -291,13 +305,11 @@ The largest service: match CRUD with full notification fan-out, display formatti
 | `seat_players(match_id, actor=None)` | `Match` | Set `seated_at` and DM participants (older sibling of `MatchScheduleService.seat_match`, without the already-seated guard). |
 | `finish_match(match_id, actor=None)` | `Match` | Set `finished_at`; requires `seated_at` (older sibling of `MatchScheduleService.finish_match`). |
 | `record_match_result(match_id, winner_id, actor)` | `Match` | Two-player results: winner gets `finish_rank` 1, the other 2. `winner_id` is a **`MatchPlayers` row id**, not a User id. Gated by `can_transition_match`. |
-| `signup_crew(match_id, user, role)` | `None` | Self-signup as `'commentator'` or `'tracker'`, unapproved by default; rejects duplicates; audits `crew.signup_created`. |
-| `undo_crew_signup(match_id, user, role)` | `None` | Remove one's own crew signup; audits `crew.signup_removed`. |
 | `acknowledge_match(match_id, user)` | `MatchAcknowledgment` | Player confirms they have seen their match. Only current players may acknowledge; double-acknowledge raises `ValueError`. Audits `match.acknowledged`. |
 
-**Creation/reschedule flow.** `create_match` resolves every referenced user up front (so a bad id cannot leave an orphan `Match` row), creates the row, enrolls players in the tournament if needed, attaches commentators/trackers as pre-approved, audits `match.created`, then seeds per-player acknowledgment rows (the actor auto-acknowledges their own). Finally it enqueues, in order: acknowledgment-request DMs to players, the scheduled DM to crew/watchers, the subscriber fan-out (excluding everyone already DM'd), and — if flagged — the stream-candidate fan-out. `update_match` repeats the acknowledgment seeding and fan-out only when `scheduled_at` actually changed or the player set changed; a reschedule sends the "rescheduled" wording.
+**Creation/reschedule flow.** `create_match` resolves every referenced user up front (so a bad id cannot leave an orphan `Match` row), creates the row, enrolls players in the tournament if needed, attaches commentators/trackers as pre-approved, audits `match.created`, then seeds per-player acknowledgment rows (the actor auto-acknowledges their own). Finally it hands the whole scheduled-notification fan-out to `MatchScheduleService.notify_match_scheduled` (ack request + crew DM + subscriber fan-out, plus stream-candidate when flagged). `update_match` re-seeds acknowledgments when `scheduled_at` or the player set changed; on a time change it calls `notify_match_scheduled(rescheduled=True)`, otherwise it enqueues just the acknowledgment request.
 
-Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `StreamRoomRepository`, `TournamentRepository`, `UserRepository`, `CommentatorRepository`, `TrackerRepository`, `AuditService`, `MatchScheduleService` (notify helpers and DM message builders), `AuthService`, `discord_queue`. Consumers: `theme/tables/match.py` (display rows, signup, acknowledge), `theme/dialog/match_dialog.py` (create/update/delete/request), `theme/dialog/match_result_dialog.py`, `theme/dialog/station_assignment_dialog.py`, `theme/dialog/stream_room_dialog.py` (stage + candidate flag), `pages/home_tabs/schedule.py`, `pages/home_tabs/stage_timeline.py`, `pages/home_tabs/player.py`, `discordbot/crew_signup.py` and `discordbot/match_acknowledgment.py` (DM button handlers).
+Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `UserRepository`, `CommentatorRepository`, `TrackerRepository`, `AuditService`, `MatchScheduleService` (lifecycle notify + `notify_match_scheduled`/`notify_stream_candidate`), `AuthService`, `discord_queue`. Consumers: `theme/tables/match.py` (acknowledge, plus reads via `MatchDisplayService`), `theme/dialog/match_dialog.py` (create/update/delete/request), `theme/dialog/match_result_dialog.py`, `theme/dialog/station_assignment_dialog.py`, `theme/dialog/stream_room_dialog.py` (stage + candidate flag), `pages/home_tabs/schedule.py`, `pages/home_tabs/stage_timeline.py`, `pages/home_tabs/player.py`, `discordbot/match_acknowledgment.py` (DM button handler).
 
 ### match_suggestion_service.py — MatchSuggestionService
 
@@ -456,6 +468,8 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` | `User \| None` | Lookup by Discord id. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
+| `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
+| `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |
 | `get_active_tournaments_categorized()` | `dict[str, list[Tournament]]` | Active tournaments split into `staff_tournaments` / `player_tournaments` / `all_tournaments`. |
 | `get_user_tournament_registrations(user)` | `list[TournamentPlayers]` | The user's enrollment rows. |
 | `update_user_personal_info(user, actor, display_name=None, pronouns=None, dm_notifications=None)` | `User` | Self-profile edit (page-level auth assumed); blank strings become `None`; audits only when something changed. |
