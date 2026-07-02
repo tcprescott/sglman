@@ -183,14 +183,15 @@ class MatchRepository:
             await player.delete()
     
     @staticmethod
-    async def get_players(match: Match) -> List[MatchPlayers]:
+    async def get_players(match: "Match | int") -> List[MatchPlayers]:
         """
         Get all players for a match.
-        
+
         Args:
-            match: Match object
-            
+            match: Match object or its id
+
         Returns:
             List of MatchPlayers
         """
-        return await MatchPlayers.filter(match=match).prefetch_related('user')
+        match_id = match.id if isinstance(match, Match) else match
+        return await MatchPlayers.filter(match_id=match_id).prefetch_related('user')

@@ -19,7 +19,6 @@ from api.schemas.user_actions import (
     UserSelfUpdate,
 )
 from api.schemas.users import UserDetailResponse, UserListItem
-from application.repositories import UserRepository
 from application.services import UserService
 from application.services.auth_service import AuthService
 from models import Role, User
@@ -28,7 +27,7 @@ router = APIRouter(prefix="/users", tags=["Users"], route_class=ServiceErrorRout
 
 
 async def _load_user_or_404(user_id: int) -> User:
-    user = await UserRepository.get_by_id(user_id)
+    user = await UserService().get_user_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
@@ -60,7 +59,7 @@ async def list_users(
     role: Optional[Role] = Query(None, description="Filter to users holding this global role"),
     actor: User = Depends(require_staff),
 ):
-    return await UserRepository.get_all(role=role)
+    return await UserService().get_all_users(role=role)
 
 
 @router.get("/me", response_model=UserDetailResponse, summary="Get the current user")
@@ -77,7 +76,7 @@ async def get_me(actor: User = Depends(require_api_actor)):
 async def get_user(user_id: int, actor: User = Depends(require_api_actor)):
     if actor.id != user_id and not await AuthService.is_staff(actor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
-    user = await UserRepository.get_by_id(user_id)
+    user = await UserService().get_user_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return await _to_detail(user)

@@ -43,8 +43,7 @@ async def handle_volunteer_acknowledgment_interaction(interaction: discord.Inter
 
     custom_id format: 'volunteer_ack:<assignment_id>'
     """
-    from application.repositories import UserRepository
-    from application.services import VolunteerScheduleService
+    from application.services import UserService, VolunteerScheduleService
 
     try:
         await interaction.response.defer(ephemeral=True)
@@ -63,7 +62,7 @@ async def handle_volunteer_acknowledgment_interaction(interaction: discord.Inter
         return
 
     try:
-        user = await UserRepository().get_by_discord_id(str(interaction.user.id))
+        user = await UserService().get_user_by_discord_id(str(interaction.user.id))
         if not user:
             await _send(interaction, MSG_NO_ACCOUNT)
             return

@@ -62,6 +62,8 @@ Models        (models.py)               Tortoise ORM models + enums
 
 Key rules: the UI never writes through the ORM directly; services raise `ValueError` for user-facing errors (the UI catches and `ui.notify`s them); services write audit logs via `AuditService` and never import NiceGUI; repositories contain no business logic.
 
+**Entry surfaces (`api/`, `discordbot/`) obey the presentation rule.** The REST routers and the Discord interaction handlers are additional presentation layers alongside the web UI: they call services and may do read-only *load-or-404* model lookups (the sanctioned shape is `Tournament.get_or_none(...)` in [`api/routers/tournament_actions.py`](../api/routers/tournament_actions.py)), but they must **not** import `application.repositories` or reach through a service's internal `.repository`. Reads route through a service method instead (`get_user_from_discord_id`, `UserService.get_user_by_id`, `MatchService.get_by_id`, `MatchService.get_player_names`, …). `.claude/scripts/enforce_architecture.py` classifies `api/` and `discordbot/` as presentation and enforces this on every edit.
+
 ## Component diagram
 
 ```mermaid
@@ -86,7 +88,7 @@ flowchart LR
     UI -->|/login, /oauth/callback| AUTH
     FE --> SVC
     API --> SVC
-    API --> REPO
+    API -->|read-only load-or-404 lookups| PG
     AUTH --> SVC
     SVC --> REPO
     REPO --> PG
@@ -101,8 +103,8 @@ flowchart LR
 
 Notes on the arrows:
 
-- The REST API (the [`api/`](../api/) package) is a full read/write API authenticated by personal access tokens (`Authorization: Bearer …`, see [reference/rest-api.md](reference/rest-api.md)). Newer routers call **into the service layer** like any other presentation layer; the original public `GET /api/matches` read path still queries the ORM directly (it predates the repository layer).
-- Discord button interactions (crew signup, match acknowledgment, unwatch) arrive at the bot and call back **into the service layer** — the bot is a second presentation layer alongside the web UI. See [reference/discord-integration.md](reference/discord-integration.md).
+- The REST API (the [`api/`](../api/) package) is a full read/write API authenticated by personal access tokens (`Authorization: Bearer …`, see [reference/rest-api.md](reference/rest-api.md)). Routers call **into the service layer** like any other presentation layer and may do read-only *load-or-404* model lookups, but never import `application.repositories` (see the entry-surface rule above); the original public `GET /api/matches` read path queries the ORM (models) directly.
+- Discord button interactions (crew signup, match acknowledgment, unwatch) arrive at the bot and call back **into the service layer** — the bot is a second presentation layer alongside the web UI, bound by the same repository-import ban. See [reference/discord-integration.md](reference/discord-integration.md).
 - Outbound DMs are never sent inline from request handlers; services enqueue them onto `discord_queue` so UI interactions don't block on Discord.
 
 ## Authentication in one paragraph

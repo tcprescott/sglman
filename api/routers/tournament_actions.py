@@ -12,8 +12,7 @@ from api.schemas.tournament_actions import (
     TournamentUpdateRequest,
 )
 from api.schemas.tournaments import TournamentResponse
-from application.repositories import UserRepository
-from application.services import MatchSuggestionService, TournamentService
+from application.services import MatchSuggestionService, TournamentService, UserService
 from models import Tournament, User
 
 router = APIRouter(prefix="/tournaments", tags=["Tournaments"], route_class=ServiceErrorRoute)
@@ -27,7 +26,7 @@ async def _load_tournament_or_404(tournament_id: int) -> Tournament:
 
 
 async def _load_user_or_404(user_id: int) -> User:
-    user = await UserRepository.get_by_id(user_id)
+    user = await UserService().get_user_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user

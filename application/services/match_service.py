@@ -78,8 +78,23 @@ class MatchService:
     async def get_match_by_id(self, match_id: int) -> Optional[Match]:
         return await self.repository.get_by_id(match_id)
 
+    async def get_by_id(
+        self, match_id: int, prefetch_relations: bool = True
+    ) -> Optional[Match]:
+        """Read-only load-or-None lookup for presentation/bot callers.
+
+        Exposed so entry surfaces (pages/, api/, discordbot/) never reach
+        through ``match_service.repository`` for a simple read.
+        """
+        return await self.repository.get_by_id(match_id, prefetch_relations=prefetch_relations)
+
     async def get_match_players(self, match: Match) -> List[MatchPlayers]:
         return await self.repository.get_players(match)
+
+    async def get_player_names(self, match_id: int) -> str:
+        """Comma-joined preferred names of a match's players (``''`` if none)."""
+        players = await self.repository.get_players(match_id)
+        return ', '.join(p.user.preferred_name for p in players) if players else ''
 
     async def list_acknowledgments(self, match: Match) -> List[MatchAcknowledgment]:
         return await self.ack_repository.list_for_match(match)
