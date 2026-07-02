@@ -11,11 +11,11 @@ Manages Commentators and Trackers (collectively "crew") for matches. Crew can si
 ### Web Signup
 1. Crew member opens the admin dashboard or home page, finds a match.
 2. Clicks "Sign up as Commentator" / "Sign up as Tracker".
-3. `MatchService.signup_crew()` inserts a `Commentator` or `Tracker` row with `approved=False`.
+3. `CrewService.signup_crew()` inserts a `Commentator` or `Tracker` row with `approved=False`.
 4. Admin approves in the match dialog.
 
 ### Discord DM Signup (PR #4)
-When a match is flagged as a stream candidate, `DiscordService.send_dm_with_crew_buttons()` sends a DM to subscribed users containing interactive "Sign up as Commentator" / "Sign up as Tracker" buttons. Clicking invokes the handler in `discordbot/crew_signup.py`, which calls `MatchService.signup_crew()`.
+When a match is flagged as a stream candidate, `DiscordService.send_dm_with_crew_buttons()` sends a DM to subscribed users containing interactive "Sign up as Commentator" / "Sign up as Tracker" buttons. Clicking invokes the handler in `discordbot/crew_signup.py`, which calls `CrewService.signup_crew()`.
 
 ## Crew Acknowledgment (PR #12)
 
@@ -28,8 +28,7 @@ After admin approval, crew members must acknowledge the match:
 | File | Role |
 |---|---|
 | `models.py` → `Commentator`, `Tracker` | Crew signup rows; `approved` bool, `acknowledged_at` timestamp |
-| `application/services/crew_service.py` | `CrewService` — approval changes, crew acknowledgment |
-| `application/services/match_service.py` | `MatchService.signup_crew()` / `undo_crew_signup()` |
+| `application/services/crew_service.py` | `CrewService` — signup/undo (`signup_crew()` / `undo_crew_signup()`), approval changes, crew acknowledgment |
 | `discordbot/crew_signup.py` | Discord button handler for DM-based signup |
 | `discordbot/crew_acknowledgment.py` | Discord button handler for crew acknowledgment |
 | `theme/dialog/approve_crew_dialog.py` | Admin approval dialog |
