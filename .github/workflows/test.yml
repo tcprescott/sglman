@@ -7,6 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Ruff (blocking)
+        run: poetry run ruff check .
+
+      - name: Mypy (informational)
+        continue-on-error: true
+        run: poetry run mypy application api middleware main.py frontend.py
+
   pytest:
     runs-on: ubuntu-latest
     strategy:
@@ -33,5 +56,45 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
 
-      - name: Run pytest
-        run: poetry run pytest -q
+      - name: Run pytest (with coverage report)
+        run: poetry run pytest -q --cov=application --cov=api --cov=middleware --cov-report=term-missing
+
+  migrations:
+    # Prove the full aerich migration chain applies from an empty PostgreSQL
+    # database — the tests run on SQLite and never exercise the migrations.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sgluser
+          POSTGRES_PASSWORD: sglpass
+          POSTGRES_DB: sglman
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sgluser"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install runtime dependencies
+        run: poetry install --only main --no-interaction
+
+      - name: Apply full migration chain to a fresh database
+        env:
+          DB_USERNAME: sgluser
+          DB_PASSWORD: sglpass
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: sglman
+          ENVIRONMENT: development
+        run: poetry run aerich upgrade

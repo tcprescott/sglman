@@ -6,8 +6,9 @@ Initializes the database, sets up API and frontend routes, and manages applicati
 
 # import api
 from contextlib import asynccontextmanager
+import logging
 import os
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from application.services.discord_service import get_discord_bot
 from application.services import discord_queue
@@ -27,6 +28,19 @@ import api
 from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import TORTOISE_ORM
 
+# Configure application logging once, at import of the entrypoint. Without this
+# app loggers fall through to Python's lastResort handler: INFO is dropped and
+# WARNING+ has no timestamps. basicConfig is a no-op if handlers already exist.
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+)
+logger = logging.getLogger('sglman.main')
+
+# Reference to the Discord bot's background task, kept so it is not garbage
+# collected and so shutdown can cancel it cleanly.
+_bot_task: Optional[asyncio.Task] = None
+
 
 async def init_db() -> None:
     """
@@ -43,29 +57,50 @@ async def close_db() -> None:
     """
     await Tortoise.close_connections()
 
+def _log_bot_task_result(task: asyncio.Task) -> None:
+    """Surface a bot startup/gateway failure immediately instead of letting it
+    sit unobserved in a GC-able task (bad token, intents, gateway crash)."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error('Discord bot task exited with an exception', exc_info=exc)
+
+
 async def init_discord_bot() -> None:
     """
     Initialize the Discord bot.
     """
+    global _bot_task
     if is_mock_discord():
-        print('MOCK_DISCORD enabled — skipping Discord bot start.')
+        logger.info('MOCK_DISCORD enabled — skipping Discord bot start.')
         return
     token = os.environ.get('DISCORD_TOKEN')
     bot = get_discord_bot()
     if token:
-        loop = asyncio.get_event_loop()
-        loop.create_task(bot.start(token))
+        _bot_task = asyncio.create_task(bot.start(token))
+        _bot_task.add_done_callback(_log_bot_task_result)
     else:
-        print('Warning: DISCORD_TOKEN not set. Discord features will not work.')
+        logger.warning('DISCORD_TOKEN not set. Discord features will not work.')
 
 async def close_discord_bot() -> None:
     """
     Close the Discord bot connection.
     """
+    global _bot_task
     if is_mock_discord():
         return
     bot = get_discord_bot()
     await bot.close()
+    if _bot_task is not None:
+        _bot_task.cancel()
+        try:
+            await _bot_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception('Discord bot task errored during shutdown')
+        _bot_task = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:

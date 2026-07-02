@@ -12,7 +12,7 @@ in the "Report this error" button's click handler.
 
 import logging
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from models import FeedbackCategory, User
 from theme.base import BaseLayout
@@ -70,7 +70,10 @@ def render_error_page(
                 if error_id and _is_authenticated():
                     ui.button(
                         'Report this error', icon='feedback',
-                        on_click=lambda: background_tasks.create(_open_error_report(error_id)),
+                        # Return the coroutine so NiceGUI awaits it in the button's
+                        # slot; a bare background task has no slot and the dialog/
+                        # notify calls inside would raise.
+                        on_click=lambda: _open_error_report(error_id),
                     ).props('flat')
 
             if traceback_text:

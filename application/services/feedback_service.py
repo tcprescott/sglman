@@ -4,7 +4,7 @@ Feedback Service - Business Logic Layer
 Records in-app feedback from logged-in attendees and lets staff review it.
 """
 
-from typing import List, Optional
+from typing import List
 
 from application.repositories.feedback_repository import FeedbackRepository
 from application.services.audit_service import AuditActions, AuditService

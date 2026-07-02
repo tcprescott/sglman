@@ -20,9 +20,19 @@ def _request(headers: dict, host: str = '10.0.0.1') -> SimpleNamespace:
 
 
 class TestRateLimitKey:
-    def test_token_takes_precedence(self):
-        req = _request({'authorization': 'Bearer abc', 'x-forwarded-for': '9.9.9.9'})
-        assert _client_key(req) == 'token:Bearer abc'
+    def test_wellformed_token_keyed_by_hash(self):
+        import hashlib
+
+        from application.services.api_token_service import TOKEN_PREFIX
+
+        token = TOKEN_PREFIX + 'x' * 32
+        req = _request({'authorization': f'Bearer {token}'}, host='10.0.0.1')
+        assert _client_key(req) == f'token:{hashlib.sha256(token.encode()).hexdigest()}'
+
+    def test_garbage_token_falls_back_to_ip(self):
+        # Malformed bearer values must not get their own bucket (bypass risk).
+        req = _request({'authorization': 'Bearer abc'}, host='10.0.0.1')
+        assert _client_key(req) == 'ip:10.0.0.1'
 
     def test_forwarded_for_ignored_by_default(self, monkeypatch):
         monkeypatch.delenv('TRUST_PROXY_FORWARDED_FOR', raising=False)

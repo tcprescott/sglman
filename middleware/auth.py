@@ -15,6 +15,7 @@ from zenora import APIClient
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
+from application.utils.environment import get_base_url
 from application.utils.mock_discord import is_mock_discord
 from models import Role, User
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Supporting variables
 referrer_path = None
 
-_base_url = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
+_base_url = get_base_url()
 _client_id = os.getenv("DISCORD_CLIENT_ID")
 _redirect_url = os.getenv("REDIRECT_URL") or f"{_base_url}/oauth/callback"
 
@@ -182,19 +183,32 @@ def create() -> None:
             bearer_client = APIClient(access_token, bearer=True)
             current_user = bearer_client.users.get_current_user()
 
+            user, created = await User.get_or_create(discord_id=current_user.id, defaults={
+                'username': current_user.username,
+            })
+
+            # Deactivated accounts cannot log in (mirrors the REST API's
+            # is_active rejection in api/dependencies.py).
+            if not user.is_active:
+                logger.warning('Inactive account %s attempted web login', current_user.id)
+                app.storage.user.clear()
+                ui.notify(
+                    'This account is inactive. Contact staff if you believe this is a mistake.',
+                    color='negative',
+                )
+                ui.navigate.to('/login')
+                return
+
+            if not created:
+                user.username = current_user.username
+                await user.save()
+
             app.storage.user.update({
                 'username': current_user.username,
                 'avatar': current_user.avatar_url,
                 'authenticated': True,
                 'discord_id': current_user.id
             })
-
-            user, created = await User.get_or_create(discord_id=current_user.id, defaults={
-                'username': current_user.username,
-            })
-            if not created:
-                user.username = current_user.username
-                await user.save()
 
             # Map the user's Discord guild roles onto application roles.
             # Self-defensive: never raises, so login is never blocked.

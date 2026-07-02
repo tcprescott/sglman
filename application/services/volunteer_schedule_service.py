@@ -7,7 +7,7 @@ for Discord notifications.
 """
 
 import logging
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.transactions import in_transaction
@@ -25,7 +25,6 @@ from application.utils.timezone import (
     EASTERN_TZ,
     format_eastern_display,
     parse_eastern_datetime,
-    to_eastern,
 )
 from models import User, VolunteerAssignment, VolunteerPosition, VolunteerShift
 

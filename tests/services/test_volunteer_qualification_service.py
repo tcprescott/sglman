@@ -6,10 +6,8 @@ VolunteerAutoscheduleService. These tests cover that query path using the
 in-memory DB fixture, and the qualification-based filtering inside _pick.
 """
 
-import pytest
 
 from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
-from models import VolunteerAvailabilityStatus
 
 
 # ---------------------------------------------------------------------------

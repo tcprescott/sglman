@@ -203,10 +203,21 @@ class AuditService:
         if actor is None:
             raise ValueError("AuditService.write_log requires an actor")
 
+        # Snapshot the actor's identity into details so attribution survives a
+        # later user deletion (AuditLog.user is ON DELETE SET NULL). getattr
+        # keeps auditing resilient if the actor is a partial object.
+        enriched: dict[str, Any] = dict(details) if details else {}
+        actor_username = getattr(actor, 'username', None)
+        if actor_username is not None:
+            enriched.setdefault('actor_username', actor_username)
+        actor_discord_id = getattr(actor, 'discord_id', None)
+        if actor_discord_id is not None:
+            enriched.setdefault('actor_discord_id', str(actor_discord_id))
+
         return await AuditLog.create(
             user=actor,
             action=action,
-            details=_encode_details(details),
+            details=_encode_details(enriched),
         )
 
     async def get_logs_for_user(

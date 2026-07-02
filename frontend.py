@@ -3,20 +3,36 @@
 Sets up NiceGUI pages and integrates them with the FastAPI app.
 """
 
+import logging
 import os
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
-from application.utils.environment import validate_security_config
+from application.utils.environment import is_production, validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.auth import create as auth_create
 from middleware.challonge_oauth import create as challonge_oauth_create
 from middleware.error_handlers import register_error_handlers
 from pages import admin, equipment, home, volunteer
 
+_ui_logger = logging.getLogger('sglman.ui')
+
 app.add_middleware(AuthMiddleware)
+
+
+@app.on_exception
+def _handle_unhandled_ui_exception(exc: Exception) -> None:
+    """Backstop for event handlers that miss the ValueError->ui.notify wrap:
+    log the traceback (reaches Sentry) and, when a UI context is available,
+    surface a generic notice so a failure is visible-but-generic rather than
+    silent. Never raises itself."""
+    _ui_logger.exception('Unhandled exception in a UI event handler', exc_info=exc)
+    try:
+        ui.notify('Something went wrong. Please try again.', color='negative')
+    except Exception:
+        pass
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -68,5 +84,9 @@ def init(fastapi_app: FastAPI) -> None:
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root
         storage_secret=(os.environ.get('STORAGE_SECRET') or '').strip(),  # required; enforced by validate_security_config()
+        # Mark the session cookie Secure in production so the signed cookie
+        # carrying the auth state is never sent over plaintext HTTP. Left off in
+        # development so local http:// keeps working.
+        session_middleware_kwargs={'https_only': is_production(), 'same_site': 'lax'},
     )
     register_error_handlers(fastapi_app)

@@ -17,7 +17,7 @@ The API is served by the same Uvicorn process as the NiceGUI frontend. The inter
 
 ## Authentication
 
-**Every endpoint requires a personal bearer token.** There is no public endpoint.
+**Every endpoint requires a personal bearer token**, with one exception: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth)).
 
 Generate a token on your profile page (**Edit Your Information → API Tokens**), then send it on each request:
 
@@ -55,6 +55,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 
 | Router | Source |
 |---|---|
+| Health | [`api/routers/health.py`](../../api/routers/health.py) |
 | Matches (read) | [`api/routers/matches.py`](../../api/routers/matches.py) |
 | Match actions (write) | [`api/routers/match_actions.py`](../../api/routers/match_actions.py) |
 | Crew | [`api/routers/crew.py`](../../api/routers/crew.py) |
@@ -71,6 +72,9 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 | System config | [`api/routers/system_config.py`](../../api/routers/system_config.py) |
 | API tokens | [`api/routers/tokens.py`](../../api/routers/tokens.py) |
 | Discord role mappings | [`api/routers/discord_role_mappings.py`](../../api/routers/discord_role_mappings.py) |
+
+### Health (`/api/health`)
+- `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
 
 ### Matches (`/api/matches`)
 - `GET /matches` — list with filters (`match_id`, `stream_room_id`, `tournament_id`, `start_date`, `end_date`, `limit`); only approved crew are exposed.

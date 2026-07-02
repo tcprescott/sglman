@@ -357,7 +357,7 @@ class TestRelatedData:
     async def test_generated_seed_is_included_when_present(self, client):
         t = await Tournament.create(name='T')
         seed = await GeneratedSeeds.create(seed_url='https://example.com/seed/1')
-        match = await Match.create(
+        await Match.create(
             tournament=t,
             generated_seed=seed,
             scheduled_at=datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),

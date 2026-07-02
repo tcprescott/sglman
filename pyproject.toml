@@ -14,11 +14,9 @@ pyyaml = "^6.0.2"
 asyncpg = "^0.31.0"
 tortoise-orm = {extras = ["asyncpg"], version = "^0.24.0"}
 aerich = {extras = ["toml"], version = "^0.8.1"}
-aiosqlite = "^0.21.0"
 cryptography = "^48.0.0"
 zenora = "^0.0.3.post1"
 py-cord = "^2.6.1"
-faker = "^40.0.0"
 python-dotenv = "^1.1.1"
 discord-py = "^2.6.3"
 pyz3r = "^6.1.0"
@@ -32,10 +30,34 @@ ipython = "^9.0.0"
 pytest = "^9.0"
 pytest-asyncio = "^1.0"
 pytest-mock = "^3.14"
+ruff = "^0.9"
+mypy = "^1.14"
+aiosqlite = "^0.21.0"
+pytest-cov = "^6.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# Migrations are hand-written SQL-in-strings, not style-maintained.
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+# Start conservative: pyflakes (real bugs — unused imports/vars, undefined
+# names) plus pycodestyle runtime errors. Broaden over time.
+select = ["F", "E9"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = true
+namespace_packages = true
+explicit_package_bases = true
+exclude = ["migrations/", "tests/"]
 
 [tool.aerich]
 tortoise_orm = "migrations.tortoise_config.TORTOISE_ORM"

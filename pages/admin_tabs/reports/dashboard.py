@@ -4,7 +4,6 @@ KPI strip + report cards. All KPIs scoped to the configured event window.
 """
 
 import asyncio
-from typing import Optional
 
 from nicegui import ui
 
@@ -148,7 +147,7 @@ def _kpi_card(title: str, value: str, subtitle: str, color: str = 'primary') -> 
 
 
 def _report_card(card: dict) -> None:
-    with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;') as box:
+    with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;'):
         with ui.row().classes('items-center no-wrap'):
             ui.icon(card['icon']).classes('text-h5 q-mr-sm')
             ui.label(card['title']).classes('text-h6')

@@ -32,15 +32,31 @@ async def test_request_over_limit_429(monkeypatch):
     assert 'Retry-After' in exc.value.headers
 
 
-async def test_distinct_keys_isolated(monkeypatch):
+def _bearer(suffix: str) -> dict:
+    # A well-formed personal access token: real prefix + enough length.
+    return {'authorization': f'Bearer sglman_pat_{suffix}'}
+
+
+async def test_distinct_wellformed_tokens_isolated(monkeypatch):
     monkeypatch.setenv('API_RATE_LIMIT_PER_MIN', '2')
     _hits.clear()
-    # Different tokens are limited independently.
-    a = _FakeRequest(headers={'authorization': 'Bearer aaa'})
-    b = _FakeRequest(headers={'authorization': 'Bearer bbb'})
+    # Different *well-formed* tokens are limited independently.
+    a = _FakeRequest(headers=_bearer('a' * 32), host='10.0.0.20')
+    b = _FakeRequest(headers=_bearer('b' * 32), host='10.0.0.20')
     for _ in range(2):
         await rate_limit(a)
-    # 'a' is now at its limit, but 'b' is untouched.
+    # 'a' is at its limit, but 'b' is untouched even from the same IP.
     await rate_limit(b)
     with pytest.raises(HTTPException):
         await rate_limit(a)
+
+
+async def test_garbage_tokens_fall_back_to_ip(monkeypatch):
+    # A flood of rotating garbage bearer values must NOT get a fresh bucket each
+    # request — they share the caller's IP key so the limit still bites.
+    monkeypatch.setenv('API_RATE_LIMIT_PER_MIN', '2')
+    _hits.clear()
+    for i in range(2):
+        await rate_limit(_FakeRequest(headers={'authorization': f'Bearer junk{i}'}, host='9.9.9.9'))
+    with pytest.raises(HTTPException):
+        await rate_limit(_FakeRequest(headers={'authorization': 'Bearer another-garbage'}, host='9.9.9.9'))

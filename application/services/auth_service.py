@@ -172,9 +172,15 @@ class AuthService:
 async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]:
     """Resolve a discord_id (from app.storage.user) to a User model.
 
-    Returns None when discord_id is absent or the user is no longer in the database.
+    Returns None when discord_id is absent, the user is no longer in the
+    database, or the account has been deactivated (``is_active`` is False) —
+    so a deactivated user loses page/role access on their next request, the
+    same way the REST API already rejects them.
     Call once at page entry and pass the result into AuthService helpers.
     """
     if not discord_id:
         return None
-    return await User.get_or_none(discord_id=discord_id)
+    user = await User.get_or_none(discord_id=discord_id)
+    if user is not None and not user.is_active:
+        return None
+    return user

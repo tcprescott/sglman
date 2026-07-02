@@ -71,8 +71,6 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         async def on_seat(match_id: int):
             match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
-            player_names = ', '.join(
-                [p.user.username for p in match.players])
 
             async def handle_confirm(_):
                 dialog.dialog.close()
@@ -125,8 +123,6 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         async def on_finish(match_id: int):
             match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
-            player_names = ', '.join(
-                [p.user.username for p in match.players])
 
             async def handle_confirm(_):
                 dialog.dialog.close()

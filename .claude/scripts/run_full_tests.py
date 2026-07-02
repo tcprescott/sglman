@@ -11,7 +11,6 @@ Exit 0 = suite passed / nothing relevant changed; exit 2 = suite failed
 (captured output goes to stderr so Claude can fix before ending the turn).
 """
 
-import json
 import os
 import subprocess
 import sys

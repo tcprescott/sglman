@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -112,7 +112,7 @@ class TestCountOccupancy:
 
 class TestGenerateCandidates:
     def test_returns_candidates_within_event_window(self, service):
-        from datetime import date, time
+        from datetime import date
         event_start = date(2026, 1, 15)
         event_end = date(2026, 1, 15)
         from_dt = _eastern(10)  # 10:00 Eastern on Jan 15
@@ -177,7 +177,6 @@ class TestBestCandidate:
         result = service._best_candidate(candidates, [], {}, set(), [match], duration)
         # Should pick slot_free (lower occupancy)
         assert result is not None
-        from datetime import timezone as tz
         result_eastern_hour = result.astimezone(EASTERN_TZ).hour
         assert result_eastern_hour == 12
 

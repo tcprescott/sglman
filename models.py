@@ -62,7 +62,9 @@ class User(Model):
     dm_notifications = fields.BooleanField(default=True)
     # Verified Challonge identity (captured via one-time OAuth, scope ``me``).
     # Identity only — we do not retain a player's Challonge access token.
-    challonge_user_id = fields.CharField(max_length=64, null=True)
+    # Unique so bracket sync can resolve a Challonge id to exactly one user
+    # (Postgres allows multiple NULLs, so unlinked users are unconstrained).
+    challonge_user_id = fields.CharField(max_length=64, null=True, unique=True)
     challonge_username = fields.CharField(max_length=255, null=True)
     challonge_linked_at = fields.DatetimeField(null=True)
 
@@ -73,7 +75,6 @@ class User(Model):
     match_acknowledgments = fields.ReverseRelation["MatchAcknowledgment"]
     tournament_players = fields.ReverseRelation["TournamentPlayers"]
     tournament_notifications = fields.ReverseRelation["TournamentNotificationPreference"]
-    teams = fields.ReverseRelation["UserTeams"]
     commentaries = fields.ReverseRelation["Commentator"]
     approved_commentaries = fields.ReverseRelation["Commentator"]
     trackers = fields.ReverseRelation["Tracker"]
@@ -186,33 +187,23 @@ class EquipmentLoan(Model):
 
     id = fields.IntField(pk=True)
     equipment = fields.ForeignKeyField('models.Equipment', related_name='loans', on_delete=fields.CASCADE)
-    borrower = fields.ForeignKeyField('models.User', related_name='equipment_loans')
-    checked_out_by = fields.ForeignKeyField('models.User', related_name='equipment_checkouts_performed')
+    # RESTRICT: a user with lending history cannot be hard-deleted (retire via
+    # User.is_active instead), so the asset's ownership trail is never destroyed.
+    borrower = fields.ForeignKeyField(
+        'models.User', related_name='equipment_loans', on_delete=fields.RESTRICT
+    )
+    checked_out_by = fields.ForeignKeyField(
+        'models.User', related_name='equipment_checkouts_performed', on_delete=fields.RESTRICT
+    )
     checked_out_at = fields.DatetimeField(auto_now_add=True)
     checked_in_at = fields.DatetimeField(null=True)
     checked_in_by = fields.ForeignKeyField(
-        'models.User', related_name='equipment_checkins_performed', null=True
+        'models.User', related_name='equipment_checkins_performed', null=True, on_delete=fields.SET_NULL
     )
 
     class Meta:
         table = 'equipmentloan'
 
-
-class UserTeams(Model):
-    id = fields.IntField(pk=True)
-    user = fields.ForeignKeyField('models.User', related_name='teams')
-    team = fields.ForeignKeyField('models.Team', related_name='members')
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-
-class TestModel(Model):
-    id = fields.IntField(pk=True)
-    name = fields.CharField(max_length=255)
-    description = fields.TextField()
-    value = fields.IntField()
-    somethingelse = fields.CharField(max_length=255)
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
 
 class Tournament(Model):
     id = fields.IntField(pk=True)
@@ -244,8 +235,6 @@ class Tournament(Model):
     # related fields
     players = fields.ReverseRelation["TournamentPlayers"]
     matches = fields.ReverseRelation["Match"]
-    teams = fields.ReverseRelation["Team"]
-    announcements = fields.ReverseRelation["Announcement"]
     notification_preferences = fields.ReverseRelation["TournamentNotificationPreference"]
     triforce_texts = fields.ReverseRelation["TriforceText"]
     challonge_participants = fields.ReverseRelation["ChallongeParticipant"]
@@ -254,16 +243,22 @@ class Tournament(Model):
 class Match(Model):
     id = fields.IntField(pk=True)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='matches')
-    stream_room = fields.ForeignKeyField('models.StreamRoom', related_name='matches', null=True)
-    scheduled_at = fields.DatetimeField(null=True)
+    # SET_NULL: deleting a stream room (or seed) detaches its matches instead of
+    # cascade-deleting the entire match and its players/crew/acknowledgments.
+    stream_room = fields.ForeignKeyField(
+        'models.StreamRoom', related_name='matches', null=True, on_delete=fields.SET_NULL
+    )
+    scheduled_at = fields.DatetimeField(null=True, index=True)
     seated_at = fields.DatetimeField(null=True) # now known as "Checked In"
     started_at = fields.DatetimeField(null=True)
-    finished_at = fields.DatetimeField(null=True)
+    finished_at = fields.DatetimeField(null=True, index=True)
     confirmed_at = fields.DatetimeField(null=True)
     comment = fields.TextField(null=True)
     is_stream_candidate = fields.BooleanField(default=False)
     title = fields.CharField(max_length=255, null=True)
-    generated_seed = fields.ForeignKeyField('models.GeneratedSeeds', related_name='matches', null=True)
+    generated_seed = fields.ForeignKeyField(
+        'models.GeneratedSeeds', related_name='matches', null=True, on_delete=fields.SET_NULL
+    )
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -307,6 +302,10 @@ class MatchPlayers(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+    class Meta:
+        unique_together = (('match', 'user'),)
+        table = 'matchplayers'
+
 class MatchAcknowledgment(Model):
     id = fields.IntField(pk=True)
     match = fields.ForeignKeyField('models.Match', related_name='acknowledgments', on_delete=fields.CASCADE)
@@ -326,6 +325,10 @@ class TournamentPlayers(Model):
     user = fields.ForeignKeyField('models.User', related_name='tournament_players')
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('tournament', 'user'),)
+        table = 'tournamentplayers'
 
 class MatchNotificationLevel(str, Enum):
     NONE = 'none'
@@ -358,20 +361,34 @@ class Commentator(Model):
     user = fields.ForeignKeyField('models.User', related_name='commentaries')
     match = fields.ForeignKeyField('models.Match', related_name='commentators')
     approved = fields.BooleanField(default=False)
-    approved_by = fields.ForeignKeyField('models.User', related_name='approved_commentaries', null=True)
+    # SET_NULL: deleting the approver must not delete another user's crew signup.
+    approved_by = fields.ForeignKeyField(
+        'models.User', related_name='approved_commentaries', null=True, on_delete=fields.SET_NULL
+    )
     acknowledged_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('match', 'user'),)
+        table = 'commentator'
 
 class Tracker(Model):
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField('models.User', related_name='trackers')
     match = fields.ForeignKeyField('models.Match', related_name='trackers')
     approved = fields.BooleanField(default=False)
-    approved_by = fields.ForeignKeyField('models.User', related_name='approved_trackers', null=True)
+    # SET_NULL: deleting the approver must not delete another user's crew signup.
+    approved_by = fields.ForeignKeyField(
+        'models.User', related_name='approved_trackers', null=True, on_delete=fields.SET_NULL
+    )
     acknowledged_at = fields.DatetimeField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('match', 'user'),)
+        table = 'tracker'
 
 class MatchWatcher(Model):
     id = fields.IntField(pk=True)
@@ -384,19 +401,20 @@ class MatchWatcher(Model):
         unique_together = ('user', 'match')
         table = 'matchwatcher'
 
-class Team(Model):
-    id = fields.IntField(pk=True)
-    name = fields.CharField(max_length=255)
-    tournament = fields.ForeignKeyField('models.Tournament', related_name='teams')
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-
 class AuditLog(Model):
     id = fields.IntField(pk=True)
-    user = fields.ForeignKeyField('models.User', related_name='audit_logs')
+    # SET_NULL keeps the append-only trail intact when a user is deleted; the
+    # actor's identity is also snapshotted into ``details`` by AuditService.
+    user = fields.ForeignKeyField(
+        'models.User', related_name='audit_logs', null=True, on_delete=fields.SET_NULL
+    )
     action = fields.CharField(max_length=255)
     details = fields.TextField(null=True)
-    created_at = fields.DatetimeField(auto_now_add=True)
+    created_at = fields.DatetimeField(auto_now_add=True, index=True)
+
+    class Meta:
+        table = 'auditlog'
+        indexes = (('user',),)
 
 class GeneratedSeeds(Model):
     id = fields.IntField(pk=True)
@@ -412,21 +430,14 @@ class SystemConfiguration(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
-class Announcement(Model):
-    id = fields.IntField(pk=True)
-    title = fields.CharField(max_length=255)
-    content = fields.TextField()
-    is_active = fields.BooleanField(default=True)
-    important = fields.BooleanField(default=False)
-    tournament = fields.ForeignKeyField('models.Tournament', related_name='announcements', null=True)
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-
 class UserRole(Model):
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField('models.User', related_name='roles')
     role = fields.CharEnumField(Role, max_length=32)
-    granted_by = fields.ForeignKeyField('models.User', related_name='granted_roles', null=True)
+    # SET_NULL: deleting the granter must not revoke roles they granted to others.
+    granted_by = fields.ForeignKeyField(
+        'models.User', related_name='granted_roles', null=True, on_delete=fields.SET_NULL
+    )
     source = fields.CharEnumField(RoleSource, max_length=16, default=RoleSource.MANUAL)
     created_at = fields.DatetimeField(auto_now_add=True)
 

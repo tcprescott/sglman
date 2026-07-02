@@ -11,11 +11,8 @@ from typing import Dict, List, Optional, Tuple
 from application.services.system_config_service import SystemConfigService
 from application.utils.timezone import EASTERN_TZ, to_eastern
 from models import (
-    Commentator,
     Match,
     StreamRoom,
-    Tournament,
-    Tracker,
     User,
 )
 

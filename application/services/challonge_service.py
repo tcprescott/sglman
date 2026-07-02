@@ -26,6 +26,7 @@ from application.utils.challonge_client import (
     MockChallongeClient,
     build_authorize_url,
 )
+from application.utils.environment import get_base_url
 from application.utils.mock_challonge import is_mock_challonge
 from models import (
     ChallongeConnection,
@@ -50,14 +51,10 @@ _DEFAULT_SERVICE_SCOPES = 'me tournaments:read matches:read matches:write partic
 _PLAYER_SCOPES = 'me'
 
 
-def _base_url() -> str:
-    return os.getenv('BASE_URL', 'http://localhost:8000').rstrip('/')
-
-
 def _redirect_uri() -> str:
     # One registered redirect URI serves both the service-account and the
     # per-player flows; Challonge OAuth apps only validate against a single URI.
-    return os.getenv('CHALLONGE_REDIRECT_URI') or f"{_base_url()}/challonge/oauth/callback"
+    return os.getenv('CHALLONGE_REDIRECT_URI') or f"{get_base_url()}/challonge/oauth/callback"
 
 
 def _service_scopes() -> str:

@@ -7,7 +7,6 @@ verify the *real* enqueue behaviour restore the original function explicitly.
 
 import asyncio
 
-import pytest
 
 import application.services.discord_queue as dq
 
@@ -87,7 +86,7 @@ class TestWorker:
                 coro = await local_queue.get()
                 try:
                     await coro
-                except Exception as e:
+                except Exception:
                     pass
                 finally:
                     local_queue.task_done()

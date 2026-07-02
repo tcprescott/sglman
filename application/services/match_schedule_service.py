@@ -5,6 +5,7 @@ Handles match scheduling operations like seating, finishing, and seed generation
 """
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Callable, Dict, Tuple, Optional
 
@@ -24,6 +25,8 @@ from application.utils.discord_messages import (
 )
 from application.utils.timezone import format_eastern_display
 from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, MatchWatcher, User
+
+logger = logging.getLogger(__name__)
 
 
 def _match_descriptor(match: Match) -> dict:
@@ -147,8 +150,8 @@ class MatchScheduleService:
             from application.services.challonge_service import ChallongeService
             try:
                 await ChallongeService().push_result_if_linked(match, actor)
-            except Exception as e:  # noqa: BLE001 - logged, retried manually
-                print(f"[challonge] auto-push failed for match {match.id}: {e}")
+            except Exception:  # noqa: BLE001 - logged, retried manually
+                logger.exception("challonge auto-push failed for match %s", match.id)
 
         discord_queue.enqueue(_push_challonge_result())
     
@@ -222,7 +225,13 @@ class MatchScheduleService:
                                 seed_url,
                                 **descriptor,
                             )
-                            await self.discord_service.send_dm(player.user.discord_id, dm_message)
+                            success, err = await self.discord_service.send_dm(
+                                player.user.discord_id, dm_message
+                            )
+                            if not success:
+                                logger.warning(
+                                    "seed DM failed for %s: %s", player.user.discord_id, err
+                                )
 
                 discord_queue.enqueue(_send_seed_dms())
 
@@ -241,9 +250,13 @@ class MatchScheduleService:
                 match_events.publish(match.id)
 
                 return True, message, seed_url
-                
-            except Exception as e:
-                return False, f"Error generating seed: {str(e)}", None
+
+            except Exception:
+                # Log the full traceback (reaches logs + Sentry) and return a
+                # generic message rather than leaking raw randomizer/HTTP error
+                # text to the user and the REST 400 detail.
+                logger.exception("Seed generation failed for match %s", match_id)
+                return False, "Seed generation failed. Please check the server logs.", None
     
     async def notify_match_participants(self, match: Match, message: str) -> None:
         """
@@ -287,10 +300,10 @@ class MatchScheduleService:
                 else:
                     success, err = await self.discord_service.send_dm(discord_id, message)
                 if not success:
-                    print(f"[notify_match_participants] DM failed for {discord_id}: {err}")
+                    logger.warning("notify_match_participants DM failed for %s: %s", discord_id, err)
 
-        except Exception as e:
-            print(f"[notify_match_participants] Unexpected error for match {match.id}: {e}")
+        except Exception:
+            logger.exception("notify_match_participants unexpected error for match %s", match.id)
 
     async def notify_match_crew(self, match: Match, message: str) -> None:
         """
@@ -335,9 +348,9 @@ class MatchScheduleService:
                 else:
                     success, err = await self.discord_service.send_dm(discord_id, message)
                 if not success:
-                    print(f"[notify_match_crew] DM failed for {discord_id}: {err}")
-        except Exception as e:
-            print(f"[notify_match_crew] Unexpected error for match {match.id}: {e}")
+                    logger.warning("notify_match_crew DM failed for %s: %s", discord_id, err)
+        except Exception:
+            logger.exception("notify_match_crew unexpected error for match %s", match.id)
 
     async def notify_acknowledgment_request(
         self,
@@ -373,9 +386,11 @@ class MatchScheduleService:
                     ack.user.discord_id, message, match.id,
                 )
                 if not success:
-                    print(f"[notify_acknowledgment_request] DM failed for {ack.user.discord_id}: {err}")
-        except Exception as e:
-            print(f"[notify_acknowledgment_request] Unexpected error for match {match.id}: {e}")
+                    logger.warning(
+                        "notify_acknowledgment_request DM failed for %s: %s", ack.user.discord_id, err
+                    )
+        except Exception:
+            logger.exception("notify_acknowledgment_request unexpected error for match %s", match.id)
 
     async def notify_tournament_subscribers_scheduled(
         self,
@@ -400,9 +415,14 @@ class MatchScheduleService:
                         user.discord_id, message, match.id
                     )
                     if not success:
-                        print(f"[notify_tournament_subscribers_scheduled] DM failed for {user.discord_id}: {err}")
-        except Exception as e:
-            print(f"[notify_tournament_subscribers_scheduled] Unexpected error for match {match.id}: {e}")
+                        logger.warning(
+                            "notify_tournament_subscribers_scheduled DM failed for %s: %s",
+                            user.discord_id, err,
+                        )
+        except Exception:
+            logger.exception(
+                "notify_tournament_subscribers_scheduled unexpected error for match %s", match.id
+            )
 
     async def notify_stream_candidate_subscribers(
         self,
@@ -439,7 +459,12 @@ class MatchScheduleService:
                         user.discord_id, msg, match.id
                     )
                     if not success:
-                        print(f"[notify_stream_candidate_subscribers] DM failed for {user.discord_id}: {err}")
-        except Exception as e:
-            print(f"[notify_stream_candidate_subscribers] Unexpected error for match {match.id}: {e}")
+                        logger.warning(
+                            "notify_stream_candidate_subscribers DM failed for %s: %s",
+                            user.discord_id, err,
+                        )
+        except Exception:
+            logger.exception(
+                "notify_stream_candidate_subscribers unexpected error for match %s", match.id
+            )
 

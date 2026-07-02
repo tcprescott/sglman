@@ -1,6 +1,6 @@
 """Admin System Configuration Page"""
 
-from datetime import date, time
+from datetime import date
 
 from nicegui import app, ui
 

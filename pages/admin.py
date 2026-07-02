@@ -57,7 +57,8 @@ def create() -> None:
         is_ta_any = await user.admin_tournaments.all().exists()
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
 
-        if not (is_staff or is_stream_manager or is_equipment_manager or is_ta_any or is_cc_any):
+        if not (is_staff or is_stream_manager or is_equipment_manager
+                or is_volunteer_coordinator or is_ta_any or is_cc_any):
             await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
             with ui.row():
                 ui.label('You do not have permission to view this page.').classes('text-error')

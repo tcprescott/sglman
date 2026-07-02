@@ -1,4 +1,4 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 
 def dialog_header(title: str, dialog) -> None:
@@ -20,5 +20,8 @@ def submit_on_enter(dialog, make_coro) -> None:
     """
     def on_keydown(e):
         if e.args and e.args.get('key') == 'Enter':
-            background_tasks.create(make_coro())
+            # Return the coroutine so NiceGUI awaits it in the dialog's slot
+            # context; a bare background task has no slot and any ui.notify /
+            # ui.run_javascript in the submit handler would raise.
+            return make_coro()
     dialog.on('keydown', on_keydown)

@@ -4,7 +4,7 @@ Manages the shared SGL Challonge service-account connection and lists the
 tournaments linked to a Challonge bracket with a per-tournament Sync action.
 """
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import AuthService, ChallongeService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
@@ -92,7 +92,10 @@ async def admin_challonge_page() -> None:
                     ui.space()
                     ui.button(
                         'Sync', icon='sync',
-                        on_click=lambda _=None, tid=t.id: background_tasks.create(sync_one(tid)),
+                        # Return the coroutine so NiceGUI awaits it in the button's
+                        # slot; a bare background task has no slot, so the notify /
+                        # refresh calls in sync_one would raise and be lost.
+                        on_click=lambda _=None, tid=t.id: sync_one(tid),
                     ).props('flat color=primary')
 
         async def sync_one(tournament_id: int) -> None:

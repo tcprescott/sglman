@@ -21,12 +21,18 @@ SECRET_NAME_RX = re.compile(r"(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY)", re.IGN
 PLACEHOLDER_RX = re.compile(
     r"your|change[\s_-]?me|example|placeholder|replace|dummy|fake|test|<|\{|xxxx", re.IGNORECASE
 )
+# A lowercase dotted identifier like ``apitoken.created`` — the codebase's
+# ``verb.object`` audit-action constants. Not a credential (secrets are
+# high-entropy / mixed-case; Discord tokens are matched separately above).
+ACTION_CONSTANT_RX = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$")
 
 
 def looks_like_secret_literal(value: str) -> bool:
     if len(value) < 12:
         return False
     if PLACEHOLDER_RX.search(value):
+        return False
+    if ACTION_CONSTANT_RX.match(value):
         return False
     return True
 

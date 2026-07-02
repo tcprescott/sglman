@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import AuthService, MatchService
 from application.utils.timezone import format_eastern_time
@@ -51,7 +51,7 @@ async def stage_timeline_tab():
             # Date picker
             with ui.input('Select Date', value=current_date['value'].strftime('%Y-%m-%d')) as date_input:
                 with ui.menu().props('no-parent-event') as menu:
-                    date_picker = ui.date(value=current_date['value'].strftime('%Y-%m-%d')).bind_value(date_input)
+                    ui.date(value=current_date['value'].strftime('%Y-%m-%d')).bind_value(date_input)
                     with ui.row().classes('justify-end'):
                         go_btn = ui.button('Go', on_click=lambda: menu.close())
                 with date_input.add_slot('append'):
@@ -186,12 +186,14 @@ async def stage_timeline_tab():
             except ValueError:
                 ui.notify('Invalid date format', color='warning')
 
-        # Bind button actions
-        prev_btn.on('click', lambda: background_tasks.create(go_prev_day()))
-        next_btn.on('click', lambda: background_tasks.create(go_next_day()))
-        today_btn.on('click', lambda: background_tasks.create(go_today()))
-        go_btn.on('click', lambda: background_tasks.create(go_to_date()))
-        refresh_btn.on('click', lambda: background_tasks.create(load_timeline()))
+        # Bind button actions. Return the coroutine so NiceGUI awaits it in the
+        # button's slot context — a bare background task has no slot, so
+        # go_to_date's ui.notify (outside the container) would raise.
+        prev_btn.on('click', lambda: go_prev_day())
+        next_btn.on('click', lambda: go_next_day())
+        today_btn.on('click', lambda: go_today())
+        go_btn.on('click', lambda: go_to_date())
+        refresh_btn.on('click', lambda: load_timeline())
 
         # Live updates: reload when any match changes, debounced so a multi-step
         # action (e.g. create with players + crew) triggers at most one rebuild.

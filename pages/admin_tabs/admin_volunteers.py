@@ -12,7 +12,6 @@ from application.services.volunteer_profile_service import VolunteerProfileServi
 from application.services.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
-    format_eastern_date,
     format_eastern_time,
     parse_eastern_datetime,
 )
@@ -153,9 +152,15 @@ async def admin_volunteers_page() -> None:
                     chip.props('color=positive')
 
                 async def remove(a=assignment) -> None:
-                    await schedule_service.unassign(actor, a)
-                    ui.notify('Removed assignment.', color='info')
-                    grid.refresh()
+                    try:
+                        await schedule_service.unassign(actor, a)
+                        ui.notify('Removed assignment.', color='info')
+                    except (ValueError, PermissionError) as e:
+                        ui.notify(str(e), color='warning')
+                    finally:
+                        # The chip already removed itself client-side; refresh to
+                        # re-sync regardless of whether the service call succeeded.
+                        grid.refresh()
                 chip.on('remove', lambda a=assignment: remove(a))
 
                 if assignment.checked_in_at:
@@ -259,9 +264,13 @@ async def admin_volunteers_page() -> None:
 
         # --- Actions -----------------------------------------------------
         async def generate_shifts(position) -> None:
-            await schedule_service.generate_day_shifts(
-                actor, state['day'], [position.id], STANDARD_BLOCKS,
-            )
+            try:
+                await schedule_service.generate_day_shifts(
+                    actor, state['day'], [position.id], STANDARD_BLOCKS,
+                )
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+                return
             ui.notify(f'Generated shifts for {position.name} (staggered where configured).',
                       color='positive')
             grid.refresh()
@@ -295,7 +304,11 @@ async def admin_volunteers_page() -> None:
 
         async def auto_fill() -> None:
             win_start, win_end = _day_window(state['day'])
-            result = await autoschedule_service.generate_draft(actor, win_start, win_end)
+            try:
+                result = await autoschedule_service.generate_draft(actor, win_start, win_end)
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+                return
             unfilled = sum(u['open'] for u in result['unfilled'])
             ui.notify(
                 f"Draft created: {result['created']} assignment(s), "
@@ -306,7 +319,11 @@ async def admin_volunteers_page() -> None:
 
         async def clear_draft() -> None:
             win_start, win_end = _day_window(state['day'])
-            removed = await autoschedule_service.clear_draft(actor, win_start, win_end)
+            try:
+                removed = await autoschedule_service.clear_draft(actor, win_start, win_end)
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+                return
             ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
             grid.refresh()
 

@@ -96,17 +96,7 @@ Method-level detail for every file below lives in the [code reference docs](READ
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `DB_HOST` | yes | PostgreSQL host |
-| `DB_PORT` | yes | PostgreSQL port |
-| `DB_NAME` | yes | Database name |
-| `DB_USERNAME` | no | DB user |
-| `DB_PASSWORD` | no | DB password |
-| `DISCORD_TOKEN` | yes | Discord bot token |
-| `STORAGE_SECRET` | yes | NiceGUI storage encryption key |
-| `ENVIRONMENT` | no | `dev` or `production` |
-| `MOCK_DISCORD` | no | `true` → bypass Discord OAuth + stub all Discord API calls |
+The authoritative environment-variable table lives in **[deployment.md](deployment.md)** (kept in sync with `application/utils/environment.py`). It is not duplicated here — a second copy only drifts.
 
 ## Running Locally
 

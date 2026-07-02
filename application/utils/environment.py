@@ -17,6 +17,15 @@ def is_production() -> bool:
     return get_environment() == 'production'
 
 
+def get_base_url() -> str:
+    """Return the app's external base URL (no trailing slash).
+
+    Single source of truth for links, QR codes, and OAuth redirect building —
+    read lazily so tests and tooling can override BASE_URL per call.
+    """
+    return os.getenv('BASE_URL', 'http://localhost:8000').rstrip('/')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

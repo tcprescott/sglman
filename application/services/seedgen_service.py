@@ -151,10 +151,11 @@ class SeedGenerationService:
         Returns:
             URL to the generated seed
         """
-        spoiler_token = os.environ.get(
-            'SMMAP_SPOILER_TOKEN',
-            'SpeedGamingLive2025IsTheBestTournamentEverAndEverLOL',
-        )
+        # Never fall back to a committed default — a leaked spoiler token
+        # unlocks spoiler logs for race seeds (mirrors the OOTR_API_KEY guard).
+        spoiler_token = os.environ.get('SMMAP_SPOILER_TOKEN')
+        if not spoiler_token:
+            raise ValueError('SMMAP_SPOILER_TOKEN is not configured.')
         with open("presets/smmap/community_race_s4.json", "r", encoding="utf-8") as f:
             settings = f.read()
 

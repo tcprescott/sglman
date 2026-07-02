@@ -6,11 +6,11 @@ needing a database. The goal is to lock in the role rules so refactors
 don't accidentally widen or narrow them.
 """
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
-from application.services.auth_service import AuthService
+from application.services.auth_service import AuthService, get_user_from_discord_id
 from models import Role
 
 
@@ -395,3 +395,21 @@ class TestViewAdmin:
     async def test_ensure_message_propagates(self):
         with pytest.raises(PermissionError, match="custom message"):
             await AuthService.ensure(False, "custom message")
+
+
+class TestGetUserFromDiscordId:
+    async def test_none_discord_id_returns_none(self):
+        assert await get_user_from_discord_id(None) is None
+
+    async def test_active_user_resolved(self, monkeypatch):
+        from application.services import auth_service
+        user = SimpleNamespace(id=1, is_active=True)
+        monkeypatch.setattr(auth_service.User, 'get_or_none', AsyncMock(return_value=user))
+        assert await get_user_from_discord_id('123') is user
+
+    async def test_inactive_user_treated_as_logged_out(self, monkeypatch):
+        # A deactivated account must resolve to None so it loses page/role access.
+        from application.services import auth_service
+        user = SimpleNamespace(id=1, is_active=False)
+        monkeypatch.setattr(auth_service.User, 'get_or_none', AsyncMock(return_value=user))
+        assert await get_user_from_discord_id('123') is None

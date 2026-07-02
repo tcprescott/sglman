@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from models import (
@@ -258,8 +257,8 @@ async def test_autoschedule_respects_qualification_and_availability(db):
 async def test_autoschedule_load_balances(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Check-in')
-    s1 = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
-    s2 = await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
+    await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
     a = await _opted_in_volunteer('aa')
     b = await _opted_in_volunteer('bb')
 
@@ -274,7 +273,7 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3)
-    only = await _opted_in_volunteer('solo')
+    await _opted_in_volunteer('solo')
 
     auto = VolunteerAutoscheduleService()
     result = await auto.generate_draft(staff, _at(0), _at(23))
