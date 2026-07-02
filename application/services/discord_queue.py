@@ -1,6 +1,9 @@
 import asyncio
+import logging
 from collections.abc import Coroutine
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 _queue: asyncio.Queue[Coroutine] = asyncio.Queue()
 _worker_task: Optional[asyncio.Task] = None
@@ -11,8 +14,10 @@ async def _worker() -> None:
         coro = await _queue.get()
         try:
             await coro
-        except Exception as e:
-            print(f"[discord_queue] worker error: {e}")
+        except Exception:
+            # Keep the traceback (reaches logs + Sentry) — this is the single
+            # chokepoint every notification flows through.
+            logger.exception("discord_queue worker error")
         finally:
             _queue.task_done()
 
@@ -28,7 +33,9 @@ async def stop() -> None:
         return
     pending = _queue.qsize()
     if pending:
-        print(f"[discord_queue] stopping with {pending} item(s) still queued — they will not be sent")
+        logger.warning(
+            "discord_queue stopping with %d item(s) still queued — they will not be sent", pending
+        )
     _worker_task.cancel()
     try:
         await _worker_task

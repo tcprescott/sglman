@@ -13,6 +13,9 @@ the others or the mutating service call.
 
 from typing import Callable, Dict
 import itertools
+import logging
+
+logger = logging.getLogger(__name__)
 
 # change_type values
 CHANGED = 'changed'
@@ -42,5 +45,5 @@ def publish(match_id: int, change_type: str = CHANGED) -> None:
     for callback in list(_subscribers.values()):
         try:
             callback(match_id, change_type)
-        except Exception as e:  # pragma: no cover - defensive
-            print(f"[match_events] subscriber error for match {match_id}: {e}")
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("match_events subscriber error for match %s", match_id)

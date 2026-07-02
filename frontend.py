@@ -3,6 +3,7 @@
 Sets up NiceGUI pages and integrates them with the FastAPI app.
 """
 
+import logging
 import os
 
 from fastapi import FastAPI
@@ -16,7 +17,22 @@ from middleware.challonge_oauth import create as challonge_oauth_create
 from middleware.error_handlers import register_error_handlers
 from pages import admin, equipment, home, volunteer
 
+_ui_logger = logging.getLogger('sglman.ui')
+
 app.add_middleware(AuthMiddleware)
+
+
+@app.on_exception
+def _handle_unhandled_ui_exception(exc: Exception) -> None:
+    """Backstop for event handlers that miss the ValueError->ui.notify wrap:
+    log the traceback (reaches Sentry) and, when a UI context is available,
+    surface a generic notice so a failure is visible-but-generic rather than
+    silent. Never raises itself."""
+    _ui_logger.exception('Unhandled exception in a UI event handler', exc_info=exc)
+    try:
+        ui.notify('Something went wrong. Please try again.', color='negative')
+    except Exception:
+        pass
 
 
 class NoCacheStaticFiles(StaticFiles):
