@@ -33,7 +33,7 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
     custom_id format: 'crew_signup:<role>:<match_id>'
     Responds ephemerally so only the clicking user sees the result.
     """
-    from application.services import MatchService, UserService
+    from application.services import CrewService, MatchService, UserService
 
     custom_id = (interaction.data or {}).get('custom_id', '')
     parts = custom_id.split(':')
@@ -67,10 +67,10 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
         return
 
     # The "match finished -> signup closed" rule now lives in
-    # MatchService.signup_crew (raised as ValueError, handled below) so the web
+    # CrewService.signup_crew (raised as ValueError, handled below) so the web
     # UI and REST API enforce it too.
     try:
-        await match_service.signup_crew(match_id, user, role)
+        await CrewService().signup_crew(match_id, user, role)
 
         player_names = await match_service.get_player_names(match_id)
 

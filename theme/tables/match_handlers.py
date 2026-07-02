@@ -104,6 +104,7 @@ class MatchTableHandlersMixin:
 
     async def _handle_signup_or_undo_role(self, action, role, row):
         """Handle crew signup/undo using service layer."""
+        from application.services import CrewService
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             ui.notify(f'You must be logged in to {action}.', color='warning')
@@ -116,11 +117,12 @@ class MatchTableHandlersMixin:
             return
 
         match_id = row['id']
+        crew_service = CrewService()
 
         if action == 'undo':
             async def perform_undo():
                 try:
-                    await self.service.undo_crew_signup(match_id, user, role)
+                    await crew_service.undo_crew_signup(match_id, user, role)
                     ui.notify(f'You have been removed as a {role} for match ID {match_id}.', color='positive')
                     await self.update_row_by_id(match_id)
                     dialog.dialog.close()
@@ -139,7 +141,7 @@ class MatchTableHandlersMixin:
         elif action == 'signup':
             async def update_role_signup():
                 try:
-                    await self.service.signup_crew(match_id, user, role)
+                    await crew_service.signup_crew(match_id, user, role)
                     ui.notify(f'Successfully signed up as a {role} for match ID {match_id}. Awaiting approval.', color='positive')
                     await self.update_row_by_id(match_id)
                     dialog.dialog.close()
