@@ -83,9 +83,7 @@ class MatchService:
         Returns:
             List of matches with all related data prefetched
         """
-        return await Match.all().prefetch_related(
-            'tournament', 'players', 'stream_room', 'generated_seed'
-        ).order_by('scheduled_at')
+        return await self.repository.get_all_for_schedule()
     
     async def get_matches_for_date(
         self,
@@ -104,24 +102,9 @@ class MatchService:
         Returns:
             List of matches with all related data prefetched
         """
-        start_of_day = datetime.combine(target_date, datetime.min.time())
-        end_of_day = datetime.combine(target_date, datetime.max.time())
-        
-        query = Match.filter(
-            scheduled_at__gte=start_of_day,
-            scheduled_at__lte=end_of_day
+        return await self.repository.get_for_date(
+            target_date, exclude_finished, require_stream_room
         )
-        
-        if exclude_finished:
-            query = query.filter(finished_at=None)
-        
-        if require_stream_room:
-            query = query.exclude(stream_room=None)
-        
-        return await query.prefetch_related(
-            'tournament', 'stream_room', 'players', 'players__user',
-            'commentators', 'commentators__user', 'trackers', 'trackers__user'
-        ).order_by('scheduled_at')
     
     async def group_matches_by_stream_room(
         self,
@@ -155,7 +138,7 @@ class MatchService:
         Returns:
             List of matches where the player is participating
         """
-        return await Match.filter(players__user__discord_id=discord_id)
+        return await self.repository.get_for_player(discord_id)
     
     async def create_match(
         self,

@@ -6,7 +6,7 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 """
 
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from models import Match, MatchPlayers, User
 
@@ -195,3 +195,64 @@ class MatchRepository:
         """
         match_id = match.id if isinstance(match, Match) else match
         return await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
+
+    @staticmethod
+    async def get_all_for_schedule() -> List[Match]:
+        """
+        Get all matches for the public schedule view, ordered by scheduled time.
+
+        Returns:
+            List of matches with tournament/players/stream_room/seed prefetched
+        """
+        return await Match.all().prefetch_related(
+            'tournament', 'players', 'stream_room', 'generated_seed'
+        ).order_by('scheduled_at')
+
+    @staticmethod
+    async def get_for_date(
+        target_date: date,
+        exclude_finished: bool = True,
+        require_stream_room: bool = True,
+    ) -> List[Match]:
+        """
+        Get matches scheduled on a given date, with optional filters.
+
+        Args:
+            target_date: The date to fetch matches for
+            exclude_finished: If True, exclude matches that are finished
+            require_stream_room: If True, only include matches with a stream room
+
+        Returns:
+            List of matches with all related data prefetched
+        """
+        start_of_day = datetime.combine(target_date, datetime.min.time())
+        end_of_day = datetime.combine(target_date, datetime.max.time())
+
+        query = Match.filter(
+            scheduled_at__gte=start_of_day,
+            scheduled_at__lte=end_of_day
+        )
+
+        if exclude_finished:
+            query = query.filter(finished_at=None)
+
+        if require_stream_room:
+            query = query.exclude(stream_room=None)
+
+        return await query.prefetch_related(
+            'tournament', 'stream_room', 'players', 'players__user',
+            'commentators', 'commentators__user', 'trackers', 'trackers__user'
+        ).order_by('scheduled_at')
+
+    @staticmethod
+    async def get_for_player(discord_id: str) -> List[Match]:
+        """
+        Get all matches where the given Discord user is a player.
+
+        Args:
+            discord_id: Discord ID of the player
+
+        Returns:
+            List of matches where the player is participating
+        """
+        return await Match.filter(players__user__discord_id=discord_id)
