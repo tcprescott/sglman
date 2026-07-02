@@ -16,7 +16,7 @@ At import time it registers `AuthMiddleware` (from [`middleware/auth.py`](../../
 
 1. Calls `validate_security_config()` ([`application/utils/environment.py`](../../application/utils/environment.py)) — aborts startup if `STORAGE_SECRET` is empty, and in production also requires `DB_USERNAME` / `DB_PASSWORD`.
 2. Mounts `/static` → `NoCacheStaticFiles(directory="static")`.
-3. Registers pages in order: `auth_create()` (login/logout/oauth pages, or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth_create()` (Challonge link/connect OAuth routes), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
+3. Registers pages in order: `auth.create()` (login/logout/oauth pages from [`pages/auth.py`](../../pages/auth.py), or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth.create()` (Challonge link/connect OAuth routes from [`pages/challonge_oauth.py`](../../pages/challonge_oauth.py)), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
 4. Calls `ui.run_with(fastapi_app, storage_secret=...)` with the stripped `STORAGE_SECRET`. No `mount_path` is given, so `@ui.page` routes live at the site root.
 5. Calls `register_error_handlers(fastapi_app)` ([`middleware/error_handlers.py`](../../middleware/error_handlers.py)) to install themed 40x/50x pages — see [Error pages](#error-pages-middlewareerror_handlerspy) below.
 
@@ -68,7 +68,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/admin` | [`pages/admin.py`](../../pages/admin.py) | Login required (`@protected_page`); content gated by role |
 | `/volunteer` | [`pages/volunteer.py`](../../pages/volunteer.py) | Login required (`@protected_page`); volunteer self-service hub |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
-| `/login`, `/logout`, `/oauth/callback` | `middleware/auth.py` | See [authentication.md](authentication.md) |
+| `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md) |
 
 Each page module exposes a `create()` function that registers its `@ui.page` route; `frontend.init()` calls them.
 

@@ -5,7 +5,7 @@ Coordinates user-related operations and enforces business rules.
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import Dict, Iterable, List, Optional, Set
 
 from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
@@ -36,6 +36,42 @@ class UserService:
         if not storage_discord_id:
             return None
         return await self.repository.get_by_discord_id(storage_discord_id)
+
+    async def provision_from_discord_login(
+        self,
+        discord_id: int,
+        username: str,
+    ) -> tuple[User, bool]:
+        """Get-or-create the ``User`` row for a Discord OAuth login and keep the
+        username in sync. Returns ``(user, created)``. An inactive account is
+        returned without a username update so the caller can reject the login.
+        """
+        user, created = await self.repository.get_or_create_by_discord_id(
+            discord_id, username,
+        )
+        if user.is_active and not created:
+            await self.repository.update(user, username=username)
+        return user, created
+
+    async def create_mock_login_user(
+        self,
+        discord_id: int,
+        username: str,
+        display_name: Optional[str] = None,
+        role_values: Optional[Iterable[str]] = None,
+    ) -> User:
+        """Provision a user (and any selected roles) for the MOCK_DISCORD dev
+        login flow. This dev-only path performs no permission check or audit,
+        mirroring the mock login page it backs.
+        """
+        user = await self.repository.create(
+            username=username,
+            discord_id=discord_id,
+            display_name=display_name,
+        )
+        for role_value in role_values or []:
+            await self.role_repository.add(user, Role(role_value))
+        return user
 
     async def get_active_tournaments_categorized(self) -> Dict[str, List[Tournament]]:
         tournaments = await Tournament.filter(is_active=True)

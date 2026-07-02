@@ -122,9 +122,9 @@ Every top-level entry in the repository, with the doc that covers it:
 | `application/services/` | Business-logic layer (30 modules) | [reference/services.md](reference/services.md) |
 | `application/repositories/` | Data-access layer (25 repositories) | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` | Timezone, environment validation, CSV export, Challonge client, QR codes, Sentry, mock-Discord/Challonge flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
-| `middleware/` | `auth.py` (Discord OAuth + route protection), `mock_auth.py` (dev login), `challonge_oauth.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md) |
+| `middleware/` | `auth.py` (`protected_page` + `AuthMiddleware` route protection), `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md) |
 | `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
-| `pages/` | NiceGUI pages: home (7 tabs), admin (role-gated tabs), volunteer, equipment | [reference/frontend.md](reference/frontend.md) |
+| `pages/` | NiceGUI pages: home (7 tabs), admin (role-gated tabs), volunteer, equipment, `auth.py` (Discord OAuth login + dev mock login), `challonge_oauth.py` (Challonge OAuth) | [reference/frontend.md](reference/frontend.md), [reference/authentication.md](reference/authentication.md) |
 | `theme/` | `base.py` layout shell, `dialog/` (dialogs), `tables/` (table views), `realtime.py` | [reference/frontend.md](reference/frontend.md) |
 | `static/` | CSS (and other static assets) served at `/static` | [reference/frontend.md](reference/frontend.md) |
 | `presets/` | Randomizer preset files (alttpr YAML, ootr/smmap JSON) | [reference/seed-generation.md](reference/seed-generation.md) |

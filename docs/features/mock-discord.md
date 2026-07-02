@@ -24,8 +24,7 @@ No `DISCORD_TOKEN` required when mock mode is active.
 | File | Role |
 |---|---|
 | `application/utils/mock_discord.py` | `is_mock_discord()` — single source of truth for the flag; refuses to start if enabled in production |
-| `middleware/auth.py` | Detects `MOCK_DISCORD` and delegates the `/login` route to `mock_auth` instead of the OAuth redirect |
-| `middleware/mock_auth.py` | Renders the user-picker login page that impersonates an existing user (or creates a new one) |
+| `pages/auth.py` | `create()` detects `MOCK_DISCORD` and delegates to its private `_create_mock()` (which renders the user-picker login page that impersonates an existing user or creates a new one) instead of the OAuth redirect |
 | `application/services/discord_service.py` | Defines `MockDiscordService`; aliases `DiscordService = MockDiscordService` when mock mode is detected |
 
 ## Development Workflow

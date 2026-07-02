@@ -12,10 +12,8 @@ from nicegui import app, ui
 
 from application.utils.environment import is_production, validate_security_config
 from middleware.auth import AuthMiddleware
-from middleware.auth import create as auth_create
-from middleware.challonge_oauth import create as challonge_oauth_create
 from middleware.error_handlers import register_error_handlers
-from pages import admin, equipment, home, volunteer
+from pages import admin, auth, challonge_oauth, equipment, home, volunteer
 
 _ui_logger = logging.getLogger('sglman.ui')
 
@@ -74,8 +72,8 @@ def init(fastapi_app: FastAPI) -> None:
     # Mount static files directory with no-cache in development
     fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
-    auth_create()
-    challonge_oauth_create()
+    auth.create()
+    challonge_oauth.create()
     admin.create()
     home.create()
     volunteer.create()

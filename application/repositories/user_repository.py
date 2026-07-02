@@ -70,6 +70,16 @@ class UserRepository:
         )
 
     @staticmethod
+    async def get_or_create_by_discord_id(
+        discord_id: int,
+        username: str,
+    ) -> tuple[User, bool]:
+        return await User.get_or_create(
+            discord_id=discord_id,
+            defaults={'username': username},
+        )
+
+    @staticmethod
     async def update(user: User, **fields) -> None:
         for key, value in fields.items():
             setattr(user, key, value)

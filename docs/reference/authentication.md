@@ -4,11 +4,11 @@ _Mechanics of Discord OAuth login, session storage, route protection, and the `A
 
 This document covers **how** authentication and authorization work. For **who may do what** (the role/permission matrix), see [features/role-based-auth.md](../features/role-based-auth.md). For the mock-login developer workflow, see [features/mock-discord.md](../features/mock-discord.md).
 
-Sources: [`middleware/auth.py`](../../middleware/auth.py), [`middleware/mock_auth.py`](../../middleware/mock_auth.py), [`application/services/auth_service.py`](../../application/services/auth_service.py), [`application/utils/environment.py`](../../application/utils/environment.py), [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py), [`frontend.py`](../../frontend.py).
+Sources: [`pages/auth.py`](../../pages/auth.py) (the `/login`, `/logout`, `/oauth/callback` routes and their mock variant), [`middleware/auth.py`](../../middleware/auth.py) (`protected_page` + `AuthMiddleware`), [`application/services/auth_service.py`](../../application/services/auth_service.py), [`application/services/user_service.py`](../../application/services/user_service.py) (login-time `User` provisioning), [`application/utils/environment.py`](../../application/utils/environment.py), [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py), [`frontend.py`](../../frontend.py).
 
 ## Overview
 
-SGLMan authenticates users with Discord OAuth (`identify` scope only) and keeps their identity in NiceGUI's signed per-browser session store (`app.storage.user`). [`middleware/auth.py`](../../middleware/auth.py) owns the whole flow: it registers the `/login`, `/logout`, and `/oauth/callback` routes, provides the `protected_page` decorator that marks pages as login-required, and installs `AuthMiddleware`, which redirects unauthenticated requests to `/login`. Authorization is a separate, stateless layer: [`AuthService`](../../application/services/auth_service.py) answers role and capability questions against the database on every check — nothing about roles is cached in the session. When `MOCK_DISCORD=true`, the three auth routes are replaced by a local user-picker ([`middleware/mock_auth.py`](../../middleware/mock_auth.py)) and no Discord credentials are needed.
+SGLMan authenticates users with Discord OAuth (`identify` scope only) and keeps their identity in NiceGUI's signed per-browser session store (`app.storage.user`). The flow is split across two files: [`pages/auth.py`](../../pages/auth.py) (presentation layer) registers the `/login`, `/logout`, and `/oauth/callback` routes, while [`middleware/auth.py`](../../middleware/auth.py) provides the `protected_page` decorator that marks pages as login-required and installs `AuthMiddleware`, which redirects unauthenticated requests to `/login`. Authorization is a separate, stateless layer: [`AuthService`](../../application/services/auth_service.py) answers role and capability questions against the database on every check — nothing about roles is cached in the session. When `MOCK_DISCORD=true`, the three auth routes are replaced by a local user-picker (registered by `pages/auth.py` itself) and no Discord credentials are needed.
 
 ```mermaid
 sequenceDiagram
@@ -40,7 +40,7 @@ sequenceDiagram
 
 ### Routes
 
-`middleware/auth.py:create()` registers three NiceGUI pages (called from [`frontend.py`](../../frontend.py) `init()`). Under `MOCK_DISCORD` it instead delegates to `mock_auth.create()`, which registers the same three paths (see [Mock authentication](#mock-authentication-dev)).
+`pages/auth.py:create()` registers three NiceGUI pages (called from [`frontend.py`](../../frontend.py) `init()`). Under `MOCK_DISCORD` it instead delegates to a private `_create_mock()` in the same module, which registers the same three paths (see [Mock authentication](#mock-authentication-dev)).
 
 | Route | Behavior |
 |---|---|
@@ -75,10 +75,11 @@ Session keys in `app.storage.user`:
 | `oauth_state` | `/login` | One-time CSRF token; popped by the callback |
 | `referrer_path` | `AuthMiddleware` | Original destination; popped after the post-login redirect |
 
-`User` row writes on every successful login (`User.get_or_create(discord_id=...)`):
+`User` row writes on every successful login go through `UserService.provision_from_discord_login(discord_id, username)` (a `get_or_create` plus a conditional username sync — the presentation layer performs no direct ORM write):
 
 - **New user** — created with `discord_id` and `username`.
 - **Existing user** — `username` is overwritten and saved; all other fields (including `display_name`) are untouched.
+- **Inactive user** — returned without a username update so the callback can reject the login (see below).
 
 The Discord `access_token` is **not persisted**: the callback uses it only in-process to fetch the current Discord user (via a short-lived bearer `APIClient`), and it is never written to the `User` row or the session. Roles are never written at login by the callback itself — `DiscordRoleMappingService().sync_user_roles(user)` may map guild roles onto `UserRole` rows, but role checks otherwise come solely from `UserRole` rows and tournament memberships (see [features/role-based-auth.md](../features/role-based-auth.md)).
 
@@ -86,7 +87,7 @@ The post-login redirect target is `app.storage.user.get('referrer_path', '/')`; 
 
 ### OAuth URL derivation
 
-All values are read from the environment **once, at import of `middleware/auth.py`**. See [`.env.example`](../../.env.example) for the annotated template and [deployment.md](../deployment.md) for the full variable table.
+All values are read from the environment **once, at import of `pages/auth.py`**. See [`.env.example`](../../.env.example) for the annotated template and [deployment.md](../deployment.md) for the full variable table.
 
 | Variable | Required | Default / derivation |
 |---|---|---|
@@ -228,11 +229,11 @@ Proctors are **not** admitted to `/admin`; their race/schedule workflow lives on
 
 ## Mock authentication (dev)
 
-When `is_mock_discord()` returns true, `middleware/auth.py:create()` skips the OAuth routes entirely and calls [`middleware/mock_auth.py`](../../middleware/mock_auth.py) `create()`, which registers replacements at the same paths:
+When `is_mock_discord()` returns true, `pages/auth.py:create()` skips the OAuth routes entirely and calls the module-private `_create_mock()` (in the same file), which registers replacements at the same paths:
 
 | Route | Mock behavior |
 |---|---|
-| `/login` | Full user-picker page (no Discord redirect): a filterable table of all existing users — username, display name, discord_id, and a roles summary including `TA(n)`/`CC(n)` membership counts — each with a "Log in as" button, plus a "Create new user" card (username, optional display name, random pre-filled numeric discord_id, multi-select of all `Role` values) that creates the `User` and `UserRole` rows and logs straight in. Already-authenticated visitors are sent to `/`. |
+| `/login` | Full user-picker page (no Discord redirect): a filterable table of all existing users — username, display name, discord_id, and a roles summary including `TA(n)`/`CC(n)` membership counts — each with a "Log in as" button, plus a "Create new user" card (username, optional display name, random pre-filled numeric discord_id, multi-select of all `Role` values) that creates the `User` and `UserRole` rows (via `UserService.create_mock_login_user`) and logs straight in. Already-authenticated visitors are sent to `/`. |
 | `/logout` | Identical to the real route: clears the session, redirects to `/`. |
 | `/oauth/callback` | Stub: unconditionally redirects to `/`. |
 

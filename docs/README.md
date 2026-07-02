@@ -31,7 +31,7 @@ Method-level reference for each layer of the codebase.
 | [reference/data-model.md](reference/data-model.md) | `models.py` (all models, enums, match lifecycle), `application/repositories/`, `migrations/` |
 | [reference/services.md](reference/services.md) | `application/services/` (all modules), `application/utils/` |
 | [reference/rest-api.md](reference/rest-api.md) | `api/` (routers, schemas, auth, rate limiting), FastAPI app metadata in `main.py` |
-| [reference/authentication.md](reference/authentication.md) | `middleware/auth.py`, `middleware/mock_auth.py`, `AuthService` |
+| [reference/authentication.md](reference/authentication.md) | `pages/auth.py`, `middleware/auth.py`, `AuthService` |
 | [reference/discord-integration.md](reference/discord-integration.md) | `discordbot/`, `discord_service.py`, `discord_queue.py` |
 | [reference/seed-generation.md](reference/seed-generation.md) | `seedgen_service.py`, `presets/` |
 | [reference/frontend.md](reference/frontend.md) | `frontend.py`, `pages/`, `theme/`, `static/` |
@@ -78,7 +78,8 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `application/services/` — 30 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
 | `application/repositories/` — 25 repositories | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` — 10 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
-| `middleware/` — auth.py, mock_auth.py, challonge_oauth.py | [reference/authentication.md](reference/authentication.md); challonge_oauth → [reference/services.md](reference/services.md) (challonge_service) |
+| `middleware/` — auth.py (`protected_page` + `AuthMiddleware`) | [reference/authentication.md](reference/authentication.md) |
+| `pages/auth.py`, `pages/challonge_oauth.py` — the OAuth `@ui.page` routes | [reference/authentication.md](reference/authentication.md); challonge_oauth → [reference/services.md](reference/services.md) (challonge_service) |
 | `middleware/security_headers.py` | [deployment.md](deployment.md) |
 | `middleware/error_handlers.py` | [reference/rest-api.md](reference/rest-api.md) |
 | `discordbot/` — 6 handler modules (incl. crew/volunteer acknowledgment, watch buttons) | [reference/discord-integration.md](reference/discord-integration.md) |

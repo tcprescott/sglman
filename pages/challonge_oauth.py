@@ -13,7 +13,7 @@ Both flows share the single registered redirect URI
 ``/challonge/oauth/callback`` — Challonge OAuth apps validate against one URI —
 and the pending CSRF ``state`` identifies which flow a callback completes.
 
-The CSRF ``state`` + JS-read-callback structure mirrors ``middleware/auth.py``.
+The CSRF ``state`` + JS-read-callback structure mirrors ``pages/auth.py``.
 When ``MOCK_CHALLONGE`` is enabled the initiation pages complete the flow
 locally without contacting Challonge.
 """
