@@ -33,6 +33,7 @@ def service():
     svc.repository.create = AsyncMock()
     svc.repository.update = AsyncMock(side_effect=lambda room, **f: room)
     svc.repository.get_by_id = AsyncMock()
+    svc.repository.count_matches = AsyncMock(return_value=0)
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
     return svc
@@ -180,3 +181,11 @@ class TestDeleteStreamRoom:
         room = make_room(room_id=42)
         await service.delete_stream_room(room, actor=make_user())
         assert service.audit_service.write_log.await_args.args[2]['stream_room_id'] == 42
+
+    async def test_refuses_delete_when_matches_assigned(self, service):
+        room = make_room(room_id=7)
+        service.repository.count_matches = AsyncMock(return_value=3)
+        with pytest.raises(ValueError, match='inactive'):
+            await service.delete_stream_room(room, actor=make_user())
+        room.delete.assert_not_called()
+        service.audit_service.write_log.assert_not_called()

@@ -87,6 +87,12 @@ class StreamRoomService:
             await AuthService.can_manage_stream_rooms(actor),
             "User cannot manage stream rooms",
         )
+        match_count = await self.repository.count_matches(stream_room)
+        if match_count:
+            raise ValueError(
+                f"This room has {match_count} match(es) assigned. "
+                "Mark it inactive instead of deleting it."
+            )
         room_id = stream_room.id
         await stream_room.delete()
         await self.audit_service.write_log(

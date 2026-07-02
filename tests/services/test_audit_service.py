@@ -19,7 +19,7 @@ from application.services.audit_service import (
 
 
 def make_user(user_id: int = 1):
-    return SimpleNamespace(id=user_id, username='alice')
+    return SimpleNamespace(id=user_id, username='alice', discord_id=555000111)
 
 
 @pytest.fixture
@@ -149,16 +149,25 @@ class TestWriteLog:
         kwargs = create_mock.await_args.kwargs
         assert kwargs['user'] is user
         assert kwargs['action'] == 'match.created'
-        # details should be JSON-encoded
+        # details should be JSON-encoded, with the actor identity snapshotted
+        # in so attribution survives a later user deletion (FK is SET_NULL).
         import json
-        assert json.loads(kwargs['details']) == {'match_id': 99}
+        assert json.loads(kwargs['details']) == {
+            'match_id': 99,
+            'actor_username': 'alice',
+            'actor_discord_id': '555000111',
+        }
 
-    async def test_no_details_passes_none(self, service, monkeypatch):
+    async def test_no_details_still_snapshots_actor_identity(self, service, monkeypatch):
         create_mock = AsyncMock(return_value=SimpleNamespace(id=1))
         monkeypatch.setattr('application.services.audit_service.AuditLog.create', create_mock)
 
         await service.write_log(make_user(), AuditActions.USER_CREATED)
-        assert create_mock.await_args.kwargs['details'] is None
+        import json
+        assert json.loads(create_mock.await_args.kwargs['details']) == {
+            'actor_username': 'alice',
+            'actor_discord_id': '555000111',
+        }
 
 
 # ---------------------------------------------------------------------------

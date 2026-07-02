@@ -84,10 +84,15 @@ class StreamRoomRepository:
         await stream_room.save()
     
     @staticmethod
+    async def count_matches(stream_room: StreamRoom) -> int:
+        """Return how many matches reference this stream room."""
+        return await stream_room.matches.all().count()
+
+    @staticmethod
     async def delete(stream_room: StreamRoom) -> None:
         """
         Delete a stream room.
-        
+
         Args:
             stream_room: StreamRoom to delete
         """
