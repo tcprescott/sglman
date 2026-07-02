@@ -25,5 +25,9 @@ USER appuser
 # Expose port (default: 8000)
 EXPOSE 8000
 
+# Liveness probe hitting the unauthenticated /api/health DB round-trip.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health').read()" || exit 1
+
 # Entrypoint
 CMD ["./start.sh", "prod"]

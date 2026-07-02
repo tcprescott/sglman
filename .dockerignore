@@ -1,0 +1,33 @@
+# Build context excludes — keep the runtime image small and secret-free.
+# NOTE: migrations/, presets/, static/, and start.sh MUST stay (used at runtime;
+# main.py runs `aerich upgrade` from ./migrations on startup).
+
+# VCS & CI
+.git
+.gitignore
+.github
+
+# Docs & project meta (not needed at runtime)
+docs
+*.md
+!README.md
+
+# Tests & dev tooling
+tests
+.claude
+.pytest_cache
+**/__pycache__
+*.pyc
+
+# Local env & secrets — must never be baked into the image
+.env
+.env.*
+!.env.example
+
+# Large profiling artifact (regenerate locally with scalene)
+profile.html
+
+# Editor / OS cruft
+.vscode
+.idea
+.DS_Store

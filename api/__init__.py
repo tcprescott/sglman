@@ -12,6 +12,7 @@ from api.routers import (
     audit,
     crew,
     discord_role_mappings,
+    health,
     match_actions,
     matches,
     notifications,
@@ -28,6 +29,8 @@ from api.routers import (
 )
 
 router = APIRouter(dependencies=[Depends(rate_limit)])
+# Unauthenticated liveness probe (no auth dependency on this router).
+router.include_router(health.router)
 router.include_router(matches.router)
 router.include_router(match_actions.router)
 router.include_router(crew.router)
