@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for [`models.py`](../../models.py) (all 36 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for [`models.py`](../../models.py) (all 32 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 ## Overview
 
@@ -9,9 +9,9 @@ Persistence is [Tortoise ORM](https://tortoise.github.io/) 0.24 on PostgreSQL vi
 Conventions shared by all models:
 
 - **Surrogate primary key** — every model has `id = fields.IntField(pk=True)` (`SERIAL` in PostgreSQL). The per-model field tables below omit `id`.
-- **Timestamps** — every model has `created_at` (`auto_now_add=True`); all except `AuditLog` and `UserRole` also have `updated_at` (`auto_now=True`). The field tables omit these two unless a model deviates. All datetime columns are `TIMESTAMPTZ` and store UTC; display is US/Eastern — see [timezone-handling.md](../timezone-handling.md).
-- **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
-- **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to most foreign keys. The exceptions declare `on_delete=fields.SET_NULL` so the child survives the parent's deletion: `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `VolunteerAssignment.assigned_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`.
+- **Timestamps** — every model has `created_at` (`auto_now_add=True`, except `EquipmentLoan`, which uses `checked_out_at`); all except `AuditLog`, `UserRole`, `ApiToken`, and `EquipmentLoan` also have `updated_at` (`auto_now=True`). The field tables omit these unless a model deviates. All datetime columns are `TIMESTAMPTZ` and store UTC; display is US/Eastern — see [timezone-handling.md](../timezone-handling.md).
+- **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchplayers`, `tournamentplayers`, `commentator`, `tracker`, `matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `auditlog`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
+- **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id`.
 
 Coding conventions for the layers above (async everywhere, no ORM writes from the UI, audit-log action naming) are canonical in [CLAUDE.md](../../CLAUDE.md) and [refactoring-guide.md](../refactoring-guide.md) — not restated here.
 
@@ -29,12 +29,8 @@ erDiagram
     Tournament }o--o{ User : "crew_coordinators (TournamentCrewCoordinators)"
     Tournament ||--o{ TournamentPlayers : "tournament"
     User ||--o{ TournamentPlayers : "user"
-    Tournament ||--o{ Team : "tournament"
-    Team ||--o{ UserTeams : "team"
-    User ||--o{ UserTeams : "user"
     Tournament ||--o{ TournamentNotificationPreference : "tournament"
     User ||--o{ TournamentNotificationPreference : "user"
-    Tournament |o--o{ Announcement : "tournament"
     Tournament ||--o{ TriforceText : "tournament"
     User |o--o{ TriforceText : "user"
     User |o--o{ TriforceText : "approved_by"
@@ -87,12 +83,9 @@ erDiagram
     ChallongeApiUsage {
         string period "unique YYYY-MM"
     }
-    TestModel {
-        string name "unused scaffold"
-    }
 ```
 
-`SystemConfiguration`, `ChallongeApiUsage`, and `TestModel` have no foreign-key relationships. The two M2M lines are realized as the through tables `TournamentAdmins` and `TournamentCrewCoordinators`, declared inline on `Tournament` (`through=`) rather than as model classes.
+`SystemConfiguration` and `ChallongeApiUsage` have no foreign-key relationships. The two M2M lines are realized as the through tables `TournamentAdmins` and `TournamentCrewCoordinators`, declared inline on `Tournament` (`through=`) rather than as model classes.
 
 ## Enums
 
@@ -209,13 +202,13 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `pronouns` | `CharField(50)` | null | |
 | `is_active` | `BooleanField` | default `True` | |
 | `dm_notifications` | `BooleanField` | default `True` | Master opt-out for Discord DMs |
-| `challonge_user_id` | `CharField(64)` | null | Verified Challonge identity, captured via one-time OAuth (scope `me`) |
+| `challonge_user_id` | `CharField(64)` | null, `unique=True` | Verified Challonge identity, captured via one-time OAuth (scope `me`). Unique so bracket sync resolves to exactly one user (Postgres allows multiple NULLs) |
 | `challonge_username` | `CharField(255)` | null | Cached Challonge username |
 | `challonge_linked_at` | `DatetimeField` | null | When the Challonge identity was linked |
 
 The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
 
-Relationships: declared reverse/M2M accessors for `admin_tournaments` and `crew_coordinated_tournaments` (M2M from `Tournament`), `match_players`, `match_acknowledgments`, `tournament_players`, `tournament_notifications`, `teams` (UserTeams rows), `commentaries`, `approved_commentaries`, `trackers`, `approved_trackers`, `watched_matches`, `roles`, `granted_roles`, `audit_logs`, `triforce_texts`, `triforce_texts_moderated`, `api_tokens`, `feedback_submissions`, `owned_equipment`, `equipment_loans`, `equipment_checkouts_performed`, `equipment_checkins_performed`, `volunteer_profile` (one-to-one), `volunteer_assignments`, `volunteer_assignments_made`, `volunteer_qualifications`, `volunteer_availability`, `player_availability`, `challonge_participations`, `challonge_connections`.
+Relationships: declared reverse/M2M accessors for `admin_tournaments` and `crew_coordinated_tournaments` (M2M from `Tournament`), `match_players`, `match_acknowledgments`, `tournament_players`, `tournament_notifications`, `commentaries`, `approved_commentaries`, `trackers`, `approved_trackers`, `watched_matches`, `roles`, `granted_roles`, `audit_logs`, `triforce_texts`, `triforce_texts_moderated`, `api_tokens`, `feedback_submissions`, `owned_equipment`, `equipment_loans`, `equipment_checkouts_performed`, `equipment_checkins_performed`, `volunteer_profile` (one-to-one), `volunteer_assignments`, `volunteer_assignments_made`, `volunteer_qualifications`, `volunteer_availability`, `challonge_participations`. Accessors that exist only implicitly via the children's `related_name` (no class-level annotation): `player_availability`, `challonge_connections`.
 
 Properties: `preferred_name` returns `display_name` if it is truthy, otherwise `username`.
 
@@ -225,9 +218,9 @@ Junction table mapping users to global `Role` values; records who granted the ro
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `user` | FK → `User` | not null | `related_name='roles'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='roles'` |
 | `role` | `CharEnumField(Role)` | not null | `max_length=32` |
-| `granted_by` | FK → `User` | null | `related_name='granted_roles'`; null for Discord-synced rows |
+| `granted_by` | FK → `User` | null, `SET_NULL` | `related_name='granted_roles'`; null for Discord-synced rows; survives granter deletion |
 | `source` | `CharEnumField(RoleSource)` | not null, default `MANUAL` | `max_length=16`; manual grants are never auto-revoked by the Discord sync |
 
 Constraints: `unique_together ('user', 'role')`; `Meta.table = 'userrole'`.
@@ -314,27 +307,7 @@ Tournament enrollment row (user ⇆ tournament).
 | `tournament` | FK → `Tournament` | not null | `related_name='players'` |
 | `user` | FK → `User` | not null | `related_name='tournament_players'` |
 
-No unique constraint on `(tournament, user)` — duplicate-enrollment prevention relies on `TournamentRepository.is_player_enrolled*` checks.
-
-#### `Team`
-
-Named team within a tournament (for `team_size > 1` formats).
-
-| Field | Type | Null / default | Notes |
-|---|---|---|---|
-| `name` | `CharField(255)` | not null | |
-| `tournament` | FK → `Tournament` | not null | `related_name='teams'` |
-
-#### `UserTeams`
-
-Team membership junction (user ⇆ team).
-
-| Field | Type | Null / default | Notes |
-|---|---|---|---|
-| `user` | FK → `User` | not null | `related_name='teams'` |
-| `team` | FK → `Team` | not null | `related_name='members'` |
-
-`Team` and `UserTeams` are schema-only at present: no repository, service, or page reads or writes them.
+Constraint: `unique_together ('tournament', 'user')` (added in migration 14); the `TournamentRepository.is_player_enrolled*` service checks remain for friendly error messages.
 
 #### `TournamentNotificationPreference`
 
@@ -348,18 +321,6 @@ Per-user, per-tournament match notification level. See [tournament-notifications
 
 Constraints: `unique_together ('user', 'tournament')`; `Meta.table = 'tournamentnotificationpreference'`.
 
-#### `Announcement`
-
-Tournament (or global, when `tournament` is null) announcement. **Model and table are present, but the UI is currently disabled** — the announcements tab entry in [`pages/home.py`](../../pages/home.py) is commented out, and no repository or service touches the model.
-
-| Field | Type | Null / default | Notes |
-|---|---|---|---|
-| `title` | `CharField(255)` | not null | |
-| `content` | `TextField` | not null | |
-| `is_active` | `BooleanField` | default `True` | |
-| `important` | `BooleanField` | default `False` | |
-| `tournament` | FK → `Tournament` | null | `related_name='announcements'` |
-
 ### Match
 
 #### `Match`
@@ -368,17 +329,17 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `tournament` | FK → `Tournament` | not null | `related_name='matches'` |
-| `stream_room` | FK → `StreamRoom` | null | `related_name='matches'` |
-| `scheduled_at` | `DatetimeField` | null | Planned start (UTC) |
+| `tournament` | FK → `Tournament` | not null, `CASCADE` | `related_name='matches'` |
+| `stream_room` | FK → `StreamRoom` | null, `SET_NULL` | `related_name='matches'`; deleting a room detaches its matches |
+| `scheduled_at` | `DatetimeField` | null, indexed | Planned start (UTC) |
 | `seated_at` | `DatetimeField` | null | Source comment: *now known as "Checked In"* |
 | `started_at` | `DatetimeField` | null | |
-| `finished_at` | `DatetimeField` | null | |
+| `finished_at` | `DatetimeField` | null, indexed | |
 | `confirmed_at` | `DatetimeField` | null | Post-finish results confirmation |
 | `comment` | `TextField` | null | |
 | `is_stream_candidate` | `BooleanField` | default `False` | |
 | `title` | `CharField(255)` | null | |
-| `generated_seed` | FK → `GeneratedSeeds` | null | `related_name='matches'` |
+| `generated_seed` | FK → `GeneratedSeeds` | null, `SET_NULL` | `related_name='matches'` |
 
 Relationships: declared reverse accessors `acknowledgments` and `challonge_match` (the linked Challonge bracket match, if scheduled from one); reverse accessors `players`, `commentators`, `trackers`, `watchers` exist via the children's `related_name`s without class-level declarations.
 
@@ -396,10 +357,12 @@ Players assigned to a match, with result and station assignment.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `match` | FK → `Match` | not null | `related_name='players'` |
-| `user` | FK → `User` | not null | `related_name='match_players'` |
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='players'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='match_players'` |
 | `finish_rank` | `IntField` | null | Final placement |
 | `assigned_station` | `CharField(50)` | null | Physical/stream station label |
+
+Constraint: `unique_together (('match', 'user'),)` (added in migration 14).
 
 #### `MatchAcknowledgment`
 
@@ -442,11 +405,13 @@ Commentary signup for a match, with approval workflow and crew acknowledgment. S
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `user` | FK → `User` | not null | `related_name='commentaries'` |
-| `match` | FK → `Match` | not null | `related_name='commentators'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='commentaries'` |
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='commentators'` |
 | `approved` | `BooleanField` | default `False` | |
-| `approved_by` | FK → `User` | null | `related_name='approved_commentaries'` |
+| `approved_by` | FK → `User` | null, `SET_NULL` | `related_name='approved_commentaries'`; survives approver deletion |
 | `acknowledged_at` | `DatetimeField` | null | Crew member confirmed the assignment |
+
+Constraint: `unique_together (('match', 'user'),)` (added in migration 14).
 
 #### `Tracker`
 
@@ -454,11 +419,13 @@ Item/map tracker operator signup for a match. Structurally identical to `Comment
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `user` | FK → `User` | not null | `related_name='trackers'` |
-| `match` | FK → `Match` | not null | `related_name='trackers'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='trackers'` |
+| `match` | FK → `Match` | not null, `CASCADE` | `related_name='trackers'` |
 | `approved` | `BooleanField` | default `False` | |
-| `approved_by` | FK → `User` | null | `related_name='approved_trackers'` |
+| `approved_by` | FK → `User` | null, `SET_NULL` | `related_name='approved_trackers'`; survives approver deletion |
 | `acknowledged_at` | `DatetimeField` | null | |
+
+Constraint: `unique_together (('match', 'user'),)` (added in migration 14).
 
 ### Infrastructure
 
@@ -487,9 +454,12 @@ Append-only record of admin actions. No `updated_at` field — rows are never mo
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
-| `user` | FK → `User` | not null | Actor; `related_name='audit_logs'` |
+| `user` | FK → `User` | null, `SET_NULL` | Actor; `related_name='audit_logs'`. Nullable + `SET_NULL` so the trail survives user deletion; `AuditService.write_log` also snapshots the actor's `username`/`discord_id` into `details`. |
 | `action` | `CharField(255)` | not null | Namespaced `verb.object` string |
-| `details` | `TextField` | null | JSON-encoded dict |
+| `details` | `TextField` | null | JSON-encoded dict (includes `actor_username` / `actor_discord_id`) |
+| `created_at` | `DatetimeField` | `auto_now_add`, indexed | |
+
+Indexes: `created_at` and `user` (added in migration 14) for the audit-log listing hot path.
 
 #### `TriforceText`
 
@@ -533,11 +503,11 @@ A single checkout of an `Equipment` asset. The open loan (`checked_in_at` is nul
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `equipment` | FK → `Equipment` | not null, `CASCADE` | `related_name='loans'` |
-| `borrower` | FK → `User` | not null | `related_name='equipment_loans'`; who holds the asset |
-| `checked_out_by` | FK → `User` | not null | `related_name='equipment_checkouts_performed'` |
+| `borrower` | FK → `User` | not null, `RESTRICT` | `related_name='equipment_loans'`; who holds the asset. `RESTRICT` blocks hard-deleting a user with loan history |
+| `checked_out_by` | FK → `User` | not null, `RESTRICT` | `related_name='equipment_checkouts_performed'` |
 | `checked_out_at` | `DatetimeField` | `auto_now_add` | Checkout time |
 | `checked_in_at` | `DatetimeField` | null | Null while the loan is open |
-| `checked_in_by` | FK → `User` | null | `related_name='equipment_checkins_performed'` |
+| `checked_in_by` | FK → `User` | null, `SET_NULL` | `related_name='equipment_checkins_performed'` |
 
 Constraints: `Meta.table = 'equipmentloan'`. No `updated_at` field.
 
@@ -707,19 +677,6 @@ Per-calendar-month tally of real outbound Challonge API requests. One row per `Y
 
 Constraints: `Meta.table = 'challongeapiusage'`. No relationships.
 
-### Dormant
-
-#### `TestModel`
-
-Unused scaffold left over from early development. No code outside `models.py` and the init migration references it, but the `testmodel` table is created.
-
-| Field | Type | Null / default | Notes |
-|---|---|---|---|
-| `name` | `CharField(255)` | not null | |
-| `description` | `TextField` | not null | |
-| `value` | `IntField` | not null | |
-| `somethingelse` | `CharField(255)` | not null | |
-
 ## Match lifecycle
 
 `Match.current_state` is derived from three nullable timestamps; there is no status column. The model comment on `seated_at` notes the naming history: the field is called *seated* but the state it produces is now labeled **"Checked In"**.
@@ -749,7 +706,7 @@ Repositories ([`application/repositories/`](../../application/repositories/)) ar
 
 The original set is documented method-by-method below. The newer subsystems (equipment, volunteering, availability, Challonge, API tokens, feedback) added their own repositories following the same static-method CRUD/query pattern — see [Newer subsystem repositories](#newer-subsystem-repositories) for the per-repository summary and the source for full signatures.
 
-Some read-only and legacy paths still query models directly rather than going through a repository — for example, the `GET /api/matches` endpoint builds a `Match.all()` query with filters and `prefetch_related` inline. Models with no repository (`Team`, `UserTeams`, `Announcement`, `SystemConfiguration`, `GeneratedSeeds`, `TestModel`) are either accessed directly from services (`SystemConfiguration`, `GeneratedSeeds`) or not accessed at all.
+Some read-only and legacy paths still query models directly rather than going through a repository — for example, the `GET /api/matches` endpoint builds a `Match.all()` query with filters and `prefetch_related` inline. Models with no repository (`SystemConfiguration`, `GeneratedSeeds`) are accessed directly from services.
 
 ### `AuditRepository`
 
