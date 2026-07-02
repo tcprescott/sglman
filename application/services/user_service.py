@@ -48,11 +48,26 @@ class UserService:
         """Get-or-create the ``User`` row for a Discord OAuth login and keep the
         username in sync. Returns ``(user, created)``. An inactive account is
         returned without a username update so the caller can reject the login.
+
+        A freshly provisioned account writes a ``user.provisioned`` audit entry
+        (self-attributed to the new user) so login-time account creation is no
+        longer invisible to the audit trail.
         """
         user, created = await self.repository.get_or_create_by_discord_id(
             discord_id, username,
         )
-        if user.is_active and not created:
+        if created:
+            await self.audit_service.write_log(
+                user,
+                AuditActions.USER_PROVISIONED,
+                {
+                    'target_user_id': user.id,
+                    'username': username,
+                    'discord_id': str(discord_id),
+                    'source': 'discord_login',
+                },
+            )
+        elif user.is_active:
             await self.repository.update(user, username=username)
         return user, created
 
@@ -64,16 +79,29 @@ class UserService:
         role_values: Optional[Iterable[str]] = None,
     ) -> User:
         """Provision a user (and any selected roles) for the MOCK_DISCORD dev
-        login flow. This dev-only path performs no permission check or audit,
-        mirroring the mock login page it backs.
+        login flow. This dev-only path performs no permission check (mirroring
+        the mock login page it backs) but writes a ``user.provisioned`` audit
+        entry so provisioning is audited consistently with the real login path.
         """
+        roles = [Role(role_value) for role_value in role_values or []]
         user = await self.repository.create(
             username=username,
             discord_id=discord_id,
             display_name=display_name,
         )
-        for role_value in role_values or []:
-            await self.role_repository.add(user, Role(role_value))
+        for role in roles:
+            await self.role_repository.add(user, role)
+        await self.audit_service.write_log(
+            user,
+            AuditActions.USER_PROVISIONED,
+            {
+                'target_user_id': user.id,
+                'username': username,
+                'discord_id': str(discord_id),
+                'source': 'mock_login',
+                'roles': [role.value for role in roles],
+            },
+        )
         return user
 
     async def get_active_tournaments_categorized(self) -> Dict[str, List[Tournament]]:
