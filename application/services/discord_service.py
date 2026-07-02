@@ -5,7 +5,7 @@ Handles Discord-related operations like sending DMs.
 """
 
 import logging
-from typing import Tuple, Optional, List, Dict, Set, Union
+from typing import Awaitable, Callable, Tuple, Optional, List, Dict, Set, Union
 import discord
 from discord.ext import commands
 
@@ -14,6 +14,52 @@ logger = logging.getLogger(__name__)
 
 # Shared bot instance (singleton pattern)
 _bot_instance: Optional[commands.Bot] = None
+
+
+# ---------------------------------------------------------------------------
+# Interaction-handler and DM view-factory registries
+#
+# These invert what used to be a bidirectional import cycle between this module
+# and the Discord bot package (previously held together by ~20 deferred,
+# function-body imports). The bot package registers each interaction handler
+# and view factory here at startup, so the dependency now runs one way (the bot
+# package -> ``application.services``) and this module never imports it back.
+# Mirrors ``application/match_events.py``.
+# See docs/reviews/2026-07-project-structure-review.md, roadmap item 21.
+# ---------------------------------------------------------------------------
+
+# Stable view-factory kinds, shared with the bot package's registration so the
+# DM senders below and the registering code agree on the lookup keys.
+VIEW_CREW_SIGNUP = 'crew_signup'
+VIEW_MATCH_ACK = 'match_ack'
+VIEW_CREW_ACK = 'crew_ack'
+VIEW_VOLUNTEER_ACK = 'volunteer_ack'
+VIEW_UNWATCH = 'match_watch'
+
+InteractionHandler = Callable[[discord.Interaction], Awaitable[None]]
+ViewFactory = Callable[..., discord.ui.View]
+
+_interaction_handlers: Dict[str, InteractionHandler] = {}
+_view_factories: Dict[str, ViewFactory] = {}
+
+
+def register_interaction_handler(prefix: str, handler: InteractionHandler) -> None:
+    """Register a component-interaction handler keyed by its custom_id prefix.
+
+    ``on_interaction`` dispatches an incoming component interaction to the
+    handler whose ``prefix`` matches the text before the first ``:`` in the
+    button's ``custom_id``.
+    """
+    _interaction_handlers[prefix] = handler
+
+
+def register_view_factory(kind: str, factory: ViewFactory) -> None:
+    """Register a Discord ``View`` factory keyed by ``kind`` (a ``VIEW_*`` const).
+
+    The DM senders look the factory up by ``kind`` instead of importing it from
+    the bot package directly.
+    """
+    _view_factories[kind] = factory
 
 
 async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
@@ -65,21 +111,10 @@ def get_discord_bot() -> commands.Bot:
         async def on_interaction(interaction: discord.Interaction) -> None:
             if interaction.type == discord.InteractionType.component:
                 custom_id = (interaction.data or {}).get('custom_id', '')
-                if custom_id.startswith('crew_signup:'):
-                    from discordbot.crew_signup import handle_crew_signup_interaction
-                    await handle_crew_signup_interaction(interaction)
-                elif custom_id.startswith('match_ack:'):
-                    from discordbot.match_acknowledgment import handle_match_acknowledgment_interaction
-                    await handle_match_acknowledgment_interaction(interaction)
-                elif custom_id.startswith('crew_ack:'):
-                    from discordbot.crew_acknowledgment import handle_crew_acknowledgment_interaction
-                    await handle_crew_acknowledgment_interaction(interaction)
-                elif custom_id.startswith('volunteer_ack:'):
-                    from discordbot.volunteer_acknowledgment import handle_volunteer_acknowledgment_interaction
-                    await handle_volunteer_acknowledgment_interaction(interaction)
-                elif custom_id.startswith('match_watch:'):
-                    from discordbot.watch_buttons import handle_unwatch_interaction
-                    await handle_unwatch_interaction(interaction)
+                prefix = custom_id.split(':', 1)[0]
+                handler = _interaction_handlers.get(prefix)
+                if handler is not None:
+                    await handler(interaction)
 
         @_bot_instance.event
         async def on_member_update(before: discord.Member, after: discord.Member) -> None:
@@ -103,14 +138,23 @@ class DiscordService:
     def __init__(self) -> None:
         self._bot = get_discord_bot()
 
-    async def send_dm(self, user_id: int, message: str) -> Tuple[bool, str]:
+    async def send_dm(
+        self,
+        user_id: int,
+        message: str,
+        view_factory: Optional[Callable[[], discord.ui.View]] = None,
+    ) -> Tuple[bool, str]:
         """
-        Send a direct message to a Discord user.
-        
+        Send a direct message to a Discord user, optionally with attached buttons.
+
         Args:
             user_id: Discord user ID
             message: Message content to send
-            
+            view_factory: Optional zero-arg callable returning the
+                ``discord.ui.View`` (buttons) to attach. Called just before the
+                message is sent, so it only runs once the bot is ready and the
+                user has been fetched.
+
         Returns:
             Tuple of (success: bool, message: str)
             - If successful: (True, "Message sent successfully.")
@@ -119,13 +163,16 @@ class DiscordService:
         try:
             if self._bot is None:
                 return False, "Discord bot not initialized"
-            
+
             # Check if bot is ready
             if not self._bot.is_ready():
                 return False, "Discord bot is not connected. Please try again in a moment."
 
             user = await self._bot.fetch_user(user_id)
-            await user.send(message)
+            if view_factory is not None:
+                await user.send(message, view=view_factory())
+            else:
+                await user.send(message)
             return True, "Message sent successfully."
         except discord.NotFound:
             return False, "User not found"
@@ -135,72 +182,17 @@ class DiscordService:
             return False, f"Failed to send message: {str(e)}"
         except Exception as e:
             return False, f"Discord bot error: {str(e)}"
-    
+
+    # The five view-bearing senders below are thin wrappers over send_dm: each
+    # resolves its registered view factory by kind (populated by the bot package
+    # at startup — see the registries above) and defers to send_dm.
     async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        """
-        Send a direct message to a Discord user that includes crew signup buttons.
-
-        Args:
-            user_id: Discord user ID
-            message: Message content
-            match_id: Match ID encoded into button custom_ids
-
-        Returns:
-            Tuple of (success: bool, message: str)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            from discordbot.crew_signup import make_crew_signup_view
-            user = await self._bot.fetch_user(user_id)
-            view = make_crew_signup_view(match_id)
-            await user.send(message, view=view)
-            return True, "Message sent successfully."
-        except discord.NotFound:
-            return False, "User not found"
-        except discord.Forbidden:
-            return False, "Cannot send DM to this user (DMs may be disabled)"
-        except discord.HTTPException as e:
-            return False, f"Failed to send message: {str(e)}"
-        except Exception as e:
-            return False, f"Discord bot error: {str(e)}"
+        """Send a DM with the commentator/tracker crew signup buttons for a match."""
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_SIGNUP](match_id))
 
     async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        """
-        Send a direct message to a Discord user with a match acknowledgment button.
-
-        Args:
-            user_id: Discord user ID
-            message: Message content
-            match_id: Match ID encoded into the button custom_id
-
-        Returns:
-            Tuple of (success: bool, message: str)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            from discordbot.match_acknowledgment import make_match_acknowledgment_view
-            user = await self._bot.fetch_user(user_id)
-            view = make_match_acknowledgment_view(match_id)
-            await user.send(message, view=view)
-            return True, "Message sent successfully."
-        except discord.NotFound:
-            return False, "User not found"
-        except discord.Forbidden:
-            return False, "Cannot send DM to this user (DMs may be disabled)"
-        except discord.HTTPException as e:
-            return False, f"Failed to send message: {str(e)}"
-        except Exception as e:
-            return False, f"Discord bot error: {str(e)}"
+        """Send a DM with a match Acknowledge button."""
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_MATCH_ACK](match_id))
 
     async def send_dm_with_crew_acknowledgment_button(
         self,
@@ -209,38 +201,11 @@ class DiscordService:
         crew_type: str,
         crew_id: int,
     ) -> Tuple[bool, str]:
+        """Send a DM with a crew-assignment Acknowledge button.
+
+        ``crew_type`` is 'commentator' or 'tracker'; ``crew_id`` is the crew row id.
         """
-        Send a direct message to a Discord user with a crew acknowledgment button.
-
-        Args:
-            user_id: Discord user ID
-            message: Message content
-            crew_type: 'commentator' or 'tracker'
-            crew_id: Crew row ID encoded into the button custom_id
-
-        Returns:
-            Tuple of (success: bool, message: str)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            from discordbot.crew_acknowledgment import make_crew_acknowledgment_view
-            user = await self._bot.fetch_user(user_id)
-            view = make_crew_acknowledgment_view(crew_type, crew_id)
-            await user.send(message, view=view)
-            return True, "Message sent successfully."
-        except discord.NotFound:
-            return False, "User not found"
-        except discord.Forbidden:
-            return False, "Cannot send DM to this user (DMs may be disabled)"
-        except discord.HTTPException as e:
-            return False, f"Failed to send message: {str(e)}"
-        except Exception as e:
-            return False, f"Discord bot error: {str(e)}"
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_ACK](crew_type, crew_id))
 
     async def send_dm_with_volunteer_acknowledgment_button(
         self,
@@ -248,60 +213,12 @@ class DiscordService:
         message: str,
         assignment_id: int,
     ) -> Tuple[bool, str]:
-        """Send a DM to a Discord user with a volunteer shift acknowledgment button."""
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            from discordbot.volunteer_acknowledgment import make_volunteer_acknowledgment_view
-            user = await self._bot.fetch_user(user_id)
-            view = make_volunteer_acknowledgment_view(assignment_id)
-            await user.send(message, view=view)
-            return True, "Message sent successfully."
-        except discord.NotFound:
-            return False, "User not found"
-        except discord.Forbidden:
-            return False, "Cannot send DM to this user (DMs may be disabled)"
-        except discord.HTTPException as e:
-            return False, f"Failed to send message: {str(e)}"
-        except Exception as e:
-            return False, f"Discord bot error: {str(e)}"
+        """Send a DM with a volunteer shift Acknowledge button."""
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_VOLUNTEER_ACK](assignment_id))
 
     async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        """
-        Send a direct message to a Discord user with an Unwatch button.
-
-        Args:
-            user_id: Discord user ID
-            message: Message content
-            match_id: Match ID encoded into the button custom_id
-
-        Returns:
-            Tuple of (success: bool, message: str)
-        """
-        try:
-            if self._bot is None:
-                return False, "Discord bot not initialized"
-
-            if not self._bot.is_ready():
-                return False, "Discord bot is not connected. Please try again in a moment."
-
-            from discordbot.watch_buttons import make_unwatch_view
-            user = await self._bot.fetch_user(user_id)
-            view = make_unwatch_view(match_id)
-            await user.send(message, view=view)
-            return True, "Message sent successfully."
-        except discord.NotFound:
-            return False, "User not found"
-        except discord.Forbidden:
-            return False, "Cannot send DM to this user (DMs may be disabled)"
-        except discord.HTTPException as e:
-            return False, f"Failed to send message: {str(e)}"
-        except Exception as e:
-            return False, f"Discord bot error: {str(e)}"
+        """Send a DM with an Unwatch button for match watchers."""
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_UNWATCH](match_id))
 
     def get_bot(self) -> Optional[commands.Bot]:
         """Get the Discord bot instance."""
@@ -499,29 +416,31 @@ class MockDiscordService:
     def __init__(self) -> None:
         self._bot = None
 
-    async def send_dm(self, user_id: int, message: str) -> Tuple[bool, str]:
+    async def send_dm(
+        self,
+        user_id: int,
+        message: str,
+        view_factory: Optional[Callable[[], "discord.ui.View"]] = None,
+    ) -> Tuple[bool, str]:
         print(f"[MOCK Discord DM] -> {user_id}: {message}")
         return True, "Message sent (mock)"
 
+    # Thin wrappers matching DiscordService's public surface; all defer to the
+    # single send_dm stub above (the buttons are irrelevant in mock mode).
     async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, crew buttons): {message}")
-        return True, "Message sent (mock)"
+        return await self.send_dm(user_id, message)
 
     async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, ack button): {message}")
-        return True, "Message sent (mock)"
+        return await self.send_dm(user_id, message)
 
     async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int) -> Tuple[bool, str]:
-        print(f"[MOCK Discord DM] -> {user_id} ({crew_type} {crew_id}, ack button): {message}")
-        return True, "Message sent (mock)"
+        return await self.send_dm(user_id, message)
 
     async def send_dm_with_volunteer_acknowledgment_button(self, user_id: int, message: str, assignment_id: int) -> Tuple[bool, str]:
-        print(f"[MOCK Discord DM] -> {user_id} (volunteer assignment {assignment_id}, ack button): {message}")
-        return True, "Message sent (mock)"
+        return await self.send_dm(user_id, message)
 
     async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        print(f"[MOCK Discord DM] -> {user_id} (match {match_id}, unwatch button): {message}")
-        return True, "Message sent (mock)"
+        return await self.send_dm(user_id, message)
 
     def get_bot(self) -> None:
         return None
