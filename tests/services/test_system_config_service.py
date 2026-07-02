@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services import system_config_service as sys_cfg_module
 from application.services.system_config_service import (
     KEY_EVENT_START_DATE,
     KEY_EVENT_END_DATE,

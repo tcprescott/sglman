@@ -92,7 +92,6 @@ class MatchSuggestionService:
         event_end,
     ) -> List[Tuple[datetime, datetime]]:
         """Generate (slot_start_eastern, slot_end_eastern) pairs at 30-min intervals."""
-        from datetime import date, time, timezone
         from application.utils.timezone import EASTERN_TZ
 
         candidates: List[Tuple[datetime, datetime]] = []

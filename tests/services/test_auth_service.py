@@ -6,7 +6,7 @@ needing a database. The goal is to lock in the role rules so refactors
 don't accidentally widen or narrow them.
 """
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 

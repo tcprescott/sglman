@@ -8,7 +8,7 @@ from typing import List, Set
 
 from tortoise.transactions import in_transaction
 
-from models import User, VolunteerPosition, VolunteerQualification
+from models import User, VolunteerQualification
 
 
 class VolunteerQualificationRepository:

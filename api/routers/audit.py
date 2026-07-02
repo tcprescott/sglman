@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from api.dependencies import ServiceErrorRoute, require_admin
 from api.schemas.audit import AuditLogEntry, AuditLogPage
 from application.services import AuditService
-from models import AuditLog, User
+from models import User
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit"], route_class=ServiceErrorRoute)
 

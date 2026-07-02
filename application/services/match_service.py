@@ -6,7 +6,7 @@ and orchestrates between repositories.
 """
 
 import re
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from typing import List, Optional, Dict, Any, Tuple
 
 from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
@@ -25,7 +25,7 @@ from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
-from application.utils.discord_messages import checked_in_dm, scheduled_dm, rescheduled_dm
+from application.utils.discord_messages import scheduled_dm, rescheduled_dm
 from application.utils.timezone import (
     parse_eastern_datetime,
     format_eastern_datetime,

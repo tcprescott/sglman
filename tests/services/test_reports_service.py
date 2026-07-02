@@ -9,7 +9,6 @@ from datetime import datetime, timezone, timedelta
 from types import SimpleNamespace
 from typing import Optional
 
-import pytest
 
 from application.services.reports_service import (
     DEFAULT_MATCH_DURATION_MIN,

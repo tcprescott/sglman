@@ -12,7 +12,6 @@ from application.services.volunteer_profile_service import VolunteerProfileServi
 from application.services.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
-    format_eastern_date,
     format_eastern_time,
     parse_eastern_datetime,
 )

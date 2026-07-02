@@ -9,7 +9,6 @@ Requires the schema to already exist (run ./start.sh dev or aerich upgrade first
 """
 import asyncio
 import sys
-import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 

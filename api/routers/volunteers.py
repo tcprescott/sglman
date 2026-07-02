@@ -9,7 +9,6 @@ from api.dependencies import ServiceErrorRoute, require_api_actor, require_write
 from api.schemas.volunteers import (
     AssignRequest,
     AssignResponse,
-    AvailabilityWindowInput,
     CoverageRow,
     OptInRequest,
     SetAvailabilityRequest,

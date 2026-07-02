@@ -38,7 +38,7 @@ class StreamRoomDialog(BaseMatchDialog):
                             self.match.id, stream_candidate_checkbox.value, actor=actor,
                         )
                     with self.dialog:
-                        ui.notify(f'Stage updated.', color='positive')
+                        ui.notify('Stage updated.', color='positive')
                         dialog.close()
                     if self.on_submit:
                         await self.on_submit(self.match)

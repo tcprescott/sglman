@@ -4,7 +4,6 @@ from nicegui import app, background_tasks, ui
 
 from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
-from models import FeedbackStatus
 
 _CATEGORY_LABELS = {
     'bug': 'Bug',

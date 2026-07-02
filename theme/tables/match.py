@@ -291,18 +291,18 @@ class MatchTableView:
                 </q-td>''')
         elif self.admin_controls:
             for role in ['commentators', 'trackers']:
-                self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+                self.table.add_slot(f'body-cell-{role}', '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <div class="wrap">
                         <template v-for="(item, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
                                 <q-icon v-if="item[1] && item[3]" name="check_circle" class="st-ok" size="xs">
-                                    <q-tooltip v-if="item[4]">Acknowledged {{{{ item[4] }}}}</q-tooltip>
+                                    <q-tooltip v-if="item[4]">Acknowledged {{ item[4] }}</q-tooltip>
                                 </q-icon>
                                 <q-icon v-else-if="item[1] && !item[3]" name="schedule" class="st-pending" size="xs">
                                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                                 </q-icon>
                                 <span :class="item[1] ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px;">
-                                    {{{{ item[0] }}}}
+                                    {{ item[0] }}
                                 </span>
                             </div>
                         </template>

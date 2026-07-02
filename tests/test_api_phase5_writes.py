@@ -2,7 +2,7 @@
 
 import pytest
 
-from models import Role, StreamRoom, Tournament, TriforceText, User
+from models import Role, Tournament
 from tests.api_helpers import build_api_app, client_for, create_user_token
 
 

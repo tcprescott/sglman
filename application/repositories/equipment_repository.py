@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from tortoise.functions import Max
 
-from models import Equipment, EquipmentLoan, EquipmentStatus, User
+from models import Equipment, EquipmentLoan, User
 
 
 class EquipmentRepository:
