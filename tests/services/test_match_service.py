@@ -172,14 +172,16 @@ class TestFormatMatchForDisplay:
         result = service._format_match_for_display(match)
         assert result["tournament"] == ""
 
-    def test_players_formatted_as_tuples(self, service):
+    def test_players_formatted_as_dicts(self, service):
         player = SimpleNamespace(
             user=SimpleNamespace(preferred_name="Alice", discord_id="111"),
             finish_rank=1,
             assigned_station="A",
         )
         result = service._format_match_for_display(make_match(players=[player]))
-        assert result["players"] == [("Alice", 1, "A", "111")]
+        assert result["players"] == [
+            {"name": "Alice", "finish_rank": 1, "station": "A", "discord_id": "111"}
+        ]
 
     def test_multiple_players_all_included(self, service):
         players = [
@@ -189,7 +191,7 @@ class TestFormatMatchForDisplay:
         result = service._format_match_for_display(make_match(players=players))
         assert len(result["players"]) == 2
 
-    def test_commentators_formatted_as_tuples(self, service):
+    def test_commentators_formatted_as_dicts(self, service):
         commentator = SimpleNamespace(
             id=11,
             user=SimpleNamespace(preferred_name="Charlie", discord_id="123"),
@@ -198,9 +200,18 @@ class TestFormatMatchForDisplay:
             auto_acknowledged=False,
         )
         result = service._format_match_for_display(make_match(commentators=[commentator]))
-        assert result["commentators"] == [("Charlie", True, "123", False, "", 11)]
+        assert result["commentators"] == [
+            {
+                "name": "Charlie",
+                "approved": True,
+                "discord_id": "123",
+                "acknowledged": False,
+                "ack_ts": "",
+                "id": 11,
+            }
+        ]
 
-    def test_trackers_formatted_as_tuples(self, service):
+    def test_trackers_formatted_as_dicts(self, service):
         tracker = SimpleNamespace(
             id=22,
             user=SimpleNamespace(preferred_name="Dana", discord_id="456"),
@@ -209,7 +220,16 @@ class TestFormatMatchForDisplay:
             auto_acknowledged=False,
         )
         result = service._format_match_for_display(make_match(trackers=[tracker]))
-        assert result["trackers"] == [("Dana", False, "456", False, "", 22)]
+        assert result["trackers"] == [
+            {
+                "name": "Dana",
+                "approved": False,
+                "discord_id": "456",
+                "acknowledged": False,
+                "ack_ts": "",
+                "id": 22,
+            }
+        ]
 
     def test_state_timestamp_set_when_seated(self, service):
         match = make_match(seated_at=datetime(2025, 1, 15, 19, 30))

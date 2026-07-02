@@ -1008,13 +1008,13 @@ class MatchService:
                 if acknowledged and ack and ack.acknowledged_at else ''
             )
             discord_id = getattr(p.user, 'discord_id', None)
-            acknowledgments_summary.append((
-                p.user.preferred_name,
-                acknowledged,
-                bool(ack and ack.auto_acknowledged),
-                ts_display,
-                str(discord_id) if discord_id else None,
-            ))
+            acknowledgments_summary.append({
+                'name': p.user.preferred_name,
+                'acknowledged': acknowledged,
+                'auto': bool(ack and ack.auto_acknowledged),
+                'ts': ts_display,
+                'discord_id': str(discord_id) if discord_id else None,
+            })
 
         return {
             'id': match.id,
@@ -1022,7 +1022,15 @@ class MatchService:
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
             'state': state,
             'state_timestamp': state_timestamp,
-            'players': [(p.user.preferred_name, p.finish_rank, p.assigned_station, str(p.user.discord_id) if p.user.discord_id else None) for p in match.players],
+            'players': [
+                {
+                    'name': p.user.preferred_name,
+                    'finish_rank': p.finish_rank,
+                    'station': p.assigned_station,
+                    'discord_id': str(p.user.discord_id) if p.user.discord_id else None,
+                }
+                for p in match.players
+            ],
             'acknowledgments': acknowledgments_summary,
             'stream_room': match.stream_room.name if match.stream_room else '',
             'stream_room_url': (
@@ -1036,25 +1044,25 @@ class MatchService:
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
             'commentators': [
-                (
-                    c.user.preferred_name,
-                    c.approved,
-                    c.user.discord_id,
-                    c.acknowledged_at is not None,
-                    format_eastern_display(c.acknowledged_at) if c.acknowledged_at else '',
-                    c.id,
-                )
+                {
+                    'name': c.user.preferred_name,
+                    'approved': c.approved,
+                    'discord_id': c.user.discord_id,
+                    'acknowledged': c.acknowledged_at is not None,
+                    'ack_ts': format_eastern_display(c.acknowledged_at) if c.acknowledged_at else '',
+                    'id': c.id,
+                }
                 for c in match.commentators
             ],
             'trackers': [
-                (
-                    t.user.preferred_name,
-                    t.approved,
-                    t.user.discord_id,
-                    t.acknowledged_at is not None,
-                    format_eastern_display(t.acknowledged_at) if t.acknowledged_at else '',
-                    t.id,
-                )
+                {
+                    'name': t.user.preferred_name,
+                    'approved': t.approved,
+                    'discord_id': t.user.discord_id,
+                    'acknowledged': t.acknowledged_at is not None,
+                    'ack_ts': format_eastern_display(t.acknowledged_at) if t.acknowledged_at else '',
+                    'id': t.id,
+                }
                 for t in match.trackers
             ],
             # Keep these for backward compatibility with existing code that may reference them

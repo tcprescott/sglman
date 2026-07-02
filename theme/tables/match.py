@@ -194,19 +194,19 @@ class MatchTableView:
                     <div>
                         <template v-for="(player, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px;">
-                                <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                                <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
                                         name="check_circle" class="st-ok" size="xs">
-                                    <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{ props.row.acknowledgments[idx][3] }}</q-tooltip>
+                                    <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
                                 </q-icon>
                                 <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
                                         name="schedule" class="st-pending" size="xs">
                                     <q-tooltip>Awaiting acknowledgment</q-tooltip>
                                 </q-icon>
-                                <span :class="player[1] === 1 ? 'st-ok-strong' : ''">
-                                    {{ player[0] }}
-                                    <span v-if="player[2]" class="st-neutral italic-note"> ({{ player[2] }})</span>
+                                <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
+                                    {{ player.name }}
+                                    <span v-if="player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
                                 </span>
-                                <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                                <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                                       class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
                             </div>
                         </template>
@@ -222,19 +222,19 @@ class MatchTableView:
                 <div>
                     <template v-for="(player, idx) in props.value">
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                            <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
                                     name="check_circle" class="st-ok" size="xs">
-                                <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{ props.row.acknowledgments[idx][3] }}</q-tooltip>
+                                <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
                             </q-icon>
                             <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
                                     name="schedule" class="st-pending" size="xs">
                                 <q-tooltip>Awaiting acknowledgment</q-tooltip>
                             </q-icon>
-                            <span :class="player[1] === 1 ? 'st-ok-strong' : ''">
-                                {{ player[0] }}
-                                <span v-if="player[2]" class="st-neutral italic-note"> ({{ player[2] }})</span>
+                            <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
+                                {{ player.name }}
+                                <span v-if="player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
                             </span>
-                            <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                            <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                                   class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
                         </div>
                     </template>
@@ -245,18 +245,18 @@ class MatchTableView:
                 <div>
                     <template v-for="(player, idx) in props.value">
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                            <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
                                     name="check_circle" class="st-ok" size="xs">
-                                <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{{{ props.row.acknowledgments[idx][3] }}}}</q-tooltip>
+                                <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{{{ props.row.acknowledgments[idx].ts }}}}</q-tooltip>
                             </q-icon>
                             <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
                                     name="schedule" class="st-pending" size="xs">
                                 <q-tooltip>Awaiting acknowledgment</q-tooltip>
                             </q-icon>
-                            <span :class="player[1] === 1 ? 'st-ok-strong' : ''">{{{{ player[0] }}}}</span>
-                            <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                            <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">{{{{ player.name }}}}</span>
+                            <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                                   class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
-                            <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][4] && props.row.acknowledgments[idx][4] == {discord_id_js}"
+                            <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == {discord_id_js}"
                                    icon="check" color="primary" size="xs" dense flat
                                    @click="$parent.$emit('acknowledge_match', props.row)">
                                 <q-tooltip>Acknowledge</q-tooltip>
@@ -275,15 +275,15 @@ class MatchTableView:
                     <div class="wrap">
                         <template v-for="(item, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                <q-icon v-if="item[1] && item[3]" name="check_circle" class="st-ok" size="xs">
-                                    <q-tooltip v-if="item[4]">Acknowledged {{{{ item[4] }}}}</q-tooltip>
+                                <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
+                                    <q-tooltip v-if="item.ack_ts">Acknowledged {{{{ item.ack_ts }}}}</q-tooltip>
                                 </q-icon>
-                                <q-icon v-else-if="item[1] && !item[3]" name="schedule" class="st-pending" size="xs">
+                                <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                                 </q-icon>
                                 <a href="#" @click="$parent.$emit('edit_{singular}', {{ row: props.row, idx }})"
-                                   :class="item[1] ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px; text-decoration: underline;">
-                                    {{{{ item[0] }}}}
+                                   :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px; text-decoration: underline;">
+                                    {{{{ item.name }}}}
                                 </a>
                             </div>
                         </template>
@@ -295,14 +295,14 @@ class MatchTableView:
                     <div class="wrap">
                         <template v-for="(item, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                <q-icon v-if="item[1] && item[3]" name="check_circle" class="st-ok" size="xs">
-                                    <q-tooltip v-if="item[4]">Acknowledged {{ item[4] }}</q-tooltip>
+                                <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
+                                    <q-tooltip v-if="item.ack_ts">Acknowledged {{ item.ack_ts }}</q-tooltip>
                                 </q-icon>
-                                <q-icon v-else-if="item[1] && !item[3]" name="schedule" class="st-pending" size="xs">
+                                <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                                 </q-icon>
-                                <span :class="item[1] ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px;">
-                                    {{ item[0] }}
+                                <span :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px;">
+                                    {{ item.name }}
                                 </span>
                             </div>
                         </template>
@@ -314,25 +314,25 @@ class MatchTableView:
                 self.table.add_slot(f'body-cell-{role}', f'''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
                     <div class="wrap">
                         <div style="margin-bottom: 6px;">
-                            <q-btn v-if="props.value && props.value.some(item => item[2] == {discord_id_js})"
+                            <q-btn v-if="props.value && props.value.some(item => item.discord_id == {discord_id_js})"
                                    icon="undo" color="negative" size="sm"
                                    @click="$parent.$emit('undo_{singular}', props.row)" style="margin-right: 6px;" />
-                            <q-btn v-if="props.value && !props.value.some(item => item[2] == {discord_id_js}) && !props.row.players.some(p => p[3] == {discord_id_js})"
+                            <q-btn v-if="props.value && !props.value.some(item => item.discord_id == {discord_id_js}) && !props.row.players.some(p => p.discord_id == {discord_id_js})"
                                    icon="assignment" color="primary" size="sm"
                                    @click="$parent.$emit('signup_{singular}', props.row)" style="margin-right: 6px;" />
                         </div>
                         <template v-for="(item, idx) in props.value">
                             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                <q-icon v-if="item[1] && item[3]" name="check_circle" class="st-ok" size="xs">
-                                    <q-tooltip v-if="item[4]">Acknowledged {{{{ item[4] }}}}</q-tooltip>
+                                <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
+                                    <q-tooltip v-if="item.ack_ts">Acknowledged {{{{ item.ack_ts }}}}</q-tooltip>
                                 </q-icon>
-                                <q-icon v-else-if="item[1] && !item[3]" name="schedule" class="st-pending" size="xs">
+                                <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                                 </q-icon>
-                                <span :class="item[1] ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px;">
-                                    {{{{ item[0] }}}}
+                                <span :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px;">
+                                    {{{{ item.name }}}}
                                 </span>
-                                <q-btn v-if="item[1] && !item[3] && item[2] == {discord_id_js}"
+                                <q-btn v-if="item.approved && !item.acknowledged && item.discord_id == {discord_id_js}"
                                        icon="check" color="primary" size="xs" dense flat
                                        @click="$parent.$emit('acknowledge_{singular}', {{ row: props.row, idx }})">
                                     <q-tooltip>Acknowledge</q-tooltip>
@@ -479,10 +479,10 @@ class MatchTableView:
                 idx = event.args['idx']
                 match_id = row['id']
                 items = row.get(f'{role}s') or []
-                if idx >= len(items) or len(items[idx]) <= 5:
+                if idx >= len(items) or not isinstance(items[idx], dict) or items[idx].get('id') is None:
                     ui.notify('Page is out of date — please refresh and try again.', color='warning')
                     return
-                crew_id = items[idx][5]
+                crew_id = items[idx]['id']
                 discord_id = app.storage.user.get('discord_id', None)
                 if not discord_id:
                     ui.notify('You must be logged in to acknowledge.', color='warning')
@@ -707,11 +707,6 @@ class MatchTableView:
                 field['separator'] = ', '  # Add space after comma
             elif field['key'] in ['commentators', 'trackers']:
                 field['array_objects'] = True
-                field['name_index'] = 0
-                field['approved_index'] = 1
-                field['ack_index'] = 3
-                field['ack_ts_index'] = 4
-                field['discord_index'] = 2
                 field['separator'] = ', '  # Add space after comma
             elif field['key'] == 'acknowledgments':
                 field['ack_field'] = True
@@ -728,11 +723,6 @@ class MatchTableView:
             (f", event: '{f['event']}'" if 'event' in f else '') +
             (", array: true" if f.get('array') else '') +
             (", arrayObjects: true" if f.get('array_objects') else '') +
-            (", nameIndex: " + str(f['name_index']) if 'name_index' in f else '') +
-            (", approvedIndex: " + str(f['approved_index']) if 'approved_index' in f else '') +
-            (", ackIndex: " + str(f['ack_index']) if 'ack_index' in f else '') +
-            (", ackTsIndex: " + str(f['ack_ts_index']) if 'ack_ts_index' in f else '') +
-            (", discordIndex: " + str(f['discord_index']) if 'discord_index' in f else '') +
             (", ackField: true" if f.get('ack_field') else '') +
             (", stateField: true" if f.get('state_field') else '') +
             (", watchField: true" if f.get('watch_field') else '') +
@@ -759,21 +749,21 @@ class MatchTableView:
                         <div v-if="field.key === 'players'">
                             <template v-for="(player, idx) in props.row[field.key]">
                                 <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                    <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1]"
+                                    <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
                                             name="check_circle" class="st-ok" size="xs">
-                                        <q-tooltip v-if="props.row.acknowledgments[idx][3]">Acknowledged {{{{ props.row.acknowledgments[idx][3] }}}}</q-tooltip>
+                                        <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{{{ props.row.acknowledgments[idx].ts }}}}</q-tooltip>
                                     </q-icon>
                                     <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
                                             name="schedule" class="st-pending" size="xs">
                                         <q-tooltip>Awaiting acknowledgment</q-tooltip>
                                     </q-icon>
-                                    <span :class="player[1] === 1 ? 'st-ok-strong' : ''">
-                                        {{{{ player[0] }}}}
-                                        <span v-if="{'true' if self.admin_controls else 'false'} && player[2]" class="st-neutral italic-note"> ({{{{ player[2] }}}})</span>
+                                    <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
+                                        {{{{ player.name }}}}
+                                        <span v-if="{'true' if self.admin_controls else 'false'} && player.station" class="st-neutral italic-note"> ({{{{ player.station }}}})</span>
                                     </span>
-                                    <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][2]"
+                                    <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                                           class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
-                                    <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx][1] && props.row.acknowledgments[idx][4] && props.row.acknowledgments[idx][4] == field.discord_id"
+                                    <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == field.discord_id"
                                            icon="check" color="primary" size="xs" dense flat
                                            @click="$parent.$emit('acknowledge_match', props.row)">
                                         <q-tooltip>Acknowledge</q-tooltip>
@@ -796,13 +786,13 @@ class MatchTableView:
                         <!-- Add signup/undo buttons for commentator/tracker fields (non-admin only) -->
                         <template v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if self.admin_controls else 'false'}">
                             <div style="margin-bottom: 8px;">
-                                <q-btn v-if="props.row[field.key] && props.row[field.key].some(item => item[2] == field.discord_id)"
+                                <q-btn v-if="props.row[field.key] && props.row[field.key].some(item => item.discord_id == field.discord_id)"
                                        icon="undo" color="negative" size="sm"
                                        @click="$parent.$emit('undo_' + field.key.slice(0, -1), props.row)"
                                        style="margin-right: 8px;">
                                     Undo
                                 </q-btn>
-                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item[2] == field.discord_id) && !props.row.players.some(p => p[3] == field.discord_id)"
+                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item.discord_id == field.discord_id) && !props.row.players.some(p => p.discord_id == field.discord_id)"
                                        icon="assignment" color="primary" size="sm"
                                        @click="$parent.$emit('signup_' + field.key.slice(0, -1), props.row)"
                                        style="margin-right: 8px;">
@@ -814,26 +804,26 @@ class MatchTableView:
                         <template v-if="Array.isArray(props.row[field.key])">
                             <template v-for="(item, idx) in props.row[field.key]">
                                 <span style="display: inline-flex; align-items: center; gap: 2px;">
-                                    <q-icon v-if="(field.key === 'commentators' || field.key === 'trackers') && item[field.approvedIndex] && item[field.ackIndex]"
+                                    <q-icon v-if="(field.key === 'commentators' || field.key === 'trackers') && item.approved && item.acknowledged"
                                             name="check_circle" class="st-ok" size="xs">
-                                        <q-tooltip v-if="item[field.ackTsIndex]">Acknowledged {{{{ item[field.ackTsIndex] }}}}</q-tooltip>
+                                        <q-tooltip v-if="item.ack_ts">Acknowledged {{{{ item.ack_ts }}}}</q-tooltip>
                                     </q-icon>
-                                    <q-icon v-else-if="(field.key === 'commentators' || field.key === 'trackers') && item[field.approvedIndex] && !item[field.ackIndex]"
+                                    <q-icon v-else-if="(field.key === 'commentators' || field.key === 'trackers') && item.approved && !item.acknowledged"
                                             name="schedule" class="st-pending" size="xs">
                                         <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                                     </q-icon>
                                     <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if (self.admin_controls and self.can_crud) else 'false'}">
                                         <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
-                                           :class="item[field.approvedIndex] ? 'st-ok-strong' : 'st-pending'" style="text-decoration: underline;">
-                                            {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                           :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="text-decoration: underline;">
+                                            {{{{ item.name }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
                                         </a>
                                     </template>
                                     <template v-else>
-                                        <span :class="item[field.approvedIndex] ? 'st-ok-strong' : 'st-pending'">
-                                            {{{{ item[field.nameIndex] }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
+                                        <span :class="item.approved ? 'st-ok-strong' : 'st-pending'">
+                                            {{{{ item.name }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
                                         </span>
                                     </template>
-                                    <q-btn v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if self.admin_controls else 'false'} && item[field.approvedIndex] && !item[field.ackIndex] && item[field.discordIndex] == field.discord_id"
+                                    <q-btn v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if self.admin_controls else 'false'} && item.approved && !item.acknowledged && item.discord_id == field.discord_id"
                                            icon="check" color="primary" size="xs" dense flat
                                            @click="$parent.$emit('acknowledge_' + field.key.slice(0, -1), {{ row: props.row, idx }})">
                                         <q-tooltip>Acknowledge</q-tooltip>
@@ -964,10 +954,10 @@ class MatchTableView:
                     <template v-if="Array.isArray(props.row[field.key])">
                         <div v-for="(item, idx) in props.row[field.key]" :key="idx"
                              style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                            <q-icon :name="item[1] ? 'check_circle' : 'schedule'"
-                                    :class="item[1] ? 'st-ok' : 'st-pending'" size="xs" />
-                            <span :class="item[1] ? 'st-ok-strong' : 'st-pending'">
-                                {{{{ item[0] }}}}<span v-if="item[1] && item[2]" style="font-style: italic; font-weight: normal;"> (auto)</span>
+                            <q-icon :name="item.acknowledged ? 'check_circle' : 'schedule'"
+                                    :class="item.acknowledged ? 'st-ok' : 'st-pending'" size="xs" />
+                            <span :class="item.acknowledged ? 'st-ok-strong' : 'st-pending'">
+                                {{{{ item.name }}}}<span v-if="item.acknowledged && item.auto" style="font-style: italic; font-weight: normal;"> (auto)</span>
                             </span>
                         </div>
                     </template>
