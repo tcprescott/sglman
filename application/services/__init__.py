@@ -17,6 +17,7 @@ from .discord_service import DiscordService
 from .equipment_service import EquipmentService
 from .feedback_service import FeedbackService
 from .match_service import MatchService
+from .match_display_service import MatchDisplayService
 from .match_schedule_service import MatchScheduleService
 from .match_suggestion_service import MatchSuggestionService
 from .player_availability_service import PlayerAvailabilityService
@@ -50,6 +51,7 @@ __all__ = [
     'EquipmentService',
     'FeedbackService',
     'MatchService',
+    'MatchDisplayService',
     'MatchScheduleService',
     'MatchSuggestionService',
     'MatchWatcherService',

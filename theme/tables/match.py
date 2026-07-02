@@ -1,6 +1,6 @@
 from nicegui import app, background_tasks, context, ui
 
-from application.services import MatchService, MatchWatcherService, UserService
+from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
 from theme.realtime import register_view
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
@@ -48,6 +48,7 @@ class MatchTableView(MatchTableHandlersMixin):
         self.state_filter = None
         # Initialize services
         self.service = MatchService()
+        self.display_service = MatchDisplayService()
         self.user_service = UserService()
         self.watcher_service = MatchWatcherService()
         self._setup_ui()
@@ -69,7 +70,7 @@ class MatchTableView(MatchTableHandlersMixin):
 
     async def _load_tournaments(self):
         """Load all tournament names for the filter using service layer."""
-        self.tournaments_list = await self.service.get_tournaments_for_filter()
+        self.tournaments_list = await self.display_service.get_tournaments_for_filter()
         # Set initial value from storage or default to None (All Tournaments)
         default_tournament_id = app.storage.user.get('tournament_filter', None)
         if self.tournament_filter:
@@ -79,7 +80,7 @@ class MatchTableView(MatchTableHandlersMixin):
 
     async def _load_stream_rooms(self):
         """Load all stream room names for the filter using service layer."""
-        self.stream_rooms_list = await self.service.get_stream_rooms_for_filter()
+        self.stream_rooms_list = await self.display_service.get_stream_rooms_for_filter()
         # Set initial value from storage or default to None (All Stages)
         default_stream_room_id = app.storage.user.get('stream_room_filter', None)
         if self.stream_room_filter:
@@ -248,7 +249,7 @@ class MatchTableView(MatchTableHandlersMixin):
             stream_room_ids = self.stream_room_filter.value
 
         # Use service to get formatted match data (all states)
-        rows = await self.service.get_matches_for_display(
+        rows = await self.display_service.get_matches_for_display(
             tournament_ids=tournament_ids,
             stream_room_ids=stream_room_ids,
             only_upcoming=False,  # Get all matches
@@ -292,7 +293,7 @@ class MatchTableView(MatchTableHandlersMixin):
             return  # Row not visible, do nothing
 
         # Use service to get match data
-        match_data = await self.service.get_match_for_display(match_id)
+        match_data = await self.display_service.get_match_for_display(match_id)
 
         if not match_data:
             # Match not found, delete the row from the table
