@@ -20,6 +20,7 @@ from .shared import (
     navigate_with_params,
     parse_int,
     report_page_shell,
+    themed_chart_option,
     tournament_filter,
 )
 
@@ -167,8 +168,8 @@ def _render_utilization_chart(rooms) -> None:
 
     option = {
         'tooltip': {'trigger': 'axis', 'axisPointer': {'type': 'shadow'}},
-        'legend': {'data': ['Scheduled hours', 'Gap hours']},
-        'grid': {'left': 140, 'right': 24, 'top': 32, 'bottom': 32},
+        'legend': {'data': ['Scheduled hours', 'Gap hours'], 'top': 0},
+        'grid': {'left': 140, 'right': 24, 'top': 48, 'bottom': 32},
         'xAxis': {'type': 'value', 'name': 'Hours'},
         'yAxis': {'type': 'category', 'data': categories},
         'series': [
@@ -188,4 +189,4 @@ def _render_utilization_chart(rooms) -> None:
             },
         ],
     }
-    ui.echart(option).classes('chart-height')
+    ui.echart(themed_chart_option(option)).classes('chart-height')

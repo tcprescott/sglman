@@ -13,14 +13,17 @@ from application.utils.timezone import format_eastern_display
 from .shared import (
     CHART_GOLD,
     CHART_GOLD_AREA,
+    CHART_GRID,
     CHART_RED,
     CHART_TEAL,
+    CHART_TEXT,
     csv_export_button,
     date_range_filter,
     default_date_range,
     eastern_bounds,
     navigate_with_params,
     report_page_shell,
+    themed_chart_option,
     tournament_filter,
 )
 
@@ -104,7 +107,16 @@ async def capacity_page(
             time_labels = [t.strftime('%m-%d %H:%M ET') for t in intervals]
             capacity_series = [capacity] * len(intervals)
 
-            data_zoom_options = [{'type': 'inside'}, {'type': 'slider'}]
+            # The slider ships in stock ECharts blue; restyle it to the gold
+            # chrome so it sits with the palette in both modes.
+            slider_style = {
+                'fillerColor': 'rgba(181, 121, 28, 0.15)',
+                'borderColor': CHART_GRID,
+                'handleStyle': {'color': CHART_GOLD},
+                'moveHandleStyle': {'color': CHART_GOLD},
+                'textStyle': {'color': CHART_TEXT},
+            }
+            data_zoom_options = [{'type': 'inside'}, {'type': 'slider', **slider_style}]
             if focus_dt and intervals:
                 first = intervals[0]
                 last = intervals[-1]
@@ -114,12 +126,12 @@ async def capacity_page(
                     half = 7200 / span  # ±2h window
                     data_zoom_options = [
                         {'type': 'inside', 'start': max(0, (center - half) * 100), 'end': min(100, (center + half) * 100)},
-                        {'type': 'slider', 'start': max(0, (center - half) * 100), 'end': min(100, (center + half) * 100)},
+                        {'type': 'slider', **slider_style, 'start': max(0, (center - half) * 100), 'end': min(100, (center + half) * 100)},
                     ]
 
             echart_option = {
                 'tooltip': {'trigger': 'axis', 'axisPointer': {'type': 'cross'}},
-                'legend': {'data': ['Active players', 'On-stream players', 'Capacity']},
+                'legend': {'data': ['Active players', 'On-stream players', 'Capacity'], 'top': 0},
                 'grid': {'left': '3%', 'right': '4%', 'bottom': '14%', 'containLabel': True},
                 'toolbox': {'feature': {'saveAsImage': {}, 'dataZoom': {}, 'restore': {}}},
                 'dataZoom': data_zoom_options,
@@ -153,7 +165,7 @@ async def capacity_page(
                     },
                 ],
             }
-            ui.echart(echart_option).classes('chart-height')
+            ui.echart(themed_chart_option(echart_option)).classes('chart-height')
 
         with ui.card().classes('full-width q-mb-md q-pa-md'):
             ui.label('Top 5 peak times').classes('text-h6')
