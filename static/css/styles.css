@@ -312,6 +312,46 @@ body.body--dark {
     --chip-c: var(--sgl-gold);
 }
 
+/* Availability heatmap (My Availability editor, player + volunteer) — status
+   fills mapped to the phoenix --status-* tokens so the bar sits with the
+   palette and lifts in dark mode, replacing the old stock-Material
+   red/green/blue. Segment widths stay inline (dynamic geometry); only the
+   palette lives here. */
+:root {
+    --avail-none: var(--border-subtle);   /* "no availability" fill */
+}
+
+.body--dark,
+.q-dark {
+    --avail-none: var(--sgl-dark-surface-2);
+}
+
+.avail-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border-strong);
+    flex: none;
+}
+
+.avail-bar {
+    display: flex;
+    height: 18px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+}
+
+.avail-day-label {
+    width: 96px;
+    flex: none;
+}
+
+.avail-seg--preferred   { background: var(--status-ok); }
+.avail-seg--available   { background: var(--status-live); }
+.avail-seg--unavailable { background: var(--status-cancelled); }
+.avail-seg--none        { background: var(--avail-none); }
+
 /* Monospace data cells — match IDs, scheduled times, timestamps */
 .cell-id,
 .cell-time {
