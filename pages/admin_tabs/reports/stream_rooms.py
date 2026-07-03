@@ -11,6 +11,8 @@ from nicegui import ui
 from application.services import ReportsService
 from application.utils.timezone import format_eastern_display
 from .shared import (
+    CHART_GOLD,
+    CHART_NEUTRAL,
     csv_export_button,
     date_range_filter,
     default_date_range,
@@ -175,14 +177,14 @@ def _render_utilization_chart(rooms) -> None:
                 'type': 'bar',
                 'stack': 'utilization',
                 'data': scheduled,
-                'itemStyle': {'color': '#B5791C'},
+                'itemStyle': {'color': CHART_GOLD},
             },
             {
                 'name': 'Gap hours',
                 'type': 'bar',
                 'stack': 'utilization',
                 'data': gaps,
-                'itemStyle': {'color': '#BDBDBD'},
+                'itemStyle': {'color': CHART_NEUTRAL},
             },
         ],
     }

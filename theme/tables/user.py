@@ -95,14 +95,14 @@ class UserTableView:
             (", bool: true" if f.get('bool') else '') + " }" for f in grid_fields
         ])
         self.table.add_slot('item', f'''
-        <div class="q-pa-md q-mb-sm user-grid-card" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+        <div class="q-pa-md q-mb-sm user-grid-card" style="width: 100%; box-sizing: border-box;">
             <div v-for="field in [
                 {js_field_array}
             ]" :key="field.key" class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
                 <div class="col-8">
                 <template v-if="field.event">
-                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: var(--sgl-link); text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
+                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" class="table-link">{{{{ props.row[field.key] }}}}</a>
                 </template>
                 <template v-else-if="field.bool">
                     {{{{ props.row[field.key] ? 'Yes' : 'No' }}}}

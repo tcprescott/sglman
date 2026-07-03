@@ -54,11 +54,11 @@ class TournamentTableView:
         </q-td>''')
         # Mobile grid item slot
         self.table.add_slot('item', '''
-        <div class="q-pa-md q-mb-sm tournament-grid-card" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+        <div class="q-pa-md q-mb-sm tournament-grid-card" style="width: 100%; box-sizing: border-box;">
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Name:</div>
                 <div class="col-8">
-                    <a href="#" @click="$parent.$emit('edit_tournament', { row: props.row })" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.name }}</a>
+                    <a href="#" @click="$parent.$emit('edit_tournament', { row: props.row })" class="table-link">{{ props.row.name }}</a>
                 </div>
             </div>
             <div class="row items-center q-mb-xs">
@@ -91,7 +91,7 @@ class TournamentTableView:
             </div>
             <div class="row items-center q-mb-xs">
                 <div class="col-4 text-grey-7">Players:</div>
-                <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.player_count }}</a></div>
+                <div class="col-8"><a href="#" @click="$parent.$emit('show_players', { row: props.row })" class="table-link">{{ props.row.player_count }}</a></div>
             </div>
         </div>
         ''')

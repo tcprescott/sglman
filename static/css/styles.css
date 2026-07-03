@@ -1165,16 +1165,25 @@ body.body--dark {
     animation: sglRowFlash 1.6s ease-out;
 }
 
-/* Mobile grid cards — the slot templates carry inline #fff/#eee styles, so
-   token overrides need !important; the vars switch per mode on their own. */
+/* Mobile grid cards — token-driven surface; the vars switch per mode on
+   their own. Slot templates keep only layout inline (width/box-sizing). */
 .match-grid-card,
 .user-grid-card,
 .tournament-grid-card,
 .equipment-grid-card {
-    background: var(--surface) !important;
-    border: 1px solid var(--border-subtle) !important;
-    border-radius: var(--radius-md) !important;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-1);
+}
+
+/* Field labels in the user/tournament/equipment grid cards use Quasar's
+   text-grey-7, a fixed cool gray that goes murky on the dark surface; re-point
+   it at the mode-aware muted token (!important to match Quasar's own). */
+.user-grid-card .text-grey-7,
+.tournament-grid-card .text-grey-7,
+.equipment-grid-card .text-grey-7 {
+    color: var(--status-neutral) !important;
 }
 
 /* Purpose-built mobile match card (theme/tables/match_grid.py grid item slot):
