@@ -209,6 +209,16 @@ body.body--dark {
         #251d14 0%, var(--sgl-dark-bg) 65%) fixed;
 }
 
+/* Touch devices can't cheaply repaint a `fixed` background while scrolling (and
+   several mobile browsers ignore fixed attachment outright), so fall back to a
+   scroll-attached gradient — the glow still paints, without the jank. */
+@media (hover: none) {
+    body,
+    body.body--dark {
+        background-attachment: scroll;
+    }
+}
+
 /* Brand focus ring and selection */
 :focus-visible {
     outline: 2px solid var(--sgl-gold);
@@ -320,6 +330,8 @@ body.body--dark {
     background-color: var(--sgl-header-bg);
     min-height: 56px;
     padding: 0 var(--space-3);
+    /* Clear the status-bar / notch area when installed as a standalone PWA. */
+    padding-top: env(safe-area-inset-top);
     box-shadow: var(--shadow-1);
 }
 
@@ -354,6 +366,7 @@ body.body--dark {
 @media (max-width: 600px) {
     .sgl-header {
         padding: 0 var(--space-2);
+        padding-top: env(safe-area-inset-top);
     }
 
     .sgl-header .user-name {
@@ -442,7 +455,9 @@ body.body--dark {
 .page-title {
     font-family: var(--font-display);
     font-weight: 600;
-    font-size: 2em;
+    /* Fluid down on narrow screens so long titles stay on one line; still caps
+       at the original 2em on desktop (≥~1024px the middle term wins the max). */
+    font-size: clamp(1.4em, 4.5vw + 0.6em, 2em);
     letter-spacing: 0.01em;
 }
 
@@ -560,6 +575,54 @@ body.body--dark {
 
 .q-dialog__backdrop {
     background: rgba(23, 18, 13, 0.55);
+}
+
+/* Full-screen dialog sheets on mobile. mobile_sheet() opens the dialog with
+   :maximized="Quasar.Screen.lt.sm", so below 600px the centered card becomes an
+   edge-to-edge sheet. Overrides the .dialog-card sizing and the .q-dialog
+   .q-card brand border above (equal specificity, wins on source order). */
+.q-dialog__inner--maximized > .dialog-card {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-top: none;
+}
+
+/* Sticky action bar pinned to the bottom of the scrolling .dialog-card so the
+   primary Submit/Cancel row stays reachable without scrolling (fixes footers
+   clipped below the fold). Negative margins of the card's own padding bleed the
+   bar to the card edges; opaque --surface masks content scrolling beneath it
+   and re-aliases to the dark surface on its own. */
+.dialog-actions {
+    position: sticky;
+    bottom: calc(-1 * var(--nicegui-default-padding));
+    z-index: 2;
+    margin-top: 0.5rem;
+    margin-left: calc(-1 * var(--nicegui-default-padding));
+    margin-right: calc(-1 * var(--nicegui-default-padding));
+    margin-bottom: calc(-1 * var(--nicegui-default-padding));
+    padding: 0.5rem var(--nicegui-default-padding);
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--border-subtle);
+}
+
+/* Sticky title bar — top mirror of .dialog-actions, kept in view while the
+   sheet body scrolls under it. */
+.dialog-header {
+    position: sticky;
+    top: calc(-1 * var(--nicegui-default-padding));
+    z-index: 2;
+    margin-bottom: 0.5rem;
+    margin-top: calc(-1 * var(--nicegui-default-padding));
+    margin-left: calc(-1 * var(--nicegui-default-padding));
+    margin-right: calc(-1 * var(--nicegui-default-padding));
+    padding: 0.5rem var(--nicegui-default-padding);
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 /* Error Pages (40x / 50x) */
@@ -910,7 +973,7 @@ body.body--dark {
 /* Refresh Button */
 .refresh-button {
     position: fixed;
-    bottom: 20px;
+    bottom: max(20px, env(safe-area-inset-bottom));
     right: 20px;
 }
 
@@ -1054,12 +1117,88 @@ body.body--dark {
     box-shadow: var(--shadow-1);
 }
 
+/* Purpose-built mobile match card (theme/tables/match_grid.py grid item slot):
+   a monospace headline row (time + state chip), players line, muted caption,
+   v-if-gated detail rows, and a single top-bordered actions row. All colors via
+   tokens so dark mode follows automatically. */
+.mgc-headline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 1.05em;
+}
+
+.mgc-state {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.mgc-caption {
+    font-size: 0.8em;
+    color: var(--status-neutral);
+}
+
+.mgc-detail {
+    font-size: 0.9em;
+}
+
+.mgc-label {
+    font-weight: 600;
+    color: var(--status-neutral);
+    margin-right: var(--space-1);
+}
+
+.mgc-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.mgc-actions .q-btn {
+    min-height: 44px;
+}
+
 /* Match filters card styling */
 .match-filters-card {
     width: 100%;
     padding: 1em;
     margin-bottom: 1em;
     background-color: var(--surface-alt);
+}
+
+/* Collapsible filters on mobile. The filter card is always visible on desktop
+   (≥1024px); below that it collapses behind the .sgl-filter-toggle button and
+   only shows when the server adds .sgl-filters-open. */
+@media (max-width: 1023.98px) {
+    .match-filters-card {
+        display: none;
+    }
+
+    .match-filters-card.sgl-filters-open {
+        display: block;
+    }
+}
+
+/* The Filters toggle button/badge row — mobile only; the filter card is pinned
+   open on desktop so the toggle is redundant there. */
+.sgl-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    margin-bottom: var(--space-2);
+}
+
+@media (min-width: 1024px) {
+    .sgl-filter-toggle {
+        display: none;
+    }
 }
 
 /* Match filter layout */
@@ -1120,4 +1259,79 @@ body.body--dark {
    light (cream) and dark (charcoal) footer surfaces. */
 .footer-feedback-btn {
     color: inherit !important;
+}
+
+/* App-shell bottom navigation — a full-width tab row shown only on phones and
+   tablets (<1024px); on desktop the drawer + copyright footer carry navigation
+   so it collapses away. Footer surface tokens mirror .footer-dark-override so
+   the bar matches the footer in both modes. */
+.sgl-bottom-nav {
+    width: 100%;
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: var(--surface-alt);
+    color: var(--status-neutral);
+    border-top: 1px solid var(--border-subtle);
+}
+
+@media (min-width: 1024px) {
+    .sgl-bottom-nav {
+        display: none;
+    }
+}
+
+.body--dark .sgl-bottom-nav,
+.q-dark .sgl-bottom-nav {
+    background-color: var(--sgl-charcoal) !important;
+    color: var(--sgl-dark-muted) !important;
+}
+
+/* Copyright / Feedback footer meta is desktop-only; on mobile the bottom nav
+   replaces it so the meta row doesn't steal vertical space above the tabs. */
+@media (max-width: 1023.98px) {
+    .sgl-footer-meta {
+        display: none;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile ergonomics (≤599.98px)
+   Phone-first touch sizing: 16px form text defeats iOS focus-zoom, buttons and
+   tabs meet the 44px/48px tap-target floor, and the chip remove affordance
+   grows to a comfortable target. Scoped tight so the desktop layout above is
+   untouched.
+--------------------------------------------------------------------------- */
+@media (max-width: 599.98px) {
+    body {
+        font-size: 15px;
+    }
+
+    /* 16px is the threshold below which iOS Safari zooms the viewport on focus,
+       yanking the layout around; keep every field input at or above it. */
+    .q-field__native,
+    .q-field input,
+    .q-field textarea,
+    .q-field__input {
+        font-size: 16px;
+    }
+
+    .q-btn {
+        min-height: 44px;
+    }
+
+    .q-btn--dense,
+    .q-btn--round {
+        min-height: 40px;
+    }
+
+    .q-btn--round {
+        min-width: 40px;
+    }
+
+    .q-chip__icon--remove {
+        font-size: 24px;
+    }
+
+    .q-tab {
+        min-height: 48px;
+    }
 }
