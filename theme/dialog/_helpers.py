@@ -23,6 +23,28 @@ def dialog_actions():
     return ui.row().classes('dialog-actions items-center gap-2')
 
 
+def native_date_input(label: str, value: str = '', *, required: bool = False, clearable: bool = False):
+    """A native ``type=date`` input (YYYY-MM-DD), so mobile gets the OS date picker.
+
+    Returns the ``ui.input``; read/write its ``.value`` as a ``YYYY-MM-DD`` string.
+    Centralizes the props string so the native-picker recipe lives in one place.
+    """
+    props = 'type=date stack-label'
+    if required:
+        props += ' required'
+    if clearable:
+        props += ' clearable'
+    return ui.input(label, value=value).props(props)
+
+
+def native_time_input(label: str, value: str = '', *, required: bool = False):
+    """A native ``type=time`` input (HH:MM), so mobile gets the OS time picker."""
+    props = 'type=time stack-label'
+    if required:
+        props += ' required'
+    return ui.input(label, value=value).props(props)
+
+
 def mobile_sheet(dialog) -> None:
     """Make a dialog fill the screen as a maximized sheet on phones (<600px).
 

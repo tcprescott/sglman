@@ -58,9 +58,9 @@ _STATE_CHIP = '''
 # --- Players line ----------------------------------------------------------
 
 _PLAYERS = '''
-        <div class="mgc-players q-mt-xs">
+        <div class="mgc-players">
             <template v-for="(player, idx) in props.row.players">
-                <div class="mgc-player" style="display: flex; align-items: center; gap: 4px;">
+                <div class="mgc-player">
                     <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
                             name="check_circle" class="st-ok" size="xs">
                         <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
@@ -107,7 +107,7 @@ _CREW_DETAIL = '''
                     </q-btn>
                 </template>
                 <template v-for="(item, idx) in props.row.__KEY__">
-                    <span class="mgc-crew-item" style="display: inline-flex; align-items: center; gap: 2px;">
+                    <span class="mgc-crew-item">
                         <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
                             <q-tooltip v-if="item.ack_ts">Acknowledged {{ item.ack_ts }}</q-tooltip>
                         </q-icon>
@@ -233,7 +233,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
         caption_inner += '<span v-if="props.row.tournament">{{ props.row.tournament }}</span>'
     if 'id' in present:
         caption_inner += (
-            '<a href="#" class="mgc-id-link q-ml-sm" style="color: var(--sgl-link); text-decoration: underline;"'
+            '<a href="#" class="mgc-id-link q-ml-sm"'
             ' @click="$parent.$emit(\'edit_match\', { row: props.row })">#{{ props.row.id }}</a>'
         )
     caption = f'\n        <div class="mgc-caption">{caption_inner}</div>' if caption_inner else ''

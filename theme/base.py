@@ -24,6 +24,9 @@ class BaseLayout:
         self._drawer = None
         self._tab_panels = None
         self._bottom_tabs = None
+        self._more_btn = None
+        self._bottom_tab_labels: list = []
+        self._syncing_nav = False
         self._tab_item_refs: dict = {}
 
         self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
@@ -204,17 +207,49 @@ class BaseLayout:
         self._tab_panels.set_value(label)
 
     def _handle_tab_change(self) -> None:
-        """Single sink for panel-value changes: sync the drawer highlight and the
-        ?tab= URL regardless of what drove the change (drawer item, bottom tab, or
-        swipe). Registered after the panels are built so the initial deep-linked
-        value does not fire a spurious history push."""
+        """Single sink for panel-value changes: sync the drawer highlight, the
+        bottom-nav highlight, and the ?tab= URL regardless of what drove the change
+        (drawer item, bottom tab, or swipe). Registered after the panels are built
+        so the initial deep-linked value does not fire a spurious history entry."""
         label = self._tab_panels.value
         for lbl, item in self._tab_item_refs.items():
             if lbl == label:
                 item.props(add='active')
             else:
                 item.props(remove='active')
-        ui.navigate.history.push(f'?tab={label}')
+        self._sync_bottom_nav(label)
+        # replace(), not push(): tab switches (incl. every swipe) update the URL for
+        # deep-linking/sharing without stacking history entries that would turn the
+        # Back button into a per-tab trap on mobile.
+        ui.navigate.history.replace(f'?tab={label}')
+
+    def _sync_bottom_nav(self, label: str) -> None:
+        """Highlight the active tab in the bottom nav. Tabs beyond the first four
+        live behind the More button, so when the active tab is one of those, clear
+        the tab highlight (avoids Quasar's 'no matching tab' warning) and mark More
+        active instead."""
+        if self._bottom_tabs is None:
+            return
+        in_bar = label in self._bottom_tab_labels
+        # Guard: setting the bottom tab's value re-fires its own change handler.
+        self._syncing_nav = True
+        self._bottom_tabs.set_value(label if in_bar else None)
+        self._syncing_nav = False
+        if self._more_btn is not None:
+            if in_bar:
+                self._more_btn.props(remove='color=primary')
+            else:
+                self._more_btn.props(add='color=primary')
+
+    def _on_bottom_tab(self) -> None:
+        """A bottom-nav tab was tapped: drive the panel (which then routes through
+        _handle_tab_change for the highlight/URL sync). Ignored while we are
+        programmatically syncing the highlight to avoid a feedback loop."""
+        if self._syncing_nav:
+            return
+        value = self._bottom_tabs.value
+        if value and value != self._tab_panels.value:
+            self._tab_panels.set_value(value)
 
     def _render_footer(self) -> None:
         """Render the footer with copyright text and (for logged-in users) feedback."""
@@ -237,16 +272,26 @@ class BaseLayout:
             # drawer for the remaining tabs. The More affordance is a plain button,
             # not a q-tab, so it carries no value that could corrupt the tab binding.
             if self.tabs:
-                with ui.tabs(value=self._default_tab).props('dense no-caps').classes(
+                self._bottom_tab_labels = [tab['label'] for tab in self.tabs[:4]]
+                # A deep link may open on a tab that lives behind More; seed the bar
+                # with no active tab in that case so we never bind a value with no
+                # matching child (which Quasar warns about and leaves unhighlighted).
+                initial = self._default_tab if self._default_tab in self._bottom_tab_labels else None
+                with ui.tabs(value=initial).props('dense no-caps').classes(
                     'sgl-bottom-nav'
                 ) as self._bottom_tabs:
                     for tab in self.tabs[:4]:
                         ui.tab(tab['label'], icon=tab.get('icon', 'circle'))
-                    ui.button(
+                    self._more_btn = ui.button(
                         'More',
                         icon='more_horiz',
                         on_click=lambda: self._drawer.toggle(),
                     ).props('flat no-caps')
+                    if initial is None:
+                        self._more_btn.props(add='color=primary')
+                # Tapping a bottom tab drives the panel; the highlight/URL sync then
+                # flows back through _handle_tab_change.
+                self._bottom_tabs.on_value_change(self._on_bottom_tab)
 
     async def _render_tab_panels(self) -> None:
         """Render tab panel content with programmatically controlled panel switching."""
@@ -275,11 +320,10 @@ class BaseLayout:
                     with ui.row().classes('full-width'):
                         await render_tab_content(tab)
 
-        # Two-way bind the bottom nav to the panels so tapping a bottom tab moves
-        # the panel and swiping/drawer-clicking moves the bottom tab highlight.
-        # Both were constructed with value=self._default_tab, so this initial bind
-        # is a no-op (no change event). The change handler is registered *after*
-        # construction for the same reason: deep links must not push history.
-        if self._bottom_tabs is not None:
-            self._bottom_tabs.bind_value(self._tab_panels, 'value')
+        # Panel changes (drawer click, bottom-tab tap, or swipe) all route through
+        # _handle_tab_change, which syncs both highlights and the URL. Registered
+        # after construction so the initial deep-linked value does not fire it (no
+        # spurious history entry). The bottom nav is kept in sync manually rather
+        # than via bind_value, because a two-way bind would force the tab model to a
+        # value with no matching child whenever the active tab lives behind More.
         self._tab_panels.on_value_change(self._handle_tab_change)

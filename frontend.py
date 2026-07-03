@@ -78,7 +78,14 @@ def init(fastapi_app: FastAPI) -> None:
     # control of the app's start_url ('/'). Root scope is required for install.
     @fastapi_app.get('/sw.js', include_in_schema=False)
     async def _service_worker() -> FileResponse:
-        return FileResponse('static/sw.js', media_type='text/javascript')
+        # no-cache so an updated worker is always revalidated — matches the
+        # NoCacheStaticFiles treatment of /static and avoids a stale SW pinning
+        # old behavior (a fresh worker is what re-fetches everything else).
+        return FileResponse(
+            'static/sw.js',
+            media_type='text/javascript',
+            headers={'Cache-Control': 'no-cache'},
+        )
 
     auth.create()
     challonge_oauth.create()

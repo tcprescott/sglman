@@ -10,7 +10,14 @@ from nicegui import ui
 
 from application.services import ChallongeService, MatchSuggestionService
 from application.utils.timezone import format_eastern_date, format_eastern_time, now_eastern
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.dialog._helpers import (
+    dialog_actions,
+    dialog_header,
+    mobile_sheet,
+    native_date_input,
+    native_time_input,
+    submit_on_enter,
+)
 
 
 class ChallongeScheduleDialog:
@@ -51,10 +58,8 @@ class ChallongeScheduleDialog:
                 )
 
                 with ui.row().classes('items-center gap-2'):
-                    # Native pickers (type=date -> YYYY-MM-DD, type=time -> HH:MM) —
-                    # same value formats the popup produced, but the OS picker on mobile.
-                    date = ui.input('Date', value=default_date).props('type=date required stack-label')
-                    time = ui.input('Time', value=default_time).props('type=time required stack-label')
+                    date = native_date_input('Date', default_date, required=True)
+                    time = native_time_input('Time', default_time, required=True)
 
             async def submit():
                 if not (date.value and time.value):

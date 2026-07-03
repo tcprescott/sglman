@@ -19,7 +19,14 @@ from application.utils.timezone import (
     now_eastern,
 )
 from models import Match
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.dialog._helpers import (
+    dialog_actions,
+    dialog_header,
+    mobile_sheet,
+    native_date_input,
+    native_time_input,
+    submit_on_enter,
+)
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -71,8 +78,8 @@ class BaseMatchDialog:
 
     def _render_date_time_inputs(self, default_date, default_time):
         with ui.row().classes('items-center gap-2'):
-            date = ui.input('Date', value=default_date).props('type=date required stack-label')
-            time = ui.input('Time', value=default_time).props('type=time required stack-label')
+            date = native_date_input('Date', default_date, required=True)
+            time = native_time_input('Time', default_time, required=True)
 
         return date, time
 

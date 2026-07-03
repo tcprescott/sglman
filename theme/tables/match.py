@@ -8,6 +8,12 @@ from theme.tables.match_slots import register_body_slots
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
+# Match lifecycle states, and the subset shown by default. Kept as module constants
+# so the storage default, the select options, and the "is this filter changed?"
+# check in _active_filter_count cannot drift out of sync.
+ALL_MATCH_STATES = ['Scheduled', 'Checked In', 'Started', 'Finished', 'Confirmed']
+DEFAULT_STATE_FILTER = ['Scheduled', 'Checked In', 'Started']
+
 
 class MatchTableView(MatchTableHandlersMixin):
     """
@@ -89,8 +95,7 @@ class MatchTableView(MatchTableHandlersMixin):
             count += 1
         if self.stream_room_filter and self.stream_room_filter.value:
             count += 1
-        default_states = {'Scheduled', 'Checked In', 'Started'}
-        if self.state_filter and set(self.state_filter.value or []) != default_states:
+        if self.state_filter and set(self.state_filter.value or []) != set(DEFAULT_STATE_FILTER):
             count += 1
         return count
 
@@ -171,9 +176,9 @@ class MatchTableView(MatchTableHandlersMixin):
                 with ui.column().classes('match-filter-column'):
                     ui.label('State').classes('match-filter-label')
                     # Default to showing Scheduled, Checked In, and Started
-                    default_states = app.storage.user.get('state_filter', ['Scheduled', 'Checked In', 'Started'])
+                    default_states = app.storage.user.get('state_filter', list(DEFAULT_STATE_FILTER))
                     self.state_filter = ui.select(
-                        options=['Scheduled', 'Checked In', 'Started', 'Finished', 'Confirmed'],
+                        options=list(ALL_MATCH_STATES),
                         value=default_states,
                         multiple=True,
                         on_change=self._on_state_filter_change
