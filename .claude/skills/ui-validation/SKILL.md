@@ -40,13 +40,16 @@ script to paste into the "Setup script" field of a Claude Code cloud environment
    The FastAPI lifespan auto-applies Aerich migrations on first boot.
 
 2. **Seed** baseline fixtures (idempotent — 7 users incl. `staff_user`,
-   `proctor_user`, `sm_user`; a tournament; 4 matches across lifecycle states):
+   `proctor_user`, `sm_user`; a tournament; 4 matches across lifecycle states;
+   plus crew signups, acknowledgments, watchers, equipment + loans, API tokens,
+   feedback, triforce texts, Discord role mappings, player availability, and a
+   Challonge bracket mirror):
    ```bash
    poetry run python scripts/seed_dev.py
    ```
-   Seed data has no crew/acknowledgment rows — if your change touches those
-   branches, add rows through the UI or a throwaway `Tortoise.init` script
-   before driving.
+   The seed now covers every model at least once. If your change needs a state
+   the fixtures don't happen to hit, add rows through the UI or extend
+   `scripts/seed_dev.py`.
 
 3. **Drive** with the reusable Playwright harness. Write a small JSON config and
    run it with node's global Playwright (the pre-installed Chromium at

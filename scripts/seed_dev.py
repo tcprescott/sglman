@@ -8,6 +8,8 @@ Idempotent — safe to re-run; existing records are left unchanged.
 Requires the schema to already exist (run ./start.sh dev or aerich upgrade first).
 """
 import asyncio
+import hashlib
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,11 +22,19 @@ load_dotenv()
 
 from migrations.tortoise_config import TORTOISE_ORM
 from tortoise import Tortoise
+from tortoise.functions import Max
 from models import (
     User, UserRole, Role,
     Tournament, TournamentPlayers,
-    Match, MatchPlayers,
+    Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
+    Commentator, Tracker, GeneratedSeeds,
+    TournamentNotificationPreference, MatchNotificationLevel,
     StreamRoom, SystemConfiguration,
+    ApiToken, Feedback, FeedbackCategory, FeedbackStatus,
+    Equipment, EquipmentLoan, EquipmentStatus,
+    AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
+    ChallongeConnection, ChallongeParticipant, ChallongeMatch, ChallongeMatchState,
+    ChallongeApiUsage,
     VolunteerPosition, VolunteerProfile, VolunteerShift,
     VolunteerAssignment, VolunteerQualification,
     VolunteerAvailability, VolunteerAvailabilityStatus,
@@ -137,11 +147,72 @@ async def seed() -> None:
                 )
         return match
 
-    await make_match("Scheduled Match",   2,   p1=players[0], p2=players[1])
-    await make_match("Checked-In Match",  0,   seated=True,  p1=players[0], p2=players[1], room=stage1)
-    await make_match("In-Progress Match", -1,  seated=True, started=True,  p1=players[2], p2=players[3], room=stage2)
-    await make_match("Finished Match",    -3,  seated=True, started=True, finished=True, p1=players[0], p2=players[2], room=stage1)
+    scheduled_match = await make_match("Scheduled Match",   2,   p1=players[0], p2=players[1])
+    checked_in_match = await make_match("Checked-In Match",  0,   seated=True,  p1=players[0], p2=players[1], room=stage1)
+    in_progress_match = await make_match("In-Progress Match", -1,  seated=True, started=True,  p1=players[2], p2=players[3], room=stage2)
+    finished_match = await make_match("Finished Match",    -3,  seated=True, started=True, finished=True, p1=players[0], p2=players[2], room=stage1)
+    matches = {
+        "scheduled": scheduled_match,
+        "checked_in": checked_in_match,
+        "in_progress": in_progress_match,
+        "finished": finished_match,
+    }
     print("  matches ok")
+
+    # A generated seed, attached to the finished match.
+    seed, _ = await GeneratedSeeds.get_or_create(
+        seed_url="https://alttpr.com/en/h/DevSeed0",
+        defaults={"seed_info": json.dumps({"logic": "NoGlitches", "spoilers": "off"})},
+    )
+    if finished_match.generated_seed_id is None:
+        finished_match.generated_seed = seed
+        await finished_match.save()
+
+    # Match acknowledgments — the checked-in match's players have both confirmed.
+    for player in (players[0], players[1]):
+        await MatchAcknowledgment.get_or_create(
+            match=checked_in_match, user=player,
+            defaults={"acknowledged_at": now, "auto_acknowledged": False},
+        )
+    # The scheduled match still has one un-acknowledged and one pending player.
+    await MatchAcknowledgment.get_or_create(
+        match=scheduled_match, user=players[0],
+        defaults={"acknowledged_at": now, "auto_acknowledged": False},
+    )
+    await MatchAcknowledgment.get_or_create(
+        match=scheduled_match, user=players[1],
+        defaults={"acknowledged_at": None, "auto_acknowledged": False},
+    )
+
+    # Match watchers — staff keeps an eye on the scheduled and in-progress matches.
+    for m in (scheduled_match, in_progress_match):
+        await MatchWatcher.get_or_create(user=staff, match=m)
+
+    # Notification preference — staff wants DMs for every match in this tournament.
+    await TournamentNotificationPreference.get_or_create(
+        user=staff, tournament=tournament,
+        defaults={"match_notifications": MatchNotificationLevel.ALL},
+    )
+    print("  match extras ok")
+
+    # --- Crew signups (commentators / trackers) -------------------------
+    sm = users["sm_user"]
+    proctor = users["proctor_user"]
+    # In-progress match has an approved commentator and a pending tracker.
+    await Commentator.get_or_create(
+        match=in_progress_match, user=sm,
+        defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
+    )
+    await Tracker.get_or_create(
+        match=in_progress_match, user=proctor,
+        defaults={"approved": False},
+    )
+    # Finished match kept its confirmed crew for history.
+    await Commentator.get_or_create(
+        match=finished_match, user=proctor,
+        defaults={"approved": True, "approved_by": staff, "acknowledged_at": now - timedelta(hours=3)},
+    )
+    print("  crew ok")
 
     # --- Volunteer scheduling -------------------------------------------
     # Staff coordinates; any logged-in user can opt in to volunteer.
@@ -265,6 +336,219 @@ async def seed() -> None:
             defaults={"assigned_by": staff},
         )
     print("  volunteers ok")
+
+    # --- Player availability --------------------------------------------
+    # Players self-declare windows they can be scheduled to race (mirrors the
+    # volunteer availability shape, but for the competitive side).
+    player_avail_specs = {
+        "player_one": ("10:00", "18:00", VolunteerAvailabilityStatus.PREFERRED),
+        "player_two": ("14:00", "22:00", VolunteerAvailabilityStatus.AVAILABLE),
+        "player_three": ("08:00", "12:00", VolunteerAvailabilityStatus.AVAILABLE),
+        "player_four": ("18:00", "23:00", VolunteerAvailabilityStatus.UNAVAILABLE),
+    }
+    for uname, (start_hhmm, end_hhmm, status) in player_avail_specs.items():
+        u = users[uname]
+        if await PlayerAvailability.filter(user=u).exists():
+            continue
+        for day in event_days:
+            day_str = day.isoformat()
+            starts_at = parse_eastern_datetime(day_str, start_hhmm)
+            ends_at = parse_eastern_datetime(day_str, end_hhmm)
+            if ends_at <= starts_at:
+                ends_at = ends_at + timedelta(days=1)
+            await PlayerAvailability.create(
+                user=u, starts_at=starts_at, ends_at=ends_at, status=status,
+            )
+    print("  player availability ok")
+
+    # --- Equipment lending ----------------------------------------------
+    # Give staff the manager role so the equipment tab is exercisable.
+    await UserRole.get_or_create(user=staff, role=Role.EQUIPMENT_MANAGER, defaults={"granted_by": None})
+
+    equipment_specs = [
+        ("Capture Card A", "Elgato HD60 X", None),
+        ("Capture Card B", "Elgato HD60 X", None),
+        ("Console 1", "Super Nintendo (SNES)", staff),
+        ("HDMI Splitter", "4-way powered splitter", None),
+    ]
+    equipment: dict[str, Equipment] = {}
+    for name, description, owner in equipment_specs:
+        asset = await Equipment.get_or_none(name=name)
+        if asset is None:
+            row = await Equipment.annotate(m=Max("asset_number")).values("m")
+            next_number = (row[0]["m"] or 0) + 1
+            asset = await Equipment.create(
+                asset_number=next_number, name=name, description=description, owner_user=owner,
+            )
+        equipment[name] = asset
+
+    # An open loan (asset currently checked out) and a closed loan (history).
+    card_a = equipment["Capture Card A"]
+    if not await EquipmentLoan.filter(equipment=card_a).exists():
+        await EquipmentLoan.create(
+            equipment=card_a, borrower=users["player_one"], checked_out_by=staff,
+        )
+        if card_a.status != EquipmentStatus.CHECKED_OUT:
+            card_a.status = EquipmentStatus.CHECKED_OUT
+            await card_a.save()
+
+    console = equipment["Console 1"]
+    if not await EquipmentLoan.filter(equipment=console).exists():
+        await EquipmentLoan.create(
+            equipment=console, borrower=users["player_two"], checked_out_by=staff,
+            checked_in_at=now, checked_in_by=staff,
+        )
+    print("  equipment ok")
+
+    # --- API tokens ------------------------------------------------------
+    # Deterministic dev bearer strings so REST endpoints are exercisable
+    # locally. These are non-secret fixtures, regenerated on every seed of a
+    # fresh DB; only their SHA-256 hash is stored, exactly like production.
+    dev_bearer = "sglman_pat_devseedbearer_local_only_do_not_use_in_prod"
+    if not await ApiToken.filter(user=staff, name="Dev Seed Token").exists():
+        await ApiToken.create(
+            user=staff, name="Dev Seed Token",
+            token_hash=hashlib.sha256(dev_bearer.encode()).hexdigest(),
+            token_prefix=dev_bearer[:17], read_only=False,
+        )
+    ro_bearer = "sglman_pat_devseedreadonly_local_only_do_not_use"
+    if not await ApiToken.filter(user=staff, name="Dev Read-Only Token").exists():
+        await ApiToken.create(
+            user=staff, name="Dev Read-Only Token",
+            token_hash=hashlib.sha256(ro_bearer.encode()).hexdigest(),
+            token_prefix=ro_bearer[:17], read_only=True,
+        )
+    print(f"  api tokens ok (dev bearer: {dev_bearer})")
+
+    # --- Feedback --------------------------------------------------------
+    feedback_specs = [
+        ("player_one", FeedbackCategory.BUG, FeedbackStatus.NEW,
+         "Schedule times looked off on mobile.", "/?tab=schedule"),
+        ("player_two", FeedbackCategory.SUGGESTION, FeedbackStatus.REVIEWED,
+         "Would love a dark mode toggle.", "/"),
+        ("sm_user", FeedbackCategory.PRAISE, FeedbackStatus.NEW,
+         "The new crew view is great, thanks!", "/admin?tab=schedule"),
+    ]
+    for uname, category, status, message, page_url in feedback_specs:
+        if not await Feedback.filter(user=users[uname], message=message).exists():
+            await Feedback.create(
+                user=users[uname], category=category, status=status,
+                message=message, page_url=page_url,
+            )
+    print("  feedback ok")
+
+    # --- Triforce texts --------------------------------------------------
+    # One approved, one pending (approved is null), one rejected.
+    triforce_specs = [
+        ("player_one", "You found the Triforce of Courage!", "Player One", True),
+        ("player_two", "The hero's spirit lives on.", "Player Two", None),
+        ("player_three", "not a real submission", "Player Three", False),
+    ]
+    for uname, text, author, approved in triforce_specs:
+        u = users[uname]
+        if await TriforceText.filter(tournament=tournament, user=u, text=text).exists():
+            continue
+        await TriforceText.create(
+            tournament=tournament, user=u, text=text, author=author,
+            approved=approved,
+            approved_by=staff if approved is not None else None,
+            approved_at=now if approved is not None else None,
+        )
+    print("  triforce texts ok")
+
+    # --- Discord role mappings ------------------------------------------
+    dev_guild_id = 1000000000000000001
+    role_mapping_specs = [
+        (2000000000000000001, "SGL Staff", Role.STAFF),
+        (2000000000000000002, "Proctors", Role.PROCTOR),
+        (2000000000000000003, "Stream Managers", Role.STREAM_MANAGER),
+        (2000000000000000004, "Volunteers", Role.VOLUNTEER),
+    ]
+    for discord_role_id, discord_role_name, app_role in role_mapping_specs:
+        await DiscordRoleMapping.get_or_create(
+            guild_id=dev_guild_id, discord_role_id=discord_role_id, app_role=app_role,
+            defaults={"discord_role_name": discord_role_name},
+        )
+    print("  discord role mappings ok")
+
+    # --- Challonge mirror ------------------------------------------------
+    # Link a couple of players to a Challonge identity so bracket sync resolves.
+    for uname, challonge_uid, challonge_name in [
+        ("player_one", "cu_1001", "playerone"),
+        ("player_two", "cu_1002", "playertwo"),
+    ]:
+        u = users[uname]
+        if u.challonge_user_id is None:
+            u.challonge_user_id = challonge_uid
+            u.challonge_username = challonge_name
+            u.challonge_linked_at = now_utc
+            await u.save()
+
+    if not tournament.challonge_tournament_id:
+        tournament.challonge_tournament_id = "cht_dev_0001"
+        tournament.challonge_tournament_url = "https://challonge.com/sgl_dev"
+        tournament.challonge_last_synced_at = now_utc
+        await tournament.save()
+
+    await ChallongeConnection.get_or_create(
+        challonge_username="sgl_service",
+        defaults={
+            "access_token": "dev-access-token-not-real",
+            "refresh_token": "dev-refresh-token-not-real",
+            "scopes": "me tournaments:read tournaments:write",
+            "connected_by": staff,
+        },
+    )
+
+    participants: dict[str, ChallongeParticipant] = {}
+    participant_specs = [
+        ("cp_1", "Player One", "cu_1001", users["player_one"]),
+        ("cp_2", "Player Two", "cu_1002", users["player_two"]),
+        ("cp_3", "Player Three", None, users["player_three"]),
+        ("cp_4", "Player Four", None, users["player_four"]),
+    ]
+    for cp_id, name, challonge_uid, user in participant_specs:
+        part, _ = await ChallongeParticipant.get_or_create(
+            tournament=tournament, challonge_participant_id=cp_id,
+            defaults={"name": name, "challonge_user_id": challonge_uid, "user": user},
+        )
+        participants[cp_id] = part
+
+    # A complete match (linked to the finished sglman match) and an open one.
+    await ChallongeMatch.get_or_create(
+        tournament=tournament, challonge_match_id="cm_1",
+        defaults={
+            "round": 1, "state": ChallongeMatchState.COMPLETE,
+            "participant1": participants["cp_1"], "participant2": participants["cp_3"],
+            "winner_participant": participants["cp_1"], "match": matches["finished"],
+        },
+    )
+    await ChallongeMatch.get_or_create(
+        tournament=tournament, challonge_match_id="cm_2",
+        defaults={
+            "round": 1, "state": ChallongeMatchState.OPEN,
+            "participant1": participants["cp_2"], "participant2": participants["cp_4"],
+        },
+    )
+
+    usage_period = today.strftime("%Y-%m")
+    await ChallongeApiUsage.get_or_create(period=usage_period, defaults={"request_count": 42})
+    print("  challonge ok")
+
+    # --- Audit log -------------------------------------------------------
+    # A few representative entries so the audit view isn't empty. ``details``
+    # is a JSON string, matching AuditService's on-disk format.
+    audit_specs = [
+        (staff, "tournament.created", {"tournament_id": tournament.id, "name": tournament.name}),
+        (staff, "match.created", {"match_id": finished_match.id, "title": finished_match.title}),
+        (staff, "match.finished", {"match_id": finished_match.id}),
+        (staff, "user.role_granted", {"user_id": proctor.id, "role": Role.PROCTOR.value}),
+        (staff, "equipment.checked_out", {"equipment_id": card_a.id, "borrower_id": users["player_one"].id}),
+    ]
+    if await AuditLog.all().count() == 0:
+        for actor, action, details in audit_specs:
+            await AuditLog.create(user=actor, action=action, details=json.dumps(details, sort_keys=True))
+    print("  audit log ok")
 
     await Tortoise.close_connections()
     print("Seeding complete.")
