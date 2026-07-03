@@ -6,7 +6,7 @@ from nicegui import ui
 
 from application.services import EquipmentService, UserService
 from models import Equipment, User
-from theme.dialog._helpers import dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 _SGL_OWNER = ''  # empty owner value ⇒ owned by SpeedGaming Live
 
@@ -41,6 +41,7 @@ class EquipmentDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header('Edit Asset' if is_edit else 'Add Asset', dialog)
 
             with ui.column().classes('q-pa-md gap-2 full-width'):
@@ -67,7 +68,7 @@ class EquipmentDialog:
                     count_input = ui.number(
                         label='Quantity (creates this many identical assets)',
                         value=1, min=1, max=200, precision=0, format='%.0f',
-                    ).classes('full-width')
+                    ).props('inputmode=numeric').classes('full-width')
 
                 ui.label('* name required').classes('required-legend')
 
@@ -116,8 +117,7 @@ class EquipmentDialog:
                     if self.on_saved:
                         await self.on_saved()
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if is_edit else 'Create', on_click=submit).props('color=primary')
 

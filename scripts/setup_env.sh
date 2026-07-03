@@ -23,11 +23,23 @@ say() { printf '\n\033[1;34m[setup]\033[0m %s\n' "$*"; }
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then command -v sudo >/dev/null 2>&1 && SUDO="sudo"; fi
 
+# Run a command as the postgres OS user. As root, `$SUDO -u postgres` expands
+# to a bare `-u postgres` (SUDO is empty) and fails — use `su` instead.
+as_postgres() {
+  if [ "$(id -u)" -eq 0 ]; then
+    su postgres -s /bin/sh -c "$*"
+  else
+    $SUDO -u postgres sh -c "$*"
+  fi
+}
+
 # 1. System packages: postgres server/client + tzdata --------------------------
 if command -v apt-get >/dev/null 2>&1; then
   say "Installing postgresql + tzdata (best effort)"
   $SUDO apt-get update -qq || true
-  $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+  # `env` keeps the assignment valid when $SUDO expands to nothing (root):
+  # after expansion the shell no longer treats VAR=val as an assignment prefix.
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     postgresql postgresql-client tzdata || true
 fi
 
@@ -47,13 +59,13 @@ fi
 $SUDO service postgresql start 2>/dev/null || true
 # Wait for the socket to accept connections
 for _ in $(seq 1 20); do
-  if $SUDO -u postgres psql -tAc 'SELECT 1' >/dev/null 2>&1; then break; fi
+  if as_postgres "psql -tAc 'SELECT 1'" >/dev/null 2>&1; then break; fi
   sleep 0.5
 done
 
 # 3. Dev role + database (idempotent) ------------------------------------------
 say "Ensuring role/password and sglman database"
-$SUDO -u postgres psql -v ON_ERROR_STOP=0 >/dev/null <<'SQL'
+as_postgres "psql -v ON_ERROR_STOP=0" >/dev/null <<'SQL'
 ALTER USER postgres PASSWORD 'devpass';
 SELECT 'CREATE DATABASE sglman' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sglman')\gexec
 SQL

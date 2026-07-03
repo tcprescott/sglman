@@ -6,7 +6,7 @@ from application.services import (
     TournamentService,
     get_user_from_discord_id,
 )
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 
 
 class TournamentDialog:
@@ -23,6 +23,7 @@ class TournamentDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label('* required').classes('required-legend')
@@ -62,23 +63,23 @@ class TournamentDialog:
                         'Avg Match Duration (min)',
                         value=self.tournament.average_match_duration if self.tournament and self.tournament.average_match_duration else None,
                         min=0,
-                    )
+                    ).props('inputmode=numeric')
                     max_match_duration_input = ui.number(
                         'Max Match Duration (min)',
                         value=self.tournament.max_match_duration if self.tournament and self.tournament.max_match_duration else None,
                         min=0,
-                    )
+                    ).props('inputmode=numeric')
                 with ui.row().classes('gap-2'):
                     players_per_match_input = ui.number(
                         'Players per Match',
                         value=self.tournament.players_per_match if self.tournament else 2,
                         min=1, max=100,
-                    )
+                    ).props('inputmode=numeric')
                     team_size_input = ui.number(
                         'Team Size',
                         value=self.tournament.team_size if self.tournament else 1,
                         min=1, max=100,
-                    )
+                    ).props('inputmode=numeric')
                 with ui.row().classes('gap-4'):
                     staff_administered_checkbox = ui.checkbox(
                         'Staff Administered',
@@ -189,8 +190,7 @@ class TournamentDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 primary_btn = ui.button(
                     'Create' if is_create else 'Save', on_click=submit

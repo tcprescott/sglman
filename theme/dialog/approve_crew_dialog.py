@@ -4,7 +4,7 @@ from nicegui import app, ui
 
 from models import Commentator, Tracker
 from application.services import CrewService, get_user_from_discord_id
-from theme.dialog._helpers import dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 
 class ApproveCrewDialog:
@@ -17,6 +17,7 @@ class ApproveCrewDialog:
 
     async def open(self):
         with ui.dialog() as self.dialog:
+            mobile_sheet(self.dialog)
             with ui.card().classes('dialog-card'):
                 dialog_header(f'Approve {self.crew_type.capitalize()}', self.dialog)
                 with ui.column().classes('q-pa-md gap-2'):
@@ -41,8 +42,7 @@ class ApproveCrewDialog:
                     except ValueError as e:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-                ui.separator()
-                with ui.row().classes('justify-end q-pa-sm gap-2'):
+                with dialog_actions().classes('justify-end'):
                     ui.button('Cancel', on_click=self.dialog.close).props('flat')
                     ui.button('Save', on_click=save).props('color=primary')
         await self.dialog.open()

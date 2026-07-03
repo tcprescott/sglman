@@ -8,7 +8,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from models import Role, User
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.dialog.send_message_dialog import SendMessageDialog
 
 
@@ -59,6 +59,7 @@ class UserDialog(BaseUserDialog):
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header('Edit Profile', dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.input('Username', value=self.user.username if self.user else '').props(
@@ -113,8 +114,7 @@ class UserDialog(BaseUserDialog):
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save', on_click=submit).props('color=primary')
 
@@ -136,6 +136,7 @@ class AdminUserDialog(BaseUserDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 if is_create:
@@ -164,7 +165,7 @@ class AdminUserDialog(BaseUserDialog):
                         ui.label(
                             'No Challonge account linked. Enter the account id to link manually.'
                         ).classes('text-caption text-grey-7')
-                        challonge_id_input = ui.input('Challonge account id').classes('input-full-width')
+                        challonge_id_input = ui.input('Challonge account id').props('inputmode=numeric').classes('input-full-width')
                         challonge_username_input = ui.input(
                             'Challonge username (optional)'
                         ).classes('input-full-width')
@@ -172,7 +173,7 @@ class AdminUserDialog(BaseUserDialog):
                 if is_create:
                     discord_id_input = ui.input(
                         'Discord ID', value=''
-                    ).classes('input-full-width')
+                    ).props('inputmode=numeric').classes('input-full-width')
                 else:
                     discord_id_input = None
 
@@ -327,8 +328,7 @@ class AdminUserDialog(BaseUserDialog):
                     dialog_instance = SendMessageDialog(self.user)
                     await dialog_instance.open()
 
-            ui.separator()
-            with ui.row().classes('items-center q-pa-sm gap-2'):
+            with dialog_actions():
                 if self.user:
                     ui.button('Send Message', on_click=open_message_dialog).props('flat')
                 ui.space()

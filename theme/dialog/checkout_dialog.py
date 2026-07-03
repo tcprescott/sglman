@@ -7,7 +7,7 @@ from nicegui import ui
 
 from application.services import EquipmentService, UserService
 from models import User
-from theme.dialog._helpers import dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 
 class CheckoutDialog:
@@ -28,6 +28,7 @@ class CheckoutDialog:
         users = await UserService().get_all_users()
         options = {str(u.id): u.preferred_name for u in users}
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+            mobile_sheet(dialog)
             dialog_header('Check out equipment', dialog)
             with ui.column().classes('q-pa-md gap-2 full-width'):
                 borrower_select = ui.select(
@@ -48,8 +49,7 @@ class CheckoutDialog:
                 if self.on_done:
                     await self.on_done()
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Check out', on_click=confirm).props('color=primary')
             dialog.open()

@@ -161,9 +161,9 @@ async def availability_tab() -> None:
                                 )
                 with ui.row().classes('items-center no-wrap gap-2 w-full'):
                     ui.label('').style('width:96px;flex:none')
-                    with ui.row().classes('flex-grow justify-between'):
+                    with ui.row().classes('flex-grow justify-between no-wrap'):
                         for tick in ('00:00', '06:00', '12:00', '18:00', '24:00'):
-                            ui.label(tick).classes('text-caption text-grey')
+                            ui.label(tick).classes('text-caption text-grey').style('white-space:nowrap')
 
         def _remove(row: dict) -> None:
             rows.remove(row)

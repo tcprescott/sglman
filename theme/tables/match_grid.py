@@ -1,320 +1,270 @@
 """Grid (mobile) slot builder for the match table.
 
 Below Quasar's ``lt.md`` breakpoint ``ui.table`` renders the ``item`` slot per
-row instead of columns. This module builds that single card template from the
-column definitions, driven by the same server-injected admin/can_crud booleans
-and per-field discord id the column slots use (``match_slots.py``).
+row instead of columns. This module builds a single purpose-built match card for
+that mode, driven by the same server-injected admin/can_crud booleans and the
+current user's discord id the column slots use (``match_slots.py``).
+
+The card is deliberately bespoke (not a generic ``label: value`` loop): a
+headline row (scheduled time + compact state chip), a players line (ack icons,
+``(auto)`` markers, winner emphasis, admin stations, self-ack), a muted caption
+(tournament + ``#id`` edit link), ``v-if``-gated detail rows that render nothing
+when empty (commentators, trackers, stage, seed, comment), and a single
+top-bordered actions row (lifecycle button, Assign Stations, watch toggle).
+
+Styling lives entirely in ``.match-grid-card`` / ``.mgc-*`` (``styles.css``) so
+light/dark parity is automatic — no inline colors here. The template is
+assembled from plain (non-f) string fragments; the four server booleans are
+substituted via ``__IA__`` / ``__CC__`` / ``__DID__`` / ``__WATCH__`` placeholders
+(the same technique ``match_slots.py`` uses), which keeps every literal Vue
+``{{ }}`` unescaped and the braces valid.
+
+Frozen event contract (payload shapes the handlers in ``match_handlers.py``
+depend on — do not change):
+    edit_match                     -> { row: props.row }
+    acknowledge_match              -> props.row
+    signup_/undo_commentator|tracker -> props.row
+    acknowledge_/edit_commentator|tracker -> { row: props.row, idx }
+    seat/start/finish/confirm      -> { key: props.row.id }
+    roll                           -> { key: props.row.id }   (+ _generating_seed)
+    edit-stream-room               -> { key: props.row.id }
+    assign_stations                -> { row: props.row }
+    toggle_watch                   -> props.row
 """
+
+# --- Headline: scheduled time (large) + compact state chip -----------------
+
+_STATE_CHIP = '''
+        <span class="mgc-state">
+            <template v-if="props.row.state === 'Confirmed'">
+                <q-icon name="verified" class="st-ok" size="xs" /><span class="st-ok-strong">Confirmed</span>
+            </template>
+            <template v-else-if="props.row.state === 'Finished'">
+                <q-icon name="flag" class="st-pending" size="xs" /><span>Finished</span>
+            </template>
+            <template v-else-if="props.row.state === 'Started'">
+                <q-icon name="play_arrow" class="st-live" size="xs" /><span>Started</span>
+            </template>
+            <template v-else-if="props.row.state === 'Checked In'">
+                <q-icon name="check" class="st-neutral" size="xs" /><span>Checked In</span>
+            </template>
+            <template v-else>
+                <q-icon name="schedule" class="st-neutral" size="xs" /><span>{{ props.row.state || 'Scheduled' }}</span>
+            </template>
+            <span v-if="props.row.state_timestamp" class="cell-timestamp q-ml-xs">{{ props.row.state_timestamp }}</span>
+        </span>'''
+
+
+# --- Players line ----------------------------------------------------------
+
+_PLAYERS = '''
+        <div class="mgc-players">
+            <template v-for="(player, idx) in props.row.players">
+                <div class="mgc-player">
+                    <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
+                            name="check_circle" class="st-ok" size="xs">
+                        <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
+                    </q-icon>
+                    <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
+                            name="schedule" class="st-pending" size="xs">
+                        <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                    </q-icon>
+                    <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
+                        {{ player.name }}<span v-if="__IA__ && player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
+                    </span>
+                    <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
+                          class="st-neutral italic-note"> (auto)</span>
+                    <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == __DID__"
+                           icon="check" color="primary" size="xs" dense flat
+                           @click="$parent.$emit('acknowledge_match', props.row)">
+                        <q-tooltip>Acknowledge</q-tooltip>
+                    </q-btn>
+                </div>
+            </template>
+        </div>'''
+
+
+# --- Detail rows (each v-if-gated: empty -> renders nothing) ----------------
+
+# Commentators / trackers. Row shows when the list is non-empty, or (non-admin
+# only) when a signup is still possible — so an empty admin crew line collapses
+# but a volunteer can still sign up. Emits props.row for signup/undo and
+# { row, idx } for edit/acknowledge.
+_CREW_DETAIL = '''
+        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (!__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
+            <span class="mgc-label">__LABEL__</span>
+            <span class="mgc-detail-value">
+                <template v-if="!__IA__">
+                    <q-btn v-if="props.row.__KEY__ && props.row.__KEY__.some(item => item.discord_id == __DID__)"
+                           icon="undo" color="negative" size="sm" dense class="q-mr-xs"
+                           @click="$parent.$emit('undo___SING__', props.row)">
+                        <q-tooltip>Remove yourself</q-tooltip>
+                    </q-btn>
+                    <q-btn v-if="props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
+                           icon="assignment" color="primary" size="sm" dense class="q-mr-xs"
+                           @click="$parent.$emit('signup___SING__', props.row)">
+                        Sign Up
+                    </q-btn>
+                </template>
+                <template v-for="(item, idx) in props.row.__KEY__">
+                    <span class="mgc-crew-item">
+                        <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
+                            <q-tooltip v-if="item.ack_ts">Acknowledged {{ item.ack_ts }}</q-tooltip>
+                        </q-icon>
+                        <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
+                            <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                        </q-icon>
+                        <a v-if="__IA__ && __CC__" href="#" @click="$parent.$emit('edit___SING__', { row: props.row, idx })"
+                           :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="text-decoration: underline;">{{ item.name }}{{ idx < props.row.__KEY__.length - 1 ? ', ' : '' }}</a>
+                        <span v-else :class="item.approved ? 'st-ok-strong' : 'st-pending'">{{ item.name }}{{ idx < props.row.__KEY__.length - 1 ? ', ' : '' }}</span>
+                        <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
+                               icon="check" color="primary" size="xs" dense flat
+                               @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
+                            <q-tooltip>Acknowledge</q-tooltip>
+                        </q-btn>
+                    </span>
+                </template>
+            </span>
+        </div>'''
+
+# Stage / stream room. Shows when assigned, a candidate, or an admin who can
+# assign; otherwise nothing. Emits { key: props.row.id } for the assign action.
+_STREAM_DETAIL = '''
+        <div class="mgc-detail" v-if="props.row.stream_room || props.row.is_stream_candidate || (__IA__ && __CC__)">
+            <span class="mgc-label">__LABEL__</span>
+            <span class="mgc-detail-value">
+                <a v-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
+                <span v-else-if="props.row.stream_room">{{ props.row.stream_room }}</span>
+                <span v-if="props.row.is_stream_candidate && !props.row.stream_room" class="sgl-chip sgl-chip--candidate q-ml-xs">candidate</span>
+                <q-btn v-if="__IA__ && __CC__ && !props.row.stream_room"
+                       icon="movie" color="primary" size="sm" dense class="q-ml-xs"
+                       @click="$parent.$emit('edit-stream-room', { key: props.row.id })">
+                    Assign Stage
+                </q-btn>
+            </span>
+        </div>'''
+
+# Generated seed. Admin with a configured generator and no seed gets a Generate
+# button (emitting { key: props.row.id } and flagging _generating_seed); once a
+# seed exists everyone gets a truncated link. Empty for non-admins -> nothing.
+_SEED_DETAIL = '''
+        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && props.row.tournament_seed_generator)">
+            <span class="mgc-label">__LABEL__</span>
+            <span class="mgc-detail-value">
+                <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed"
+                       :loading="props.row._generating_seed" :disabled="props.row._generating_seed"
+                       icon="casino" color="primary" size="sm" dense
+                       @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
+                    Generate
+                </q-btn>
+                <template v-if="props.row.generated_seed">
+                    <a v-if="props.row.generated_seed.startsWith('https://') || props.row.generated_seed.startsWith('http://')"
+                       :href="props.row.generated_seed" target="_blank" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>
+                    <span v-else>{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</span>
+                </template>
+            </span>
+        </div>'''
+
+# Free-text comment. Only present when the row actually carries one.
+_COMMENT_DETAIL = '''
+        <div class="mgc-detail" v-if="props.row.comment">
+            <span class="mgc-label">__LABEL__</span>
+            <span class="mgc-detail-value">{{ props.row.comment }}</span>
+        </div>'''
+
+
+# --- Actions row: lifecycle button + Assign Stations + watch toggle --------
+
+_ACTIONS = '''
+        <div class="mgc-actions row items-center" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && __CC__) || __WATCH__">
+            <q-btn v-if="__IA__ && props.row.state === 'Scheduled'" icon="chair" color="primary" size="md"
+                   @click="$parent.$emit('seat', { key: props.row.id })">Check In</q-btn>
+            <q-btn v-else-if="__IA__ && props.row.state === 'Checked In'" icon="play_arrow" color="primary" size="md"
+                   @click="$parent.$emit('start', { key: props.row.id })">Start</q-btn>
+            <q-btn v-else-if="__IA__ && props.row.state === 'Started'" icon="sports_score" color="primary" size="md"
+                   @click="$parent.$emit('finish', { key: props.row.id })">Finish</q-btn>
+            <q-btn v-else-if="__IA__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
+                   @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
+            <q-btn v-if="__IA__ && __CC__" icon="switch_access_shortcut" color="primary" size="md" outline
+                   @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
+            <q-space />
+            <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'visibility' : 'visibility_off'"
+                   :color="props.row._watching ? 'primary' : 'grey'" size="md" flat round
+                   @click="$parent.$emit('toggle_watch', props.row)">
+                <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
+            </q-btn>
+        </div>'''
+
+
+_CARD_OPEN = '''<div class="match-grid-card q-pa-md q-mb-sm" :class="props.row._flash ? 'sgl-row-flash' : ''" style="width: 100%; box-sizing: border-box;">'''
+_CARD_CLOSE = '''
+    </div>'''
 
 
 def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, discord_id) -> None:
-    """Register the grid ``item`` slot on ``table`` from ``columns``."""
-    # Dynamically generate grid slot fields from the columns
-    grid_fields = []
-    for col in columns:
-        if col.get('hidden'):  # Skip hidden columns
-            continue
+    """Register the purpose-built grid ``item`` slot on ``table``.
 
-        field = {
-            'label': col.get('label', col.get('name', '')),
-            'key': col.get('name', ''),
-            'discord_id': f"'{discord_id}'" if discord_id else 'null'  # Format for JS template
-        }
+    Only fields that appear as (non-hidden) columns are rendered, preserving
+    parity with the desktop table on each page. The four server-side flags are
+    baked into the template so client-side branches collapse to constants.
+    """
+    present = {c.get('name', '') for c in columns if not c.get('hidden')}
+    labels = {c.get('name', ''): c.get('label', c.get('name', '')) for c in columns}
 
-        # Special handling for different field types
-        if field['key'] == 'id':
-            field['event'] = 'edit_match'
-        elif field['key'] == 'players':
-            field['array'] = True
-            field['separator'] = ', '  # Add space after comma
-        elif field['key'] in ['commentators', 'trackers']:
-            field['array_objects'] = True
-            field['separator'] = ', '  # Add space after comma
-        elif field['key'] == 'acknowledgments':
-            field['ack_field'] = True
-        elif field['key'] == 'state':
-            field['state_field'] = True
-        elif field['key'] == 'watch':
-            field['watch_field'] = True
+    ia = 'true' if admin_controls else 'false'
+    cc = 'true' if can_crud else 'false'
+    did = f"'{discord_id}'" if discord_id else 'null'
+    watch_js = 'true' if 'watch' in present else 'false'
 
-        grid_fields.append(field)
+    # Headline (scheduled time + optional state chip)
+    headline = (
+        '\n        <div class="mgc-headline">'
+        '<span class="mgc-time">{{ props.row.scheduled_at }}</span>'
+        + (_STATE_CHIP if 'state' in present else '')
+        + '\n        </div>'
+    )
 
-    # Build JS array for Vue template
-    js_field_array = ',\n    '.join([
-        f"{{ label: '{f['label']}', key: '{f['key']}'" +
-        (f", event: '{f['event']}'" if 'event' in f else '') +
-        (", array: true" if f.get('array') else '') +
-        (", arrayObjects: true" if f.get('array_objects') else '') +
-        (", ackField: true" if f.get('ack_field') else '') +
-        (", stateField: true" if f.get('state_field') else '') +
-        (", watchField: true" if f.get('watch_field') else '') +
-        (f", separator: '{f['separator']}'" if 'separator' in f else '') +
-        (f", discord_id: {f['discord_id']}" if 'discord_id' in f else '') +
-        " }" for f in grid_fields
-    ])
+    # Players line
+    players = _PLAYERS if 'players' in present else ''
 
-    table.add_slot('item', f'''
-    <div class="q-pa-md q-mb-sm match-grid-card" :class="props.row._flash ? 'sgl-row-flash' : ''" style="width: 100%; box-sizing: border-box; border: 1px solid #eee; border-radius: 8px; background: #fff;">
-        <div v-for="field in [
-            {js_field_array}
-        ]" :key="field.key" class="row items-center q-mb-xs">
-            <div class="col-4 text-grey-7">{{{{ field.label }}}}:</div>
-            <div class="col-8">
-                <!-- For fields with click events like match ID -->
-                <template v-if="field.event">
-                    <a href="#" @click="$parent.$emit(field.event, {{ row: props.row }})" style="color: var(--sgl-link); text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
-                </template>
+    # Caption (tournament + #id edit link)
+    caption_inner = ''
+    if 'tournament' in present:
+        caption_inner += '<span v-if="props.row.tournament">{{ props.row.tournament }}</span>'
+    if 'id' in present:
+        caption_inner += (
+            '<a href="#" class="mgc-id-link q-ml-sm"'
+            ' @click="$parent.$emit(\'edit_match\', { row: props.row })">#{{ props.row.id }}</a>'
+        )
+    caption = f'\n        <div class="mgc-caption">{caption_inner}</div>' if caption_inner else ''
 
-                <!-- For array fields like players -->
-                <template v-else-if="field.array">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <div v-if="field.key === 'players'">
-                            <template v-for="(player, idx) in props.row[field.key]">
-                                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                                    <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
-                                            name="check_circle" class="st-ok" size="xs">
-                                        <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{{{ props.row.acknowledgments[idx].ts }}}}</q-tooltip>
-                                    </q-icon>
-                                    <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
-                                            name="schedule" class="st-pending" size="xs">
-                                        <q-tooltip>Awaiting acknowledgment</q-tooltip>
-                                    </q-icon>
-                                    <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
-                                        {{{{ player.name }}}}
-                                        <span v-if="{'true' if admin_controls else 'false'} && player.station" class="st-neutral italic-note"> ({{{{ player.station }}}})</span>
-                                    </span>
-                                    <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
-                                          class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
-                                    <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == field.discord_id"
-                                           icon="check" color="primary" size="xs" dense flat
-                                           @click="$parent.$emit('acknowledge_match', props.row)">
-                                        <q-tooltip>Acknowledge</q-tooltip>
-                                    </q-btn>
-                                </div>
-                            </template>
-                        </div>
-                        <span v-else>{{{{ Array.isArray(props.row[field.key]) ? props.row[field.key].join(field.separator || ', ') : props.row[field.key] }}}}</span>
-                        <q-btn v-if="{'true' if (admin_controls and can_crud) else 'false'} && field.key === 'players'"
-                               @click="$parent.$emit('assign_stations', {{ row: props.row }})"
-                               icon="switch_access_shortcut" color="primary" size="xs" flat round>
-                            <q-tooltip>Assign Stations</q-tooltip>
-                        </q-btn>
-                    </div>
-                </template>
+    # Detail rows (order: commentators, trackers, stage, seed, comment)
+    details = ''
+    for role in ('commentators', 'trackers'):
+        if role in present:
+            details += (
+                _CREW_DETAIL
+                .replace('__KEY__', role)
+                .replace('__SING__', role[:-1])
+                .replace('__LABEL__', labels.get(role, role))
+            )
+    if 'stream_room' in present:
+        details += _STREAM_DETAIL.replace('__LABEL__', labels.get('stream_room', 'Stage'))
+    if 'generated_seed' in present:
+        details += _SEED_DETAIL.replace('__LABEL__', labels.get('generated_seed', 'Seed'))
+    details += _COMMENT_DETAIL.replace('__LABEL__', labels.get('comment', 'Comment'))
 
-                <!-- For array of objects like commentators/trackers with approval status -->
-                <template v-else-if="field.arrayObjects">
-                    <span>
-                        <!-- Add signup/undo buttons for commentator/tracker fields (non-admin only) -->
-                        <template v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if admin_controls else 'false'}">
-                            <div style="margin-bottom: 8px;">
-                                <q-btn v-if="props.row[field.key] && props.row[field.key].some(item => item.discord_id == field.discord_id)"
-                                       icon="undo" color="negative" size="sm"
-                                       @click="$parent.$emit('undo_' + field.key.slice(0, -1), props.row)"
-                                       style="margin-right: 8px;">
-                                    Undo
-                                </q-btn>
-                                <q-btn v-if="props.row[field.key] && !props.row[field.key].some(item => item.discord_id == field.discord_id) && !props.row.players.some(p => p.discord_id == field.discord_id)"
-                                       icon="assignment" color="primary" size="sm"
-                                       @click="$parent.$emit('signup_' + field.key.slice(0, -1), props.row)"
-                                       style="margin-right: 8px;">
-                                    Sign Up
-                                </q-btn>
-                            </div>
-                        </template>
+    # Actions (only worth emitting when an admin or the watch toggle is in play)
+    actions = _ACTIONS if (admin_controls or 'watch' in present) else ''
 
-                        <template v-if="Array.isArray(props.row[field.key])">
-                            <template v-for="(item, idx) in props.row[field.key]">
-                                <span style="display: inline-flex; align-items: center; gap: 2px;">
-                                    <q-icon v-if="(field.key === 'commentators' || field.key === 'trackers') && item.approved && item.acknowledged"
-                                            name="check_circle" class="st-ok" size="xs">
-                                        <q-tooltip v-if="item.ack_ts">Acknowledged {{{{ item.ack_ts }}}}</q-tooltip>
-                                    </q-icon>
-                                    <q-icon v-else-if="(field.key === 'commentators' || field.key === 'trackers') && item.approved && !item.acknowledged"
-                                            name="schedule" class="st-pending" size="xs">
-                                        <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
-                                    </q-icon>
-                                    <template v-if="(field.key === 'commentators' || field.key === 'trackers') && {'true' if (admin_controls and can_crud) else 'false'}">
-                                        <a href="#" @click="$parent.$emit('edit_' + field.key.slice(0, -1), {{ row: props.row, idx }})"
-                                           :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="text-decoration: underline;">
-                                            {{{{ item.name }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
-                                        </a>
-                                    </template>
-                                    <template v-else>
-                                        <span :class="item.approved ? 'st-ok-strong' : 'st-pending'">
-                                            {{{{ item.name }}}}{{{{ idx < props.row[field.key].length - 1 ? field.separator || ', ' : '' }}}}
-                                        </span>
-                                    </template>
-                                    <q-btn v-if="(field.key === 'commentators' || field.key === 'trackers') && !{'true' if admin_controls else 'false'} && item.approved && !item.acknowledged && item.discord_id == field.discord_id"
-                                           icon="check" color="primary" size="xs" dense flat
-                                           @click="$parent.$emit('acknowledge_' + field.key.slice(0, -1), {{ row: props.row, idx }})">
-                                        <q-tooltip>Acknowledge</q-tooltip>
-                                    </q-btn>
-                                </span>
-                            </template>
-                        </template>
-                        <template v-else>{{{{ props.row[field.key] }}}}</template>
-                    </span>
-                </template>
+    template = _CARD_OPEN + headline + players + caption + details + actions + _CARD_CLOSE
 
-                <!-- For state field with admin buttons -->
-                <template v-else-if="field.stateField">
-                    <!-- Scheduled state: show Check In button -->
-                    <q-btn v-if="{'true' if admin_controls else 'false'} && props.row[field.key] === 'Scheduled'"
-                           @click="$parent.$emit('seat', {{ key: props.row.id }})"
-                           icon="chair" color="primary" size="sm"
-                           style="margin-bottom: 8px;">
-                        Check In
-                    </q-btn>
+    template = (
+        template
+        .replace('__IA__', ia)
+        .replace('__CC__', cc)
+        .replace('__WATCH__', watch_js)
+        .replace('__DID__', did)
+    )
 
-                    <!-- Checked In: show Start button and timestamp -->
-                    <div v-else-if="{'true' if admin_controls else 'false'} && props.row[field.key] === 'Checked In'"
-                         style="display: flex; flex-direction: column; gap: 4px;">
-                        <q-btn @click="$parent.$emit('start', {{ key: props.row.id }})"
-                               icon="play_arrow" color="primary" size="sm">
-                            Start
-                        </q-btn>
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="check" class="st-neutral" size="xs" />
-                            <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                        </div>
-                    </div>
-
-                    <!-- Started: show Finish button and timestamp -->
-                    <div v-else-if="{'true' if admin_controls else 'false'} && props.row[field.key] === 'Started'"
-                         style="display: flex; flex-direction: column; gap: 4px;">
-                        <q-btn @click="$parent.$emit('finish', {{ key: props.row.id }})"
-                               icon="sports_score" color="primary" size="sm">
-                            Finish
-                        </q-btn>
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="play_arrow" class="st-live" size="xs" />
-                            <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                        </div>
-                    </div>
-
-                    <!-- Finished: show Confirm button and timestamp -->
-                    <div v-else-if="{'true' if admin_controls else 'false'} && props.row[field.key] === 'Finished'"
-                         style="display: flex; flex-direction: column; gap: 4px;">
-                        <q-btn @click="$parent.$emit('confirm', {{ key: props.row.id }})"
-                               icon="check_circle" color="primary" size="sm">
-                            Confirm
-                        </q-btn>
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="flag" class="st-pending" size="xs" />
-                            <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                        </div>
-                    </div>
-
-                    <!-- Confirmed: show state with icon and timestamp -->
-                    <div v-else-if="props.row[field.key] === 'Confirmed'" style="display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="verified" class="st-ok" size="sm" />
-                            <span style="font-weight: 500;">{{{{ props.row[field.key] }}}}</span>
-                        </div>
-                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                    </div>
-
-                    <!-- Non-admin views: show state with icon and timestamp -->
-                    <div v-else-if="props.row[field.key] === 'Finished'" style="display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="flag" class="st-pending" size="sm" />
-                            <span>{{{{ props.row[field.key] }}}}</span>
-                        </div>
-                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                    </div>
-                    <div v-else-if="props.row[field.key] === 'Started'" style="display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="play_arrow" class="st-live" size="sm" />
-                            <span>{{{{ props.row[field.key] }}}}</span>
-                        </div>
-                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                    </div>
-                    <div v-else-if="props.row[field.key] === 'Checked In'" style="display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="check" class="st-neutral" size="sm" />
-                            <span>{{{{ props.row[field.key] }}}}</span>
-                        </div>
-                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                    </div>
-
-                    <!-- Fallback for Scheduled or other states -->
-                    <div v-else style="display: flex; flex-direction: column; gap: 4px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <q-icon name="schedule" class="st-neutral" size="sm" />
-                            <span>{{{{ props.row[field.key] || 'Scheduled' }}}}</span>
-                        </div>
-                        <span class="cell-timestamp">{{{{ props.row.state_timestamp }}}}</span>
-                    </div>
-                </template>
-
-                <!-- For generated_seed field, truncate long URLs -->
-                <template v-else-if="field.key === 'generated_seed'">
-                    <!-- Show generate button if admin, has seed generator, and no seed yet -->
-                    <q-btn v-if="{'true' if admin_controls else 'false'} && props.row.tournament_seed_generator && !props.row[field.key]"
-                           :loading="props.row._generating_seed"
-                           :disabled="props.row._generating_seed"
-                           @click="(props.row._generating_seed = true, $parent.$emit('roll', {{ key: props.row.id }}))"
-                           icon="casino" color="primary" size="sm"
-                           style="margin-bottom: 8px;">
-                        Generate Seed
-                    </q-btn>
-                    <template v-if="props.row[field.key]">
-                        <a v-if="props.row[field.key].startsWith('https://') || props.row[field.key].startsWith('http://')"
-                           :href="props.row[field.key]" target="_blank" style="color: var(--sgl-link); text-decoration: underline;">
-                            {{{{ props.row[field.key].length > 40 ? props.row[field.key].substring(0, 40) + '...' : props.row[field.key] }}}}
-                        </a>
-                        <span v-else>
-                            {{{{ props.row[field.key].length > 40 ? props.row[field.key].substring(0, 40) + '...' : props.row[field.key] }}}}
-                        </span>
-                    </template>
-                    <template v-else-if="!{'true' if admin_controls else 'false'} || !props.row.tournament_seed_generator">-</template>
-                </template>
-
-                <!-- Acknowledgments field: icon + name per player -->
-                <template v-else-if="field.ackField">
-                    <template v-if="Array.isArray(props.row[field.key])">
-                        <div v-for="(item, idx) in props.row[field.key]" :key="idx"
-                             style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                            <q-icon :name="item.acknowledged ? 'check_circle' : 'schedule'"
-                                    :class="item.acknowledged ? 'st-ok' : 'st-pending'" size="xs" />
-                            <span :class="item.acknowledged ? 'st-ok-strong' : 'st-pending'">
-                                {{{{ item.name }}}}<span v-if="item.acknowledged && item.auto" style="font-style: italic; font-weight: normal;"> (auto)</span>
-                            </span>
-                        </div>
-                    </template>
-                    <template v-else>—</template>
-                </template>
-
-                <!-- Watch toggle (logged-in users only) -->
-                <template v-else-if="field.watchField">
-                    <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
-                           :color="props.row._watching ? 'primary' : 'grey'"
-                           size="sm" flat round
-                           @click="$parent.$emit('toggle_watch', props.row)">
-                        <q-tooltip>{{{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}}}</q-tooltip>
-                    </q-btn>
-                </template>
-
-                <!-- For stream_room field with admin button -->
-                <template v-else-if="field.key === 'stream_room'">
-                    <a v-if="props.row[field.key] && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{{{ props.row[field.key] }}}}</a>
-                    <span v-else-if="props.row[field.key]">{{{{ props.row[field.key] }}}}</span>
-                    <span v-if="props.row.is_stream_candidate && !props.row[field.key]" class="sgl-chip sgl-chip--candidate q-ml-xs">candidate</span>
-                    <q-btn v-if="{'true' if (admin_controls and can_crud) else 'false'} && !props.row[field.key]"
-                           @click="$parent.$emit('edit-stream-room', {{ key: props.row.id }})"
-                           icon="movie" color="primary" size="sm"
-                           style="margin-bottom: 8px;">
-                        Assign Stage
-                    </q-btn>
-                    <template v-if="!props.row[field.key] && !props.row.is_stream_candidate && !{'true' if (admin_controls and can_crud) else 'false'}">-</template>
-                </template>
-
-                <!-- Default rendering for other fields -->
-                <template v-else>
-                    {{{{ props.row[field.key] || '' }}}}
-                </template>
-            </div>
-        </div>
-        </div>
-        ''')
+    table.add_slot('item', template)

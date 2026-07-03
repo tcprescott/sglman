@@ -20,17 +20,12 @@ from application.services.system_config_service import (
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
 from models import StationFormat
+from theme.dialog._helpers import native_date_input
 
 
 def _date_field(label: str, value: str):
-    with ui.input(label, value=value).props('clearable') as field:
-        with ui.menu().props('no-parent-event') as menu:
-            with ui.column().classes('items-center'):
-                ui.date().bind_value(field)
-                ui.button('Close', on_click=menu.close).props('flat')
-        with field.add_slot('append'):
-            ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
-    return field
+    # Native date picker (YYYY-MM-DD) — OS calendar on mobile, shared recipe.
+    return native_date_input(label, value, clearable=True)
 
 
 async def admin_system_config_page() -> None:

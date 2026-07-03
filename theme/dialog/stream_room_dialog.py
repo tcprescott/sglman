@@ -2,7 +2,7 @@ from nicegui import app, ui
 
 from application.services import get_user_from_discord_id
 from models import Match
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.dialog.match_dialog import BaseMatchDialog
 
 
@@ -15,6 +15,7 @@ class StreamRoomDialog(BaseMatchDialog):
         default_stream_room = self.match.stream_room_id if self.match.stream_room_id else None
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header('Assign Stage', dialog)
             with ui.column().classes('q-pa-md'):
                 stream_room_options = {None: '(None)'}
@@ -49,8 +50,7 @@ class StreamRoomDialog(BaseMatchDialog):
                     with self.dialog:
                         ui.notify(f'Error updating stage: {str(e)}', color='negative')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save', on_click=submit).props('color=primary')
 

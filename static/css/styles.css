@@ -139,6 +139,11 @@
     --radius-lg: 14px;
     --radius-pill: 999px;
 
+    /* Height reserved for the mobile bottom nav (.sgl-bottom-nav) — the fixed
+       refresh FAB and the reconnect overlay clear it by this amount. Single
+       source so tuning the nav does not silently desync those offsets. */
+    --sgl-bottom-nav-h: 72px;
+
     /* Warm umber-tinted shadows (never pure black on the light theme) */
     --shadow-1: 0 1px 2px rgba(46, 32, 12, 0.07), 0 1px 4px rgba(46, 32, 12, 0.05);
     --shadow-2: 0 2px 6px rgba(46, 32, 12, 0.10), 0 6px 16px rgba(46, 32, 12, 0.08);
@@ -207,6 +212,16 @@ body {
 body.body--dark {
     background: radial-gradient(1100px 520px at 50% -180px,
         #251d14 0%, var(--sgl-dark-bg) 65%) fixed;
+}
+
+/* Touch devices can't cheaply repaint a `fixed` background while scrolling (and
+   several mobile browsers ignore fixed attachment outright), so fall back to a
+   scroll-attached gradient — the glow still paints, without the jank. */
+@media (hover: none) {
+    body,
+    body.body--dark {
+        background-attachment: scroll;
+    }
 }
 
 /* Brand focus ring and selection */
@@ -320,6 +335,8 @@ body.body--dark {
     background-color: var(--sgl-header-bg);
     min-height: 56px;
     padding: 0 var(--space-3);
+    /* Clear the status-bar / notch area when installed as a standalone PWA. */
+    padding-top: env(safe-area-inset-top);
     box-shadow: var(--shadow-1);
 }
 
@@ -354,6 +371,7 @@ body.body--dark {
 @media (max-width: 600px) {
     .sgl-header {
         padding: 0 var(--space-2);
+        padding-top: env(safe-area-inset-top);
     }
 
     .sgl-header .user-name {
@@ -442,7 +460,9 @@ body.body--dark {
 .page-title {
     font-family: var(--font-display);
     font-weight: 600;
-    font-size: 2em;
+    /* Fluid down on narrow screens so long titles stay on one line; still caps
+       at the original 2em on desktop (≥~1024px the middle term wins the max). */
+    font-size: clamp(1.4em, 4.5vw + 0.6em, 2em);
     letter-spacing: 0.01em;
 }
 
@@ -560,6 +580,63 @@ body.body--dark {
 
 .q-dialog__backdrop {
     background: rgba(23, 18, 13, 0.55);
+}
+
+/* Full-screen dialog sheets on mobile. mobile_sheet() opens the dialog with
+   :maximized="Quasar.Screen.lt.sm", so below 600px the centered card becomes an
+   edge-to-edge sheet. Overrides the .dialog-card sizing and the .q-dialog
+   .q-card brand border above (equal specificity, wins on source order). */
+.q-dialog__inner--maximized > .dialog-card {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-top: none;
+}
+
+/* The card is align-items:flex-start, so children size to content and the sticky
+   header/action bars (narrow button rows) don't span the width — leaving content
+   peeking past their edge. Stretch ONLY those two bars (not arbitrary dialog
+   content) so they fill the card and their negative margins bleed to the edges. */
+.q-dialog__inner--maximized > .dialog-card > .dialog-header,
+.q-dialog__inner--maximized > .dialog-card > .dialog-actions {
+    align-self: stretch;
+}
+
+/* Sticky action bar pinned to the bottom of the scrolling .dialog-card so the
+   primary Submit/Cancel row stays reachable without scrolling (fixes footers
+   clipped below the fold). Negative margins of the card's own padding bleed the
+   bar to the card edges; opaque --surface masks content scrolling beneath it
+   and re-aliases to the dark surface on its own. */
+.dialog-actions {
+    position: sticky;
+    bottom: calc(-1 * var(--nicegui-default-padding));
+    z-index: 2;
+    margin-top: 0.5rem;
+    margin-left: calc(-1 * var(--nicegui-default-padding));
+    margin-right: calc(-1 * var(--nicegui-default-padding));
+    margin-bottom: calc(-1 * var(--nicegui-default-padding));
+    padding: 0.5rem var(--nicegui-default-padding);
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--border-subtle);
+}
+
+/* Sticky title bar — top mirror of .dialog-actions, kept in view while the
+   sheet body scrolls under it. */
+.dialog-header {
+    position: sticky;
+    top: calc(-1 * var(--nicegui-default-padding));
+    z-index: 2;
+    margin-bottom: 0.5rem;
+    margin-top: calc(-1 * var(--nicegui-default-padding));
+    margin-left: calc(-1 * var(--nicegui-default-padding));
+    margin-right: calc(-1 * var(--nicegui-default-padding));
+    padding: 0.5rem var(--nicegui-default-padding);
+    padding-top: calc(0.5rem + env(safe-area-inset-top));
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 /* Error Pages (40x / 50x) */
@@ -756,6 +833,12 @@ body.body--dark {
     margin-bottom: 1em;
 }
 
+/* Prev/date/next kept together so the chevrons flank the date instead of
+   splitting across lines when the header wraps on a phone. */
+.timeline-nav {
+    gap: var(--space-1);
+}
+
 .room-header {
     width: 100%;
     align-items: center;
@@ -910,7 +993,7 @@ body.body--dark {
 /* Refresh Button */
 .refresh-button {
     position: fixed;
-    bottom: 20px;
+    bottom: max(20px, env(safe-area-inset-bottom));
     right: 20px;
 }
 
@@ -1054,12 +1137,134 @@ body.body--dark {
     box-shadow: var(--shadow-1);
 }
 
+/* Purpose-built mobile match card (theme/tables/match_grid.py grid item slot):
+   a monospace headline row (time + state chip), players line, muted caption,
+   v-if-gated detail rows, and a single top-bordered actions row. All colors via
+   tokens so dark mode follows automatically. */
+.mgc-headline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 1.05em;
+}
+
+/* Keep the scheduled time intact — never let it break mid-value (e.g.
+   "2026-07-02" / "18:09"); the state chip wraps to the next line instead. */
+.mgc-time {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mgc-state {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.mgc-caption {
+    font-size: 0.8em;
+    color: var(--status-neutral);
+}
+
+/* Players line + per-player/crew rows and the #id caption link. Styling lives
+   here (not inline on the template elements) so the card is fully token-driven. */
+.mgc-players {
+    margin-top: var(--space-1);
+}
+
+.mgc-player {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.mgc-crew-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.mgc-id-link {
+    color: var(--sgl-link);
+    text-decoration: underline;
+}
+
+/* Flex row so a tall (44px) action button — Sign Up, Generate, Assign Stage —
+   centers against the label instead of overlapping it on the text baseline. */
+.mgc-detail {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px var(--space-1);
+    font-size: 0.9em;
+}
+
+.mgc-detail-value {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+}
+
+.mgc-label {
+    font-weight: 600;
+    color: var(--status-neutral);
+    margin-right: var(--space-1);
+    flex-shrink: 0;
+}
+
+.mgc-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.mgc-actions .q-btn {
+    min-height: 44px;
+}
+
 /* Match filters card styling */
 .match-filters-card {
     width: 100%;
     padding: 1em;
     margin-bottom: 1em;
     background-color: var(--surface-alt);
+}
+
+/* Collapsible filters on mobile. The filter card is always visible on desktop
+   (≥1024px); below that it collapses behind the .sgl-filter-toggle button and
+   only shows when the server adds .sgl-filters-open. */
+@media (max-width: 1023.98px) {
+    .match-filters-card {
+        display: none;
+    }
+
+    .match-filters-card.sgl-filters-open {
+        display: block;
+    }
+}
+
+/* The Filters toggle button/badge row — mobile only; the filter card is pinned
+   open on desktop so the toggle is redundant there. */
+.sgl-filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    margin-bottom: var(--space-2);
+}
+
+@media (min-width: 1024px) {
+    .sgl-filter-toggle {
+        display: none;
+    }
 }
 
 /* Match filter layout */
@@ -1120,4 +1325,121 @@ body.body--dark {
    light (cream) and dark (charcoal) footer surfaces. */
 .footer-feedback-btn {
     color: inherit !important;
+}
+
+/* App-shell bottom navigation — a full-width tab row shown only on phones and
+   tablets (<1024px); on desktop the drawer + copyright footer carry navigation
+   so it collapses away. Footer surface tokens mirror .footer-dark-override so
+   the bar matches the footer in both modes. */
+.sgl-bottom-nav {
+    width: 100%;
+    padding-bottom: env(safe-area-inset-bottom);
+    background-color: var(--surface-alt);
+    color: var(--status-neutral);
+    border-top: 1px solid var(--border-subtle);
+}
+
+@media (min-width: 1024px) {
+    .sgl-bottom-nav {
+        display: none;
+    }
+}
+
+.body--dark .sgl-bottom-nav,
+.q-dark .sgl-bottom-nav {
+    background-color: var(--sgl-charcoal) !important;
+    color: var(--sgl-dark-muted) !important;
+}
+
+/* Copyright / Feedback footer meta is desktop-only; on mobile the bottom nav
+   replaces it so the meta row doesn't steal vertical space above the tabs. */
+@media (max-width: 1023.98px) {
+    .sgl-footer-meta {
+        display: none;
+    }
+
+    /* The fixed refresh FAB would otherwise sit under the bottom nav bar; lift it
+       above the nav (and the safe-area inset) so it stays tappable. */
+    .refresh-button {
+        bottom: calc(var(--sgl-bottom-nav-h) + env(safe-area-inset-bottom));
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile ergonomics (≤599.98px)
+   Phone-first touch sizing: 16px form text defeats iOS focus-zoom, buttons and
+   tabs meet the 44px/48px tap-target floor, and the chip remove affordance
+   grows to a comfortable target. Scoped tight so the desktop layout above is
+   untouched.
+--------------------------------------------------------------------------- */
+@media (max-width: 599.98px) {
+    body {
+        font-size: 15px;
+    }
+
+    /* 16px is the threshold below which iOS Safari zooms the viewport on focus,
+       yanking the layout around; keep every field input at or above it. */
+    .q-field__native,
+    .q-field input,
+    .q-field textarea,
+    .q-field__input {
+        font-size: 16px;
+    }
+
+    .q-btn {
+        min-height: 44px;
+    }
+
+    /* Dense/round buttons are the grid-card actions (Sign Up, Generate, watch,
+       Assign Stage) and the toolbar refresh — lift them to the 44px touch floor
+       on phones so they clear the tap-target minimum like the standard buttons. */
+    .q-btn--dense,
+    .q-btn--round {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Enlarge the chip remove hit area (the glyph is 24px but the tappable box
+       stays small); pad it out so dismissing a filter/selection chip is easy. */
+    .q-chip__icon--remove {
+        font-size: 24px;
+        padding: 10px;
+        margin: -10px -4px -10px 0;
+    }
+
+    .q-tab {
+        min-height: 48px;
+    }
+
+    /* On Air date heading: the full "Friday, July 03, 2026" at 1.8em wraps and
+       shoves the nav around on a phone; scale it down and drop the wide side
+       margin so the chevrons sit snug against it. */
+    .timeline-date {
+        font-size: 1.25em;
+        margin: 0 0.25em;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Reconnect overlay — brand NiceGUI's "Connection lost / Trying to reconnect"
+   popup (#popup.nicegui-error-popup) so a dropped socket (phone lock, network
+   flip) reads as a deliberate, on-brand moment instead of a stock gray toast.
+   This sheet loads after nicegui.css, so these override by source order; the
+   framework's [aria-hidden] show/hide transitions still drive visibility.
+--------------------------------------------------------------------------- */
+.nicegui-error-popup {
+    background: var(--sgl-charcoal) !important;
+    color: var(--sgl-gold) !important;
+    border: 1px solid color-mix(in srgb, var(--sgl-gold) 45%, transparent);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-3);
+    font-family: var(--font-body);
+    /* Clear the mobile bottom nav / home indicator when pinned to the bottom. */
+    margin-bottom: calc(var(--sgl-bottom-nav-h) + env(safe-area-inset-bottom));
+}
+
+.nicegui-error-popup > span:first-child {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: #fff;
 }

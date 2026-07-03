@@ -29,17 +29,20 @@ async def stage_timeline_tab():
     with ui.column().classes('full-width-column'):
         # Header with date navigation
         with ui.row().classes('timeline-header'):
-            prev_btn = ui.button(
-                icon='chevron_left',
-                on_click=lambda: None
-            ).props('flat').tooltip('Previous day')
+            # Keep the chevrons flanking the date as one unit so they never split
+            # across lines when the row wraps on a narrow (phone) viewport.
+            with ui.row().classes('timeline-nav items-center no-wrap'):
+                prev_btn = ui.button(
+                    icon='chevron_left',
+                    on_click=lambda: None
+                ).props('flat round').tooltip('Previous day')
 
-            date_label = ui.label(current_date['value'].strftime('%A, %B %d, %Y')).classes('large-title')
+                date_label = ui.label(current_date['value'].strftime('%A, %B %d, %Y')).classes('large-title timeline-date')
 
-            next_btn = ui.button(
-                icon='chevron_right',
-                on_click=lambda: None
-            ).props('flat').tooltip('Next day')
+                next_btn = ui.button(
+                    icon='chevron_right',
+                    on_click=lambda: None
+                ).props('flat round').tooltip('Next day')
 
             today_btn = ui.button(
                 'Today',

@@ -1,6 +1,6 @@
 from nicegui import ui
 
-from theme.dialog._helpers import dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header
 
 
 class ConfirmationDialog:
@@ -17,8 +17,7 @@ class ConfirmationDialog:
             dialog_header('Confirm', dialog)
             with ui.column().classes('q-pa-md'):
                 ui.label(self.message)
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button(self.cancel_text, on_click=dialog.close).props('flat')
                 if self.on_confirm:
                     ui.button(self.confirm_text, on_click=self.on_confirm).props('color=negative')
