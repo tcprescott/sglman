@@ -7,7 +7,7 @@ from application.services.volunteer_availability_service import VolunteerAvailab
 from application.services.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_eastern_date, format_eastern_time
 from models import User, VolunteerAvailabilityStatus, VolunteerPosition
-from theme.dialog._helpers import dialog_header
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 _STATUS_PROPS = {
     VolunteerAvailabilityStatus.PREFERRED: ('Preferred', 'positive'),
@@ -34,6 +34,7 @@ class VolunteerProfileDialog:
         checkboxes: dict[int, ui.checkbox] = {}
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+            mobile_sheet(dialog)
             dialog_header(self.user.preferred_name, dialog)
 
             with ui.column().classes('q-pa-md gap-4').style('min-width: 420px; max-width: 560px;'):
@@ -86,8 +87,7 @@ class VolunteerProfileDialog:
                 except (ValueError, PermissionError) as e:
                     ui.notify(str(e), color='warning')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 if self.positions:
                     ui.button('Save qualifications', on_click=save).props('color=primary')

@@ -3,7 +3,7 @@
 from nicegui import app, ui
 
 from application.services import StreamRoomService, get_user_from_discord_id
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from models import StreamRoom
 
 
@@ -28,6 +28,7 @@ class StreamRoomEditDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 name_input = ui.input('Room Name', value=default_name).classes('input-full-width')
@@ -69,8 +70,7 @@ class StreamRoomEditDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if self.stream_room else 'Create', on_click=submit).props('color=primary')
 

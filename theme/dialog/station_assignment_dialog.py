@@ -8,6 +8,7 @@ from nicegui import app, ui
 from models import Match, StationFormat
 from application.services import MatchService, get_user_from_discord_id
 from application.services.system_config_service import SystemConfigService
+from theme.dialog._helpers import dialog_actions, mobile_sheet
 
 _STATION_REGEXES = {
     StationFormat.FREE:         re.compile(r'^.{0,50}$'),
@@ -45,6 +46,7 @@ class StationAssignmentDialog:
         fmt = await SystemConfigService.get_station_format()
         
         with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 600px; width: 100%;'):
+            mobile_sheet(self.dialog)
             # Header
             with ui.row().classes('dialog-header'):
                 ui.label(f'Assign Stations - Match #{self.match.id}').classes('dialog-title')
@@ -90,10 +92,8 @@ class StationAssignmentDialog:
                             # Store reference to input
                             self.station_inputs[player.id] = station_input
             
-            ui.separator()
-            
             # Action buttons
-            with ui.row().classes('dialog-actions'):
+            with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 ui.button('Assign Stations', on_click=self._handle_submit).props('color=primary')
         

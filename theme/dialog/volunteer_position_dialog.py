@@ -4,7 +4,7 @@ from nicegui import app, ui
 
 from application.services import get_user_from_discord_id
 from application.services.volunteer_position_service import VolunteerPositionService
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from models import VolunteerPosition
 
 
@@ -27,18 +27,19 @@ class VolunteerPositionDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 name_input = ui.input('Position Name', value=default_name).classes('input-full-width')
                 desc_input = ui.input('Description', value=default_desc).classes('input-full-width')
-                order_input = ui.number('Display Order', value=default_order, format='%d').classes('input-full-width')
+                order_input = ui.number('Display Order', value=default_order, format='%d').props('inputmode=numeric').classes('input-full-width')
                 active_checkbox = ui.checkbox('Active', value=default_active)
                 length_input = ui.number(
                     'Shift length (min)', value=default_length, format='%d',
-                ).classes('input-full-width')
+                ).props('inputmode=numeric').classes('input-full-width')
                 stagger_input = ui.number(
                     'Stagger interval (min)', value=default_stagger, format='%d',
-                ).classes('input-full-width')
+                ).props('inputmode=numeric').classes('input-full-width')
                 ui.label(
                     'Leave both blank for fixed shared blocks; set both to stagger handoffs.'
                 ).classes('text-caption text-grey')
@@ -84,8 +85,7 @@ class VolunteerPositionDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if editing else 'Create', on_click=submit).props('color=primary')
 

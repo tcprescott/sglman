@@ -11,7 +11,7 @@ from application.utils.timezone import (
     parse_eastern_datetime,
 )
 from models import VolunteerPosition, VolunteerShift
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 
 
 class VolunteerShiftDialog:
@@ -58,6 +58,7 @@ class VolunteerShiftDialog:
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 position_select = ui.select(
@@ -82,7 +83,7 @@ class VolunteerShiftDialog:
                 label_input = ui.input('Label (optional)', value=default_label).classes('input-full-width')
                 slots_input = ui.number(
                     'Slots needed', value=default_slots, format='%d', min=1,
-                ).classes('input-full-width')
+                ).props('inputmode=numeric').classes('input-full-width')
                 notes_input = ui.textarea('Notes (optional)', value=default_notes).classes('input-full-width')
 
             async def submit():
@@ -123,8 +124,7 @@ class VolunteerShiftDialog:
                     with self.dialog:
                         ui.notify(f'Error: {str(e)}', color='negative')
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 ui.button('Save' if editing else 'Create', on_click=submit).props('color=primary')
 

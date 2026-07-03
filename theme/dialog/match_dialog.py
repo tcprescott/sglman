@@ -1,6 +1,6 @@
 from typing import Awaitable, Callable
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     CrewService,
@@ -19,7 +19,7 @@ from application.utils.timezone import (
     now_eastern,
 )
 from models import Match
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -71,21 +71,8 @@ class BaseMatchDialog:
 
     def _render_date_time_inputs(self, default_date, default_time):
         with ui.row().classes('items-center gap-2'):
-            with ui.input('Date (YYYY-MM-DD)', value=default_date).props('required') as date:
-                with ui.menu().props('no-parent-event') as menu:
-                    with ui.date(value=default_date).bind_value(date):
-                        with ui.row().classes('justify-end'):
-                            ui.button('Close', on_click=menu.close).props('flat')
-                with date.add_slot('append'):
-                    ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
-
-            with ui.input('Time (24-hour format)', value=default_time).props('required') as time:
-                with ui.menu().props('no-parent-event') as menu:
-                    with ui.time(value=default_time).bind_value(time):
-                        with ui.row().classes('justify-end'):
-                            ui.button('Close', on_click=menu.close).props('flat')
-                with time.add_slot('append'):
-                    ui.icon('access_time').on('click', menu.open).classes('cursor-pointer')
+            date = ui.input('Date', value=default_date).props('type=date required stack-label')
+            time = ui.input('Time', value=default_time).props('type=time required stack-label')
 
         return date, time
 
@@ -160,30 +147,30 @@ class BaseMatchDialog:
 
         switch_ref = {}
 
-        async def on_change(event):
+        async def on_change(event, client):
             new_value = bool(event.value)
             try:
                 if new_value:
                     await watcher_service.watch(match_id, user)
-                    with self.dialog:
+                    async with client:
                         ui.notify(
                             f'Now watching match ID {match_id}. You will receive Discord DMs on updates.',
                             color='positive',
                         )
                 else:
                     await watcher_service.unwatch(match_id, user)
-                    with self.dialog:
+                    async with client:
                         ui.notify(f'No longer watching match ID {match_id}.', color='positive')
             except ValueError as e:
                 switch_ref['widget'].value = not new_value
                 switch_ref['widget'].update()
-                with self.dialog:
+                async with client:
                     ui.notify(str(e), color='warning')
 
         switch_ref['widget'] = ui.switch(
             'Watch this match (Discord DM updates)',
             value=initial_watching,
-            on_change=lambda e: background_tasks.create(on_change(e)),
+            on_change=lambda e: background_tasks.create(on_change(e, context.client)),
         )
 
     def _confirm_delete(self, dialog):
@@ -288,8 +275,7 @@ class BaseMatchDialog:
         ``create_label`` is the primary-button text used when creating a new match
         ('Create' for admin, 'Submit' for user); editing always shows 'Save'.
         """
-        ui.separator()
-        with ui.row().classes('items-center q-pa-sm gap-2'):
+        with dialog_actions():
             if self.match:
                 ui.button('Delete', on_click=lambda: self._confirm_delete(dialog)).props('color=negative flat')
             ui.space()
@@ -331,6 +317,7 @@ class AdminMatchDialog(BaseMatchDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label('* required').classes('required-legend')
@@ -547,6 +534,7 @@ class UserMatchDialog(BaseMatchDialog):
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 if not tournaments:
@@ -554,8 +542,7 @@ class UserMatchDialog(BaseMatchDialog):
                         'You have not opted into any tournaments. '
                         'Please opt in before submitting a match.'
                     ).classes('text-negative')
-                    ui.separator()
-                    with ui.row().classes('justify-end q-pa-sm'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                     dialog.open()
                     return

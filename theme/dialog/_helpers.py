@@ -6,11 +6,30 @@ def dialog_header(title: str, dialog) -> None:
 
     Call inside the dialog's ``ui.card()`` context so it nests correctly.
     """
-    with ui.row().classes('items-center q-pa-sm'):
+    with ui.row().classes('dialog-header items-center q-pa-sm'):
         ui.label(title).classes('text-h6 q-ma-none')
         ui.space()
         ui.button(icon='close', on_click=dialog.close).props('flat round dense').tooltip('Close')
     ui.separator()
+
+
+def dialog_actions():
+    """Sticky bottom action bar for a dialog card, used as a context manager.
+
+    Wrap the dialog's action buttons in ``with dialog_actions():``; the
+    ``.dialog-actions`` class pins the row to the bottom of the scrolling card so
+    the primary action stays visible without scrolling on mobile sheets.
+    """
+    return ui.row().classes('dialog-actions items-center gap-2')
+
+
+def mobile_sheet(dialog) -> None:
+    """Make a dialog fill the screen as a maximized sheet on phones (<600px).
+
+    NiceGUI evaluates dynamic props against the global ``Quasar`` object, not
+    Vue ``$q``, so the breakpoint must reference ``Quasar.Screen.lt.sm``.
+    """
+    dialog.props(':maximized="Quasar.Screen.lt.sm"')
 
 
 def submit_on_enter(dialog, make_coro) -> None:

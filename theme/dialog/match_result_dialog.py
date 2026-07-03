@@ -6,6 +6,7 @@ from nicegui import app, ui
 
 from application.services import MatchService, get_user_from_discord_id
 from models import Match
+from theme.dialog._helpers import dialog_actions, mobile_sheet
 
 
 class MatchResultDialog:
@@ -34,6 +35,7 @@ class MatchResultDialog:
         await self.match.fetch_related('tournament', 'players', 'players__user')
 
         with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 500px; width: 100%;'):
+            mobile_sheet(self.dialog)
             with ui.row().classes('dialog-header'):
                 ui.label(f'Enter Match Results - Match #{self.match.id}').classes('dialog-title')
                 ui.space()
@@ -69,9 +71,7 @@ class MatchResultDialog:
                         with_input=True
                     ).props('outlined required').classes('full-width')
 
-            ui.separator()
-
-            with ui.row().classes('dialog-actions'):
+            with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 submit_button = ui.button(
                     'Submit Results', on_click=self._handle_submit,

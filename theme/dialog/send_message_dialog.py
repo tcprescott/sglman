@@ -1,6 +1,6 @@
 from nicegui import ui
 from application.services import DiscordService
-from theme.dialog._helpers import dialog_header, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 
 class SendMessageDialog:
     def __init__(self, user, send_callback=None):
@@ -12,6 +12,7 @@ class SendMessageDialog:
     async def open(self):
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
+            mobile_sheet(dialog)
             dialog_header('Send Message', dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 message_input = ui.textarea(
@@ -31,8 +32,7 @@ class SendMessageDialog:
                     ui.notify('Message sent.', color='positive')
                     dialog.close()
 
-            ui.separator()
-            with ui.row().classes('justify-end q-pa-sm gap-2'):
+            with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
                 send_button = ui.button('Send', on_click=send_message).props('color=primary')
                 send_button.bind_enabled_from(
