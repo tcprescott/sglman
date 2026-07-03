@@ -196,3 +196,28 @@ The P0 and P1 roadmap items were implemented across six file-disjoint workstream
 Horizontal overflow remained 0 everywhere. The residual sub-44px targets are inline text links (`#id`, "Stage 2") and two icon actions on the admin Settings page — inline text is an accepted exception; the Settings icons are a documented follow-up. Dark mode was re-verified (no white cards, opaque sticky bars). `ruff` clean; full pytest suite green (803 passed).
 
 **Deferred to P2** (unchanged from the roadmap above): admin Settings' remaining date/time inputs, Vol. Schedule touch pass, lazy tab rendering, pull-to-refresh, reports-without-reload, branded reconnect overlay, and the real-device QA matrix (iPhone SE / 15, Pixel 8, iPad portrait).
+
+---
+
+## P2 results
+
+Much of the P2 roadmap turned out to be **already resolved** by the P0 work and existing wiring, so this pass was a focused remainder:
+
+**Already covered (no new work needed)**
+- **Vol. Schedule touch targets** (was ~78 sub-44px): every control there is a `dense`/`round` `q-btn`, all lifted by the P0 44px floor — re-measured **0** sub-44px on that tab.
+- **Admin Settings zoom inputs** (was 13): the P0 16px input rule already eliminated the iOS zoom — re-measured **0**.
+- **On Air realtime:** already wired via `theme/realtime.py` `register_view` (a debounced live rebuild), so "realtime instead of the refresh FAB" was pre-existing.
+
+**Shipped in P2**
+- **On Air header compaction** — the prev/next chevrons now flank the date as one unit (they no longer split across lines), the date scales down on phones, and the fixed refresh FAB was lifted above the bottom nav so it stays tappable. — `pages/home_tabs/stage_timeline.py`, `static/css/styles.css`
+- **Availability axis labels** — the five time ticks (`00:00…24:00`) no longer wrap "24:00" onto its own line. — `pages/home_tabs/availability.py`
+- **Native date pickers** — admin System Configuration date fields and the Challonge scheduling dialog now use native `type=date`/`type=time` inputs (OS picker on mobile) instead of in-page popups; value formats unchanged. — `pages/admin_tabs/admin_system_config.py`, `theme/dialog/challonge_schedule_dialog.py`
+- **Branded reconnect overlay** — NiceGUI's "Connection lost / Trying to reconnect" popup is restyled to the phoenix palette (charcoal surface, gold text, brand font) and sits above the mobile bottom nav, so a dropped socket reads as a deliberate moment. — `static/css/styles.css`
+
+Verified at 390×844 (light + dark): overflow 0, zoom-inputs 0, tap targets meet gates; `ruff` clean; full pytest suite green (803 passed).
+
+**Deferred (with rationale)**
+- **Reports without full reload (C2):** a real refactor — wrap each of six report bodies in `@ui.refreshable` and replace `navigate_with_params` (a full `ui.navigate.to`) with `history.replace` + `.refresh()`. Admin-only surface, functional today (paginates, no overflow); the reward is modest against the regression risk across six pages. Left for a dedicated pass.
+- **Lazy tab rendering (F):** the home page eagerly builds all seven tabs at load — a genuine cell-network cost — but the panels are now `swipeable`, so deferring a panel's build makes a swipe reveal an empty panel until it renders. Doing it safely needs adjacent-panel prebuild; not worth the regression risk for a non-visible perf win right now.
+- **Pull-to-refresh (C4):** On Air and the match tables already update via realtime push, so the marginal value is low, and NiceGUI has no native pull-to-refresh (would need custom touch JS).
+- **Real-device QA matrix (#14):** cannot be executed in this environment — it needs physical iPhone SE/15, Pixel 8, and an iPad. All verification here is emulated (Playwright mobile viewports); real-hardware testing of the WebSocket lifecycle (lock/background/resume) and the native pickers remains a manual step.

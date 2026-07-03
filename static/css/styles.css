@@ -824,6 +824,12 @@ body.body--dark {
     margin-bottom: 1em;
 }
 
+/* Prev/date/next kept together so the chevrons flank the date instead of
+   splitting across lines when the header wraps on a phone. */
+.timeline-nav {
+    gap: var(--space-1);
+}
+
 .room-header {
     width: 100%;
     align-items: center;
@@ -1319,6 +1325,12 @@ body.body--dark {
     .sgl-footer-meta {
         display: none;
     }
+
+    /* The fixed refresh FAB would otherwise sit under the bottom nav bar; lift it
+       above the nav (and the safe-area inset) so it stays tappable. */
+    .refresh-button {
+        bottom: calc(72px + env(safe-area-inset-bottom));
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1366,4 +1378,36 @@ body.body--dark {
     .q-tab {
         min-height: 48px;
     }
+
+    /* On Air date heading: the full "Friday, July 03, 2026" at 1.8em wraps and
+       shoves the nav around on a phone; scale it down and drop the wide side
+       margin so the chevrons sit snug against it. */
+    .timeline-date {
+        font-size: 1.25em;
+        margin: 0 0.25em;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Reconnect overlay — brand NiceGUI's "Connection lost / Trying to reconnect"
+   popup (#popup.nicegui-error-popup) so a dropped socket (phone lock, network
+   flip) reads as a deliberate, on-brand moment instead of a stock gray toast.
+   This sheet loads after nicegui.css, so these override by source order; the
+   framework's [aria-hidden] show/hide transitions still drive visibility.
+--------------------------------------------------------------------------- */
+.nicegui-error-popup {
+    background: var(--sgl-charcoal) !important;
+    color: var(--sgl-gold) !important;
+    border: 1px solid color-mix(in srgb, var(--sgl-gold) 45%, transparent);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-3);
+    font-family: var(--font-body);
+    /* Clear the mobile bottom nav / home indicator when pinned to the bottom. */
+    margin-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+.nicegui-error-popup > span:first-child {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: #fff;
 }

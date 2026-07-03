@@ -51,21 +51,10 @@ class ChallongeScheduleDialog:
                 )
 
                 with ui.row().classes('items-center gap-2'):
-                    with ui.input('Date (YYYY-MM-DD)', value=default_date).props('required') as date:
-                        with ui.menu().props('no-parent-event') as date_menu:
-                            with ui.date(value=default_date).bind_value(date):
-                                with ui.row().classes('justify-end'):
-                                    ui.button('Close', on_click=date_menu.close).props('flat')
-                        with date.add_slot('append'):
-                            ui.icon('edit_calendar').on('click', date_menu.open).classes('cursor-pointer')
-
-                    with ui.input('Time (24-hour format)', value=default_time).props('required') as time:
-                        with ui.menu().props('no-parent-event') as time_menu:
-                            with ui.time(value=default_time).bind_value(time):
-                                with ui.row().classes('justify-end'):
-                                    ui.button('Close', on_click=time_menu.close).props('flat')
-                        with time.add_slot('append'):
-                            ui.icon('access_time').on('click', time_menu.open).classes('cursor-pointer')
+                    # Native pickers (type=date -> YYYY-MM-DD, type=time -> HH:MM) —
+                    # same value formats the popup produced, but the OS picker on mobile.
+                    date = ui.input('Date', value=default_date).props('type=date required stack-label')
+                    time = ui.input('Time', value=default_time).props('type=time required stack-label')
 
             async def submit():
                 if not (date.value and time.value):

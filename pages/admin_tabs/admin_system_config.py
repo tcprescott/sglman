@@ -23,14 +23,9 @@ from models import StationFormat
 
 
 def _date_field(label: str, value: str):
-    with ui.input(label, value=value).props('clearable') as field:
-        with ui.menu().props('no-parent-event') as menu:
-            with ui.column().classes('items-center'):
-                ui.date().bind_value(field)
-                ui.button('Close', on_click=menu.close).props('flat')
-        with field.add_slot('append'):
-            ui.icon('edit_calendar').on('click', menu.open).classes('cursor-pointer')
-    return field
+    # Native date picker (YYYY-MM-DD, same value format as the old ui.date popup)
+    # — brings up the OS calendar on mobile instead of a cramped in-page menu.
+    return ui.input(label, value=value).props('type=date clearable stack-label')
 
 
 async def admin_system_config_page() -> None:
