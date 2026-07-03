@@ -40,12 +40,15 @@ class MatchTableView(MatchTableHandlersMixin):
         self.on_edit_stream_room = on_edit_stream_room
         self.on_assign_stations = on_assign_stations
         self.table = None
-        self.show_upcoming_checkbox = None
         self.tournament_filter = None
         self.tournaments_list = []  # Will be populated in _setup_ui
         self.stream_room_filter = None
         self.stream_rooms_list = []  # Will be populated in _setup_ui
         self.state_filter = None
+        # Mobile collapsible-filter state (CSS gates the toggle/card to <1024px)
+        self.filters_card = None
+        self.filter_badge = None
+        self._filters_open = False
         # Initialize services
         self.service = MatchService()
         self.display_service = MatchDisplayService()
@@ -56,17 +59,48 @@ class MatchTableView(MatchTableHandlersMixin):
     def _on_state_filter_change(self, *_args, **_kwargs):
         # Store the state filter value in app.storage
         app.storage.user['state_filter'] = self.state_filter.value
+        self._update_filter_badge()
         background_tasks.create(self.refresh())
 
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value in app.storage
         app.storage.user['tournament_filter'] = self.tournament_filter.value
+        self._update_filter_badge()
         background_tasks.create(self.refresh())
 
     def _on_stream_room_filter_change(self, *_args, **_kwargs):
         # Store the stream room ID value in app.storage
         app.storage.user['stream_room_filter'] = self.stream_room_filter.value
+        self._update_filter_badge()
         background_tasks.create(self.refresh())
+
+    def _toggle_filters(self):
+        """Show/hide the filter card on mobile; CSS gates ``sgl-filters-open`` to <1024px."""
+        self._filters_open = not self._filters_open
+        if self._filters_open:
+            self.filters_card.classes(add='sgl-filters-open')
+        else:
+            self.filters_card.classes(remove='sgl-filters-open')
+
+    def _active_filter_count(self) -> int:
+        """Number of the three filters set away from their default (state's default is Scheduled/Checked In/Started)."""
+        count = 0
+        if self.tournament_filter and self.tournament_filter.value:
+            count += 1
+        if self.stream_room_filter and self.stream_room_filter.value:
+            count += 1
+        default_states = {'Scheduled', 'Checked In', 'Started'}
+        if self.state_filter and set(self.state_filter.value or []) != default_states:
+            count += 1
+        return count
+
+    def _update_filter_badge(self):
+        """Sync the mobile filter-count badge with the current selections."""
+        if self.filter_badge is None:
+            return
+        count = self._active_filter_count()
+        self.filter_badge.text = str(count)
+        self.filter_badge.set_visibility(count > 0)
 
     async def _load_tournaments(self):
         """Load all tournament names for the filter using service layer."""
@@ -77,6 +111,7 @@ class MatchTableView(MatchTableHandlersMixin):
             self.tournament_filter.options = self.tournaments_list
             self.tournament_filter.value = default_tournament_id
             self.tournament_filter.update()
+        self._update_filter_badge()
 
     async def _load_stream_rooms(self):
         """Load all stream room names for the filter using service layer."""
@@ -87,6 +122,7 @@ class MatchTableView(MatchTableHandlersMixin):
             self.stream_room_filter.options = self.stream_rooms_list
             self.stream_room_filter.value = default_stream_room_id
             self.stream_room_filter.update()
+        self._update_filter_badge()
 
     def _setup_ui(self):
         # Action button row
@@ -98,8 +134,18 @@ class MatchTableView(MatchTableHandlersMixin):
                     on_click=self.submit_match_callback
                 ).props('color=primary')
 
+        # Mobile-only filter toggle (CSS hides this row >=1024px, where the card is
+        # shown inline; below 1024px the card is collapsed until toggled open).
+        with ui.row().classes('sgl-filter-toggle full-width items-center'):
+            ui.button('Filters', icon='filter_list', on_click=self._toggle_filters).props('flat color=primary')
+            self.filter_badge = ui.badge('0').props('color=primary')
+            self.filter_badge.set_visibility(False)
+            ui.space()
+            ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary round dense').tooltip('Refresh table')
+
         # Filters section - professional card-based layout
-        with ui.card().classes('match-filters-card'):
+        self.filters_card = ui.card().classes('match-filters-card')
+        with self.filters_card:
             with ui.row().classes('match-filter-row'):
                 # Tournament filter
                 with ui.column().classes('match-filter-column'):
