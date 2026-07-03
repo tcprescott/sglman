@@ -11,6 +11,8 @@ from nicegui import ui
 from application.services import ReportsService
 from application.utils.timezone import format_eastern_display
 from .shared import (
+    CHART_GOLD,
+    CHART_NEUTRAL,
     csv_export_button,
     date_range_filter,
     default_date_range,
@@ -18,6 +20,7 @@ from .shared import (
     navigate_with_params,
     parse_int,
     report_page_shell,
+    themed_chart_option,
     tournament_filter,
 )
 
@@ -165,8 +168,8 @@ def _render_utilization_chart(rooms) -> None:
 
     option = {
         'tooltip': {'trigger': 'axis', 'axisPointer': {'type': 'shadow'}},
-        'legend': {'data': ['Scheduled hours', 'Gap hours']},
-        'grid': {'left': 140, 'right': 24, 'top': 32, 'bottom': 32},
+        'legend': {'data': ['Scheduled hours', 'Gap hours'], 'top': 0},
+        'grid': {'left': 140, 'right': 24, 'top': 48, 'bottom': 32},
         'xAxis': {'type': 'value', 'name': 'Hours'},
         'yAxis': {'type': 'category', 'data': categories},
         'series': [
@@ -175,15 +178,15 @@ def _render_utilization_chart(rooms) -> None:
                 'type': 'bar',
                 'stack': 'utilization',
                 'data': scheduled,
-                'itemStyle': {'color': '#B5791C'},
+                'itemStyle': {'color': CHART_GOLD},
             },
             {
                 'name': 'Gap hours',
                 'type': 'bar',
                 'stack': 'utilization',
                 'data': gaps,
-                'itemStyle': {'color': '#BDBDBD'},
+                'itemStyle': {'color': CHART_NEUTRAL},
             },
         ],
     }
-    ui.echart(option).classes('chart-height')
+    ui.echart(themed_chart_option(option)).classes('chart-height')

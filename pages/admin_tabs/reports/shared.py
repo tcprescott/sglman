@@ -18,6 +18,45 @@ from application.utils.timezone import EASTERN_TZ
 
 REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stream_rooms', 'audit')
 
+# ECharts series palette. Canvas charts can't read CSS var() tokens and are
+# painted once server-side, so these are fixed mid-tone steps of the phoenix
+# hues chosen to hold ≥3:1 contrast on BOTH the light and dark card surfaces
+# (validated against #FFFFFF and #241e19). Assign by role — never per-chart:
+CHART_GOLD = '#B5791C'     # primary series (brand gold, mid step)
+CHART_TEAL = '#17A097'     # secondary series (status-live hue)
+CHART_RED = '#C94E3D'      # thresholds/limits (status-cancelled hue)
+CHART_NEUTRAL = '#8D8379'  # absence/idle series (warm gray — reads gray by design)
+CHART_GOLD_AREA = 'rgba(181, 121, 28, 0.18)'  # CHART_GOLD at 18% for area fills
+
+# Chart chrome. ECharts' default axis/legend grays assume a white canvas and
+# go illegible in dark mode; these sit at the equal-contrast point between the
+# light and dark surfaces (~4:1 against both), the best a single value can do.
+CHART_TEXT = '#877D72'                       # axis labels, axis names, legend
+CHART_GRID = 'rgba(135, 125, 114, 0.35)'     # gridlines/axis lines — recessive on both
+
+
+def themed_chart_option(option: dict) -> dict:
+    """Overlay the mode-neutral chrome colors onto an ECharts option in place.
+
+    Sets default text, legend text, and per-axis label/name/line/split-line
+    colors without clobbering anything the chart already specifies.
+    """
+    option.setdefault('textStyle', {}).setdefault('color', CHART_TEXT)
+    if 'legend' in option:
+        option['legend'].setdefault('textStyle', {}).setdefault('color', CHART_TEXT)
+    if 'toolbox' in option:
+        option['toolbox'].setdefault('iconStyle', {}).setdefault('borderColor', CHART_TEXT)
+    for key in ('xAxis', 'yAxis'):
+        axes = option.get(key)
+        if axes is None:
+            continue
+        for axis in axes if isinstance(axes, list) else [axes]:
+            axis.setdefault('axisLabel', {}).setdefault('color', CHART_TEXT)
+            axis.setdefault('nameTextStyle', {}).setdefault('color', CHART_TEXT)
+            axis.setdefault('axisLine', {}).setdefault('lineStyle', {}).setdefault('color', CHART_GRID)
+            axis.setdefault('splitLine', {}).setdefault('lineStyle', {}).setdefault('color', CHART_GRID)
+    return option
+
 
 def reports_url(report: Optional[str] = None, **params) -> str:
     """Build an ``/admin?tab=Reports[&report=…&…]`` URL preserving filters."""
