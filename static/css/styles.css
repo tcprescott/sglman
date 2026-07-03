@@ -588,6 +588,11 @@ body.body--dark {
     max-height: 100dvh;
     border-radius: 0;
     border-top: none;
+    /* The card is align-items:flex-start, so children size to content and the
+       sticky header/action bars (narrow button rows) don't span the width —
+       leaving content peeking past their edge. Stretch children on the sheet so
+       the bars fill the card, then their negative margins bleed to the edges. */
+    align-items: stretch;
 }
 
 /* Sticky action bar pinned to the bottom of the scrolling .dialog-card so the
@@ -1124,11 +1129,19 @@ body.body--dark {
 .mgc-headline {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     font-size: 1.05em;
+}
+
+/* Keep the scheduled time intact — never let it break mid-value (e.g.
+   "2026-07-02" / "18:09"); the state chip wraps to the next line instead. */
+.mgc-time {
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .mgc-state {
@@ -1141,14 +1154,29 @@ body.body--dark {
     color: var(--status-neutral);
 }
 
+/* Flex row so a tall (44px) action button — Sign Up, Generate, Assign Stage —
+   centers against the label instead of overlapping it on the text baseline. */
 .mgc-detail {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px var(--space-1);
     font-size: 0.9em;
+}
+
+.mgc-detail-value {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
 }
 
 .mgc-label {
     font-weight: 600;
     color: var(--status-neutral);
     margin-right: var(--space-1);
+    flex-shrink: 0;
 }
 
 .mgc-actions {
@@ -1318,17 +1346,21 @@ body.body--dark {
         min-height: 44px;
     }
 
+    /* Dense/round buttons are the grid-card actions (Sign Up, Generate, watch,
+       Assign Stage) and the toolbar refresh — lift them to the 44px touch floor
+       on phones so they clear the tap-target minimum like the standard buttons. */
     .q-btn--dense,
     .q-btn--round {
-        min-height: 40px;
+        min-height: 44px;
+        min-width: 44px;
     }
 
-    .q-btn--round {
-        min-width: 40px;
-    }
-
+    /* Enlarge the chip remove hit area (the glyph is 24px but the tappable box
+       stays small); pad it out so dismissing a filter/selection chip is easy. */
     .q-chip__icon--remove {
         font-size: 24px;
+        padding: 10px;
+        margin: -10px -4px -10px 0;
     }
 
     .q-tab {

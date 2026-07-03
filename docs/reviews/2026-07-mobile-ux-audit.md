@@ -1,5 +1,7 @@
 # Mobile UX Audit — July 2026
 
+> **Status: P0 + P1 implemented and verified (see [Implementation results](#implementation-results-p0--p1) at the end).** The findings below are the original audit; the roadmap items marked P0/P1 have since been built and browser-verified.
+
 **Goal:** make SGL On Site feel like a first-class SaaS product on phones — closer to a native app than a shrunk-down website. Target devices: iOS Safari and Android Chrome.
 
 **Method:** the running app (dev boot + `scripts/seed_dev.py` fixtures) was driven with Playwright at real phone viewports — 390×844 (iPhone 14/15), 360×800 (small Android) — with `isMobile`, touch, and mobile user agents, as three personas (anonymous, `player_one`, `staff_user`). Every page/tab was screenshotted full-page, and each page was programmatically measured for horizontal overflow, tap targets below 44×44 px, and inputs below 16 px font size. Dialogs (match edit, match request, feedback), the drawer, and error pages were exercised by tap.
@@ -165,3 +167,32 @@ Viewport meta on all pages: `width=device-width, initial-scale=1`. Body font: 14
 ---
 
 *Audit artifacts (screenshots + per-page metrics) were generated with Playwright against the seeded dev app; regenerate via the `ui-validation` skill with a mobile `viewport` in the smoke config.*
+
+---
+
+## Implementation results (P0 + P1)
+
+The P0 and P1 roadmap items were implemented across six file-disjoint workstreams and browser-verified at 390×844 (light + dark) and 360×800. Each ships as its own commit.
+
+**What shipped**
+
+- **Ergonomics (P0):** all inputs render at 16px on phones (iOS focus-zoom eliminated), buttons meet the 44px touch floor (dense/round included), body text at 15px, page titles `clamp()`-scaled so they no longer wrap. — `static/css/styles.css`
+- **PWA shell (P0):** `manifest.webmanifest` (standalone, phoenix theme/background colors), generated triforce icons (192 / 512 / maskable / apple-touch), a cache-free service worker served at root scope, `theme-color`/`apple-touch-icon` head tags, and `viewport-fit=cover` + `env(safe-area-inset-*)` padding. Android now offers "Install"; iOS "Add to Home Screen" launches standalone. — `static/manifest.webmanifest`, `static/icons/*`, `static/sw.js`, `scripts/generate_pwa_icons.py`, `frontend.py`, `theme/base.py`
+- **Bottom navigation (P0):** a bottom tab bar (first four tabs + **More**) below 1024px in the thumb zone; the drawer is demoted to secondary nav and now carries Feedback; tab panels are swipeable. Drawer/bottom-tap/swipe all converge on one handler that keeps the `?tab=` URL and active state in sync. — `theme/base.py`
+- **Dialog sheets (P0):** every dialog maximizes to a full-screen sheet on phones with a **sticky action bar** (Cancel/Save always reachable — fixes the Submit-Match clip), plus native `type=date`/`type=time` pickers and `inputmode=numeric` on numeric fields. — `theme/dialog/*`
+- **Match card (P1):** the mobile grid card was rebuilt — headline time + state chip, players line, tournament caption, detail rows that omit empty fields, one labeled action row — roughly tripling cards-per-screen. Removed a hardcoded white background that broke dark mode. — `theme/tables/match_grid.py`
+- **Collapsible filters (P1):** filters collapse behind a toggle with an active-count badge below 1024px; desktop unchanged. — `theme/tables/match.py`
+
+**Verified metrics (390×844, staff/player/anon) — before → after**
+
+| Page | iOS-zoom inputs | Sub-44px tap targets |
+|---|---|---|
+| Home Schedule | 3 → **0** | 19 → **2** |
+| On Air | 1 → **0** | 12 → **0** |
+| Admin Schedule | 3 → **0** | 24 → **5** |
+| Admin match dialog | 11 → **0** | 36 → **5** |
+| Admin Settings | 13 → **0** | 7 → **2** |
+
+Horizontal overflow remained 0 everywhere. The residual sub-44px targets are inline text links (`#id`, "Stage 2") and two icon actions on the admin Settings page — inline text is an accepted exception; the Settings icons are a documented follow-up. Dark mode was re-verified (no white cards, opaque sticky bars). `ruff` clean; full pytest suite green (803 passed).
+
+**Deferred to P2** (unchanged from the roadmap above): admin Settings' remaining date/time inputs, Vol. Schedule touch pass, lazy tab rendering, pull-to-refresh, reports-without-reload, branded reconnect overlay, and the real-device QA matrix (iPhone SE / 15, Pixel 8, iPad portrait).
