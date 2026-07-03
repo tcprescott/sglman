@@ -23,6 +23,7 @@ class BaseLayout:
 
         self._drawer = None
         self._tab_panels = None
+        self._bottom_tabs = None
         self._tab_item_refs: dict = {}
 
         self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
@@ -64,6 +65,26 @@ class BaseLayout:
                 'as="font" type="font/woff2" crossorigin>'
             )
         ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+        # PWA wiring: the manifest makes the app installable, the two media-scoped
+        # theme-color metas tint the mobile browser/status-bar chrome to the gold
+        # header (light) / charcoal (dark) palette, and the apple-touch-icon is the
+        # iOS home-screen icon. The service worker is registered from the site root
+        # (/sw.js, served in frontend.py) so its scope covers start_url '/'.
+        ui.add_head_html('<link rel="manifest" href="/static/manifest.webmanifest">')
+        ui.add_head_html(
+            '<meta name="theme-color" content="#9C6B12" media="(prefers-color-scheme: light)">'
+        )
+        ui.add_head_html(
+            '<meta name="theme-color" content="#17120D" media="(prefers-color-scheme: dark)">'
+        )
+        ui.add_head_html('<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">')
+        ui.add_head_html(
+            '<script>'
+            "if('serviceWorker' in navigator){"
+            "navigator.serviceWorker.register('/sw.js').catch(()=>{});"
+            '}'
+            '</script>'
+        )
         ui.add_head_html(
             '<script>'
             'console.log('
@@ -136,7 +157,12 @@ class BaseLayout:
 
     def _render_drawer(self) -> None:
         """Render the left drawer with navigation links and optional tab navigation."""
-        with ui.left_drawer(value=False).props('breakpoint=600 show-if-above bordered') as self._drawer:
+        from theme.dialog import FeedbackDialog
+
+        # Unify the drawer's auto-show boundary with the app-shell <1024px break:
+        # below it the bottom nav + burger carry navigation, at/above it the drawer
+        # pins open (show-if-above). This matches the grid-card table breakpoint.
+        with ui.left_drawer(value=False).props('breakpoint=1023 show-if-above bordered') as self._drawer:
             with ui.list().props('padding'):
                 for item in self.top_menu:
                     with ui.item(on_click=lambda u=item['url']: ui.navigate.to(u)).props('clickable v-ripple'):
@@ -160,13 +186,34 @@ class BaseLayout:
                             tab_item.props(add='active')
                         self._tab_item_refs[tab['label']] = tab_item
 
+            if self.user:
+                ui.separator()
+                with ui.list().props('padding'):
+                    with ui.item(
+                        on_click=lambda: FeedbackDialog(self.user).open()
+                    ).props('clickable v-ripple'):
+                        with ui.item_section().props('avatar'):
+                            ui.icon('feedback').props('size=sm')
+                        with ui.item_section():
+                            ui.item_label('Feedback')
+
     def _switch_tab(self, label: str) -> None:
+        # Only move the panel; the drawer highlight and ?tab= history push are
+        # handled centrally by _handle_tab_change so every entry point (drawer,
+        # bottom nav, swipe) produces identical side effects and no push loops.
+        self._tab_panels.set_value(label)
+
+    def _handle_tab_change(self) -> None:
+        """Single sink for panel-value changes: sync the drawer highlight and the
+        ?tab= URL regardless of what drove the change (drawer item, bottom tab, or
+        swipe). Registered after the panels are built so the initial deep-linked
+        value does not fire a spurious history push."""
+        label = self._tab_panels.value
         for lbl, item in self._tab_item_refs.items():
             if lbl == label:
                 item.props(add='active')
             else:
                 item.props(remove='active')
-        self._tab_panels.set_value(label)
         ui.navigate.history.push(f'?tab={label}')
 
     def _render_footer(self) -> None:
@@ -174,7 +221,9 @@ class BaseLayout:
         from theme.dialog import FeedbackDialog
 
         with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
-            with ui.row().classes('w-full justify-between items-center'):
+            # Desktop-only meta row (hidden <1024px by .sgl-footer-meta): on mobile
+            # the bottom nav below replaces it so it never steals vertical space.
+            with ui.row().classes('w-full justify-between items-center sgl-footer-meta'):
                 ui.label(self._copyright).classes('text-caption')
                 if self.user:
                     ui.button(
@@ -182,6 +231,22 @@ class BaseLayout:
                         icon='feedback',
                         on_click=lambda: FeedbackDialog(self.user).open(),
                     ).props('flat dense').classes('footer-feedback-btn')
+
+            # App-shell bottom navigation (shown <1024px via .sgl-bottom-nav): the
+            # first four tabs as a native tab row plus a More button that opens the
+            # drawer for the remaining tabs. The More affordance is a plain button,
+            # not a q-tab, so it carries no value that could corrupt the tab binding.
+            if self.tabs:
+                with ui.tabs(value=self._default_tab).props('dense no-caps').classes(
+                    'sgl-bottom-nav'
+                ) as self._bottom_tabs:
+                    for tab in self.tabs[:4]:
+                        ui.tab(tab['label'], icon=tab.get('icon', 'circle'))
+                    ui.button(
+                        'More',
+                        icon='more_horiz',
+                        on_click=lambda: self._drawer.toggle(),
+                    ).props('flat no-caps')
 
     async def _render_tab_panels(self) -> None:
         """Render tab panel content with programmatically controlled panel switching."""
@@ -202,8 +267,19 @@ class BaseLayout:
             else:
                 content_func(*args, **kwargs)
 
-        with ui.tab_panels(value=self._default_tab).classes('w-full') as self._tab_panels:
+        with ui.tab_panels(value=self._default_tab).props('swipeable animated').classes(
+            'w-full'
+        ) as self._tab_panels:
             for tab in self.tabs:
                 with ui.tab_panel(tab['label']):
                     with ui.row().classes('full-width'):
                         await render_tab_content(tab)
+
+        # Two-way bind the bottom nav to the panels so tapping a bottom tab moves
+        # the panel and swiping/drawer-clicking moves the bottom tab highlight.
+        # Both were constructed with value=self._default_tab, so this initial bind
+        # is a no-op (no change event). The change handler is registered *after*
+        # construction for the same reason: deep links must not push history.
+        if self._bottom_tabs is not None:
+            self._bottom_tabs.bind_value(self._tab_panels, 'value')
+        self._tab_panels.on_value_change(self._handle_tab_change)

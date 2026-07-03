@@ -7,6 +7,7 @@ import logging
 import os
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
@@ -72,6 +73,13 @@ def init(fastapi_app: FastAPI) -> None:
     # Mount static files directory with no-cache in development
     fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
+    # Serve the service worker from the site root: a worker registered under the
+    # /static/ path can only control /static/* clients, so it could never take
+    # control of the app's start_url ('/'). Root scope is required for install.
+    @fastapi_app.get('/sw.js', include_in_schema=False)
+    async def _service_worker() -> FileResponse:
+        return FileResponse('static/sw.js', media_type='text/javascript')
+
     auth.create()
     challonge_oauth.create()
     admin.create()
@@ -81,6 +89,11 @@ def init(fastapi_app: FastAPI) -> None:
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root
+        title='SGL On Site',
+        # viewport-fit=cover lets the header/footer bleed into the iOS safe-area
+        # insets so the app reads edge-to-edge when installed to the home screen.
+        viewport='width=device-width, initial-scale=1, viewport-fit=cover',
+        favicon='static/icons/icon-192.png',
         storage_secret=(os.environ.get('STORAGE_SECRET') or '').strip(),  # required; enforced by validate_security_config()
         # Mark the session cookie Secure in production so the signed cookie
         # carrying the auth state is never sent over plaintext HTTP. Left off in
