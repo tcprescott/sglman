@@ -17,7 +17,6 @@ from application.services import WebhookService
 from application.events import event_bus
 from application.events import dispatch_queue as event_dispatch_queue
 from application.utils.easter_eggs import random_fact
-from application.utils.environment import is_production
 from application.utils.mock_discord import is_mock_discord
 from application.utils.sentry import init_sentry
 import asyncio
@@ -155,18 +154,14 @@ Click **Authorize** and paste your token to try the endpoints below.
 # instrumentation wraps the request path. No-op when SENTRY_DSN is unset.
 init_sentry()
 
-# Expose interactive API docs only outside production to avoid publishing the
-# full endpoint surface; in production these URLs return 404.
-_docs_enabled = not is_production()
-
 app: FastAPI = FastAPI(
     title="SGL On Site API",
     description=API_DESCRIPTION,
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/api/docs" if _docs_enabled else None,
-    redoc_url="/api/redoc" if _docs_enabled else None,
-    openapi_url="/api/openapi.json" if _docs_enabled else None,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 _HEADER_TRANS = str.maketrans({

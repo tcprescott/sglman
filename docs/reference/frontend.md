@@ -58,7 +58,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 
 **Traceability.** Every unhandled 500 gets a `uuid4` `error_id` via `log_unhandled_error()`, which logs `UNHANDLED ERROR error_id=<uuid> path=<path>` with `exc_info` (clearly grep-able) and tags `error_id` on the Sentry scope so logs and Sentry events correlate. The error page surfaces the UUID and, for logged-in users, a **"Report this error"** button that opens `FeedbackDialog` prefilled (category `BUG`, message containing `Error reference: <uuid>`) — so the same UUID lands in the feedback row's `message`/`page_url`.
 
-**DEBUG vs production.** Outside production (`is_production()` is false) the 500 page also renders the full traceback for diagnosis; in production it shows only the UUID. This mirrors how `/api/docs` is gated.
+**DEBUG vs production.** Outside production (`is_production()` is false) the 500 page also renders the full traceback for diagnosis; in production it shows only the UUID.
 
 ## Pages & routes
 
