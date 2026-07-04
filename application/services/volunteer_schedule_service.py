@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.transactions import in_transaction
 
+from application.events import Event, EventType, event_bus
 from application.repositories import (
     VolunteerAssignmentRepository,
     VolunteerPositionRepository,
@@ -254,6 +255,10 @@ class VolunteerScheduleService:
         )
         if notify and not auto_generated:
             await self._request_acknowledgment(assignment, shift, user)
+        if not auto_generated:
+            event_bus.publish(Event.create(EventType.VOLUNTEER_ASSIGNED, {
+                'assignment_id': assignment.id, 'shift_id': shift.id, 'user_id': user.id,
+            }, actor))
         return assignment, warnings
 
     async def get_assignment(self, assignment_id: int) -> Optional[VolunteerAssignment]:
@@ -272,6 +277,7 @@ class VolunteerScheduleService:
         }
         await self.assignment_repository.delete(assignment)
         await self.audit_service.write_log(actor, AuditActions.VOLUNTEER_UNASSIGNED, details)
+        event_bus.publish(Event.create(EventType.VOLUNTEER_UNASSIGNED, details, actor))
 
     async def acknowledge(self, assignment_id: int, user: User) -> VolunteerAssignment:
         """Self-acknowledge an assignment. Idempotent."""
@@ -288,6 +294,9 @@ class VolunteerScheduleService:
             user, AuditActions.VOLUNTEER_ACKNOWLEDGED,
             {'assignment_id': assignment.id, 'shift_id': assignment.shift_id},
         )
+        event_bus.publish(Event.create(EventType.VOLUNTEER_ACKNOWLEDGED, {
+            'assignment_id': assignment.id, 'shift_id': assignment.shift_id, 'user_id': user.id,
+        }, user))
         return assignment
 
     async def check_in(self, assignment_id: int, actor: User) -> VolunteerAssignment:
