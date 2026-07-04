@@ -1,5 +1,7 @@
 """Admin Webhooks Page — staff-managed outbound webhooks."""
 
+import json
+
 from nicegui import app, background_tasks, context, ui
 
 from application.events import EventType
@@ -9,6 +11,60 @@ from application.utils.timezone import format_eastern_display
 # Event-type options for the multiselect. '*' (all events) is offered first.
 _EVENT_OPTIONS = {EventType.WILDCARD: 'All events (*)'}
 _EVENT_OPTIONS.update({name: name for name in sorted(EventType.ALL)})
+
+# Receiver-side verification snippet shown in the payload-format reference.
+_SIGNATURE_SNIPPET = '''import hmac, hashlib
+
+signed = f"{request.headers['X-SGL-Timestamp']}.{raw_body}".encode()
+expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+assert hmac.compare_digest(expected, request.headers["X-SGL-Signature"])'''
+
+
+def _render_format_reference() -> None:
+    """A collapsed, code-derived reference for what the app POSTs to a receiver."""
+    ref = WebhookService.format_reference()
+    with ui.expansion('Webhook payload & event reference', icon='description').classes('w-full'):
+        ui.label(
+            'When a subscribed event occurs, the app sends an HTTP POST to your URL with '
+            'this JSON body (keys are sorted for a stable signature):'
+        ).classes('text-caption text-grey')
+        ui.code(json.dumps(ref['example_payload'], indent=2), language='json').classes('w-full')
+
+        ui.label('Headers').classes('text-subtitle2 q-mt-md')
+        ui.table(
+            columns=[
+                {'name': 'name', 'label': 'Header', 'field': 'name', 'align': 'left'},
+                {'name': 'description', 'label': 'Meaning', 'field': 'description', 'align': 'left'},
+            ],
+            rows=ref['headers'],
+            row_key='name',
+        ).props('flat dense').classes('w-full')
+
+        ui.label('Verify the signature (receiver side)').classes('text-subtitle2 q-mt-md')
+        ui.code(_SIGNATURE_SNIPPET, language='python').classes('w-full')
+
+        c = ref['constants']
+        ui.label(
+            f"Delivery runs off the request path with a {c['timeout_seconds']:.0f}s timeout, "
+            f"up to {c['max_attempts']} attempts with exponential backoff "
+            f"({c['backoff_base']}**attempt seconds) on any non-2xx or transport error. "
+            'Each attempt is recorded (see Recent deliveries).'
+        ).classes('text-caption text-grey q-mt-md')
+
+        ui.label('Events').classes('text-subtitle2 q-mt-md')
+        ui.label(
+            f"Subscribe to specific events, or '{ref['wildcard']}' for all:"
+        ).classes('text-caption text-grey')
+        with ui.column().classes('gap-0'):
+            for group, names in ref['events'].items():
+                with ui.row().classes('items-baseline gap-2'):
+                    ui.label(f'{group}.').classes('text-weight-medium')
+                    ui.label(', '.join(names)).classes('text-caption text-grey')
+
+        ui.label(
+            'Security: URLs must be https:// (SSRF-guarded in production); the signing secret '
+            'is shown only once and is never returned by the API or written to logs.'
+        ).classes('text-caption text-grey q-mt-md')
 
 
 def _events_summary(event_types) -> str:
@@ -33,6 +89,8 @@ async def admin_webhooks_page() -> None:
             'Each request carries an X-SGL-Signature (HMAC-SHA256 of the body using the '
             "webhook's secret). The secret is shown only once, when created or rotated."
         ).classes('text-caption text-grey')
+
+        _render_format_reference()
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},

@@ -43,6 +43,64 @@ class WebhookService:
     DELIVERY_TIMEOUT = 10.0
     RETRY_BACKOFF_BASE = 2
 
+    @staticmethod
+    def build_delivery_headers(
+        *, event_type: str, delivery_id: str, timestamp: str, signature: str
+    ) -> dict[str, str]:
+        """The exact header set sent with every delivery.
+
+        Single source of truth shared by ``_deliver_one`` and the in-app format
+        reference (:meth:`format_reference`) so the two cannot drift.
+        """
+        return {
+            'Content-Type': 'application/json',
+            'User-Agent': 'sglman-webhook',
+            'X-SGL-Event': event_type,
+            'X-SGL-Delivery': delivery_id,
+            'X-SGL-Timestamp': timestamp,
+            'X-SGL-Signature': f'sha256={signature}',
+        }
+
+    @staticmethod
+    def format_reference() -> dict[str, Any]:
+        """Code-derived reference for the webhook delivery format.
+
+        Every drift-prone value — payload keys, header names, retry constants and
+        the event list — is sourced from the live code objects so the in-app docs
+        stay correct by construction. Only the per-header prose is manual.
+        """
+        example_payload = Event.create(
+            EventType.MATCH_CREATED,
+            {'match_id': 5, 'tournament_id': 2, 'player_ids': [1, 2]},
+        ).to_wire()
+        descriptions = {
+            'Content-Type': 'Always application/json.',
+            'User-Agent': 'Identifies the sender.',
+            'X-SGL-Event': 'The event name (e.g. match.created).',
+            'X-SGL-Delivery': 'Unique id for this delivery attempt.',
+            'X-SGL-Timestamp': 'Unix seconds; part of the signed string (replay defense).',
+            'X-SGL-Signature': 'sha256=<hex>: HMAC-SHA256 of "{timestamp}.{body}" using the secret.',
+        }
+        sample = WebhookService.build_delivery_headers(
+            event_type='match.created', delivery_id='<uuid>',
+            timestamp='<unix-seconds>', signature='<hex>',
+        )
+        headers = [{'name': name, 'description': descriptions.get(name, '')} for name in sample]
+        events_by_group: dict[str, list[str]] = {}
+        for name in sorted(EventType.ALL):
+            events_by_group.setdefault(name.split('.', 1)[0], []).append(name)
+        return {
+            'example_payload': example_payload,
+            'headers': headers,
+            'constants': {
+                'timeout_seconds': WebhookService.DELIVERY_TIMEOUT,
+                'max_attempts': WebhookService.MAX_ATTEMPTS,
+                'backoff_base': WebhookService.RETRY_BACKOFF_BASE,
+            },
+            'events': events_by_group,
+            'wildcard': EventType.WILDCARD,
+        }
+
     def __init__(self) -> None:
         self.repository = WebhookRepository()
         self.delivery_repository = WebhookDeliveryRepository()
@@ -166,14 +224,12 @@ class WebhookService:
         signature = hmac.new(
             webhook.secret.encode(), f"{timestamp}.{body}".encode(), hashlib.sha256
         ).hexdigest()
-        headers = {
-            'Content-Type': 'application/json',
-            'User-Agent': 'sglman-webhook',
-            'X-SGL-Event': event.event_type,
-            'X-SGL-Delivery': str(uuid.uuid4()),
-            'X-SGL-Timestamp': timestamp,
-            'X-SGL-Signature': f'sha256={signature}',
-        }
+        headers = self.build_delivery_headers(
+            event_type=event.event_type,
+            delivery_id=str(uuid.uuid4()),
+            timestamp=timestamp,
+            signature=signature,
+        )
         status: Optional[int] = None
         error: Optional[str] = None
         success = False

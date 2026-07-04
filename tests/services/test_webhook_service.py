@@ -202,3 +202,44 @@ class TestDelivery:
         await WebhookService().deliver_event(Event.create(EventType.MATCH_CREATED, {}))
         # 'a' (subscribed) and 'd' (wildcard) match; 'b' wrong event, 'c' inactive.
         assert len(enqueued) == 2
+
+
+# ---------------------------------------------------------------------------
+# In-app format reference (drift guard against the delivery code)
+# ---------------------------------------------------------------------------
+
+
+class TestFormatReference:
+    def test_event_list_matches_registry(self):
+        ref = WebhookService.format_reference()
+        flat = [name for group in ref['events'].values() for name in group]
+        assert sorted(flat) == sorted(EventType.ALL)
+        assert ref['wildcard'] == EventType.WILDCARD
+
+    def test_header_names_match_builder(self):
+        ref = WebhookService.format_reference()
+        documented = [h['name'] for h in ref['headers']]
+        built = list(WebhookService.build_delivery_headers(
+            event_type='x', delivery_id='d', timestamp='t', signature='s',
+        ).keys())
+        assert documented == built
+
+    def test_example_payload_matches_wire_shape(self):
+        ref = WebhookService.format_reference()
+        expected_keys = set(Event.create(EventType.MATCH_CREATED, {}).to_wire().keys())
+        assert set(ref['example_payload'].keys()) == expected_keys
+
+    async def test_delivery_sends_every_documented_header(self, db, monkeypatch):
+        # A real delivery must send exactly the headers the reference documents —
+        # including Content-Type and User-Agent, which the prose doc once omitted.
+        webhook = await Webhook.create(
+            name='w', url='https://x.example', secret='s', event_types=['*'],
+        )
+        fake = FakeClientFactory([200])
+        monkeypatch.setattr('application.services.webhook_service.httpx.AsyncClient', fake)
+        await WebhookService()._deliver_one(webhook, Event.create(EventType.MATCH_CREATED, {}))
+        sent = fake.calls[0]['headers']
+        for header in WebhookService.format_reference()['headers']:
+            assert header['name'] in sent
+        assert sent['Content-Type'] == 'application/json'
+        assert sent['User-Agent'] == 'sglman-webhook'

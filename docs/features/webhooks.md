@@ -15,7 +15,9 @@ UI in [`pages/admin_tabs/admin_webhooks.py`](../../pages/admin_tabs/admin_webhoo
 
 ## Request format
 
-Each delivery is `POST url` with a JSON body:
+Each delivery is `POST url` with a JSON body. Keys are serialized sorted
+(`json.dumps(..., sort_keys=True)`) so the byte sequence is deterministic and the
+signature is reproducible:
 
 ```json
 {
@@ -27,14 +29,20 @@ Each delivery is `POST url` with a JSON body:
 }
 ```
 
-Headers:
+Headers (built by `WebhookService.build_delivery_headers` — the single source of
+truth the in-app reference also renders):
 
 | Header | Meaning |
 |---|---|
+| `Content-Type` | Always `application/json` |
+| `User-Agent` | Identifies the sender (`sglman-webhook`) |
 | `X-SGL-Event` | The event name |
 | `X-SGL-Delivery` | Unique delivery UUID |
 | `X-SGL-Timestamp` | Unix seconds; part of the signed string (replay defense) |
 | `X-SGL-Signature` | `sha256=<hex>` — HMAC-SHA256 of `"{timestamp}.{body}"` using the webhook secret |
+
+> Staff can view this format live in the app: **Admin → Webhooks → "Webhook payload
+> & event reference"**, generated from the delivery code so it never drifts.
 
 ### Verifying the signature (receiver side)
 
