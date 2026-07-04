@@ -49,21 +49,12 @@ class FakeResponse:
         self.text = f'status {status_code}'
 
 
-class FakeClientFactory:
-    """Stand-in for httpx.AsyncClient that records posts and returns scripted codes."""
+class FakeClient:
+    """Stand-in for the shared httpx.AsyncClient: records posts, returns scripted codes."""
 
     def __init__(self, status_codes):
         self._status_codes = list(status_codes)
         self.calls = []
-
-    def __call__(self, *args, **kwargs):
-        return self
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        return False
 
     async def post(self, url, content=None, headers=None):
         self.calls.append({'url': url, 'content': content, 'headers': headers})
@@ -73,8 +64,8 @@ class FakeClientFactory:
 @pytest.fixture
 def fake_client(monkeypatch):
     def _install(status_codes):
-        fake = FakeClientFactory(status_codes)
-        monkeypatch.setattr('application.services.web_push_service.httpx.AsyncClient', fake)
+        fake = FakeClient(status_codes)
+        monkeypatch.setattr('application.services.web_push_service._get_http_client', lambda: fake)
         return fake
     return _install
 
@@ -113,6 +104,37 @@ class TestConfiguration:
         await _subscribed_user()
         await WebPushService().mirror_dm(1, 'hello')
         assert fake.calls == []
+
+    def test_misconfiguration_warns_once_not_per_call(self, monkeypatch, caplog):
+        private_key, _ = generate_vapid_keys()
+        monkeypatch.setenv('VAPID_PRIVATE_KEY', private_key)
+        monkeypatch.delenv('VAPID_SUBJECT', raising=False)
+        monkeypatch.delenv('BASE_URL', raising=False)
+        with caplog.at_level('WARNING', logger='application.services.web_push_service'):
+            assert WebPushService.is_configured() is False
+            assert WebPushService.is_configured() is False
+            assert WebPushService.get_public_key() is None
+        warnings = [r for r in caplog.records if 'VAPID_SUBJECT' in r.message]
+        assert len(warnings) == 1
+
+    def test_mirror_enqueue_skipped_when_unconfigured(self, no_vapid_env, monkeypatch):
+        from application.services import discord_service
+        enqueued = []
+        monkeypatch.setattr(
+            'application.services.discord_service.event_dispatch_queue.enqueue', enqueued.append
+        )
+        discord_service._mirror_dm_to_web_push(1, 'hello')
+        assert enqueued == []
+
+    def test_mirror_enqueued_fire_and_forget_when_configured(self, vapid_env, monkeypatch):
+        from application.services import discord_service
+        enqueued = []
+        monkeypatch.setattr(
+            'application.services.discord_service.event_dispatch_queue.enqueue', enqueued.append
+        )
+        discord_service._mirror_dm_to_web_push(1, 'hello')
+        assert len(enqueued) == 1
+        enqueued[0].close()
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +203,27 @@ class TestSubscriptions:
         with pytest.raises(ValueError, match='not found'):
             await WebPushService().remove_subscription(other, subscription.id)
 
+    async def test_upsert_recovers_from_lost_insert_race(self, db, monkeypatch):
+        from application.repositories import WebPushRepository
+        user = await _subscribed_user(discord_id=1)
+        repo = WebPushRepository()
+        # Simulate the double-click race: the pre-insert existence check misses
+        # the row the concurrent handler just created, so create() hits the
+        # unique endpoint constraint and must fall back to updating that row.
+        real_get = WebPushRepository.get_by_endpoint
+        calls = {'n': 0}
+
+        async def racy_get(self, endpoint):
+            calls['n'] += 1
+            if calls['n'] == 1:
+                return None
+            return await real_get(self, endpoint)
+
+        monkeypatch.setattr(WebPushRepository, 'get_by_endpoint', racy_get)
+        subscription = await repo.upsert(user, ENDPOINT, RFC_UA_PUBLIC, RFC_AUTH, 'ua')
+        assert subscription.endpoint == ENDPOINT
+        assert await WebPushSubscription.all().count() == 1
+
 
 # ---------------------------------------------------------------------------
 # Delivery
@@ -192,7 +235,7 @@ class TestDelivery:
         fake = fake_client([201])
         await _subscribed_user(discord_id=42)
 
-        await WebPushService().mirror_dm(42, '**Match scheduled** for `today`!')
+        await WebPushService().mirror_dm(42, '**Match scheduled** today for player__one!')
 
         assert len(fake.calls) == 1
         call = fake.calls[0]
@@ -207,8 +250,8 @@ class TestDelivery:
         )
         payload = json.loads(plaintext)
         assert payload['web_push'] == 8030
-        # Markdown noise is stripped for the native notification.
-        assert payload['notification']['body'] == 'Match scheduled for today!'
+        # Template bold is stripped, but literal __ in names must survive.
+        assert payload['notification']['body'] == 'Match scheduled today for player__one!'
         assert payload['notification']['title'] == 'SGL On Site'
         assert payload['notification']['navigate']
 

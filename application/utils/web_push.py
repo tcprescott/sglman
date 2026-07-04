@@ -32,7 +32,7 @@ _RECORD_SIZE = 4096
 # aes128gcm overhead: 86-byte header + 16-byte AEAD tag + 1 padding delimiter.
 MAX_PLAINTEXT_LENGTH = _RECORD_SIZE - 86 - 16 - 1
 
-_VAPID_TOKEN_LIFETIME_SECONDS = 12 * 60 * 60  # max allowed is 24h; stay well under
+VAPID_TOKEN_LIFETIME_SECONDS = 12 * 60 * 60  # max allowed is 24h; stay well under
 
 
 def b64url_decode(value: str) -> bytes:
@@ -87,7 +87,7 @@ def vapid_authorization(
     parsed = urlparse(endpoint)
     claims = {
         'aud': f'{parsed.scheme}://{parsed.netloc}',
-        'exp': (now or int(time.time())) + _VAPID_TOKEN_LIFETIME_SECONDS,
+        'exp': (now or int(time.time())) + VAPID_TOKEN_LIFETIME_SECONDS,
         'sub': subject,
     }
     header = {'typ': 'JWT', 'alg': 'ES256'}

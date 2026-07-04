@@ -62,9 +62,15 @@ window.sglWebPush = {
       });
       return { subscription: sub.toJSON(), userAgent: navigator.userAgent };
     } catch (e) {
-      const denied = (typeof Notification !== 'undefined' && Notification.permission === 'denied')
-        || (e && e.name === 'NotAllowedError');
-      return { error: denied ? 'permission_denied' : String(e) };
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+        return { error: 'permission_denied' };
+      }
+      if (e && e.name === 'NotAllowedError') {
+        // Prompt dismissed (permission still 'default') or the user gesture
+        // expired — not the hard "blocked in settings" state.
+        return { error: 'permission_dismissed' };
+      }
+      return { error: String(e) };
     }
   },
 

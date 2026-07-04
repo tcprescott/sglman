@@ -200,7 +200,7 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 
 | Method | Returns | Description |
 |---|---|---|
-| `send_dm(user_id, message)` | `(bool, str)` | Plain DM to a Discord user id. Also mirrors the message to the recipient's web-push devices via `WebPushService.mirror_dm` (both real and mock service) — see [web-push.md](../features/web-push.md). |
+| `send_dm(user_id, message)` | `(bool, str)` | Plain DM to a Discord user id. Also enqueues a fire-and-forget mirror of the message to the recipient's web-push devices (real service only; the mock skips it) — see [web-push.md](../features/web-push.md). |
 | `send_dm_with_crew_buttons(user_id, message, match_id)` | `(bool, str)` | DM with commentator/tracker signup buttons. |
 | `send_dm_with_acknowledgment_button(user_id, message, match_id)` | `(bool, str)` | DM with a match Acknowledge button. |
 | `send_dm_with_crew_acknowledgment_button(user_id, message, crew_type, crew_id)` | `(bool, str)` | DM with a crew-assignment Acknowledge button. |
@@ -588,7 +588,7 @@ Collaborators: `VolunteerAssignmentRepository`, `SystemConfigService.get_volunte
 
 ### web_push_service.py — WebPushService
 
-Per-device browser push notifications ("Device Notifications"): subscription CRUD (audited via `AuditActions.WEB_PUSH_*`) plus the encrypted delivery path. `mirror_dm(discord_id, message)` is called from `DiscordService.send_dm` for every outgoing DM (never raises; no-op unless VAPID is configured and the user has subscriptions); `notify_user(user, *, title, body, navigate=None)` targets one user directly. Sends the Declarative Web Push JSON shape (`web_push: 8030`) — rendered natively on Safari/iOS 18.4+ and by the `static/sw.js` `push` handler elsewhere — encrypted per RFC 8291 with a VAPID `Authorization` header, via `httpx.AsyncClient`. Prunes subscriptions the push service reports gone (404/410). Configured by `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`; `is_configured()` / `get_public_key()` gate the settings UI. Collaborators: `WebPushRepository`, `AuditService`, [`web_push.py`](#web_pushpy). Feature doc: [web-push.md](../features/web-push.md).
+Per-device browser push notifications ("Device Notifications"): subscription CRUD (audited via `AuditActions.WEB_PUSH_*`) plus the encrypted delivery path. `mirror_dm(discord_id, message)` is enqueued fire-and-forget from `DiscordService.send_dm` onto the event dispatch worker for every outgoing DM (never raises; no-op unless VAPID is configured and the user has subscriptions); `notify_user(user, *, title, body, navigate=None)` targets one user directly. Sends the Declarative Web Push JSON shape (`web_push: 8030`) — rendered natively on Safari/iOS 18.4+ and by the `static/sw.js` `push` handler elsewhere — encrypted per RFC 8291 (in a worker thread) with a per-origin-cached VAPID `Authorization` header, delivered concurrently per user through a shared `httpx.AsyncClient` (closed via `aclose_http_client()` in the app lifespan). Prunes subscriptions the push service reports gone (404/410). Configured by `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` (resolved once per env tuple, so misconfiguration warns once, not per DM); `is_configured()` / `get_public_key()` gate the settings UI. Collaborators: `WebPushRepository`, `AuditService`, [`web_push.py`](#web_pushpy), `application.utils.environment.get_base_url`. Feature doc: [web-push.md](../features/web-push.md).
 
 ### webhook_service.py — WebhookService
 

@@ -17,12 +17,14 @@ The feature is enabled by setting ``VAPID_PRIVATE_KEY`` (and optionally
 UI hides itself.
 """
 
+import asyncio
 import json
 import logging
 import os
 import re
+import time
 from functools import lru_cache
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
@@ -31,6 +33,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from application.repositories import WebPushRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.utils import web_push as protocol
+from application.utils.environment import get_base_url
 from models import User, WebPushSubscription
 
 logger = logging.getLogger(__name__)
@@ -38,8 +41,10 @@ logger = logging.getLogger(__name__)
 # Magic value that opts a push message into declarative parsing (Safari 18.4+).
 DECLARATIVE_WEB_PUSH_VERSION = 8030
 
-# Discord markdown tokens that would render as noise in a native notification.
-_MARKDOWN_TOKENS = re.compile(r'\*\*|__|~~|`')
+# The DM templates (application/utils/discord_messages.py) only ever emit
+# **bold**, so only that token is stripped — usernames and URLs legitimately
+# contain __, ~~ and backticks and must pass through untouched.
+_MARKDOWN_TOKENS = re.compile(r'\*\*')
 
 
 @lru_cache(maxsize=4)
@@ -47,18 +52,49 @@ def _parse_private_key(value: str) -> ec.EllipticCurvePrivateKey:
     return protocol.load_vapid_private_key(value)
 
 
-def _vapid_config() -> Optional[Tuple[ec.EllipticCurvePrivateKey, str]]:
-    """Resolve (private_key, subject) from the environment, or None if unset/invalid."""
-    raw_key = (os.environ.get('VAPID_PRIVATE_KEY') or '').strip()
+class _VapidConfig:
+    """Resolved VAPID key + subject, with a per-origin Authorization cache.
+
+    A VAPID JWT is valid for hours and depends only on the push-service origin
+    and the subject, so signing one per delivery is pure waste — the cache
+    re-signs only when a token nears expiry. The cache lives on the config
+    object, which is itself cached per env tuple, so a config change (tests,
+    key rotation) naturally gets a fresh header cache.
+    """
+
+    REFRESH_MARGIN_SECONDS = 60 * 60
+
+    def __init__(self, private_key: ec.EllipticCurvePrivateKey, subject: str) -> None:
+        self.private_key = private_key
+        self.subject = subject
+        self._headers: Dict[str, Tuple[str, float]] = {}
+
+    def authorization_for(self, endpoint: str) -> str:
+        parsed = urlparse(endpoint)
+        origin = f'{parsed.scheme}://{parsed.netloc}'
+        now = time.time()
+        cached = self._headers.get(origin)
+        if cached is None or cached[1] <= now:
+            header = protocol.vapid_authorization(endpoint, self.private_key, self.subject)
+            expires = now + protocol.VAPID_TOKEN_LIFETIME_SECONDS - self.REFRESH_MARGIN_SECONDS
+            self._headers[origin] = (header, expires)
+            cached = self._headers[origin]
+        return cached[0]
+
+
+@lru_cache(maxsize=8)
+def _resolve_vapid_config(raw_key: str, subject: str, base_url: str) -> Optional[_VapidConfig]:
+    """Resolve the VAPID config once per distinct env tuple.
+
+    Caching here also bounds the misconfiguration warnings below to once per
+    config instead of once per DM / page render.
+    """
     if not raw_key:
         return None
-    subject = (os.environ.get('VAPID_SUBJECT') or '').strip()
-    if not subject:
+    if not subject and base_url.startswith('https://'):
         # RFC 8292 wants a mailto: or https: contact; a production BASE_URL
         # qualifies, so it is the natural fallback.
-        base_url = (os.environ.get('BASE_URL') or '').strip().rstrip('/')
-        if base_url.startswith('https://'):
-            subject = base_url
+        subject = base_url
     if not (subject.startswith('mailto:') or subject.startswith('https://')):
         logger.warning(
             'VAPID_PRIVATE_KEY is set but no usable VAPID_SUBJECT '
@@ -66,10 +102,38 @@ def _vapid_config() -> Optional[Tuple[ec.EllipticCurvePrivateKey, str]]:
         )
         return None
     try:
-        return _parse_private_key(raw_key), subject
+        return _VapidConfig(_parse_private_key(raw_key), subject)
     except (ValueError, TypeError) as exc:
         logger.warning('Invalid VAPID_PRIVATE_KEY; web push disabled: %s', exc)
         return None
+
+
+def _vapid_config() -> Optional[_VapidConfig]:
+    return _resolve_vapid_config(
+        (os.environ.get('VAPID_PRIVATE_KEY') or '').strip(),
+        (os.environ.get('VAPID_SUBJECT') or '').strip(),
+        get_base_url(),
+    )
+
+
+# Shared client so keep-alive connections to the handful of push-service hosts
+# are reused across sends instead of paying a TCP+TLS handshake per DM.
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=WebPushService.DELIVERY_TIMEOUT)
+    return _http_client
+
+
+async def aclose_http_client() -> None:
+    """Close the shared delivery client; called from the app lifespan shutdown."""
+    global _http_client
+    if _http_client is not None:
+        await _http_client.aclose()
+        _http_client = None
 
 
 class WebPushService:
@@ -97,7 +161,7 @@ class WebPushService:
         config = _vapid_config()
         if config is None:
             return None
-        return protocol.public_key_b64url(config[0])
+        return protocol.public_key_b64url(config.private_key)
 
     # ------------------------------------------------------- subscriptions
 
@@ -172,9 +236,9 @@ class WebPushService:
     async def mirror_dm(self, discord_id: int, message: str) -> None:
         """Mirror a Discord DM to the recipient's subscribed devices.
 
-        Called from the DM chokepoint for every outgoing DM; must never raise
-        and must stay cheap when the user has no subscriptions (one indexed
-        query). Runs on the discord_queue worker, off the request path.
+        Enqueued fire-and-forget from the DM chokepoint onto the event
+        dispatch worker; must never raise and must stay cheap when the user
+        has no subscriptions (one indexed query).
         """
         try:
             if not self.is_configured():
@@ -218,13 +282,12 @@ class WebPushService:
 
     def _build_payload(self, *, title: str, body: str, navigate: Optional[str] = None) -> bytes:
         """The Declarative Web Push message body (also parsed by sw.js on Chrome)."""
-        base_url = (os.environ.get('BASE_URL') or 'http://localhost:8000').rstrip('/')
         return json.dumps({
             'web_push': DECLARATIVE_WEB_PUSH_VERSION,
             'notification': {
                 'title': title,
                 'body': body,
-                'navigate': navigate or f'{base_url}/',
+                'navigate': navigate or f'{get_base_url()}/',
             },
         }, ensure_ascii=False).encode()
 
@@ -239,33 +302,34 @@ class WebPushService:
         config = _vapid_config()
         if config is None:
             return 0
-        private_key, subject = config
         payload = self._build_payload(title=title, body=body, navigate=navigate)
-        delivered = 0
-        async with httpx.AsyncClient(timeout=self.DELIVERY_TIMEOUT) as client:
-            for subscription in subscriptions:
-                if await self._deliver_one(client, subscription, payload, private_key, subject):
-                    delivered += 1
-        return delivered
+        client = _get_http_client()
+        # Deliveries are independent — run them concurrently so one slow push
+        # service can't serialize a whole fan-out.
+        results = await asyncio.gather(
+            *(self._deliver_one(client, subscription, payload, config) for subscription in subscriptions)
+        )
+        return sum(1 for delivered in results if delivered)
 
     async def _deliver_one(
         self,
         client: httpx.AsyncClient,
         subscription: WebPushSubscription,
         payload: bytes,
-        private_key: ec.EllipticCurvePrivateKey,
-        subject: str,
+        config: _VapidConfig,
     ) -> bool:
         try:
-            body = protocol.encrypt_payload(payload, subscription.p256dh, subscription.auth)
+            # Encryption is ~1ms of pure CPU per message (fresh ECDH + HKDF +
+            # AES-GCM, inherent to RFC 8291) — keep it off the shared event loop.
+            body = await asyncio.to_thread(
+                protocol.encrypt_payload, payload, subscription.p256dh, subscription.auth
+            )
             headers = {
                 'TTL': str(self.TTL_SECONDS),
                 'Content-Encoding': 'aes128gcm',
                 'Content-Type': 'application/octet-stream',
                 'Urgency': self.URGENCY,
-                'Authorization': protocol.vapid_authorization(
-                    subscription.endpoint, private_key, subject
-                ),
+                'Authorization': config.authorization_for(subscription.endpoint),
             }
         except ValueError as exc:
             # Stored keys the protocol layer rejects can never succeed — prune.

@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from tortoise.exceptions import IntegrityError
+
 from models import User, WebPushSubscription
 
 
@@ -33,9 +35,16 @@ class WebPushRepository:
         # reassigned rather than duplicated.
         subscription = await self.get_by_endpoint(endpoint)
         if subscription is None:
-            return await WebPushSubscription.create(
-                user=user, endpoint=endpoint, p256dh=p256dh, auth=auth, user_agent=user_agent
-            )
+            try:
+                return await WebPushSubscription.create(
+                    user=user, endpoint=endpoint, p256dh=p256dh, auth=auth, user_agent=user_agent
+                )
+            except IntegrityError:
+                # Lost a check-then-insert race on the unique endpoint
+                # (double-click subscribing) — update the row that won.
+                subscription = await self.get_by_endpoint(endpoint)
+                if subscription is None:
+                    raise
         subscription.user = user
         subscription.p256dh = p256dh
         subscription.auth = auth

@@ -93,6 +93,9 @@ async def render_web_push_section(user: User) -> None:
         if error == 'permission_denied':
             ui.notify('Notifications are blocked for this site in your browser settings.', color='warning')
             return
+        if error == 'permission_dismissed':
+            ui.notify('Notification permission was not granted — click Enable again and choose Allow.', color='warning')
+            return
         if error == 'unsupported':
             ui.notify('This browser does not support push notifications.', color='warning')
             return
@@ -117,13 +120,19 @@ async def render_web_push_section(user: User) -> None:
 
     async def on_unsubscribed(e) -> None:
         args = e.args or {}
+        if args.get('error'):
+            # The browser-side unsubscribe failed — the device would keep
+            # receiving pushes, so a success toast here would be a lie.
+            ui.notify(f"Could not disable notifications: {args['error']}", color='warning')
+            return
         endpoint = args.get('endpoint')
-        if endpoint:
-            await service.unsubscribe(user, endpoint)
-            ui.notify('Notifications disabled on this device.', color='positive', icon='notifications_off')
-            device_list.refresh()
-        else:
+        if not endpoint:
             ui.notify('This device was not subscribed.', color='info')
+            return
+        removed = await service.unsubscribe(user, endpoint)
+        ui.notify('Notifications disabled on this device.', color='positive', icon='notifications_off')
+        if removed:
+            device_list.refresh()
 
     ui.on('sgl_web_push_subscribed', on_subscribed)
     ui.on('sgl_web_push_unsubscribed', on_unsubscribed)

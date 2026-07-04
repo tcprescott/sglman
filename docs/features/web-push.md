@@ -68,18 +68,30 @@ DiscordService.send_dm  ──(mirror, never raises)──▶  WebPushService.mi
   fan-out flows through (match lifecycle, crew, watchers, volunteers, seeds),
   so mirroring there gives device notifications exactly the coverage DMs have —
   including future notification types, with no per-call-site wiring. The mirror
-  runs before the bot-readiness checks (pushes still go out when the bot is
-  down), never raises, and is a cheap indexed no-op for users without
-  subscriptions. It already executes on the `discord_queue` worker, off the
-  request path. Note the corollary: recipients are filtered by the existing
-  `User.dm_notifications` flag upstream, so pushes currently follow the DM
-  opt-in.
+  is **enqueued fire-and-forget onto the event dispatch worker**, so neither
+  the serial `discord_queue` worker nor a UI handler awaiting `send_dm` inline
+  (the admin Send Message dialog) ever waits on push-service round-trips. It
+  fires before the bot-readiness checks (pushes still go out when the bot is
+  down), never raises, and creates no coroutine at all while VAPID is
+  unconfigured. Corollaries: recipients are filtered by the existing
+  `User.dm_notifications` flag upstream, so pushes follow the DM opt-in; and a
+  `(False, ...)` return from `send_dm` means the *Discord* send failed —
+  subscribed devices may already have been notified, so re-sending after a
+  failure can double-notify them. **Mock mode sends nothing**:
+  `MockDiscordService.send_dm` deliberately skips the mirror so
+  [`MOCK_DISCORD`](mock-discord.md) keeps its no-external-side-effects
+  guarantee (a dev with a prod DB snapshot and prod VAPID keys must not push
+  to real phones).
 - **Protocol.** Implemented natively (no `pywebpush`, which is
   blocking/`requests`-based) in
   [`application/utils/web_push.py`](../../application/utils/web_push.py):
   `aes128gcm` payload encryption per RFC 8291 (pinned to the spec's Appendix A
   test vector in tests) and ES256 VAPID authorization per RFC 8292, using the
-  already-present `cryptography` package; delivery is `httpx.AsyncClient`.
+  already-present `cryptography` package. Delivery goes through a shared
+  `httpx.AsyncClient` (keep-alive to the push hosts, closed in the app
+  lifespan), devices are delivered concurrently, VAPID headers are cached per
+  push-service origin for the token lifetime, and the per-message encryption
+  runs in a worker thread off the event loop.
 - **Subscription lifecycle.** Push services answer `404`/`410` for dead
   subscriptions; `WebPushService` prunes the row on either status. Users can
   also remove devices from the settings UI.
@@ -139,6 +151,12 @@ capability URLs and are not logged).
   subscription, the old row 410-prunes and the user re-enables manually.
 - **Interactive DM buttons don't translate**: pushes mirror the DM text only;
   acknowledge/signup actions still happen in Discord or the web UI.
+- **A failed DM does not mean an unsent push**: the mirror is independent of
+  the Discord send, so retrying a "Failed to send message" (e.g. bot down)
+  re-notifies subscribed devices.
+- **Markdown stripping covers `**` only** — the only token the DM templates
+  emit. New template markdown needs `_MARKDOWN_TOKENS` updated (blindly
+  stripping more would corrupt usernames/URLs containing `__` or backticks).
 
 ## Tests
 
