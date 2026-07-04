@@ -26,6 +26,7 @@ from api.routers import (
     triforce,
     users,
     volunteers,
+    webhooks,
 )
 
 router = APIRouter(dependencies=[Depends(rate_limit)])
@@ -47,5 +48,6 @@ router.include_router(system_config.router)
 router.include_router(tokens.router)
 router.include_router(volunteers.router)
 router.include_router(discord_role_mappings.router)
+router.include_router(webhooks.router)
 
 __all__ = ['router']

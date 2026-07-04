@@ -29,6 +29,8 @@ from .volunteer_position_repository import VolunteerPositionRepository
 from .volunteer_profile_repository import VolunteerProfileRepository
 from .volunteer_qualification_repository import VolunteerQualificationRepository
 from .volunteer_shift_repository import VolunteerShiftRepository
+from .webhook_repository import WebhookRepository
+from .webhook_delivery_repository import WebhookDeliveryRepository
 
 __all__ = [
     'ApiTokenRepository',
@@ -55,4 +57,6 @@ __all__ = [
     'VolunteerProfileRepository',
     'VolunteerQualificationRepository',
     'VolunteerShiftRepository',
+    'WebhookRepository',
+    'WebhookDeliveryRepository',
 ]
