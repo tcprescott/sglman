@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for [`models.py`](../../models.py) (all 34 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for [`models.py`](../../models.py) (all 35 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 ## Overview
 
@@ -10,7 +10,7 @@ Conventions shared by all models:
 
 - **Surrogate primary key** — every model has `id = fields.IntField(pk=True)` (`SERIAL` in PostgreSQL). The per-model field tables below omit `id`.
 - **Timestamps** — every model has `created_at` (`auto_now_add=True`, except `EquipmentLoan`, which uses `checked_out_at`); all except `AuditLog`, `UserRole`, `ApiToken`, and `EquipmentLoan` also have `updated_at` (`auto_now=True`). The field tables omit these unless a model deviates. All datetime columns are `TIMESTAMPTZ` and store UTC; display is US/Eastern — see [timezone-handling.md](../timezone-handling.md).
-- **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchplayers`, `tournamentplayers`, `commentator`, `tracker`, `matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `auditlog`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
+- **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchplayers`, `tournamentplayers`, `commentator`, `tracker`, `matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `auditlog`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`, `webpushsubscription`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
 - **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id`.
 
 Coding conventions for the layers above (async everywhere, no ORM writes from the UI, audit-log action naming) are canonical in [CLAUDE.md](../../CLAUDE.md) and [refactoring-guide.md](../refactoring-guide.md) — not restated here.
@@ -24,6 +24,7 @@ erDiagram
     User ||--o{ UserRole : "user"
     User |o--o{ UserRole : "granted_by"
     User ||--o{ AuditLog : "user"
+    User ||--o{ WebPushSubscription : "user"
 
     Tournament }o--o{ User : "admins (TournamentAdmins)"
     Tournament }o--o{ User : "crew_coordinators (TournamentCrewCoordinators)"
@@ -475,6 +476,21 @@ Per-attempt delivery log for observability. See [webhooks.md](../features/webhoo
 | `error` | `TextField` | null | Last error (non-2xx / transport) when unsuccessful |
 | `created_at` | `DatetimeField` | `auto_now_add`, indexed | |
 | `delivered_at` | `DatetimeField` | null | Set on success |
+
+#### `WebPushSubscription`
+
+One browser/device push subscription for a user; every Discord DM is mirrored
+to the owner's subscriptions as a native device notification. See
+[web-push.md](../features/web-push.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='web_push_subscriptions'`; indexed |
+| `endpoint` | `CharField(1024)` | not null, `unique=True` | Push-service URL identifying the device subscription |
+| `p256dh` | `CharField(128)` | not null | Client public key; messages are encrypted against it (RFC 8291) |
+| `auth` | `CharField(64)` | not null | Client auth secret (RFC 8291) |
+| `user_agent` | `CharField(255)` | null | Captured at subscribe time to label the device in settings |
+| `last_used_at` | `DatetimeField` | null | Set on each successful delivery |
 
 #### `AuditLog`
 
@@ -942,6 +958,7 @@ The equipment, volunteering, availability, Challonge, API-token, feedback, and w
 | `VolunteerQualificationRepository` | [`volunteer_qualification_repository.py`](../../application/repositories/volunteer_qualification_repository.py) | `VolunteerQualification` | `qualified_position_ids`, `qualified_user_ids_for_position`, `set_for_user`, `list_all` |
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user`, `has_any` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `save_connection`, `update_connection_tokens`, `clear_connection`; participants: `upsert_participant`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
+| `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `delete`, `delete_by_endpoint`, `touch_last_used` (instance methods) |
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` (instance methods) |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `prune_older_than` (instance methods) |
 

@@ -36,6 +36,7 @@ from .volunteer_availability_service import VolunteerAvailabilityService
 from .volunteer_position_service import VolunteerPositionService
 from .volunteer_profile_service import VolunteerProfileService
 from .volunteer_schedule_service import VolunteerScheduleService
+from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
@@ -71,5 +72,6 @@ __all__ = [
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerScheduleService',
+    'WebPushService',
     'WebhookService',
 ]

@@ -9,7 +9,25 @@ from typing import Awaitable, Callable, Tuple, Optional, List, Dict, Set, Union
 import discord
 from discord.ext import commands
 
+from application.events import dispatch_queue as event_dispatch_queue
+from application.services.web_push_service import WebPushService
+
 logger = logging.getLogger(__name__)
+
+
+def _mirror_dm_to_web_push(user_id: int, message: str) -> None:
+    """Fan every outgoing DM out to the recipient's web-push devices.
+
+    send_dm is the chokepoint all notification paths flow through, so mirroring
+    here gives device notifications the exact coverage DMs have. The mirror is
+    enqueued fire-and-forget onto the event dispatch worker — the caller may be
+    the serial discord_queue worker or a UI click handler awaiting send_dm
+    inline, and neither may ever wait on push-service round-trips. No coroutine
+    is created at all while VAPID is unconfigured.
+    """
+    if not WebPushService.is_configured():
+        return
+    event_dispatch_queue.enqueue(WebPushService().mirror_dm(user_id, message))
 
 
 # Shared bot instance (singleton pattern)
@@ -160,6 +178,11 @@ class DiscordService:
             - If successful: (True, "Message sent successfully.")
             - If failed: (False, error_message)
         """
+        # Mirror before the bot-readiness checks so device notifications still
+        # go out when the bot is down or the user blocks Discord DMs. Corollary:
+        # a (False, ...) return means the *Discord* send failed — subscribed
+        # devices may already have been notified, so don't blindly re-send.
+        _mirror_dm_to_web_push(user_id, message)
         try:
             if self._bot is None:
                 return False, "Discord bot not initialized"
@@ -422,6 +445,9 @@ class MockDiscordService:
         message: str,
         view_factory: Optional[Callable[[], "discord.ui.View"]] = None,
     ) -> Tuple[bool, str]:
+        # Deliberately no web-push mirror: mock mode must have no external side
+        # effects (a dev with a prod DB snapshot + prod VAPID keys would push
+        # to real users' phones). Real delivery requires the real service.
         print(f"[MOCK Discord DM] -> {user_id}: {message}")
         return True, "Message sent (mock)"
 

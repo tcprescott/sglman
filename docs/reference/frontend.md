@@ -124,18 +124,19 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 |---|---|---|
 | [`schedule.py`](../../pages/home_tabs/schedule.py) | Schedule | Public event schedule with crew signup, watch toggles, notification preferences |
 | [`stage_timeline.py`](../../pages/home_tabs/stage_timeline.py) | On Air | Per-day timeline of streamed matches grouped by stream room |
-| [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile, DM preference, tournament opt-in; hosts the Challonge-link and API-token sections |
+| [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile, DM preference, tournament opt-in; hosts the device-notification, Challonge-link and API-token sections |
 | [`player.py`](../../pages/home_tabs/player.py) | Player | The logged-in player's own match list and match requests; Challonge bracket matches to schedule |
 | [`availability.py`](../../pages/home_tabs/availability.py) | My Availability | Self-service availability windows over the event window with a live effective-availability graph |
 | [`triforce_texts.py`](../../pages/home_tabs/triforce_texts.py) | Triforce Texts | Pick a supporting tournament, then submit/track triforce-screen text |
 | [`equipment.py`](../../pages/home_tabs/equipment.py) | Equipment | Browse the lending inventory and the user's own checkouts |
 
-Two further modules render **inside** the Profile tab rather than as standalone tabs (both called from `player_edit_info.py`):
+Three further modules render **inside** the Profile tab rather than as standalone tabs (all called from `player_edit_info.py`):
 
 | Module | Renders | Responsibility |
 |---|---|---|
 | [`api_tokens_section.py`](../../pages/home_tabs/api_tokens_section.py) | "API Tokens" card in Profile | Create / list / revoke personal REST API tokens via `ApiTokenService`; the plaintext token is shown once at creation |
 | [`challonge_link_section.py`](../../pages/home_tabs/challonge_link_section.py) | "Challonge" card in Profile | Verify-link / unlink a Challonge account via `ChallongeService`; hides itself entirely when the integration isn't configured |
+| [`web_push_section.py`](../../pages/home_tabs/web_push_section.py) | "Device Notifications" card in Profile | Enable/disable web push on the current device and manage subscribed devices via `WebPushService`. The enable/disable buttons run [`static/js/web-push.js`](../../static/js/web-push.js) client-side via `js_handler` (permission prompts must stay inside the click gesture) and report back through `emitEvent` → `ui.on`. Hides itself entirely when VAPID keys aren't configured ([../features/web-push.md](../features/web-push.md)) |
 
 ### Schedule (`pages/home_tabs/schedule.py`)
 
@@ -583,7 +584,9 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 
 ## Static assets & styling (`static/`)
 
-`static/` currently contains a single asset, [`static/css/styles.css`](../../static/css/styles.css), served at `/static` (uncached in development — see [NiceGUI integration](#nicegui-integration-frontendpy)) and loaded by `BaseLayout.render()`. Pages otherwise style via Quasar utility classes and inline styles in slot templates. The stylesheet is organized into class families rather than per-page rules:
+`static/` is served at `/static` (uncached in development — see [NiceGUI integration](#nicegui-integration-frontendpy)). Beyond the stylesheet it holds the PWA assets ([`manifest.webmanifest`](../../static/manifest.webmanifest), `icons/`, `fonts/`), [`sw.js`](../../static/sw.js) (served from the site root `/sw.js`; a no-cache pass-through worker that satisfies Chrome's installability requirement and renders Web Push messages on browsers without Declarative Web Push — see [../features/web-push.md](../features/web-push.md)), and [`js/web-push.js`](../../static/js/web-push.js) (client-side subscribe/unsubscribe helpers for the Profile tab's Device Notifications card).
+
+The main stylesheet, [`static/css/styles.css`](../../static/css/styles.css), is loaded by `BaseLayout.render()`. Pages otherwise style via Quasar utility classes and inline styles in slot templates. The stylesheet is organized into class families rather than per-page rules:
 
 - **Layout containers** — `.page-container` (1400px), `.page-container-narrow` (1200px), `.page-container-wide` (1600px), `.full-width`, `.full-width-column`, and flex/spacing utilities (`.flex-center`, `.flex-1`, `.row-spacing`, `.mb-1`, `.ml-1`).
 - **Headers & text** — `.page-title`, `.section-title`, `.subsection-title`, `.large-title`, `.header-row`; semantic text classes (`.text-muted`, `.text-success`, `.text-warning`, `.text-error`, `.text-link`, `.table-link`, `.italic-note`).

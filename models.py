@@ -97,6 +97,7 @@ class User(Model):
     volunteer_qualifications = fields.ReverseRelation["VolunteerQualification"]
     volunteer_availability = fields.ReverseRelation["VolunteerAvailability"]
     challonge_participations = fields.ReverseRelation["ChallongeParticipant"]
+    web_push_subscriptions = fields.ReverseRelation["WebPushSubscription"]
 
     @property
     def preferred_name(self) -> str:
@@ -463,6 +464,31 @@ class WebhookDelivery(Model):
     class Meta:
         table = 'webhookdelivery'
         indexes = (('webhook',),)
+
+class WebPushSubscription(Model):
+    """One browser/device push subscription for a user (Web Push, RFC 8030).
+
+    ``endpoint`` is the push-service URL the browser handed out and is unique
+    per subscription; ``p256dh``/``auth`` are the client keys every message is
+    encrypted against (RFC 8291). A user may hold one row per device/browser.
+    """
+
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField(
+        'models.User', related_name='web_push_subscriptions', on_delete=fields.CASCADE
+    )
+    endpoint = fields.CharField(max_length=1024, unique=True)
+    p256dh = fields.CharField(max_length=128)
+    auth = fields.CharField(max_length=64)
+    # Captured at subscribe time so the settings UI can label the device.
+    user_agent = fields.CharField(max_length=255, null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    last_used_at = fields.DatetimeField(null=True)
+
+    class Meta:
+        table = 'webpushsubscription'
+        indexes = (('user',),)
+
 
 class UserRole(Model):
     id = fields.IntField(pk=True)

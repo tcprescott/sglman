@@ -133,6 +133,10 @@ class AuditActions:
     VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
     VOLUNTEER_QUALIFICATIONS_UPDATED = 'volunteer.qualifications_updated'
 
+    # Web push (device notifications)
+    WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'
+    WEB_PUSH_UNSUBSCRIBED = 'web_push.unsubscribed'
+
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'
     WEBHOOK_UPDATED = 'webhook.updated'

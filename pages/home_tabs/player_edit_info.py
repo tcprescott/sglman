@@ -8,6 +8,7 @@ from application.services import ChallongeService, TournamentNotificationService
 from models import User
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import render_challonge_link_section
+from pages.home_tabs.web_push_section import render_web_push_section
 
 
 async def render_edit_info_tab():
@@ -232,6 +233,9 @@ async def render_edit_info_tab():
                             value=current_level,
                             on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
                         ).classes('col-auto').style('min-width: 200px')
+
+        # Device notifications (web push; self-contained, hidden without VAPID keys)
+        await render_web_push_section(user)
 
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
