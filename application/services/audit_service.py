@@ -133,6 +133,12 @@ class AuditActions:
     VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
     VOLUNTEER_QUALIFICATIONS_UPDATED = 'volunteer.qualifications_updated'
 
+    # Webhooks
+    WEBHOOK_CREATED = 'webhook.created'
+    WEBHOOK_UPDATED = 'webhook.updated'
+    WEBHOOK_DELETED = 'webhook.deleted'
+    WEBHOOK_SECRET_REGENERATED = 'webhook.secret_regenerated'
+
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
     if details is None:

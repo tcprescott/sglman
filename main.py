@@ -13,6 +13,9 @@ from typing import AsyncGenerator, Optional
 from application.services.discord_service import get_discord_bot
 from application.services import discord_queue
 from application.services import volunteer_reminder
+from application.services import WebhookService
+from application.events import event_bus
+from application.events import dispatch_queue as event_dispatch_queue
 from application.utils.easter_eggs import random_fact
 from application.utils.environment import is_production
 from application.utils.mock_discord import is_mock_discord
@@ -117,8 +120,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_discord_bot()
     discord_queue.start()
     volunteer_reminder.start()
+    # Central event bus: start the async-subscriber worker and register the
+    # webhook delivery subscriber (fans published events out to staff webhooks).
+    event_dispatch_queue.start()
+    event_bus.subscribe_async(WebhookService().deliver_event)
     yield
     await volunteer_reminder.stop()
+    await event_dispatch_queue.stop()
     await discord_queue.stop()
     await close_discord_bot()
     await close_db()
