@@ -1355,7 +1355,11 @@ body.body--dark {
     width: 100%;
 }
 
-/* Footer Styles */
+/* Footer / app-shell bottom navigation — the footer is *only* this bar: a
+   full-width tab row shown on phones and tablets (<1024px); on desktop the
+   drawer carries navigation so it collapses away. The wrapping ui.footer()
+   (.footer-dark-override) supplies the charcoal/cream surface + top border for
+   the whole bar, so the nav itself only owns layout. */
 .footer-dark-override {
     background-color: var(--surface-alt);
     color: var(--status-neutral);
@@ -1370,43 +1374,32 @@ body.body--dark {
     color: var(--sgl-dark-muted) !important;
 }
 
-/* Inherit the footer's text color so the button reads correctly in both
-   light (cream) and dark (charcoal) footer surfaces. */
-.footer-feedback-btn {
-    color: inherit !important;
-}
-
-/* App-shell bottom navigation — a full-width tab row shown only on phones and
-   tablets (<1024px); on desktop the drawer + copyright footer carry navigation
-   so it collapses away. Footer surface tokens mirror .footer-dark-override so
-   the bar matches the footer in both modes. */
 .sgl-bottom-nav {
     width: 100%;
     padding-bottom: env(safe-area-inset-bottom);
-    background-color: var(--surface-alt);
-    color: var(--status-neutral);
-    border-top: 1px solid var(--border-subtle);
 }
 
+/* The footer exists solely to host the bottom nav, so collapse the whole bar
+   (not just the nav) on desktop — otherwise the empty ui.footer() would render
+   as a stray surface strip along the bottom edge. */
 @media (min-width: 1024px) {
-    .sgl-bottom-nav {
+    .footer-dark-override {
         display: none;
     }
 }
 
-.body--dark .sgl-bottom-nav,
-.q-dark .sgl-bottom-nav {
-    background-color: var(--sgl-charcoal) !important;
-    color: var(--sgl-dark-muted) !important;
+/* Copyright caption pinned to the foot of the drawer (replaces the old
+   desktop-only footer meta row); muted to match the surrounding chrome. */
+.sgl-drawer-copyright {
+    color: var(--status-neutral);
 }
 
-/* Copyright / Feedback footer meta is desktop-only; on mobile the bottom nav
-   replaces it so the meta row doesn't steal vertical space above the tabs. */
+.body--dark .sgl-drawer-copyright,
+.q-dark .sgl-drawer-copyright {
+    color: var(--sgl-dark-muted);
+}
+
 @media (max-width: 1023.98px) {
-    .sgl-footer-meta {
-        display: none;
-    }
-
     /* The fixed refresh FAB would otherwise sit under the bottom nav bar; lift it
        above the nav (and the safe-area inset) so it stays tappable. */
     .refresh-button {
