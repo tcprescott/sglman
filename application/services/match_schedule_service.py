@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, Tuple, Optional
 
 from application import match_events
+from application.events import Event, EventType, event_bus
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services import discord_queue
 from application.services.audit_service import AuditActions, AuditService
@@ -45,10 +46,10 @@ def _match_descriptor(match: Match) -> dict:
 
 class MatchScheduleService:
     """Service for match scheduling operations."""
-    
+
     # Class-level lock dictionary for seed generation
     _seed_locks: Dict[int, asyncio.Lock] = {}
-    
+
     def __init__(self) -> None:
         self.match_repository = MatchRepository()
         self.acknowledgment_repository = MatchAcknowledgmentRepository()
@@ -65,6 +66,7 @@ class MatchScheduleService:
         check: Callable[[], None],
         timestamp_field: str,
         audit_action: str,
+        event_type: str,
         build_message: Callable[[Match], str],
     ) -> None:
         """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
@@ -86,6 +88,11 @@ class MatchScheduleService:
         await match.fetch_related('tournament', 'players__user', 'stream_room')
         discord_queue.enqueue(self.notify_match_participants(match, build_message(match)))
         match_events.publish(match.id)
+        event_bus.publish(Event.create(event_type, {
+            'match_id': match.id,
+            'tournament_id': match.tournament_id,
+            'tournament': match.tournament.name,
+        }, actor))
 
     async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
         def check() -> None:
@@ -97,6 +104,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="seated_at",
             audit_action=AuditActions.MATCH_SEATED,
+            event_type=EventType.MATCH_SEATED,
             build_message=lambda m: checked_in_dm(m.tournament.name, **_match_descriptor(m)),
         )
 
@@ -112,6 +120,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="started_at",
             audit_action=AuditActions.MATCH_STARTED,
+            event_type=EventType.MATCH_STARTED,
             build_message=lambda m: state_changed_dm(m.tournament.name, "Started", **_match_descriptor(m)),
         )
 
@@ -127,6 +136,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="finished_at",
             audit_action=AuditActions.MATCH_FINISHED,
+            event_type=EventType.MATCH_FINISHED,
             build_message=lambda m: state_changed_dm(m.tournament.name, "Finished", **_match_descriptor(m)),
         )
 
@@ -142,6 +152,7 @@ class MatchScheduleService:
             check=check,
             timestamp_field="confirmed_at",
             audit_action=AuditActions.MATCH_CONFIRMED,
+            event_type=EventType.MATCH_CONFIRMED,
             build_message=lambda m: state_changed_dm(m.tournament.name, "Confirmed", **_match_descriptor(m)),
         )
 
@@ -156,16 +167,16 @@ class MatchScheduleService:
                 logger.exception("challonge auto-push failed for match %s", match.id)
 
         discord_queue.enqueue(_push_challonge_result())
-    
+
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
         """
         Generate a seed for a match and send DMs to players.
-        
+
         This method includes locking to prevent concurrent seed generation for the same match.
-        
+
         Args:
             match_id: ID of the match to generate seed for
-            
+
         Returns:
             Tuple of (success: bool, message: str, seed_url: Optional[str])
             - If successful: (True, success_message, seed_url)
@@ -177,11 +188,11 @@ class MatchScheduleService:
         if lock is None:
             lock = asyncio.Lock()
             self._seed_locks[match_id] = lock
-        
+
         # Check if another generation is in progress
         if lock.locked():
             return False, "Seed generation already in progress for this match", None
-        
+
         async with lock:
             try:
                 # Fetch match with related data
@@ -195,18 +206,18 @@ class MatchScheduleService:
                 # Check if seed already exists
                 if match.generated_seed:
                     return False, "A seed has already been generated for this match", None
-                
+
                 # Check if tournament has a seed generator
                 if not match.tournament.seed_generator:
                     return False, "No seed generator configured for this tournament", None
-                
+
                 # Check if seed generator is supported
                 if match.tournament.seed_generator not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
                     return False, f"Seed generator '{match.tournament.seed_generator}' not found", None
-                
+
                 # Generate the seed
                 seed_url = await self.seedgen_service.generate_seed(match.tournament.seed_generator)
-                
+
                 # Create GeneratedSeeds record
                 match.generated_seed = await GeneratedSeeds.create(
                     tournament=match.tournament,
@@ -214,7 +225,7 @@ class MatchScheduleService:
                     seed_info=f"Generated seed for match {match.id}"
                 )
                 await match.save()
-                
+
                 # Send DMs to players in the background (respects dm_notifications opt-out)
                 descriptor = _match_descriptor(match)
 
@@ -250,6 +261,11 @@ class MatchScheduleService:
                 )
 
                 match_events.publish(match.id)
+                event_bus.publish(Event.create(EventType.MATCH_SEED_ROLLED, {
+                    'match_id': match.id,
+                    'tournament_id': match.tournament_id,
+                    'seed_url': seed_url,
+                }, actor))
 
                 return True, message, seed_url
 
@@ -259,7 +275,7 @@ class MatchScheduleService:
                 # text to the user and the REST 400 detail.
                 logger.exception("Seed generation failed for match %s", match_id)
                 return False, "Seed generation failed. Please check the server logs.", None
-    
+
     async def notify_match_participants(self, match: Match, message: str) -> None:
         """
         Send a DM to all opted-in players, approved crew, and watchers for a match.
@@ -528,4 +544,3 @@ class MatchScheduleService:
             if t.user.discord_id and t.user.discord_id not in ids:
                 ids.append(t.user.discord_id)
         return ids
-
