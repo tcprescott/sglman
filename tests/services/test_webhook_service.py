@@ -1,0 +1,204 @@
+"""Tests for WebhookService: CRUD/auth/validation and signed delivery."""
+
+import hashlib
+import hmac
+import json
+
+import pytest
+
+from application.events import Event, EventType
+from application.services.webhook_service import WebhookService
+from models import AuditLog, User, UserRole, Webhook, WebhookDelivery, Role
+
+
+async def _staff() -> User:
+    user = await User.create(discord_id=1, username='staff')
+    await UserRole.create(user=user, role=Role.STAFF)
+    return user
+
+
+async def _plain() -> User:
+    return await User.create(discord_id=2, username='nobody')
+
+
+# ---------------------------------------------------------------------------
+# CRUD, authorization, validation
+# ---------------------------------------------------------------------------
+
+
+class TestWebhookCrud:
+    async def test_create_generates_secret_and_audits(self, db):
+        actor = await _staff()
+        webhook = await WebhookService().create_webhook(
+            actor, name='overlay', url='https://example.com/hook',
+            event_types=[EventType.MATCH_CREATED],
+        )
+        assert webhook.id is not None
+        assert webhook.secret  # generated
+        stored = await Webhook.get(id=webhook.id)
+        assert stored.event_types == [EventType.MATCH_CREATED]
+        assert await AuditLog.filter(action='webhook.created').count() == 1
+
+    async def test_create_rejected_for_non_staff(self, db):
+        actor = await _plain()
+        with pytest.raises(PermissionError):
+            await WebhookService().create_webhook(
+                actor, name='x', url='https://example.com', event_types=['*'],
+            )
+
+    async def test_create_rejects_bad_event_type(self, db):
+        actor = await _staff()
+        with pytest.raises(ValueError, match='Unknown event type'):
+            await WebhookService().create_webhook(
+                actor, name='x', url='https://example.com', event_types=['bogus.event'],
+            )
+
+    async def test_create_rejects_empty_event_types(self, db):
+        actor = await _staff()
+        with pytest.raises(ValueError, match='at least one event type'):
+            await WebhookService().create_webhook(
+                actor, name='x', url='https://example.com', event_types=[],
+            )
+
+    async def test_create_rejects_non_https_url(self, db):
+        actor = await _staff()
+        with pytest.raises(ValueError, match='https'):
+            await WebhookService().create_webhook(
+                actor, name='x', url='ftp://example.com', event_types=['*'],
+            )
+
+    async def test_update_changes_fields(self, db):
+        actor = await _staff()
+        webhook = await WebhookService().create_webhook(
+            actor, name='x', url='https://example.com', event_types=['*'],
+        )
+        updated = await WebhookService().update_webhook(
+            actor, webhook.id, is_active=False, event_types=[EventType.MATCH_STARTED],
+        )
+        assert updated.is_active is False
+        assert updated.event_types == [EventType.MATCH_STARTED]
+
+    async def test_delete_removes_row(self, db):
+        actor = await _staff()
+        webhook = await WebhookService().create_webhook(
+            actor, name='x', url='https://example.com', event_types=['*'],
+        )
+        await WebhookService().delete_webhook(actor, webhook.id)
+        assert await Webhook.filter(id=webhook.id).count() == 0
+
+    async def test_regenerate_secret_changes_it(self, db):
+        actor = await _staff()
+        webhook = await WebhookService().create_webhook(
+            actor, name='x', url='https://example.com', event_types=['*'],
+        )
+        old_secret = webhook.secret
+        new_secret = await WebhookService().regenerate_secret(actor, webhook.id)
+        assert new_secret != old_secret
+        assert (await Webhook.get(id=webhook.id)).secret == new_secret
+
+    async def test_get_missing_raises(self, db):
+        actor = await _staff()
+        with pytest.raises(ValueError, match='not found'):
+            await WebhookService().get_webhook(actor, 9999)
+
+
+# ---------------------------------------------------------------------------
+# Delivery: signing, logging, retries
+# ---------------------------------------------------------------------------
+
+
+class FakeResponse:
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+
+
+class FakeClientFactory:
+    """Stand-in for httpx.AsyncClient that records posts and returns scripted codes."""
+
+    def __init__(self, status_codes):
+        self._status_codes = list(status_codes)
+        self.calls = []
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, content=None, headers=None):
+        self.calls.append({'url': url, 'content': content, 'headers': headers})
+        return FakeResponse(self._status_codes[len(self.calls) - 1])
+
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    async def _noop(_seconds):
+        return None
+    monkeypatch.setattr('application.services.webhook_service.asyncio.sleep', _noop)
+
+
+class TestDelivery:
+    async def test_successful_delivery_signs_and_logs(self, db, monkeypatch):
+        webhook = await Webhook.create(
+            name='w', url='https://example.com/hook', secret='shhh',
+            event_types=[EventType.MATCH_CREATED],
+        )
+        fake = FakeClientFactory([200])
+        monkeypatch.setattr('application.services.webhook_service.httpx.AsyncClient', fake)
+
+        event = Event.create(EventType.MATCH_CREATED, {'match_id': 5})
+        await WebhookService()._deliver_one(webhook, event)
+
+        # One POST, HMAC over "{timestamp}.{body}" verifies against the secret.
+        assert len(fake.calls) == 1
+        call = fake.calls[0]
+        body = call['content']
+        ts = call['headers']['X-SGL-Timestamp']
+        expected = hmac.new(b'shhh', f'{ts}.{body}'.encode(), hashlib.sha256).hexdigest()
+        assert call['headers']['X-SGL-Signature'] == f'sha256={expected}'
+        assert call['headers']['X-SGL-Event'] == EventType.MATCH_CREATED
+        assert json.loads(body)['data'] == {'match_id': 5}
+
+        delivery = await WebhookDelivery.get(webhook=webhook)
+        assert delivery.success is True
+        assert delivery.response_status == 200
+        assert delivery.attempt_count == 1
+        assert delivery.delivered_at is not None
+
+    async def test_retries_then_gives_up_on_5xx(self, db, monkeypatch, no_sleep):
+        webhook = await Webhook.create(
+            name='w', url='https://example.com/hook', secret='shhh', event_types=['*'],
+        )
+        fake = FakeClientFactory([500, 502, 503])
+        monkeypatch.setattr('application.services.webhook_service.httpx.AsyncClient', fake)
+
+        await WebhookService()._deliver_one(webhook, Event.create(EventType.MATCH_CREATED, {}))
+
+        assert len(fake.calls) == WebhookService.MAX_ATTEMPTS
+        delivery = await WebhookDelivery.get(webhook=webhook)
+        assert delivery.success is False
+        assert delivery.attempt_count == WebhookService.MAX_ATTEMPTS
+        assert delivery.response_status == 503
+        assert delivery.delivered_at is None
+
+    async def test_deliver_event_enqueues_only_subscribed_active(self, db, monkeypatch):
+        await Webhook.create(name='a', url='https://a.example', secret='s',
+                             event_types=[EventType.MATCH_CREATED], is_active=True)
+        await Webhook.create(name='b', url='https://b.example', secret='s',
+                             event_types=[EventType.MATCH_STARTED], is_active=True)
+        await Webhook.create(name='c', url='https://c.example', secret='s',
+                             event_types=['*'], is_active=False)  # inactive
+        await Webhook.create(name='d', url='https://d.example', secret='s',
+                             event_types=['*'], is_active=True)  # wildcard
+
+        enqueued = []
+        monkeypatch.setattr(
+            'application.services.webhook_service.dispatch_queue.enqueue',
+            lambda coro: (enqueued.append(coro), coro.close()),
+        )
+        await WebhookService().deliver_event(Event.create(EventType.MATCH_CREATED, {}))
+        # 'a' (subscribed) and 'd' (wildcard) match; 'b' wrong event, 'c' inactive.
+        assert len(enqueued) == 2
