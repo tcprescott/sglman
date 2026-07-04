@@ -47,6 +47,7 @@ The application is functional and in active use. All features listed below are m
 | Challonge integration | Stable | recent | Service-account OAuth, bracket mirroring, scheduling, per-player identity linking |
 | Security headers | Stable | #38 | `middleware/security_headers.py` ([deployment.md](deployment.md)) |
 | Event bus + webhooks | Stable | recent | Central in-process event bus (`application/events/`) + staff-managed signed outbound webhooks ([event-system.md](features/event-system.md), [webhooks.md](features/webhooks.md)) |
+| Device notifications (web push) | New | recent | Declarative Web Push (iOS/Android/desktop) mirroring every Discord DM to subscribed devices; off until VAPID keys are set ([web-push.md](features/web-push.md)) |
 
 The four reference docs ([data-model.md](reference/data-model.md), [services.md](reference/services.md), [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md)) carry the method-level detail for the newer subsystems; dedicated feature docs for volunteering, equipment, and Challonge are not yet written.
 

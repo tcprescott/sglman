@@ -200,7 +200,7 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 
 | Method | Returns | Description |
 |---|---|---|
-| `send_dm(user_id, message)` | `(bool, str)` | Plain DM to a Discord user id. |
+| `send_dm(user_id, message)` | `(bool, str)` | Plain DM to a Discord user id. Also mirrors the message to the recipient's web-push devices via `WebPushService.mirror_dm` (both real and mock service) — see [web-push.md](../features/web-push.md). |
 | `send_dm_with_crew_buttons(user_id, message, match_id)` | `(bool, str)` | DM with commentator/tracker signup buttons. |
 | `send_dm_with_acknowledgment_button(user_id, message, match_id)` | `(bool, str)` | DM with a match Acknowledge button. |
 | `send_dm_with_crew_acknowledgment_button(user_id, message, crew_type, crew_id)` | `(bool, str)` | DM with a crew-assignment Acknowledge button. |
@@ -586,6 +586,10 @@ A lightweight background worker (modeled on `discord_queue`) that periodically f
 
 Collaborators: `VolunteerAssignmentRepository`, `SystemConfigService.get_volunteer_reminder_lead_minutes`, `DiscordService` (via `discord_queue`), [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy). Imported as a module (`from application.services import volunteer_reminder`).
 
+### web_push_service.py — WebPushService
+
+Per-device browser push notifications ("Device Notifications"): subscription CRUD (audited via `AuditActions.WEB_PUSH_*`) plus the encrypted delivery path. `mirror_dm(discord_id, message)` is called from `DiscordService.send_dm` for every outgoing DM (never raises; no-op unless VAPID is configured and the user has subscriptions); `notify_user(user, *, title, body, navigate=None)` targets one user directly. Sends the Declarative Web Push JSON shape (`web_push: 8030`) — rendered natively on Safari/iOS 18.4+ and by the `static/sw.js` `push` handler elsewhere — encrypted per RFC 8291 with a VAPID `Authorization` header, via `httpx.AsyncClient`. Prunes subscriptions the push service reports gone (404/410). Configured by `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`; `is_configured()` / `get_public_key()` gate the settings UI. Collaborators: `WebPushRepository`, `AuditService`, [`web_push.py`](#web_pushpy). Feature doc: [web-push.md](../features/web-push.md).
+
 ### webhook_service.py — WebhookService
 
 Staff-managed outbound webhooks: CRUD (all gated on `AuthService.is_staff` and audited via `AuditActions.WEBHOOK_*`) plus the delivery path. `deliver_event(event)` is registered on the [event bus](../features/event-system.md) in `main.py`; for each active webhook subscribed to the event it enqueues `_deliver_one` onto the event dispatch worker, which POSTs an HMAC-SHA256-signed JSON body via `httpx.AsyncClient` (bounded retry + `WebhookDelivery` logging). Validates `https://` + SSRF host rules (production) and event-type names; generates the signing secret with `secrets.token_urlsafe`. Collaborators: `WebhookRepository`, `WebhookDeliveryRepository`, `AuditService`, `AuthService`, `application.events`.
@@ -703,6 +707,19 @@ Canonical UTC-storage / Eastern-display utilities. Full rules and rationale: [ti
 | `format_eastern_date(dt)` | `str` | `YYYY-MM-DD` in Eastern; plain `date` values format as-is. |
 | `format_eastern_time(dt)` | `str` | `HH:MM` (24-hour) in Eastern. |
 | `format_eastern_display(dt)` | `str` | `YYYY-MM-DD HH:MM EST/EDT` with DST-aware abbreviation. |
+
+### web_push.py
+
+Pure Web Push protocol primitives — no I/O, no ORM ([web_push.py](../../application/utils/web_push.py)). Used by `WebPushService`; pinned to the RFC 8291 Appendix A test vector in `tests/test_web_push_protocol.py`.
+
+| Function | Returns | Description |
+|---|---|---|
+| `encrypt_payload(plaintext, p256dh, auth)` | `bytes` | RFC 8291 `aes128gcm` message body encrypted to the subscription's client keys. |
+| `vapid_authorization(endpoint, private_key, subject)` | `str` | `vapid t=<ES256 JWT>, k=<pubkey>` Authorization header value (RFC 8292). |
+| `generate_vapid_keys()` | `(str, str)` | Fresh `(private, public)` VAPID keypair, base64url (see `scripts/generate_vapid_keys.py`). |
+| `load_vapid_private_key(value)` | `EllipticCurvePrivateKey` | Parse the base64url raw 32-byte `VAPID_PRIVATE_KEY`. |
+| `public_key_b64url(private_key)` | `str` | Derived `applicationServerKey` browsers subscribe with. |
+| `b64url_encode(bytes)` / `b64url_decode(str)` | — | Padding-tolerant base64url helpers. |
 
 ## Testing the service layer
 

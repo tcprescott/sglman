@@ -1,0 +1,262 @@
+"""Tests for WebPushService: subscription CRUD, config gating, and delivery."""
+
+import json
+
+import pytest
+
+from application.services.web_push_service import WebPushService
+from application.utils.web_push import b64url_decode, generate_vapid_keys, load_vapid_private_key
+from models import AuditLog, User, WebPushSubscription
+from tests.test_web_push_protocol import (
+    RFC_AUTH,
+    RFC_UA_PRIVATE,
+    RFC_UA_PUBLIC,
+    decrypt_payload,
+)
+
+ENDPOINT = 'https://push.example.net/send/abc123'
+
+
+async def _user(discord_id: int = 1) -> User:
+    return await User.create(discord_id=discord_id, username=f'user{discord_id}')
+
+
+async def _subscribed_user(discord_id: int = 1) -> User:
+    user = await _user(discord_id)
+    await WebPushSubscription.create(
+        user=user, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+    )
+    return user
+
+
+@pytest.fixture
+def vapid_env(monkeypatch):
+    private_key, _ = generate_vapid_keys()
+    monkeypatch.setenv('VAPID_PRIVATE_KEY', private_key)
+    monkeypatch.setenv('VAPID_SUBJECT', 'mailto:ops@example.com')
+    return private_key
+
+
+@pytest.fixture
+def no_vapid_env(monkeypatch):
+    monkeypatch.delenv('VAPID_PRIVATE_KEY', raising=False)
+    monkeypatch.delenv('VAPID_SUBJECT', raising=False)
+
+
+class FakeResponse:
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+        self.text = f'status {status_code}'
+
+
+class FakeClientFactory:
+    """Stand-in for httpx.AsyncClient that records posts and returns scripted codes."""
+
+    def __init__(self, status_codes):
+        self._status_codes = list(status_codes)
+        self.calls = []
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, content=None, headers=None):
+        self.calls.append({'url': url, 'content': content, 'headers': headers})
+        return FakeResponse(self._status_codes[len(self.calls) - 1])
+
+
+@pytest.fixture
+def fake_client(monkeypatch):
+    def _install(status_codes):
+        fake = FakeClientFactory(status_codes)
+        monkeypatch.setattr('application.services.web_push_service.httpx.AsyncClient', fake)
+        return fake
+    return _install
+
+
+# ---------------------------------------------------------------------------
+# Configuration gating
+# ---------------------------------------------------------------------------
+
+
+class TestConfiguration:
+    def test_unconfigured_without_private_key(self, no_vapid_env):
+        assert WebPushService.is_configured() is False
+        assert WebPushService.get_public_key() is None
+
+    def test_configured_with_key_and_subject(self, vapid_env):
+        assert WebPushService.is_configured() is True
+        public_key = WebPushService.get_public_key()
+        assert public_key and len(b64url_decode(public_key)) == 65
+
+    def test_key_without_usable_subject_disables(self, monkeypatch):
+        private_key, _ = generate_vapid_keys()
+        monkeypatch.setenv('VAPID_PRIVATE_KEY', private_key)
+        monkeypatch.delenv('VAPID_SUBJECT', raising=False)
+        monkeypatch.delenv('BASE_URL', raising=False)
+        assert WebPushService.is_configured() is False
+
+    def test_https_base_url_serves_as_subject_fallback(self, monkeypatch):
+        private_key, _ = generate_vapid_keys()
+        monkeypatch.setenv('VAPID_PRIVATE_KEY', private_key)
+        monkeypatch.delenv('VAPID_SUBJECT', raising=False)
+        monkeypatch.setenv('BASE_URL', 'https://sgl.example.com')
+        assert WebPushService.is_configured() is True
+
+    async def test_mirror_dm_is_noop_when_unconfigured(self, db, no_vapid_env, fake_client):
+        fake = fake_client([])
+        await _subscribed_user()
+        await WebPushService().mirror_dm(1, 'hello')
+        assert fake.calls == []
+
+
+# ---------------------------------------------------------------------------
+# Subscription CRUD
+# ---------------------------------------------------------------------------
+
+
+class TestSubscriptions:
+    async def test_subscribe_stores_and_audits(self, db):
+        user = await _user()
+        subscription = await WebPushService().subscribe(
+            user, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+            user_agent='Mozilla/5.0 (iPhone)',
+        )
+        assert subscription.id is not None
+        stored = await WebPushSubscription.get(id=subscription.id)
+        assert stored.endpoint == ENDPOINT
+        assert stored.user_agent == 'Mozilla/5.0 (iPhone)'
+        assert await AuditLog.filter(action='web_push.subscribed').count() == 1
+
+    async def test_subscribe_rejects_non_https_endpoint(self, db):
+        user = await _user()
+        with pytest.raises(ValueError, match='https'):
+            await WebPushService().subscribe(
+                user, endpoint='http://push.example.net/x', p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+            )
+
+    async def test_subscribe_rejects_malformed_keys(self, db):
+        user = await _user()
+        with pytest.raises(ValueError, match='malformed'):
+            await WebPushService().subscribe(
+                user, endpoint=ENDPOINT, p256dh='not-a-key', auth=RFC_AUTH,
+            )
+        with pytest.raises(ValueError, match='malformed'):
+            await WebPushService().subscribe(
+                user, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth='nope',
+            )
+
+    async def test_resubscribe_rebinds_endpoint_to_new_user(self, db):
+        first = await _subscribed_user(discord_id=1)
+        second = await _user(discord_id=2)
+        await WebPushService().subscribe(
+            second, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+        )
+        assert await WebPushSubscription.all().count() == 1
+        stored = await WebPushSubscription.get(endpoint=ENDPOINT)
+        assert stored.user_id == second.id
+        assert stored.user_id != first.id
+
+    async def test_unsubscribe_removes_own_subscription(self, db):
+        user = await _subscribed_user()
+        assert await WebPushService().unsubscribe(user, ENDPOINT) is True
+        assert await WebPushSubscription.all().count() == 0
+        assert await AuditLog.filter(action='web_push.unsubscribed').count() == 1
+
+    async def test_unsubscribe_ignores_other_users_endpoint(self, db):
+        await _subscribed_user(discord_id=1)
+        other = await _user(discord_id=2)
+        assert await WebPushService().unsubscribe(other, ENDPOINT) is False
+        assert await WebPushSubscription.all().count() == 1
+
+    async def test_remove_subscription_rejects_other_users(self, db):
+        owner = await _subscribed_user(discord_id=1)
+        other = await _user(discord_id=2)
+        subscription = (await WebPushService().list_subscriptions(owner))[0]
+        with pytest.raises(ValueError, match='not found'):
+            await WebPushService().remove_subscription(other, subscription.id)
+
+
+# ---------------------------------------------------------------------------
+# Delivery
+# ---------------------------------------------------------------------------
+
+
+class TestDelivery:
+    async def test_mirror_dm_sends_declarative_payload(self, db, vapid_env, fake_client):
+        fake = fake_client([201])
+        await _subscribed_user(discord_id=42)
+
+        await WebPushService().mirror_dm(42, '**Match scheduled** for `today`!')
+
+        assert len(fake.calls) == 1
+        call = fake.calls[0]
+        assert call['url'] == ENDPOINT
+        assert call['headers']['Content-Encoding'] == 'aes128gcm'
+        assert call['headers']['TTL'] == str(WebPushService.TTL_SECONDS)
+        assert call['headers']['Urgency'] == 'high'
+        assert call['headers']['Authorization'].startswith('vapid t=')
+
+        plaintext = decrypt_payload(
+            call['content'], load_vapid_private_key(RFC_UA_PRIVATE), b64url_decode(RFC_AUTH)
+        )
+        payload = json.loads(plaintext)
+        assert payload['web_push'] == 8030
+        # Markdown noise is stripped for the native notification.
+        assert payload['notification']['body'] == 'Match scheduled for today!'
+        assert payload['notification']['title'] == 'SGL On Site'
+        assert payload['notification']['navigate']
+
+        stored = await WebPushSubscription.get(endpoint=ENDPOINT)
+        assert stored.last_used_at is not None
+
+    async def test_mirror_dm_without_subscriptions_makes_no_requests(self, db, vapid_env, fake_client):
+        fake = fake_client([])
+        await _user(discord_id=42)
+        await WebPushService().mirror_dm(42, 'hello')
+        assert fake.calls == []
+
+    async def test_expired_subscription_is_pruned(self, db, vapid_env, fake_client):
+        fake = fake_client([410])
+        user = await _subscribed_user(discord_id=42)
+
+        delivered = await WebPushService().notify_user(user, title='t', body='b')
+
+        assert delivered == 0
+        assert len(fake.calls) == 1
+        assert await WebPushSubscription.all().count() == 0
+
+    async def test_transient_failure_keeps_subscription(self, db, vapid_env, fake_client):
+        fake = fake_client([500])
+        user = await _subscribed_user(discord_id=42)
+
+        delivered = await WebPushService().notify_user(user, title='t', body='b')
+
+        assert delivered == 0
+        assert len(fake.calls) == 1
+        assert await WebPushSubscription.all().count() == 1
+
+    async def test_notify_user_counts_deliveries_across_devices(self, db, vapid_env, fake_client):
+        fake = fake_client([201, 201])
+        user = await _subscribed_user(discord_id=42)
+        await WebPushSubscription.create(
+            user=user, endpoint=ENDPOINT + '-second', p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+        )
+
+        delivered = await WebPushService().notify_user(user, title='t', body='b')
+
+        assert delivered == 2
+        assert len(fake.calls) == 2
+
+    async def test_mirror_dm_never_raises(self, db, vapid_env, monkeypatch):
+        async def _boom(*args, **kwargs):
+            raise RuntimeError('push service down')
+        monkeypatch.setattr(WebPushService, '_send_to_subscriptions', _boom)
+        await _subscribed_user(discord_id=42)
+        # Must swallow the failure — the DM path depends on it.
+        await WebPushService().mirror_dm(42, 'hello')

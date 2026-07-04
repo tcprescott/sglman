@@ -9,7 +9,20 @@ from typing import Awaitable, Callable, Tuple, Optional, List, Dict, Set, Union
 import discord
 from discord.ext import commands
 
+from application.services.web_push_service import WebPushService
+
 logger = logging.getLogger(__name__)
+
+
+async def _mirror_dm_to_web_push(user_id: int, message: str) -> None:
+    """Fan every outgoing DM out to the recipient's web-push devices.
+
+    send_dm is the chokepoint all notification paths flow through, so mirroring
+    here gives device notifications the exact coverage DMs have. mirror_dm
+    never raises and is a no-op unless VAPID is configured and the user has
+    subscriptions, so the DM path is unaffected.
+    """
+    await WebPushService().mirror_dm(user_id, message)
 
 
 # Shared bot instance (singleton pattern)
@@ -160,6 +173,9 @@ class DiscordService:
             - If successful: (True, "Message sent successfully.")
             - If failed: (False, error_message)
         """
+        # Mirror before the bot-readiness checks so device notifications still
+        # go out when the bot is down or the user blocks Discord DMs.
+        await _mirror_dm_to_web_push(user_id, message)
         try:
             if self._bot is None:
                 return False, "Discord bot not initialized"
@@ -422,6 +438,7 @@ class MockDiscordService:
         message: str,
         view_factory: Optional[Callable[[], "discord.ui.View"]] = None,
     ) -> Tuple[bool, str]:
+        await _mirror_dm_to_web_push(user_id, message)
         print(f"[MOCK Discord DM] -> {user_id}: {message}")
         return True, "Message sent (mock)"
 

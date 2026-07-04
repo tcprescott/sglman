@@ -107,6 +107,8 @@ Because dispatch is raw-prefix routing rather than registered `discord.ui.View` 
 
 > **Privileged intent.** Reading guild members requires the **Server Members Intent**, enabled both in code (`intents.members = True`, already set) **and** toggled on for the bot application in the Discord Developer Portal. The bot must also be invited to the guild (`bot` scope). Without these, `get_member_role_ids` returns errors / empty sets and the sync is a safe no-op.
 
+`send_dm` is the chokepoint every notification fan-out flows through; before the guard ladder below it mirrors the message to the recipient's web-push devices via `WebPushService.mirror_dm` (never raises, no-op unless [device notifications](../features/web-push.md) are configured), so pushes go out even when the bot is down or the user blocks DMs.
+
 Every send method runs the same guard ladder before touching the API, mapped to error strings:
 
 | Condition | Returned `(False, ...)` message |

@@ -48,6 +48,7 @@ Implementation notes for each shipped feature.
 | [features/discord-notifications.md](features/discord-notifications.md) | Match lifecycle DM notifications and fan-out |
 | [features/event-system.md](features/event-system.md) | In-process event bus: publish/subscribe, sync vs async subscribers, `EventType` registry |
 | [features/webhooks.md](features/webhooks.md) | Staff-managed outbound webhooks: signing, retries, delivery log, config UI |
+| [features/web-push.md](features/web-push.md) | Device notifications: Declarative Web Push (iOS/Android/desktop) mirroring Discord DMs |
 | [features/discord-role-sync.md](features/discord-role-sync.md) | Map Discord guild roles to app roles at login |
 | [features/match-acknowledgment.md](features/match-acknowledgment.md) | Player and crew match acknowledgment flows |
 | [features/match-watcher.md](features/match-watcher.md) | Watch any match for state-change DMs |
@@ -76,11 +77,11 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` — 38 models (37 domain + a TestModel test fixture), 9 enums | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` — 31 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
+| `models.py` — 35 models, 9 enums | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` — 33 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
 | `application/events/` — event bus (`bus.py`, `event.py`, `event_types.py`, `dispatch_queue.py`) | [features/event-system.md](features/event-system.md) |
-| `application/repositories/` — 27 repositories | [reference/data-model.md](reference/data-model.md) |
-| `application/utils/` — 10 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
+| `application/repositories/` — 28 repositories | [reference/data-model.md](reference/data-model.md) |
+| `application/utils/` — 11 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
 | `middleware/` — auth.py (`protected_page` + `AuthMiddleware`) | [reference/authentication.md](reference/authentication.md) |
 | `pages/auth.py`, `pages/challonge_oauth.py` — the OAuth `@ui.page` routes | [reference/authentication.md](reference/authentication.md); challonge_oauth → [reference/services.md](reference/services.md) (challonge_service) |
 | `middleware/security_headers.py` | [deployment.md](deployment.md) |
@@ -92,6 +93,7 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `presets/` — alttpr/, ootr/, smmap/ | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
 | `scripts/seed_dev.py` | [development.md](development.md) |
+| `scripts/generate_vapid_keys.py` | [features/web-push.md](features/web-push.md), [deployment.md](deployment.md) |
 | `tests/` | [development.md](development.md) |
 | `start.sh`, `Dockerfile`, `docker-compose.yml` | [deployment.md](deployment.md) |
 | `.env.example` — every variable | [deployment.md](deployment.md) |
