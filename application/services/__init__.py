@@ -36,6 +36,7 @@ from .volunteer_availability_service import VolunteerAvailabilityService
 from .volunteer_position_service import VolunteerPositionService
 from .volunteer_profile_service import VolunteerProfileService
 from .volunteer_schedule_service import VolunteerScheduleService
+from .webhook_service import WebhookService
 
 __all__ = [
     'ApiTokenService',
@@ -70,4 +71,5 @@ __all__ = [
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerScheduleService',
+    'WebhookService',
 ]

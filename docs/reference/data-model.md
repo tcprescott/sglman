@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for [`models.py`](../../models.py) (all 32 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for [`models.py`](../../models.py) (all 34 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 ## Overview
 
@@ -447,6 +447,34 @@ Key-value application settings. Accessed directly by `SystemConfigService` (type
 |---|---|---|---|
 | `name` | `CharField(255)` | not null, `unique=True` | Setting key |
 | `value` | `TextField` | not null | Raw string value |
+
+#### `Webhook`
+
+Staff-managed outbound webhook. When a published event matches `event_types`, the app POSTs a signed JSON body to `url`. Managed via `WebhookService`; the delivery path subscribes to the [event bus](../features/event-system.md). See [webhooks.md](../features/webhooks.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `name` | `CharField(255)` | not null | Human-readable label |
+| `url` | `CharField(1024)` | not null | HTTPS endpoint (SSRF-validated in production) |
+| `secret` | `CharField(128)` | not null | HMAC-SHA256 signing key; plaintext (must be reproducible to sign), never returned by list/GET or logged |
+| `event_types` | `JSONField` | default `[]` | List of `EventType` values; `['*']` = all events |
+| `is_active` | `BooleanField` | default `True` | Disabled webhooks are skipped at delivery |
+
+#### `WebhookDelivery`
+
+Per-attempt delivery log for observability. See [webhooks.md](../features/webhooks.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `webhook` | FK → `Webhook` | not null, `CASCADE` | `related_name='deliveries'`; indexed |
+| `event_type` | `CharField(100)` | not null | The delivered event name |
+| `payload` | `TextField` | not null | Exact JSON body sent |
+| `response_status` | `IntField` | null | HTTP status of the final attempt |
+| `attempt_count` | `IntField` | default `0` | Number of attempts made (bounded retries) |
+| `success` | `BooleanField` | default `False` | True on a 2xx response |
+| `error` | `TextField` | null | Last error (non-2xx / transport) when unsuccessful |
+| `created_at` | `DatetimeField` | `auto_now_add`, indexed | |
+| `delivered_at` | `DatetimeField` | null | Set on success |
 
 #### `AuditLog`
 

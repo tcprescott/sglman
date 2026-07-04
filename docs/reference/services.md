@@ -586,6 +586,12 @@ A lightweight background worker (modeled on `discord_queue`) that periodically f
 
 Collaborators: `VolunteerAssignmentRepository`, `SystemConfigService.get_volunteer_reminder_lead_minutes`, `DiscordService` (via `discord_queue`), [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy). Imported as a module (`from application.services import volunteer_reminder`).
 
+### webhook_service.py — WebhookService
+
+Staff-managed outbound webhooks: CRUD (all gated on `AuthService.is_staff` and audited via `AuditActions.WEBHOOK_*`) plus the delivery path. `deliver_event(event)` is registered on the [event bus](../features/event-system.md) in `main.py`; for each active webhook subscribed to the event it enqueues `_deliver_one` onto the event dispatch worker, which POSTs an HMAC-SHA256-signed JSON body via `httpx.AsyncClient` (bounded retry + `WebhookDelivery` logging). Validates `https://` + SSRF host rules (production) and event-type names; generates the signing secret with `secrets.token_urlsafe`. Collaborators: `WebhookRepository`, `WebhookDeliveryRepository`, `AuditService`, `AuthService`, `application.events`.
+
+> The event bus itself (`application/events/`) — the publish/subscribe backbone these deliveries hang off — is documented in [event-system.md](../features/event-system.md).
+
 ## Utilities (`application/utils/`)
 
 ### challonge_client.py

@@ -15,6 +15,7 @@ from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
+from pages.admin_tabs.admin_webhooks import admin_webhooks_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
 from theme.base import BaseLayout
@@ -99,6 +100,8 @@ def create() -> None:
             tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'content': admin_challonge_page})
         if is_staff:
             tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'content': admin_discord_roles_page})
+        if is_staff:
+            tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'content': admin_webhooks_page})
         if is_staff or is_equipment_manager:
             tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': admin_equipment_page})
         if is_staff:

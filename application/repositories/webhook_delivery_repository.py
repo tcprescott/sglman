@@ -1,0 +1,32 @@
+"""
+Webhook Delivery Repository - Data Access Layer
+
+Handles database operations for the outbound-webhook delivery log.
+"""
+
+from datetime import datetime
+from typing import Any, List
+
+from models import Webhook, WebhookDelivery
+
+
+class WebhookDeliveryRepository:
+    """Repository for WebhookDelivery data access."""
+
+    async def create(self, **fields: Any) -> WebhookDelivery:
+        return await WebhookDelivery.create(**fields)
+
+    async def list_for_webhook(
+        self, webhook: Webhook, limit: int = 50, offset: int = 0
+    ) -> List[WebhookDelivery]:
+        """Most recent delivery attempts first for a single webhook."""
+        return (
+            await WebhookDelivery.filter(webhook=webhook)
+            .order_by('-created_at')
+            .offset(offset)
+            .limit(limit)
+        )
+
+    async def prune_older_than(self, cutoff: datetime) -> int:
+        """Delete delivery rows created before ``cutoff``; returns the count removed."""
+        return await WebhookDelivery.filter(created_at__lt=cutoff).delete()

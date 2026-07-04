@@ -46,12 +46,15 @@ The application is functional and in active use. All features listed below are m
 | Equipment lending | Stable | recent | Assets, checkout/check-in, loan history, QR codes; `EQUIPMENT_MANAGER` role |
 | Challonge integration | Stable | recent | Service-account OAuth, bracket mirroring, scheduling, per-player identity linking |
 | Security headers | Stable | #38 | `middleware/security_headers.py` ([deployment.md](deployment.md)) |
+| Event bus + webhooks | Stable | recent | Central in-process event bus (`application/events/`) + staff-managed signed outbound webhooks ([event-system.md](features/event-system.md), [webhooks.md](features/webhooks.md)) |
 
 The four reference docs ([data-model.md](reference/data-model.md), [services.md](reference/services.md), [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md)) carry the method-level detail for the newer subsystems; dedicated feature docs for volunteering, equipment, and Challonge are not yet written.
 
 ## Known Open Issues
 
 The UX audit findings (tooltips, required-field validation, delete confirmations, timezone consistency) have all been addressed by PRs #30–#33. No known issues currently block core workflows; remaining polish items are tracked as GitHub issues.
+
+**Notification centralization — Phase 2 (not started):** the event bus is currently *additive* — services publish domain events for webhooks, but the existing Discord DM fan-out still runs directly through `discord_queue`. A future phase could migrate the Discord notifications to be event-bus subscribers so a single `event_bus.publish` drives all channels. This is deferred because the DM fan-out is deeply audience-specific (players/crew/watchers/subscribers with different button variants). See [event-system.md](features/event-system.md).
 
 ## Architecture Summary
 
