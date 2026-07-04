@@ -10,6 +10,7 @@ from typing import Optional, Union
 from tortoise.transactions import in_transaction
 
 from application import match_events
+from application.events import Event, EventType, event_bus
 from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -86,6 +87,9 @@ class CrewService:
         )
 
         match_events.publish(match_id)
+        event_bus.publish(Event.create(EventType.CREW_SIGNUP_CREATED, {
+            'match_id': match_id, 'role': role, 'user_id': user.id,
+        }, user))
 
     async def undo_crew_signup(
         self,
@@ -130,6 +134,9 @@ class CrewService:
         )
 
         match_events.publish(match_id)
+        event_bus.publish(Event.create(EventType.CREW_SIGNUP_REMOVED, {
+            'match_id': match_id, 'role': role, 'user_id': user.id,
+        }, user))
 
     async def get_crew_member_by_id(
         self,
@@ -193,6 +200,10 @@ class CrewService:
             await self._request_crew_acknowledgment(crew_member, crew_type)
 
         match_events.publish(crew_member.match.id)
+        event_bus.publish(Event.create(EventType.CREW_APPROVAL_CHANGED, {
+            'match_id': crew_member.match.id, 'crew_type': crew_type,
+            'user_id': crew_member.user_id, 'approved': approved,
+        }, actor))
 
         return crew_member
 
@@ -250,6 +261,10 @@ class CrewService:
             )
 
         match_events.publish(crew_member.match_id)
+        event_bus.publish(Event.create(EventType.CREW_ACKNOWLEDGED, {
+            'match_id': crew_member.match_id, 'crew_type': crew_type,
+            'user_id': user.id,
+        }, user))
 
         return crew_member
 
