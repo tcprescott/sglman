@@ -927,7 +927,7 @@ Serves `DiscordRoleMapping` ([`discord_role_mapping_repository.py`](../../applic
 
 ### Newer subsystem repositories
 
-The equipment, volunteering, availability, Challonge, API-token, and feedback subsystems each added a static-method repository in the same pattern as those above. They are exported from [`__init__.py`](../../application/repositories/__init__.py). Summaries below; consult the source for full signatures.
+The equipment, volunteering, availability, Challonge, API-token, feedback, and webhook subsystems each added a repository in the same pattern as those above (the webhook pair uses instance methods, like `TournamentNotificationRepository`; the rest are static-method classes). They are exported from [`__init__.py`](../../application/repositories/__init__.py). Summaries below; consult the source for full signatures.
 
 | Repository | Source | Serves | Key methods |
 |---|---|---|---|
@@ -942,6 +942,8 @@ The equipment, volunteering, availability, Challonge, API-token, and feedback su
 | `VolunteerQualificationRepository` | [`volunteer_qualification_repository.py`](../../application/repositories/volunteer_qualification_repository.py) | `VolunteerQualification` | `qualified_position_ids`, `qualified_user_ids_for_position`, `set_for_user`, `list_all` |
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user`, `has_any` |
 | `ChallongeRepository` | [`challonge_repository.py`](../../application/repositories/challonge_repository.py) | `ChallongeConnection`, `ChallongeParticipant`, `ChallongeMatch`, `ChallongeApiUsage` | connection: `get_connection`, `save_connection`, `update_connection_tokens`, `clear_connection`; participants: `upsert_participant`, `get_participant`, `list_participants`, `participant_tournament_ids_for_user`; matches: `upsert_match`, `get_match`, `get_challonge_match_for_match`, `link_match`, `unscheduled_open_matches_for_user`; counts/sync: `count_participants`, `count_matches`, `set_last_synced_at`; usage metering: `increment_api_usage`, `get_monthly_usage` |
+| `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` (instance methods) |
+| `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `prune_older_than` (instance methods) |
 
 ## Migrations
 

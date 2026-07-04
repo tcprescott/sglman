@@ -22,6 +22,8 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | Bot singleton, DM queue, interaction handlers | [docs/reference/discord-integration.md](docs/reference/discord-integration.md) |
 | REST endpoints & schemas | [docs/reference/rest-api.md](docs/reference/rest-api.md) |
 | Randomizer integrations & presets | [docs/reference/seed-generation.md](docs/reference/seed-generation.md) |
+| In-process event bus (publish/subscribe) | [docs/features/event-system.md](docs/features/event-system.md) |
+| Outbound webhooks (event subscriber) | [docs/features/webhooks.md](docs/features/webhooks.md) |
 | Datetime/timezone implementation | [docs/timezone-handling.md](docs/timezone-handling.md) |
 | Per-feature docs (auth, crew, notifications, etc.) | [docs/features/](docs/features/) |
 
@@ -58,6 +60,8 @@ See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern 
 - **Keep services stateless** — static methods or per-request instances.
 
 **Audit logging:** action strings are namespaced `verb.object` (e.g. `match.created`) — use a constant from `AuditActions` (add one when introducing a new action), pass `actor: User` explicitly (never guard with `if actor:`), and pass `details` as a plain dict. Full conventions: [docs/features/audit-logging.md](docs/features/audit-logging.md).
+
+**Event publishing:** after a service commits a change (and after its audit write), fire-and-forget an event on the in-process bus so subscribers (webhooks, UI refresh) can react: `event_bus.publish(Event.create(EventType.MATCH_CREATED, {...}, actor))` (`from application.events import Event, EventType, event_bus`). `EventType` names mirror `AuditActions` and are an **external contract** — add a member to `EventType` + `EventType.ALL` for a new event; treat renames as breaking. `publish` is synchronous, never raises, and never blocks. Lives at `application/events/` (a peer of `services/`, so it's exempt from the architecture hook). Detail: [docs/features/event-system.md](docs/features/event-system.md).
 
 ## Timezone handling
 
