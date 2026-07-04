@@ -165,6 +165,9 @@ class BaseLayout:
         # Unify the drawer's auto-show boundary with the app-shell <1024px break:
         # below it the bottom nav + burger carry navigation, at/above it the drawer
         # pins open (show-if-above). This matches the grid-card table breakpoint.
+        # NiceGUI renders the drawer body (.q-drawer__content) as a flex column,
+        # so a trailing ui.space() pushes the copyright to the foot of the drawer
+        # when the nav fits, and it falls to the scroll-end when the nav is long.
         with ui.left_drawer(value=False).props('breakpoint=1023 show-if-above bordered') as self._drawer:
             with ui.list().props('padding'):
                 for item in self.top_menu:
@@ -199,6 +202,11 @@ class BaseLayout:
                             ui.icon('feedback').props('size=sm')
                         with ui.item_section():
                             ui.item_label('Feedback')
+
+            # Copyright lives at the foot of the drawer (every page renders the
+            # drawer, so this replaces the old desktop-only footer meta row).
+            ui.space()
+            ui.label(self._copyright).classes('text-caption q-px-md q-pb-md sgl-drawer-copyright')
 
     def _switch_tab(self, label: str) -> None:
         # Only move the panel; the drawer highlight and ?tab= history push are
@@ -252,46 +260,40 @@ class BaseLayout:
             self._tab_panels.set_value(value)
 
     def _render_footer(self) -> None:
-        """Render the footer with copyright text and (for logged-in users) feedback."""
-        from theme.dialog import FeedbackDialog
+        """Render the app-shell bottom navigation for phones/tablets (<1024px).
+
+        The footer is *only* the bottom nav: the first four tabs as a native tab
+        row plus a More button that opens the drawer for the remaining tabs. On
+        desktop the drawer carries navigation so the bar collapses away (via
+        .sgl-bottom-nav). Copyright and Feedback live in the drawer, not here, so
+        a tab-less page renders no footer at all rather than an empty strip.
+        """
+        if not self.tabs:
+            return
 
         with ui.footer().classes('q-py-xs q-px-md footer-dark-override'):
-            # Desktop-only meta row (hidden <1024px by .sgl-footer-meta): on mobile
-            # the bottom nav below replaces it so it never steals vertical space.
-            with ui.row().classes('w-full justify-between items-center sgl-footer-meta'):
-                ui.label(self._copyright).classes('text-caption')
-                if self.user:
-                    ui.button(
-                        'Feedback',
-                        icon='feedback',
-                        on_click=lambda: FeedbackDialog(self.user).open(),
-                    ).props('flat dense').classes('footer-feedback-btn')
-
-            # App-shell bottom navigation (shown <1024px via .sgl-bottom-nav): the
-            # first four tabs as a native tab row plus a More button that opens the
-            # drawer for the remaining tabs. The More affordance is a plain button,
-            # not a q-tab, so it carries no value that could corrupt the tab binding.
-            if self.tabs:
-                self._bottom_tab_labels = [tab['label'] for tab in self.tabs[:4]]
-                # A deep link may open on a tab that lives behind More; seed the bar
-                # with no active tab in that case so we never bind a value with no
-                # matching child (which Quasar warns about and leaves unhighlighted).
-                initial = self._default_tab if self._default_tab in self._bottom_tab_labels else None
-                with ui.tabs(value=initial).props('dense no-caps').classes(
-                    'sgl-bottom-nav'
-                ) as self._bottom_tabs:
-                    for tab in self.tabs[:4]:
-                        ui.tab(tab['label'], icon=tab.get('icon', 'circle'))
-                    self._more_btn = ui.button(
-                        'More',
-                        icon='more_horiz',
-                        on_click=lambda: self._drawer.toggle(),
-                    ).props('flat no-caps')
-                    if initial is None:
-                        self._more_btn.props(add='color=primary')
-                # Tapping a bottom tab drives the panel; the highlight/URL sync then
-                # flows back through _handle_tab_change.
-                self._bottom_tabs.on_value_change(self._on_bottom_tab)
+            self._bottom_tab_labels = [tab['label'] for tab in self.tabs[:4]]
+            # A deep link may open on a tab that lives behind More; seed the bar
+            # with no active tab in that case so we never bind a value with no
+            # matching child (which Quasar warns about and leaves unhighlighted).
+            initial = self._default_tab if self._default_tab in self._bottom_tab_labels else None
+            with ui.tabs(value=initial).props('dense no-caps').classes(
+                'sgl-bottom-nav'
+            ) as self._bottom_tabs:
+                for tab in self.tabs[:4]:
+                    ui.tab(tab['label'], icon=tab.get('icon', 'circle'))
+                # The More affordance is a plain button, not a q-tab, so it carries
+                # no value that could corrupt the tab binding.
+                self._more_btn = ui.button(
+                    'More',
+                    icon='more_horiz',
+                    on_click=lambda: self._drawer.toggle(),
+                ).props('flat no-caps')
+                if initial is None:
+                    self._more_btn.props(add='color=primary')
+            # Tapping a bottom tab drives the panel; the highlight/URL sync then
+            # flows back through _handle_tab_change.
+            self._bottom_tabs.on_value_change(self._on_bottom_tab)
 
     async def _render_tab_panels(self) -> None:
         """Render tab panel content with programmatically controlled panel switching."""
