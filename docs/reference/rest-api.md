@@ -72,6 +72,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 | System config | [`api/routers/system_config.py`](../../api/routers/system_config.py) |
 | API tokens | [`api/routers/tokens.py`](../../api/routers/tokens.py) |
 | Discord role mappings | [`api/routers/discord_role_mappings.py`](../../api/routers/discord_role_mappings.py) |
+| Webhooks | [`api/routers/webhooks.py`](../../api/routers/webhooks.py) |
 
 ### Health (`/api/health`)
 - `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
@@ -127,6 +128,9 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 
 ### System config (`/api/config`)
 - `GET /config` · `GET /config/{key}` · `PUT /config/{key}` (Staff).
+
+### Webhooks (`/api/webhooks`)
+- `GET /webhooks` (Staff) · `POST /webhooks` (Staff-write; response includes the signing `secret` once) · `GET/PUT/DELETE /webhooks/{id}` · `POST /webhooks/{id}/regenerate-secret` (returns a new secret once) · `GET /webhooks/{id}/deliveries`. Staff-managed outbound webhooks; see [webhooks.md](../features/webhooks.md).
 
 ### API tokens (`/api/tokens`)
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
