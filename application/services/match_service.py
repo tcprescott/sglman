@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
 from application import match_events
+from application.events import Event, EventType, event_bus
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
@@ -40,7 +41,7 @@ _STATION_REGEXES = {
 
 class MatchService:
     """Service for match-related business operations."""
-    
+
     def __init__(self) -> None:
         self.repository = MatchRepository()
         self.stream_room_repository = StreamRoomRepository()
@@ -51,7 +52,7 @@ class MatchService:
         self.ack_repository = MatchAcknowledgmentRepository()
         self.audit_service = AuditService()
         self.match_schedule_service = MatchScheduleService()
-    
+
     async def get_match_by_id(self, match_id: int) -> Optional[Match]:
         return await self.repository.get_by_id(match_id)
 
@@ -79,12 +80,12 @@ class MatchService:
     async def get_all_matches_for_schedule(self) -> List[Match]:
         """
         Get all matches for the public schedule view.
-        
+
         Returns:
             List of matches with all related data prefetched
         """
         return await self.repository.get_all_for_schedule()
-    
+
     async def get_matches_for_date(
         self,
         target_date: date,
@@ -93,53 +94,53 @@ class MatchService:
     ) -> List[Match]:
         """
         Get all matches for a specific date with optional filters.
-        
+
         Args:
             target_date: The date to fetch matches for
             exclude_finished: If True, exclude matches that are finished
             require_stream_room: If True, only include matches with a stream room
-            
+
         Returns:
             List of matches with all related data prefetched
         """
         return await self.repository.get_for_date(
             target_date, exclude_finished, require_stream_room
         )
-    
+
     async def group_matches_by_stream_room(
         self,
         matches: List[Match]
     ) -> Dict[int, Tuple[StreamRoom, List[Match]]]:
         """
         Group matches by their stream room.
-        
+
         Args:
             matches: List of matches to group (must have stream_room prefetched)
-            
+
         Returns:
             Dict mapping stream_room_id to tuple of (StreamRoom, list of matches)
         """
         matches_by_room: Dict[int, Tuple[StreamRoom, List[Match]]] = {}
-        
+
         for match in matches:
             if match.stream_room_id not in matches_by_room:
                 matches_by_room[match.stream_room_id] = (match.stream_room, [])
             matches_by_room[match.stream_room_id][1].append(match)
-        
+
         return matches_by_room
-    
+
     async def get_matches_for_player(self, discord_id: str) -> List[Match]:
         """
         Get all matches for a specific player by their Discord ID.
-        
+
         Args:
             discord_id: Discord ID of the player
-            
+
         Returns:
             List of matches where the player is participating
         """
         return await self.repository.get_for_player(discord_id)
-    
+
     async def create_match(
         self,
         tournament_id: int,
@@ -155,7 +156,7 @@ class MatchService:
     ) -> Match:
         """
         Create a new match with validation and business rules.
-        
+
         Args:
             tournament_id: Tournament ID
             scheduled_date: Date string (YYYY-MM-DD)
@@ -166,10 +167,10 @@ class MatchService:
             commentator_ids: Optional list of commentator user IDs
             tracker_ids: Optional list of tracker user IDs
             admin_user: User creating the match (for audit log)
-            
+
         Returns:
             Created Match object
-            
+
         Raises:
             ValueError: If validation fails
         """
@@ -243,7 +244,7 @@ class MatchService:
 
         for user in trackers:
             await self.tracker_repository.create(match=match, user=user, approved=True)
-        
+
         await self.audit_service.write_log(
             actor,
             AuditActions.MATCH_CREATED,
@@ -266,6 +267,12 @@ class MatchService:
         )
 
         match_events.publish(match.id, match_events.CREATED)
+        event_bus.publish(Event.create(EventType.MATCH_CREATED, {
+            'match_id': match.id,
+            'tournament_id': tournament_id,
+            'player_ids': player_ids,
+            'is_stream_candidate': is_stream_candidate,
+        }, actor))
 
         return match
 
@@ -289,7 +296,7 @@ class MatchService:
     ) -> Match:
         """
         Update a match with validation.
-        
+
         Args:
             match_id: Match to update
             tournament_id: New tournament ID
@@ -307,7 +314,7 @@ class MatchService:
             clear_seed: Clear generated seed
             clear_stream_room: Clear stream room assignment
             admin_user: User making the update
-            
+
         Returns:
             Updated Match object
         """
@@ -415,6 +422,12 @@ class MatchService:
                 ))
 
         match_events.publish(match.id)
+        event_bus.publish(Event.create(
+            EventType.MATCH_RESCHEDULED if scheduled_at_changed else EventType.MATCH_UPDATED,
+            {'match_id': match.id, 'tournament_id': match.tournament_id,
+             'changed_fields': list(update_fields.keys())},
+            actor,
+        ))
 
         return match
 
@@ -481,6 +494,9 @@ class MatchService:
         await self.match_schedule_service.notify_match_scheduled(match, rescheduled=False)
 
         match_events.publish(match.id, match_events.CREATED)
+        event_bus.publish(Event.create(EventType.MATCH_CREATED, {
+            'match_id': match.id, 'tournament_id': tournament_id, 'player_ids': player_ids,
+        }, actor))
 
         return match
 
@@ -513,6 +529,11 @@ class MatchService:
             await self.match_schedule_service.notify_stream_candidate(match)
 
         match_events.publish(match.id)
+        event_bus.publish(Event.create(
+            EventType.MATCH_STREAM_CANDIDATE_SET if flag else EventType.MATCH_STREAM_CANDIDATE_CLEARED,
+            {'match_id': match.id, 'tournament_id': match.tournament_id},
+            actor,
+        ))
 
         return match
 
@@ -599,11 +620,11 @@ class MatchService:
     ) -> None:
         """
         Ensure all players are enrolled in the tournament.
-        
+
         Args:
             tournament_id: Tournament ID
             player_ids: List of user IDs to enroll
-            
+
         Raises:
             ValueError: If any user is not found
         """
@@ -612,7 +633,7 @@ class MatchService:
             if not user:
                 raise ValueError(f"User {player_id} not found")
             await self._ensure_tournament_enrollment(user, tournament_id)
-    
+
     async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
         match = await self.repository.get_by_id(match_id)
         if not match:
@@ -750,19 +771,19 @@ class MatchService:
             tournament_id=tournament_id,
             user=user
         )
-        
+
         if not is_enrolled:
             await self.tournament_repository.enroll_player_by_id(
                 tournament_id=tournament_id,
                 user=user
             )
-    
+
     async def _sync_players(self, match: Match, new_player_ids: List[int], tournament_id: int) -> None:
         """Sync match players to new list."""
         current_players = await self.repository.get_players(match)
         current_ids = {p.user_id for p in current_players}
         new_ids = set(new_player_ids)
-        
+
         # Add new players
         for player_id in new_ids - current_ids:
             user = await self.user_repository.get_by_id(player_id)
@@ -770,13 +791,13 @@ class MatchService:
                 raise ValueError(f"User {player_id} not found")
             await self._ensure_tournament_enrollment(user, tournament_id)
             await self.repository.add_player(match, user)
-        
+
         # Remove old players
         for player_id in current_ids - new_ids:
             user = await self.user_repository.get_by_id(player_id)
             if user:
                 await self.repository.remove_player(match, user)
-    
+
     async def _sync_crew(self, match: Match, new_ids: List[int], repository) -> None:
         """Sync a match's crew (commentators or trackers) to the given user-id list."""
         existing = await repository.get_by_match(match)
