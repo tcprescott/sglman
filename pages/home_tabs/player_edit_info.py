@@ -8,6 +8,7 @@ from application.services import ChallongeService, TournamentNotificationService
 from models import User
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import render_challonge_link_section
+from pages.home_tabs.twitch_link_section import render_twitch_link_section
 from pages.home_tabs.web_push_section import render_web_push_section
 
 
@@ -299,6 +300,9 @@ async def render_edit_info_tab():
 
         # Challonge account linking (self-contained)
         await render_challonge_link_section(user)
+
+        # Twitch account linking (self-contained)
+        await render_twitch_link_section(user)
 
         # API token management (self-contained; saves independently of the form above)
         await render_api_tokens_section(user)
