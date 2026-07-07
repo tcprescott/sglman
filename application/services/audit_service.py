@@ -114,6 +114,10 @@ class AuditActions:
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
     CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
 
+    # Twitch integration
+    TWITCH_LINKED = 'twitch.linked'
+    TWITCH_UNLINKED = 'twitch.unlinked'
+
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'

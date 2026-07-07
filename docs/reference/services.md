@@ -48,6 +48,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [tournament-notifications.md](../features/tournament-notifications.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
+| `TwitchService` | [twitch_service.py](../../application/services/twitch_service.py) | Twitch account-linking OAuth (verified identity capture) | — |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
@@ -460,6 +461,21 @@ Community-submitted ALTTP end-game triforce texts, scoped per tournament, with a
 
 Collaborators: `TriforceTextRepository`, `AuditService`, `AuthService`. Consumers: `pages/triforce_texts.py` (player submission page), `pages/admin_tabs/triforce_texts.py` (moderation tab), `SeedGenerationService.generate_alttpr_for_tournament` (text selection).
 
+### twitch_service.py — TwitchService
+
+Coordinates the Twitch account-linking integration: a logged-in user completes a one-time Twitch OAuth login so we can record their verified Twitch identity (id / login / display name) on their `User`. Identity only — the user's Twitch access token is used once during linking and discarded. Mock mode is gated by [`MOCK_TWITCH`](#mock_twitchpy).
+
+| Method | Returns | Description |
+|---|---|---|
+| `is_configured()` (static) | `bool` | OAuth app credentials are present (or mock is on). |
+| `player_authorize_url(state)` (static) | `str` | Twitch OAuth authorize URL to redirect the browser to. |
+| `redirect_uri()` (static) | `str` | The registered OAuth redirect URI (`TWITCH_REDIRECT_URI` or derived from `BASE_URL`). |
+| `exchange_player_code(code)` | `{user_id, username, display_name}` | Exchange a user's auth code and return their identity (token used once, discarded). |
+| `record_player_link(user, twitch_user_id, twitch_username, actor)` | `None` | Persist the linked Twitch identity; rejects ids already linked elsewhere (`ValueError`); audits `twitch.linked`. |
+| `unlink_player(user, actor)` | `None` | Clear a user's Twitch link; audits `twitch.unlinked`. |
+
+Collaborators: `AuditService`, [`twitch_client.py`](#twitch_clientpy) (`TwitchClient`/`MockTwitchClient`), [`mock_twitch.py`](#mock_twitchpy). Consumers: the Twitch OAuth pages ([`pages/twitch_oauth.py`](../../pages/twitch_oauth.py)) and the profile "Link Twitch" card ([`pages/home_tabs/twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py)).
+
 ### user_service.py — UserService
 
 User lookup, profile edits (self- and admin-driven), activation, global role grants, and tournament enrollment management. Audited under `user.*`; role grants gated by `can_grant_roles`, admin fields by `is_staff`.
@@ -616,6 +632,18 @@ Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the in
 | `ChallongeClient.update_match(tournament_id, match_id, winner_participant_id, loser_participant_id, winner_score='1', loser_score='0')` | `None` | Report a match result (winner flagged `advancing`). |
 | `MockChallongeClient` | — | `MOCK_CHALLONGE` stub returning a canned 4-player single-elim bracket so local dev can click through connect/link/sync/schedule/push. |
 
+### twitch_client.py
+
+Thin async `aiohttp` wrapper over the two Twitch endpoints the account-linking flow needs — the OAuth token exchange and the Helix `users` lookup ([twitch_client.py](../../application/utils/twitch_client.py)). Returns a **normalized** identity dict so `TwitchService` never sees the wire shape. Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, `USERS_URL`.
+
+| Member | Returns | Description |
+|---|---|---|
+| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | Twitch OAuth authorize URL to redirect the browser to. |
+| `TwitchAPIError` (exception) | — | Raised on an API error or unexpected payload. |
+| `TwitchClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
+| `TwitchClient.get_me(access_token)` | `{user_id, username, display_name}` | The authenticated account identity for a raw token (sends the required `Client-Id` header). |
+| `MockTwitchClient` | — | `MOCK_TWITCH` stub returning a deterministic canned identity (chosen via `MOCK_TWITCH_IDENTITY`) so local dev can click through link/unlink. |
+
 ### csv_export.py
 
 CSV rendering for the report tables ([csv_export.py](../../application/utils/csv_export.py)).
@@ -674,6 +702,16 @@ The Challonge counterpart to `mock_discord` ([mock_challonge.py](../../applicati
 | `is_mock_challonge()` | `bool` | True when `MOCK_CHALLONGE` is `1`/`true`/`yes`. Because it fakes an authenticated Challonge connection, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
 
 `ChallongeService` reads this to choose `MockChallongeClient` over `ChallongeClient` and to report `is_configured()` as true in mock mode.
+
+### mock_twitch.py
+
+The Twitch counterpart to `mock_challonge` ([mock_twitch.py](../../application/utils/mock_twitch.py)). Lets local development exercise the full Twitch link/unlink flow without a real OAuth app.
+
+| Function | Returns | Description |
+|---|---|---|
+| `is_mock_twitch()` | `bool` | True when `MOCK_TWITCH` is `1`/`true`/`yes`. Because it fakes a verified Twitch identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
+
+`TwitchService` reads this to choose `MockTwitchClient` over `TwitchClient` and to report `is_configured()` as true in mock mode.
 
 ### qrcode_util.py
 

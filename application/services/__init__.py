@@ -29,6 +29,7 @@ from .system_config_service import SystemConfigService
 from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
 from .triforce_text_service import TriforceTextService
+from .twitch_service import TwitchService
 from .user_service import UserService
 from .volunteer_autoschedule_service import VolunteerAutoscheduleService
 from .volunteer_qualification_service import VolunteerQualificationService
@@ -65,6 +66,7 @@ __all__ = [
     'TournamentNotificationService',
     'TournamentService',
     'TriforceTextService',
+    'TwitchService',
     'UserService',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',

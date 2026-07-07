@@ -14,7 +14,7 @@ from nicegui import app, ui
 from application.utils.environment import is_production, validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
-from pages import admin, auth, challonge_oauth, equipment, home, volunteer
+from pages import admin, auth, challonge_oauth, equipment, home, twitch_oauth, volunteer
 
 _ui_logger = logging.getLogger('sglman.ui')
 
@@ -89,6 +89,7 @@ def init(fastapi_app: FastAPI) -> None:
 
     auth.create()
     challonge_oauth.create()
+    twitch_oauth.create()
     admin.create()
     home.create()
     volunteer.create()

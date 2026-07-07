@@ -67,6 +67,13 @@ class User(Model):
     challonge_user_id = fields.CharField(max_length=64, null=True, unique=True)
     challonge_username = fields.CharField(max_length=255, null=True)
     challonge_linked_at = fields.DatetimeField(null=True)
+    # Verified Twitch identity (captured via one-time OAuth). Identity only — we
+    # do not retain a user's Twitch access token. Unique so a Twitch id resolves
+    # to exactly one user (Postgres allows multiple NULLs, so unlinked users are
+    # unconstrained).
+    twitch_user_id = fields.CharField(max_length=64, null=True, unique=True)
+    twitch_username = fields.CharField(max_length=255, null=True)
+    twitch_linked_at = fields.DatetimeField(null=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
