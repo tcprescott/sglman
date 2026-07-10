@@ -5,6 +5,7 @@ Services orchestrate business operations, validate data, and coordinate
 between repositories. They should NOT know about UI components.
 """
 
+from .analytics_service import AnalyticsService
 from .api_token_service import ApiTokenService
 from .audit_service import AuditService
 from .auth_service import AuthService, get_user_from_discord_id
@@ -41,6 +42,7 @@ from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
+    'AnalyticsService',
     'ApiTokenService',
     'AuditService',
     'AuthService',

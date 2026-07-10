@@ -17,6 +17,12 @@ from .shared import (
 
 REPORT_CARDS = [
     {
+        'key': 'insights',
+        'title': 'Insights & Trends',
+        'icon': 'insights',
+        'description': 'Crew participation, volunteer hours, and tournament health trended over weeks or months.',
+    },
+    {
         'key': 'capacity',
         'title': 'Capacity Forecast',
         'icon': 'show_chart',

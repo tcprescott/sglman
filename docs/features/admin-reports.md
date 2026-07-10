@@ -11,6 +11,7 @@ A multi-report framework in the admin dashboard under the "Reports" tab. Reports
 | Report | Module | Description |
 |---|---|---|
 | Dashboard | `dashboard.py` | Landing page: KPI summary for the event window + cards linking to each report |
+| Insights & Trends | `insights.py` | Crew participation, volunteer hours, tournament health, and admin activity trended weekly/monthly across events (backed by `AnalyticsService`) |
 | Capacity Forecast | `capacity.py` | Concurrent player count over a date range vs. configured capacity |
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
 | Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person |
