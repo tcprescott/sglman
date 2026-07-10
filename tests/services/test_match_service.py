@@ -297,3 +297,45 @@ class TestPlayerCrewMutualExclusion:
         service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=7)])
         with pytest.raises(ValueError, match="tracker"):
             await service.update_match(match_id=1, tracker_ids=[7])
+
+
+# ---------------------------------------------------------------------------
+# assign_stage event publishing
+# ---------------------------------------------------------------------------
+
+
+class TestAssignStage:
+    @pytest.fixture
+    def captured_events(self):
+        from application.events import event_bus
+
+        seen = []
+        token = event_bus.subscribe_sync(seen.append)
+        yield seen
+        event_bus.unsubscribe(token)
+
+    async def test_publishes_stage_assigned_event(self, service, captured_events):
+        from application.events import EventType
+
+        match = make_match(tournament_id=9)
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.update = AsyncMock()
+
+        await service.assign_stage(match_id=1, stream_room_id=4)
+
+        assert [e.event_type for e in captured_events] == [EventType.MATCH_STAGE_ASSIGNED]
+        assert captured_events[0].payload == {
+            'match_id': 1, 'tournament_id': 9, 'stream_room_id': 4,
+        }
+
+    async def test_publishes_stage_cleared_event_when_unassigned(self, service, captured_events):
+        from application.events import EventType
+
+        match = make_match(tournament_id=9)
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.update = AsyncMock()
+
+        await service.assign_stage(match_id=1, stream_room_id=None)
+
+        assert [e.event_type for e in captured_events] == [EventType.MATCH_STAGE_CLEARED]
+        assert captured_events[0].payload['stream_room_id'] is None

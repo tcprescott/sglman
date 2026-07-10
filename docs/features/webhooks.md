@@ -89,7 +89,8 @@ sends. Reject requests whose timestamp is too old to defend against replay.
 
 Everything in `EventType.ALL` — match lifecycle (`match.created`, `match.updated`,
 `match.rescheduled`, `match.seated/started/finished/confirmed`, `match.seed_rolled`,
-`match.stream_candidate_set/_cleared`), crew (`crew.signup_created/signup_removed/
+`match.stage_assigned/_cleared`, `match.stream_candidate_set/_cleared`), crew
+(`crew.signup_created/signup_removed/
 approval_changed/acknowledged`), and volunteer (`volunteer.assigned/unassigned/
 acknowledged`). Select `*` to receive all events. See [event-system.md](event-system.md).
 

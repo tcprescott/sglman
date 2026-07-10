@@ -21,6 +21,8 @@ class EventType:
     MATCH_FINISHED = 'match.finished'
     MATCH_CONFIRMED = 'match.confirmed'
     MATCH_SEED_ROLLED = 'match.seed_rolled'
+    MATCH_STAGE_ASSIGNED = 'match.stage_assigned'
+    MATCH_STAGE_CLEARED = 'match.stage_cleared'
     MATCH_STREAM_CANDIDATE_SET = 'match.stream_candidate_set'
     MATCH_STREAM_CANDIDATE_CLEARED = 'match.stream_candidate_cleared'
 
@@ -39,6 +41,7 @@ class EventType:
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_RESCHEDULED, MATCH_SEATED,
         MATCH_STARTED, MATCH_FINISHED, MATCH_CONFIRMED, MATCH_SEED_ROLLED,
+        MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED,
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,

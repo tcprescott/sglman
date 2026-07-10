@@ -52,7 +52,7 @@ event_bus.publish(Event.create(EventType.MATCH_CREATED, {
 
 Publishers today (co-published alongside the existing `match_events.publish` and
 Discord fan-out, which are unchanged): `match_service` (create/update/reschedule/
-stream-candidate), `match_schedule_service` (`_transition` → seat/start/finish/
+stage-assigned/cleared/stream-candidate), `match_schedule_service` (`_transition` → seat/start/finish/
 confirm, and `generate_seed`), `crew_service` (signup/undo/approval/ack),
 `volunteer_schedule_service` (assign/unassign/ack).
 

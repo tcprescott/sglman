@@ -562,6 +562,11 @@ class MatchService:
         )
 
         match_events.publish(match.id)
+        event_bus.publish(Event.create(
+            EventType.MATCH_STAGE_ASSIGNED if stream_room_id is not None else EventType.MATCH_STAGE_CLEARED,
+            {'match_id': match.id, 'tournament_id': match.tournament_id, 'stream_room_id': stream_room_id},
+            actor,
+        ))
 
         return match
 
