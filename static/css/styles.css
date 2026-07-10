@@ -418,6 +418,12 @@ body.body--dark {
         display: none;
     }
 
+    /* Icon-only login button on phones: hide the label (the full-text button
+       still lives in the page body), leaving the lone glyph centered. */
+    .login-button-text {
+        display: none;
+    }
+
     .sgl-wordmark {
         font-size: 1rem;
         margin-left: var(--space-1);
@@ -973,10 +979,9 @@ body.body--dark {
 }
 
 /* User/Avatar Styles */
-.user-name {
-    margin-left: auto;
-}
-
+/* Right-edge alignment of the header controls is handled by the flexible
+   ui.space() spacer in the header, not margin-left:auto here — that survives
+   .user-name being display:none on phones (see .sgl-header rules). */
 .user-avatar {
     margin-left: 8px;
     margin-right: 8px;
@@ -984,8 +989,18 @@ body.body--dark {
     max-height: 32px;
 }
 
-.login-button {
-    margin-left: auto;
+/* Fallback avatar glyph when the session has no Discord avatar URL. Sized to
+   match the 32px image and tinted white to sit with the header's icon buttons. */
+.user-avatar-placeholder {
+    font-size: 32px;
+    color: #fff;
+}
+
+/* The login button's label is a child element rather than the q-btn text prop
+   (so it can be hidden on phones), which means the icon carries no automatic
+   gap — restore it here. */
+.login-button-text {
+    margin-left: 4px;
 }
 
 /* Flex & Layout Utilities */
