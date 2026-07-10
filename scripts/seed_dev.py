@@ -106,37 +106,48 @@ async def seed() -> None:
         await TournamentPlayers.get_or_create(tournament=tournament, user=p)
     print("  tournament ok")
 
-    # Matches — one per lifecycle state
+    # Matches — one per lifecycle state, plus extra fixtures for variety
     stage1 = await StreamRoom.get(name="Stage 1")
     stage2 = await StreamRoom.get(name="Stage 2")
+    stage3 = await StreamRoom.get(name="Stage 3")
     now = now_eastern()
 
     async def make_match(
         title: str,
-        offset_hours: float,
+        offset_hours: float | None,
         *,
         seated: bool = False,
         started: bool = False,
         finished: bool = False,
+        confirmed: bool = True,
         p1: User | None = None,
         p2: User | None = None,
         room: StreamRoom | None = None,
+        stream_candidate: bool = True,
+        comment: str | None = None,
     ) -> Match:
-        scheduled_at = now + timedelta(hours=offset_hours)
+        scheduled_at = now + timedelta(hours=offset_hours) if offset_hours is not None else None
         match, created = await Match.get_or_create(
             title=title,
             tournament=tournament,
-            defaults={"scheduled_at": scheduled_at, "stream_room": room, "is_stream_candidate": True},
+            defaults={
+                "scheduled_at": scheduled_at,
+                "stream_room": room,
+                "is_stream_candidate": stream_candidate,
+                "comment": comment,
+            },
         )
         if not created:
             return match
+        anchor = scheduled_at or now
         if seated or started or finished:
-            match.seated_at = scheduled_at - timedelta(minutes=10)
+            match.seated_at = anchor - timedelta(minutes=10)
         if started or finished:
-            match.started_at = scheduled_at
+            match.started_at = anchor
         if finished:
-            match.finished_at = scheduled_at + timedelta(hours=1)
-            match.confirmed_at = scheduled_at + timedelta(hours=1, minutes=5)
+            match.finished_at = anchor + timedelta(hours=1)
+            if confirmed:
+                match.confirmed_at = anchor + timedelta(hours=1, minutes=5)
         await match.save()
         for rank, player in enumerate([p1, p2], 1):
             if player:
@@ -151,15 +162,39 @@ async def seed() -> None:
     checked_in_match = await make_match("Checked-In Match",  0,   seated=True,  p1=players[0], p2=players[1], room=stage1)
     in_progress_match = await make_match("In-Progress Match", -1,  seated=True, started=True,  p1=players[2], p2=players[3], room=stage2)
     finished_match = await make_match("Finished Match",    -3,  seated=True, started=True, finished=True, p1=players[0], p2=players[2], room=stage1)
+    stage3_match = await make_match(
+        "Stage 3 Rematch", 3, seated=True, p1=players[1], p2=players[3], room=stage3,
+        comment="Requested a rematch after a disconnect last round.",
+    )
+    offstream_match = await make_match(
+        "Off-Stream Match", 4, p1=players[2], p2=players[0], stream_candidate=False,
+    )
+    future_match = await make_match(
+        "Grand Finals", 30, p1=players[3], p2=players[1], room=stage1,
+        comment="Best of 3, winner takes the trophy.",
+    )
+    disputed_match = await make_match(
+        "Disputed Match", -5, seated=True, started=True, finished=True, confirmed=False,
+        p1=players[1], p2=players[2], room=stage2,
+        comment="Result under review — desync reported by both players.",
+    )
+    unscheduled_match = await make_match(
+        "TBD Match", None, p1=players[3], p2=players[0], stream_candidate=False,
+    )
     matches = {
         "scheduled": scheduled_match,
         "checked_in": checked_in_match,
         "in_progress": in_progress_match,
         "finished": finished_match,
+        "stage3": stage3_match,
+        "offstream": offstream_match,
+        "future": future_match,
+        "disputed": disputed_match,
+        "unscheduled": unscheduled_match,
     }
     print("  matches ok")
 
-    # A generated seed, attached to the finished match.
+    # Generated seeds, attached to matches that have already been rolled.
     seed, _ = await GeneratedSeeds.get_or_create(
         seed_url="https://alttpr.com/en/h/DevSeed0",
         defaults={"seed_info": json.dumps({"logic": "NoGlitches", "spoilers": "off"})},
@@ -167,6 +202,14 @@ async def seed() -> None:
     if finished_match.generated_seed_id is None:
         finished_match.generated_seed = seed
         await finished_match.save()
+
+    disputed_seed, _ = await GeneratedSeeds.get_or_create(
+        seed_url="https://alttpr.com/en/h/DevSeed1",
+        defaults={"seed_info": json.dumps({"logic": "Glitched", "spoilers": "mystery"})},
+    )
+    if disputed_match.generated_seed_id is None:
+        disputed_match.generated_seed = disputed_seed
+        await disputed_match.save()
 
     # Match acknowledgments — the checked-in match's players have both confirmed.
     for player in (players[0], players[1]):
@@ -183,9 +226,18 @@ async def seed() -> None:
         match=scheduled_match, user=players[1],
         defaults={"acknowledged_at": None, "auto_acknowledged": False},
     )
+    # Grand Finals — one player auto-acknowledged, the other hasn't responded.
+    await MatchAcknowledgment.get_or_create(
+        match=future_match, user=players[3],
+        defaults={"acknowledged_at": now, "auto_acknowledged": True},
+    )
+    await MatchAcknowledgment.get_or_create(
+        match=future_match, user=players[1],
+        defaults={"acknowledged_at": None, "auto_acknowledged": False},
+    )
 
-    # Match watchers — staff keeps an eye on the scheduled and in-progress matches.
-    for m in (scheduled_match, in_progress_match):
+    # Match watchers — staff keeps an eye on the scheduled, in-progress, and disputed matches.
+    for m in (scheduled_match, in_progress_match, disputed_match):
         await MatchWatcher.get_or_create(user=staff, match=m)
 
     # Notification preference — staff wants DMs for every match in this tournament.
@@ -211,6 +263,20 @@ async def seed() -> None:
     await Commentator.get_or_create(
         match=finished_match, user=proctor,
         defaults={"approved": True, "approved_by": staff, "acknowledged_at": now - timedelta(hours=3)},
+    )
+    # Grand Finals has two commentators signed up, one still awaiting approval.
+    await Commentator.get_or_create(
+        match=future_match, user=sm,
+        defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
+    )
+    await Commentator.get_or_create(
+        match=future_match, user=proctor,
+        defaults={"approved": False},
+    )
+    # Stage 3 match has a tracker but no commentator yet.
+    await Tracker.get_or_create(
+        match=stage3_match, user=sm,
+        defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
     )
     print("  crew ok")
 
