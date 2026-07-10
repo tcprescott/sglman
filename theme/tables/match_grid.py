@@ -188,7 +188,7 @@ _ACTIONS = '''
             <q-btn v-if="__IA__ && __CC__" icon="switch_access_shortcut" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />
-            <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'visibility' : 'visibility_off'"
+            <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"
                    :color="props.row._watching ? 'primary' : 'grey'" size="md" flat round
                    @click="$parent.$emit('toggle_watch', props.row)">
                 <q-tooltip>{{ props.row._watching ? 'Stop watching this match' : 'Watch this match for Discord updates' }}</q-tooltip>
