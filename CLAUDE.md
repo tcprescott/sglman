@@ -106,10 +106,11 @@ Fetch the authoritative API surface from `nicegui/llms.md` inside the installed 
   table.on('evt', lambda e: background_tasks.create(handle(e.args, context.client)))
 
   async def handle(row, client):
-      async with client:
+      with client:
           ...
           ui.notify('Done', color='positive')
   ```
+  `Client` only supports the sync context manager (`with`), not `async with` — `nicegui.client.Client` has `__enter__`/`__exit__` only, so `async with client:` raises `TypeError: 'Client' object does not support the asynchronous context manager protocol` at runtime.
 - **Never block the event loop** — all users share one loop. Use `async with httpx.AsyncClient()` (not `requests`) and `await asyncio.sleep()` (not `time.sleep()`).
 - **Use `@ui.refreshable`** for dynamic sections; call `.refresh()` after data changes instead of rebuilding the page.
 - **Module-level variables are shared across all users** — never store per-user state at module level; use `app.storage.user` or locals inside the `@ui.page` function.

@@ -159,19 +159,19 @@ class BaseMatchDialog:
             try:
                 if new_value:
                     await watcher_service.watch(match_id, user)
-                    async with client:
+                    with client:
                         ui.notify(
                             f'Now watching match ID {match_id}. You will receive Discord DMs on updates.',
                             color='positive',
                         )
                 else:
                     await watcher_service.unwatch(match_id, user)
-                    async with client:
+                    with client:
                         ui.notify(f'No longer watching match ID {match_id}.', color='positive')
             except ValueError as e:
                 switch_ref['widget'].value = not new_value
                 switch_ref['widget'].update()
-                async with client:
+                with client:
                     ui.notify(str(e), color='warning')
 
         switch_ref['widget'] = ui.switch(

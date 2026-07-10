@@ -112,6 +112,8 @@ async def admin_webhooks_page() -> None:
                     'url': w.url,
                     'events': _events_summary(w.event_types),
                     'is_active': 'Yes' if w.is_active else 'No',
+                    'event_types': w.event_types,
+                    'is_active_raw': w.is_active,
                 }
                 for w in webhooks
             ]
@@ -130,7 +132,7 @@ async def admin_webhooks_page() -> None:
             dialog.open()
 
         async def delete_webhook(row, client):
-            async with client:
+            with client:
                 try:
                     await service.delete_webhook(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
@@ -140,7 +142,7 @@ async def admin_webhooks_page() -> None:
                 await refresh_table()
 
         async def regenerate_secret(row, client):
-            async with client:
+            with client:
                 try:
                     secret = await service.regenerate_secret(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
@@ -149,7 +151,7 @@ async def admin_webhooks_page() -> None:
                 show_secret('New signing secret', secret)
 
         async def view_deliveries(row, client):
-            async with client:
+            with client:
                 try:
                     deliveries = await service.list_deliveries(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
@@ -206,7 +208,7 @@ async def admin_webhooks_page() -> None:
                         value=existing['event_types'] if is_edit else [],
                     ).props('use-chips').classes('w-full')
                     active_switch = ui.switch(
-                        'Active', value=existing['is_active'] if is_edit else True,
+                        'Active', value=existing['is_active_raw'] if is_edit else True,
                     )
 
                     async def submit():
