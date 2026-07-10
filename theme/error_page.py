@@ -55,6 +55,12 @@ def render_error_page(
             ui.label(headline).classes('error-headline')
             ui.label(message).classes('error-message')
 
+            if status_code == 404:
+                from application.utils.easter_eggs import random_cat_fact
+                with ui.row().classes('error-cat-fact items-center'):
+                    ui.icon('pets').props('size=sm')
+                    ui.label(random_cat_fact())
+
             if error_id:
                 _remember_error_id(error_id)
                 with ui.row().classes('error-ref-row items-center'):

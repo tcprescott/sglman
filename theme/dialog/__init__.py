@@ -1,4 +1,5 @@
 from theme.dialog.approve_crew_dialog import ApproveCrewDialog
+from theme.dialog.cat_fact_dialog import CatFactDialog
 from theme.dialog.checkout_dialog import CheckoutDialog, open_checkout, quick_checkin
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.equipment_dialog import EquipmentDialog
@@ -11,6 +12,7 @@ from theme.dialog.user_edit_dialog import AdminUserDialog, UserDialog
 
 __all__ = [
     'ApproveCrewDialog',
+    'CatFactDialog',
     'CheckoutDialog',
     'open_checkout',
     'quick_checkin',

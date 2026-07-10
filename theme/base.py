@@ -98,6 +98,25 @@ class BaseLayout:
             ');'
             '</script>'
         )
+        # Konami code (↑↑↓↓←→←→BA) opens a hidden cat-fact dialog. The guard keeps
+        # the window listener from being installed more than once across renders.
+        ui.add_body_html(
+            '<script>'
+            'if(!window.__sglman_konami_installed){'
+            'window.__sglman_konami_installed=true;'
+            "const seq=['ArrowUp','ArrowUp','ArrowDown','ArrowDown',"
+            "'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];"
+            'let pos=0;'
+            "window.addEventListener('keydown',function(e){"
+            'const key=e.key.length===1?e.key.toLowerCase():e.key;'
+            'if(key===seq[pos]){pos++;'
+            "if(pos===seq.length){pos=0;emitEvent('sgl_konami',{});}}"
+            'else{pos=(key===seq[0])?1:0;}'
+            '});'
+            '}'
+            '</script>'
+        )
+        ui.on('sgl_konami', lambda _: self._open_cat_fact())
         # Phoenix brand palette: gold primary, ember secondary; semantic colors
         # warm-tuned to match the --status-* tokens in styles.css so notify
         # toasts and negative buttons sit with the palette instead of stock
@@ -114,6 +133,10 @@ class BaseLayout:
         self._render_header()
         self._render_drawer()
         self._render_footer()
+
+    def _open_cat_fact(self) -> None:
+        from theme.dialog import CatFactDialog
+        CatFactDialog().open()
 
     def _render_header(self) -> None:
         """Render the header with burger menu button and user controls."""
@@ -133,7 +156,17 @@ class BaseLayout:
                 icon='menu',
                 on_click=lambda: self._drawer.toggle()
             ).props('flat color=white').classes('sgl-burger')
-            ui.label('SGL On Site').classes('sgl-wordmark')
+
+            wordmark_taps = {'n': 0}
+
+            def on_wordmark_tap():
+                from theme.dialog import CatFactDialog
+                wordmark_taps['n'] += 1
+                if wordmark_taps['n'] >= 5:
+                    wordmark_taps['n'] = 0
+                    CatFactDialog().open()
+
+            ui.label('SGL On Site').classes('sgl-wordmark').on('click', on_wordmark_tap)
 
             if self.user:
                 ui.label(self.user.preferred_name).classes('text-lg user-name')
