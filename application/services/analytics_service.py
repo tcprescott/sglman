@@ -14,10 +14,10 @@ Like :class:`ReportsService`, this queries the ORM models directly rather than
 going through repositories — the aggregations are read-only and self-contained.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from application.utils.timezone import now_eastern, to_eastern
+from application.utils.timezone import EASTERN_TZ, now_eastern, to_eastern
 from models import AuditLog, Match, VolunteerShift
 
 
@@ -34,8 +34,10 @@ HEALTH_WEIGHTS = {
     'duration': 0.20,
 }
 
-# Buckets wider than this are refused to avoid pathologically large series from
-# an accidental multi-year weekly range.
+# A range wider than this many buckets keeps only the most-recent MAX_BUCKETS
+# (dropping the oldest) so the series can't grow without bound from an accidental
+# multi-year weekly range. The DB query is clamped to the kept window too, so the
+# reported totals always match what the chart shows.
 MAX_BUCKETS = 240
 
 
@@ -66,17 +68,39 @@ class AnalyticsService:
             return date(year, month, 1)
         return d + timedelta(days=7)
 
+    @staticmethod
+    def _shift_bucket_back(d: date, n: int, bucket: str) -> date:
+        """Move a bucket-start date back ``n`` buckets, clamped to ``date.min``."""
+        if bucket == 'month':
+            total = d.year * 12 + (d.month - 1) - n
+            if total < 0:
+                return date.min
+            year, month = divmod(total, 12)
+            return date(max(year, 1), month + 1, 1)
+        try:
+            return d - timedelta(days=n * 7)
+        except OverflowError:
+            return date.min
+
     @classmethod
     def iter_bucket_starts(
         cls, start: date, end: date, bucket: str
     ) -> List[date]:
-        """Contiguous bucket-start dates covering ``[start, end]`` inclusive."""
+        """Contiguous bucket-start dates covering ``[start, end]`` inclusive.
+
+        When the span exceeds ``MAX_BUCKETS``, the oldest buckets are dropped so
+        only the most-recent ``MAX_BUCKETS`` are returned (the loop stays bounded).
+        """
         if end < start:
             end = start
-        cursor = cls.bucket_start(start, bucket)
+        first = cls.bucket_start(start, bucket)
         last = cls.bucket_start(end, bucket)
+        floor = cls._shift_bucket_back(last, MAX_BUCKETS - 1, bucket)
+        if first < floor:
+            first = floor
         out: List[date] = []
-        while cursor <= last and len(out) < MAX_BUCKETS:
+        cursor = first
+        while cursor <= last:
             out.append(cursor)
             cursor = cls._next_bucket(cursor, bucket)
         return out
@@ -105,6 +129,29 @@ class AnalyticsService:
         eastern = to_eastern(instant)
         key = cls.bucket_start(eastern.date(), bucket)
         return index_map.get(key)
+
+    @classmethod
+    def _bucket_axis(
+        cls, start: datetime, end: datetime, bucket: str
+    ) -> Tuple[List[date], Dict[date, int], datetime, datetime]:
+        """Resolve the bucket series and the (clamped, half-open) query window.
+
+        ``end`` is treated as exclusive to match the half-open bounds produced by
+        ``eastern_bounds``, so a range ending at midnight does not spawn a spurious
+        trailing bucket. The query lower bound is raised to the first kept bucket so
+        that when ``MAX_BUCKETS`` drops the oldest buckets, dropped rows are excluded
+        from the totals too (chart and totals stay consistent).
+        """
+        start = to_eastern(start)
+        end = to_eastern(end)
+        if end < start:
+            end = start
+        last_moment = end - timedelta(microseconds=1) if end > start else end
+        bucket_starts = cls.iter_bucket_starts(start.date(), last_moment.date(), bucket)
+        index_map = {d: i for i, d in enumerate(bucket_starts)}
+        first_bucket_dt = datetime.combine(bucket_starts[0], time(0, 0), tzinfo=EASTERN_TZ)
+        query_start = max(start, first_bucket_dt)
+        return bucket_starts, index_map, query_start, end
 
     @staticmethod
     def health_score(components: Sequence[Tuple[float, float]]) -> Optional[float]:
@@ -141,13 +188,10 @@ class AnalyticsService:
         happens), not the signup timestamp.
         """
         bucket = self._normalize_bucket(bucket)
-        start = self._eastern(start)
-        end = self._eastern(end)
-        bucket_starts = self.iter_bucket_starts(start.date(), end.date(), bucket)
-        index_map = self._index_map(bucket_starts, bucket)
+        bucket_starts, index_map, q_start, q_end = self._bucket_axis(start, end, bucket)
         n = len(bucket_starts)
 
-        query = Match.all().filter(scheduled_at__gte=start, scheduled_at__lte=end)
+        query = Match.all().filter(scheduled_at__gte=q_start, scheduled_at__lt=q_end)
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
         matches = await query.prefetch_related(
@@ -222,14 +266,11 @@ class AnalyticsService:
         were actually checked in. Needed hours use ``slots_needed`` for fill rate.
         """
         bucket = self._normalize_bucket(bucket)
-        start = self._eastern(start)
-        end = self._eastern(end)
-        bucket_starts = self.iter_bucket_starts(start.date(), end.date(), bucket)
-        index_map = self._index_map(bucket_starts, bucket)
+        bucket_starts, index_map, q_start, q_end = self._bucket_axis(start, end, bucket)
         n = len(bucket_starts)
 
         shifts = await VolunteerShift.all().filter(
-            starts_at__gte=start, starts_at__lte=end,
+            starts_at__gte=q_start, starts_at__lt=q_end,
         ).prefetch_related('position', 'assignments', 'assignments__user')
 
         scheduled_hours = [0.0] * n
@@ -307,6 +348,7 @@ class AnalyticsService:
         self,
         start: datetime,
         end: datetime,
+        tournament_id: Optional[int] = None,
     ) -> Dict:
         """Per-tournament health scorecards for matches scheduled in the window.
 
@@ -317,9 +359,10 @@ class AnalyticsService:
         end = self._eastern(end)
         now = now_eastern()
 
-        matches = await Match.all().filter(
-            scheduled_at__gte=start, scheduled_at__lte=end,
-        ).prefetch_related('tournament', 'commentators', 'trackers')
+        query = Match.all().filter(scheduled_at__gte=start, scheduled_at__lt=end)
+        if tournament_id:
+            query = query.filter(tournament_id=tournament_id)
+        matches = await query.prefetch_related('tournament', 'commentators', 'trackers')
 
         per_tournament: Dict[int, Dict] = {}
         for match in matches:
@@ -334,6 +377,7 @@ class AnalyticsService:
                 'matches_past': 0,
                 'matches_started': 0,
                 'matches_finished': 0,
+                'matches_finished_past': 0,
                 'on_time_count': 0,
                 '_start_delay_sum': 0,
                 '_start_delay_seen': 0,
@@ -347,13 +391,16 @@ class AnalyticsService:
             started = self._eastern(match.started_at)
             finished = self._eastern(match.finished_at)
 
+            is_past = bool(scheduled and scheduled < now)
             stats['matches_total'] += 1
-            if scheduled and scheduled < now:
+            if is_past:
                 stats['matches_past'] += 1
             if started:
                 stats['matches_started'] += 1
             if finished:
                 stats['matches_finished'] += 1
+                if is_past:
+                    stats['matches_finished_past'] += 1
 
             if scheduled and started:
                 delay = int((started - scheduled).total_seconds() / 60)
@@ -381,8 +428,10 @@ class AnalyticsService:
 
     @classmethod
     def _finalize_health(cls, stats: Dict) -> Dict:
+        # Numerator counts only finished *past* matches so completion stays in
+        # [0, 1] even when a finished match has been rescheduled into the future.
         completion = (
-            stats['matches_finished'] / stats['matches_past']
+            stats['matches_finished_past'] / stats['matches_past']
             if stats['matches_past'] > 0 else None
         )
         on_time = (

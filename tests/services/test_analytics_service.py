@@ -83,6 +83,18 @@ class TestIterBucketStarts:
         starts = AnalyticsService.iter_bucket_starts(date(2000, 1, 1), date(2030, 1, 1), 'week')
         assert len(starts) == MAX_BUCKETS
 
+    def test_cap_keeps_most_recent_buckets(self):
+        # When capped, the newest bucket must still reach the end of the range —
+        # it is the oldest buckets that get dropped, not the newest.
+        starts = AnalyticsService.iter_bucket_starts(date(2000, 1, 1), date(2030, 1, 6), 'week')
+        assert starts[-1] == AnalyticsService.bucket_start(date(2030, 1, 6), 'week')
+        assert len(starts) == MAX_BUCKETS
+
+    def test_monthly_cap_keeps_most_recent(self):
+        starts = AnalyticsService.iter_bucket_starts(date(1900, 1, 1), date(2030, 6, 15), 'month')
+        assert starts[-1] == date(2030, 6, 1)
+        assert len(starts) == MAX_BUCKETS
+
 
 # ---------------------------------------------------------------------------
 # bucket_label / _bucket_index
@@ -167,6 +179,7 @@ def _stats(**overrides):
         'matches_past': 0,
         'matches_started': 0,
         'matches_finished': 0,
+        'matches_finished_past': 0,
         'on_time_count': 0,
         '_start_delay_sum': 0,
         '_start_delay_seen': 0,
@@ -181,8 +194,18 @@ def _stats(**overrides):
 
 class TestFinalizeHealth:
     def test_completion_only_from_past_matches(self):
-        row = AnalyticsService._finalize_health(_stats(matches_past=4, matches_finished=3))
+        row = AnalyticsService._finalize_health(
+            _stats(matches_past=4, matches_finished=3, matches_finished_past=3)
+        )
         assert row['completion_pct'] == 75.0
+
+    def test_completion_capped_when_finished_exceeds_past(self):
+        # A match finished then rescheduled into the future inflates
+        # matches_finished but not matches_finished_past; completion stays <= 100.
+        row = AnalyticsService._finalize_health(
+            _stats(matches_total=2, matches_past=1, matches_finished=2, matches_finished_past=1)
+        )
+        assert row['completion_pct'] == 100.0
 
     def test_no_past_matches_leaves_completion_none(self):
         row = AnalyticsService._finalize_health(_stats(matches_total=5, matches_past=0))
@@ -213,7 +236,7 @@ class TestFinalizeHealth:
 
     def test_combined_score_weights(self):
         row = AnalyticsService._finalize_health(_stats(
-            matches_past=2, matches_finished=2,          # completion 1.0
+            matches_past=2, matches_finished=2, matches_finished_past=2,  # completion 1.0
             _start_delay_seen=2, on_time_count=1, _start_delay_sum=23,  # on-time 0.5
             stream_candidates=2, candidates_covered=1,   # coverage 0.5
             _duration_sum=178, _duration_seen=2, expected_avg_min=90,   # adherence ~0.989
@@ -313,6 +336,18 @@ class TestCrewParticipationTrends:
         )
         assert out['totals']['commentator_approved'] == 1
 
+    async def test_end_is_exclusive(self, db):
+        # A match scheduled exactly at the window's exclusive end must be excluded
+        # and must not create a spurious trailing bucket.
+        t = await Tournament.create(name='Cup')
+        u = await _user(1, 'Alice')
+        m = await Match.create(tournament=t, scheduled_at=WINDOW_END)
+        await Commentator.create(user=u, match=m, approved=True)
+
+        out = await AnalyticsService().crew_participation_trends(WINDOW_START, WINDOW_END, 'week')
+        assert len(out['bucket_labels']) == 5  # [Sep29, Oct6, Oct13, Oct20, Oct27]
+        assert out['totals']['commentator_approved'] == 0
+
 
 class TestVolunteerHourTrends:
     async def test_scheduled_checked_in_and_fill(self, db):
@@ -381,7 +416,39 @@ class TestTournamentHealthDB:
         assert row['completion_pct'] == 100.0
         assert row['on_time_pct'] == 50.0
         assert row['coverage_pct'] == 50.0
-        assert 70.0 <= row['health_score'] <= 78.0
+        # completion 1.0, on-time 0.5, coverage 0.5, adherence 1-1/90 → 74.8
+        assert row['health_score'] == pytest.approx(74.8, abs=0.1)
+
+    async def test_future_finished_match_does_not_inflate_completion(self, db):
+        # A match with finished_at set but scheduled far in the future must not
+        # push completion above 100% (it is not counted as a past match).
+        t = await Tournament.create(name='Cup', average_match_duration=90)
+        await Match.create(
+            tournament=t, scheduled_at=utc(2025, 10, 8, 16),
+            started_at=utc(2025, 10, 8, 16, 2), finished_at=utc(2025, 10, 8, 17, 30),
+        )
+        await Match.create(
+            tournament=t, scheduled_at=utc(2099, 10, 9, 16),
+            started_at=utc(2099, 10, 9, 16, 5), finished_at=utc(2099, 10, 9, 17, 35),
+        )
+        out = await AnalyticsService().tournament_health(
+            eastern(2025, 10, 1), eastern(2100, 1, 1),
+        )
+        row = next(r for r in out['rows'] if r['tournament_id'] == t.id)
+        assert row['matches_finished'] == 2
+        assert row['matches_past'] == 1
+        assert row['completion_pct'] == 100.0
+
+    async def test_tournament_filter(self, db):
+        t1 = await Tournament.create(name='A')
+        t2 = await Tournament.create(name='B')
+        await Match.create(tournament=t1, scheduled_at=utc(2025, 10, 8, 16))
+        await Match.create(tournament=t2, scheduled_at=utc(2025, 10, 8, 16))
+        out = await AnalyticsService().tournament_health(
+            WINDOW_START, WINDOW_END, tournament_id=t1.id,
+        )
+        assert len(out['rows']) == 1
+        assert out['rows'][0]['tournament_id'] == t1.id
 
 
 class TestActivityTrendsDB:

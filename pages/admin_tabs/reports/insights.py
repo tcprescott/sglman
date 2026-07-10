@@ -101,18 +101,21 @@ async def insights_page(
 
         crew, hours, health, activity = await _load(analytics, bounds_start, bounds_end, bucket, tournament_id)
 
+        # Volunteer shifts and audit logs are not tournament-scoped in the data
+        # model, so the tournament filter only narrows the crew and health sections.
+        scoped = tournament_id is not None
         _kpi_strip(crew, hours, health)
         _crew_section(crew, start_d, end_d)
-        _volunteer_section(hours, start_d, end_d)
+        _volunteer_section(hours, start_d, end_d, scoped)
         _health_section(health, start_d, end_d)
-        _activity_section(activity)
+        _activity_section(activity, scoped)
 
 
 async def _load(analytics, start, end, bucket, tournament_id):
     return await asyncio.gather(
         analytics.crew_participation_trends(start, end, bucket, tournament_id=tournament_id),
         analytics.volunteer_hour_trends(start, end, bucket),
-        analytics.tournament_health(start, end),
+        analytics.tournament_health(start, end, tournament_id=tournament_id),
         analytics.activity_trends(start, end, bucket),
     )
 
@@ -206,12 +209,15 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
 # --- Volunteer hours ------------------------------------------------------
 
 
-def _volunteer_section(hours: dict, start_d: date, end_d: date) -> None:
+def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = False) -> None:
     labels = hours['bucket_labels']
     with ui.card().classes('chart-container q-pa-md'):
         ui.label('Volunteer hours over time').classes('text-h6')
         ui.label('Scheduled vs checked-in volunteer-hours per bucket, with fill rate.') \
             .classes('italic-note')
+        if scoped:
+            ui.label('Event-wide — volunteer shifts are not tied to a tournament.') \
+                .classes('italic-note')
         if not _has_signal(hours['scheduled_hours'] + hours['checked_in_hours']):
             ui.label('No volunteer hours in the selected window.').classes('italic-note q-mt-md')
         else:
@@ -346,12 +352,15 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
 # --- Admin activity -------------------------------------------------------
 
 
-def _activity_section(activity: dict) -> None:
+def _activity_section(activity: dict, scoped: bool = False) -> None:
     labels = activity['bucket_labels']
     categories = activity['categories']
     with ui.card().classes('chart-container q-pa-md'):
         ui.label('Admin activity over time').classes('text-h6')
         ui.label('Audit-log actions per bucket, by top action category.').classes('italic-note')
+        if scoped:
+            ui.label('Event-wide — audit activity is not tied to a tournament.') \
+                .classes('italic-note')
         if activity['total'] == 0:
             ui.label('No audit activity in the selected window.').classes('italic-note q-mt-md')
         else:
