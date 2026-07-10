@@ -424,6 +424,38 @@ class AuditLog(Model):
         table = 'auditlog'
         indexes = (('user',),)
 
+class TelemetryEvent(Model):
+    """Append-only engagement telemetry: how people actually use the tool.
+
+    Distinct from ``AuditLog`` (which records deliberate admin *actions*): this
+    is high-volume behavioral signal — page views, feature interactions, and a
+    mirror of every domain event on the bus — captured to answer "how did people
+    engage post-event?". ``user`` is ``SET_NULL`` + identity-snapshotted into
+    ``details`` so the trail survives a user deletion, exactly like ``AuditLog``.
+    """
+    id = fields.IntField(pk=True)
+    user = fields.ForeignKeyField(
+        'models.User', related_name='telemetry_events', null=True, on_delete=fields.SET_NULL
+    )
+    # Coarse bucket for aggregation without parsing event_type: 'page',
+    # 'interaction', or 'domain' (see TelemetryCategory in the service).
+    category = fields.CharField(max_length=32, index=True)
+    # Namespaced ``object.verb`` name. For domain rows this is the EventType
+    # string; for engagement rows it is e.g. 'page.view' / 'report.exported'.
+    event_type = fields.CharField(max_length=100, index=True)
+    # Route/page the event happened on (page views + interactions); null for
+    # domain events, which are not page-scoped.
+    path = fields.CharField(max_length=512, null=True)
+    # Per-browser correlation id (NiceGUI app.storage.browser id) so a user's
+    # journey can be reconstructed as an ordered session; null for bus events.
+    session_id = fields.CharField(max_length=64, null=True, index=True)
+    details = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True, index=True)
+
+    class Meta:
+        table = 'telemetryevent'
+        indexes = (('user',),)
+
 class GeneratedSeeds(Model):
     id = fields.IntField(pk=True)
     seed_url = fields.CharField(max_length=255)

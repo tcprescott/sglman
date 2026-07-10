@@ -58,6 +58,13 @@ REPORT_CARDS = [
         'icon': 'fact_check',
         'description': 'Filterable history of admin actions across the app.',
     },
+    {
+        'key': 'telemetry',
+        'title': 'Engagement Telemetry',
+        'icon': 'insights',
+        'description': 'How people use the tool: page views, interactions, and '
+                       'domain events. Staff only.',
+    },
 ]
 
 

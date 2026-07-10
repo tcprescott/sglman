@@ -4,7 +4,7 @@ Pure bucketing / health-score helpers are tested without a DB; the four
 aggregations are exercised against the in-memory SQLite ``db`` fixture.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 

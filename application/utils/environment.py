@@ -26,6 +26,20 @@ def get_base_url() -> str:
     return os.getenv('BASE_URL', 'http://localhost:8000').rstrip('/')
 
 
+def telemetry_enabled() -> bool:
+    """Whether engagement telemetry capture is on (default: on).
+
+    A kill-switch for the behavioral capture path (page views, interactions,
+    and the domain-event mirror). Set ``TELEMETRY_ENABLED`` to a falsey value
+    (``0``/``false``/``no``/``off``) to disable capture without a redeploy of
+    code — reads are unaffected, they just show whatever was already recorded.
+    """
+    raw = os.environ.get('TELEMETRY_ENABLED')
+    if raw is None:
+        return True
+    return raw.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

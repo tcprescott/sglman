@@ -46,6 +46,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
+| `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [tournament-notifications.md](../features/tournament-notifications.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -429,6 +430,10 @@ Typed, static accessors over the `SystemConfiguration` key/value table. Module c
 | `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; validates HH:MM format and that close is after open (`ValueError`). |
 
 Consumers: `ReportsService`, `MatchSuggestionService`, `volunteer_reminder`, `DiscordRoleMappingService`, and `pages/admin_tabs/reports/` (`shared.py`, `capacity.py`, `dashboard.py`).
+
+### telemetry_service.py — TelemetryService
+
+Engagement telemetry — *how* people use the tool, as opposed to the deliberate actions `AuditService` records. Three best-effort, non-blocking capture points, all honoring the `TELEMETRY_ENABLED` kill-switch and swallowing/logging their own errors so telemetry never breaks a render or a mutating call: `record_event(event)` (registered on the [event bus](../features/event-system.md) in `main.py`, mirroring every published domain event into a `domain` `TelemetryEvent` row on the dispatch worker), `track_page_view(...)` (called from the `protected_page` decorator on every authenticated page load, capturing path + bounded query params + browser session id), and `track_interaction(...)` (curated UI actions, e.g. `report.viewed` from the reports dispatcher). Reads power the Staff-only engagement report and are gated on `AuthService.is_staff` (`ensure`, like `WebhookService`): `engagement_summary`, `top_paths`, `top_event_types`, `top_users`, `list_events`, `count_events` — aggregations run in the database via `TelemetryRepository`. `TelemetryCategory` (`page`/`interaction`/`domain`) and `TelemetryEventType` (`page.view`/`report.viewed`/`report.exported`) name the buckets and engagement event types. Collaborators: `TelemetryRepository`, `AuthService`, `application.events`, `application.utils.environment.telemetry_enabled`. Consumers: `main.py` (bus subscription), `middleware/auth.py` (page views), `pages/admin_tabs/reports/` (`__init__.py` interaction, `telemetry.py` report). Feature doc: [telemetry.md](../features/telemetry.md).
 
 ### tournament_notification_service.py — TournamentNotificationService
 

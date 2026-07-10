@@ -18,6 +18,7 @@ from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .stream_room_repository import StreamRoomRepository
 from .tournament_notification_repository import TournamentNotificationRepository
+from .telemetry_repository import TelemetryRepository
 from .tournament_repository import TournamentRepository
 from .tracker_repository import TrackerRepository
 from .triforce_text_repository import TriforceTextRepository
@@ -46,6 +47,7 @@ __all__ = [
     'MatchRepository',
     'MatchWatcherRepository',
     'StreamRoomRepository',
+    'TelemetryRepository',
     'TournamentNotificationRepository',
     'TournamentRepository',
     'TrackerRepository',

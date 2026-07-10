@@ -36,6 +36,7 @@ def create() -> None:
         approval: str = None,
         action: str = None,
         focus: str = None,
+        category: str = None,
         page: int = None,
     ) -> None:
         ui.page_title('Speedgaming Live Onsite - Admin Dashboard')
@@ -78,6 +79,7 @@ def create() -> None:
             'approval': approval,
             'action': action,
             'focus': focus,
+            'category': category,
             'page': page,
         }
 

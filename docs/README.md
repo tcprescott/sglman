@@ -48,6 +48,7 @@ Implementation notes for each shipped feature.
 | [features/discord-notifications.md](features/discord-notifications.md) | Match lifecycle DM notifications and fan-out |
 | [features/event-system.md](features/event-system.md) | In-process event bus: publish/subscribe, sync vs async subscribers, `EventType` registry |
 | [features/webhooks.md](features/webhooks.md) | Staff-managed outbound webhooks: signing, retries, delivery log, config UI |
+| [features/telemetry.md](features/telemetry.md) | Engagement telemetry: page views, interactions, domain-event mirror, Staff-only report |
 | [features/web-push.md](features/web-push.md) | Device notifications: Declarative Web Push (iOS/Android/desktop) mirroring Discord DMs |
 | [features/discord-role-sync.md](features/discord-role-sync.md) | Map Discord guild roles to app roles at login |
 | [features/match-acknowledgment.md](features/match-acknowledgment.md) | Player and crew match acknowledgment flows |
@@ -77,12 +78,12 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` — 35 models, 9 enums | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` — 33 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service) |
+| `models.py` — 36 models, 9 enums | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` — 34 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service), [features/telemetry.md](features/telemetry.md) (telemetry_service) |
 | `application/events/` — event bus (`bus.py`, `event.py`, `event_types.py`, `dispatch_queue.py`) | [features/event-system.md](features/event-system.md) |
-| `application/repositories/` — 28 repositories | [reference/data-model.md](reference/data-model.md) |
+| `application/repositories/` — 29 repositories | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` — 11 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
-| `middleware/` — auth.py (`protected_page` + `AuthMiddleware`) | [reference/authentication.md](reference/authentication.md) |
+| `middleware/` — auth.py (`protected_page` + `AuthMiddleware`, page-view telemetry) | [reference/authentication.md](reference/authentication.md), [features/telemetry.md](features/telemetry.md) |
 | `pages/auth.py`, `pages/challonge_oauth.py` — the OAuth `@ui.page` routes | [reference/authentication.md](reference/authentication.md); challonge_oauth → [reference/services.md](reference/services.md) (challonge_service) |
 | `middleware/security_headers.py` | [deployment.md](deployment.md) |
 | `middleware/error_handlers.py` | [reference/rest-api.md](reference/rest-api.md) |

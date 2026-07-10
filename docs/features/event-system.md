@@ -59,16 +59,21 @@ confirm, and `generate_seed`), `crew_service` (signup/undo/approval/ack),
 
 ## Registering a subscriber at startup
 
-The webhook subscriber is registered in the FastAPI lifespan in
+Subscribers are registered in the FastAPI lifespan in
 [`main.py`](../../main.py), alongside starting the dispatch worker:
 
 ```python
 event_dispatch_queue.start()
 event_bus.subscribe_async(WebhookService().deliver_event)
+event_bus.subscribe_async(TelemetryService().record_event)  # no filter: mirror all
 ```
 
-A new non-UI subscriber follows the same shape: import its module and call
-`event_bus.subscribe_async(...)` (or `subscribe_sync`) in the lifespan.
+Current async subscribers: **webhooks** (`WebhookService.deliver_event`, fans
+each event out to staff-configured endpoints) and **[engagement telemetry](telemetry.md)**
+(`TelemetryService.record_event`, mirrors every event into the `TelemetryEvent`
+log with no `event_types` filter). A new non-UI subscriber follows the same
+shape: import its module and call `event_bus.subscribe_async(...)` (or
+`subscribe_sync`) in the lifespan.
 
 ## Adding a new event
 
