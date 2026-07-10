@@ -1,6 +1,6 @@
 # SGLMan — Current Project State
 
-_Last updated: 2026-06-25_
+_Last updated: 2026-07-10_
 
 ## What Is This
 
@@ -49,6 +49,7 @@ The application is functional and in active use. All features listed below are m
 | Event bus + webhooks | Stable | recent | Central in-process event bus (`application/events/`) + staff-managed signed outbound webhooks ([event-system.md](features/event-system.md), [webhooks.md](features/webhooks.md)) |
 | Device notifications (web push) | New | recent | Declarative Web Push (iOS/Android/desktop) mirroring every Discord DM to subscribed devices; off until VAPID keys are set ([web-push.md](features/web-push.md)) |
 | Engagement telemetry | New | recent | Append-only `TelemetryEvent` capturing page views, curated interactions, and a mirror of every domain event; Staff-only engagement report; `TELEMETRY_ENABLED` kill-switch ([telemetry.md](features/telemetry.md)) |
+| Analytics & insights dashboard | New | recent | Reports → Insights: crew participation, volunteer hours, tournament health, and admin activity trended weekly/monthly across events (`AnalyticsService`, `pages/admin_tabs/reports/insights.py`) |
 
 The four reference docs ([data-model.md](reference/data-model.md), [services.md](reference/services.md), [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md)) carry the method-level detail for the newer subsystems; dedicated feature docs for volunteering, equipment, and Challonge are not yet written.
 
