@@ -173,3 +173,7 @@ def random_fact() -> str:
         COASTER_FACTS + CAT_FACTS + BALATRO_FACTS
         + DIABLO_FACTS + WOW_FACTS + HAMILTON_FACTS + CLOVERPIT_TIPS
     )
+
+
+def random_cat_fact() -> str:
+    return random.choice(CAT_FACTS)

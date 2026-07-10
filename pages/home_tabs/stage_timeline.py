@@ -9,6 +9,7 @@ from nicegui import app, ui
 from application.services import AuthService, MatchService
 from application.utils.timezone import format_eastern_time
 from models import Match, User
+from theme.empty_state import empty_state
 from theme.realtime import register_view
 
 
@@ -83,7 +84,7 @@ async def stage_timeline_tab():
 
             if not matches:
                 with timeline_container:
-                    ui.label('No matches scheduled for this date.').classes('empty-state')
+                    empty_state('No matches scheduled for this date.')
                 return
 
             # Group matches by stream room using service
