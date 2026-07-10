@@ -202,13 +202,13 @@ The public event schedule with crew signup.
 
 ## Volunteer hub (`/volunteer`, `pages/volunteer.py`)
 
-`volunteer_page(tab: str = None)` is registered with `@protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF])`. It resolves the user, loads roles via `AuthService.get_roles`, and builds tabs by role before rendering `BaseLayout` (`show_volunteer=True`, `show_admin` via `AuthService.can_view_admin`). The self-service tabs show for `VOLUNTEER`; the **Proctor Schedule** tab (the proctor race workflow) shows for `PROCTOR` or `STAFF`.
+`volunteer_page(tab: str = None)` is registered with `@protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF])`. It resolves the user, loads roles via `AuthService.get_roles`, and builds tabs by role before rendering `BaseLayout` (`show_volunteer=True`, `show_admin` via `AuthService.can_view_admin`). The self-service tabs show for `VOLUNTEER`; the **Proctor Station** tab (the proctor race workflow) shows for `PROCTOR` or `STAFF`.
 
 | Tab | Shown to | Content function | Responsibility |
 |---|---|---|---|
 | My Availability | volunteer | `volunteer_tabs/availability.py:availability_tab` | Volunteer availability windows |
 | My Shifts | volunteer | `volunteer_tabs/my_shifts.py:my_shifts_tab` | The volunteer's upcoming assigned shifts, with acknowledgment |
-| Proctor Schedule | proctor / staff | `admin_tabs/admin_schedule.py:admin_schedule_page` | Race/schedule workflow — lifecycle buttons + seed rolls; `can_crud=is_staff` (proctors get transition-only, no create/edit) |
+| Proctor Station | proctor / staff | `admin_tabs/admin_schedule.py:admin_schedule_page` | Race/schedule workflow — lifecycle buttons + seed rolls; `can_crud=is_staff` (proctors get transition-only, no create/edit) |
 
 ### My Availability (`pages/volunteer_tabs/availability.py`)
 
