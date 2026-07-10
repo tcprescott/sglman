@@ -562,6 +562,11 @@ class MatchService:
         )
 
         match_events.publish(match.id)
+        event_bus.publish(Event.create(
+            EventType.MATCH_STAGE_ASSIGNED if stream_room_id is not None else EventType.MATCH_STAGE_CLEARED,
+            {'match_id': match.id, 'tournament_id': match.tournament_id, 'stream_room_id': stream_room_id},
+            actor,
+        ))
 
         return match
 
@@ -610,6 +615,11 @@ class MatchService:
         )
 
         match_events.publish(match.id)
+        event_bus.publish(Event.create(EventType.MATCH_STATIONS_ASSIGNED, {
+            'match_id': match.id,
+            'tournament_id': match.tournament_id,
+            'assignments': {str(k): v for k, v in assignments.items()},
+        }, actor))
 
         return match
 
@@ -642,11 +652,15 @@ class MatchService:
             await AuthService.can_crud_match(actor, match),
             f"User cannot delete match {match_id}",
         )
+        tournament_id = match.tournament_id
         await self.repository.delete(match)
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
         )
         match_events.publish(match_id, match_events.DELETED)
+        event_bus.publish(Event.create(EventType.MATCH_DELETED, {
+            'match_id': match_id, 'tournament_id': tournament_id,
+        }, actor))
 
     # Match lifecycle transitions (seat / start / finish / confirm) live solely
     # in MatchScheduleService._transition, which enforces the ordering rules and
@@ -696,6 +710,12 @@ class MatchService:
         )
 
         match_events.publish(match.id)
+        event_bus.publish(Event.create(EventType.MATCH_RESULT_RECORDED, {
+            'match_id': match.id,
+            'tournament_id': match.tournament_id,
+            'winner_id': winner_id,
+            'ranks': {str(k): v for k, v in ranks.items()},
+        }, actor))
 
         return match
 
@@ -723,6 +743,9 @@ class MatchService:
             {'match_id': match.id, 'tournament_id': match.tournament_id},
         )
         match_events.publish(match.id)
+        event_bus.publish(Event.create(EventType.MATCH_ACKNOWLEDGED, {
+            'match_id': match.id, 'tournament_id': match.tournament_id, 'user_id': user.id,
+        }, user))
         return ack
 
     async def _seed_acknowledgments(
