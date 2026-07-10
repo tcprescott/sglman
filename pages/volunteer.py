@@ -28,7 +28,7 @@ def create() -> None:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind', 'content': my_shifts_tab})
         if is_proctor or is_staff:
-            tabs.append({'label': 'Schedule', 'icon': 'schedule',
+            tabs.append({'label': 'Proctor Schedule', 'icon': 'schedule',
                          'content': (admin_schedule_page, (), {'can_crud': is_staff})})
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(
