@@ -43,7 +43,7 @@ SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-
 </q-td>'''
 
 WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
-    <q-btn :icon="props.row._watching ? 'visibility' : 'visibility_off'"
+    <q-btn :icon="props.row._watching ? 'notifications' : 'notifications_none'"
            :color="props.row._watching ? 'primary' : 'grey'"
            size="sm" flat round
            @click="$parent.$emit('toggle_watch', props.row)">
