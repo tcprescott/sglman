@@ -34,6 +34,12 @@ ID_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : '
     <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
 </q-td>'''
 
+# Plain id for viewers without an edit callback (e.g. proctors) — a link that
+# emits an unhandled event reads as broken.
+ID_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+    <span class="cell-id">{{ props.value }}</span>
+</q-td>'''
+
 TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
     {{ props.value }}
 </q-td>'''
@@ -227,7 +233,8 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' :
 
 
 def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_id,
-                        extra_slots=None, want_seed_slot: bool = False,
+                        extra_slots=None, has_edit: bool = True,
+                        want_seed_slot: bool = False,
                         want_state_slot: bool = False,
                         want_stream_room_admin: bool = False,
                         want_stream_room_readonly: bool = False) -> None:
@@ -235,11 +242,12 @@ def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_
 
     ``discord_id`` is the current user's id (or None); the watch slot is only
     added for a logged-in user. The ``want_*`` flags mirror the caller's callback
-    availability so the seed/state/stream-room slots register exactly as before.
+    availability so the seed/state/stream-room slots register exactly as before;
+    ``has_edit`` does the same for the id cell's edit link.
     """
     discord_id_js = f"'{discord_id}'" if discord_id else 'null'
 
-    table.add_slot('body-cell-id', ID_SLOT)
+    table.add_slot('body-cell-id', ID_SLOT if has_edit else ID_SLOT_READONLY)
     table.add_slot('body-cell-tournament', TOURNAMENT_SLOT)
     table.add_slot('body-cell-scheduled_at', SCHEDULED_AT_SLOT)
 

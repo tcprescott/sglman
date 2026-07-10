@@ -196,12 +196,15 @@ _CARD_CLOSE = '''
     </div>'''
 
 
-def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, discord_id) -> None:
+def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, discord_id,
+                     has_edit: bool = True) -> None:
     """Register the purpose-built grid ``item`` slot on ``table``.
 
     Only fields that appear as (non-hidden) columns are rendered, preserving
     parity with the desktop table on each page. The four server-side flags are
     baked into the template so client-side branches collapse to constants.
+    ``has_edit`` mirrors the caller's edit callback: without one the caption id
+    renders as plain text instead of a dead link.
     """
     present = {c.get('name', '') for c in columns if not c.get('hidden')}
     labels = {c.get('name', ''): c.get('label', c.get('name', '')) for c in columns}
@@ -227,10 +230,13 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
     if 'tournament' in present:
         caption_inner += '<span v-if="props.row.tournament">{{ props.row.tournament }}</span>'
     if 'id' in present:
-        caption_inner += (
-            '<a href="#" class="mgc-id-link q-ml-sm"'
-            ' @click="$parent.$emit(\'edit_match\', { row: props.row })">#{{ props.row.id }}</a>'
-        )
+        if has_edit:
+            caption_inner += (
+                '<a href="#" class="mgc-id-link q-ml-sm"'
+                ' @click="$parent.$emit(\'edit_match\', { row: props.row })">#{{ props.row.id }}</a>'
+            )
+        else:
+            caption_inner += '<span class="q-ml-sm">#{{ props.row.id }}</span>'
     caption = f'\n        <div class="mgc-caption">{caption_inner}</div>' if caption_inner else ''
 
     # Detail rows (order: commentators, trackers, stage, seed, comment)
