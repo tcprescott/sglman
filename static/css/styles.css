@@ -1240,14 +1240,22 @@ body.body--dark {
     flex-shrink: 0;
 }
 
+/* State pill + muted time sit inline after the scheduled time, left-anchored
+   (a right-floated chip wraps onto its own line at phone widths and looks
+   detached). The pill resets to the body font — the headline itself is mono. */
 .mgc-state {
-    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
     flex-shrink: 0;
+    font-family: var(--font-body);
+    font-weight: 400;
 }
 
 .mgc-caption {
     font-size: 0.8em;
     color: var(--status-neutral);
+    margin: var(--space-1) 0;
 }
 
 /* Players line + per-player/crew rows and the #id caption link. Styling lives
@@ -1273,14 +1281,16 @@ body.body--dark {
     text-decoration: underline;
 }
 
-/* Flex row so a tall (44px) action button — Sign Up, Generate, Assign Stage —
-   centers against the label instead of overlapping it on the text baseline. */
+/* Two-column grid so every detail row's value starts on the same label column,
+   and a centered axis so action buttons (Sign Up, Generate, Assign Stage)
+   align with their label instead of sitting on the text baseline. */
 .mgc-detail {
-    display: flex;
+    display: grid;
+    grid-template-columns: 6.8rem 1fr;
     align-items: center;
-    flex-wrap: wrap;
     gap: 4px var(--space-1);
     font-size: 0.9em;
+    margin-top: var(--space-1);
 }
 
 .mgc-detail-value {
@@ -1294,8 +1304,6 @@ body.body--dark {
 .mgc-label {
     font-weight: 600;
     color: var(--status-neutral);
-    margin-right: var(--space-1);
-    flex-shrink: 0;
 }
 
 .mgc-actions {

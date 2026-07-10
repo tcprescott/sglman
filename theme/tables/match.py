@@ -216,6 +216,7 @@ class MatchTableView(MatchTableHandlersMixin):
             can_crud=self.can_crud,
             discord_id=discord_id,
             extra_slots=self.extra_slots,
+            has_edit=self.on_edit is not None,
             want_seed_slot=self.admin_controls and self.on_generate_seed is not None,
             want_state_slot=self.admin_controls and (
                 self.on_seat is not None or self.on_start is not None
@@ -229,6 +230,7 @@ class MatchTableView(MatchTableHandlersMixin):
         render_grid_slot(
             self.table, self.columns,
             admin_controls=self.admin_controls, can_crud=self.can_crud, discord_id=discord_id,
+            has_edit=self.on_edit is not None,
         )
 
         # --- Event wiring (handler bodies live in MatchTableHandlersMixin) ---
