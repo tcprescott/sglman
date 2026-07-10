@@ -351,6 +351,7 @@ Behavior doc: [../features/admin-reports.md](../features/admin-reports.md). Data
 | `report=` | Handler | Params consumed |
 |---|---|---|
 | _(none)_ | `dashboard.dashboard_page` | — |
+| `insights` | `insights.insights_page` | `start`, `end`, `bucket`, `tournament_id` |
 | `capacity` | `capacity.capacity_page` | `start`, `end`, `tournament_id`, `focus` |
 | `match_ops` | `match_ops.match_ops_page` | `start`, `end`, `tournament_id`, `state` |
 | `crew` | `crew.crew_page` | `start`, `end`, `tournament_id`, `user_id`, `approval` |
@@ -358,9 +359,11 @@ Behavior doc: [../features/admin-reports.md](../features/admin-reports.md). Data
 | `volunteers` | `volunteers.volunteers_page` | `start`, `end` |
 | `audit` | `audit.audit_page` | `start`, `end`, `user_id`, `action`, `page` |
 
+The `insights` report is the longitudinal counterpart to the point-in-time snapshots: it buckets crew participation, volunteer hours, tournament health, and admin activity by week or month over an arbitrary range (backed by `AnalyticsService`). Its `bucket` param (`week`/`month`) is threaded through `admin.py`'s page signature alongside the other report filters, and it defaults to a trailing 90-day window rather than the event window, since a single event weekend collapses to one bucket.
+
 ### URL-driven state and CSV export
 
-Reports hold no client-side state. Every filter widget's change handler calls `navigate_with_params(report=..., **filters)`, which rebuilds an `/admin?tab=Reports&...` URL and triggers a full page reload — the back button and shareable links work for free. Date ranges default to the configured event window (`SystemConfigService.get_event_window()`) when not in the URL.
+Reports hold no client-side state. Every filter widget's change handler calls `navigate_with_params(report=..., **filters)`, which rebuilds an `/admin?tab=Reports&...` URL and triggers a full page reload — the back button and shareable links work for free. Date ranges default to the configured event window (`SystemConfigService.get_event_window()`) when not in the URL (the `insights` report defaults to a trailing 90-day window instead).
 
 CSV export (`csv_export_button`) downloads the currently rendered rows using `rows_to_csv_bytes` / `timestamped_filename` from [`application/utils/csv_export.py`](../../application/utils/csv_export.py) — UTF-8 with BOM, formula-injection prefixes escaped, hidden columns skipped.
 

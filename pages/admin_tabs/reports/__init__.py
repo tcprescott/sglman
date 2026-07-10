@@ -10,12 +10,14 @@ from .audit import audit_page
 from .capacity import capacity_page
 from .crew import crew_page
 from .dashboard import dashboard_page
+from .insights import insights_page
 from .match_ops import match_ops_page
 from .stream_rooms import stream_rooms_page
 from .volunteers import volunteers_page
 
 
 _REPORT_HANDLERS = {
+    'insights': insights_page,
     'capacity': capacity_page,
     'match_ops': match_ops_page,
     'crew': crew_page,
