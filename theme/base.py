@@ -168,18 +168,38 @@ class BaseLayout:
 
             ui.label('SGL On Site').classes('sgl-wordmark').on('click', on_wordmark_tap)
 
+            # Flexible spacer that pushes the user/login controls to the right
+            # edge. It must be a real element rather than margin-left:auto on the
+            # name/login button, because the name is display:none on phones — the
+            # spacer keeps the alignment identical to desktop in every state.
+            ui.space()
+
             if self.user:
                 ui.label(self.user.preferred_name).classes('text-lg user-name')
-                ui.image(app.storage.user.get('avatar', None)).props(
-                    'width=32 height=32 fit=cover round'
-                ).classes('user-avatar')
+                avatar_url = app.storage.user.get('avatar')
+                if avatar_url:
+                    ui.image(avatar_url).props(
+                        'width=32 height=32 fit=cover round'
+                    ).classes('user-avatar')
+                else:
+                    # No avatar URL (mock-login sessions, or Discord users on the
+                    # default avatar): show a placeholder glyph instead of an empty
+                    # ui.image(None), which also renders a broken image + console error.
+                    ui.icon('account_circle').classes('user-avatar user-avatar-placeholder')
                 ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout').props('flat color=white').tooltip('Log out')
             else:
-                ui.button(
+                # The full-text "Login with Discord" button also lives in the page
+                # body; here the label is a child element (not the q-btn text prop)
+                # so it can be hidden on phones via .login-button-text without
+                # fighting Quasar's `.block` utility. The tooltip keeps the
+                # icon-only mobile button labelled for accessibility.
+                login_btn = ui.button(
                     on_click=lambda: ui.navigate.to('/login'),
                     icon='login',
-                    text='Login with Discord'
                 ).props('flat color=white').classes('login-button')
+                with login_btn:
+                    ui.label('Login with Discord').classes('login-button-text')
+                login_btn.tooltip('Login with Discord')
 
             dark_icon = (
                 'brightness_auto' if dark_pref is None
