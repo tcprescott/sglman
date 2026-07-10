@@ -36,22 +36,17 @@ depend on — do not change):
 
 _STATE_CHIP = '''
         <span class="mgc-state">
-            <template v-if="props.row.state === 'Confirmed'">
-                <q-icon name="verified" class="st-ok" size="xs" /><span class="st-ok-strong">Confirmed</span>
-            </template>
-            <template v-else-if="props.row.state === 'Finished'">
-                <q-icon name="flag" class="st-pending" size="xs" /><span>Finished</span>
-            </template>
-            <template v-else-if="props.row.state === 'Started'">
-                <q-icon name="play_arrow" class="st-live" size="xs" /><span>Started</span>
-            </template>
-            <template v-else-if="props.row.state === 'Checked In'">
-                <q-icon name="check" class="st-neutral" size="xs" /><span>Checked In</span>
-            </template>
-            <template v-else>
-                <q-icon name="schedule" class="st-neutral" size="xs" /><span>{{ props.row.state || 'Scheduled' }}</span>
-            </template>
-            <span v-if="props.row.state_timestamp" class="cell-timestamp q-ml-xs">{{ props.row.state_timestamp }}</span>
+            <span v-if="props.row.state === 'Confirmed'" class="sgl-chip sgl-chip--ok">
+                <q-icon name="verified" size="14px" />Confirmed</span>
+            <span v-else-if="props.row.state === 'Finished'" class="sgl-chip sgl-chip--pending">
+                <q-icon name="flag" size="14px" />Finished</span>
+            <span v-else-if="props.row.state === 'Started'" class="sgl-chip sgl-chip--live">
+                <q-icon name="play_arrow" size="14px" />Started</span>
+            <span v-else-if="props.row.state === 'Checked In'" class="sgl-chip sgl-chip--neutral">
+                <q-icon name="check" size="14px" />Checked In</span>
+            <span v-else class="sgl-chip sgl-chip--neutral">
+                <q-icon name="schedule" size="14px" />{{ props.row.state || 'Scheduled' }}</span>
+            <span v-if="props.row.state_time" class="cell-timestamp">{{ props.row.state_time }}</span>
         </span>'''
 
 
@@ -94,18 +89,6 @@ _CREW_DETAIL = '''
         <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (!__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <template v-if="!__IA__">
-                    <q-btn v-if="props.row.__KEY__ && props.row.__KEY__.some(item => item.discord_id == __DID__)"
-                           icon="undo" color="negative" size="sm" dense class="q-mr-xs"
-                           @click="$parent.$emit('undo___SING__', props.row)">
-                        <q-tooltip>Remove yourself</q-tooltip>
-                    </q-btn>
-                    <q-btn v-if="props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
-                           icon="assignment" color="primary" size="sm" dense class="q-mr-xs"
-                           @click="$parent.$emit('signup___SING__', props.row)">
-                        Sign Up
-                    </q-btn>
-                </template>
                 <template v-for="(item, idx) in props.row.__KEY__">
                     <span class="mgc-crew-item">
                         <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
@@ -124,6 +107,18 @@ _CREW_DETAIL = '''
                         </q-btn>
                     </span>
                 </template>
+                <template v-if="!__IA__">
+                    <q-btn v-if="props.row.__KEY__ && props.row.__KEY__.some(item => item.discord_id == __DID__)"
+                           icon="undo" color="negative" size="sm" dense flat round
+                           @click="$parent.$emit('undo___SING__', props.row)">
+                        <q-tooltip>Remove yourself</q-tooltip>
+                    </q-btn>
+                    <q-btn v-if="props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
+                           icon="assignment" color="primary" size="sm" dense outline
+                           @click="$parent.$emit('signup___SING__', props.row)">
+                        Sign Up
+                    </q-btn>
+                </template>
             </span>
         </div>'''
 
@@ -137,7 +132,7 @@ _STREAM_DETAIL = '''
                 <span v-else-if="props.row.stream_room">{{ props.row.stream_room }}</span>
                 <span v-if="props.row.is_stream_candidate && !props.row.stream_room" class="sgl-chip sgl-chip--candidate q-ml-xs">candidate</span>
                 <q-btn v-if="__IA__ && __CC__ && !props.row.stream_room"
-                       icon="movie" color="primary" size="sm" dense class="q-ml-xs"
+                       icon="movie" color="primary" size="sm" dense outline class="q-ml-xs"
                        @click="$parent.$emit('edit-stream-room', { key: props.row.id })">
                     Assign Stage
                 </q-btn>
@@ -153,7 +148,7 @@ _SEED_DETAIL = '''
             <span class="mgc-detail-value">
                 <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed"
                        :loading="props.row._generating_seed" :disabled="props.row._generating_seed"
-                       icon="casino" color="primary" size="sm" dense
+                       icon="casino" color="primary" size="sm" dense outline
                        @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
                     Generate
                 </q-btn>
@@ -251,7 +246,8 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
     if 'stream_room' in present:
         details += _STREAM_DETAIL.replace('__LABEL__', labels.get('stream_room', 'Stage'))
     if 'generated_seed' in present:
-        details += _SEED_DETAIL.replace('__LABEL__', labels.get('generated_seed', 'Seed'))
+        # Mobile label column is narrow; "Generated Seed" (the desktop column label) doesn't fit.
+        details += _SEED_DETAIL.replace('__LABEL__', 'Seed')
     details += _COMMENT_DETAIL.replace('__LABEL__', labels.get('comment', 'Comment'))
 
     # Actions (only worth emitting when an admin or the watch toggle is in play)

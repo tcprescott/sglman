@@ -21,6 +21,7 @@ from application.repositories import (
 from application.utils.timezone import (
     format_eastern_datetime,
     format_eastern_display,
+    format_eastern_time,
 )
 
 
@@ -138,18 +139,18 @@ class MatchDisplayService:
         """Format a match object for UI display."""
         # Get state and corresponding timestamp
         state = self._get_match_state(match)
-        state_timestamp = None
 
         if match.confirmed_at:
-            state_timestamp = format_eastern_datetime(match.confirmed_at)
+            state_changed_at = match.confirmed_at
         elif match.finished_at:
-            state_timestamp = format_eastern_datetime(match.finished_at)
+            state_changed_at = match.finished_at
         elif match.started_at:
-            state_timestamp = format_eastern_datetime(match.started_at)
+            state_changed_at = match.started_at
         elif match.seated_at:
-            state_timestamp = format_eastern_datetime(match.seated_at)
+            state_changed_at = match.seated_at
         else:
-            state_timestamp = format_eastern_datetime(match.created_at)
+            state_changed_at = match.created_at
+        state_timestamp = format_eastern_datetime(state_changed_at)
 
         ack_by_user: Dict[int, MatchAcknowledgment] = {
             a.user_id: a for a in (acknowledgments or [])
@@ -178,6 +179,7 @@ class MatchDisplayService:
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
             'state': state,
             'state_timestamp': state_timestamp,
+            'state_time': format_eastern_time(state_changed_at),
             'players': [
                 {
                     'name': p.user.preferred_name,
@@ -203,7 +205,8 @@ class MatchDisplayService:
                 {
                     'name': c.user.preferred_name,
                     'approved': c.approved,
-                    'discord_id': c.user.discord_id,
+                    # str: raw snowflake ints lose precision as JS numbers, breaking == checks
+                    'discord_id': str(c.user.discord_id) if c.user.discord_id else None,
                     'acknowledged': c.acknowledged_at is not None,
                     'ack_ts': format_eastern_display(c.acknowledged_at) if c.acknowledged_at else '',
                     'id': c.id,
@@ -214,7 +217,7 @@ class MatchDisplayService:
                 {
                     'name': t.user.preferred_name,
                     'approved': t.approved,
-                    'discord_id': t.user.discord_id,
+                    'discord_id': str(t.user.discord_id) if t.user.discord_id else None,
                     'acknowledged': t.acknowledged_at is not None,
                     'ack_ts': format_eastern_display(t.acknowledged_at) if t.acknowledged_at else '',
                     'id': t.id,
