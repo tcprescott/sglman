@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for [`models.py`](../../models.py) (all 35 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for [`models.py`](../../models.py) (all 36 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 ## Overview
 
@@ -9,9 +9,9 @@ Persistence is [Tortoise ORM](https://tortoise.github.io/) 0.24 on PostgreSQL vi
 Conventions shared by all models:
 
 - **Surrogate primary key** — every model has `id = fields.IntField(pk=True)` (`SERIAL` in PostgreSQL). The per-model field tables below omit `id`.
-- **Timestamps** — every model has `created_at` (`auto_now_add=True`, except `EquipmentLoan`, which uses `checked_out_at`); all except `AuditLog`, `UserRole`, `ApiToken`, and `EquipmentLoan` also have `updated_at` (`auto_now=True`). The field tables omit these unless a model deviates. All datetime columns are `TIMESTAMPTZ` and store UTC; display is US/Eastern — see [timezone-handling.md](../timezone-handling.md).
-- **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchplayers`, `tournamentplayers`, `commentator`, `tracker`, `matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `auditlog`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`, `webpushsubscription`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
-- **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id` and `User.twitch_user_id`.
+- **Timestamps** — every model has `created_at` (`auto_now_add=True`, except `EquipmentLoan`, which uses `checked_out_at`); all except `AuditLog`, `TelemetryEvent`, `UserRole`, `ApiToken`, and `EquipmentLoan` also have `updated_at` (`auto_now=True`). The field tables omit these unless a model deviates. All datetime columns are `TIMESTAMPTZ` and store UTC; display is US/Eastern — see [timezone-handling.md](../timezone-handling.md).
+- **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchplayers`, `tournamentplayers`, `commentator`, `tracker`, `matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `auditlog`, `telemetryevent`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`, `webpushsubscription`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
+- **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `TelemetryEvent.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id` and `User.twitch_user_id`.
 
 Coding conventions for the layers above (async everywhere, no ORM writes from the UI, audit-log action naming) are canonical in [CLAUDE.md](../../CLAUDE.md) and [refactoring-guide.md](../refactoring-guide.md) — not restated here.
 
@@ -24,6 +24,7 @@ erDiagram
     User ||--o{ UserRole : "user"
     User |o--o{ UserRole : "granted_by"
     User ||--o{ AuditLog : "user"
+    User |o--o{ TelemetryEvent : "user"
     User ||--o{ WebPushSubscription : "user"
 
     Tournament }o--o{ User : "admins (TournamentAdmins)"
@@ -508,6 +509,22 @@ Append-only record of admin actions. No `updated_at` field — rows are never mo
 
 Indexes: `created_at` and `user` (added in migration 14) for the audit-log listing hot path.
 
+#### `TelemetryEvent`
+
+Append-only engagement telemetry — *how* people use the tool, as opposed to the deliberate admin **actions** `AuditLog` records. Written from three capture points (the event-bus mirror, page-view tracking in `protected_page`, and explicit interaction calls); read only by the Staff-gated engagement report. See [telemetry.md](../features/telemetry.md). Added in migration 18.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `user` | FK → `User` | null, `SET_NULL` | Actor; `related_name='telemetry_events'`. Nullable + `SET_NULL` so the trail survives user deletion; the service also snapshots the actor's `username` into `details`. Resolved even for deactivated accounts (attribution, not authorization). |
+| `category` | `CharField(32)` | not null, indexed | Coarse bucket: `page`, `interaction`, or `domain` |
+| `event_type` | `CharField(100)` | not null, indexed | Namespaced `object.verb` name — the `EventType` string for domain rows, else e.g. `page.view` / `report.viewed` |
+| `path` | `CharField(512)` | null | Route the event happened on (page views + interactions); null for domain events |
+| `session_id` | `CharField(64)` | null, indexed | Per-browser correlation id (NiceGUI `app.storage.browser` id) for session reconstruction; null for bus events |
+| `details` | `TextField` | null | JSON-encoded dict (page params / event payload, plus `actor_username`) |
+| `created_at` | `DatetimeField` | `auto_now_add`, indexed | |
+
+Indexes: `created_at`, `category`, `event_type`, `session_id`, and `user` — the report's aggregation and filter dimensions. No `updated_at` (append-only, like `AuditLog`). Capture honors the `TELEMETRY_ENABLED` kill-switch.
+
 #### `TriforceText`
 
 Player-submitted ALTTP end-game triforce screen line, moderated per entry. See [triforce-texts.md](../features/triforce-texts.md).
@@ -763,6 +780,20 @@ Serves `AuditLog` ([`audit_repository.py`](../../application/repositories/audit_
 |---|---|
 | `async list(*, start=None, end=None, user_id=None, action_contains=None, limit=100, offset=0) -> List[AuditLog]` | Filtered, paginated list (date range, actor, case-insensitive action substring), newest first, `user` prefetched |
 | `async count(*, start=None, end=None, user_id=None, action_contains=None) -> int` | Row count for the same filters (pagination totals) |
+
+### `TelemetryRepository`
+
+Serves `TelemetryEvent` ([`telemetry_repository.py`](../../application/repositories/telemetry_repository.py)). Writes plus DB-side aggregations for the engagement report (no full-table scans into memory).
+
+| Method | Description |
+|---|---|
+| `async create(*, category, event_type, user_id=None, path=None, session_id=None, details=None) -> TelemetryEvent` | Insert one telemetry row |
+| `async list(*, start, end, category, event_type, user_id, session_id, path_contains, limit=100, offset=0) -> List[TelemetryEvent]` | Filtered, paginated list, newest first, `user` prefetched |
+| `async count(*, <same filters>) -> int` | Row count for the same filters |
+| `async count_distinct_users(*, start, end) -> int` / `count_distinct_sessions(...)` | Distinct reach for the KPI strip |
+| `async top_paths(*, start, end, category=None, limit=15) -> List[dict]` | Busiest paths with view + distinct-user counts (`GROUP BY path`) |
+| `async top_event_types(*, start, end, limit=20) -> List[dict]` | Most frequent `(category, event_type)` pairs |
+| `async top_users(*, start, end, limit=15) -> List[dict]` | Busiest identified users with event + distinct-session counts |
 
 ### `CommentatorRepository`
 

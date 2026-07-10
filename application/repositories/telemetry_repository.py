@@ -1,0 +1,183 @@
+"""
+Telemetry Repository - Data Access Layer
+
+Writes and read/aggregation queries over TelemetryEvent. Pure data access: no
+business logic, auth, or JSON encoding (the service owns those). Aggregations
+are computed in the database (GROUP BY / COUNT) so the report never loads the
+full high-volume table into memory.
+"""
+
+from datetime import datetime
+from typing import List, Optional
+
+from tortoise.functions import Count
+
+from models import TelemetryEvent
+
+
+class TelemetryRepository:
+    """Repository for TelemetryEvent data access."""
+
+    @staticmethod
+    async def create(
+        *,
+        category: str,
+        event_type: str,
+        user_id: Optional[int] = None,
+        path: Optional[str] = None,
+        session_id: Optional[str] = None,
+        details: Optional[str] = None,
+    ) -> TelemetryEvent:
+        return await TelemetryEvent.create(
+            category=category,
+            event_type=event_type,
+            user_id=user_id,
+            path=path,
+            session_id=session_id,
+            details=details,
+        )
+
+    @staticmethod
+    def _filtered(
+        *,
+        start: Optional[datetime],
+        end: Optional[datetime],
+        category: Optional[str] = None,
+        event_type: Optional[str] = None,
+        user_id: Optional[int] = None,
+        session_id: Optional[str] = None,
+        path_contains: Optional[str] = None,
+    ):
+        query = TelemetryEvent.all()
+        if start is not None:
+            query = query.filter(created_at__gte=start)
+        if end is not None:
+            query = query.filter(created_at__lt=end)
+        if category:
+            query = query.filter(category=category)
+        if event_type:
+            query = query.filter(event_type=event_type)
+        if user_id is not None:
+            query = query.filter(user_id=user_id)
+        if session_id:
+            query = query.filter(session_id=session_id)
+        if path_contains:
+            query = query.filter(path__icontains=path_contains)
+        return query
+
+    @classmethod
+    async def list(
+        cls,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        category: Optional[str] = None,
+        event_type: Optional[str] = None,
+        user_id: Optional[int] = None,
+        session_id: Optional[str] = None,
+        path_contains: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[TelemetryEvent]:
+        query = cls._filtered(
+            start=start, end=end, category=category, event_type=event_type,
+            user_id=user_id, session_id=session_id, path_contains=path_contains,
+        )
+        query = query.order_by('-created_at').offset(offset).limit(limit)
+        return await query.prefetch_related('user')
+
+    @classmethod
+    async def count(
+        cls,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        category: Optional[str] = None,
+        event_type: Optional[str] = None,
+        user_id: Optional[int] = None,
+        session_id: Optional[str] = None,
+        path_contains: Optional[str] = None,
+    ) -> int:
+        return await cls._filtered(
+            start=start, end=end, category=category, event_type=event_type,
+            user_id=user_id, session_id=session_id, path_contains=path_contains,
+        ).count()
+
+    # --------------------------------------------------------------- aggregates
+
+    @classmethod
+    async def count_distinct_users(
+        cls, *, start: Optional[datetime] = None, end: Optional[datetime] = None,
+    ) -> int:
+        ids = await cls._filtered(start=start, end=end).filter(
+            user_id__isnull=False
+        ).distinct().values_list('user_id', flat=True)
+        return len(ids)
+
+    @classmethod
+    async def count_distinct_sessions(
+        cls, *, start: Optional[datetime] = None, end: Optional[datetime] = None,
+    ) -> int:
+        ids = await cls._filtered(start=start, end=end).filter(
+            session_id__isnull=False
+        ).distinct().values_list('session_id', flat=True)
+        return len(ids)
+
+    @classmethod
+    async def top_paths(
+        cls,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        category: Optional[str] = None,
+        limit: int = 15,
+    ) -> List[dict]:
+        """Most-viewed paths with view + distinct-user counts, busiest first."""
+        rows = await (
+            cls._filtered(start=start, end=end, category=category)
+            .filter(path__isnull=False)
+            .annotate(views=Count('id'), users=Count('user_id', distinct=True))
+            .group_by('path')
+            .order_by('-views')
+            .limit(limit)
+            .values('path', 'views', 'users')
+        )
+        return list(rows)
+
+    @classmethod
+    async def top_event_types(
+        cls,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        limit: int = 20,
+    ) -> List[dict]:
+        rows = await (
+            cls._filtered(start=start, end=end)
+            .annotate(count=Count('id'))
+            .group_by('category', 'event_type')
+            .order_by('-count')
+            .limit(limit)
+            .values('category', 'event_type', 'count')
+        )
+        return list(rows)
+
+    @classmethod
+    async def top_users(
+        cls,
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        limit: int = 15,
+    ) -> List[dict]:
+        """Busiest identified users: event + distinct-session counts."""
+        rows = await (
+            cls._filtered(start=start, end=end)
+            .filter(user_id__isnull=False)
+            .annotate(events=Count('id'), sessions=Count('session_id', distinct=True))
+            .group_by('user_id')
+            .order_by('-events')
+            .limit(limit)
+            .values('user_id', 'events', 'sessions')
+        )
+        return list(rows)

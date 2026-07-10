@@ -25,6 +25,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | In-process event bus (publish/subscribe) | [docs/features/event-system.md](docs/features/event-system.md) |
 | Outbound webhooks (event subscriber) | [docs/features/webhooks.md](docs/features/webhooks.md) |
 | Datetime/timezone implementation | [docs/timezone-handling.md](docs/timezone-handling.md) |
+| Engagement telemetry (page views, interactions, event mirror) | [docs/features/telemetry.md](docs/features/telemetry.md) |
 | Per-feature docs (auth, crew, notifications, etc.) | [docs/features/](docs/features/) |
 
 ## Architecture: three-layer pattern

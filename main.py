@@ -14,6 +14,7 @@ from application.services.discord_service import get_discord_bot
 from application.services import discord_queue
 from application.services import volunteer_reminder
 from application.services import WebhookService
+from application.services import TelemetryService
 from application.services import web_push_service
 from application.events import event_bus
 from application.events import dispatch_queue as event_dispatch_queue
@@ -124,6 +125,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # webhook delivery subscriber (fans published events out to staff webhooks).
     event_dispatch_queue.start()
     event_bus.subscribe_async(WebhookService().deliver_event)
+    # Engagement telemetry: mirror every published domain event into the
+    # TelemetryEvent log (page views / interactions are captured separately from
+    # the presentation layer). No event_types filter — record them all.
+    event_bus.subscribe_async(TelemetryService().record_event)
     yield
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()
