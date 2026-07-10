@@ -256,9 +256,14 @@ class BaseLayout:
                         with ui.item_section():
                             ui.item_label('Feedback')
 
-            # Copyright lives at the foot of the drawer (every page renders the
-            # drawer, so this replaces the old desktop-only footer meta row).
+            # Copyright and source link live at the foot of the drawer (every
+            # page renders the drawer, so this replaces the old desktop-only
+            # footer meta row).
             ui.space()
+            with ui.row().classes('items-center q-px-md q-pb-xs no-wrap'):
+                ui.icon('code').props('size=xs').classes('sgl-drawer-github-link')
+                ui.link('GitHub', 'https://github.com/tcprescott/sglman', new_tab=True) \
+                    .classes('text-caption sgl-drawer-github-link')
             ui.label(self._copyright).classes('text-caption q-px-md q-pb-md sgl-drawer-copyright')
 
     def _switch_tab(self, label: str) -> None:

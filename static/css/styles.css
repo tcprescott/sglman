@@ -1439,6 +1439,20 @@ body.body--dark {
     color: var(--sgl-dark-muted);
 }
 
+.sgl-drawer-github-link {
+    color: var(--status-neutral);
+    text-decoration: none;
+}
+
+.sgl-drawer-github-link:hover {
+    text-decoration: underline;
+}
+
+.body--dark .sgl-drawer-github-link,
+.q-dark .sgl-drawer-github-link {
+    color: var(--sgl-dark-muted);
+}
+
 @media (max-width: 1023.98px) {
     /* The fixed refresh FAB would otherwise sit under the bottom nav bar; lift it
        above the nav (and the safe-area inset) so it stays tappable. */
