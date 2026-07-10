@@ -15,14 +15,18 @@ class EventType:
     # Match lifecycle
     MATCH_CREATED = 'match.created'
     MATCH_UPDATED = 'match.updated'
+    MATCH_DELETED = 'match.deleted'
     MATCH_RESCHEDULED = 'match.rescheduled'
     MATCH_SEATED = 'match.seated'
     MATCH_STARTED = 'match.started'
     MATCH_FINISHED = 'match.finished'
     MATCH_CONFIRMED = 'match.confirmed'
+    MATCH_ACKNOWLEDGED = 'match.acknowledged'
+    MATCH_RESULT_RECORDED = 'match.result_recorded'
     MATCH_SEED_ROLLED = 'match.seed_rolled'
     MATCH_STAGE_ASSIGNED = 'match.stage_assigned'
     MATCH_STAGE_CLEARED = 'match.stage_cleared'
+    MATCH_STATIONS_ASSIGNED = 'match.stations_assigned'
     MATCH_STREAM_CANDIDATE_SET = 'match.stream_candidate_set'
     MATCH_STREAM_CANDIDATE_CLEARED = 'match.stream_candidate_cleared'
 
@@ -39,9 +43,10 @@ class EventType:
 
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
-        MATCH_CREATED, MATCH_UPDATED, MATCH_RESCHEDULED, MATCH_SEATED,
-        MATCH_STARTED, MATCH_FINISHED, MATCH_CONFIRMED, MATCH_SEED_ROLLED,
-        MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED,
+        MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
+        MATCH_SEATED, MATCH_STARTED, MATCH_FINISHED, MATCH_CONFIRMED,
+        MATCH_ACKNOWLEDGED, MATCH_RESULT_RECORDED, MATCH_SEED_ROLLED,
+        MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED, MATCH_STATIONS_ASSIGNED,
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,

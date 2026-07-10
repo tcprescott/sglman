@@ -79,6 +79,17 @@ def make_match(**overrides):
     return SimpleNamespace(**defaults)
 
 
+@pytest.fixture
+def captured_events():
+    """Subscribe to the event bus for the test and collect published events."""
+    from application.events import event_bus
+
+    seen = []
+    token = event_bus.subscribe_sync(seen.append)
+    yield seen
+    event_bus.unsubscribe(token)
+
+
 # ---------------------------------------------------------------------------
 # create_match validation (no DB needed; error paths exit before any DB call)
 # ---------------------------------------------------------------------------
@@ -305,15 +316,6 @@ class TestPlayerCrewMutualExclusion:
 
 
 class TestAssignStage:
-    @pytest.fixture
-    def captured_events(self):
-        from application.events import event_bus
-
-        seen = []
-        token = event_bus.subscribe_sync(seen.append)
-        yield seen
-        event_bus.unsubscribe(token)
-
     async def test_publishes_stage_assigned_event(self, service, captured_events):
         from application.events import EventType
 
@@ -339,3 +341,81 @@ class TestAssignStage:
 
         assert [e.event_type for e in captured_events] == [EventType.MATCH_STAGE_CLEARED]
         assert captured_events[0].payload['stream_room_id'] is None
+
+
+# ---------------------------------------------------------------------------
+# match lifecycle event publishing (delete / result / acknowledge / stations)
+# ---------------------------------------------------------------------------
+
+
+class TestMatchLifecycleEvents:
+    async def test_delete_match_publishes_deleted_event(self, service, captured_events):
+        from application.events import EventType
+
+        match = make_match(id=1, tournament_id=9)
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.delete = AsyncMock()
+
+        await service.delete_match(match_id=1, actor=SimpleNamespace(id=1))
+
+        assert [e.event_type for e in captured_events] == [EventType.MATCH_DELETED]
+        assert captured_events[0].payload == {'match_id': 1, 'tournament_id': 9}
+
+    async def test_record_result_publishes_result_recorded_event(self, service, captured_events):
+        from application.events import EventType
+
+        p1 = SimpleNamespace(id=10, finish_rank=None, save=AsyncMock())
+        p2 = SimpleNamespace(id=11, finish_rank=None, save=AsyncMock())
+        match = make_match(tournament_id=9, players=[p1, p2])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+
+        await service.record_match_result(match_id=1, winner_id=10, actor=SimpleNamespace(id=1))
+
+        assert [e.event_type for e in captured_events] == [EventType.MATCH_RESULT_RECORDED]
+        assert captured_events[0].payload == {
+            'match_id': 1, 'tournament_id': 9, 'winner_id': 10,
+            'ranks': {'10': 1, '11': 2},
+        }
+
+    async def test_acknowledge_match_publishes_acknowledged_event(self, service, captured_events):
+        from application.events import EventType
+
+        user = SimpleNamespace(id=42)
+        match = make_match(tournament_id=9)
+        service.repository.get_by_id = AsyncMock(return_value=match)
+        service.repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
+        service.ack_repository.get = AsyncMock(return_value=None)
+
+        await service.acknowledge_match(match_id=1, user=user)
+
+        assert [e.event_type for e in captured_events] == [EventType.MATCH_ACKNOWLEDGED]
+        assert captured_events[0].payload == {
+            'match_id': 1, 'tournament_id': 9, 'user_id': 42,
+        }
+
+    async def test_assign_stations_publishes_stations_assigned_event(
+        self, service, captured_events, monkeypatch
+    ):
+        from application.events import EventType
+        from application.services import system_config_service
+        from models import StationFormat
+
+        async def free_format(*_args, **_kwargs):
+            return StationFormat.FREE
+
+        monkeypatch.setattr(
+            system_config_service.SystemConfigService, 'get_station_format', free_format
+        )
+
+        player = SimpleNamespace(id=10, assigned_station=None, save=AsyncMock())
+        match = make_match(tournament_id=9, players=[player])
+        service.repository.get_by_id = AsyncMock(return_value=match)
+
+        await service.assign_stations(
+            match_id=1, assignments={10: 'A1'}, actor=SimpleNamespace(id=1)
+        )
+
+        assert [e.event_type for e in captured_events] == [EventType.MATCH_STATIONS_ASSIGNED]
+        assert captured_events[0].payload == {
+            'match_id': 1, 'tournament_id': 9, 'assignments': {'10': 'A1'},
+        }

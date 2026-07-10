@@ -51,8 +51,9 @@ event_bus.publish(Event.create(EventType.MATCH_CREATED, {
 ```
 
 Publishers today (co-published alongside the existing `match_events.publish` and
-Discord fan-out, which are unchanged): `match_service` (create/update/reschedule/
-stage-assigned/cleared/stream-candidate), `match_schedule_service` (`_transition` → seat/start/finish/
+Discord fan-out, which are unchanged): `match_service` (create/update/delete/
+reschedule/acknowledge/result-recorded/stage-assigned/cleared/stations-assigned/
+stream-candidate), `match_schedule_service` (`_transition` → seat/start/finish/
 confirm, and `generate_seed`), `crew_service` (signup/undo/approval/ack),
 `volunteer_schedule_service` (assign/unassign/ack).
 
@@ -89,3 +90,11 @@ possible Phase 2 (see [current-state.md](../current-state.md)).
 [`tests/services/test_event_bus.py`](../../tests/services/test_event_bus.py):
 inline sync delivery, event-type filtering, async enqueue onto the dispatch
 worker, and subscriber-error isolation.
+
+[`tests/services/test_event_audit_parity.py`](../../tests/services/test_event_audit_parity.py)
+is a **drift guard**: because `EventType` names mirror `AuditActions` verbatim,
+every audited action must either be emitted (in `EventType.ALL`) or listed in an
+explicit eventless ledger (`_EVENT_CANDIDATES` / `_EXCLUDED_BY_DESIGN`). Adding a
+new `AuditAction` without triaging it fails this test — so audit/event drift
+(the reason `match.stage_assigned` was audited but not emitted) can't recur
+silently.
