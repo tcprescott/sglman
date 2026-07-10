@@ -62,7 +62,7 @@ async def admin_discord_roles_page() -> None:
             table.update()
 
         async def delete_mapping(row, client):
-            async with client:
+            with client:
                 try:
                     current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     await service.remove_mapping(row['id'], current)
@@ -73,7 +73,7 @@ async def admin_discord_roles_page() -> None:
                 await refresh_table()
 
         async def sync_all_users(client):
-            async with client:
+            with client:
                 with ui.dialog() as confirm, ui.card():
                     ui.label(
                         'Re-sync Discord roles for all users now? This applies the '
