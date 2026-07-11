@@ -7,7 +7,9 @@
 > _Revised 2026-07-11: realigned with the current codebase (36 models — event bus,
 > webhooks, telemetry, web push, equipment, feedback, and Challonge/Twitch identity
 > now exist; `Team`/`UserTeams`/`Announcement` no longer do) and expanded to support
-> **both path-based and host-based** tenant addressing._
+> **both path-based and host-based** tenant addressing. The data strategy changed
+> from fresh-start to an **additive backfill into a default tenant** so the live
+> deployment's data survives the migration._
 
 ## Context
 
@@ -30,7 +32,14 @@ context resolved from the URL (Host header or `/t/<slug>` path prefix).
 3. **Discord: one bot, many guilds.** A single bot token/process joins every tenant's guild; routing keyed on `guild_id`.
 4. **Users: global identity, tenant membership.** One `User` row per `discord_id`; linked Challonge and Twitch identities stay on the global `User`; a membership join ties users to tenants; roles become per-tenant.
 5. **Central management on the platform host** at a reserved path (e.g. `/platform`), gated by a new **global `SUPER_ADMIN`** role, not tied to any tenant. A dedicated admin domain is no longer required (path mode makes it unnecessary); one can be layered on later without schema change.
-6. **Fresh start on data** — existing rows are disposable; schema designed cleanly, aerich migrations regenerated. No backfill.
+6. **Preserve existing data via a default tenant.** The live single-tenant
+   deployment holds real data, so the schema change is **additive, not a
+   rebuild**: add each `tenant` FK as nullable, create one **default `Tenant`**,
+   backfill every scoped row to it, then tighten the FKs to NOT NULL. The
+   default tenant's `discord_guild_id` is seeded from the current
+   `discord_role_sync_guild_id` `SystemConfiguration` value; its `slug` is a
+   renamable placeholder (`default`) — slug is a mutable unique column and every
+   join is by `tenant.id`, so re-slugging later is a one-row `UPDATE`.
 
 ---
 
@@ -73,6 +82,67 @@ context resolved from the URL (Host header or `/t/<slug>` path prefix).
   `ui.navigate.to`, `ui.link`, `RedirectResponse`, OAuth `next` targets, and the
   absolute deep links embedded in Discord DMs and web-push payloads — must go
   through these helpers. This is the main tax of path mode.
+
+---
+
+## Global vs. tenant-scoped reference
+
+A quick-scan summary of what stays global versus what carries a `tenant` FK once
+the plan lands. The unifying rule: **identity, the tenancy machinery, and
+singleton runtime resources are global; everything a tournament community owns or
+produces is tenant-scoped.** The sharp edges are objects queried globally that
+still record which tenant they belong to.
+
+### Global (one row/resource shared across tenants)
+
+| Category | What |
+|---|---|
+| Identity | `User` (`discord_id`/`challonge_user_id`/`twitch_user_id` uniques stay global — links are to the person); `WebPushSubscription` (device belongs to a user; the *push* inherits the producer's tenant context) |
+| Tenancy machinery | `Tenant`, `TenantMembership` (queried across tenants — never auto-scoped) |
+| Shared runtime | One Discord bot token/process (routes by `guild_id`); the DM-queue worker; the event-bus dispatch worker; VAPID web-push keys; the single uvicorn worker / DB connection / middleware stack; the landing page and `/platform` super-admin surface (run with **no** tenant context) |
+| Global auth | The `SUPER_ADMIN` role — `UserRole` rows with `tenant = NULL`, visible inside any tenant request (the only global role) |
+| Deployment env/secrets | `PLATFORM_HOST`, `STORAGE_SECRET`, VAPID keys, the bot token, one OAuth redirect URI per provider on the platform host |
+| Session identity keys | `discord_id`, `username`, `avatar`, `authenticated`, `oauth_state` stay flat in `app.storage.user` so one login works across every tenant |
+
+`TenantManager` is deliberately **not** applied to `User`, `Tenant`,
+`TenantMembership`, `UserRole`, `WebPushSubscription`, or `ApiToken`.
+
+### Tenant-scoped (carry a `tenant` FK, filtered per request)
+
+| Domain | Models |
+|---|---|
+| Tournament & match | `Tournament`, `Match`, `MatchPlayers`, `MatchAcknowledgment`, `TournamentPlayers`, `TriforceText`, `Commentator`, `Tracker`, `MatchWatcher`, `TournamentNotificationPreference`, `GeneratedSeeds` |
+| Volunteers / crew | `VolunteerPosition`, `VolunteerProfile`, `VolunteerAvailability`, `VolunteerShift`, `VolunteerAssignment`, `VolunteerQualification`, `PlayerAvailability` |
+| Stream & equipment | `StreamRoom`, `Equipment`, `EquipmentLoan` |
+| Integrations & config | `SystemConfiguration`, `DiscordRoleMapping`, `ChallongeConnection`, `ChallongeApiUsage`, `ChallongeMatch`, `ChallongeParticipant`, `Webhook`, `WebhookDelivery`, `Feedback` |
+
+Tenant-scoped facets of otherwise-global concerns:
+- **Roles** — `UserRole` gains a `tenant` FK; every grant except `SUPER_ADMIN` is
+  per-tenant (`unique_together(user, role, tenant)`).
+- **Re-homed config** — the Discord sync guild id moves onto
+  `Tenant.discord_guild_id`; the volunteer-reminder lead time becomes a
+  per-tenant `SystemConfiguration`; Challonge quota (`ChallongeApiUsage`) is
+  tallied per `(tenant, period)`.
+- **UI/session state** — filters, theme, referrer, Challonge state namespaced
+  under `app.storage.user['by_tenant'][tid]`.
+- **Routing keys** — `Tenant.slug` (path mode), `Tenant.domain` (host mode),
+  `Tenant.discord_guild_id` (bot routing).
+
+### In-between (scoped, but not auto-filtered)
+
+These record a tenant yet are queried globally or carry an intentional NULL —
+each is handled specially:
+- **`ApiToken`** — has a `tenant` FK and acts within one tenant, but the lookup
+  is global: `api/dependencies.py` resolves the token by hash *before* any tenant
+  context exists, then sets context from the token's `tenant_id`. `token_hash`
+  stays globally unique; the manager is not applied.
+- **`UserRole`** — nullable `tenant`: per-tenant for normal roles, `NULL` for
+  super-admin (which must stay visible inside a tenant request).
+- **`AuditLog` / `TelemetryEvent`** — nullable `tenant`: stamped from context for
+  tenant activity, `NULL` marks a platform-level row (super-admin tenant CRUD,
+  platform page views).
+- **Rate limiting** (`api/rate_limit.py`) — keys by token/IP, which already
+  isolates tenants' clients; no tenant scoping added.
 
 ---
 
@@ -280,15 +350,40 @@ its own tenancy pass:
   the platform-host callback + tenant return path.
 
 ### Phase 9 — Migrations, seed, env
-- Fresh start: delete `migrations/models/*` (keep `tortoise_config.py`),
-  regenerate one clean initial migration against an empty DB (`aerich init-db`).
-  No connection change (logical multitenancy = same DB).
-- New `scripts/seed_tenant.py` (following `scripts/grant_staff.py`'s pattern):
-  create a `Tenant` (name, slug, optional domain, guild_id), locate/create
-  `User` by discord_id, insert `UserRole(SUPER_ADMIN, tenant=None)` + per-tenant
-  `STAFF` + `TenantMembership`. Extend `scripts/seed_dev.py` to seed **two**
-  tenants so the leak tests and manual dev checks have cross-tenant data from
-  day one.
+- **Additive migration that preserves data — not a rebuild.** Keep the existing
+  aerich history (`migrations/models/0_…init` … `19_…`) and add new migrations on
+  top. No connection change (logical multitenancy = same DB). Three ordered steps:
+  1. **Schema-add:** create `Tenant` + `TenantMembership`; add every `tenant` FK
+     as **nullable**; add each new tenant-scoped composite unique *alongside* (not
+     yet replacing) the old single-column uniques.
+  2. **Data backfill:** insert one default `Tenant` (`slug='default'`,
+     `domain=NULL`, `discord_guild_id` copied from the existing
+     `discord_role_sync_guild_id` `SystemConfiguration` value); `UPDATE … SET
+     tenant_id = <default>` on **every** scoped table; stamp existing
+     `AuditLog`/`TelemetryEvent` rows with the default tenant (NULL is reserved
+     for *future* platform-level rows, not existing history); stamp existing
+     `UserRole` rows with the default tenant (none are SUPER_ADMIN yet); insert a
+     `TenantMembership(user, default)` for every existing `User`. Because every
+     row lands in the same tenant, **FK-safe ordering is moot** — parent and child
+     get the same `tenant_id` regardless of order.
+  3. **Constraint-tighten:** `ALTER … SET NOT NULL` on the scoped FKs (all except
+     `AuditLog.tenant`, `TelemetryEvent.tenant`, `UserRole.tenant`, which stay
+     nullable by design); drop the now-superseded single-column uniques. Run
+     backfill + tighten in one transaction so a missed table fails the migration
+     loudly instead of leaving orphan NULLs.
+- **Bootstrap the first super-admin** post-backfill (existing roles are all
+  tenant-scoped STAFF/etc., none global): grant `UserRole(SUPER_ADMIN,
+  tenant=None)` to the operator via `scripts/seed_tenant.py`'s super-admin path
+  or a small grant script.
+- New `scripts/seed_tenant.py` (following `scripts/grant_staff.py`'s pattern) for
+  creating **additional** tenants going forward: create a `Tenant` (name, slug,
+  optional domain, guild_id), locate/create `User` by discord_id, insert
+  `UserRole(SUPER_ADMIN, tenant=None)` + per-tenant `STAFF` + `TenantMembership`.
+- Extend `scripts/seed_dev.py` to seed **two** tenants so leak tests and manual
+  dev checks have cross-tenant data from day one. On a fresh dev/test DB the
+  backfill's default tenant is created empty (no rows to stamp); `seed_dev.py`
+  can adopt it as tenant A and add a second tenant B, keeping one migration path
+  across all environments.
 - New env var `PLATFORM_HOST` (shared host for path-mode tenants, the platform
   surface, and the OAuth callbacks); document in the
   [deployment.md](deployment.md) env table alongside the existing
@@ -320,7 +415,8 @@ its own tenancy pass:
 - `api/dependencies.py` — set tenant context from token; mismatch rejection.
 - New: `application/tenant_context.py`, `application/services/tenant_service.py`,
   `pages/platform.py`, `scripts/seed_tenant.py`.
-- `migrations/` — regenerated.
+- `migrations/` — additive migrations on top of existing history (schema-add →
+  backfill into the default tenant → NOT-NULL tighten); **not** regenerated.
 
 Note: `api/` and `discordbot/` are classified as presentation by
 `.claude/scripts/enforce_architecture.py` — tenant resolution there must go
@@ -358,6 +454,12 @@ through `TenantService`/middleware, never `application.repositories`.
 10. **Event envelope is an external contract** — webhook consumers will start
     receiving a `tenant_id` field; additive, but document it in
     [webhooks.md](features/webhooks.md) and keep `EventType` names stable.
+11. **Backfill completeness** — the NOT-NULL tighten step is the safety net: if
+    any scoped table was missed in the backfill it fails the migration rather
+    than shipping orphan NULLs, so run backfill + tighten in one transaction.
+    The default tenant's `discord_guild_id` must be sourced from the existing
+    `discord_role_sync_guild_id` config, or the shared bot's guild→tenant routing
+    (Phase 7) won't match the live guild after cutover.
 
 ---
 
@@ -390,6 +492,16 @@ through `TenantService`/middleware, never `application.repositories`.
 
 ## Changes in this revision (2026-07-11)
 
+- **Added a "Global vs. tenant-scoped reference" section** consolidating what
+  stays global versus what carries a `tenant` FK (previously spread across scope
+  decisions #3–#4, Phase 1, and Phase 5).
+- **Data preserved, not wiped:** existing production data is migrated into a
+  **default tenant** via an additive backfill (nullable FK → create default
+  `Tenant` → stamp every scoped row → enforce NOT NULL), replacing the earlier
+  fresh-start/`init-db` approach. The default tenant's `discord_guild_id` comes
+  from the existing `discord_role_sync_guild_id` config; its `slug` is a
+  renamable placeholder. Scope decision #6, Phase 9, critical files, and risks
+  updated accordingly.
 - **Dual-mode tenancy added:** tenants addressable by `/t/<slug>` path on a
   shared `PLATFORM_HOST` *and* optionally by custom domain; `Tenant.slug` added,
   `Tenant.domain` now nullable; resolution middleware redesigned around ASGI
