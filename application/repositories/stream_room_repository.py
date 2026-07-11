@@ -6,6 +6,7 @@ Handles database operations for stream rooms.
 
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import StreamRoom
 
 
@@ -23,7 +24,7 @@ class StreamRoomRepository:
         Returns:
             StreamRoom object or None
         """
-        return await StreamRoom.get_or_none(id=stream_room_id)
+        return await StreamRoom.get_or_none(id=stream_room_id, tenant_id=current_tenant_id())
     
     @staticmethod
     async def get_all() -> List[StreamRoom]:
@@ -33,7 +34,7 @@ class StreamRoomRepository:
         Returns:
             List of StreamRoom objects
         """
-        return await StreamRoom.all().order_by('name')
+        return await scoped(StreamRoom.all()).order_by('name')
     
     @staticmethod
     async def get_all_as_dict() -> dict[int, str]:
@@ -44,7 +45,7 @@ class StreamRoomRepository:
         Returns:
             Dict mapping stream room ID to name
         """
-        stream_rooms = await StreamRoom.all()
+        stream_rooms = await scoped(StreamRoom.all())
         return {sr.id: sr.name for sr in stream_rooms}
     
     @staticmethod
@@ -65,6 +66,7 @@ class StreamRoomRepository:
             Created StreamRoom object
         """
         return await StreamRoom.create(
+            tenant_id=current_tenant_id(),
             name=name,
             stream_url=stream_url,
             is_active=is_active

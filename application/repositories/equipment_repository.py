@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from tortoise.functions import Max
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import Equipment, EquipmentLoan, User
 
 
@@ -26,6 +27,7 @@ class EquipmentRepository:
         owner_user: Optional[User],
     ) -> Equipment:
         return await Equipment.create(
+            tenant_id=current_tenant_id(),
             asset_number=asset_number,
             name=name,
             description=description,
@@ -35,21 +37,25 @@ class EquipmentRepository:
 
     @staticmethod
     async def get_by_id(equipment_id: int) -> Optional[Equipment]:
-        return await Equipment.get_or_none(id=equipment_id).prefetch_related('owner_user')
+        return await Equipment.get_or_none(
+            id=equipment_id, tenant_id=current_tenant_id()
+        ).prefetch_related('owner_user')
 
     @staticmethod
     async def list_all() -> List[Equipment]:
         """All assets, lowest asset number first, owner prefetched."""
-        return await Equipment.all().order_by('asset_number').prefetch_related('owner_user')
+        return await scoped(Equipment.all()).order_by('asset_number').prefetch_related('owner_user')
 
     @staticmethod
     async def next_asset_number() -> int:
-        row = await Equipment.annotate(m=Max('asset_number')).values('m')
+        row = await scoped(Equipment.annotate(m=Max('asset_number'))).values('m')
         current = row[0]['m'] if row else None
         return (current or 0) + 1
 
     @staticmethod
     async def bulk_create(assets: List[Equipment]) -> List[Equipment]:
+        for asset in assets:
+            asset.tenant_id = current_tenant_id()
         return await Equipment.bulk_create(assets)
 
     @staticmethod
@@ -69,6 +75,7 @@ class EquipmentRepository:
         checked_out_by: User,
     ) -> EquipmentLoan:
         return await EquipmentLoan.create(
+            tenant_id=current_tenant_id(),
             equipment=equipment,
             borrower=borrower,
             checked_out_by=checked_out_by,
@@ -76,9 +83,9 @@ class EquipmentRepository:
 
     @staticmethod
     async def get_open_loan(equipment: Equipment) -> Optional[EquipmentLoan]:
-        return await EquipmentLoan.filter(
+        return await scoped(EquipmentLoan.filter(
             equipment=equipment, checked_in_at__isnull=True
-        ).prefetch_related('borrower').first()
+        )).prefetch_related('borrower').first()
 
     @staticmethod
     async def close_loan(loan: EquipmentLoan, checked_in_by: User, checked_in_at: datetime) -> None:
@@ -88,18 +95,18 @@ class EquipmentRepository:
 
     @staticmethod
     async def list_open_loans_for_user(user: User) -> List[EquipmentLoan]:
-        return await EquipmentLoan.filter(
+        return await scoped(EquipmentLoan.filter(
             borrower=user, checked_in_at__isnull=True
-        ).order_by('-checked_out_at').prefetch_related('equipment')
+        )).order_by('-checked_out_at').prefetch_related('equipment')
 
     @staticmethod
     async def list_loans_for_equipment(equipment: Equipment) -> List[EquipmentLoan]:
-        return await EquipmentLoan.filter(equipment=equipment).order_by(
+        return await scoped(EquipmentLoan.filter(equipment=equipment)).order_by(
             '-checked_out_at'
         ).prefetch_related('borrower', 'checked_out_by', 'checked_in_by')
 
     @staticmethod
     async def open_loans_by_equipment_id() -> dict[int, EquipmentLoan]:
         """Map of equipment_id -> its open loan (borrower prefetched), for list views."""
-        loans = await EquipmentLoan.filter(checked_in_at__isnull=True).prefetch_related('borrower')
+        loans = await scoped(EquipmentLoan.filter(checked_in_at__isnull=True)).prefetch_related('borrower')
         return {loan.equipment_id: loan for loan in loans}

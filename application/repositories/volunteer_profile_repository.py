@@ -6,6 +6,7 @@ Per-user opt-in records for onsite volunteering.
 
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerProfile
 
 
@@ -14,11 +15,11 @@ class VolunteerProfileRepository:
 
     @staticmethod
     async def get_for_user(user: User) -> Optional[VolunteerProfile]:
-        return await VolunteerProfile.get_or_none(user=user)
+        return await VolunteerProfile.get_or_none(user=user, tenant_id=current_tenant_id())
 
     @staticmethod
     async def get_or_create_for_user(user: User) -> VolunteerProfile:
-        profile, _ = await VolunteerProfile.get_or_create(user=user)
+        profile, _ = await VolunteerProfile.get_or_create(tenant_id=current_tenant_id(), user=user)
         return profile
 
     @staticmethod
@@ -30,13 +31,13 @@ class VolunteerProfileRepository:
     async def list_opted_in() -> List[VolunteerProfile]:
         """All profiles that have opted in, with the user prefetched."""
         return await (
-            VolunteerProfile.filter(opted_in_at__isnull=False)
+            scoped(VolunteerProfile.filter(opted_in_at__isnull=False))
             .prefetch_related('user')
         )
 
     @staticmethod
     async def opted_in_user_ids() -> List[int]:
         return await (
-            VolunteerProfile.filter(opted_in_at__isnull=False)
+            scoped(VolunteerProfile.filter(opted_in_at__isnull=False))
             .values_list('user_id', flat=True)
         )

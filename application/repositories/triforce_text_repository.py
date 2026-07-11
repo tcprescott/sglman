@@ -7,6 +7,7 @@ Handles all database operations for the TriforceText model.
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import Tournament, TriforceText, User
 
 
@@ -36,7 +37,9 @@ class TriforceTextRepository:
 
     @staticmethod
     async def get_by_id(text_id: int) -> Optional[TriforceText]:
-        return await TriforceText.get_or_none(id=text_id).prefetch_related(
+        return await TriforceText.get_or_none(
+            id=text_id, tenant_id=current_tenant_id()
+        ).prefetch_related(
             'tournament', 'user', 'approved_by'
         )
 
@@ -50,7 +53,7 @@ class TriforceTextRepository:
         ``status`` may be ``None`` (all), ``'pending'``, ``'approved'``, or
         ``'rejected'``.
         """
-        query = TriforceText.filter(tournament=tournament)
+        query = scoped(TriforceText.filter(tournament=tournament))
         approved = _status_to_approved_filter(status)
         if approved is not _UNSET:
             query = query.filter(approved=approved)
@@ -60,13 +63,13 @@ class TriforceTextRepository:
     async def list_by_tournament_and_user(
         tournament: Tournament, user: User
     ) -> List[TriforceText]:
-        return await TriforceText.filter(
+        return await scoped(TriforceText.filter(
             tournament=tournament, user=user
-        ).order_by('-created_at')
+        )).order_by('-created_at')
 
     @staticmethod
     async def list_approved(tournament: Tournament) -> List[TriforceText]:
-        return await TriforceText.filter(tournament=tournament, approved=True)
+        return await scoped(TriforceText.filter(tournament=tournament, approved=True))
 
     @staticmethod
     async def list_approved_user_buckets(tournament: Tournament) -> List[Optional[int]]:
@@ -77,18 +80,18 @@ class TriforceTextRepository:
         as its own bucket keeps those texts in rotation for balanced
         selection.
         """
-        rows = await TriforceText.filter(
+        rows = await scoped(TriforceText.filter(
             tournament=tournament, approved=True
-        ).distinct().values_list('user_id', flat=True)
+        )).distinct().values_list('user_id', flat=True)
         return list(rows)
 
     @staticmethod
     async def list_approved_by_user(
         tournament: Tournament, user_id: Optional[int]
     ) -> List[TriforceText]:
-        return await TriforceText.filter(
+        return await scoped(TriforceText.filter(
             tournament=tournament, approved=True, user_id=user_id
-        )
+        ))
 
     @staticmethod
     async def create(
@@ -98,6 +101,7 @@ class TriforceTextRepository:
         author: Optional[str],
     ) -> TriforceText:
         return await TriforceText.create(
+            tenant_id=current_tenant_id(),
             tournament=tournament,
             user=user,
             text=text,

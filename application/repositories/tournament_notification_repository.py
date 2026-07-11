@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import MatchNotificationLevel, TournamentNotificationPreference, Tournament, User
 
 
@@ -7,10 +8,10 @@ class TournamentNotificationRepository:
     """Repository for TournamentNotificationPreference data access."""
 
     async def get_by_user_and_tournament(self, user: User, tournament: Tournament) -> Optional[TournamentNotificationPreference]:
-        return await TournamentNotificationPreference.get_or_none(user=user, tournament=tournament)
+        return await TournamentNotificationPreference.get_or_none(user=user, tournament=tournament, tenant_id=current_tenant_id())
 
     async def get_all_for_user(self, user: User) -> List[TournamentNotificationPreference]:
-        return await TournamentNotificationPreference.filter(user=user).prefetch_related('tournament').all()
+        return await scoped(TournamentNotificationPreference.filter(user=user)).prefetch_related('tournament').all()
 
     async def upsert(
         self,
@@ -19,6 +20,7 @@ class TournamentNotificationRepository:
         match_notifications: MatchNotificationLevel,
     ) -> TournamentNotificationPreference:
         pref, _ = await TournamentNotificationPreference.get_or_create(
+            tenant_id=current_tenant_id(),
             user=user,
             tournament=tournament,
         )
@@ -43,10 +45,10 @@ class TournamentNotificationRepository:
         else:
             qualifying_levels = [MatchNotificationLevel.ALL]
 
-        prefs = await TournamentNotificationPreference.filter(
+        prefs = await scoped(TournamentNotificationPreference.filter(
             tournament_id=tournament_id,
             match_notifications__in=qualifying_levels,
-        ).prefetch_related('user').all()
+        )).prefetch_related('user').all()
 
         return [
             p.user for p in prefs
@@ -55,10 +57,10 @@ class TournamentNotificationRepository:
 
     async def get_stream_candidate_subscribers(self, tournament_id: int) -> List[User]:
         """Return users who opted in to stream candidate alerts."""
-        prefs = await TournamentNotificationPreference.filter(
+        prefs = await scoped(TournamentNotificationPreference.filter(
             tournament_id=tournament_id,
             match_notifications=MatchNotificationLevel.STREAMED_AND_CANDIDATES,
-        ).prefetch_related('user').all()
+        )).prefetch_related('user').all()
 
         return [
             p.user for p in prefs

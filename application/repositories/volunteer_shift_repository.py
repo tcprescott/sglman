@@ -7,6 +7,7 @@ Position-scoped, time-windowed shifts.
 from datetime import datetime
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import VolunteerShift
 
 
@@ -18,13 +19,13 @@ class VolunteerShiftRepository:
 
     @staticmethod
     async def get_by_id(shift_id: int) -> Optional[VolunteerShift]:
-        return await VolunteerShift.get_or_none(id=shift_id).prefetch_related(*_PREFETCH)
+        return await VolunteerShift.get_or_none(id=shift_id, tenant_id=current_tenant_id()).prefetch_related(*_PREFETCH)
 
     @staticmethod
     async def list_for_window(start: datetime, end: datetime) -> List[VolunteerShift]:
         """Shifts overlapping [start, end], ordered by position then start time."""
         return await (
-            VolunteerShift.filter(starts_at__lt=end, ends_at__gt=start)
+            scoped(VolunteerShift.filter(starts_at__lt=end, ends_at__gt=start))
             .order_by('position__display_order', 'position__name', 'starts_at')
             .prefetch_related(*_PREFETCH)
         )
@@ -34,9 +35,9 @@ class VolunteerShiftRepository:
         position_id: int, start: datetime, end: datetime,
     ) -> List[VolunteerShift]:
         return await (
-            VolunteerShift.filter(
+            scoped(VolunteerShift.filter(
                 position_id=position_id, starts_at__lt=end, ends_at__gt=start,
-            )
+            ))
             .order_by('starts_at')
             .prefetch_related(*_PREFETCH)
         )
@@ -51,6 +52,7 @@ class VolunteerShiftRepository:
         notes: Optional[str] = None,
     ) -> VolunteerShift:
         return await VolunteerShift.create(
+            tenant_id=current_tenant_id(),
             position_id=position_id,
             starts_at=starts_at,
             ends_at=ends_at,
@@ -72,4 +74,4 @@ class VolunteerShiftRepository:
 
     @staticmethod
     async def delete_all() -> int:
-        return await VolunteerShift.all().delete()
+        return await scoped(VolunteerShift.all()).delete()

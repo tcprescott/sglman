@@ -6,6 +6,7 @@ Coordinator-defined volunteer positions/jobs.
 
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import VolunteerPosition
 
 
@@ -14,15 +15,15 @@ class VolunteerPositionRepository:
 
     @staticmethod
     async def get_by_id(position_id: int) -> Optional[VolunteerPosition]:
-        return await VolunteerPosition.get_or_none(id=position_id)
+        return await VolunteerPosition.get_or_none(id=position_id, tenant_id=current_tenant_id())
 
     @staticmethod
     async def list_all() -> List[VolunteerPosition]:
-        return await VolunteerPosition.all().order_by('display_order', 'name')
+        return await scoped(VolunteerPosition.all()).order_by('display_order', 'name')
 
     @staticmethod
     async def list_active() -> List[VolunteerPosition]:
-        return await VolunteerPosition.filter(is_active=True).order_by('display_order', 'name')
+        return await scoped(VolunteerPosition.filter(is_active=True)).order_by('display_order', 'name')
 
     @staticmethod
     async def create(
@@ -35,6 +36,7 @@ class VolunteerPositionRepository:
         stagger_minutes: Optional[int] = None,
     ) -> VolunteerPosition:
         return await VolunteerPosition.create(
+            tenant_id=current_tenant_id(),
             name=name,
             description=description,
             color=color,

@@ -8,6 +8,7 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 from typing import List, Optional
 from datetime import datetime, date
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User
 
 
@@ -26,8 +27,8 @@ class MatchRepository:
         Returns:
             Match object or None if not found
         """
-        query = Match.filter(id=match_id)
-        
+        query = scoped(Match.filter(id=match_id))
+
         if prefetch_relations:
             query = query.prefetch_related(
                 'tournament',
@@ -65,8 +66,8 @@ class MatchRepository:
         Returns:
             List of Match objects
         """
-        query = Match.all()
-        
+        query = scoped(Match.all())
+
         if only_upcoming:
             query = query.filter(finished_at__isnull=True)
         
@@ -116,6 +117,7 @@ class MatchRepository:
             Created Match object
         """
         match = await Match.create(
+            tenant_id=current_tenant_id(),
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
@@ -167,7 +169,7 @@ class MatchRepository:
         Returns:
             Created MatchPlayers object
         """
-        return await MatchPlayers.create(match=match, user=user)
+        return await MatchPlayers.create(tenant_id=current_tenant_id(), match=match, user=user)
     
     @staticmethod
     async def remove_player(match: Match, user: User) -> None:
@@ -178,7 +180,7 @@ class MatchRepository:
             match: Match object
             user: User to remove
         """
-        player = await MatchPlayers.filter(match=match, user=user).first()
+        player = await scoped(MatchPlayers.filter(match=match, user=user)).first()
         if player:
             await player.delete()
     
@@ -194,7 +196,7 @@ class MatchRepository:
             List of MatchPlayers
         """
         match_id = match.id if isinstance(match, Match) else match
-        return await MatchPlayers.filter(match_id=match_id).prefetch_related('user')
+        return await scoped(MatchPlayers.filter(match_id=match_id)).prefetch_related('user')
 
     @staticmethod
     async def get_all_for_schedule() -> List[Match]:
@@ -204,7 +206,7 @@ class MatchRepository:
         Returns:
             List of matches with tournament/players/stream_room/seed prefetched
         """
-        return await Match.all().prefetch_related(
+        return await scoped(Match.all()).prefetch_related(
             'tournament', 'players', 'stream_room', 'generated_seed'
         ).order_by('scheduled_at')
 
@@ -228,10 +230,10 @@ class MatchRepository:
         start_of_day = datetime.combine(target_date, datetime.min.time())
         end_of_day = datetime.combine(target_date, datetime.max.time())
 
-        query = Match.filter(
+        query = scoped(Match.filter(
             scheduled_at__gte=start_of_day,
             scheduled_at__lte=end_of_day
-        )
+        ))
 
         if exclude_finished:
             query = query.filter(finished_at=None)
@@ -255,4 +257,4 @@ class MatchRepository:
         Returns:
             List of matches where the player is participating
         """
-        return await Match.filter(players__user__discord_id=discord_id)
+        return await scoped(Match.filter(players__user__discord_id=discord_id))

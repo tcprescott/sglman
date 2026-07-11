@@ -8,6 +8,7 @@ from typing import List, Set
 
 from tortoise.transactions import in_transaction
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerQualification
 
 
@@ -16,22 +17,22 @@ class VolunteerQualificationRepository:
 
     @staticmethod
     async def qualified_position_ids(user: User) -> Set[int]:
-        ids = await VolunteerQualification.filter(user=user).values_list('position_id', flat=True)
+        ids = await scoped(VolunteerQualification.filter(user=user)).values_list('position_id', flat=True)
         return set(ids)
 
     @staticmethod
     async def set_for_user(user: User, position_ids: List[int]) -> None:
         """Replace all qualifications for ``user`` with the given position IDs."""
         async with in_transaction():
-            await VolunteerQualification.filter(user=user).delete()
+            await scoped(VolunteerQualification.filter(user=user)).delete()
             for pid in position_ids:
-                await VolunteerQualification.create(user_id=user.id, position_id=pid)
+                await VolunteerQualification.create(tenant_id=current_tenant_id(), user_id=user.id, position_id=pid)
 
     @staticmethod
     async def qualified_user_ids_for_position(position_id: int) -> Set[int]:
-        ids = await VolunteerQualification.filter(position_id=position_id).values_list('user_id', flat=True)
+        ids = await scoped(VolunteerQualification.filter(position_id=position_id)).values_list('user_id', flat=True)
         return set(ids)
 
     @staticmethod
     async def list_all() -> List[VolunteerQualification]:
-        return await VolunteerQualification.all().prefetch_related('user', 'position')
+        return await scoped(VolunteerQualification.all()).prefetch_related('user', 'position')
