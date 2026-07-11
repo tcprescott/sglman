@@ -1024,6 +1024,24 @@ Serves `DiscordRoleMapping` ([`discord_role_mapping_repository.py`](../../applic
 | `async create(guild_id, discord_role_id, discord_role_name, app_role) -> DiscordRoleMapping` | Insert a mapping |
 | `async delete(mapping: DiscordRoleMapping) -> None` | Delete a mapping |
 
+### Tenancy repositories and the scoping helper
+
+Every scoped repository reads the ambient tenant itself rather than taking a `tenant_id` parameter — the shared helper [`_tenant.py`](../../application/repositories/_tenant.py) is the single seam:
+
+| Symbol | Description |
+|---|---|
+| `current_tenant_id() -> int` | Alias of `require_tenant_id()` ([`tenant_context.py`](../../application/tenant_context.py)); raises if no tenant is in scope. Repositories call it to **stamp** `tenant_id` on writes |
+| `scoped(qs, tenant_id=None)` | `qs.filter(tenant_id=current_tenant_id())` — the standard read filter. Applied to `.all()`/`.filter(...)` querysets so a read never crosses tenants |
+
+A read that forgets to `scoped(...)` (or a write that forgets to stamp) fails loudly at `require_tenant_id()` when no tenant is bound, rather than silently leaking — the safety net of the explicit-threading contract. Nullable-tenant models (`AuditLog`, `TelemetryEvent`, `UserRole`) filter to the current tenant on read (excluding NULL platform rows) and stamp the ambient tenant on write.
+
+The two tenancy tables are served by cross-tenant repositories that are **never** `scoped` (they resolve which tenant a request belongs to, so they must see all tenants):
+
+| Repository | Source | Serves | Key methods |
+|---|---|---|---|
+| `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | `get_by_id`, `get_by_slug`, `get_by_domain`, `get_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `delete` |
+| `TenantMembershipRepository` | [`tenant_membership_repository.py`](../../application/repositories/tenant_membership_repository.py) | `TenantMembership` | `is_member`, `add`, `remove`, `list_for_user`, `list_for_tenant`, `tenant_ids_for_user` |
+
 ### Newer subsystem repositories
 
 The equipment, volunteering, availability, Challonge, API-token, feedback, and webhook subsystems each added a repository in the same pattern as those above (the webhook pair uses instance methods, like `TournamentNotificationRepository`; the rest are static-method classes). They are exported from [`__init__.py`](../../application/repositories/__init__.py). Summaries below; consult the source for full signatures.
