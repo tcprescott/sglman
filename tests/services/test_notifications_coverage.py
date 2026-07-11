@@ -144,7 +144,7 @@ class TestSsrfGuard:
     async def test_private_host_rejected_in_production(self, db, monkeypatch):
         monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
         monkeypatch.setattr(
-            'application.services.webhook_service.socket.getaddrinfo',
+            'application.utils.ssrf.socket.getaddrinfo',
             lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('10.0.0.5', 0))],
         )
         with pytest.raises(ValueError, match='public address'):
@@ -153,7 +153,7 @@ class TestSsrfGuard:
     async def test_loopback_host_rejected_in_production(self, db, monkeypatch):
         monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
         monkeypatch.setattr(
-            'application.services.webhook_service.socket.getaddrinfo',
+            'application.utils.ssrf.socket.getaddrinfo',
             lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('127.0.0.1', 0))],
         )
         with pytest.raises(ValueError, match='public address'):
@@ -163,14 +163,14 @@ class TestSsrfGuard:
         def _boom(*a, **k):
             raise socket.gaierror('name resolution failed')
         monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
-        monkeypatch.setattr('application.services.webhook_service.socket.getaddrinfo', _boom)
+        monkeypatch.setattr('application.utils.ssrf.socket.getaddrinfo', _boom)
         with pytest.raises(ValueError, match='Could not resolve'):
             await WebhookService()._validate_url('https://nope.invalid/hook')
 
     async def test_public_host_allowed_in_production(self, db, monkeypatch):
         monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
         monkeypatch.setattr(
-            'application.services.webhook_service.socket.getaddrinfo',
+            'application.utils.ssrf.socket.getaddrinfo',
             lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 0))],
         )
         # A resolvable public address must pass without raising.
@@ -180,7 +180,7 @@ class TestSsrfGuard:
         actor = await _staff()
         monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
         monkeypatch.setattr(
-            'application.services.webhook_service.socket.getaddrinfo',
+            'application.utils.ssrf.socket.getaddrinfo',
             lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 0))],
         )
         webhook = await WebhookService().create_webhook(
@@ -223,6 +223,33 @@ class TestDeliveryErrorBranches:
         assert delivery.success is False
         assert delivery.response_status is None  # never got a response
         assert delivery.error == 'down-3'  # last error retained
+        assert delivery.delivered_at is None
+
+
+class TestDeliverySsrfRevalidation:
+    async def test_delivery_blocked_when_host_resolves_private_in_production(self, db, monkeypatch):
+        # A stored URL whose host resolves to an internal address at delivery
+        # time (DNS repoint / rebind after the create-time check) must not be
+        # dereferenced; the delivery is recorded as a blocked failure.
+        webhook = await Webhook.create(
+            name='w', url='https://public-then-internal.example/hook',
+            secret='shhh', event_types=['*'],
+        )
+        monkeypatch.setattr('application.services.webhook_service.is_production', lambda: True)
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', ('169.254.169.254', 0))],
+        )
+        fake = WebhookFakeClient([200])
+        monkeypatch.setattr('application.services.webhook_service.httpx.AsyncClient', fake)
+
+        await WebhookService()._deliver_one(webhook, Event.create(EventType.MATCH_CREATED, {}))
+
+        assert fake.calls == []  # the endpoint was never contacted
+        delivery = await WebhookDelivery.get(webhook=webhook)
+        assert delivery.success is False
+        assert delivery.attempt_count == 0
+        assert 'SSRF' in (delivery.error or '')
         assert delivery.delivered_at is None
 
 

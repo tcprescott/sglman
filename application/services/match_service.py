@@ -308,6 +308,17 @@ class MatchService:
             f"User cannot edit match {match_id}",
         )
 
+        # can_crud_match only authorizes the actor against the match's CURRENT
+        # tournament. A reassignment must also be authorized against the TARGET
+        # tournament, otherwise a Tournament Admin could move a match into (and
+        # enroll its players in) a tournament they do not administer.
+        if tournament_id is not None and tournament_id != match.tournament_id:
+            await AuthService.ensure(
+                await AuthService.is_staff(actor)
+                or await AuthService.is_tournament_admin(actor, tournament_id),
+                f"User cannot move match into tournament {tournament_id}",
+            )
+
         old_scheduled_at = match.scheduled_at
 
         # Snapshot the existing player list so we can detect adds/removals.

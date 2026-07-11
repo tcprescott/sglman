@@ -22,8 +22,10 @@ class PlayerAvailabilityWindowInput(BaseModel):
     starts_at: datetime
     ends_at: datetime
     status: VolunteerAvailabilityStatus = VolunteerAvailabilityStatus.AVAILABLE
-    note: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class SetPlayerAvailabilityRequest(BaseModel):
-    windows: List[PlayerAvailabilityWindowInput] = Field(default_factory=list)
+    # Bounded so a single authenticated request cannot submit an unbounded
+    # window list (request-body / storage exhaustion).
+    windows: List[PlayerAvailabilityWindowInput] = Field(default_factory=list, max_length=500)

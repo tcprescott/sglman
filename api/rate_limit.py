@@ -28,6 +28,10 @@ def _limit_per_minute() -> int:
 
 
 _WINDOW_SECONDS = 60.0
+# Hard ceiling on the number of distinct keys tracked at once. A flood of
+# distinct bearer values (the token prefix is public) or spoofed keys must not
+# be able to grow this dict without bound and OOM the single worker.
+_MAX_TRACKED_KEYS = 10_000
 # key -> timestamps of requests within the current window
 _hits: Dict[str, Deque[float]] = defaultdict(deque)
 _last_sweep = 0.0
@@ -35,14 +39,24 @@ _last_sweep = 0.0
 
 def _sweep(now: float) -> None:
     """Drop keys whose window has fully expired so idle/garbage keys don't
-    accumulate. Runs at most once per window."""
+    accumulate. Runs at most once per window, or immediately whenever the
+    tracked-key count crosses ``_MAX_TRACKED_KEYS`` so a burst of distinct keys
+    within a single window cannot exhaust memory."""
     global _last_sweep
-    if now - _last_sweep < _WINDOW_SECONDS:
+    over_cap = len(_hits) > _MAX_TRACKED_KEYS
+    if not over_cap and now - _last_sweep < _WINDOW_SECONDS:
         return
     _last_sweep = now
     cutoff = now - _WINDOW_SECONDS
     for key in [k for k, b in _hits.items() if not b or b[-1] < cutoff]:
         del _hits[key]
+    # Still oversized after reclaiming expired keys: evict the keys whose most
+    # recent hit is oldest until back under the cap. Bounds worst-case memory
+    # even during an active flood.
+    if len(_hits) > _MAX_TRACKED_KEYS:
+        overflow = len(_hits) - _MAX_TRACKED_KEYS
+        for key in sorted(_hits, key=lambda k: _hits[k][-1] if _hits[k] else 0.0)[:overflow]:
+            del _hits[key]
 
 
 def _trust_forwarded_for() -> bool:
@@ -81,22 +95,42 @@ def _client_key(request: Request) -> str:
 
 
 async def rate_limit(request: Request) -> None:
-    """Reject the request with 429 when its key exceeds the per-minute limit."""
+    """Reject the request with 429 when its key exceeds the per-minute limit.
+
+    The client IP is always enforced as a ceiling. This runs as a router-level
+    dependency *before* authentication, so it fires for unauthenticated requests
+    too — and the token prefix (``sglman_pat_``) is public, so bucketing solely
+    by a presented bearer value would let an attacker mint a fresh, always-empty
+    bucket per request by rotating the suffix and never trip the limit (and grow
+    ``_hits`` without bound). Keying by IP as well caps that flood at the source.
+    A well-formed token additionally gets its own bucket so one client's traffic
+    is throttled independently below the shared IP ceiling.
+    """
     limit = _limit_per_minute()
-    key = _client_key(request)
     now = time.monotonic()
+    _sweep(now)
     window_start = now - _WINDOW_SECONDS
 
-    bucket = _hits[key]
-    while bucket and bucket[0] < window_start:
-        bucket.popleft()
+    ip_key = _client_ip_key(request)
+    keys = [ip_key]
+    client_key = _client_key(request)
+    if client_key != ip_key:
+        keys.append(client_key)
 
-    if len(bucket) >= limit:
-        retry_after = max(1, int(bucket[0] + _WINDOW_SECONDS - now) + 1)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail='Rate limit exceeded',
-            headers={'Retry-After': str(retry_after)},
-        )
+    # Evaluate every applicable bucket before recording so a rejection by one
+    # bucket does not half-count the request in another. The IP key is checked
+    # first, so a flood is rejected before a per-request token key is created.
+    for key in keys:
+        bucket = _hits[key]
+        while bucket and bucket[0] < window_start:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            retry_after = max(1, int(bucket[0] + _WINDOW_SECONDS - now) + 1)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail='Rate limit exceeded',
+                headers={'Retry-After': str(retry_after)},
+            )
 
-    bucket.append(now)
+    for key in keys:
+        _hits[key].append(now)

@@ -3,8 +3,8 @@
 from nicegui import app, ui
 from middleware.auth import protected_page
 
-from application.services import AuthService
-from models import Role, User
+from application.services import AuthService, get_user_from_discord_id
+from models import Role
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
@@ -46,7 +46,10 @@ def create() -> None:
                 ui.label('You must be logged in to view this page.').classes('text-error')
             return
 
-        user = await User.get_or_none(discord_id=discord_id)
+        # get_user_from_discord_id enforces is_active, so a deactivated account
+        # loses admin access on its next request — consistent with the REST API
+        # and the login flow, and not bypassed by this non-role-gated page.
+        user = await get_user_from_discord_id(discord_id)
         if user is None:
             with ui.row():
                 ui.label('User not found in the database.').classes('text-error')
