@@ -45,9 +45,11 @@ def patch_deps(monkeypatch):
     """Helper to configure the module-level dependencies of sync_user_roles."""
 
     def _apply(*, guild_id=42, member_result=(True, set()), current_roles=set()):
+        # The guild id now lives on the tenant; login sync fans out over every
+        # tenant that has one. No tenant with a guild -> "no_guild_configured".
+        tenants = [] if guild_id is None else [SimpleNamespace(id=1, discord_guild_id=guild_id)]
         monkeypatch.setattr(
-            drms.SystemConfigService, 'get_discord_sync_guild_id',
-            AsyncMock(return_value=guild_id),
+            drms.TenantService, 'list_tenants', AsyncMock(return_value=tenants),
         )
         monkeypatch.setattr(
             drms.AuthService, 'get_roles', AsyncMock(return_value=set(current_roles)),
@@ -307,18 +309,18 @@ class TestSyncIntegration:
             DiscordRoleMappingRepository,
         )
         from application.repositories.user_role_repository import UserRoleRepository
-        from models import User, UserRole
+        from models import Tenant, User, UserRole
 
         guild_id = 42
+        # The routing key now lives on the tenant, not a global config row.
+        default = await Tenant.get(id=1)
+        default.discord_guild_id = guild_id
+        await default.save()
         user = await User.create(discord_id=555, username='bob')
         await DiscordRoleMappingRepository.create(guild_id, 111, 'Mods', Role.PROCTOR)
         # A manually-granted role that must survive the sync.
         await UserRoleRepository.add(user, Role.STAFF, source=RoleSource.MANUAL)
 
-        monkeypatch.setattr(
-            drms.SystemConfigService, 'get_discord_sync_guild_id',
-            AsyncMock(return_value=guild_id),
-        )
         member_roles = {111}
         fake = SimpleNamespace(
             get_member_role_ids=AsyncMock(side_effect=lambda g, u: (True, set(member_roles)))

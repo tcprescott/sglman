@@ -89,17 +89,19 @@ async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
     event can never crash the gateway connection.
     """
     try:
-        from application.services.system_config_service import SystemConfigService
+        from application.services.tenant_service import TenantService
         from application.services.discord_role_mapping_service import DiscordRoleMappingService
         from models import User
 
-        sync_guild_id = await SystemConfigService.get_discord_sync_guild_id()
-        if not sync_guild_id or sync_guild_id != guild_id:
+        # Route the guild to its tenant. Unknown guild (not linked to any tenant)
+        # -> ignore. The per-tenant sync wraps its own tenant_scope.
+        tenant = await TenantService.get_by_guild_id(guild_id)
+        if tenant is None:
             return
         user = await User.get_or_none(discord_id=discord_user_id)
         if user is None:
             return
-        await DiscordRoleMappingService().sync_user_roles(user)
+        await DiscordRoleMappingService().sync_user_roles_for_tenant(user, tenant)
     except Exception:
         logger.exception('Live role sync failed for discord_id=%s', discord_user_id)
 

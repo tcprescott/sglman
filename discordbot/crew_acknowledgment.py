@@ -42,6 +42,8 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
     Responds ephemerally so only the clicking user sees the result.
     """
     from application.services import CrewService, MatchService, UserService
+    from application.tenant_context import tenant_scope
+    from discordbot._tenant import crew_tenant_id
 
     # Defer immediately to extend Discord's 3-second interaction deadline; the
     # downstream DB work (fetch user, fetch crew, update, audit) can exceed it.
@@ -64,15 +66,21 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
         return
 
     try:
-        user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-        if not user:
-            await _send(interaction, MSG_NO_ACCOUNT)
+        tenant_id = await crew_tenant_id(crew_id, crew_type)
+        if tenant_id is None:
+            await _send(interaction, 'Crew assignment not found.')
             return
 
-        crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
-        match_id = crew_member.match_id
+        with tenant_scope(tenant_id):
+            user = await UserService().get_user_by_discord_id(str(interaction.user.id))
+            if not user:
+                await _send(interaction, MSG_NO_ACCOUNT)
+                return
 
-        player_names = await MatchService().get_player_names(match_id)
+            crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
+            match_id = crew_member.match_id
+
+            player_names = await MatchService().get_player_names(match_id)
 
         try:
             await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))

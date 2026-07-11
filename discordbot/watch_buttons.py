@@ -32,6 +32,8 @@ async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:
     Responds ephemerally so only the clicking user sees the result.
     """
     from application.services import MatchService, MatchWatcherService, UserService
+    from application.tenant_context import tenant_scope
+    from discordbot._tenant import match_tenant_id
 
     custom_id = (interaction.data or {}).get('custom_id', '')
     parts = custom_id.split(':')
@@ -53,15 +55,22 @@ async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:
         )
         return
 
-    try:
-        removed = await MatchWatcherService().unwatch(match_id, user)
-    except ValueError as e:
-        await interaction.response.send_message(str(e), ephemeral=True)
+    # DM buttons carry no tenant; discover it from the match, then scope.
+    tenant_id = await match_tenant_id(match_id)
+    if tenant_id is None:
+        await interaction.response.send_message('Match not found.', ephemeral=True)
         return
 
-    player_names = await MatchService().get_player_names(match_id)
+    with tenant_scope(tenant_id):
+        try:
+            removed = await MatchWatcherService().unwatch(match_id, user)
+        except ValueError as e:
+            await interaction.response.send_message(str(e), ephemeral=True)
+            return
 
-    await interaction.response.send_message(
-        unwatch_confirmation(player_names, was_watching=removed),
-        ephemeral=True,
-    )
+        player_names = await MatchService().get_player_names(match_id)
+
+        await interaction.response.send_message(
+            unwatch_confirmation(player_names, was_watching=removed),
+            ephemeral=True,
+        )

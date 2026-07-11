@@ -6,23 +6,29 @@ Handles database operations for Discord-role-to-app-role mappings.
 
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import DiscordRoleMapping, Role
 
 
 class DiscordRoleMappingRepository:
-    """Repository for DiscordRoleMapping data access."""
+    """Repository for DiscordRoleMapping data access.
+
+    Each tenant owns a distinct Discord guild, so filtering by ``guild_id`` also
+    isolates tenants; the reads add an explicit tenant scope for defense in depth
+    and to guard by-id access.
+    """
 
     @staticmethod
     async def get_by_id(mapping_id: int) -> Optional[DiscordRoleMapping]:
-        return await DiscordRoleMapping.get_or_none(id=mapping_id)
+        return await DiscordRoleMapping.get_or_none(id=mapping_id, tenant_id=current_tenant_id())
 
     @staticmethod
     async def get_all() -> List[DiscordRoleMapping]:
-        return await DiscordRoleMapping.all().order_by('discord_role_name', 'app_role')
+        return await scoped(DiscordRoleMapping.all()).order_by('discord_role_name', 'app_role')
 
     @staticmethod
     async def list_for_guild(guild_id: int) -> List[DiscordRoleMapping]:
-        return await DiscordRoleMapping.filter(guild_id=guild_id).order_by(
+        return await scoped(DiscordRoleMapping.filter(guild_id=guild_id)).order_by(
             'discord_role_name', 'app_role'
         )
 
@@ -31,7 +37,8 @@ class DiscordRoleMappingRepository:
         guild_id: int, discord_role_id: int, app_role: Role
     ) -> Optional[DiscordRoleMapping]:
         return await DiscordRoleMapping.get_or_none(
-            guild_id=guild_id, discord_role_id=discord_role_id, app_role=app_role
+            guild_id=guild_id, discord_role_id=discord_role_id, app_role=app_role,
+            tenant_id=current_tenant_id(),
         )
 
     @staticmethod
@@ -42,6 +49,7 @@ class DiscordRoleMappingRepository:
         app_role: Role,
     ) -> DiscordRoleMapping:
         return await DiscordRoleMapping.create(
+            tenant_id=current_tenant_id(),
             guild_id=guild_id,
             discord_role_id=discord_role_id,
             discord_role_name=discord_role_name,

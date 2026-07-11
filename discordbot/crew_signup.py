@@ -34,6 +34,8 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
     Responds ephemerally so only the clicking user sees the result.
     """
     from application.services import CrewService, MatchService, UserService
+    from application.tenant_context import tenant_scope
+    from discordbot._tenant import match_tenant_id
 
     custom_id = (interaction.data or {}).get('custom_id', '')
     parts = custom_id.split(':')
@@ -60,23 +62,31 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
         )
         return
 
-    match_service = MatchService()
-    match = await match_service.get_by_id(match_id, prefetch_relations=False)
-    if not match:
+    # DM buttons carry no tenant; discover it from the match, then scope all
+    # tenant-aware service work to it.
+    tenant_id = await match_tenant_id(match_id)
+    if tenant_id is None:
         await interaction.response.send_message('Match not found.', ephemeral=True)
         return
 
-    # The "match finished -> signup closed" rule now lives in
-    # CrewService.signup_crew (raised as ValueError, handled below) so the web
-    # UI and REST API enforce it too.
-    try:
-        await CrewService().signup_crew(match_id, user, role)
+    with tenant_scope(tenant_id):
+        match_service = MatchService()
+        match = await match_service.get_by_id(match_id, prefetch_relations=False)
+        if not match:
+            await interaction.response.send_message('Match not found.', ephemeral=True)
+            return
 
-        player_names = await match_service.get_player_names(match_id)
+        # The "match finished -> signup closed" rule now lives in
+        # CrewService.signup_crew (raised as ValueError, handled below) so the web
+        # UI and REST API enforce it too.
+        try:
+            await CrewService().signup_crew(match_id, user, role)
 
-        await interaction.response.send_message(
-            crew_signup_confirmation(role, player_names),
-            ephemeral=True,
-        )
-    except ValueError as e:
-        await interaction.response.send_message(str(e), ephemeral=True)
+            player_names = await match_service.get_player_names(match_id)
+
+            await interaction.response.send_message(
+                crew_signup_confirmation(role, player_names),
+                ephemeral=True,
+            )
+        except ValueError as e:
+            await interaction.response.send_message(str(e), ephemeral=True)
