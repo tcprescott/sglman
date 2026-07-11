@@ -15,7 +15,7 @@ from application.utils.environment import is_production, validate_security_confi
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
 from middleware.tenant import TenantMiddleware
-from pages import admin, auth, challonge_oauth, equipment, home, twitch_oauth, volunteer
+from pages import admin, auth, challonge_oauth, equipment, home, platform, twitch_oauth, volunteer
 
 _ui_logger = logging.getLogger('sglman.ui')
 
@@ -100,6 +100,7 @@ def init(fastapi_app: FastAPI) -> None:
     home.create()
     volunteer.create()
     equipment.create()
+    platform.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

@@ -1,6 +1,7 @@
 from nicegui import app, ui
 
-from application.services import AuthService, get_user_from_discord_id
+from application.services import AuthService, TenantService, get_user_from_discord_id
+from application.tenant_context import get_current_tenant_id, stash_client_tenant_id
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_tab
 from pages.home_tabs.player_edit_info import render_edit_info_tab
@@ -11,9 +12,38 @@ from pages.home_tabs.triforce_texts import triforce_texts_tab
 from theme.base import BaseLayout
 
 
+async def _render_platform_landing() -> None:
+    """The bare platform host (no /t/<slug>) shows a community picker.
+
+    Runs with no tenant context: lists active tenants (each linking to its
+    path-mode home) and, for a super-admin, a link to the /platform surface."""
+    ui.page_title('SpeedGaming Live')
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    tenants = [t for t in await TenantService.list_tenants() if t.is_active]
+    with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4'):
+        ui.label('SpeedGaming Live').classes('text-3xl font-bold')
+        ui.label('Choose a community').classes('text-lg text-gray-600')
+        if not tenants:
+            ui.label('No communities are available yet.').classes('text-gray-500')
+        with ui.column().classes('w-full gap-2'):
+            for tenant in tenants:
+                ui.link(tenant.name, f'/t/{tenant.slug}/').classes('text-lg')
+        if await AuthService.is_super_admin(user):
+            ui.separator()
+            ui.link('Platform administration', '/platform').classes('text-primary')
+
+
 def create() -> None:
     @ui.page('/')
     async def home(tab: str = None):
+        # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
+        tid = get_current_tenant_id()
+        if tid is None:
+            await _render_platform_landing()
+            return
+        # Stash the tenant onto the connection so websocket UI handlers resolve it.
+        stash_client_tenant_id(tid)
+
         ui.page_title('Speedgaming Live Onsite')
         discord_id = app.storage.user.get('discord_id', None)
         # get_user_from_discord_id enforces is_active, so a deactivated account

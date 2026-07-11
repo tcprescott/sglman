@@ -23,6 +23,7 @@ import secrets
 from urllib.parse import parse_qs, urlparse
 
 from nicegui import Client, app, ui
+from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
@@ -37,19 +38,23 @@ _PROFILE_RETURN = '/?tab=Profile'
 
 def create() -> None:
     @ui.page('/challonge/connect')
-    async def challonge_connect() -> RedirectResponse:
+    async def challonge_connect(request: Request) -> RedirectResponse:
+        # Initiation runs with tenant context; the shared callback lands on the
+        # bare platform host, so pin the tenant-qualified return here.
+        root_path = request.scope.get('root_path', '') or ''
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
-            return RedirectResponse('/login')
+            return RedirectResponse(f'{root_path}/login')
         if not await AuthService.is_staff(user):
-            return RedirectResponse('/admin')
+            return RedirectResponse(f'{root_path}/admin')
         if is_mock_challonge():
             service = ChallongeService()
             payload = await service.exchange_service_code('mock')
             await service.save_service_connection(payload, user)
-            return RedirectResponse(_ADMIN_RETURN)
+            return RedirectResponse(f'{root_path}{_ADMIN_RETURN}')
         state = secrets.token_urlsafe(32)
         app.storage.user['challonge_service_state'] = state
+        app.storage.user['challonge_service_return'] = f'{root_path}{_ADMIN_RETURN}'
         return RedirectResponse(ChallongeService.service_authorize_url(state))
 
     @ui.page('/challonge/oauth/callback')
@@ -58,33 +63,39 @@ def create() -> None:
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         service_state = app.storage.user.pop('challonge_service_state', None)
         player_state = app.storage.user.pop('challonge_player_state', None)
+        service_return = app.storage.user.pop('challonge_service_return', None) or _ADMIN_RETURN
+        player_return = app.storage.user.pop('challonge_player_return', None) or _PROFILE_RETURN
         url = await ui.run_javascript('window.location.href')
         if user is None:
-            ui.navigate.to('/login')
+            # Not authenticated: bounce to the originating tenant's login rather
+            # than the platform host (the returns carry the /t/<slug> prefix).
+            ui.navigate.to(service_return if service_state is not None else player_return)
             return
         # The pending CSRF state tells us which flow this single callback completes.
         returned_state = _returned_state(url)
         if player_state is not None and (returned_state == player_state or service_state is None):
-            await _finish_player_link(user, _read_callback_code(url, player_state))
+            await _finish_player_link(user, _read_callback_code(url, player_state), player_return)
         else:
-            await _finish_service_connect(user, _read_callback_code(url, service_state))
+            await _finish_service_connect(user, _read_callback_code(url, service_state), service_return)
 
     @ui.page('/challonge/link')
-    async def challonge_link() -> RedirectResponse:
+    async def challonge_link(request: Request) -> RedirectResponse:
+        root_path = request.scope.get('root_path', '') or ''
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
-            return RedirectResponse('/login')
+            return RedirectResponse(f'{root_path}/login')
         if is_mock_challonge():
             service = ChallongeService()
             me = await service.exchange_player_code('mock')
             await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
-            return RedirectResponse(_PROFILE_RETURN)
+            return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
         state = secrets.token_urlsafe(32)
         app.storage.user['challonge_player_state'] = state
+        app.storage.user['challonge_player_return'] = f'{root_path}{_PROFILE_RETURN}'
         return RedirectResponse(ChallongeService.player_authorize_url(state))
 
 
-async def _finish_service_connect(user, code: str | None) -> None:
+async def _finish_service_connect(user, code: str | None, return_path: str) -> None:
     if code is None:
         ui.notify('Challonge connection was cancelled or failed.', color='warning')
     else:
@@ -96,10 +107,10 @@ async def _finish_service_connect(user, code: str | None) -> None:
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge service connection failed')
             ui.notify('Could not connect Challonge. Please try again.', color='negative')
-    ui.navigate.to(_ADMIN_RETURN)
+    ui.navigate.to(return_path)
 
 
-async def _finish_player_link(user, code: str | None) -> None:
+async def _finish_player_link(user, code: str | None, return_path: str) -> None:
     if code is None:
         ui.notify('Challonge linking was cancelled or failed.', color='warning')
     else:
@@ -111,7 +122,7 @@ async def _finish_player_link(user, code: str | None) -> None:
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge player linking failed')
             ui.notify('Could not link Challonge. Please try again.', color='negative')
-    ui.navigate.to(_PROFILE_RETURN)
+    ui.navigate.to(return_path)
 
 
 def _returned_state(url: str) -> str | None:

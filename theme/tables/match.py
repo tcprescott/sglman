@@ -1,6 +1,7 @@
 from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
+from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from theme.realtime import register_view
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
@@ -63,20 +64,20 @@ class MatchTableView(MatchTableHandlersMixin):
         self._setup_ui()
 
     def _on_state_filter_change(self, *_args, **_kwargs):
-        # Store the state filter value in app.storage
-        app.storage.user['state_filter'] = self.state_filter.value
+        # Tenant-scoped: a filter is meaningful only within its own community.
+        tenant_session_set('state_filter', self.state_filter.value)
         self._update_filter_badge()
         background_tasks.create(self.refresh())
 
     def _on_tournament_filter_change(self, *_args, **_kwargs):
-        # Store the tournament ID value in app.storage
-        app.storage.user['tournament_filter'] = self.tournament_filter.value
+        # Store the tournament ID value (namespaced by tenant — ids are global).
+        tenant_session_set('tournament_filter', self.tournament_filter.value)
         self._update_filter_badge()
         background_tasks.create(self.refresh())
 
     def _on_stream_room_filter_change(self, *_args, **_kwargs):
-        # Store the stream room ID value in app.storage
-        app.storage.user['stream_room_filter'] = self.stream_room_filter.value
+        # Store the stream room ID value (namespaced by tenant — ids are global).
+        tenant_session_set('stream_room_filter', self.stream_room_filter.value)
         self._update_filter_badge()
         background_tasks.create(self.refresh())
 
@@ -111,7 +112,7 @@ class MatchTableView(MatchTableHandlersMixin):
         """Load all tournament names for the filter using service layer."""
         self.tournaments_list = await self.display_service.get_tournaments_for_filter()
         # Set initial value from storage or default to None (All Tournaments)
-        default_tournament_id = app.storage.user.get('tournament_filter', None)
+        default_tournament_id = tenant_session_get('tournament_filter', None)
         if self.tournament_filter:
             self.tournament_filter.options = self.tournaments_list
             self.tournament_filter.value = default_tournament_id
@@ -122,7 +123,7 @@ class MatchTableView(MatchTableHandlersMixin):
         """Load all stream room names for the filter using service layer."""
         self.stream_rooms_list = await self.display_service.get_stream_rooms_for_filter()
         # Set initial value from storage or default to None (All Stages)
-        default_stream_room_id = app.storage.user.get('stream_room_filter', None)
+        default_stream_room_id = tenant_session_get('stream_room_filter', None)
         if self.stream_room_filter:
             self.stream_room_filter.options = self.stream_rooms_list
             self.stream_room_filter.value = default_stream_room_id
@@ -176,7 +177,7 @@ class MatchTableView(MatchTableHandlersMixin):
                 with ui.column().classes('match-filter-column'):
                     ui.label('State').classes('match-filter-label')
                     # Default to showing Scheduled, Checked In, and Started
-                    default_states = app.storage.user.get('state_filter', list(DEFAULT_STATE_FILTER))
+                    default_states = tenant_session_get('state_filter', list(DEFAULT_STATE_FILTER))
                     self.state_filter = ui.select(
                         options=list(ALL_MATCH_STATES),
                         value=default_states,
