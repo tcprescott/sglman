@@ -156,6 +156,31 @@ async def test_match_watcher_by_user_does_not_leak(tenants):
         assert [w.match_id for w in rows] == [mb.id]
 
 
+async def test_challonge_connection_is_per_tenant(tenants):
+    from application.repositories.challonge_repository import ChallongeRepository
+    a, b = tenants
+    with tenant_scope(a.id):
+        await ChallongeRepository.save_connection('tok-A', None, None, None, 'acct-a', None)
+        conn = await ChallongeRepository.get_connection()
+        assert conn is not None and conn.access_token == 'tok-A'
+    with tenant_scope(b.id):
+        # B has its own (absent) connection; A's must not be visible.
+        assert await ChallongeRepository.get_connection() is None
+        await ChallongeRepository.save_connection('tok-B', None, None, None, 'acct-b', None)
+    with tenant_scope(a.id):
+        assert (await ChallongeRepository.get_connection()).access_token == 'tok-A'
+
+
+async def test_challonge_api_usage_is_per_tenant(tenants):
+    from application.repositories.challonge_repository import ChallongeRepository
+    a, b = tenants
+    with tenant_scope(a.id):
+        await ChallongeRepository.increment_api_usage(5)
+        assert await ChallongeRepository.get_monthly_usage() == 5
+    with tenant_scope(b.id):
+        assert await ChallongeRepository.get_monthly_usage() == 0
+
+
 async def test_volunteer_profile_opt_in_is_per_tenant(tenants):
     """VolunteerProfile changed from OneToOne(user) to a tenant-scoped FK — a
     user can opt in per tenant, and each tenant sees only its own profiles."""
