@@ -67,7 +67,7 @@ Some newer subsystems do not yet have a dedicated feature doc; they are covered 
 
 ## Proposals (not yet implemented)
 
-- [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (per-domain tenants, central super-admin interface, one-bot-many-guilds Discord). Design only; no code shipped.
+- [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (dual path-based `/t/<slug>` + custom-domain tenant addressing, platform super-admin surface, one-bot-many-guilds Discord). Design only; no code shipped.
 
 ## Coverage map
 
