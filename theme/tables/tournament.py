@@ -1,4 +1,5 @@
 from nicegui import background_tasks, ui
+from tortoise.functions import Count
 
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
@@ -103,7 +104,9 @@ class TournamentTableView:
         self.table.on('show_players', self.handle_show_players)
 
     async def refresh(self, *_, **__):
-        tournament_query = self.get_query().prefetch_related('players')
+        # Count enrolled players in SQL rather than hydrating every enrollment
+        # row just to len() it.
+        tournament_query = self.get_query().annotate(player_count=Count('players'))
         all_tournaments = await tournament_query.order_by('name')
         rows = []
         for t in all_tournaments:
@@ -116,7 +119,7 @@ class TournamentTableView:
                 'players_per_match': t.players_per_match,
                 'team_size': t.team_size,
                 'staff_administered': t.staff_administered,
-                'player_count': len(t.players),  # Changed to use prefetch_related data
+                'player_count': t.player_count,
                 'average_match_duration': t.average_match_duration,
                 'max_match_duration': t.max_match_duration,
             }
@@ -134,7 +137,7 @@ class TournamentTableView:
         idx = next((i for i, row in enumerate(self.table.rows) if row.get('id') == tournament_id), None)
         if idx is None:
             return  # Row not visible, do nothing
-        tournament_query = self.get_query().prefetch_related('players')
+        tournament_query = self.get_query().annotate(player_count=Count('players'))
         t = await tournament_query.filter(id=tournament_id).first()
         if not t:
             return  # Tournament not found
@@ -147,7 +150,7 @@ class TournamentTableView:
             'players_per_match': t.players_per_match,
             'team_size': t.team_size,
             'staff_administered': t.staff_administered,
-            'player_count': len(t.players),
+            'player_count': t.player_count,
             'average_match_duration': t.average_match_duration,
             'max_match_duration': t.max_match_duration,
         }

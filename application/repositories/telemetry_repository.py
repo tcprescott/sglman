@@ -109,19 +109,23 @@ class TelemetryRepository:
     async def count_distinct_users(
         cls, *, start: Optional[datetime] = None, end: Optional[datetime] = None,
     ) -> int:
-        ids = await cls._filtered(start=start, end=end).filter(
+        # COUNT(DISTINCT user_id) in the DB — do not transfer the whole distinct
+        # set into Python just to len() it.
+        rows = await cls._filtered(start=start, end=end).filter(
             user_id__isnull=False
-        ).distinct().values_list('user_id', flat=True)
-        return len(ids)
+        ).annotate(c=Count('user_id', distinct=True)).values_list('c', flat=True)
+        return rows[0] if rows else 0
 
     @classmethod
     async def count_distinct_sessions(
         cls, *, start: Optional[datetime] = None, end: Optional[datetime] = None,
     ) -> int:
-        ids = await cls._filtered(start=start, end=end).filter(
+        # COUNT(DISTINCT session_id) in the DB — the session set is unbounded
+        # over a long window, so never materialize it in Python.
+        rows = await cls._filtered(start=start, end=end).filter(
             session_id__isnull=False
-        ).distinct().values_list('session_id', flat=True)
-        return len(ids)
+        ).annotate(c=Count('session_id', distinct=True)).values_list('c', flat=True)
+        return rows[0] if rows else 0
 
     @classmethod
     async def top_paths(

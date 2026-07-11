@@ -301,16 +301,24 @@ class MatchTableView(MatchTableHandlersMixin):
         if self.stream_room_filter and self.stream_room_filter.value:
             stream_room_ids = self.stream_room_filter.value
 
-        # Use service to get formatted match data (all states)
+        # When the active state filter shows only pre-finish states, exclude
+        # finished/confirmed matches at the DB layer instead of hydrating the
+        # entire (monotonically growing) match history and dropping them in
+        # Python below. Confirming requires a finish, so both hidden states
+        # share ``finished_at IS NOT NULL`` — exactly what ``only_upcoming``
+        # filters — making this a behavior-preserving fast path for the default
+        # Scheduled/Checked In/Started view (the highest-traffic schedule tab).
+        state_filter = self.state_filter.value if self.state_filter else []
+        only_upcoming = bool(state_filter) and not ({'Finished', 'Confirmed'} & set(state_filter))
+
         rows = await self.display_service.get_matches_for_display(
             tournament_ids=tournament_ids,
             stream_room_ids=stream_room_ids,
-            only_upcoming=False,  # Get all matches
+            only_upcoming=only_upcoming,
             user_discord_id=self.player_discord_id
         )
 
-        # Client-side filter by state
-        state_filter = self.state_filter.value if self.state_filter else []
+        # Client-side filter by state (narrows within the fetched set)
         if state_filter:
             rows = [row for row in rows if row.get('state') in state_filter]
 
