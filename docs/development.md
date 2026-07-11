@@ -154,7 +154,11 @@ Layout:
 | `tests/test_csv_export.py` | CSV export |
 | `tests/test_timezone.py` | Eastern↔UTC utilities |
 | `tests/test_error_handlers.py`, `test_rate_limit.py`, `test_security_hardening.py` | Error-handler responses, rate limiting, security hardening |
-| `tests/services/` | Service-layer suites: `test_api_token_service.py`, `test_audit_service.py`, `test_auth_service.py`, `test_challonge_service.py`, `test_crew_service.py`, `test_discord_member_sync.py`, `test_discord_queue.py`, `test_discord_role_mapping_service.py`, `test_discord_service.py`, `test_equipment_service.py`, `test_feedback_service.py`, `test_match_schedule_service.py`, `test_match_service.py`, `test_match_suggestion_service.py`, `test_match_watcher_service.py`, `test_player_availability_service.py`, `test_reports_service.py`, `test_seedgen_service.py`, `test_stream_room_service.py`, `test_system_config_service.py`, `test_tournament_notification_service.py`, `test_tournament_service.py`, `test_triforce_text_service.py`, `test_user_service.py`, and the volunteer suites (`test_volunteer_autoschedule_service.py`, `test_volunteer_availability_service.py`, `test_volunteer_position_service.py`, `test_volunteer_profile_service.py`, `test_volunteer_qualification_service.py`, `test_volunteer_reminder.py`, `test_volunteer_schedule_service.py`, `test_volunteer_scheduling.py`) |
+| `tests/test_repositories_coverage.py` | Direct unit tests for the repository (data-access) layer — CRUD/query/filter/ordering/prefetch behavior in isolation |
+| `tests/test_infra_coverage.py` | In-process infra plumbing: event bus, async dispatch queue, `match_events` wiring, and `middleware/error_handlers` responses |
+| `tests/test_utils_coverage.py` | Standalone utilities: `environment`, `discord_messages` builders, `easter_eggs`, `qrcode_util` |
+| `tests/test_api_volunteers.py`, `test_api_router_gaps.py` | Full REST coverage of the volunteers router and remaining branches across the users/tournament-actions/match-actions/stream-rooms/health/audit routers |
+| `tests/services/` | Service-layer suites: `test_api_token_service.py`, `test_audit_service.py`, `test_auth_service.py`, `test_challonge_service.py`, `test_crew_service.py`, `test_discord_member_sync.py`, `test_discord_queue.py`, `test_discord_role_mapping_service.py`, `test_discord_service.py`, `test_equipment_service.py`, `test_feedback_service.py`, `test_match_schedule_service.py`, `test_match_service.py`, `test_match_suggestion_service.py`, `test_match_watcher_service.py`, `test_player_availability_service.py`, `test_reports_service.py`, `test_seedgen_service.py`, `test_stream_room_service.py`, `test_system_config_service.py`, `test_tournament_notification_service.py`, `test_tournament_service.py`, `test_triforce_text_service.py`, `test_user_service.py`, the volunteer suites (`test_volunteer_autoschedule_service.py`, `test_volunteer_availability_service.py`, `test_volunteer_position_service.py`, `test_volunteer_profile_service.py`, `test_volunteer_qualification_service.py`, `test_volunteer_reminder.py`, `test_volunteer_schedule_service.py`, `test_volunteer_scheduling.py`), plus DB-backed gap-fill suites (`test_reports_service_db.py`, `test_match_service_coverage.py`, `test_match_schedule_coverage.py`, `test_equipment_coverage.py`, `test_config_feedback_coverage.py`, `test_notifications_coverage.py`, `test_match_reads_coverage.py`, `test_volunteer_services_coverage.py`, `test_challonge_service_coverage.py`) that exercise the async DB methods and error/notification branches the older pure-function suites skipped |
 
 Fixtures from the conftests:
 
@@ -175,15 +179,27 @@ What the main suites assert, for orientation:
 - **Tournament / Tournament notification** — tournament CRUD, admin/coordinator management, notification-preference upserts.
 - **Triforce text / User** — submission and moderation; profile updates, roles, enrollments.
 
-Not covered:
+- **Repositories** — the data-access layer is now unit-tested directly (`test_repositories_coverage.py`) in addition to indirect service-test exercise.
+- **Infra / utils** — event bus + dispatch queue, `match_events`, error handlers, and the standalone utility helpers.
+
+Line coverage sits at ~92% across `application/`, `api/`, and `middleware/` (measure with the command below).
+
+Still not covered (intentionally — each needs live infra the SQLite suite can't provide):
 
 - Discord bot interaction handlers (`discordbot/`) — require a live Discord connection.
-- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests.
+- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests (see the `ui-validation` skill for driving these in a real browser).
 - OAuth flow (`middleware/auth.py`) — requires live Discord OAuth.
-- Repository layer — exercised only indirectly through service tests.
-- Seed generation against real randomizer APIs (network calls).
+- The network-backed clients — `application/utils/challonge_client.py`, `twitch_client.py`, and the HTTP randomizer paths in `seedgen_service.py` (`_generate_alttpr`/`_generate_smmap`/`_generate_ootr`) — hit real external APIs; only their local/mocked paths are covered.
+- Most of `discord_service.py` — the parts that talk to a live bot connection.
+- `application/utils/sentry.py` — instrumentation wiring, run only at process start.
 
-There is no coverage tooling configured (`pytest-cov` is not a dev dependency).
+**Coverage tooling:** `pytest-cov` is a dev dependency. Generate a report with:
+
+```bash
+poetry run pytest --cov=application --cov=api --cov=middleware --cov-report=term-missing
+```
+
+Two documented, unused repository quirks are pinned by tests so a future fix is flagged: `UserRepository.search_by_name` (filters on the `preferred_name` property, not a column — `xfail(strict=True)`) and `UserRepository.update_discord_info` (drops the non-field `discriminator`/`avatar` args). See [reference/data-model.md](reference/data-model.md).
 
 ## Continuous integration
 
