@@ -12,6 +12,10 @@ class Role(str, Enum):
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
     EQUIPMENT_MANAGER = 'equipment_manager'
     VOLUNTEER = 'volunteer'
+    # Global platform role: manages tenants on the /platform surface. Its
+    # UserRole rows carry tenant=NULL (the only role that may) and stay visible
+    # inside any tenant request. Not grantable per-tenant.
+    SUPER_ADMIN = 'super_admin'
 
 
 class RoleSource(str, Enum):
@@ -48,6 +52,57 @@ class StationFormat(str, Enum):
     NUMERIC = 'numeric'
     STRUCTURED = 'structured'
     ALPHANUMERIC = 'alphanumeric'
+
+
+class Tenant(Model):
+    """One independent tournament community hosted on the shared deployment.
+
+    Logical multitenancy: a single database, shared tables, and this row as the
+    discriminator every scoped model points at. Addressable path-based at
+    ``/t/<slug>`` on the platform host; ``domain`` is reserved for optional
+    host-based addressing (not yet resolved). ``discord_guild_id`` is the routing
+    key the shared one-bot-many-guilds process uses to map a guild back to a
+    tenant. ``config`` holds per-tenant knobs that don't warrant columns.
+    """
+
+    id = fields.IntField(pk=True)
+    name = fields.CharField(max_length=255)
+    # URL-safe path routing key: ``https://<platform>/t/<slug>/…``. Mutable
+    # unique column — every join is by ``tenant.id``, so re-slugging is a
+    # one-row UPDATE.
+    slug = fields.CharField(max_length=64, unique=True, index=True)
+    # Optional custom domain for host-based addressing. Nullable + unique (many
+    # NULLs allowed in Postgres); host-mode resolution is deferred, the column
+    # exists so attaching a domain later needs no schema change.
+    domain = fields.CharField(max_length=255, null=True, unique=True, index=True)
+    # Discord guild this tenant owns; the shared bot routes gateway events and
+    # role sync by matching this. Nullable until a guild is linked.
+    discord_guild_id = fields.BigIntField(null=True, index=True)
+    is_active = fields.BooleanField(default=True)
+    config = fields.JSONField(default=dict)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'tenant'
+
+
+class TenantMembership(Model):
+    """Ties a global :class:`User` to a :class:`Tenant` they belong to.
+
+    Queried across tenants (never auto-scoped): membership is what the auth layer
+    checks to decide whether an authenticated user may see a tenant at all.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='memberships', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='tenant_memberships', on_delete=fields.CASCADE)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'tenantmembership'
+        unique_together = (('user', 'tenant'),)
+        indexes = (('tenant',),)  # composite is user-first; per-tenant member enumeration uncovered
 
 
 class User(Model):
@@ -98,13 +153,14 @@ class User(Model):
     equipment_loans = fields.ReverseRelation["EquipmentLoan"]
     equipment_checkouts_performed = fields.ReverseRelation["EquipmentLoan"]
     equipment_checkins_performed = fields.ReverseRelation["EquipmentLoan"]
-    volunteer_profile = fields.ReverseRelation["VolunteerProfile"]
+    volunteer_profiles = fields.ReverseRelation["VolunteerProfile"]
     volunteer_assignments = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_assignments_made = fields.ReverseRelation["VolunteerAssignment"]
     volunteer_qualifications = fields.ReverseRelation["VolunteerQualification"]
     volunteer_availability = fields.ReverseRelation["VolunteerAvailability"]
     challonge_participations = fields.ReverseRelation["ChallongeParticipant"]
     web_push_subscriptions = fields.ReverseRelation["WebPushSubscription"]
+    tenant_memberships = fields.ReverseRelation["TenantMembership"]
 
     @property
     def preferred_name(self) -> str:
@@ -120,6 +176,9 @@ class ApiToken(Model):
     """
 
     id = fields.IntField(pk=True)
+    # A token acts within one tenant; token_hash stays globally unique (the
+    # lookup happens before any tenant context exists — see api/dependencies.py).
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='api_tokens', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='api_tokens')
     name = fields.CharField(max_length=100)
     token_hash = fields.CharField(max_length=64, unique=True, index=True)
@@ -143,6 +202,7 @@ class Feedback(Model):
     """
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='feedback', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='feedback_submissions', on_delete=fields.CASCADE)
     category = fields.CharEnumField(FeedbackCategory, default=FeedbackCategory.OTHER, max_length=20)
     message = fields.TextField()
@@ -165,7 +225,9 @@ class Equipment(Model):
     """
 
     id = fields.IntField(pk=True)
-    asset_number = fields.IntField(unique=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='equipment', on_delete=fields.CASCADE)
+    # Unique per tenant, not globally — each tenant runs its own asset numbering.
+    asset_number = fields.IntField()
     name = fields.CharField(max_length=255)
     description = fields.TextField(null=True)
     private_notes = fields.TextField(null=True)
@@ -184,6 +246,7 @@ class Equipment(Model):
 
     class Meta:
         table = 'equipment'
+        unique_together = (('tenant', 'asset_number'),)
 
 
 class EquipmentLoan(Model):
@@ -194,6 +257,7 @@ class EquipmentLoan(Model):
     """
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='equipment_loans', on_delete=fields.CASCADE)
     equipment = fields.ForeignKeyField('models.Equipment', related_name='loans', on_delete=fields.CASCADE)
     # RESTRICT: a user with lending history cannot be hard-deleted (retire via
     # User.is_active instead), so the asset's ownership trail is never destroyed.
@@ -216,6 +280,7 @@ class EquipmentLoan(Model):
 
 class Tournament(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='tournaments', on_delete=fields.CASCADE)
     name = fields.CharField(max_length=255)
     description = fields.TextField(null=True)
     seed_generator = fields.CharField(max_length=255, null=True)
@@ -251,6 +316,7 @@ class Tournament(Model):
 
 class Match(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='matches', on_delete=fields.CASCADE)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='matches')
     # SET_NULL: deleting a stream room (or seed) detaches its matches instead of
     # cascade-deleting the entire match and its players/crew/acknowledgments.
@@ -309,6 +375,7 @@ class Match(Model):
 
 class MatchPlayers(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='match_players', on_delete=fields.CASCADE)
     match = fields.ForeignKeyField('models.Match', related_name='players')
     user = fields.ForeignKeyField('models.User', related_name='match_players')
     finish_rank = fields.IntField(null=True)
@@ -323,6 +390,7 @@ class MatchPlayers(Model):
 
 class MatchAcknowledgment(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='match_acknowledgments', on_delete=fields.CASCADE)
     match = fields.ForeignKeyField('models.Match', related_name='acknowledgments', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='match_acknowledgments', on_delete=fields.CASCADE)
     acknowledged_at = fields.DatetimeField(null=True)
@@ -336,6 +404,7 @@ class MatchAcknowledgment(Model):
 
 class TournamentPlayers(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='tournament_players', on_delete=fields.CASCADE)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='players')
     user = fields.ForeignKeyField('models.User', related_name='tournament_players')
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -354,6 +423,7 @@ class MatchNotificationLevel(str, Enum):
 
 class TournamentNotificationPreference(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='tournament_notification_preferences', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='tournament_notifications')
     tournament = fields.ForeignKeyField('models.Tournament', related_name='notification_preferences')
     match_notifications = fields.CharEnumField(MatchNotificationLevel, default=MatchNotificationLevel.NONE, max_length=30)
@@ -367,14 +437,20 @@ class TournamentNotificationPreference(Model):
 
 class StreamRoom(Model):
     id = fields.IntField(pk=True)
-    name = fields.CharField(max_length=255, unique=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='stream_rooms', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
     stream_url = fields.CharField(max_length=255, null=True)
     is_active = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+    class Meta:
+        table = 'streamroom'
+        unique_together = (('tenant', 'name'),)
+
 class Commentator(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='commentators', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='commentaries')
     match = fields.ForeignKeyField('models.Match', related_name='commentators')
     approved = fields.BooleanField(default=False)
@@ -392,6 +468,7 @@ class Commentator(Model):
 
 class Tracker(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='trackers', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='trackers')
     match = fields.ForeignKeyField('models.Match', related_name='trackers')
     approved = fields.BooleanField(default=False)
@@ -409,6 +486,7 @@ class Tracker(Model):
 
 class MatchWatcher(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='match_watchers', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='watched_matches', on_delete=fields.CASCADE)
     match = fields.ForeignKeyField('models.Match', related_name='watchers', on_delete=fields.CASCADE)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -421,6 +499,12 @@ class MatchWatcher(Model):
 
 class AuditLog(Model):
     id = fields.IntField(pk=True)
+    # Nullable: stamped from context for tenant activity; NULL marks a
+    # platform-level row (super-admin tenant CRUD). SET_NULL so a deleted tenant
+    # doesn't destroy the append-only trail.
+    tenant = fields.ForeignKeyField(
+        'models.Tenant', related_name='audit_logs', null=True, on_delete=fields.SET_NULL
+    )
     # SET_NULL keeps the append-only trail intact when a user is deleted; the
     # actor's identity is also snapshotted into ``details`` by AuditService.
     user = fields.ForeignKeyField(
@@ -444,6 +528,11 @@ class TelemetryEvent(Model):
     ``details`` so the trail survives a user deletion, exactly like ``AuditLog``.
     """
     id = fields.IntField(pk=True)
+    # Nullable: stamped from the event/request tenant; NULL marks a platform-level
+    # row (platform page views). SET_NULL preserves the trail past a tenant delete.
+    tenant = fields.ForeignKeyField(
+        'models.Tenant', related_name='telemetry_events', null=True, on_delete=fields.SET_NULL
+    )
     user = fields.ForeignKeyField(
         'models.User', related_name='telemetry_events', null=True, on_delete=fields.SET_NULL
     )
@@ -468,6 +557,7 @@ class TelemetryEvent(Model):
 
 class GeneratedSeeds(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='generated_seeds', on_delete=fields.CASCADE)
     seed_url = fields.CharField(max_length=255)
     seed_info = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -475,13 +565,19 @@ class GeneratedSeeds(Model):
 
 class SystemConfiguration(Model):
     id = fields.IntField(pk=True)
-    name = fields.CharField(max_length=255, unique=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='system_configurations', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
     value = fields.TextField()
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+    class Meta:
+        table = 'systemconfiguration'
+        unique_together = (('tenant', 'name'),)
+
 class Webhook(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='webhooks', on_delete=fields.CASCADE)
     name = fields.CharField(max_length=255)
     url = fields.CharField(max_length=1024)
     # Plaintext because it must be reproducible to sign each delivery (unlike a
@@ -498,6 +594,7 @@ class Webhook(Model):
 
 class WebhookDelivery(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='webhook_deliveries', on_delete=fields.CASCADE)
     webhook = fields.ForeignKeyField(
         'models.Webhook', related_name='deliveries', on_delete=fields.CASCADE
     )
@@ -542,6 +639,13 @@ class WebPushSubscription(Model):
 class UserRole(Model):
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField('models.User', related_name='roles')
+    # Nullable: every grant is per-tenant EXCEPT SUPER_ADMIN, which carries
+    # tenant=NULL and stays visible inside any tenant request (the only global
+    # role). CASCADE so a deleted tenant drops its per-tenant grants; NULL
+    # super-admin rows are untouched.
+    tenant = fields.ForeignKeyField(
+        'models.Tenant', related_name='user_roles', null=True, on_delete=fields.CASCADE
+    )
     role = fields.CharEnumField(Role, max_length=32)
     # SET_NULL: deleting the granter must not revoke roles they granted to others.
     granted_by = fields.ForeignKeyField(
@@ -551,13 +655,16 @@ class UserRole(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'role')
+        unique_together = ('user', 'role', 'tenant')
         table = 'userrole'
         indexes = (('role',),)  # composite is user-first; role-only enumeration uncovered
 
 
 class DiscordRoleMapping(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='discord_role_mappings', on_delete=fields.CASCADE)
+    # Retained for routing/filtering (the mapping repo still filters by guild_id,
+    # now correctly per tenant since each tenant owns one guild).
     guild_id = fields.BigIntField()
     discord_role_id = fields.BigIntField()
     discord_role_name = fields.CharField(max_length=100)
@@ -566,11 +673,12 @@ class DiscordRoleMapping(Model):
     updated_at = fields.DatetimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('guild_id', 'discord_role_id', 'app_role')
+        unique_together = ('tenant', 'discord_role_id', 'app_role')
         table = 'discordrolemapping'
 
 class TriforceText(Model):
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='triforce_texts', on_delete=fields.CASCADE)
     tournament = fields.ForeignKeyField(
         'models.Tournament', related_name='triforce_texts', on_delete=fields.CASCADE
     )
@@ -604,7 +712,10 @@ class VolunteerProfile(Model):
     """
 
     id = fields.IntField(pk=True)
-    user = fields.OneToOneField('models.User', related_name='volunteer_profile', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_profiles', on_delete=fields.CASCADE)
+    # Per-tenant opt-in: a user opts in independently for each tenant, so this is
+    # a tenant-scoped FK (not a global OneToOne) unique per (tenant, user).
+    user = fields.ForeignKeyField('models.User', related_name='volunteer_profiles', on_delete=fields.CASCADE)
     opted_in_at = fields.DatetimeField(null=True)
     note = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -612,13 +723,15 @@ class VolunteerProfile(Model):
 
     class Meta:
         table = 'volunteerprofile'
+        unique_together = (('tenant', 'user'),)
 
 
 class VolunteerPosition(Model):
     """A coordinator-defined volunteer job (e.g. Check-in Desk, Race Proctor)."""
 
     id = fields.IntField(pk=True)
-    name = fields.CharField(max_length=255, unique=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_positions', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
     description = fields.TextField(null=True)
     color = fields.CharField(max_length=32, null=True)
     display_order = fields.IntField(default=0)
@@ -641,12 +754,14 @@ class VolunteerPosition(Model):
 
     class Meta:
         table = 'volunteerposition'
+        unique_together = (('tenant', 'name'),)
 
 
 class VolunteerShift(Model):
     """A fillable slot-set for a position over a time window (UTC)."""
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_shifts', on_delete=fields.CASCADE)
     position = fields.ForeignKeyField('models.VolunteerPosition', related_name='shifts', on_delete=fields.CASCADE)
     starts_at = fields.DatetimeField(index=True)
     ends_at = fields.DatetimeField()
@@ -668,6 +783,7 @@ class VolunteerAssignment(Model):
     """A volunteer placed into a shift."""
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_assignments', on_delete=fields.CASCADE)
     shift = fields.ForeignKeyField('models.VolunteerShift', related_name='assignments', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='volunteer_assignments', on_delete=fields.CASCADE)
     assigned_by = fields.ForeignKeyField('models.User', related_name='volunteer_assignments_made', null=True, on_delete=fields.SET_NULL)
@@ -689,6 +805,7 @@ class VolunteerQualification(Model):
     """Capability matrix: which positions a user can fill."""
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_qualifications', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='volunteer_qualifications', on_delete=fields.CASCADE)
     position = fields.ForeignKeyField('models.VolunteerPosition', related_name='qualifications', on_delete=fields.CASCADE)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -704,6 +821,7 @@ class VolunteerAvailability(Model):
     """A window a volunteer self-declares (UTC)."""
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='volunteer_availability', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='volunteer_availability', on_delete=fields.CASCADE)
     starts_at = fields.DatetimeField(index=True)
     ends_at = fields.DatetimeField()
@@ -721,6 +839,7 @@ class PlayerAvailability(Model):
     """A window a player self-declares they can play (UTC)."""
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='player_availability', on_delete=fields.CASCADE)
     user = fields.ForeignKeyField('models.User', related_name='player_availability', on_delete=fields.CASCADE)
     starts_at = fields.DatetimeField(index=True)
     ends_at = fields.DatetimeField()
@@ -751,6 +870,9 @@ class ChallongeConnection(Model):
     """
 
     id = fields.IntField(pk=True)
+    # One connection per tenant: the most recent row for a tenant is
+    # authoritative (each tenant links its own Challonge service account).
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='challonge_connections', on_delete=fields.CASCADE)
     access_token = fields.CharField(max_length=512)
     refresh_token = fields.CharField(max_length=512, null=True)
     token_expires_at = fields.DatetimeField(null=True)
@@ -773,6 +895,7 @@ class ChallongeParticipant(Model):
     """
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='challonge_participants', on_delete=fields.CASCADE)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='challonge_participants', on_delete=fields.CASCADE)
     challonge_participant_id = fields.CharField(max_length=64)
     name = fields.CharField(max_length=255, null=True)
@@ -795,6 +918,7 @@ class ChallongeMatch(Model):
     """
 
     id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='challonge_matches', on_delete=fields.CASCADE)
     tournament = fields.ForeignKeyField('models.Tournament', related_name='challonge_matches', on_delete=fields.CASCADE)
     challonge_match_id = fields.CharField(max_length=64)
     round = fields.IntField(null=True)
@@ -821,10 +945,14 @@ class ChallongeApiUsage(Model):
     """
 
     id = fields.IntField(pk=True)
-    period = fields.CharField(max_length=7, unique=True)  # 'YYYY-MM' (UTC)
+    # Per-tenant connections mean per-tenant Challonge quotas: usage is tallied
+    # per (tenant, period), not globally.
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='challonge_api_usage', on_delete=fields.CASCADE)
+    period = fields.CharField(max_length=7)  # 'YYYY-MM' (UTC)
     request_count = fields.IntField(default=0)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
     class Meta:
         table = 'challongeapiusage'
+        unique_together = (('tenant', 'period'),)
