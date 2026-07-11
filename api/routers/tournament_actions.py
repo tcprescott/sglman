@@ -13,13 +13,14 @@ from api.schemas.tournament_actions import (
 )
 from api.schemas.tournaments import TournamentResponse
 from application.services import MatchSuggestionService, TournamentService, UserService
+from application.tenant_context import require_tenant_id
 from models import Tournament, User
 
 router = APIRouter(prefix="/tournaments", tags=["Tournaments"], route_class=ServiceErrorRoute)
 
 
 async def _load_tournament_or_404(tournament_id: int) -> Tournament:
-    tournament = await Tournament.get_or_none(id=tournament_id)
+    tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
     if tournament is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
     return tournament

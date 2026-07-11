@@ -7,6 +7,7 @@ personal bearer token; see :mod:`api.dependencies`.
 
 from fastapi import APIRouter, Depends
 
+from api.dependencies import tenant_context_scope
 from api.rate_limit import rate_limit
 from api.routers import (
     audit,
@@ -29,7 +30,7 @@ from api.routers import (
     webhooks,
 )
 
-router = APIRouter(dependencies=[Depends(rate_limit)])
+router = APIRouter(dependencies=[Depends(rate_limit), Depends(tenant_context_scope)])
 # Unauthenticated liveness probe (no auth dependency on this router).
 router.include_router(health.router)
 router.include_router(matches.router)

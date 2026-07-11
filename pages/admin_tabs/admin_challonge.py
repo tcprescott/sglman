@@ -7,6 +7,7 @@ tournaments linked to a Challonge bracket with a per-tournament Sync action.
 from nicegui import app, ui
 
 from application.services import AuthService, ChallongeService, get_user_from_discord_id
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_eastern_display
 from models import Tournament
 
@@ -74,7 +75,7 @@ async def admin_challonge_page() -> None:
 
         @ui.refreshable
         async def linked_tournaments() -> None:
-            tournaments = await Tournament.filter(challonge_tournament_id__isnull=False).order_by('name')
+            tournaments = await Tournament.filter(challonge_tournament_id__isnull=False, tenant_id=require_tenant_id()).order_by('name')
             if not tournaments:
                 ui.label('No tournaments are linked to Challonge yet. Link one from its edit dialog '
                          'on the Tournaments tab.').classes('text-muted')

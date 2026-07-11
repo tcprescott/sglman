@@ -8,6 +8,7 @@ from application.services import (
     TriforceTextService,
     get_user_from_discord_id,
 )
+from application.tenant_context import require_tenant_id
 from models import Tournament
 
 
@@ -66,7 +67,7 @@ async def triforce_texts_tab() -> None:
             state['tournament_id'] = None
             content.refresh()
 
-        tournament = await Tournament.get_or_none(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         if tournament is None:
             with ui.column().classes('page-container-narrow'):
                 ui.button('Back', icon='arrow_back', on_click=_back).props('flat color=primary')

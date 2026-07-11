@@ -4,6 +4,7 @@
 from nicegui import app, background_tasks, ui
 
 from application.services import MatchScheduleService, get_user_from_discord_id
+from application.tenant_context import require_tenant_id
 from models import Match
 from theme.dialog import ConfirmationDialog, StationAssignmentDialog, MatchResultDialog
 from theme.dialog.match_dialog import AdminMatchDialog
@@ -42,10 +43,10 @@ def admin_schedule_page(can_crud: bool = True) -> None:
         ]
 
         def get_query():
-            return Match.all()
+            return Match.filter(tenant_id=require_tenant_id())
         
         async def on_edit(match_id: int):
-            match = await Match.get(id=match_id)
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id())
             async def after_edit(_):
                 await table_view.update_row_by_id(match_id)
             with page_container:
@@ -70,7 +71,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             await table_view.update_row_by_id(match_id)
 
         async def on_seat(match_id: int):
-            match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
 
             async def handle_confirm(_):
                 dialog.dialog.close()
@@ -95,7 +96,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                     ui.notify(str(e), color='warning')
 
         async def on_start(match_id: int):
-            match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
             player_names = ', '.join(
                 [p.user.username for p in match.players])
 
@@ -122,7 +123,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                     ui.notify(str(e), color='warning')
 
         async def on_finish(match_id: int):
-            match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
 
             async def handle_confirm(_):
                 dialog.dialog.close()
@@ -147,7 +148,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                     ui.notify(str(e), color='warning')
 
         async def on_confirm(match_id: int):
-            match = await Match.get(id=match_id).prefetch_related('players', 'players__user')
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
             player_names = ', '.join(
                 [p.user.username for p in match.players])
 
@@ -174,7 +175,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                     ui.notify(str(e), color='warning')
 
         async def on_edit_stream_room(match_id: int):
-            match = await Match.get(id=match_id)
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id())
             async def after_edit(_):
                 await table_view.update_row_by_id(match_id)
             with page_container:
@@ -182,7 +183,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                 await dialog.open()
 
         async def on_assign_stations(match_id: int):
-            match = await Match.get(id=match_id).prefetch_related('tournament', 'players', 'players__user')
+            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
             async def after_assign(_):
                 await table_view.update_row_by_id(match_id)
             with page_container:

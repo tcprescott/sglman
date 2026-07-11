@@ -9,6 +9,7 @@ from api._match_view import MATCH_PREFETCH, serialize_match
 from api.dependencies import ServiceErrorRoute, require_api_actor
 from api.schemas.matches import MatchResponse
 from application.services import MatchWatcherService
+from application.tenant_context import require_tenant_id
 from models import Match, User
 
 router = APIRouter(
@@ -37,7 +38,7 @@ async def get_matches(
     tournament_id: Optional[List[int]] = Query(None, description="Filter by specific tournament IDs."),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum matches to return."),
 ):
-    query = Match.all()
+    query = Match.filter(tenant_id=require_tenant_id())
 
     if match_id:
         query = query.filter(id__in=match_id)
@@ -66,7 +67,7 @@ async def get_watched_matches(actor: User = Depends(require_api_actor)):
     if not match_ids:
         return []
     matches = (
-        await Match.filter(id__in=match_ids)
+        await Match.filter(id__in=match_ids, tenant_id=require_tenant_id())
         .prefetch_related(*MATCH_PREFETCH)
         .order_by('scheduled_at')
     )
@@ -79,7 +80,7 @@ async def get_watched_matches(actor: User = Depends(require_api_actor)):
     summary="Get a single match",
 )
 async def get_match(match_id: int):
-    match = await Match.filter(id=match_id).prefetch_related(*MATCH_PREFETCH).first()
+    match = await Match.filter(id=match_id, tenant_id=require_tenant_id()).prefetch_related(*MATCH_PREFETCH).first()
     if match is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
     return serialize_match(match)
