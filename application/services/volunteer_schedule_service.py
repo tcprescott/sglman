@@ -22,6 +22,7 @@ from application.services import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
     EASTERN_TZ,
     format_eastern_display,
@@ -234,7 +235,7 @@ class VolunteerScheduleService:
             )
 
         warnings: List[str] = []
-        existing = await VolunteerAssignment.filter(shift_id=shift.id).count()
+        existing = await VolunteerAssignment.filter(shift_id=shift.id, tenant_id=require_tenant_id()).count()
         if existing >= shift.slots_needed:
             warnings.append(
                 f"This shift already has {existing}/{shift.slots_needed} slots filled."

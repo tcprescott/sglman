@@ -232,11 +232,12 @@ def _patch_match_minmax(monkeypatch, first_at=None, last_at=None):
                 return last_match
             return None
 
-    def fake_all():
+    def fake_filter(**_kwargs):
+        # The service now scopes by tenant: Match.filter(tenant_id=...).
         return FakeQS('match_qs')
 
     monkeypatch.setattr(
-        'application.services.system_config_service.Match.all', fake_all,
+        'application.services.system_config_service.Match.filter', fake_filter,
     )
 
 

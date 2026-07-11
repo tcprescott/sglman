@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from models import MatchNotificationLevel, Tournament, TournamentNotificationPreference, User
 from application.repositories import TournamentNotificationRepository, TournamentRepository
+from application.tenant_context import require_tenant_id
 
 
 class TournamentNotificationService:
@@ -42,4 +43,4 @@ class TournamentNotificationService:
         )
 
     async def get_active_tournaments(self) -> List[Tournament]:
-        return await Tournament.filter(is_active=True).order_by('name').all()
+        return await Tournament.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name').all()

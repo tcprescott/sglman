@@ -17,6 +17,7 @@ going through repositories — the aggregations are read-only and self-contained
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import EASTERN_TZ, now_eastern, to_eastern
 from models import AuditLog, Match, VolunteerShift
 
@@ -191,7 +192,7 @@ class AnalyticsService:
         bucket_starts, index_map, q_start, q_end = self._bucket_axis(start, end, bucket)
         n = len(bucket_starts)
 
-        query = Match.all().filter(scheduled_at__gte=q_start, scheduled_at__lt=q_end)
+        query = Match.filter(tenant_id=require_tenant_id()).filter(scheduled_at__gte=q_start, scheduled_at__lt=q_end)
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
         matches = await query.prefetch_related(
@@ -269,7 +270,7 @@ class AnalyticsService:
         bucket_starts, index_map, q_start, q_end = self._bucket_axis(start, end, bucket)
         n = len(bucket_starts)
 
-        shifts = await VolunteerShift.all().filter(
+        shifts = await VolunteerShift.filter(tenant_id=require_tenant_id()).filter(
             starts_at__gte=q_start, starts_at__lt=q_end,
         ).prefetch_related('position', 'assignments', 'assignments__user')
 
@@ -359,7 +360,7 @@ class AnalyticsService:
         end = self._eastern(end)
         now = now_eastern()
 
-        query = Match.all().filter(scheduled_at__gte=start, scheduled_at__lt=end)
+        query = Match.filter(tenant_id=require_tenant_id()).filter(scheduled_at__gte=start, scheduled_at__lt=end)
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
         matches = await query.prefetch_related('tournament', 'commentators', 'trackers')
@@ -498,7 +499,7 @@ class AnalyticsService:
         index_map = self._index_map(bucket_starts, bucket)
         n = len(bucket_starts)
 
-        logs = await AuditLog.all().filter(
+        logs = await AuditLog.filter(tenant_id=require_tenant_id()).filter(
             created_at__gte=start, created_at__lte=end,
         ).only('id', 'action', 'created_at')
 

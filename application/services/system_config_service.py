@@ -10,6 +10,7 @@ from typing import Dict, Optional, Tuple
 
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import EASTERN_TZ, to_eastern
 from models import Match, StationFormat, StreamRoom, SystemConfiguration, User
 
@@ -29,7 +30,8 @@ class SystemConfigService:
 
     @staticmethod
     async def get_raw(key: str) -> Optional[str]:
-        config = await SystemConfiguration.get_or_none(name=key)
+        # SystemConfiguration is per-tenant (unique on (tenant, name)).
+        config = await SystemConfiguration.get_or_none(name=key, tenant_id=require_tenant_id())
         return config.value if config else None
 
     @staticmethod
@@ -38,14 +40,15 @@ class SystemConfigService:
             await AuthService.is_staff(actor),
             "Only Staff can modify system configuration",
         )
-        config = await SystemConfiguration.get_or_none(name=key)
+        tenant_id = require_tenant_id()
+        config = await SystemConfiguration.get_or_none(name=key, tenant_id=tenant_id)
         old_value = config.value if config else None
         if config:
             config.value = value
             await config.save()
             result = config
         else:
-            result = await SystemConfiguration.create(name=key, value=value)
+            result = await SystemConfiguration.create(name=key, value=value, tenant_id=tenant_id)
         await AuditService().write_log(
             actor,
             AuditActions.SYSTEM_CONFIG_UPDATED,
@@ -90,8 +93,8 @@ class SystemConfigService:
         end = await SystemConfigService.get_date(KEY_EVENT_END_DATE)
 
         if start is None or end is None:
-            first = await Match.all().order_by('scheduled_at').first()
-            last = await Match.all().order_by('-scheduled_at').first()
+            first = await Match.filter(tenant_id=require_tenant_id()).order_by('scheduled_at').first()
+            last = await Match.filter(tenant_id=require_tenant_id()).order_by('-scheduled_at').first()
             derived_start = (
                 to_eastern(first.scheduled_at).date()
                 if first and first.scheduled_at else None
@@ -121,7 +124,7 @@ class SystemConfigService:
             return value
         if default is not None:
             return default
-        return await StreamRoom.filter(is_active=True).count()
+        return await StreamRoom.filter(is_active=True, tenant_id=require_tenant_id()).count()
 
     @staticmethod
     async def get_volunteer_reminder_lead_minutes(default: int = 60) -> int:

@@ -12,8 +12,18 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryService
 from application.services.tenant_service import TenantService
-from application.tenant_context import get_current_tenant_id, stash_client_tenant_id
+from application.tenant_context import get_current_tenant_id, stash_client_tenant_id, tenant_scope
 from models import Role
+
+
+async def _run_in_tenant(tenant_id, coro) -> None:
+    """Await a deferred (background-task) coroutine with a tenant bound.
+
+    Page-view telemetry is captured in a background task, which runs outside the
+    request and so loses the contextvar — capture the tenant at page-build time
+    and rebind it here so the row is tenant-stamped."""
+    with tenant_scope(tenant_id):
+        await coro
 
 # Keep page-view detail bounded: query/path params carry useful engagement
 # context (which tab/report), but we cap count and length so a crafted URL
@@ -42,13 +52,17 @@ def _record_page_view(path: str, kwargs: dict) -> None:
                 continue
             if isinstance(value, (str, int, float, bool)):
                 params[key] = str(value)[:_MAX_PARAM_LEN]
+        tenant_id = get_current_tenant_id()
         background_tasks.create(
-            TelemetryService().track_page_view(
-                path=path,
-                discord_id=discord_id,
-                username=username,
-                session_id=session_id,
-                params=params or None,
+            _run_in_tenant(
+                tenant_id,
+                TelemetryService().track_page_view(
+                    path=path,
+                    discord_id=discord_id,
+                    username=username,
+                    session_id=session_id,
+                    params=params or None,
+                ),
             )
         )
     except Exception:

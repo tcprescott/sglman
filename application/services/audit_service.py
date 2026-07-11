@@ -254,12 +254,16 @@ class AuditService:
         user: User,
         limit: Optional[int] = None,
     ) -> list[AuditLog]:
-        """Get audit logs for a specific user, most recent first."""
-        query = AuditLog.filter(user=user).order_by('-created_at')
+        """Get audit logs for a specific user in the current tenant, most recent first."""
+        query = AuditLog.filter(
+            user=user, tenant_id=get_current_tenant_id()
+        ).order_by('-created_at')
         if limit:
             query = query.limit(limit)
         return await query
 
     async def get_recent_logs(self, limit: int = 100) -> list[AuditLog]:
-        """Get recent audit logs across all users."""
-        return await AuditLog.all().order_by('-created_at').limit(limit).prefetch_related('user')
+        """Get recent audit logs for the current tenant, across all users."""
+        return await AuditLog.filter(
+            tenant_id=get_current_tenant_id()
+        ).order_by('-created_at').limit(limit).prefetch_related('user')

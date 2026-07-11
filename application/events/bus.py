@@ -18,10 +18,11 @@ the service layer without crossing a layer boundary.
 
 import itertools
 import logging
-from typing import Awaitable, Callable, FrozenSet, Iterable, Optional, Tuple
+from typing import Awaitable, Callable, Coroutine, FrozenSet, Iterable, Optional, Tuple
 
 from application.events import dispatch_queue
 from application.events.event import Event
+from application.tenant_context import tenant_scope
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,18 @@ def publish(event: Event) -> None:
         if not _matches(event_filter, event.event_type):
             continue
         try:
-            dispatch_queue.enqueue(handler(event))
+            # The dispatch worker runs each coroutine later, outside any request,
+            # so wrap it so the event's tenant is active when it actually runs.
+            dispatch_queue.enqueue(_scoped(handler(event), event.tenant_id))
         except Exception:
             logger.exception("failed to enqueue async event subscriber for %s", event.event_type)
+
+
+async def _scoped(coro: Coroutine, tenant_id: Optional[int]) -> None:
+    """Await ``coro`` with ``tenant_id`` bound as the ambient tenant.
+
+    Entered at await-time on the dispatch worker (not at enqueue-time in the
+    publisher's context), so the scope is live while the subscriber runs.
+    """
+    with tenant_scope(tenant_id):
+        await coro

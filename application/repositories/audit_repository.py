@@ -7,11 +7,16 @@ Filtered/paginated queries over AuditLog.
 from datetime import datetime
 from typing import List, Optional
 
+from application.tenant_context import get_current_tenant_id
 from models import AuditLog
 
 
 class AuditRepository:
-    """Repository for AuditLog data access."""
+    """Repository for AuditLog data access.
+
+    Reads are scoped to the current tenant (AuditLog.tenant is nullable — the
+    per-tenant trail excludes the NULL-tenant platform rows).
+    """
 
     @staticmethod
     async def list(
@@ -23,7 +28,7 @@ class AuditRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> List[AuditLog]:
-        query = AuditLog.all()
+        query = AuditLog.filter(tenant_id=get_current_tenant_id())
         if start is not None:
             query = query.filter(created_at__gte=start)
         if end is not None:
@@ -43,7 +48,7 @@ class AuditRepository:
         user_id: Optional[int] = None,
         action_contains: Optional[str] = None,
     ) -> int:
-        query = AuditLog.all()
+        query = AuditLog.filter(tenant_id=get_current_tenant_id())
         if start is not None:
             query = query.filter(created_at__gte=start)
         if end is not None:

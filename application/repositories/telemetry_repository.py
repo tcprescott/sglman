@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from tortoise.functions import Count
 
+from application.tenant_context import get_current_tenant_id
 from models import TelemetryEvent
 
 
@@ -28,7 +29,11 @@ class TelemetryRepository:
         session_id: Optional[str] = None,
         details: Optional[str] = None,
     ) -> TelemetryEvent:
+        # Nullable tenant: stamped from the ambient context (the event's tenant
+        # for the domain mirror, the request/page tenant for page views); None
+        # marks a platform-level row.
         return await TelemetryEvent.create(
+            tenant_id=get_current_tenant_id(),
             category=category,
             event_type=event_type,
             user_id=user_id,
@@ -48,7 +53,9 @@ class TelemetryRepository:
         session_id: Optional[str] = None,
         path_contains: Optional[str] = None,
     ):
-        query = TelemetryEvent.all()
+        # Scope every read/aggregate to the current tenant (None -> platform
+        # rows). Single choke point for list/count/top_* reads.
+        query = TelemetryEvent.filter(tenant_id=get_current_tenant_id())
         if start is not None:
             query = query.filter(created_at__gte=start)
         if end is not None:
