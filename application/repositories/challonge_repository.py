@@ -101,6 +101,19 @@ class ChallongeRepository:
         return participant
 
     @staticmethod
+    async def resolve_users_by_challonge_ids(challonge_user_ids: List[str]) -> dict:
+        """Map ``challonge_user_id -> User`` for the linked ids, in one query.
+
+        Lets bracket sync resolve every participant's sglman user up-front
+        instead of a ``User.get_or_none`` round-trip per participant.
+        """
+        ids = [c for c in challonge_user_ids if c]
+        if not ids:
+            return {}
+        rows = await User.filter(challonge_user_id__in=list(set(ids)))
+        return {u.challonge_user_id: u for u in rows}
+
+    @staticmethod
     async def get_participant(
         tournament: Tournament, challonge_participant_id: str,
     ) -> Optional[ChallongeParticipant]:

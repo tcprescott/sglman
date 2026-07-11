@@ -235,6 +235,18 @@ class TournamentRepository:
         return await TournamentPlayers.filter(tournament_id=tournament_id).prefetch_related('user')
     
     @staticmethod
+    async def get_enrolled_user_ids(tournament_id: int) -> set[int]:
+        """Return the set of user ids already enrolled in a tournament.
+
+        Lets callers resolve enrollment for a whole player list in one query
+        instead of an ``is_player_enrolled`` round-trip per player.
+        """
+        rows = await TournamentPlayers.filter(
+            tournament_id=tournament_id
+        ).values_list('user_id', flat=True)
+        return set(rows)
+
+    @staticmethod
     async def is_player_enrolled(tournament: Tournament, user) -> bool:
         """
         Check if a user is enrolled in a tournament.

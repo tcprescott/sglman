@@ -375,7 +375,7 @@ class ReportsService:
         )
         if tournament_id:
             match_query = match_query.filter(tournament_id=tournament_id)
-        matches = await match_query.prefetch_related('tournament', 'stream_room', 'players')
+        matches = await match_query.prefetch_related('tournament', 'stream_room')
 
         unplaced_candidates = [
             m for m in matches

@@ -427,10 +427,14 @@ class ChallongeService:
         actor: User,
     ) -> Dict[str, int]:
         # Participants -> resolve to linked sglman users by Challonge account id.
+        # Resolve every linked user in one query rather than per participant.
+        users_by_cuid = await self.repository.resolve_users_by_challonge_ids(
+            [rp.get('challonge_user_id') for rp in remote_participants]
+        )
         participant_by_cid: Dict[str, Any] = {}
         for rp in remote_participants:
             cuid = rp.get('challonge_user_id')
-            user = await User.get_or_none(challonge_user_id=cuid) if cuid else None
+            user = users_by_cuid.get(cuid) if cuid else None
             participant = await self.repository.upsert_participant(
                 tournament=tournament,
                 challonge_participant_id=rp['participant_id'],

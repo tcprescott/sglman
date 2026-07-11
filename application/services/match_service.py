@@ -195,30 +195,11 @@ class MatchService:
 
         await self._assert_within_tournament_hours(scheduled_at)
 
-        # Resolve every referenced user up-front so a missing ID doesn't leave
-        # an orphan Match row behind.
-        players = []
-        for player_id in player_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
-            players.append(user)
-
-        commentators = []
-        if commentator_ids:
-            for comm_id in commentator_ids:
-                user = await self.user_repository.get_by_id(comm_id)
-                if not user:
-                    raise ValueError(f"User {comm_id} not found")
-                commentators.append(user)
-
-        trackers = []
-        if tracker_ids:
-            for track_id in tracker_ids:
-                user = await self.user_repository.get_by_id(track_id)
-                if not user:
-                    raise ValueError(f"User {track_id} not found")
-                trackers.append(user)
+        # Resolve every referenced user up-front (one query per role list) so a
+        # missing ID doesn't leave an orphan Match row behind.
+        players = await self._resolve_users(player_ids)
+        commentators = await self._resolve_users(commentator_ids or [])
+        trackers = await self._resolve_users(tracker_ids or [])
 
         player_id_set = {u.id for u in players}
         if player_id_set & {u.id for u in commentators}:
@@ -235,8 +216,8 @@ class MatchService:
             is_stream_candidate=is_stream_candidate,
         )
 
+        await self._ensure_players_enrolled_batch(tournament_id, players)
         for user in players:
-            await self._ensure_tournament_enrollment(user, tournament_id)
             await self.repository.add_player(match, user)
 
         for user in commentators:
@@ -463,20 +444,15 @@ class MatchService:
 
         # Resolve every player before touching the match row so a missing user
         # doesn't leave an orphan Match behind.
-        players = []
-        for player_id in player_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
-            players.append(user)
+        players = await self._resolve_users(player_ids)
 
         match = await self.repository.create(
             tournament_id=tournament_id,
             scheduled_at=scheduled_at,
             comment=comment,
         )
+        await self._ensure_players_enrolled_batch(tournament_id, players)
         for user in players:
-            await self._ensure_tournament_enrollment(user, tournament_id)
             await self.repository.add_player(match, user)
 
         await self.audit_service.write_log(
@@ -638,11 +614,8 @@ class MatchService:
         Raises:
             ValueError: If any user is not found
         """
-        for player_id in player_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
-            await self._ensure_tournament_enrollment(user, tournament_id)
+        users = await self._resolve_users(player_ids)
+        await self._ensure_players_enrolled_batch(tournament_id, users)
 
     async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
         match = await self.repository.get_by_id(match_id)
@@ -760,8 +733,9 @@ class MatchService:
         """
         await self.ack_repository.delete_for_match(match)
         actor_id = actor.id if actor is not None else None
+        users_by_id = await self.user_repository.get_by_ids(player_ids)
         for pid in player_ids:
-            user = await self.user_repository.get_by_id(pid)
+            user = users_by_id.get(pid)
             if not user:
                 continue
             is_actor = actor_id is not None and pid == actor_id
@@ -788,18 +762,32 @@ class MatchService:
 
     # Private helper methods
 
-    async def _ensure_tournament_enrollment(self, user: User, tournament_id: int) -> None:
-        """Ensure user is enrolled in tournament."""
-        is_enrolled = await self.tournament_repository.is_player_enrolled_by_id(
-            tournament_id=tournament_id,
-            user=user
-        )
+    async def _resolve_users(self, user_ids: List[int]) -> List[User]:
+        """Resolve an id list into User objects (one query), preserving order.
 
-        if not is_enrolled:
-            await self.tournament_repository.enroll_player_by_id(
-                tournament_id=tournament_id,
-                user=user
-            )
+        Raises ValueError for the first id with no matching user so callers can
+        validate a whole role list before creating any rows.
+        """
+        users_by_id = await self.user_repository.get_by_ids(user_ids)
+        resolved: List[User] = []
+        for uid in user_ids:
+            user = users_by_id.get(uid)
+            if not user:
+                raise ValueError(f"User {uid} not found")
+            resolved.append(user)
+        return resolved
+
+    async def _ensure_players_enrolled_batch(self, tournament_id: int, users: List[User]) -> None:
+        """Enroll any of ``users`` not already in the tournament (one lookup query)."""
+        if not users:
+            return
+        enrolled = await self.tournament_repository.get_enrolled_user_ids(tournament_id)
+        for user in users:
+            if user.id not in enrolled:
+                await self.tournament_repository.enroll_player_by_id(
+                    tournament_id=tournament_id, user=user,
+                )
+                enrolled.add(user.id)
 
     async def _sync_players(self, match: Match, new_player_ids: List[int], tournament_id: int) -> None:
         """Sync match players to new list."""
@@ -807,19 +795,22 @@ class MatchService:
         current_ids = {p.user_id for p in current_players}
         new_ids = set(new_player_ids)
 
-        # Add new players
-        for player_id in new_ids - current_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if not user:
-                raise ValueError(f"User {player_id} not found")
-            await self._ensure_tournament_enrollment(user, tournament_id)
-            await self.repository.add_player(match, user)
+        # Add new players (resolve + enroll in batch, not per player)
+        to_add = new_ids - current_ids
+        if to_add:
+            add_users = await self._resolve_users(list(to_add))
+            await self._ensure_players_enrolled_batch(tournament_id, add_users)
+            for user in add_users:
+                await self.repository.add_player(match, user)
 
-        # Remove old players
-        for player_id in current_ids - new_ids:
-            user = await self.user_repository.get_by_id(player_id)
-            if user:
-                await self.repository.remove_player(match, user)
+        # Remove old players (resolve the removed set in one query)
+        to_remove = current_ids - new_ids
+        if to_remove:
+            remove_users = await self.user_repository.get_by_ids(list(to_remove))
+            for uid in to_remove:
+                user = remove_users.get(uid)
+                if user:
+                    await self.repository.remove_player(match, user)
 
     async def _sync_crew(self, match: Match, new_ids: List[int], repository) -> None:
         """Sync a match's crew (commentators or trackers) to the given user-id list."""
@@ -828,12 +819,11 @@ class MatchService:
         existing_ids = set(existing_map.keys())
         new_ids_set = set(new_ids)
 
-        # Add new
-        for uid in new_ids_set - existing_ids:
-            user = await self.user_repository.get_by_id(uid)
-            if not user:
-                raise ValueError(f"User {uid} not found")
-            await repository.create(match=match, user=user, approved=True)
+        # Add new (resolve the added set in one query)
+        to_add = new_ids_set - existing_ids
+        if to_add:
+            for user in await self._resolve_users(list(to_add)):
+                await repository.create(match=match, user=user, approved=True)
 
         # Remove old
         for uid in existing_ids - new_ids_set:

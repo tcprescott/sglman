@@ -17,6 +17,18 @@ class UserRepository:
         return await User.get_or_none(id=user_id)
 
     @staticmethod
+    async def get_by_ids(user_ids: List[int]) -> dict[int, User]:
+        """Resolve many users in a single query, keyed by id.
+
+        Callers that need to validate a list of referenced user ids should use
+        this instead of a per-id ``get_by_id`` loop (one round-trip, not N).
+        """
+        if not user_ids:
+            return {}
+        rows = await User.filter(id__in=list(set(user_ids)))
+        return {u.id: u for u in rows}
+
+    @staticmethod
     async def get_by_discord_id(discord_id: str) -> Optional[User]:
         return await User.get_or_none(discord_id=discord_id)
 
