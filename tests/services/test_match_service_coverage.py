@@ -455,6 +455,31 @@ class TestUpdateMatch:
         await service.update_match(match_id=match.id, tournament_id=other.id, actor=actor)
         assert (await Match.get(id=match.id)).tournament_id == other.id
 
+    async def test_reassign_tournament_rejected_without_target_admin(self, service, db):
+        # A non-staff TA of the SOURCE tournament must not be able to move a
+        # match into a tournament they do not administer.
+        source = await make_tournament(name="Source")
+        target = await make_tournament(name="Target")
+        ta = await make_user("srcadmin")
+        await source.admins.add(ta)
+        player = await make_user()
+        match = await _seed_match(service, await make_staff(), source, [player.id])
+        with pytest.raises(PermissionError, match="cannot move match into tournament"):
+            await service.update_match(match_id=match.id, tournament_id=target.id, actor=ta)
+        # The reassignment was rejected before any write.
+        assert (await Match.get(id=match.id)).tournament_id == source.id
+
+    async def test_reassign_tournament_allowed_for_admin_of_both(self, service, db):
+        source = await make_tournament(name="Source")
+        target = await make_tournament(name="Target")
+        ta = await make_user("bothadmin")
+        await source.admins.add(ta)
+        await target.admins.add(ta)
+        player = await make_user()
+        match = await _seed_match(service, await make_staff(), source, [player.id])
+        await service.update_match(match_id=match.id, tournament_id=target.id, actor=ta)
+        assert (await Match.get(id=match.id)).tournament_id == target.id
+
     async def test_sync_players_missing_user_raises(self, service, db):
         actor = await make_staff()
         t = await make_tournament()

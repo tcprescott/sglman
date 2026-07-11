@@ -33,7 +33,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from application.repositories import WebPushRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.utils import web_push as protocol
-from application.utils.environment import get_base_url
+from application.utils.environment import get_base_url, is_production
+from application.utils.ssrf import ensure_public_host
 from models import User, WebPushSubscription
 
 logger = logging.getLogger(__name__)
@@ -184,6 +185,13 @@ class WebPushService:
             raise ValueError('Push subscription endpoint must be an https:// URL')
         if len(endpoint) > 1024:
             raise ValueError('Push subscription endpoint is too long')
+        # The stored endpoint is later POSTed to server-side by _deliver_one, so
+        # a browser-supplied endpoint is an SSRF vector. Reject non-public hosts
+        # in production (mirrors the webhook guard); real push services
+        # (fcm.googleapis.com, web.push.apple.com, *.notify.windows.com,
+        # updates.push.services.mozilla.com) all resolve to public addresses.
+        if is_production():
+            await ensure_public_host(parsed.hostname, subject='Push subscription endpoint')
         try:
             if len(protocol.b64url_decode(p256dh or '')) != 65:
                 raise ValueError

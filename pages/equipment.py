@@ -12,7 +12,6 @@ from middleware.auth import protected_page
 from application.services import AuthService, EquipmentService, get_user_from_discord_id
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes, asset_url
 from application.utils.timezone import format_eastern_display
-from models import User
 from theme.base import BaseLayout
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
 
@@ -27,7 +26,9 @@ def create() -> None:
     @protected_page('/equipment/{asset_id}')
     async def equipment_detail(asset_id: int) -> None:
         ui.page_title('Speedgaming Live Onsite - Equipment')
-        user = await User.get_or_none(discord_id=app.storage.user.get('discord_id'))
+        # get_user_from_discord_id enforces is_active so a deactivated user
+        # cannot keep reading asset owner labels / manager-only private notes.
+        user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(
             user=user, show_admin=show_admin, show_volunteer=user is not None,

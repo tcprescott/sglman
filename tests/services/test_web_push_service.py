@@ -173,6 +173,47 @@ class TestSubscriptions:
                 user, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth='nope',
             )
 
+    async def test_subscribe_rejects_private_host_in_production(self, db, monkeypatch):
+        # The stored endpoint is POSTed to server-side, so a private/internal
+        # host is an SSRF vector and must be rejected in production.
+        monkeypatch.setattr('application.services.web_push_service.is_production', lambda: True)
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', ('10.0.0.5', 0))],
+        )
+        user = await _user()
+        with pytest.raises(ValueError, match='public address'):
+            await WebPushService().subscribe(
+                user, endpoint='https://internal.example/push', p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+            )
+
+    async def test_subscribe_allows_public_host_in_production(self, db, monkeypatch):
+        monkeypatch.setattr('application.services.web_push_service.is_production', lambda: True)
+        monkeypatch.setattr(
+            'application.utils.ssrf.socket.getaddrinfo',
+            lambda *a, **k: [(0, 0, 0, '', ('93.184.216.34', 0))],
+        )
+        user = await _user()
+        sub = await WebPushService().subscribe(
+            user, endpoint=ENDPOINT, p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+        )
+        assert sub.id is not None
+
+    async def test_subscribe_skips_ssrf_check_outside_production(self, db, monkeypatch):
+        # Dev allows private endpoints (mirrors the webhook guard) and never even
+        # resolves the host.
+        monkeypatch.setattr('application.services.web_push_service.is_production', lambda: False)
+
+        def _boom(*a, **k):
+            raise AssertionError('getaddrinfo must not run outside production')
+
+        monkeypatch.setattr('application.utils.ssrf.socket.getaddrinfo', _boom)
+        user = await _user()
+        sub = await WebPushService().subscribe(
+            user, endpoint='https://10.0.0.5/push', p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+        )
+        assert sub.id is not None
+
     async def test_resubscribe_rebinds_endpoint_to_new_user(self, db):
         first = await _subscribed_user(discord_id=1)
         second = await _user(discord_id=2)

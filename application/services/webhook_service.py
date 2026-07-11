@@ -14,11 +14,9 @@ logs.
 import asyncio
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
 import secrets
-import socket
 import uuid
 from datetime import datetime, timezone
 from typing import Any, List, Optional
@@ -31,6 +29,7 @@ from application.repositories import WebhookDeliveryRepository, WebhookRepositor
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.utils.environment import is_production
+from application.utils.ssrf import ensure_public_host
 from models import User, Webhook, WebhookDelivery
 
 logger = logging.getLogger(__name__)
@@ -234,7 +233,31 @@ class WebhookService:
         error: Optional[str] = None
         success = False
         attempts = 0
-        async with httpx.AsyncClient(timeout=self.DELIVERY_TIMEOUT) as client:
+
+        # Re-validate the destination at delivery time. The create/update SSRF
+        # check resolved DNS once, but delivery re-resolves the hostname, so a
+        # target repointed to an internal address afterwards (or slow DNS
+        # rebinding) must not be dereferenced. Gated on production to mirror
+        # _validate_url, which allows localhost receivers in development.
+        if is_production():
+            try:
+                await self._ensure_public_host(urlparse(webhook.url).hostname or '')
+            except ValueError as exc:
+                await self.delivery_repository.create(
+                    webhook=webhook,
+                    event_type=event.event_type,
+                    payload=body,
+                    response_status=None,
+                    attempt_count=0,
+                    success=False,
+                    error=f"Blocked by SSRF check: {exc}",
+                    delivered_at=None,
+                )
+                return
+
+        # follow_redirects stays False (the httpx default, asserted here) so a
+        # 3xx to an internal Location cannot be chased past the host check above.
+        async with httpx.AsyncClient(timeout=self.DELIVERY_TIMEOUT, follow_redirects=False) as client:
             for attempt in range(self.MAX_ATTEMPTS):
                 attempts = attempt + 1
                 try:
@@ -287,18 +310,4 @@ class WebhookService:
             await self._ensure_public_host(parsed.hostname)
 
     async def _ensure_public_host(self, hostname: str) -> None:
-        try:
-            infos = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
-        except socket.gaierror as exc:
-            raise ValueError(f"Could not resolve webhook host '{hostname}'") from exc
-        for info in infos:
-            ip = ipaddress.ip_address(info[4][0])
-            if (
-                ip.is_private
-                or ip.is_loopback
-                or ip.is_link_local
-                or ip.is_reserved
-                or ip.is_multicast
-                or ip.is_unspecified
-            ):
-                raise ValueError("Webhook URL must point to a public address")
+        await ensure_public_host(hostname, subject='Webhook URL')
