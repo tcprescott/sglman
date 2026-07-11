@@ -85,6 +85,67 @@ context resolved from the URL (Host header or `/t/<slug>` path prefix).
 
 ---
 
+## Global vs. tenant-scoped reference
+
+A quick-scan summary of what stays global versus what carries a `tenant` FK once
+the plan lands. The unifying rule: **identity, the tenancy machinery, and
+singleton runtime resources are global; everything a tournament community owns or
+produces is tenant-scoped.** The sharp edges are objects queried globally that
+still record which tenant they belong to.
+
+### Global (one row/resource shared across tenants)
+
+| Category | What |
+|---|---|
+| Identity | `User` (`discord_id`/`challonge_user_id`/`twitch_user_id` uniques stay global — links are to the person); `WebPushSubscription` (device belongs to a user; the *push* inherits the producer's tenant context) |
+| Tenancy machinery | `Tenant`, `TenantMembership` (queried across tenants — never auto-scoped) |
+| Shared runtime | One Discord bot token/process (routes by `guild_id`); the DM-queue worker; the event-bus dispatch worker; VAPID web-push keys; the single uvicorn worker / DB connection / middleware stack; the landing page and `/platform` super-admin surface (run with **no** tenant context) |
+| Global auth | The `SUPER_ADMIN` role — `UserRole` rows with `tenant = NULL`, visible inside any tenant request (the only global role) |
+| Deployment env/secrets | `PLATFORM_HOST`, `STORAGE_SECRET`, VAPID keys, the bot token, one OAuth redirect URI per provider on the platform host |
+| Session identity keys | `discord_id`, `username`, `avatar`, `authenticated`, `oauth_state` stay flat in `app.storage.user` so one login works across every tenant |
+
+`TenantManager` is deliberately **not** applied to `User`, `Tenant`,
+`TenantMembership`, `UserRole`, `WebPushSubscription`, or `ApiToken`.
+
+### Tenant-scoped (carry a `tenant` FK, filtered per request)
+
+| Domain | Models |
+|---|---|
+| Tournament & match | `Tournament`, `Match`, `MatchPlayers`, `MatchAcknowledgment`, `TournamentPlayers`, `TriforceText`, `Commentator`, `Tracker`, `MatchWatcher`, `TournamentNotificationPreference`, `GeneratedSeeds` |
+| Volunteers / crew | `VolunteerPosition`, `VolunteerProfile`, `VolunteerAvailability`, `VolunteerShift`, `VolunteerAssignment`, `VolunteerQualification`, `PlayerAvailability` |
+| Stream & equipment | `StreamRoom`, `Equipment`, `EquipmentLoan` |
+| Integrations & config | `SystemConfiguration`, `DiscordRoleMapping`, `ChallongeConnection`, `ChallongeApiUsage`, `ChallongeMatch`, `ChallongeParticipant`, `Webhook`, `WebhookDelivery`, `Feedback` |
+
+Tenant-scoped facets of otherwise-global concerns:
+- **Roles** — `UserRole` gains a `tenant` FK; every grant except `SUPER_ADMIN` is
+  per-tenant (`unique_together(user, role, tenant)`).
+- **Re-homed config** — the Discord sync guild id moves onto
+  `Tenant.discord_guild_id`; the volunteer-reminder lead time becomes a
+  per-tenant `SystemConfiguration`; Challonge quota (`ChallongeApiUsage`) is
+  tallied per `(tenant, period)`.
+- **UI/session state** — filters, theme, referrer, Challonge state namespaced
+  under `app.storage.user['by_tenant'][tid]`.
+- **Routing keys** — `Tenant.slug` (path mode), `Tenant.domain` (host mode),
+  `Tenant.discord_guild_id` (bot routing).
+
+### In-between (scoped, but not auto-filtered)
+
+These record a tenant yet are queried globally or carry an intentional NULL —
+each is handled specially:
+- **`ApiToken`** — has a `tenant` FK and acts within one tenant, but the lookup
+  is global: `api/dependencies.py` resolves the token by hash *before* any tenant
+  context exists, then sets context from the token's `tenant_id`. `token_hash`
+  stays globally unique; the manager is not applied.
+- **`UserRole`** — nullable `tenant`: per-tenant for normal roles, `NULL` for
+  super-admin (which must stay visible inside a tenant request).
+- **`AuditLog` / `TelemetryEvent`** — nullable `tenant`: stamped from context for
+  tenant activity, `NULL` marks a platform-level row (super-admin tenant CRUD,
+  platform page views).
+- **Rate limiting** (`api/rate_limit.py`) — keys by token/IP, which already
+  isolates tenants' clients; no tenant scoping added.
+
+---
+
 ## Phased implementation (each phase independently testable)
 
 ### Phase 0 — Tenant context primitive
@@ -431,6 +492,9 @@ through `TenantService`/middleware, never `application.repositories`.
 
 ## Changes in this revision (2026-07-11)
 
+- **Added a "Global vs. tenant-scoped reference" section** consolidating what
+  stays global versus what carries a `tenant` FK (previously spread across scope
+  decisions #3–#4, Phase 1, and Phase 5).
 - **Data preserved, not wiped:** existing production data is migrated into a
   **default tenant** via an additive backfill (nullable FK → create default
   `Tenant` → stamp every scoped row → enforce NOT NULL), replacing the earlier
