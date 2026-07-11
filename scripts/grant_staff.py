@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Grant the STAFF role to a user by Discord ID.
+"""Grant the STAFF role to a user **within a tenant**, by Discord ID.
 
 Run from the project root:
-    poetry run python scripts/grant_staff.py <discord_id>
+    poetry run python scripts/grant_staff.py <discord_id> [tenant_slug]
 
-Idempotent — safe to re-run. The user must already exist (they are created on
-first login). Requires the schema to already exist (run ./start.sh dev or
-aerich upgrade first).
+``tenant_slug`` defaults to ``default`` (the tenant the migration backfilled).
+Roles are per-tenant now, so a STAFF grant always names a tenant; this also
+ensures the user is a member of that tenant. Idempotent — safe to re-run. The
+user must already exist (they are created on first login).
 """
 import asyncio
 import sys
@@ -20,12 +21,18 @@ load_dotenv()
 
 from migrations.tortoise_config import TORTOISE_ORM
 from tortoise import Tortoise
-from models import User, UserRole, Role
+from models import Role, Tenant, TenantMembership, User, UserRole
 
 
-async def grant_staff(discord_id: str) -> None:
+async def grant_staff(discord_id: str, tenant_slug: str = "default") -> None:
     await Tortoise.init(config=TORTOISE_ORM)
     try:
+        tenant = await Tenant.get_or_none(slug=tenant_slug)
+        if tenant is None:
+            print(f"No tenant found with slug {tenant_slug!r}. "
+                  "Create it first with scripts/seed_tenant.py.")
+            sys.exit(1)
+
         user = await User.get_or_none(discord_id=discord_id)
         if user is None:
             print(f"No user found with discord_id {discord_id!r}. "
@@ -33,19 +40,21 @@ async def grant_staff(discord_id: str) -> None:
             sys.exit(1)
 
         _, created = await UserRole.get_or_create(
-            user=user, role=Role.STAFF, defaults={"granted_by": None},
+            user=user, role=Role.STAFF, tenant=tenant, defaults={"granted_by": None},
         )
+        await TenantMembership.get_or_create(user=user, tenant=tenant)
         label = user.display_name or user.username or discord_id
         if created:
-            print(f"Granted STAFF to {label} ({discord_id}).")
+            print(f"Granted STAFF to {label} ({discord_id}) in tenant '{tenant_slug}'.")
         else:
-            print(f"{label} ({discord_id}) already has STAFF.")
+            print(f"{label} ({discord_id}) already has STAFF in tenant '{tenant_slug}'.")
     finally:
         await Tortoise.close_connections()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: poetry run python scripts/grant_staff.py <discord_id>")
+    if len(sys.argv) not in (2, 3):
+        print("Usage: poetry run python scripts/grant_staff.py <discord_id> [tenant_slug]")
         sys.exit(2)
-    asyncio.run(grant_staff(sys.argv[1]))
+    slug = sys.argv[2] if len(sys.argv) == 3 else "default"
+    asyncio.run(grant_staff(sys.argv[1], slug))
