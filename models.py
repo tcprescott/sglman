@@ -148,7 +148,7 @@ class Feedback(Model):
     message = fields.TextField()
     page_url = fields.CharField(max_length=512)
     status = fields.CharEnumField(FeedbackStatus, default=FeedbackStatus.NEW, max_length=20)
-    created_at = fields.DatetimeField(auto_now_add=True)
+    created_at = fields.DatetimeField(auto_now_add=True, index=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
     class Meta:
@@ -211,6 +211,7 @@ class EquipmentLoan(Model):
 
     class Meta:
         table = 'equipmentloan'
+        indexes = (('equipment',), ('borrower',))
 
 
 class Tournament(Model):
@@ -301,6 +302,11 @@ class Match(Model):
         else:
             return 'Scheduled'
 
+    class Meta:
+        # scheduled_at / finished_at are indexed at the field level; these FK
+        # columns drive the tournament- and room-scoped schedule/report filters.
+        indexes = (('tournament',), ('stream_room',))
+
 class MatchPlayers(Model):
     id = fields.IntField(pk=True)
     match = fields.ForeignKeyField('models.Match', related_name='players')
@@ -313,6 +319,7 @@ class MatchPlayers(Model):
     class Meta:
         unique_together = (('match', 'user'),)
         table = 'matchplayers'
+        indexes = (('user',),)  # composite is match-first; user-only reverse lookup uncovered
 
 class MatchAcknowledgment(Model):
     id = fields.IntField(pk=True)
@@ -337,6 +344,7 @@ class TournamentPlayers(Model):
     class Meta:
         unique_together = (('tournament', 'user'),)
         table = 'tournamentplayers'
+        indexes = (('user',),)  # composite is tournament-first; user-only reverse lookup uncovered
 
 class MatchNotificationLevel(str, Enum):
     NONE = 'none'
@@ -355,6 +363,7 @@ class TournamentNotificationPreference(Model):
     class Meta:
         unique_together = ('user', 'tournament')
         table = 'tournamentnotificationpreference'
+        indexes = (('tournament',),)  # composite is user-first; tournament-only fan-out uncovered
 
 class StreamRoom(Model):
     id = fields.IntField(pk=True)
@@ -408,6 +417,7 @@ class MatchWatcher(Model):
     class Meta:
         unique_together = ('user', 'match')
         table = 'matchwatcher'
+        indexes = (('match',),)  # composite is user-first; match-only fan-out lookup uncovered
 
 class AuditLog(Model):
     id = fields.IntField(pk=True)
@@ -543,6 +553,7 @@ class UserRole(Model):
     class Meta:
         unique_together = ('user', 'role')
         table = 'userrole'
+        indexes = (('role',),)  # composite is user-first; role-only enumeration uncovered
 
 
 class DiscordRoleMapping(Model):
@@ -580,6 +591,9 @@ class TriforceText(Model):
 
     class Meta:
         table = 'triforcetext'
+        # tournament_id prefix serves list_by_tournament(+approved); full key
+        # serves list_by_tournament_and_user / list_approved_by_user.
+        indexes = (('tournament', 'user'),)
 
 
 class VolunteerProfile(Model):
@@ -647,6 +661,7 @@ class VolunteerShift(Model):
 
     class Meta:
         table = 'volunteershift'
+        indexes = (('position',),)  # starts_at is field-indexed; per-position lookups need position_id
 
 
 class VolunteerAssignment(Model):
@@ -667,6 +682,7 @@ class VolunteerAssignment(Model):
     class Meta:
         table = 'volunteerassignment'
         unique_together = (('shift', 'user'),)
+        indexes = (('user',),)  # composite is shift-first; user-only "my shifts" lookup uncovered
 
 
 class VolunteerQualification(Model):
@@ -681,6 +697,7 @@ class VolunteerQualification(Model):
     class Meta:
         table = 'volunteerqualification'
         unique_together = (('user', 'position'),)
+        indexes = (('position',),)  # composite is user-first; position-only lookup uncovered
 
 
 class VolunteerAvailability(Model):
@@ -697,6 +714,7 @@ class VolunteerAvailability(Model):
 
     class Meta:
         table = 'volunteeravailability'
+        indexes = (('user',),)  # starts_at is field-indexed; per-user reads need user_id
 
 
 class PlayerAvailability(Model):
@@ -713,6 +731,7 @@ class PlayerAvailability(Model):
 
     class Meta:
         table = 'playeravailability'
+        indexes = (('user',),)  # starts_at is field-indexed; per-user reads need user_id
 
 
 class ChallongeMatchState(str, Enum):
@@ -765,6 +784,7 @@ class ChallongeParticipant(Model):
     class Meta:
         table = 'challongeparticipant'
         unique_together = (('tournament', 'challonge_participant_id'),)
+        indexes = (('user',),)  # resolve participants for a linked sglman user
 
 
 class ChallongeMatch(Model):
@@ -789,6 +809,7 @@ class ChallongeMatch(Model):
     class Meta:
         table = 'challongematch'
         unique_together = (('tournament', 'challonge_match_id'),)
+        indexes = (('match',), ('participant1',), ('participant2',))
 
 
 class ChallongeApiUsage(Model):

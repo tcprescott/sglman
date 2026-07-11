@@ -140,8 +140,9 @@ def _setup_create_match_mocks(service):
     match = make_match(id=1, tournament_id=1, is_stream_candidate=False)
 
     service.repository.create = AsyncMock(return_value=match)
-    service.user_repository.get_by_id = AsyncMock(return_value=user)
-    service.tournament_repository.is_player_enrolled_by_id = AsyncMock(return_value=True)
+    service.user_repository.get_by_ids = AsyncMock(return_value={user.id: user})
+    service.tournament_repository.get_enrolled_user_ids = AsyncMock(return_value={user.id})
+    service.tournament_repository.enroll_player_by_id = AsyncMock()
     service.repository.add_player = AsyncMock()
 
     # create_match delegates the whole scheduled-notification fan-out to
@@ -200,7 +201,7 @@ class TestSeedAcknowledgments:
     async def test_actor_auto_acked_when_in_player_list(self, service):
         actor = SimpleNamespace(id=42)
         user = SimpleNamespace(id=42)
-        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        service.user_repository.get_by_ids = AsyncMock(return_value={42: user})
         match = make_match()
         await service._seed_acknowledgments(match, [42], actor)
         service.ack_repository.delete_for_match.assert_awaited_once_with(match)
@@ -211,7 +212,7 @@ class TestSeedAcknowledgments:
     async def test_non_actor_left_pending(self, service):
         actor = SimpleNamespace(id=42)
         opponent = SimpleNamespace(id=99)
-        service.user_repository.get_by_id = AsyncMock(return_value=opponent)
+        service.user_repository.get_by_ids = AsyncMock(return_value={99: opponent})
         match = make_match()
         await service._seed_acknowledgments(match, [99], actor)
         call = service.ack_repository.upsert.await_args
@@ -220,7 +221,7 @@ class TestSeedAcknowledgments:
 
     async def test_no_actor_means_no_auto_ack(self, service):
         user = SimpleNamespace(id=99)
-        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        service.user_repository.get_by_ids = AsyncMock(return_value={99: user})
         match = make_match()
         await service._seed_acknowledgments(match, [99], None)
         call = service.ack_repository.upsert.await_args
@@ -273,7 +274,7 @@ class TestAcknowledgeMatch:
 class TestPlayerCrewMutualExclusion:
     async def test_create_match_raises_when_player_is_commentator(self, service):
         user = SimpleNamespace(id=1, preferred_name="Alice")
-        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        service.user_repository.get_by_ids = AsyncMock(return_value={1: user})
         with pytest.raises(ValueError, match="commentator"):
             await service.create_match(
                 tournament_id=1,
@@ -285,7 +286,7 @@ class TestPlayerCrewMutualExclusion:
 
     async def test_create_match_raises_when_player_is_tracker(self, service):
         user = SimpleNamespace(id=1, preferred_name="Alice")
-        service.user_repository.get_by_id = AsyncMock(return_value=user)
+        service.user_repository.get_by_ids = AsyncMock(return_value={1: user})
         with pytest.raises(ValueError, match="tracker"):
             await service.create_match(
                 tournament_id=1,
