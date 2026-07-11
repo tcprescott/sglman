@@ -1,0 +1,105 @@
+"""Tests for TenantService (resolution, CRUD, super-admin grants) and the
+per-tenant role semantics of AuthService/UserRoleRepository."""
+
+import pytest
+
+from application.repositories.user_role_repository import UserRoleRepository
+from application.services.auth_service import AuthService
+from application.services.tenant_service import TenantService, slugify
+from application.tenant_context import tenant_scope
+from models import Role, Tenant, User, UserRole
+
+
+@pytest.fixture
+async def super_admin(db):
+    su = await User.create(discord_id=1000, username='root')
+    # SUPER_ADMIN row carries tenant=NULL (explicit so the harness doesn't stamp).
+    await UserRole.create(user=su, role=Role.SUPER_ADMIN, tenant=None)
+    return su
+
+
+async def test_slugify_makes_url_safe():
+    assert slugify('SGL Live!') == 'sgl-live'
+    assert slugify('  Multiple   spaces  ') == 'multiple-spaces'
+    assert slugify('') == 'tenant'
+
+
+async def test_is_super_admin_true_across_any_tenant(super_admin, db):
+    # A second tenant exists; the super-admin row (tenant NULL) is visible in
+    # either tenant's context and with no context.
+    b = await Tenant.create(name='B', slug='b')
+    assert await AuthService.is_super_admin(super_admin) is True
+    with tenant_scope(b.id):
+        assert await AuthService.is_super_admin(super_admin) is True
+
+
+async def test_create_tenant_requires_super_admin(db):
+    nobody = await User.create(discord_id=2000, username='nobody')
+    with pytest.raises(PermissionError):
+        await TenantService.create_tenant(nobody, name='X', slug='x')
+
+
+async def test_create_tenant_validates_slug(super_admin, db):
+    with pytest.raises(ValueError):
+        await TenantService.create_tenant(super_admin, name='X', slug='Bad Slug')
+    with pytest.raises(ValueError):
+        await TenantService.create_tenant(super_admin, name='X', slug='platform')  # reserved
+    await TenantService.create_tenant(super_admin, name='X', slug='good-slug')
+    with pytest.raises(ValueError):
+        await TenantService.create_tenant(super_admin, name='Y', slug='good-slug')  # dup
+
+
+async def test_create_tenant_resolves_and_invalidates_cache(super_admin, db):
+    # Prime the cache with a miss.
+    assert await TenantService.get_by_slug('acme') is None
+    tenant = await TenantService.create_tenant(super_admin, name='Acme', slug='acme')
+    # Cache was cleared on create, so the new tenant resolves.
+    resolved = await TenantService.get_by_slug('acme')
+    assert resolved is not None and resolved.id == tenant.id
+
+
+async def test_guild_resolution(super_admin, db):
+    tenant = await TenantService.create_tenant(
+        super_admin, name='Guilded', slug='guilded', discord_guild_id=42424242,
+    )
+    assert (await TenantService.get_by_guild_id(42424242)).id == tenant.id
+    assert await TenantService.get_by_guild_id(999) is None
+
+
+async def test_grant_and_revoke_super_admin(super_admin, db):
+    target = await User.create(discord_id=3000, username='promote')
+    await TenantService.grant_super_admin(super_admin, target)
+    assert await AuthService.is_super_admin(target) is True
+    # The grant row carries tenant=NULL.
+    assert await UserRole.filter(user=target, role=Role.SUPER_ADMIN, tenant=None).exists()
+
+    await TenantService.revoke_super_admin(super_admin, target)
+    assert await AuthService.is_super_admin(target) is False
+
+
+async def test_bootstrap_staff_is_per_tenant(super_admin, db):
+    a = await Tenant.get(id=1)
+    b = await TenantService.create_tenant(super_admin, name='B', slug='b')
+    staffer = await User.create(discord_id=4000, username='staffer')
+
+    await TenantService.bootstrap_staff(super_admin, a.id, staffer)
+
+    with tenant_scope(a.id):
+        assert await AuthService.is_staff(staffer) is True
+        assert await TenantService.is_member(staffer.id, a.id) is True
+    with tenant_scope(b.id):
+        # STAFF in A must not carry into B.
+        assert await AuthService.is_staff(staffer) is False
+
+
+async def test_userrole_add_is_tenant_scoped(db):
+    """A normal role grant lands in the current tenant only."""
+    a = await Tenant.get(id=1)
+    b = await Tenant.create(name='B', slug='b')
+    user = await User.create(discord_id=5000, username='u')
+
+    with tenant_scope(a.id):
+        await UserRoleRepository.add(user, Role.PROCTOR)
+        assert await AuthService.has_role(user, Role.PROCTOR) is True
+    with tenant_scope(b.id):
+        assert await AuthService.has_role(user, Role.PROCTOR) is False

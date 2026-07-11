@@ -119,6 +119,16 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Per-device push subscription state.
     AuditActions.WEB_PUSH_SUBSCRIBED,
     AuditActions.WEB_PUSH_UNSUBSCRIBED,
+    # Tenancy / platform administration: super-admin-only, platform-level
+    # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
+    # reach zero subscribers — and tenant CRUD / role grants are sensitive.
+    AuditActions.TENANT_CREATED,
+    AuditActions.TENANT_UPDATED,
+    AuditActions.TENANT_DELETED,
+    AuditActions.TENANT_MEMBER_ADDED,
+    AuditActions.TENANT_MEMBER_REMOVED,
+    AuditActions.SUPER_ADMIN_GRANTED,
+    AuditActions.SUPER_ADMIN_REVOKED,
 })
 
 _EVENTLESS_AUDIT_ACTIONS = _EVENT_CANDIDATES | _EXCLUDED_BY_DESIGN

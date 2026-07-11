@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Mapping, Optional
 
 from application.repositories.audit_repository import AuditRepository
+from application.tenant_context import get_current_tenant_id
 from models import AuditLog, User
 
 
@@ -147,6 +148,15 @@ class AuditActions:
     WEBHOOK_DELETED = 'webhook.deleted'
     WEBHOOK_SECRET_REGENERATED = 'webhook.secret_regenerated'
 
+    # Tenancy / platform (these audit rows carry tenant=NULL — platform-level)
+    TENANT_CREATED = 'tenant.created'
+    TENANT_UPDATED = 'tenant.updated'
+    TENANT_DELETED = 'tenant.deleted'
+    TENANT_MEMBER_ADDED = 'tenant.member_added'
+    TENANT_MEMBER_REMOVED = 'tenant.member_removed'
+    SUPER_ADMIN_GRANTED = 'platform.super_admin_granted'
+    SUPER_ADMIN_REVOKED = 'platform.super_admin_revoked'
+
 
 def _encode_details(details: Optional[Mapping[str, Any]]) -> Optional[str]:
     if details is None:
@@ -229,7 +239,11 @@ class AuditService:
         if actor_discord_id is not None:
             enriched.setdefault('actor_discord_id', str(actor_discord_id))
 
+        # Stamp the ambient tenant so the trail is per-tenant; NULL when the
+        # action is platform-level (super-admin tenant CRUD on /platform, which
+        # runs with no tenant context).
         return await AuditLog.create(
+            tenant_id=get_current_tenant_id(),
             user=actor,
             action=action,
             details=_encode_details(enriched),

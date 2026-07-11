@@ -9,28 +9,52 @@ User, then pass it into the helpers.
 
 from typing import Optional
 
+from application.tenant_context import get_current_tenant_id
 from models import Match, Role, Tournament, User, UserRole
 
 
 class AuthService:
-    """Stateless authorization helpers."""
+    """Stateless authorization helpers.
+
+    Role checks are **per tenant**: ``get_roles``/``has_role`` scope every
+    ``UserRole`` query to the current tenant, so a STAFF grant in one tenant does
+    not carry into another. The one exception is ``SUPER_ADMIN`` — a global
+    platform role whose ``UserRole`` row carries ``tenant=NULL``; it is checked
+    with :meth:`is_super_admin` (never through the tenant-scoped path) and
+    bypasses the admin-view gate.
+    """
 
     # Global roles that grant access to the Admin dashboard. Excludes PROCTOR
     # and VOLUNTEER, whose workflows live on the Volunteer page instead.
     _ADMIN_ROLES = {Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR}
 
     @staticmethod
+    async def is_super_admin(user: Optional[User]) -> bool:
+        """The global platform role (``UserRole`` with ``tenant=NULL``)."""
+        if user is None:
+            return False
+        return await UserRole.filter(user=user, role=Role.SUPER_ADMIN, tenant=None).exists()
+
+    @staticmethod
     async def get_roles(user: Optional[User]) -> set[Role]:
+        """The user's roles **in the current tenant** (excludes SUPER_ADMIN)."""
         if user is None:
             return set()
-        rows = await UserRole.filter(user=user).values_list('role', flat=True)
+        tid = get_current_tenant_id()
+        if tid is None:
+            # No tenant in context (platform surface) — no tenant roles apply.
+            return set()
+        rows = await UserRole.filter(user=user, tenant_id=tid).values_list('role', flat=True)
         return {Role(r) for r in rows}
 
     @staticmethod
     async def has_role(user: Optional[User], role: Role) -> bool:
         if user is None:
             return False
-        return await UserRole.filter(user=user, role=role).exists()
+        tid = get_current_tenant_id()
+        if tid is None:
+            return False
+        return await UserRole.filter(user=user, role=role, tenant_id=tid).exists()
 
     @staticmethod
     async def is_staff(user: Optional[User]) -> bool:
@@ -62,26 +86,47 @@ class AuthService:
 
     @staticmethod
     async def is_tournament_admin(user: Optional[User], tournament_id: int) -> bool:
+        # PKs are global, so filter by tenant too: a same-id tournament in another
+        # tenant must not satisfy the check.
         if user is None:
             return False
-        return await Tournament.filter(id=tournament_id, admins__id=user.id).exists()
+        query = Tournament.filter(id=tournament_id, admins__id=user.id)
+        tid = get_current_tenant_id()
+        if tid is not None:
+            query = query.filter(tenant_id=tid)
+        return await query.exists()
 
     @staticmethod
     async def is_crew_coordinator_of(user: Optional[User], tournament_id: int) -> bool:
         if user is None:
             return False
-        return await Tournament.filter(id=tournament_id, crew_coordinators__id=user.id).exists()
+        query = Tournament.filter(id=tournament_id, crew_coordinators__id=user.id)
+        tid = get_current_tenant_id()
+        if tid is not None:
+            query = query.filter(tenant_id=tid)
+        return await query.exists()
 
     @staticmethod
     async def can_view_admin(user: Optional[User]) -> bool:
-        """Any admin global role or any TA/CC tournament membership."""
+        """Any admin global role or any TA/CC tournament membership in this
+        tenant. A platform SUPER_ADMIN can view any tenant's admin."""
         if user is None:
             return False
+        if await AuthService.is_super_admin(user):
+            return True
         if await AuthService.get_roles(user) & AuthService._ADMIN_ROLES:
             return True
-        if await user.admin_tournaments.all().exists():
+        # user.admin_tournaments / crew_coordinated_tournaments span tenants (the
+        # reverse relation is off the global User) — filter to this tenant.
+        tid = get_current_tenant_id()
+        admin_q = user.admin_tournaments.all()
+        cc_q = user.crew_coordinated_tournaments.all()
+        if tid is not None:
+            admin_q = admin_q.filter(tenant_id=tid)
+            cc_q = cc_q.filter(tenant_id=tid)
+        if await admin_q.exists():
             return True
-        return await user.crew_coordinated_tournaments.all().exists()
+        return await cc_q.exists()
 
     @staticmethod
     async def can_edit_tournament(user: Optional[User], tournament: Tournament) -> bool:

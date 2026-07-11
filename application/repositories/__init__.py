@@ -17,6 +17,8 @@ from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .stream_room_repository import StreamRoomRepository
+from .tenant_repository import TenantRepository
+from .tenant_membership_repository import TenantMembershipRepository
 from .tournament_notification_repository import TournamentNotificationRepository
 from .telemetry_repository import TelemetryRepository
 from .tournament_repository import TournamentRepository
@@ -47,6 +49,8 @@ __all__ = [
     'MatchRepository',
     'MatchWatcherRepository',
     'StreamRoomRepository',
+    'TenantRepository',
+    'TenantMembershipRepository',
     'TelemetryRepository',
     'TournamentNotificationRepository',
     'TournamentRepository',

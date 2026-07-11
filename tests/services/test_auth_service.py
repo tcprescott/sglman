@@ -19,20 +19,31 @@ from models import Role
 # ---------------------------------------------------------------------------
 
 
+class _ExistsQS:
+    """A chainable fake queryset: ``.filter(...)`` is a no-op that returns self
+    (the policy now tenant-filters these reverse relations), and ``.exists()``
+    resolves the fixed result."""
+
+    def __init__(self, result: bool):
+        self._result = result
+
+    def filter(self, **_kwargs):
+        return self
+
+    async def exists(self):
+        return self._result
+
+
 def make_user(user_id: int = 1):
     """Build a minimal User stand-in.
 
     `admin_tournaments` and `crew_coordinated_tournaments` are accessed as
-    `await user.<attr>.all().exists()` in the policy code, so they're mocked
-    as callables that return an object with an async exists().
+    `await user.<attr>.all().filter(tenant_id=...).exists()` in the policy code,
+    so they're mocked as callables returning a chainable fake queryset.
     """
     user = SimpleNamespace(id=user_id)
-    user.admin_tournaments = SimpleNamespace(
-        all=lambda: SimpleNamespace(exists=AsyncMock(return_value=False)),
-    )
-    user.crew_coordinated_tournaments = SimpleNamespace(
-        all=lambda: SimpleNamespace(exists=AsyncMock(return_value=False)),
-    )
+    user.admin_tournaments = SimpleNamespace(all=lambda: _ExistsQS(False))
+    user.crew_coordinated_tournaments = SimpleNamespace(all=lambda: _ExistsQS(False))
     return user
 
 
@@ -84,6 +95,10 @@ def patch_tournament_membership(monkeypatch):
         class FakeTournamentQS:
             def __init__(self, exists_result):
                 self._exists = exists_result
+
+            def filter(self, **_kwargs):
+                # The policy now tenant-filters this queryset; ignore it here.
+                return self
 
             async def exists(self):
                 return self._exists
@@ -364,11 +379,9 @@ class TestEnsure:
 
 
 def make_ta_user(user_id: int = 1):
-    """User whose admin_tournaments.all().exists() resolves True."""
+    """User whose admin_tournaments.all().filter(...).exists() resolves True."""
     user = make_user(user_id)
-    user.admin_tournaments = SimpleNamespace(
-        all=lambda: SimpleNamespace(exists=AsyncMock(return_value=True)),
-    )
+    user.admin_tournaments = SimpleNamespace(all=lambda: _ExistsQS(True))
     return user
 
 
