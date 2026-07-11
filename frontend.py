@@ -14,11 +14,17 @@ from nicegui import app, ui
 from application.utils.environment import is_production, validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
+from middleware.tenant import TenantMiddleware
 from pages import admin, auth, challonge_oauth, equipment, home, twitch_oauth, volunteer
 
 _ui_logger = logging.getLogger('sglman.ui')
 
+# Order matters: Starlette runs the last-added middleware outermost, and
+# ui.run_with() adds NiceGUI's session middleware afterwards (outermost of all).
+# So execution is session -> tenant -> auth: the tenant is resolved and the ASGI
+# path rewritten before AuthMiddleware reads the (now unprefixed) path.
 app.add_middleware(AuthMiddleware)
+app.add_middleware(TenantMiddleware)
 
 
 @app.on_exception
