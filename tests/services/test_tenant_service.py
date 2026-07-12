@@ -103,3 +103,44 @@ async def test_userrole_add_is_tenant_scoped(db):
         assert await AuthService.has_role(user, Role.PROCTOR) is True
     with tenant_scope(b.id):
         assert await AuthService.has_role(user, Role.PROCTOR) is False
+
+
+async def test_create_tenant_rejects_duplicate_guild_id(super_admin, db):
+    # A guild maps to exactly one tenant; a second tenant claiming the same guild
+    # would silently shadow the first's live Discord role routing, so it's rejected.
+    await TenantService.create_tenant(
+        super_admin, name='First', slug='first', discord_guild_id=555,
+    )
+    with pytest.raises(ValueError, match='guild id 555'):
+        await TenantService.create_tenant(
+            super_admin, name='Second', slug='second', discord_guild_id=555,
+        )
+    # A different guild is fine; NULL guild never collides.
+    await TenantService.create_tenant(
+        super_admin, name='Third', slug='third', discord_guild_id=556,
+    )
+    await TenantService.create_tenant(super_admin, name='Fourth', slug='fourth')
+
+
+async def test_update_tenant_rejects_duplicate_guild_id(super_admin, db):
+    a = await TenantService.create_tenant(
+        super_admin, name='A', slug='ta', discord_guild_id=777,
+    )
+    b = await TenantService.create_tenant(
+        super_admin, name='B', slug='tb', discord_guild_id=888,
+    )
+    with pytest.raises(ValueError, match='guild id 777'):
+        await TenantService.update_tenant(super_admin, b, discord_guild_id=777)
+    # Re-saving a tenant's own guild id is allowed (exclude_id=self).
+    await TenantService.update_tenant(super_admin, a, discord_guild_id=777)
+
+
+async def test_slug_cache_is_bounded(db):
+    # Negative lookups are cached keyed on the URL slug; a flood of distinct
+    # unknown slugs must not grow the cache without limit.
+    from application.services import tenant_service as ts
+    ts._clear_cache()
+    for i in range(ts._CACHE_MAX + 250):
+        assert await TenantService.get_by_slug(f'nope{i}') is None
+    assert len(ts._cache_by_slug) <= ts._CACHE_MAX
+    ts._clear_cache()

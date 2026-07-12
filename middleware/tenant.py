@@ -66,10 +66,20 @@ class TenantMiddleware(BaseHTTPMiddleware):
         rest = match.group('rest') or '/'
         scope['path'] = rest
         scope['root_path'] = scope.get('root_path', '') + prefix
-        # raw_path drives some routers; keep it consistent with the new path.
-        if scope.get('raw_path') is not None:
-            query = scope['raw_path'].split(b'?', 1)
-            scope['raw_path'] = rest.encode() + (b'?' + query[1] if len(query) > 1 else b'')
+        # raw_path drives some routers and is the *undecoded* bytes by contract,
+        # so strip the /t/<slug> prefix off the original raw bytes rather than
+        # re-encoding the already-decoded `rest` (which would drop percent-encoding
+        # in the remainder of the path). The slug is [a-z0-9-], never encoded, so
+        # the prefix matches the raw bytes verbatim.
+        raw = scope.get('raw_path')
+        if raw is not None:
+            raw_path_part, sep, raw_query = raw.partition(b'?')
+            raw_prefix = prefix.encode()
+            if raw_path_part.startswith(raw_prefix):
+                new_path_part = raw_path_part[len(raw_prefix):] or b'/'
+            else:
+                new_path_part = rest.encode()
+            scope['raw_path'] = new_path_part + (sep + raw_query if sep else b'')
 
         token = set_tenant_id(tenant.id)
         try:

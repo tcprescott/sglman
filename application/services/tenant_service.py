@@ -30,6 +30,18 @@ _RESERVED_SLUGS = {'platform', 'api', 'static', 'login', 'logout', 'oauth', 't',
 _cache_by_slug: dict[str, Optional[Tenant]] = {}
 _cache_by_guild: dict[int, Optional[Tenant]] = {}
 
+# Bound the resolution caches. get_by_slug caches negative lookups too, keyed on
+# the attacker-controlled URL slug, so without a cap a flood of distinct
+# /t/<slug> requests would grow the cache without limit (memory-exhaustion DoS).
+# Dicts preserve insertion order, so evict the oldest key (FIFO) when full.
+_CACHE_MAX = 2048
+
+
+def _cache_put(cache: dict, key, value) -> None:
+    if key not in cache and len(cache) >= _CACHE_MAX:
+        cache.pop(next(iter(cache)), None)
+    cache[key] = value
+
 
 def _clear_cache() -> None:
     _cache_by_slug.clear()
@@ -57,7 +69,7 @@ class TenantService:
         if key in _cache_by_slug:
             return _cache_by_slug[key]
         tenant = await TenantRepository.get_by_slug(key)
-        _cache_by_slug[key] = tenant
+        _cache_put(_cache_by_slug, key, tenant)
         return tenant
 
     @staticmethod
@@ -69,7 +81,7 @@ class TenantService:
         if guild_id in _cache_by_guild:
             return _cache_by_guild[guild_id]
         tenant = await TenantRepository.get_by_guild_id(guild_id)
-        _cache_by_guild[guild_id] = tenant
+        _cache_put(_cache_by_guild, guild_id, tenant)
         return tenant
 
     @staticmethod
@@ -100,6 +112,15 @@ class TenantService:
         return domain
 
     @staticmethod
+    async def _validate_guild_id(guild_id: Optional[int], exclude_id: Optional[int] = None) -> Optional[int]:
+        # A guild maps to exactly one tenant (get_by_guild_id resolves lowest id),
+        # so reject a duplicate rather than silently shadowing another tenant's
+        # live Discord role routing.
+        if guild_id is not None and await TenantRepository.guild_id_exists(guild_id, exclude_id=exclude_id):
+            raise ValueError(f"A tenant with Discord guild id {guild_id} already exists.")
+        return guild_id
+
+    @staticmethod
     async def create_tenant(
         actor: User,
         *,
@@ -116,6 +137,7 @@ class TenantService:
             raise ValueError('Tenant name is required.')
         slug = await TenantService._validate_slug(slug)
         domain = await TenantService._validate_domain(domain)
+        await TenantService._validate_guild_id(discord_guild_id)
 
         tenant = await TenantRepository.create(
             name=name, slug=slug, domain=domain,
@@ -136,6 +158,8 @@ class TenantService:
             fields['slug'] = await TenantService._validate_slug(fields['slug'], exclude_id=tenant.id)
         if 'domain' in fields:
             fields['domain'] = await TenantService._validate_domain(fields['domain'], exclude_id=tenant.id)
+        if 'discord_guild_id' in fields:
+            await TenantService._validate_guild_id(fields['discord_guild_id'], exclude_id=tenant.id)
         if 'name' in fields:
             fields['name'] = (fields['name'] or '').strip()
             if not fields['name']:

@@ -5,6 +5,7 @@ Manages the mapping of Discord guild roles to application roles and performs
 the login-time sync that grants/revokes app roles from a user's Discord roles.
 """
 
+import asyncio
 import logging
 from typing import List, Set
 
@@ -130,9 +131,16 @@ class DiscordRoleMappingService:
             if not tenants:
                 summary['skipped'] = 'no_guild_configured'
                 return summary
+            # Sync every tenant concurrently: each per-tenant sync is independent
+            # (own tenant scope, own Discord call) and never raises, so login
+            # latency stays ~one Discord round-trip instead of scaling with the
+            # tenant count. asyncio.gather runs each in its own context copy, so
+            # the tenant_scope contextvar in one does not leak into another.
+            results = await asyncio.gather(*(
+                self.sync_user_roles_for_tenant(user, tenant) for tenant in tenants
+            ))
             skips: Set[str] = set()
-            for tenant in tenants:
-                result = await self.sync_user_roles_for_tenant(user, tenant)
+            for result in results:
                 summary['granted'] += result.get('granted') or []
                 summary['revoked'] += result.get('revoked') or []
                 if result.get('skipped'):

@@ -29,6 +29,11 @@ from application.repositories import WebhookDeliveryRepository, WebhookRepositor
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import tenant_scope
+from application.utils.environment import is_production
+from application.utils.ssrf import ensure_public_host
+from models import User, Webhook, WebhookDelivery
+
+logger = logging.getLogger(__name__)
 
 
 async def _deliver_scoped(coro, tenant_id) -> None:
@@ -40,11 +45,6 @@ async def _deliver_scoped(coro, tenant_id) -> None:
     """
     with tenant_scope(tenant_id):
         await coro
-from application.utils.environment import is_production
-from application.utils.ssrf import ensure_public_host
-from models import User, Webhook, WebhookDelivery
-
-logger = logging.getLogger(__name__)
 
 
 class WebhookService:

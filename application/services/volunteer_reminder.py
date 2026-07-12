@@ -22,9 +22,11 @@ TICK_SECONDS = 60
 # The reminder lead time is now a per-tenant SystemConfiguration, but the loop
 # iterates assignments across all tenants in one cross-tenant scan. So it scans a
 # generous fixed window up front, then re-checks each assignment against ITS
-# tenant's configured lead. Any tenant lead beyond this bound would be missed, so
-# keep it comfortably above any realistic lead.
-MAX_LEAD_MINUTES = 24 * 60
+# tenant's configured lead. A tenant lead beyond this bound is not silently
+# dropped — the per-assignment re-check logs a warning — but such assignments are
+# only reminded once they enter the window. Seven days sits comfortably above any
+# realistic volunteer-reminder lead (typically minutes to hours).
+MAX_LEAD_MINUTES = 7 * 24 * 60
 
 _task: Optional[asyncio.Task] = None
 
@@ -59,6 +61,13 @@ async def _tick() -> None:
         try:
             with tenant_scope(tenant_id):
                 lead = await SystemConfigService.get_volunteer_reminder_lead_minutes()
+                if lead > MAX_LEAD_MINUTES:
+                    logger.warning(
+                        'Tenant %s volunteer_reminder_lead_minutes=%s exceeds the %s-minute '
+                        'scan window; assignments further out are reminded only once they '
+                        'enter the window.',
+                        tenant_id, lead, MAX_LEAD_MINUTES,
+                    )
                 shift = assignment.shift
                 # Not yet within this tenant's lead window — leave un-stamped so a
                 # later tick reminds it once it enters the window.

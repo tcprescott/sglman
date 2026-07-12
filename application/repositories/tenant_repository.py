@@ -50,6 +50,13 @@ class TenantRepository:
         return await query.exists()
 
     @staticmethod
+    async def guild_id_exists(guild_id: int, exclude_id: Optional[int] = None) -> bool:
+        query = Tenant.filter(discord_guild_id=guild_id)
+        if exclude_id is not None:
+            query = query.exclude(id=exclude_id)
+        return await query.exists()
+
+    @staticmethod
     async def create(**fields) -> Tenant:
         return await Tenant.create(**fields)
 

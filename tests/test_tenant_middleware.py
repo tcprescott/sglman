@@ -29,10 +29,12 @@ def _no_ambient_tenant():
 
 
 async def _probe(request):
+    raw = request.scope.get('raw_path')
     return JSONResponse({
         'tenant': get_current_tenant_id(),
         'path': request.scope['path'],
         'root_path': request.scope.get('root_path', ''),
+        'raw_path': raw.decode('latin-1') if raw is not None else None,
     })
 
 
@@ -111,6 +113,17 @@ async def test_api_path_is_excluded(two_tenants):
     body = r.json()
     assert body['tenant'] is None          # API derives tenant from its token
     assert body['path'] == '/api/x'        # not rewritten
+
+
+async def test_raw_path_preserves_encoding(two_tenants):
+    # `%61` decodes to 'a', so the decoded path '/admin' still routes, while
+    # raw_path must keep the original percent-encoding (stripped of the prefix)
+    # rather than being rebuilt from the decoded path.
+    r = await _get(_build_app(), '/t/acme/%61dmin')
+    assert r.status_code == 200
+    body = r.json()
+    assert body['path'] == '/admin'
+    assert body['raw_path'] == '/%61dmin'
 
 
 async def test_context_is_reset_after_request(two_tenants):
