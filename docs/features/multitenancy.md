@@ -19,7 +19,7 @@ resources are global; everything a community owns or produces is tenant-scoped.*
 | Resolution & CRUD | [`TenantService`](../reference/services.md#tenant_servicepy--tenantservice) | Cached slug/guild/domain lookup; `/platform` CRUD |
 | Read scoping / write stamping | [`_tenant.py`](../../application/repositories/_tenant.py) | `scoped(qs)` and `current_tenant_id()` used by every scoped repo |
 | Schema | [data-model.md § Multitenancy](../reference/data-model.md#multitenancy) | `Tenant`, `TenantMembership`, `tenant` FK on 33 models |
-| Roles & membership | [`AuthService`](../reference/authentication.md) | Per-tenant roles; global `SUPER_ADMIN`; membership gate |
+| Roles & membership | [`AuthService`](../reference/authentication.md) | Per-tenant roles; global `SUPER_ADMIN`; tenant-scoped authorization |
 | Platform surface | [`pages/platform.py`](../../pages/platform.py) | `/platform` super-admin tenant management |
 
 ## Addressing: path mode
@@ -109,11 +109,19 @@ belongs to. See [data-model.md § Tenancy repositories](../reference/data-model.
   global, so every tenant-aware check adds a `tenant_id` filter.
 - **`SUPER_ADMIN` is global.** `AuthService.is_super_admin(user)` looks for a
   `UserRole(role=SUPER_ADMIN, tenant=NULL)` — the only role that may have a NULL
-  tenant. Super-admin **bypasses** the per-tenant role and membership gates.
-- **Membership gate.** `@protected_page` denies an authenticated user who is
-  neither a member of the current tenant (`TenantMembership`) nor holds any role
-  there (super-admin bypasses). A page reached with *no* tenant (a bare `/admin`
-  on the platform host) 404s — every `@protected_page` is a tenant page.
+  tenant. Super-admin **bypasses** the per-tenant role gate.
+- **Authorization is tenant-scoped, not membership-gated.** A `@protected_page`
+  with a role requirement (or `allow_tournament_membership`) is authorized by the
+  user's tenant-scoped roles / tournament-admin membership / super-admin — all
+  evaluated in the current tenant, so a role in another tenant grants nothing
+  here. Role-less protected pages need only authentication (matching
+  pre-multitenancy access). There is deliberately **no** separate "must be a
+  `TenantMembership`" gate: the app has no self-serve/invite enrollment path, so
+  such a gate would lock out every new user. `TenantMembership` still records who
+  belongs to a tenant (backfilled by the migration, managed on `/platform`), but
+  page access derives from roles, not membership. A page reached with *no* tenant
+  (a bare `/admin` on the platform host) 404s — every `@protected_page` is a
+  tenant page.
 
 See [authentication.md](../reference/authentication.md) and
 [role-based-auth.md](role-based-auth.md).

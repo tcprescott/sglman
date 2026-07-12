@@ -11,7 +11,6 @@ from starlette.responses import RedirectResponse
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryService
-from application.services.tenant_service import TenantService
 from application.tenant_context import get_current_tenant_id, stash_client_tenant_id, tenant_scope
 from models import Role
 
@@ -130,27 +129,16 @@ def protected_page(
             # (which run outside any request) can resolve it via the fallback.
             stash_client_tenant_id(tid)
 
-            user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-            is_super = await AuthService.is_super_admin(user)
-
-            # Membership gate: an authenticated user who is neither a member of
-            # this tenant nor holds any role here may not access its admin pages
-            # (super-admin bypasses). Role-holders are treated as members.
-            if not is_super:
-                member = bool(user) and await TenantService.is_member(user.id, tid)
-                has_any_role = bool(await AuthService.get_roles(user))
-                if not (member or has_any_role):
-                    from theme.error_page import render_error_page
-                    render_error_page(
-                        status_code=403,
-                        headline='Forbidden',
-                        message='You are not a member of this community.',
-                        user=user,
-                    )
-                    return
-
+            # Authorization for a *gated* page comes from the user's tenant-scoped
+            # roles / tournament-admin membership / super-admin — all evaluated in
+            # this tenant's context, so a role in another tenant grants nothing
+            # here. Role-less protected pages need only authentication (which
+            # AuthMiddleware already enforced), matching pre-multitenancy access;
+            # there is no separate "must be a member" gate, since the app has no
+            # self-serve/invite enrollment path and it would lock out new users.
             if gated:
-                allowed = is_super
+                user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                allowed = await AuthService.is_super_admin(user)
                 if not allowed and user is not None and role_list:
                     held = await AuthService.get_roles(user)
                     allowed = bool(held.intersection(role_list))

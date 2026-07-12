@@ -446,13 +446,13 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `list_tenants()` | `list[Tenant]` | All tenants (platform admin table + community picker). |
 | `create_tenant(actor, *, name, slug, domain=None, discord_guild_id=None, ...)` | `Tenant` | Super-admin create; validates slug/domain uniqueness and format; audited `tenant.created`. |
 | `update_tenant(actor, tenant, **fields)` | `Tenant` | Super-admin partial update; re-validates slug/domain; audited `tenant.updated`. |
-| `is_member(user_id, tenant_id)` | `bool` | Membership check (used by the `@protected_page` membership gate). |
+| `is_member(user_id, tenant_id)` | `bool` | Membership check (`TenantMembership` lookup; used by `/platform` membership management). |
 | `add_member(actor, user, tenant_id)` / `list_members(tenant_id)` / `list_memberships_for_user(user)` | — / `list` / `list` | Membership management. |
 | `grant_super_admin(actor, user)` / `revoke_super_admin(actor, user)` | `None` | Super-admin gated; grant/revoke the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`); audited `super_admin.*`. |
 | `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. |
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
-Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`. Consumers: `middleware/tenant.py` (slug→tenant resolution), `middleware/auth.py` (membership gate), `pages/platform.py` (tenant CRUD UI), `pages/home.py` (community picker), `application/services/discord_service.py` + `discord_role_mapping_service.py` (guild→tenant routing).
+Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`. Consumers: `middleware/tenant.py` (slug→tenant resolution), `pages/platform.py` (tenant CRUD UI), `pages/home.py` (community picker), `application/services/discord_service.py` + `discord_role_mapping_service.py` (guild→tenant routing).
 
 ### tournament_notification_service.py — TournamentNotificationService
 

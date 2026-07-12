@@ -87,7 +87,7 @@ The app is **logically multitenant**: one DB, a `tenant` FK on ~33 models, tenan
 
 - **Repositories** scope reads and stamp writes via `application/repositories/_tenant.py`: `scoped(Match.filter(...))` for reads, `Match.create(..., tenant_id=current_tenant_id())` for writes. A direct model read in presentation/service code hand-scopes: `Tournament.get_or_none(id=x, tenant_id=require_tenant_id())`.
 - `require_tenant_id()` **raises** when no tenant is in scope — that loud failure is the safety net, not a bug to swallow. Any bot/worker/`background_tasks` path that touches scoped data must wrap it in `tenant_scope(tenant_id)` (`from application.tenant_context import tenant_scope`).
-- **Roles are per-tenant** (`UserRole.tenant`); `AuthService` checks evaluate within `get_current_tenant_id()`. `SUPER_ADMIN` is the one global role (`tenant=NULL`) and bypasses tenant/membership gates.
+- **Roles are per-tenant** (`UserRole.tenant`); `AuthService` checks evaluate within `get_current_tenant_id()`. `SUPER_ADMIN` is the one global role (`tenant=NULL`) and bypasses the per-tenant role gate. Gated `@protected_page`s authorize on tenant-scoped roles/tournament-admin/super-admin; role-less protected pages need only auth (no separate `TenantMembership` gate).
 - When adding a tenant-scoped model: add the `tenant` FK, scope its repo, make formerly-global uniques composite with `tenant`, and add a leak test.
 
 Detail: [docs/features/multitenancy.md](docs/features/multitenancy.md).
