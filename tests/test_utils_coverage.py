@@ -370,21 +370,17 @@ class TestEasterEggs:
 # ---------------------------------------------------------------------------
 
 class TestQrCodeUtil:
-    def test_asset_url_uses_base_url(self, monkeypatch):
-        monkeypatch.setenv('BASE_URL', 'https://sgl.example.org/')
-        assert qrcode_util.asset_url(42) == 'https://sgl.example.org/equipment/42'
-
-    def test_png_bytes_have_png_signature(self, monkeypatch):
-        monkeypatch.setenv('BASE_URL', 'https://sgl.example.org')
-        data = qrcode_util.asset_qr_png_bytes(7)
+    def test_png_bytes_have_png_signature(self):
+        # The util now takes the fully-built (tenant-qualified) URL directly.
+        data = qrcode_util.asset_qr_png_bytes('https://sgl.example.org/t/acme/equipment/7')
         assert isinstance(data, bytes) and len(data) > 0
         assert data[:8] == b'\x89PNG\r\n\x1a\n'
 
-    def test_data_uri_prefix_and_decodes_to_png(self, monkeypatch):
-        monkeypatch.setenv('BASE_URL', 'https://sgl.example.org')
-        uri = qrcode_util.asset_qr_data_uri(7)
+    def test_data_uri_prefix_and_decodes_to_png(self):
+        url = 'https://sgl.example.org/t/acme/equipment/7'
+        uri = qrcode_util.asset_qr_data_uri(url)
         prefix = 'data:image/png;base64,'
         assert uri.startswith(prefix)
         decoded = base64.b64decode(uri[len(prefix):])
         assert decoded[:8] == b'\x89PNG\r\n\x1a\n'
-        assert decoded == qrcode_util.asset_qr_png_bytes(7)
+        assert decoded == qrcode_util.asset_qr_png_bytes(url)

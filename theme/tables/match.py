@@ -1,6 +1,7 @@
 from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from theme.realtime import register_view
 from theme.tables.match_grid import render_grid_slot
@@ -56,6 +57,12 @@ class MatchTableView(MatchTableHandlersMixin):
         self.filters_card = None
         self.filter_badge = None
         self._filters_open = False
+        # Capture the tenant at build time (context is live here). Background
+        # tasks — filter/page refreshes, filter-option loads — run outside the
+        # slot/request context where neither the contextvar nor the per-client
+        # stash is reachable, so scoped repository reads would raise
+        # ``require_tenant_id()``; ``_bg`` rebinds this captured tenant.
+        self._tenant_id = get_current_tenant_id()
         # Initialize services
         self.service = MatchService()
         self.display_service = MatchDisplayService()
@@ -63,23 +70,30 @@ class MatchTableView(MatchTableHandlersMixin):
         self.watcher_service = MatchWatcherService()
         self._setup_ui()
 
+    def _bg(self, coro) -> None:
+        """Schedule ``coro`` as a background task with this view's tenant bound."""
+        async def _run():
+            with tenant_scope(self._tenant_id):
+                await coro
+        background_tasks.create(_run())
+
     def _on_state_filter_change(self, *_args, **_kwargs):
         # Tenant-scoped: a filter is meaningful only within its own community.
         tenant_session_set('state_filter', self.state_filter.value)
         self._update_filter_badge()
-        background_tasks.create(self.refresh())
+        self._bg(self.refresh())
 
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value (namespaced by tenant — ids are global).
         tenant_session_set('tournament_filter', self.tournament_filter.value)
         self._update_filter_badge()
-        background_tasks.create(self.refresh())
+        self._bg(self.refresh())
 
     def _on_stream_room_filter_change(self, *_args, **_kwargs):
         # Store the stream room ID value (namespaced by tenant — ids are global).
         tenant_session_set('stream_room_filter', self.stream_room_filter.value)
         self._update_filter_badge()
-        background_tasks.create(self.refresh())
+        self._bg(self.refresh())
 
     def _toggle_filters(self):
         """Show/hide the filter card on mobile; CSS gates ``sgl-filters-open`` to <1024px."""
@@ -192,8 +206,8 @@ class MatchTableView(MatchTableHandlersMixin):
                     ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
         # Load filters data after UI is set up
-        background_tasks.create(self._load_tournaments())
-        background_tasks.create(self._load_stream_rooms())
+        self._bg(self._load_tournaments())
+        self._bg(self._load_stream_rooms())
 
         with ui.column().classes('full-width') as table_container:
             self.table_container = table_container
@@ -340,7 +354,7 @@ class MatchTableView(MatchTableHandlersMixin):
         return set(await self.watcher_service.list_watched_match_ids(user))
 
     def _on_page_change(self, *_):
-        background_tasks.create(self.refresh())
+        self._bg(self.refresh())
 
     async def update_row_by_id(self, match_id, flash=False):
         """

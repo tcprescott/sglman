@@ -21,12 +21,18 @@ def create() -> None:
         # /platform is a platform-level page: reached via /t/<slug>/platform it
         # would carry a tenant — that is not a tenant page, so 404.
         if get_current_tenant_id() is not None:
-            render_error_page(404, 'Not Found', 'The platform surface lives at the bare host.', user=None)
+            render_error_page(
+                status_code=404, headline='Not Found',
+                message='The platform surface lives at the bare host.', user=None,
+            )
             return
 
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if not await AuthService.is_super_admin(user):
-            render_error_page(403, 'Forbidden', 'Platform administration requires super-admin.', user=user)
+            render_error_page(
+                status_code=403, headline='Forbidden',
+                message='Platform administration requires super-admin.', user=user,
+            )
             return
 
         ui.page_title('Platform Administration')
