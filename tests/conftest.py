@@ -67,7 +67,7 @@ async def db(monkeypatch):
     )
     await Tortoise.generate_schemas()
 
-    tenant = await _models.Tenant.create(
+    await _models.Tenant.create(
         id=DEFAULT_TEST_TENANT_ID, name='Default', slug='default',
     )
 
