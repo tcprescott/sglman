@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from application.tenant_context import get_current_tenant_id, reset_tenant_id, set_tenant_id
-from middleware.tenant import TenantMiddleware
+from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware, _TENANT_TRANSPORT_RE
 from models import Tenant
 
 
@@ -130,3 +130,57 @@ async def test_context_is_reset_after_request(two_tenants):
     await _get(_build_app(), '/t/acme/admin')
     # The contextvar the middleware set must not leak past the request.
     assert get_current_tenant_id() is None
+
+
+# --- TransportPrefixMiddleware: NiceGUI assets/websocket under /t/<slug> -------
+#
+# NiceGUI addresses its static files and socket.io under the page's root_path
+# (/t/<slug>), so the browser requests them prefixed. They must be un-prefixed
+# back to the app's real routes, with root_path left empty — otherwise every
+# tenant page renders blank (assets 404). Regression for that whole-feature bug.
+
+def _build_transport_app() -> Starlette:
+    app = Starlette(routes=[
+        Route('/_nicegui/{rest:path}', _probe),
+        Route('/static/{rest:path}', _probe),
+        Route('/admin', _probe),
+    ])
+    app.add_middleware(TransportPrefixMiddleware)
+    return app
+
+
+@pytest.mark.parametrize('prefixed,expected', [
+    ('/t/acme/_nicegui/3.12.1/static/nicegui.js', '/_nicegui/3.12.1/static/nicegui.js'),
+    ('/t/acme/_nicegui_ws/socket.io', '/_nicegui_ws/socket.io'),
+    ('/t/acme/static/icons/icon.png', '/static/icons/icon.png'),
+    ('/t/acme/sw.js', '/sw.js'),
+])
+def test_transport_regex_strips_prefix(prefixed, expected):
+    m = _TENANT_TRANSPORT_RE.match(prefixed)
+    assert m is not None
+    assert m.group('rest') == expected
+    assert m.group('prefix') == '/t/acme'
+
+
+@pytest.mark.parametrize('page_path', ['/t/acme/admin', '/t/acme/', '/t/acme/equipment/5', '/admin'])
+def test_transport_regex_ignores_page_paths(page_path):
+    # Page routes must fall through to TenantMiddleware, not be treated as assets.
+    assert _TENANT_TRANSPORT_RE.match(page_path) is None
+
+
+async def test_transport_asset_is_unprefixed_and_unscoped():
+    # A prefixed asset request reaches the real /_nicegui route with root_path
+    # cleared (a non-empty root_path is what makes NiceGUI's static route 404).
+    r = await _get(_build_transport_app(), '/t/acme/_nicegui/3.12.1/static/nicegui.js')
+    assert r.status_code == 200
+    body = r.json()
+    assert body['path'] == '/_nicegui/3.12.1/static/nicegui.js'
+    assert body['root_path'] == ''
+    assert body['tenant'] is None  # assets carry no tenant
+
+
+async def test_transport_middleware_passes_page_paths_through():
+    # /admin is not a transport path, so it is delivered unchanged.
+    r = await _get(_build_transport_app(), '/admin')
+    assert r.status_code == 200
+    assert r.json()['path'] == '/admin'

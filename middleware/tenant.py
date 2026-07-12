@@ -33,6 +33,17 @@ from application.tenant_context import reset_tenant_id, set_tenant_id
 # /t/<slug> optionally followed by the rest of the path.
 _TENANT_PATH_RE = re.compile(r'^/t/(?P<slug>[a-z0-9][a-z0-9-]*)(?P<rest>/.*)?$')
 
+# A tenant-prefixed *transport* path: /t/<slug> followed by a tenant-agnostic
+# asset / websocket / service-worker route. NiceGUI addresses its static files
+# and its socket.io endpoint under the page's root_path (/t/<slug>), so the
+# browser requests them prefixed; these must be un-prefixed back to the app's
+# real routes. ``_nicegui_ws`` is listed before ``_nicegui`` so the alternation
+# matches the longer segment.
+_TENANT_TRANSPORT_RE = re.compile(
+    r'^(?P<prefix>/t/[a-z0-9][a-z0-9-]*)'
+    r'(?P<rest>/(?:_nicegui_ws|_nicegui|static)(?:/.*)?|/sw\.js)$'
+)
+
 # Transport / API prefixes that carry no tenant of their own.
 _EXCLUDED_PREFIXES = ('/_nicegui', '/static', '/api')
 _EXCLUDED_EXACT = ('/sw.js',)
@@ -40,6 +51,43 @@ _EXCLUDED_EXACT = ('/sw.js',)
 
 def _is_excluded(path: str) -> bool:
     return path in _EXCLUDED_EXACT or path.startswith(_EXCLUDED_PREFIXES)
+
+
+class TransportPrefixMiddleware:
+    """Strip the ``/t/<slug>`` prefix off tenant-agnostic transport paths.
+
+    NiceGUI derives its client asset + websocket URL prefix from the page's
+    ``root_path`` (``/t/<slug>`` in path mode), so a tenant page tells the browser
+    to load ``/t/<slug>/_nicegui/…`` and open ``/t/<slug>/_nicegui_ws/…``. Those
+    resources are shared, served by the app's *unprefixed* routes, so the prefix
+    must be removed — with ``root_path`` left empty, exactly like a bare-host
+    asset request (a non-empty ``root_path`` makes NiceGUI's static route 404).
+
+    This is a **pure ASGI** middleware, not ``BaseHTTPMiddleware``, so it also
+    handles the ``websocket`` scope — ``BaseHTTPMiddleware`` silently passes
+    websockets through untouched, which is why the socket.io connection to
+    ``/t/<slug>/_nicegui_ws/…`` would otherwise never be stripped and 404. It
+    sets no tenant context (assets carry no tenant; the UI's tenant is resolved
+    from the per-client stash written at page build).
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type'] in ('http', 'websocket'):
+            match = _TENANT_TRANSPORT_RE.match(scope.get('path', ''))
+            if match is not None:
+                scope = dict(scope)
+                scope['path'] = match.group('rest')
+                raw = scope.get('raw_path')
+                if raw is not None:
+                    raw_head, sep, raw_query = raw.partition(b'?')
+                    prefix = match.group('prefix').encode()
+                    if raw_head.startswith(prefix):
+                        raw_head = raw_head[len(prefix):]
+                    scope['raw_path'] = raw_head + (sep + raw_query if sep else b'')
+        await self.app(scope, receive, send)
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
