@@ -11,6 +11,7 @@ from typing import List, Optional, Set
 
 from tortoise.expressions import Q
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import (
     ChallongeApiUsage,
     ChallongeConnection,
@@ -24,14 +25,20 @@ from models import (
 
 
 class ChallongeRepository:
-    """Repository for Challonge connection and bracket-mirror data."""
+    """Repository for Challonge connection and bracket-mirror data.
+
+    Every Challonge model is tenant-scoped: each tenant links its own service
+    account, mirrors its own brackets, and tracks its own API quota. The
+    connection is "newest row per tenant is authoritative"; usage is tallied per
+    ``(tenant, period)``.
+    """
 
     # ------------------------------------------------------------------
-    # Service-account connection (single logical row; newest is authoritative)
+    # Service-account connection (newest row per tenant is authoritative)
     # ------------------------------------------------------------------
     @staticmethod
     async def get_connection() -> Optional[ChallongeConnection]:
-        return await ChallongeConnection.all().order_by('-id').first()
+        return await scoped(ChallongeConnection.all()).order_by('-id').first()
 
     @staticmethod
     async def save_connection(
@@ -53,6 +60,7 @@ class ChallongeRepository:
             await existing.save()
             return existing
         return await ChallongeConnection.create(
+            tenant_id=current_tenant_id(),
             access_token=access_token,
             refresh_token=refresh_token,
             token_expires_at=token_expires_at,
@@ -76,7 +84,7 @@ class ChallongeRepository:
 
     @staticmethod
     async def clear_connection() -> int:
-        return await ChallongeConnection.all().delete()
+        return await scoped(ChallongeConnection.all()).delete()
 
     # ------------------------------------------------------------------
     # Participants
@@ -90,6 +98,7 @@ class ChallongeRepository:
         user: Optional[User],
     ) -> ChallongeParticipant:
         participant, _ = await ChallongeParticipant.get_or_create(
+            tenant_id=current_tenant_id(),
             tournament=tournament,
             challonge_participant_id=challonge_participant_id,
             defaults={'name': name, 'challonge_user_id': challonge_user_id, 'user': user},
@@ -119,15 +128,16 @@ class ChallongeRepository:
     ) -> Optional[ChallongeParticipant]:
         return await ChallongeParticipant.get_or_none(
             tournament=tournament, challonge_participant_id=challonge_participant_id,
+            tenant_id=current_tenant_id(),
         ).prefetch_related('user')
 
     @staticmethod
     async def list_participants(tournament: Tournament) -> List[ChallongeParticipant]:
-        return await ChallongeParticipant.filter(tournament=tournament).prefetch_related('user')
+        return await scoped(ChallongeParticipant.filter(tournament=tournament)).prefetch_related('user')
 
     @staticmethod
     async def participant_tournament_ids_for_user(user: User) -> Set[int]:
-        rows = await ChallongeParticipant.filter(user=user).values_list('tournament_id', flat=True)
+        rows = await scoped(ChallongeParticipant.filter(user=user)).values_list('tournament_id', flat=True)
         return set(rows)
 
     # ------------------------------------------------------------------
@@ -144,6 +154,7 @@ class ChallongeRepository:
         winner_participant: Optional[ChallongeParticipant],
     ) -> ChallongeMatch:
         match, _ = await ChallongeMatch.get_or_create(
+            tenant_id=current_tenant_id(),
             tournament=tournament,
             challonge_match_id=challonge_match_id,
             defaults={'round': round_, 'state': state},
@@ -158,13 +169,13 @@ class ChallongeRepository:
 
     @staticmethod
     async def get_match(challonge_match_id_pk: int) -> Optional[ChallongeMatch]:
-        return await ChallongeMatch.get_or_none(id=challonge_match_id_pk).prefetch_related(
+        return await ChallongeMatch.get_or_none(id=challonge_match_id_pk, tenant_id=current_tenant_id()).prefetch_related(
             'tournament', 'participant1__user', 'participant2__user', 'match',
         )
 
     @staticmethod
     async def get_challonge_match_for_match(match: Match) -> Optional[ChallongeMatch]:
-        return await ChallongeMatch.get_or_none(match=match).prefetch_related(
+        return await ChallongeMatch.get_or_none(match=match, tenant_id=current_tenant_id()).prefetch_related(
             'tournament', 'participant1__user', 'participant2__user',
         )
 
@@ -175,11 +186,11 @@ class ChallongeRepository:
 
     @staticmethod
     async def count_participants(tournament: Tournament) -> int:
-        return await ChallongeParticipant.filter(tournament=tournament).count()
+        return await scoped(ChallongeParticipant.filter(tournament=tournament)).count()
 
     @staticmethod
     async def count_matches(tournament: Tournament) -> int:
-        return await ChallongeMatch.filter(tournament=tournament).count()
+        return await scoped(ChallongeMatch.filter(tournament=tournament)).count()
 
     @staticmethod
     async def set_last_synced_at(tournament: Tournament, when: datetime) -> None:
@@ -197,7 +208,7 @@ class ChallongeRepository:
     async def increment_api_usage(count: int = 1) -> None:
         period = ChallongeRepository._current_period()
         usage, _ = await ChallongeApiUsage.get_or_create(
-            period=period, defaults={'request_count': 0},
+            tenant_id=current_tenant_id(), period=period, defaults={'request_count': 0},
         )
         usage.request_count += count
         await usage.save(update_fields=['request_count', 'updated_at'])
@@ -205,16 +216,16 @@ class ChallongeRepository:
     @staticmethod
     async def get_monthly_usage(period: Optional[str] = None) -> int:
         period = period or ChallongeRepository._current_period()
-        usage = await ChallongeApiUsage.get_or_none(period=period)
+        usage = await ChallongeApiUsage.get_or_none(period=period, tenant_id=current_tenant_id())
         return usage.request_count if usage else 0
 
     @staticmethod
     async def unscheduled_open_matches_for_user(user: User) -> List[ChallongeMatch]:
         """Open bracket matches the user is in that aren't yet scheduled in sglman."""
-        return await ChallongeMatch.filter(
+        return await scoped(ChallongeMatch.filter(
             Q(participant1__user=user) | Q(participant2__user=user),
             state=ChallongeMatchState.OPEN,
             match_id__isnull=True,
-        ).prefetch_related(
+        )).prefetch_related(
             'tournament', 'participant1__user', 'participant2__user',
         )

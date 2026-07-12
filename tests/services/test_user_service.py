@@ -365,7 +365,7 @@ class TestUpdateUserTournamentRegistrations:
         tournament_5 = SimpleNamespace(id=5)
         tournament_6 = SimpleNamespace(id=6)
 
-        async def fake_get_or_none(id):
+        async def fake_get_or_none(id, tenant_id=None):
             return {5: tournament_5, 6: tournament_6}.get(id)
 
         create_mock = AsyncMock()
@@ -414,7 +414,7 @@ class TestUpdateUserTournamentRegistrations:
     async def test_unknown_tournament_id_silently_skipped(self, service, monkeypatch):
         user = make_user()
 
-        async def fake_get_or_none(id):
+        async def fake_get_or_none(id, tenant_id=None):
             return None  # tournament doesn't exist
 
         create_mock = AsyncMock()

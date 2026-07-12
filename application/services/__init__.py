@@ -27,6 +27,7 @@ from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
+from .tenant_service import TenantService
 from .telemetry_service import TelemetryService
 from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
@@ -66,6 +67,7 @@ __all__ = [
     'SeedGenerationService',
     'StreamRoomService',
     'SystemConfigService',
+    'TenantService',
     'TelemetryService',
     'TournamentNotificationService',
     'TournamentService',

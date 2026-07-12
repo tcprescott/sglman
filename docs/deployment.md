@@ -95,11 +95,12 @@ Every variable the application reads:
 | `ENVIRONMENT` | no | `development` | `application/utils/environment.py`, `frontend.py`, `migrations/tortoise_config.py` | `production` (case-insensitive, after strip) enables the strict checks below. Static assets get no-cache headers only when the value is exactly `development`. |
 | `STORAGE_SECRET` | **yes, always** | — | `application/utils/environment.py`, `frontend.py`, `middleware/auth.py` | Signs the NiceGUI session that holds auth state. Blank value aborts startup in *any* environment. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 | `DISCORD_TOKEN` | yes, unless mock | — | `main.py`, `middleware/auth.py` | Bot token, also used by the OAuth API client. When unset, the bot is skipped with `Warning: DISCORD_TOKEN not set.` and Discord features are dead. Not needed with `MOCK_DISCORD`. |
-| `DISCORD_CLIENT_ID` | yes, for real OAuth | — | `middleware/auth.py` | Discord application client ID; used to derive `OAUTH_URL`. |
-| `DISCORD_CLIENT_SECRET` | yes, for real OAuth | — | `middleware/auth.py` | OAuth authorization-code exchange. |
-| `BASE_URL` | no | `http://localhost:8000` | `middleware/auth.py` | Public base URL of the app (trailing `/` stripped); used to derive `REDIRECT_URL`. Set this in production. |
-| `REDIRECT_URL` | no | `{BASE_URL}/oauth/callback` | `middleware/auth.py` | Override only for non-standard callbacks. Must match the redirect URI registered in the Discord Developer Portal. |
-| `OAUTH_URL` | no | derived | `middleware/auth.py` | Defaults to the Discord authorize URL built from `DISCORD_CLIENT_ID` and `REDIRECT_URL` with `scope=identify`. |
+| `DISCORD_CLIENT_ID` | yes, for real OAuth | — | `pages/auth.py` | Discord application client ID; used to derive `OAUTH_URL`. |
+| `DISCORD_CLIENT_SECRET` | yes, for real OAuth | — | `pages/auth.py` | OAuth authorization-code exchange. |
+| `BASE_URL` | no | `http://localhost:8000` | `pages/auth.py`, `application/utils/environment.py` | Public base URL of the app (trailing `/` stripped); used to derive `REDIRECT_URL` and `PLATFORM_HOST`. Set this in production. |
+| `PLATFORM_HOST` | no | host of `BASE_URL` | `application/utils/environment.py` | Bare `host[:port]` (no scheme/path) that serves the platform surface (landing page, `/platform`), every path-mode tenant at `/t/<slug>`, and the shared OAuth callbacks. Defaults to the network location of `BASE_URL`, so a single `BASE_URL` configures both in the common single-host deployment. See [multitenancy.md](features/multitenancy.md). |
+| `REDIRECT_URL` | no | `{BASE_URL}/oauth/callback` | `pages/auth.py` | Discord OAuth callback, built **at request time**. One registered URI on `PLATFORM_HOST` serves every path-mode tenant (the tenant return path is carried in the session, not the URL). Override only for non-standard callbacks; must match the redirect URI registered in the Discord Developer Portal. |
+| `OAUTH_URL` | no | derived | `pages/auth.py` | Defaults to the Discord authorize URL built at request time from `DISCORD_CLIENT_ID` and `REDIRECT_URL` with `scope=identify`. |
 | `MOCK_DISCORD` | no | off | `application/utils/mock_discord.py` | Truthy values: `1`, `true`, `yes` (case-insensitive). Bypasses OAuth and stubs `DiscordService` — see [features/mock-discord.md](features/mock-discord.md). **Refused when `ENVIRONMENT=production`** (see below). |
 | `OOTR_API_KEY` | no | — | `application/services/seedgen_service.py` | Only needed for Ocarina of Time Randomizer seed generation. Missing key raises `ValueError` at generation time, not at startup. |
 | `SMMAP_SPOILER_TOKEN` | no | — | `application/services/seedgen_service.py` | Required only for Super Metroid Map Rando seed generation (spoiler token sent to maprando.com). Missing value raises `ValueError` at generation time, not at startup. |
@@ -186,6 +187,25 @@ docker compose logs -f sglman   # watch migrations apply and uvicorn start
   ```
 
   Schema and migration details: [reference/data-model.md](reference/data-model.md).
+
+### Tenant bootstrap (first run after the multitenancy migration)
+
+The additive [multitenancy migration](reference/data-model.md#migrations) backfills a single `default` tenant and moves all existing rows into it — the live site keeps working with no manual step. Two follow-ups stand up the platform layer (all idempotent; the user must have logged in at least once so their `User` row exists):
+
+```bash
+# Grant yourself the global SUPER_ADMIN role (manages tenants at /platform):
+docker compose exec sglman poetry run python scripts/grant_super_admin.py <discord_id>
+
+# Create additional communities going forward (also bootstraps their first admin):
+docker compose exec sglman poetry run python scripts/seed_tenant.py \
+    --name "SGL Live" --slug sgl [--guild-id <discord_guild_id>] \
+    [--operator-discord-id <discord_id>]
+
+# Grant STAFF within a specific tenant (defaults to the `default` tenant):
+docker compose exec sglman poetry run python scripts/grant_staff.py <discord_id> [tenant_slug]
+```
+
+`scripts/seed_dev.py` seeds two tenants of fixtures for local dev. See [features/multitenancy.md](features/multitenancy.md) for the addressing model and how a request resolves to a tenant.
 
 ### Backup and restore
 

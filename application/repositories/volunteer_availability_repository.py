@@ -7,6 +7,7 @@ Volunteer self-declared availability windows.
 from datetime import datetime
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerAvailability, VolunteerAvailabilityStatus
 
 
@@ -15,11 +16,11 @@ class VolunteerAvailabilityRepository:
 
     @staticmethod
     async def get_by_id(availability_id: int) -> Optional[VolunteerAvailability]:
-        return await VolunteerAvailability.get_or_none(id=availability_id).prefetch_related('user')
+        return await VolunteerAvailability.get_or_none(id=availability_id, tenant_id=current_tenant_id()).prefetch_related('user')
 
     @staticmethod
     async def list_for_user(user: User) -> List[VolunteerAvailability]:
-        return await VolunteerAvailability.filter(user=user).order_by('starts_at')
+        return await scoped(VolunteerAvailability.filter(user=user)).order_by('starts_at')
 
     @staticmethod
     async def for_users_overlapping(
@@ -27,9 +28,9 @@ class VolunteerAvailabilityRepository:
     ) -> List[VolunteerAvailability]:
         if not user_ids:
             return []
-        return await VolunteerAvailability.filter(
+        return await scoped(VolunteerAvailability.filter(
             user_id__in=user_ids, starts_at__lt=end, ends_at__gt=start,
-        )
+        ))
 
     @staticmethod
     async def create(
@@ -40,6 +41,7 @@ class VolunteerAvailabilityRepository:
         note: Optional[str] = None,
     ) -> VolunteerAvailability:
         return await VolunteerAvailability.create(
+            tenant_id=current_tenant_id(),
             user=user, starts_at=starts_at, ends_at=ends_at, status=status, note=note,
         )
 
@@ -49,4 +51,4 @@ class VolunteerAvailabilityRepository:
 
     @staticmethod
     async def delete_for_user(user: User) -> int:
-        return await VolunteerAvailability.filter(user=user).delete()
+        return await scoped(VolunteerAvailability.filter(user=user)).delete()

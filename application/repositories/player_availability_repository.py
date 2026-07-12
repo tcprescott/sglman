@@ -7,6 +7,7 @@ Player self-declared availability windows.
 from datetime import datetime
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import PlayerAvailability, User, VolunteerAvailabilityStatus
 
 
@@ -15,11 +16,11 @@ class PlayerAvailabilityRepository:
 
     @staticmethod
     async def get_by_id(availability_id: int) -> Optional[PlayerAvailability]:
-        return await PlayerAvailability.get_or_none(id=availability_id).prefetch_related('user')
+        return await PlayerAvailability.get_or_none(id=availability_id, tenant_id=current_tenant_id()).prefetch_related('user')
 
     @staticmethod
     async def list_for_user(user: User) -> List[PlayerAvailability]:
-        return await PlayerAvailability.filter(user=user).order_by('starts_at')
+        return await scoped(PlayerAvailability.filter(user=user)).order_by('starts_at')
 
     @staticmethod
     async def for_users_overlapping(
@@ -27,9 +28,9 @@ class PlayerAvailabilityRepository:
     ) -> List[PlayerAvailability]:
         if not user_ids:
             return []
-        return await PlayerAvailability.filter(
+        return await scoped(PlayerAvailability.filter(
             user_id__in=user_ids, starts_at__lt=end, ends_at__gt=start,
-        )
+        ))
 
     @staticmethod
     async def create(
@@ -40,6 +41,7 @@ class PlayerAvailabilityRepository:
         note: Optional[str] = None,
     ) -> PlayerAvailability:
         return await PlayerAvailability.create(
+            tenant_id=current_tenant_id(),
             user=user, starts_at=starts_at, ends_at=ends_at, status=status, note=note,
         )
 
@@ -49,12 +51,12 @@ class PlayerAvailabilityRepository:
 
     @staticmethod
     async def delete_for_user(user: User) -> int:
-        return await PlayerAvailability.filter(user=user).delete()
+        return await scoped(PlayerAvailability.filter(user=user)).delete()
 
     @staticmethod
     async def has_any(user_ids: List[int]) -> set[int]:
         """Return subset of user_ids that have at least one availability window."""
         if not user_ids:
             return set()
-        rows = await PlayerAvailability.filter(user_id__in=user_ids).distinct().values_list('user_id', flat=True)
+        rows = await scoped(PlayerAvailability.filter(user_id__in=user_ids)).distinct().values_list('user_id', flat=True)
         return set(rows)

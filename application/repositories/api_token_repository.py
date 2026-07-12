@@ -7,11 +7,17 @@ Handles database operations for personal API access tokens.
 from datetime import datetime
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id
 from models import ApiToken, User
 
 
 class ApiTokenRepository:
-    """Repository for API token data access."""
+    """Repository for API token data access.
+
+    A token belongs to one tenant, but ``get_by_hash`` is intentionally global:
+    the API resolves a token *before* any tenant context exists, then sets the
+    context from the token's ``tenant_id`` (see ``api/dependencies.py``).
+    """
 
     @staticmethod
     async def create(
@@ -23,6 +29,7 @@ class ApiTokenRepository:
         expires_at: Optional[datetime] = None,
     ) -> ApiToken:
         return await ApiToken.create(
+            tenant_id=current_tenant_id(),
             user=user,
             name=name,
             token_hash=token_hash,
@@ -33,17 +40,24 @@ class ApiTokenRepository:
 
     @staticmethod
     async def get_by_id(token_id: int) -> Optional[ApiToken]:
-        return await ApiToken.get_or_none(id=token_id)
+        # Scoped: a user can only manage (revoke) their own tenant's tokens.
+        return await ApiToken.get_or_none(id=token_id, tenant_id=current_tenant_id())
 
     @staticmethod
     async def get_by_hash(token_hash: str) -> Optional[ApiToken]:
-        """Return the token matching this hash, with its owning user prefetched."""
+        """Return the token matching this hash, with its owning user prefetched.
+
+        GLOBAL by design (token_hash is globally unique) — the caller sets tenant
+        context from the resolved token afterwards.
+        """
         return await ApiToken.get_or_none(token_hash=token_hash).prefetch_related('user')
 
     @staticmethod
     async def list_for_user(user: User) -> List[ApiToken]:
-        """Active (non-revoked) tokens for a user, newest first."""
-        return await ApiToken.filter(user=user, revoked_at=None).order_by('-created_at')
+        """Active (non-revoked) tokens for a user in the current tenant, newest first."""
+        return await ApiToken.filter(
+            user=user, revoked_at=None, tenant_id=current_tenant_id()
+        ).order_by('-created_at')
 
     @staticmethod
     async def touch_last_used(token: ApiToken, when: datetime) -> None:

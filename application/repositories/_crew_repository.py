@@ -10,6 +10,7 @@ from typing import Generic, List, Optional, Type, TypeVar
 
 from tortoise.models import Model
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, User
 
 T = TypeVar("T", bound=Model)
@@ -26,22 +27,22 @@ class CrewRepository(Generic[T]):
     @classmethod
     async def get_by_id(cls, crew_id: int) -> Optional[T]:
         """Get a crew entry by ID."""
-        return await cls.model.get_or_none(id=crew_id)
+        return await cls.model.get_or_none(id=crew_id, tenant_id=current_tenant_id())
 
     @classmethod
     async def get_by_match(cls, match: Match) -> List[T]:
         """Get all crew entries for a match."""
-        return await cls.model.filter(match=match).prefetch_related('user')
+        return await scoped(cls.model.filter(match=match)).prefetch_related('user')
 
     @classmethod
     async def get_by_match_and_user(cls, match: Match, user: User) -> Optional[T]:
         """Get a specific crew entry for a match and user."""
-        return await cls.model.get_or_none(match=match, user=user)
+        return await cls.model.get_or_none(match=match, user=user, tenant_id=current_tenant_id())
 
     @classmethod
     async def create(cls, match: Match, user: User, approved: bool = False) -> T:
         """Create a new crew entry."""
-        return await cls.model.create(match=match, user=user, approved=approved)
+        return await cls.model.create(tenant_id=current_tenant_id(), match=match, user=user, approved=approved)
 
     @classmethod
     async def update(cls, crew_member: T, **fields) -> T:

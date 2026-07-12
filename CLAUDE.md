@@ -25,6 +25,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | In-process event bus (publish/subscribe) | [docs/features/event-system.md](docs/features/event-system.md) |
 | Outbound webhooks (event subscriber) | [docs/features/webhooks.md](docs/features/webhooks.md) |
 | Datetime/timezone implementation | [docs/timezone-handling.md](docs/timezone-handling.md) |
+| Multitenancy (tenant context, `/t/<slug>`, query scoping, `/platform`) | [docs/features/multitenancy.md](docs/features/multitenancy.md) |
 | Engagement telemetry (page views, interactions, event mirror) | [docs/features/telemetry.md](docs/features/telemetry.md) |
 | Per-feature docs (auth, crew, notifications, etc.) | [docs/features/](docs/features/) |
 
@@ -79,6 +80,17 @@ from application.utils.timezone import (
 ```
 
 Detail: [docs/timezone-handling.md](docs/timezone-handling.md).
+
+## Multitenancy
+
+The app is **logically multitenant**: one DB, a `tenant` FK on ~33 models, tenant resolved per request from `/t/<slug>`. **Identity (`User`) is global; almost everything a community owns is tenant-scoped.** There is **no auto-scoping manager** — scoping is explicit:
+
+- **Repositories** scope reads and stamp writes via `application/repositories/_tenant.py`: `scoped(Match.filter(...))` for reads, `Match.create(..., tenant_id=current_tenant_id())` for writes. A direct model read in presentation/service code hand-scopes: `Tournament.get_or_none(id=x, tenant_id=require_tenant_id())`.
+- `require_tenant_id()` **raises** when no tenant is in scope — that loud failure is the safety net, not a bug to swallow. Any bot/worker/`background_tasks` path that touches scoped data must wrap it in `tenant_scope(tenant_id)` (`from application.tenant_context import tenant_scope`).
+- **Roles are per-tenant** (`UserRole.tenant`); `AuthService` checks evaluate within `get_current_tenant_id()`. `SUPER_ADMIN` is the one global role (`tenant=NULL`) and bypasses the per-tenant role gate. Gated `@protected_page`s authorize on tenant-scoped roles/tournament-admin/super-admin; role-less protected pages need only auth (no separate `TenantMembership` gate).
+- When adding a tenant-scoped model: add the `tenant` FK, scope its repo, make formerly-global uniques composite with `tenant`, and add a leak test.
+
+Detail: [docs/features/multitenancy.md](docs/features/multitenancy.md).
 
 ## Authentication
 

@@ -54,6 +54,7 @@ Implementation notes for each shipped feature.
 | [features/match-acknowledgment.md](features/match-acknowledgment.md) | Player and crew match acknowledgment flows |
 | [features/match-watcher.md](features/match-watcher.md) | Watch any match for state-change DMs |
 | [features/mock-discord.md](features/mock-discord.md) | `MOCK_DISCORD` development mode |
+| [features/multitenancy.md](features/multitenancy.md) | Logical multitenancy: `/t/<slug>` addressing, tenant context, query scoping, per-tenant roles, `/platform` surface |
 | [features/role-based-auth.md](features/role-based-auth.md) | Role system (staff/proctor/stream_manager) and permission matrix |
 | [features/tournament-notifications.md](features/tournament-notifications.md) | Per-tournament notification preference levels |
 | [features/triforce-texts.md](features/triforce-texts.md) | Player triforce-text submission and moderation |

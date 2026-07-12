@@ -16,6 +16,7 @@ from application.repositories.triforce_text_repository import TriforceTextReposi
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
+from application.tenant_context import require_tenant_id
 from models import Tournament, TriforceText, User
 
 
@@ -57,7 +58,7 @@ class TriforceTextService:
     ) -> TriforceText:
         if user is None:
             raise ValueError("You must be logged in to submit a triforce text.")
-        tournament = await Tournament.get_or_none(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         if tournament is None:
             raise ValueError("Tournament not found.")
         if not tournament.is_active or not SeedGenerationService.supports_triforce_texts(
@@ -94,12 +95,13 @@ class TriforceTextService:
         return await Tournament.filter(
             is_active=True,
             seed_generator__in=list(SeedGenerationService.TRIFORCE_TEXT_RANDOMIZERS),
+            tenant_id=require_tenant_id(),
         ).order_by('name')
 
     async def list_user_submissions(
         self, tournament_id: int, user: User
     ) -> List[TriforceText]:
-        tournament = await Tournament.get_or_none(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         if tournament is None or user is None:
             return []
         return await self.repository.list_by_tournament_and_user(tournament, user)
@@ -114,7 +116,7 @@ class TriforceTextService:
         ``status`` may be ``None`` (all), ``'pending'``, ``'approved'``, or
         ``'rejected'``.
         """
-        tournament = await Tournament.get_or_none(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         if tournament is None:
             return []
         return await self.repository.list_by_tournament(tournament, status=status)

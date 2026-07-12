@@ -5,6 +5,7 @@ Manages the mapping of Discord guild roles to application roles and performs
 the login-time sync that grants/revokes app roles from a user's Discord roles.
 """
 
+import asyncio
 import logging
 from typing import List, Set
 
@@ -14,8 +15,9 @@ from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
-from application.services.system_config_service import SystemConfigService
-from models import DiscordRoleMapping, Role, RoleSource, User
+from application.services.tenant_service import TenantService
+from application.tenant_context import tenant_scope
+from models import DiscordRoleMapping, Role, RoleSource, Tenant, User
 
 logger = logging.getLogger(__name__)
 
@@ -115,63 +117,102 @@ class DiscordRoleMappingService:
         return summary
 
     async def sync_user_roles(self, user: User) -> dict:
-        """Full-sync a user's Discord-sourced app roles from their guild roles.
+        """Login-time sync across **every** tenant whose Discord guild this user is in.
 
-        Defensive by design: never raises. On any infrastructure failure it
-        leaves existing roles untouched (fail-open) so login is never blocked.
-        Manually-granted roles (``source=manual``) are never auto-revoked.
+        In a multi-tenant deployment a user may belong to several tenants' guilds,
+        so login-time sync fans out over all tenants that have a
+        ``discord_guild_id`` and syncs each independently (each in its own tenant
+        scope). Defensive by design: never raises; a failure in one tenant leaves
+        its roles untouched and does not abort the others.
         """
         summary: dict = {'granted': [], 'revoked': [], 'skipped': None}
         try:
-            guild_id = await SystemConfigService.get_discord_sync_guild_id()
-            if not guild_id:
+            tenants = [t for t in await TenantService.list_tenants() if t.discord_guild_id]
+            if not tenants:
                 summary['skipped'] = 'no_guild_configured'
                 return summary
-
-            ok, payload = await DiscordService().get_member_role_ids(guild_id, user.discord_id)
-            if not ok:
-                # Fail-open: keep existing roles when Discord is unavailable.
-                logger.warning('Discord role sync skipped for user %s: %s', user.id, payload)
-                summary['skipped'] = 'discord_unavailable'
-                return summary
-            member_role_ids: Set[int] = payload  # type: ignore[assignment]
-
-            mappings = await self.mapping_repository.list_for_guild(guild_id)
-            desired: Set[Role] = {
-                m.app_role for m in mappings if m.discord_role_id in member_role_ids
-            }
-
-            current_all = await AuthService.get_roles(user)
-            discord_rows = await self.role_repository.list_for_user_by_source(
-                user, RoleSource.DISCORD
-            )
-            current_discord = {r.role for r in discord_rows}
-
-            for role in desired - current_all:
-                await self.role_repository.add(
-                    user, role, granted_by=None, source=RoleSource.DISCORD
-                )
-                await self.audit_service.write_log(
-                    user,
-                    AuditActions.ROLE_DISCORD_SYNC_GRANTED,
-                    {'role': role.value, 'source': RoleSource.DISCORD.value},
-                )
-                summary['granted'].append(role.value)
-
-            for role in current_discord - desired:
-                await self.role_repository.remove(user, role)
-                await self.audit_service.write_log(
-                    user,
-                    AuditActions.ROLE_DISCORD_SYNC_REVOKED,
-                    {'role': role.value, 'source': RoleSource.DISCORD.value},
-                )
-                summary['revoked'].append(role.value)
-
+            # Sync every tenant concurrently: each per-tenant sync is independent
+            # (own tenant scope, own Discord call) and never raises, so login
+            # latency stays ~one Discord round-trip instead of scaling with the
+            # tenant count. asyncio.gather runs each in its own context copy, so
+            # the tenant_scope contextvar in one does not leak into another.
+            results = await asyncio.gather(*(
+                self.sync_user_roles_for_tenant(user, tenant) for tenant in tenants
+            ))
+            skips: Set[str] = set()
+            for result in results:
+                summary['granted'] += result.get('granted') or []
+                summary['revoked'] += result.get('revoked') or []
+                if result.get('skipped'):
+                    skips.add(result['skipped'])
+            if not summary['granted'] and not summary['revoked'] and skips:
+                # Surface a single representative skip reason when nothing changed.
+                summary['skipped'] = 'discord_unavailable' if 'discord_unavailable' in skips else next(iter(skips))
             return summary
         except Exception:
             logger.exception(
                 'Unexpected error during Discord role sync for user %s',
                 getattr(user, 'id', None),
+            )
+            summary['skipped'] = 'error'
+            return summary
+
+    async def sync_user_roles_for_tenant(self, user: User, tenant: Tenant) -> dict:
+        """Sync a user's Discord-sourced app roles for ONE tenant, scoped to it.
+
+        Uses the tenant's own ``discord_guild_id`` (the routing key) and wraps all
+        role reads/writes in ``tenant_scope(tenant.id)`` so grants/revokes land on
+        that tenant's ``UserRole`` rows. Never raises (fail-open).
+        """
+        summary: dict = {'granted': [], 'revoked': [], 'skipped': None}
+        guild_id = tenant.discord_guild_id
+        if not guild_id:
+            summary['skipped'] = 'no_guild_configured'
+            return summary
+        try:
+            ok, payload = await DiscordService().get_member_role_ids(guild_id, user.discord_id)
+            if not ok:
+                logger.warning('Discord role sync skipped for user %s in tenant %s: %s', user.id, tenant.id, payload)
+                summary['skipped'] = 'discord_unavailable'
+                return summary
+            member_role_ids: Set[int] = payload  # type: ignore[assignment]
+
+            with tenant_scope(tenant.id):
+                mappings = await self.mapping_repository.list_for_guild(guild_id)
+                desired: Set[Role] = {
+                    m.app_role for m in mappings if m.discord_role_id in member_role_ids
+                }
+                current_all = await AuthService.get_roles(user)
+                discord_rows = await self.role_repository.list_for_user_by_source(
+                    user, RoleSource.DISCORD
+                )
+                current_discord = {r.role for r in discord_rows}
+
+                for role in desired - current_all:
+                    await self.role_repository.add(
+                        user, role, granted_by=None, source=RoleSource.DISCORD
+                    )
+                    await self.audit_service.write_log(
+                        user,
+                        AuditActions.ROLE_DISCORD_SYNC_GRANTED,
+                        {'role': role.value, 'source': RoleSource.DISCORD.value, 'tenant_id': tenant.id},
+                    )
+                    summary['granted'].append(role.value)
+
+                for role in current_discord - desired:
+                    await self.role_repository.remove(user, role)
+                    await self.audit_service.write_log(
+                        user,
+                        AuditActions.ROLE_DISCORD_SYNC_REVOKED,
+                        {'role': role.value, 'source': RoleSource.DISCORD.value, 'tenant_id': tenant.id},
+                    )
+                    summary['revoked'].append(role.value)
+
+            return summary
+        except Exception:
+            logger.exception(
+                'Unexpected error during Discord role sync for user %s in tenant %s',
+                getattr(user, 'id', None), getattr(tenant, 'id', None),
             )
             summary['skipped'] = 'error'
             return summary

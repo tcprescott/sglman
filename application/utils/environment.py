@@ -26,6 +26,22 @@ def get_base_url() -> str:
     return os.getenv('BASE_URL', 'http://localhost:8000').rstrip('/')
 
 
+def get_platform_host() -> str:
+    """Return the shared platform host (bare ``host[:port]``, no scheme/path).
+
+    This is the host that serves the tenant-agnostic surface (landing page,
+    ``/platform``) and every path-mode tenant at ``/t/<slug>``. Defaults to the
+    network location of :func:`get_base_url` when ``PLATFORM_HOST`` is unset, so a
+    single ``BASE_URL`` configures both in the common single-host deployment.
+    Read lazily so tests can override per call.
+    """
+    explicit = (os.getenv('PLATFORM_HOST') or '').strip()
+    if explicit:
+        return explicit.lower()
+    from urllib.parse import urlparse
+    return (urlparse(get_base_url()).netloc or 'localhost:8000').lower()
+
+
 def telemetry_enabled() -> bool:
     """Whether engagement telemetry capture is on (default: on).
 

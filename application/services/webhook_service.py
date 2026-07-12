@@ -28,11 +28,23 @@ from application.events import Event, EventType, dispatch_queue
 from application.repositories import WebhookDeliveryRepository, WebhookRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.tenant_context import tenant_scope
 from application.utils.environment import is_production
 from application.utils.ssrf import ensure_public_host
 from models import User, Webhook, WebhookDelivery
 
 logger = logging.getLogger(__name__)
+
+
+async def _deliver_scoped(coro, tenant_id) -> None:
+    """Await a deferred delivery coroutine with its webhook's tenant bound.
+
+    ``deliver_event`` re-enqueues each ``_deliver_one`` as its own dispatch-queue
+    item, which runs after the subscriber's tenant scope has exited; this rebinds
+    the tenant so the ``WebhookDelivery`` insert lands under the right tenant.
+    """
+    with tenant_scope(tenant_id):
+        await coro
 
 
 class WebhookService:
@@ -211,11 +223,24 @@ class WebhookService:
     # ------------------------------------------------------------- delivery
 
     async def deliver_event(self, event: Event) -> None:
-        """Event-bus subscriber: enqueue a POST to every webhook that wants this event."""
+        """Event-bus subscriber: enqueue a POST to every webhook that wants this event.
+
+        Runs under ``tenant_scope(event.tenant_id)`` (the bus wraps async
+        subscribers), so ``list_active()`` returns only this tenant's webhooks. A
+        platform-level event (``tenant_id`` None) reaches no webhook — they are
+        all tenant-scoped — so short-circuit rather than trip the required-tenant
+        guard in ``list_active``. Each delivery is re-enqueued as its own queue
+        item, so it is re-wrapped in the webhook's tenant scope to survive the
+        deferral.
+        """
+        if event.tenant_id is None:
+            return
         for webhook in await self.repository.list_active():
             subscribed = webhook.event_types or []
             if EventType.WILDCARD in subscribed or event.event_type in subscribed:
-                dispatch_queue.enqueue(self._deliver_one(webhook, event))
+                dispatch_queue.enqueue(
+                    _deliver_scoped(self._deliver_one(webhook, event), webhook.tenant_id)
+                )
 
     async def _deliver_one(self, webhook: Webhook, event: Event) -> None:
         body = json.dumps(event.to_wire(), default=str, sort_keys=True)

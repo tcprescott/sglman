@@ -6,6 +6,7 @@ Handles database operations for in-app feedback submissions.
 
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import Feedback, FeedbackCategory, FeedbackStatus, User
 
 
@@ -20,6 +21,7 @@ class FeedbackRepository:
         page_url: str,
     ) -> Feedback:
         return await Feedback.create(
+            tenant_id=current_tenant_id(),
             user=user,
             category=category,
             message=message,
@@ -28,12 +30,12 @@ class FeedbackRepository:
 
     @staticmethod
     async def get_by_id(feedback_id: int) -> Optional[Feedback]:
-        return await Feedback.get_or_none(id=feedback_id)
+        return await Feedback.get_or_none(id=feedback_id, tenant_id=current_tenant_id())
 
     @staticmethod
     async def list_recent(limit: int = 200) -> List[Feedback]:
         """Most recent submissions first, with the submitting user prefetched."""
-        return await Feedback.all().order_by('-created_at').limit(limit).prefetch_related('user')
+        return await scoped(Feedback.all()).order_by('-created_at').limit(limit).prefetch_related('user')
 
     @staticmethod
     async def set_status(feedback: Feedback, status: FeedbackStatus) -> None:

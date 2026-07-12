@@ -11,7 +11,18 @@ from starlette.responses import RedirectResponse
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryService
+from application.tenant_context import get_current_tenant_id, stash_client_tenant_id, tenant_scope
 from models import Role
+
+
+async def _run_in_tenant(tenant_id, coro) -> None:
+    """Await a deferred (background-task) coroutine with a tenant bound.
+
+    Page-view telemetry is captured in a background task, which runs outside the
+    request and so loses the contextvar — capture the tenant at page-build time
+    and rebind it here so the row is tenant-stamped."""
+    with tenant_scope(tenant_id):
+        await coro
 
 # Keep page-view detail bounded: query/path params carry useful engagement
 # context (which tab/report), but we cap count and length so a crafted URL
@@ -40,13 +51,17 @@ def _record_page_view(path: str, kwargs: dict) -> None:
                 continue
             if isinstance(value, (str, int, float, bool)):
                 params[key] = str(value)[:_MAX_PARAM_LEN]
+        tenant_id = get_current_tenant_id()
         background_tasks.create(
-            TelemetryService().track_page_view(
-                path=path,
-                discord_id=discord_id,
-                username=username,
-                session_id=session_id,
-                params=params or None,
+            _run_in_tenant(
+                tenant_id,
+                TelemetryService().track_page_view(
+                    path=path,
+                    discord_id=discord_id,
+                    username=username,
+                    session_id=session_id,
+                    params=params or None,
+                ),
             )
         )
     except Exception:
@@ -98,10 +113,33 @@ def protected_page(
             # gated or not, before any auth short-circuit.
             _record_page_view(path, kwargs)
 
+            # Every @protected_page is a tenant page. If reached with no tenant
+            # (a bare /admin on the platform host, not /t/<slug>/admin), 404.
+            tid = get_current_tenant_id()
+            if tid is None:
+                from theme.error_page import render_error_page
+                render_error_page(
+                    status_code=404,
+                    headline='Not Found',
+                    message='This page is only available within a community (/t/<slug>/…).',
+                    user=None,
+                )
+                return
+            # Stash the tenant onto the connection so websocket UI event handlers
+            # (which run outside any request) can resolve it via the fallback.
+            stash_client_tenant_id(tid)
+
+            # Authorization for a *gated* page comes from the user's tenant-scoped
+            # roles / tournament-admin membership / super-admin — all evaluated in
+            # this tenant's context, so a role in another tenant grants nothing
+            # here. Role-less protected pages need only authentication (which
+            # AuthMiddleware already enforced), matching pre-multitenancy access;
+            # there is no separate "must be a member" gate, since the app has no
+            # self-serve/invite enrollment path and it would lock out new users.
             if gated:
                 user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                allowed = False
-                if user is not None and role_list:
+                allowed = await AuthService.is_super_admin(user)
+                if not allowed and user is not None and role_list:
                     held = await AuthService.get_roles(user)
                     allowed = bool(held.intersection(role_list))
                 if not allowed and allow_tournament_membership:
@@ -128,10 +166,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Enforce authentication only for routes that were explicitly marked protected
         if not app.storage.user.get('authenticated', False):
+            # Under path mode TenantMiddleware has already stripped /t/<slug> into
+            # root_path, so request.url.path is the unprefixed route; rebuild the
+            # tenant-qualified referrer and /login target from root_path so a
+            # path-mode login round-trips back to /t/<slug>/….
             path = request.url.path
+            root_path = request.scope.get('root_path', '')
             if not path.startswith('/_nicegui') and _matches_protected_route(path):
-                app.storage.user['referrer_path'] = path
-                return RedirectResponse('/login')
+                app.storage.user['referrer_path'] = f'{root_path}{path}'
+                return RedirectResponse(f'{root_path}/login')
         else:
             # Attach the logged-in user to Sentry so error events show who hit them.
             sentry_sdk.set_user({

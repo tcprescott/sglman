@@ -9,6 +9,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from application.services.system_config_service import SystemConfigService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import EASTERN_TZ, to_eastern
 from models import (
     Match,
@@ -76,6 +77,7 @@ class ReportsService:
         query = Match.all().filter(
             scheduled_at__gte=start - timedelta(hours=24),
             scheduled_at__lte=end + timedelta(hours=24),
+            tenant_id=require_tenant_id(),
         )
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
@@ -146,6 +148,7 @@ class ReportsService:
         query = Match.all().filter(
             scheduled_at__gte=instant - timedelta(hours=24),
             scheduled_at__lte=instant + timedelta(hours=24),
+            tenant_id=require_tenant_id(),
         )
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
@@ -173,6 +176,7 @@ class ReportsService:
         query = Match.all().filter(
             scheduled_at__gte=start,
             scheduled_at__lte=end,
+            tenant_id=require_tenant_id(),
         )
         if tournament_id:
             query = query.filter(tournament_id=tournament_id)
@@ -270,6 +274,7 @@ class ReportsService:
         match_query = Match.all().filter(
             scheduled_at__gte=start,
             scheduled_at__lte=end,
+            tenant_id=require_tenant_id(),
         )
         if tournament_id:
             match_query = match_query.filter(tournament_id=tournament_id)
@@ -365,13 +370,14 @@ class ReportsService:
         start = self._eastern(start)
         end = self._eastern(end)
 
-        rooms = await StreamRoom.filter(is_active=True).order_by('name')
+        rooms = await StreamRoom.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name')
         if stream_room_id:
             rooms = [r for r in rooms if r.id == stream_room_id]
 
         match_query = Match.all().filter(
             scheduled_at__gte=start,
             scheduled_at__lte=end,
+            tenant_id=require_tenant_id(),
         )
         if tournament_id:
             match_query = match_query.filter(tournament_id=tournament_id)

@@ -42,6 +42,8 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
     Responds ephemerally so only the clicking user sees the result.
     """
     from application.services import MatchService, UserService
+    from application.tenant_context import tenant_scope
+    from discordbot._tenant import match_tenant_id
 
     try:
         await interaction.response.defer(ephemeral=True)
@@ -61,15 +63,22 @@ async def handle_match_acknowledgment_interaction(interaction: discord.Interacti
         return
 
     try:
-        user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-        if not user:
-            await _send(interaction, MSG_NO_ACCOUNT)
+        # DM buttons carry no tenant; discover it from the match, then scope.
+        tenant_id = await match_tenant_id(match_id)
+        if tenant_id is None:
+            await _send(interaction, 'Match not found.')
             return
 
-        match_service = MatchService()
-        await match_service.acknowledge_match(match_id, user)
+        with tenant_scope(tenant_id):
+            user = await UserService().get_user_by_discord_id(str(interaction.user.id))
+            if not user:
+                await _send(interaction, MSG_NO_ACCOUNT)
+                return
 
-        player_names = await match_service.get_player_names(match_id)
+            match_service = MatchService()
+            await match_service.acknowledge_match(match_id, user)
+
+            player_names = await match_service.get_player_names(match_id)
 
         try:
             await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))

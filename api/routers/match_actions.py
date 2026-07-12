@@ -22,13 +22,14 @@ from api.schemas.match_actions import (
 )
 from api.schemas.matches import MatchResponse
 from application.services import CrewService, MatchScheduleService, MatchService, MatchWatcherService
+from application.tenant_context import require_tenant_id
 from models import Match, User
 
 router = APIRouter(prefix="/matches", tags=["Matches"], route_class=ServiceErrorRoute)
 
 
 async def _load_match_or_404(match_id: int) -> Match:
-    match = await Match.get_or_none(id=match_id)
+    match = await Match.get_or_none(id=match_id, tenant_id=require_tenant_id())
     if match is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
     return match

@@ -11,6 +11,7 @@ from typing import Callable, Dict, Tuple, Optional
 
 from application import match_events
 from application.events import Event, EventType, event_bus
+from application.tenant_context import require_tenant_id
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services import discord_queue
 from application.services.audit_service import AuditActions, AuditService
@@ -196,7 +197,7 @@ class MatchScheduleService:
         async with lock:
             try:
                 # Fetch match with related data
-                match = await Match.get(id=match_id).prefetch_related(
+                match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related(
                     'tournament', 'players', 'players__user', 'stream_room'
                 )
 
@@ -290,22 +291,22 @@ class MatchScheduleService:
         try:
             recipients: dict[int, bool] = {}
 
-            players = await MatchPlayers.filter(match=match).prefetch_related('user')
+            players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             for mp in players:
                 if mp.user.dm_notifications and mp.user.discord_id:
                     recipients.setdefault(mp.user.discord_id, False)
 
-            commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+            commentators = await Commentator.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
             for c in commentators:
                 if c.user.dm_notifications and c.user.discord_id:
                     recipients.setdefault(c.user.discord_id, False)
 
-            trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+            trackers = await Tracker.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
             for t in trackers:
                 if t.user.dm_notifications and t.user.discord_id:
                     recipients.setdefault(t.user.discord_id, False)
 
-            watchers = await MatchWatcher.filter(match=match).prefetch_related('user')
+            watchers = await MatchWatcher.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             for w in watchers:
                 if w.user.dm_notifications and w.user.discord_id:
                     recipients[w.user.discord_id] = True
@@ -335,7 +336,7 @@ class MatchScheduleService:
         try:
             # Player discord_ids are skipped — they get the ack DM instead.
             player_discord_ids: set[int] = set()
-            players = await MatchPlayers.filter(match=match).prefetch_related('user')
+            players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             for mp in players:
                 if mp.user.discord_id:
                     player_discord_ids.add(mp.user.discord_id)
@@ -343,17 +344,17 @@ class MatchScheduleService:
             # discord_id -> is_watcher flag (watchers get the unwatch button DM)
             recipients: dict[int, bool] = {}
 
-            commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+            commentators = await Commentator.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
             for c in commentators:
                 if c.user.dm_notifications and c.user.discord_id and c.user.discord_id not in player_discord_ids:
                     recipients.setdefault(c.user.discord_id, False)
 
-            trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+            trackers = await Tracker.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
             for t in trackers:
                 if t.user.dm_notifications and t.user.discord_id and t.user.discord_id not in player_discord_ids:
                     recipients.setdefault(t.user.discord_id, False)
 
-            watchers = await MatchWatcher.filter(match=match).prefetch_related('user')
+            watchers = await MatchWatcher.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             for w in watchers:
                 if w.user.dm_notifications and w.user.discord_id and w.user.discord_id not in player_discord_ids:
                     recipients[w.user.discord_id] = True
@@ -385,7 +386,7 @@ class MatchScheduleService:
         try:
             await match.fetch_related('tournament', 'stream_room')
             scheduled_display = format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
-            players = await MatchPlayers.filter(match=match).prefetch_related('user')
+            players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             player_names = [p.user.preferred_name for p in players]
             message = acknowledgment_request_dm(
                 match.tournament.name, scheduled_display,
@@ -531,15 +532,15 @@ class MatchScheduleService:
         Used to deduplicate tournament-subscriber notifications.
         """
         ids: list = []
-        players = await MatchPlayers.filter(match=match).prefetch_related('user')
+        players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
         for mp in players:
             if mp.user.discord_id:
                 ids.append(mp.user.discord_id)
-        commentators = await Commentator.filter(match=match, approved=True).prefetch_related('user')
+        commentators = await Commentator.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
         for c in commentators:
             if c.user.discord_id and c.user.discord_id not in ids:
                 ids.append(c.user.discord_id)
-        trackers = await Tracker.filter(match=match, approved=True).prefetch_related('user')
+        trackers = await Tracker.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
         for t in trackers:
             if t.user.discord_id and t.user.discord_id not in ids:
                 ids.append(t.user.discord_id)

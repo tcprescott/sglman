@@ -14,6 +14,7 @@ import secrets
 from urllib.parse import parse_qs, urlparse
 
 from nicegui import Client, app, ui
+from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from application.services.auth_service import get_user_from_discord_id
@@ -27,19 +28,23 @@ _PROFILE_RETURN = '/?tab=Profile'
 
 def create() -> None:
     @ui.page('/twitch/link')
-    async def twitch_link() -> RedirectResponse:
+    async def twitch_link(request: Request) -> RedirectResponse:
+        # Initiation runs with tenant context; the callback lands on the bare
+        # platform host, so pin the tenant-qualified return here.
+        root_path = request.scope.get('root_path', '') or ''
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
-            return RedirectResponse('/login')
+            return RedirectResponse(f'{root_path}/login')
         if is_mock_twitch():
             service = TwitchService()
             me = await service.exchange_player_code('mock')
             await service.record_player_link(
                 user, me['user_id'], me.get('display_name') or me.get('username'), actor=user,
             )
-            return RedirectResponse(_PROFILE_RETURN)
+            return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
         state = secrets.token_urlsafe(32)
         app.storage.user['twitch_link_state'] = state
+        app.storage.user['twitch_link_return'] = f'{root_path}{_PROFILE_RETURN}'
         return RedirectResponse(TwitchService.player_authorize_url(state))
 
     @ui.page('/twitch/oauth/callback')
@@ -47,14 +52,15 @@ def create() -> None:
         await client.connected()
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         expected_state = app.storage.user.pop('twitch_link_state', None)
+        return_path = app.storage.user.pop('twitch_link_return', None) or _PROFILE_RETURN
         url = await ui.run_javascript('window.location.href')
         if user is None:
-            ui.navigate.to('/login')
+            ui.navigate.to(return_path)
             return
-        await _finish_link(user, _read_callback_code(url, expected_state))
+        await _finish_link(user, _read_callback_code(url, expected_state), return_path)
 
 
-async def _finish_link(user, code: str | None) -> None:
+async def _finish_link(user, code: str | None, return_path: str) -> None:
     if code is None:
         ui.notify('Twitch linking was cancelled or failed.', color='warning')
     else:
@@ -70,7 +76,7 @@ async def _finish_link(user, code: str | None) -> None:
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Twitch linking failed')
             ui.notify('Could not link Twitch. Please try again.', color='negative')
-    ui.navigate.to(_PROFILE_RETURN)
+    ui.navigate.to(return_path)
 
 
 def _read_callback_code(url: str, expected_state: str | None):

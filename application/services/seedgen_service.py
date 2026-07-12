@@ -16,6 +16,8 @@ import aiohttp
 import yaml
 from pyz3r import ALTTPR
 
+from application.tenant_context import require_tenant_id
+
 
 class SeedGenerationService:
     """Service for generating seeds for various randomizers."""
@@ -94,7 +96,7 @@ class SeedGenerationService:
         from application.services.triforce_text_service import TriforceTextService
         from models import Tournament
 
-        tournament = await Tournament.get_or_none(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         if tournament is None:
             raise ValueError(f"Tournament {tournament_id} not found.")
 

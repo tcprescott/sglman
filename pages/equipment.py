@@ -9,8 +9,10 @@ out or back in, and managers can edit/delete it.
 from nicegui import app, ui
 from middleware.auth import protected_page
 
-from application.services import AuthService, EquipmentService, get_user_from_discord_id
-from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes, asset_url
+from application.services import AuthService, EquipmentService, TenantService, get_user_from_discord_id
+from application.tenant_context import get_current_tenant_id
+from application.utils.environment import get_base_url
+from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
 from application.utils.timezone import format_eastern_display
 from theme.base import BaseLayout
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
@@ -53,6 +55,14 @@ def create() -> None:
             open_loan = await service.current_loan(asset)
             history = await service.loan_history(asset)
 
+            # Tenant-qualified deep link so a scanned QR resolves to this
+            # community (/t/<slug>/equipment/<id>); on the bare platform host a
+            # bare /equipment/<id> would 404 (protected pages require a tenant).
+            tid = get_current_tenant_id()
+            tenant = await TenantService.get_by_id(tid) if tid is not None else None
+            prefix = f'/t/{tenant.slug}' if tenant is not None else ''
+            asset_link = f'{get_base_url()}{prefix}/equipment/{asset.id}'
+
             with ui.column().classes('page-container-narrow w-full'):
                 with ui.row().classes('header-row items-center'):
                     ui.label(f'#{asset.asset_number} · {asset.name}').classes('page-title')
@@ -79,11 +89,11 @@ def create() -> None:
                                 ui.label(asset.private_notes)
 
                     with ui.column().classes('items-center gap-1'):
-                        ui.image(asset_qr_data_uri(asset.id)).classes('w-40 h-40')
-                        ui.label(asset_url(asset.id)).classes('text-caption')
+                        ui.image(asset_qr_data_uri(asset_link)).classes('w-40 h-40')
+                        ui.label(asset_link).classes('text-caption')
 
                         def download_qr():
-                            ui.download(asset_qr_png_bytes(asset.id), f'asset-{asset.asset_number}-qr.png')
+                            ui.download(asset_qr_png_bytes(asset_link), f'asset-{asset.asset_number}-qr.png')
 
                         ui.button('Download QR', icon='download', on_click=download_qr).props('flat dense')
 

@@ -44,6 +44,8 @@ async def handle_volunteer_acknowledgment_interaction(interaction: discord.Inter
     custom_id format: 'volunteer_ack:<assignment_id>'
     """
     from application.services import UserService, VolunteerScheduleService
+    from application.tenant_context import tenant_scope
+    from discordbot._tenant import assignment_tenant_id
 
     try:
         await interaction.response.defer(ephemeral=True)
@@ -62,16 +64,22 @@ async def handle_volunteer_acknowledgment_interaction(interaction: discord.Inter
         return
 
     try:
-        user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-        if not user:
-            await _send(interaction, MSG_NO_ACCOUNT)
+        tenant_id = await assignment_tenant_id(assignment_id)
+        if tenant_id is None:
+            await _send(interaction, 'Assignment not found.')
             return
 
-        assignment = await VolunteerScheduleService().acknowledge(assignment_id, user)
-        position_name = (
-            assignment.shift.position.name
-            if assignment.shift and assignment.shift.position else 'volunteer'
-        )
+        with tenant_scope(tenant_id):
+            user = await UserService().get_user_by_discord_id(str(interaction.user.id))
+            if not user:
+                await _send(interaction, MSG_NO_ACCOUNT)
+                return
+
+            assignment = await VolunteerScheduleService().acknowledge(assignment_id, user)
+            position_name = (
+                assignment.shift.position.name
+                if assignment.shift and assignment.shift.position else 'volunteer'
+            )
 
         try:
             await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))

@@ -14,6 +14,7 @@ from typing import List, Optional, Sequence, Tuple
 
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
 from application.services.system_config_service import SystemConfigService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import now_eastern, parse_eastern_datetime, to_eastern
 from models import Match, PlayerAvailability, Tournament, VolunteerAvailabilityStatus
 
@@ -40,7 +41,7 @@ class MatchSuggestionService:
 
         Raises ValueError if no eligible slot is found at all.
         """
-        tournament = await Tournament.get_or_none(id=tournament_id)
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
         duration_min = (tournament.average_match_duration or 90) if tournament else 90
         duration = timedelta(minutes=duration_min)
 
@@ -52,6 +53,7 @@ class MatchSuggestionService:
         # Occupancy snapshot: all unfinished matches with a scheduled time
         existing_matches = await Match.filter(
             scheduled_at__isnull=False, confirmed_at__isnull=True,
+            tenant_id=require_tenant_id(),
         ).prefetch_related('tournament', 'players')
 
         # Player availability windows for the entire event range

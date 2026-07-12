@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for [`models.py`](../../models.py) (all 36 models and its nine enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for [`models.py`](../../models.py) (all 38 models and its ten enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 ## Overview
 
@@ -14,6 +14,54 @@ Conventions shared by all models:
 - **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `TelemetryEvent.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id` and `User.twitch_user_id`.
 
 Coding conventions for the layers above (async everywhere, no ORM writes from the UI, audit-log action naming) are canonical in [CLAUDE.md](../../CLAUDE.md) and [refactoring-guide.md](../refactoring-guide.md) — not restated here.
+
+## Multitenancy
+
+The database is **logically multitenant**: one shared database and shared
+tables, with a `tenant_id` discriminator column on tenant-scoped rows and a
+request-time tenant context resolved from the URL (see
+[multitenancy-plan.md](../multitenancy-plan.md) and
+[`application/tenant_context.py`](../../application/tenant_context.py)). The
+unifying rule: **identity, the tenancy machinery, and singleton runtime
+resources are global; everything a tournament community owns or produces is
+tenant-scoped.**
+
+- **`Tenant`** (`tenant`) — one row per hosted community. Columns: `name`,
+  `slug` (unique, URL-safe — path routing key `/t/<slug>`), `domain` (unique,
+  nullable — reserved for host-based addressing, not yet resolved),
+  `discord_guild_id` (nullable — bot routing key), `is_active`, `config` (JSON).
+- **`TenantMembership`** (`tenantmembership`) — `(user, tenant)`, `unique_together`.
+  Ties a global `User` to the tenants they belong to; queried across tenants, so
+  it is never auto-scoped.
+- **Global (no `tenant` FK):** `User`, `WebPushSubscription`, `Tenant`,
+  `TenantMembership`. `User.discord_id` / `challonge_user_id` / `twitch_user_id`
+  uniques stay global — identity links are to the person.
+- **Nullable `tenant` (stamped from context, NULL = platform-level row):**
+  `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), and `UserRole`
+  (`CASCADE`; NULL only for the global `SUPER_ADMIN` role).
+- **Tenant-scoped (`tenant` FK, NOT NULL, `CASCADE`):** every other model —
+  `Tournament`, `Match`, `MatchPlayers`, `MatchAcknowledgment`,
+  `TournamentPlayers`, `TournamentNotificationPreference`, `StreamRoom`,
+  `Commentator`, `Tracker`, `MatchWatcher`, `GeneratedSeeds`,
+  `SystemConfiguration`, `Webhook`, `WebhookDelivery`, `DiscordRoleMapping`,
+  `TriforceText`, `ApiToken`, `Feedback`, `Equipment`, `EquipmentLoan`,
+  `VolunteerProfile`, `VolunteerPosition`, `VolunteerShift`,
+  `VolunteerAssignment`, `VolunteerQualification`, `VolunteerAvailability`,
+  `PlayerAvailability`, `ChallongeConnection`, `ChallongeParticipant`,
+  `ChallongeMatch`, `ChallongeApiUsage`.
+- **Per-tenant uniqueness** — formerly-global uniques became composite with
+  `tenant`: `StreamRoom.name`, `VolunteerPosition.name`,
+  `SystemConfiguration.name` → `(tenant, name)`; `Equipment.asset_number` →
+  `(tenant, asset_number)`; `ChallongeApiUsage.period` → `(tenant, period)`;
+  `DiscordRoleMapping` → `(tenant, discord_role_id, app_role)`; `UserRole` →
+  `(user, role, tenant)`.
+- **`VolunteerProfile`** changed from a global `OneToOneField(user)` to a
+  tenant-scoped `ForeignKeyField(user)` with `unique_together(tenant, user)` —
+  opt-in is per tenant. `User.volunteer_profile` (single) became
+  `User.volunteer_profiles` (per-tenant).
+
+The `tenant`-adding migration is additive (nullable FK → default-tenant backfill
+→ `SET NOT NULL`); see [Migrations](#migrations).
 
 ## Entity-relationship diagram
 
@@ -106,6 +154,7 @@ Used by `UserRole.role` and `DiscordRoleMapping.app_role` (`max_length=32`). Aut
 | `VOLUNTEER_COORDINATOR` = `'volunteer_coordinator'` | Manages volunteer positions, shifts, and assignments |
 | `EQUIPMENT_MANAGER` = `'equipment_manager'` | Manages lending equipment and checkouts |
 | `VOLUNTEER` = `'volunteer'` | Opted-in onsite volunteer |
+| `SUPER_ADMIN` = `'super_admin'` | Global platform role (manages tenants on `/platform`). Its `UserRole` rows carry `tenant=NULL` and stay visible inside any tenant request; the only role that may be tenant-less. |
 
 ### `RoleSource`
 
@@ -974,6 +1023,24 @@ Serves `DiscordRoleMapping` ([`discord_role_mapping_repository.py`](../../applic
 | `async get_match(guild_id, discord_role_id, app_role) -> Optional[DiscordRoleMapping]` | Exact-tuple lookup used to reject duplicates |
 | `async create(guild_id, discord_role_id, discord_role_name, app_role) -> DiscordRoleMapping` | Insert a mapping |
 | `async delete(mapping: DiscordRoleMapping) -> None` | Delete a mapping |
+
+### Tenancy repositories and the scoping helper
+
+Every scoped repository reads the ambient tenant itself rather than taking a `tenant_id` parameter — the shared helper [`_tenant.py`](../../application/repositories/_tenant.py) is the single seam:
+
+| Symbol | Description |
+|---|---|
+| `current_tenant_id() -> int` | Alias of `require_tenant_id()` ([`tenant_context.py`](../../application/tenant_context.py)); raises if no tenant is in scope. Repositories call it to **stamp** `tenant_id` on writes |
+| `scoped(qs, tenant_id=None)` | `qs.filter(tenant_id=current_tenant_id())` — the standard read filter. Applied to `.all()`/`.filter(...)` querysets so a read never crosses tenants |
+
+A read that forgets to `scoped(...)` (or a write that forgets to stamp) fails loudly at `require_tenant_id()` when no tenant is bound, rather than silently leaking — the safety net of the explicit-threading contract. Nullable-tenant models (`AuditLog`, `TelemetryEvent`, `UserRole`) filter to the current tenant on read (excluding NULL platform rows) and stamp the ambient tenant on write.
+
+The two tenancy tables are served by cross-tenant repositories that are **never** `scoped` (they resolve which tenant a request belongs to, so they must see all tenants):
+
+| Repository | Source | Serves | Key methods |
+|---|---|---|---|
+| `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | `get_by_id`, `get_by_slug`, `get_by_domain`, `get_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `delete` |
+| `TenantMembershipRepository` | [`tenant_membership_repository.py`](../../application/repositories/tenant_membership_repository.py) | `TenantMembership` | `is_member`, `add`, `remove`, `list_for_user`, `list_for_tenant`, `tenant_ids_for_user` |
 
 ### Newer subsystem repositories
 

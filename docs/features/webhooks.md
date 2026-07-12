@@ -23,11 +23,19 @@ signature is reproducible:
 {
   "event_type": "match.created",
   "occurred_at": "2026-07-03T23:25:33.739+00:00",
+  "tenant_id": 2,
   "actor_id": 12,
   "actor_username": "alice",
   "data": { "match_id": 5, "tournament_id": 2, "player_ids": [1, 2] }
 }
 ```
+
+`tenant_id` is the [tenant](multitenancy.md) the event occurred in, snapshotted in
+`Event.create()` from the ambient context (`null` for platform-level events). A
+webhook only ever receives events for its own tenant — `Webhook` rows are
+tenant-scoped and the subscriber delivers to just that tenant's webhooks — so the
+field is a stable label, not a filter you need to apply. It is additive to the
+wire contract; the `event_type` names are unchanged.
 
 Headers (built by `WebhookService.build_delivery_headers` — the single source of
 truth the in-app reference also renders):

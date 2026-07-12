@@ -11,6 +11,7 @@ from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.tenant_context import require_tenant_id
 from models import Role, RoleSource, Tournament, TournamentPlayers, User
 
 
@@ -105,7 +106,7 @@ class UserService:
         return user
 
     async def get_active_tournaments_categorized(self) -> Dict[str, List[Tournament]]:
-        tournaments = await Tournament.filter(is_active=True)
+        tournaments = await Tournament.filter(is_active=True, tenant_id=require_tenant_id())
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
         return {
@@ -115,7 +116,7 @@ class UserService:
         }
 
     async def get_user_tournament_registrations(self, user: User) -> List[TournamentPlayers]:
-        return await TournamentPlayers.filter(user=user)
+        return await TournamentPlayers.filter(user=user, tenant_id=require_tenant_id())
 
     async def update_user_personal_info(
         self,
@@ -175,7 +176,7 @@ class UserService:
                 await tp.delete()
         created_ids: List[int] = []
         for tournament_id in added_ids:
-            tournament = await Tournament.get_or_none(id=tournament_id)
+            tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
             if tournament:
                 await TournamentPlayers.create(user=user, tournament=tournament)
                 created_ids.append(tournament_id)
@@ -331,7 +332,7 @@ class UserService:
         else:
             added: List[int] = []
             for tournament_id in tournament_ids:
-                tournament = await Tournament.get_or_none(id=tournament_id)
+                tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
                 if tournament:
                     await TournamentPlayers.create(user=user, tournament=tournament)
                     added.append(tournament_id)

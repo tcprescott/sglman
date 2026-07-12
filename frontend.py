@@ -14,11 +14,22 @@ from nicegui import app, ui
 from application.utils.environment import is_production, validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
-from pages import admin, auth, challonge_oauth, equipment, home, twitch_oauth, volunteer
+from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware
+from pages import admin, auth, challonge_oauth, equipment, home, platform, twitch_oauth, volunteer
 
 _ui_logger = logging.getLogger('sglman.ui')
 
+# Order matters: Starlette runs the last-added middleware outermost, and
+# ui.run_with() adds NiceGUI's session middleware afterwards (outermost of all).
+# So execution is session -> transport-strip -> tenant -> auth: transport paths
+# (/t/<slug>/_nicegui, /_nicegui_ws, /static, /sw.js — http AND websocket) are
+# un-prefixed first so NiceGUI's assets and socket.io resolve; then the tenant is
+# resolved and the ASGI path rewritten before AuthMiddleware reads the (now
+# unprefixed) path. TransportPrefixMiddleware is added last (outermost of ours)
+# and is pure-ASGI so it also handles the websocket scope BaseHTTPMiddleware skips.
 app.add_middleware(AuthMiddleware)
+app.add_middleware(TenantMiddleware)
+app.add_middleware(TransportPrefixMiddleware)
 
 
 @app.on_exception
@@ -94,6 +105,7 @@ def init(fastapi_app: FastAPI) -> None:
     home.create()
     volunteer.create()
     equipment.create()
+    platform.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

@@ -20,7 +20,25 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from application.services.api_token_service import ApiTokenService
 from application.services.auth_service import AuthService
+from application.services.tenant_service import TenantService
+from application.tenant_context import reset_tenant_id, set_tenant_id
 from models import ApiToken, User
+
+
+async def tenant_context_scope():
+    """Router-level dependency that baselines and resets the tenant contextvar.
+
+    The API is excluded from ``TenantMiddleware`` (it derives its tenant from the
+    bearer token, not the URL), so there is no middleware to reset the context.
+    This sets a clean ``None`` baseline before token resolution and restores it in
+    a ``finally`` after the response, so a token-derived tenant never leaks to the
+    next request handled on a reused task.
+    """
+    token = set_tenant_id(None)
+    try:
+        yield
+    finally:
+        reset_tenant_id(token)
 
 # auto_error=False so a missing/malformed header yields our own 401 (FastAPI's
 # default for HTTPBearer is a 403), keeping all auth failures consistent.
@@ -50,6 +68,16 @@ async def _resolve_token(creds: Optional[HTTPAuthorizationCredentials]) -> Tuple
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is inactive",
         )
+    # A token acts within exactly one tenant: set the request tenant context from
+    # it (the token was resolved globally, before any context existed), so the
+    # same tenant-aware service checks the web UI uses apply here.
+    tenant = await TenantService.get_by_id(token.tenant_id)
+    if tenant is None or not tenant.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This tenant is inactive",
+        )
+    set_tenant_id(tenant.id)
     return user, token
 
 

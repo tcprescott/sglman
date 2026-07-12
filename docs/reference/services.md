@@ -47,6 +47,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
+| `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [tournament-notifications.md](../features/tournament-notifications.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -434,6 +435,24 @@ Consumers: `ReportsService`, `MatchSuggestionService`, `volunteer_reminder`, `Di
 ### telemetry_service.py — TelemetryService
 
 Engagement telemetry — *how* people use the tool, as opposed to the deliberate actions `AuditService` records. Three best-effort, non-blocking capture points, all honoring the `TELEMETRY_ENABLED` kill-switch and swallowing/logging their own errors so telemetry never breaks a render or a mutating call: `record_event(event)` (registered on the [event bus](../features/event-system.md) in `main.py`, mirroring every published domain event into a `domain` `TelemetryEvent` row on the dispatch worker), `track_page_view(...)` (called from the `protected_page` decorator on every authenticated page load, capturing path + bounded query params + browser session id), and `track_interaction(...)` (curated UI actions, e.g. `report.viewed` from the reports dispatcher). Reads power the Staff-only engagement report and are gated on `AuthService.is_staff` (`ensure`, like `WebhookService`): `engagement_summary`, `top_paths`, `top_event_types`, `top_users`, `list_events`, `count_events` — aggregations run in the database via `TelemetryRepository`. `TelemetryCategory` (`page`/`interaction`/`domain`) and `TelemetryEventType` (`page.view`/`report.viewed`/`report.exported`) name the buckets and engagement event types. Collaborators: `TelemetryRepository`, `AuthService`, `application.events`, `application.utils.environment.telemetry_enabled`. Consumers: `main.py` (bus subscription), `middleware/auth.py` (page views), `pages/admin_tabs/reports/` (`__init__.py` interaction, `telemetry.py` report). Feature doc: [telemetry.md](../features/telemetry.md).
+
+### tenant_service.py — TenantService
+
+The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`), a custom domain, or a Discord guild id (bot routing), and backs the `/platform` super-admin surface. Resolution lookups are cached in-process (single worker) and the whole cache is dropped on any write. CRUD and grant operations are **super-admin gated** (`AuthService.is_super_admin` via `ensure`) and run with *no* tenant context, so they pass explicit ids to the repositories rather than relying on the ambient tenant — their audit rows are platform-level (`tenant=NULL`). Slugs are validated against `_SLUG_RE` and a `_RESERVED_SLUGS` set (the platform's own top-level paths). Feature doc: [multitenancy.md](../features/multitenancy.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_by_id(tenant_id)` / `get_by_slug(slug)` / `get_by_domain(domain)` / `get_by_guild_id(guild_id)` | `Tenant \| None` | Resolution lookups; `get_by_slug` and `get_by_guild_id` are cached. |
+| `list_tenants()` | `list[Tenant]` | All tenants (platform admin table + community picker). |
+| `create_tenant(actor, *, name, slug, domain=None, discord_guild_id=None, ...)` | `Tenant` | Super-admin create; validates slug/domain uniqueness and format; audited `tenant.created`. |
+| `update_tenant(actor, tenant, **fields)` | `Tenant` | Super-admin partial update; re-validates slug/domain; audited `tenant.updated`. |
+| `is_member(user_id, tenant_id)` | `bool` | Membership check (`TenantMembership` lookup; used by `/platform` membership management). |
+| `add_member(actor, user, tenant_id)` / `list_members(tenant_id)` / `list_memberships_for_user(user)` | — / `list` / `list` | Membership management. |
+| `grant_super_admin(actor, user)` / `revoke_super_admin(actor, user)` | `None` | Super-admin gated; grant/revoke the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`); audited `super_admin.*`. |
+| `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. |
+| `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
+
+Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`. Consumers: `middleware/tenant.py` (slug→tenant resolution), `pages/platform.py` (tenant CRUD UI), `pages/home.py` (community picker), `application/services/discord_service.py` + `discord_role_mapping_service.py` (guild→tenant routing).
 
 ### tournament_notification_service.py — TournamentNotificationService
 

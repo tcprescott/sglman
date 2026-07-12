@@ -4,6 +4,7 @@
 from nicegui import app, background_tasks, ui
 
 from application.services import AuthService, StreamRoomService, get_user_from_discord_id
+from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
@@ -41,7 +42,7 @@ async def admin_tournaments_page() -> None:
             await dialog.open()
 
         def get_query():
-            return Tournament.all()
+            return Tournament.filter(tenant_id=require_tenant_id())
         
         table_view = TournamentTableView(
             columns=columns, get_query=get_query,

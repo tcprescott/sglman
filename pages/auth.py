@@ -17,9 +17,10 @@ import os
 import random
 import secrets
 from typing import Optional
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from nicegui import Client, app, ui
+from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from zenora import APIClient
 
@@ -27,33 +28,61 @@ from application.services import UserService
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
 from application.utils.environment import get_base_url
 from application.utils.mock_discord import is_mock_discord
+from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
 from models import Role, User
 
 logger = logging.getLogger(__name__)
 
-_base_url = get_base_url()
 _client_id = os.getenv("DISCORD_CLIENT_ID")
-_redirect_url = os.getenv("REDIRECT_URL") or f"{_base_url}/oauth/callback"
 
 config = {
     "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
     "DISCORD_CLIENT_SECRET": os.getenv("DISCORD_CLIENT_SECRET"),
-    "REDIRECT_URL": _redirect_url,
     "DISCORD_CLIENT_ID": _client_id,
-    "OAUTH_URL": os.getenv("OAUTH_URL") or (
-        f"https://discord.com/api/oauth2/authorize"
-        f"?client_id={_client_id}"
-        f"&redirect_uri={quote(_redirect_url, safe='')}"
-        f"&response_type=code"
-        f"&scope=identify"
-    ),
-    "STORAGE_SECRET": os.getenv("STORAGE_SECRET")
+    "STORAGE_SECRET": os.getenv("STORAGE_SECRET"),
 }
 
 discordClient = (
     APIClient(config["DISCORD_TOKEN"], client_secret=config["DISCORD_CLIENT_SECRET"])
     if not is_mock_discord() else None
 )
+
+def _redirect_uri() -> str:
+    """Discord OAuth callback, resolved at request time.
+
+    Path-mode tenants and the platform surface share ``PLATFORM_HOST``, so one
+    registered redirect URI on that host serves every tenant; the tenant return
+    path is carried in the session (``referrer_path``), not the callback URL.
+    Read lazily so a per-deploy override or ``BASE_URL`` change applies without
+    reimporting (the old module-level build captured stale values at import).
+    """
+    return os.getenv("REDIRECT_URL") or f"{get_base_url()}/oauth/callback"
+
+
+def _oauth_url(state: str) -> str:
+    """Discord authorize URL for this login attempt, built at request time."""
+    explicit = os.getenv("OAUTH_URL")
+    if explicit:
+        sep = '&' if '?' in explicit else '?'
+        return f'{explicit}{sep}state={quote(state, safe="")}'
+    params = urlencode({
+        'client_id': _client_id or '',
+        'redirect_uri': _redirect_uri(),
+        'response_type': 'code',
+        'scope': 'identify',
+        'state': state,
+    })
+    return f'https://discord.com/api/oauth2/authorize?{params}'
+
+
+def _sanitized_return(root_path: str) -> str:
+    """Post-login return target for this tenant, from the pending referrer.
+
+    ``AuthMiddleware`` writes ``referrer_path`` (tenant-qualified) when a
+    protected page bounces the user to login; :func:`sanitize_return_path`
+    accepts it only when it belongs to this tenant, else falls back to home.
+    """
+    return sanitize_return_path(root_path, app.storage.user.get('referrer_path'))
 
 
 def create() -> None:
@@ -62,20 +91,24 @@ def create() -> None:
         return
 
     @ui.page('/login')
-    def login(client: Client) -> Optional[RedirectResponse]:
+    def login(request: Request, client: Client) -> Optional[RedirectResponse]:
+        root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
-            return RedirectResponse('/')
+            return RedirectResponse(tenant_home(root_path))
+        # Pin the post-login return to this tenant before leaving for Discord —
+        # the callback lands on the bare platform host with no tenant in scope.
+        app.storage.user['referrer_path'] = _sanitized_return(root_path)
         # CSRF protection: bind this login attempt to a one-time state token
         # that must come back on the OAuth callback.
         state = secrets.token_urlsafe(32)
         app.storage.user['oauth_state'] = state
-        sep = '&' if '?' in config["OAUTH_URL"] else '?'
-        return RedirectResponse(f'{config["OAUTH_URL"]}{sep}state={quote(state, safe="")}')
+        return RedirectResponse(_oauth_url(state))
 
     @ui.page('/logout')
-    def logout(client: Client) -> Optional[RedirectResponse]:
+    def logout(request: Request, client: Client) -> Optional[RedirectResponse]:
+        root_path = request.scope.get('root_path', '') or ''
         app.storage.user.clear()
-        return RedirectResponse('/')
+        return RedirectResponse(tenant_home(root_path))
 
     @ui.page('/oauth/callback')
     async def oauth_callback(client: Client):
@@ -106,7 +139,7 @@ def create() -> None:
                 ui.navigate.to('/login')
                 return
 
-            access_token = discordClient.oauth.get_access_token(code, config["REDIRECT_URL"]).access_token
+            access_token = discordClient.oauth.get_access_token(code, _redirect_uri()).access_token
             bearer_client = APIClient(access_token, bearer=True)
             current_user = bearer_client.users.get_current_user()
 
@@ -137,9 +170,11 @@ def create() -> None:
             # Self-defensive: never raises, so login is never blocked.
             await DiscordRoleMappingService().sync_user_roles(user)
 
+            # referrer_path was pinned to a tenant-qualified path at /login, so
+            # this returns to the originating community even though the callback
+            # itself runs on the bare platform host with no tenant in scope.
             referrer = app.storage.user.get('referrer_path', '/')
-            # Avoid redirecting to login/callback
-            if referrer in ['/login', '/logout', '/oauth/callback']:
+            if referrer.split('?', 1)[0] in AUTH_ROUTES:
                 referrer = '/'
             ui.navigate.to(referrer)
             app.storage.user.pop('referrer_path', None)
@@ -158,7 +193,7 @@ def _login_as(user: User) -> None:
         'discord_id': user.discord_id,
     })
     referrer = app.storage.user.get('referrer_path', '/')
-    if referrer in ['/login', '/logout', '/oauth/callback']:
+    if referrer.split('?', 1)[0] in AUTH_ROUTES:
         referrer = '/'
     app.storage.user.pop('referrer_path', None)
     ui.navigate.to(referrer)
@@ -171,10 +206,14 @@ def _create_mock() -> None:
     mint a new one. Never active in production (``is_mock_discord`` refuses it).
     """
     @ui.page('/login')
-    async def mock_login(client: Client):
+    async def mock_login(request: Request, client: Client):
+        root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
-            ui.navigate.to('/')
+            ui.navigate.to(tenant_home(root_path))
             return
+        # Pin the post-login return to this tenant (mirrors the real flow) so a
+        # picked user lands on this community's home, not the platform landing.
+        app.storage.user['referrer_path'] = _sanitized_return(root_path)
 
         ui.page_title('Mock Discord Login')
 
@@ -299,10 +338,12 @@ def _create_mock() -> None:
                 ui.button('Create and log in', color='green', on_click=create_user)
 
     @ui.page('/logout')
-    def mock_logout(client: Client) -> Optional[RedirectResponse]:
+    def mock_logout(request: Request, client: Client) -> Optional[RedirectResponse]:
+        root_path = request.scope.get('root_path', '') or ''
         app.storage.user.clear()
-        return RedirectResponse('/')
+        return RedirectResponse(tenant_home(root_path))
 
     @ui.page('/oauth/callback')
-    def mock_oauth_callback(client: Client) -> RedirectResponse:
-        return RedirectResponse('/')
+    def mock_oauth_callback(request: Request, client: Client) -> RedirectResponse:
+        root_path = request.scope.get('root_path', '') or ''
+        return RedirectResponse(tenant_home(root_path))

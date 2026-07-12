@@ -6,12 +6,20 @@ Handles database operations for tournaments.
 
 from typing import List, Optional
 
+from application.repositories._tenant import current_tenant_id, scoped
 from models import Tournament, TournamentPlayers
 
 
 class TournamentRepository:
-    """Repository for tournament data access."""
-    
+    """Repository for tournament data access.
+
+    Every read is constrained to the current tenant via ``scoped(...)`` and every
+    write stamps ``tenant_id=current_tenant_id()``; both raise if no tenant is in
+    context. ``TournamentPlayers`` reads that start from a global ``user`` are the
+    sharp edge — they must be tenant-filtered explicitly, since the reverse
+    relation spans tenants.
+    """
+
     @staticmethod
     async def get_by_id(tournament_id: int, prefetch_players: bool = False) -> Optional[Tournament]:
         """
@@ -24,7 +32,7 @@ class TournamentRepository:
         Returns:
             Tournament object or None
         """
-        query = Tournament.filter(id=tournament_id)
+        query = scoped(Tournament.filter(id=tournament_id))
         if prefetch_players:
             query = query.prefetch_related('players', 'players__user')
         return await query.first()
@@ -40,7 +48,7 @@ class TournamentRepository:
         Returns:
             List of Tournament objects
         """
-        return await Tournament.filter(id__in=tournament_ids).order_by('name')
+        return await scoped(Tournament.filter(id__in=tournament_ids)).order_by('name')
     
     @staticmethod
     async def get_all(
@@ -59,8 +67,8 @@ class TournamentRepository:
         Returns:
             List of Tournament objects
         """
-        query = Tournament.all().order_by('name')
-        
+        query = scoped(Tournament.all()).order_by('name')
+
         if active_only:
             query = query.filter(is_active=True)
         
@@ -132,6 +140,7 @@ class TournamentRepository:
             Created Tournament object
         """
         return await Tournament.create(
+            tenant_id=current_tenant_id(),
             name=name,
             description=description,
             seed_generator=seed_generator,
@@ -182,7 +191,7 @@ class TournamentRepository:
         Returns:
             Created TournamentPlayers object
         """
-        return await TournamentPlayers.create(tournament=tournament, user=user)
+        return await TournamentPlayers.create(tenant_id=current_tenant_id(), tournament=tournament, user=user)
     
     @staticmethod
     async def unenroll_player(tournament: Tournament, user) -> None:
@@ -193,7 +202,7 @@ class TournamentRepository:
             tournament: Tournament to unenroll from
             user: User to unenroll
         """
-        await TournamentPlayers.filter(tournament=tournament, user=user).delete()
+        await scoped(TournamentPlayers.filter(tournament=tournament, user=user)).delete()
     
     @staticmethod
     async def get_enrolled_players(tournament: Tournament) -> List:
@@ -206,7 +215,7 @@ class TournamentRepository:
         Returns:
             List of TournamentPlayers objects
         """
-        return await TournamentPlayers.filter(tournament=tournament).prefetch_related('user')
+        return await scoped(TournamentPlayers.filter(tournament=tournament)).prefetch_related('user')
     
     @staticmethod
     async def get_enrolled_players_by_user(user) -> List:
@@ -219,7 +228,7 @@ class TournamentRepository:
         Returns:
             List of TournamentPlayers objects
         """
-        return await TournamentPlayers.filter(user=user).prefetch_related('tournament')
+        return await scoped(TournamentPlayers.filter(user=user)).prefetch_related('tournament')
     
     @staticmethod
     async def get_enrolled_players_by_tournament_id(tournament_id: int) -> List:
@@ -232,7 +241,7 @@ class TournamentRepository:
         Returns:
             List of TournamentPlayers objects
         """
-        return await TournamentPlayers.filter(tournament_id=tournament_id).prefetch_related('user')
+        return await scoped(TournamentPlayers.filter(tournament_id=tournament_id)).prefetch_related('user')
     
     @staticmethod
     async def get_enrolled_user_ids(tournament_id: int) -> set[int]:
@@ -241,9 +250,9 @@ class TournamentRepository:
         Lets callers resolve enrollment for a whole player list in one query
         instead of an ``is_player_enrolled`` round-trip per player.
         """
-        rows = await TournamentPlayers.filter(
+        rows = await scoped(TournamentPlayers.filter(
             tournament_id=tournament_id
-        ).values_list('user_id', flat=True)
+        )).values_list('user_id', flat=True)
         return set(rows)
 
     @staticmethod
@@ -258,7 +267,7 @@ class TournamentRepository:
         Returns:
             True if enrolled, False otherwise
         """
-        return await TournamentPlayers.filter(tournament=tournament, user=user).exists()
+        return await scoped(TournamentPlayers.filter(tournament=tournament, user=user)).exists()
     
     @staticmethod
     async def is_player_enrolled_by_id(tournament_id: int, user) -> bool:
@@ -272,7 +281,7 @@ class TournamentRepository:
         Returns:
             True if enrolled, False otherwise
         """
-        return await TournamentPlayers.filter(tournament_id=tournament_id, user=user).exists()
+        return await scoped(TournamentPlayers.filter(tournament_id=tournament_id, user=user)).exists()
     
     @staticmethod
     async def enroll_player_by_id(tournament_id: int, user) -> TournamentPlayers:
@@ -286,4 +295,4 @@ class TournamentRepository:
         Returns:
             Created TournamentPlayers object
         """
-        return await TournamentPlayers.create(tournament_id=tournament_id, user=user)
+        return await TournamentPlayers.create(tenant_id=current_tenant_id(), tournament_id=tournament_id, user=user)

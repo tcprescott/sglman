@@ -9,6 +9,7 @@ from typing import Optional
 from application.repositories import StreamRoomRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.tenant_context import require_tenant_id
 from models import StreamRoom, User
 
 
@@ -103,8 +104,8 @@ class StreamRoomService:
 
     async def get_all_stream_rooms(self, active_only: bool = False) -> list[StreamRoom]:
         if active_only:
-            return await StreamRoom.filter(is_active=True)
-        return await StreamRoom.all()
+            return await StreamRoom.filter(is_active=True, tenant_id=require_tenant_id())
+        return await StreamRoom.filter(tenant_id=require_tenant_id())
 
     async def get_stream_room_by_id(self, stream_room_id: int) -> Optional[StreamRoom]:
         return await self.repository.get_by_id(stream_room_id)
