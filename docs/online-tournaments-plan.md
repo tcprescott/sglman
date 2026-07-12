@@ -210,6 +210,13 @@ and a leak test, per the multitenancy rules ([multitenancy.md](features/multiten
 Each phase is independently shippable and PR-sized. Phases 1–2 are the foundation
 everything else builds on.
 
+> **Decided direction (2026-07-12):** the first target is **scheduled restreamed
+> brackets** (Phase 3), **ALTTPR-only** to start. Phases 0–3 are the committed
+> path; async tournaments (Phase 5) are explicitly deferred until the scheduled
+> loop is proven. Keeping the initial game scope to ALTTPR means the existing
+> `alttpr` seedgen + presets carry the whole end-to-end loop with no new randomizer
+> backends.
+
 **Phase 0 — racetime identity linking.** `User.racetime_*` fields + migration,
 `pages/racetime_oauth.py`, profile UI to link/unlink. Small, self-contained, and a
 hard prerequisite for results attribution. _No racetime bot yet — just OAuth._
@@ -283,16 +290,16 @@ subsystems.
 
 ## Open questions (for the maintainer)
 
-1. **Games in scope.** Start ALTTPR-only (matches the existing `alttpr` seedgen +
-   presets), or bring OoTR/SMZ3/Map Rando online at the same time?
-2. **Async vs. scheduled priority.** SpeedGaming's online events — are they mostly
-   **scheduled restreamed brackets** (Phase 3 first) or **async qualifiers**
-   (Phase 5 first)? This reorders the roadmap.
-3. **Coexistence with SahasrahBot.** Is the intent to eventually *replace*
+_Resolved 2026-07-12:_ **Games** — start **ALTTPR-only**. **Priority** —
+**scheduled restreamed brackets** first (Phase 3); async qualifiers deferred.
+
+Still open:
+
+1. **Coexistence with SahasrahBot.** Is the intent to eventually *replace*
    SahasrahBot with SGLMan, or run both (SGLMan for SGL events, SahasrahBot for the
    broader community)? Affects whether the racetime bot needs its own category or
    shares SahasrahBot's.
-4. **racetime bot account/category.** One shared SGLMan bot category, or
+2. **racetime bot account/category.** One shared SGLMan bot category, or
    per-tenant categories? (Per-tenant is cleaner isolation but more operational
    overhead; shared with `guild_id`-style routing is simpler.)
 
