@@ -321,7 +321,7 @@ class AdminMatchDialog(BaseMatchDialog):
         with ui.column().classes('gap-1'):
             ui.label('Racetime Room').classes('text-bold')
             if existing is not None:
-                ui.label(f'{existing.slug} — {existing.status}').classes('text-grey-7')
+                ui.label(f'{existing.slug} — {existing.status.value}').classes('text-grey-7')
                 return
             if not can_sync:
                 ui.label('No room yet.').classes('text-grey-6')
