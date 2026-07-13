@@ -20,7 +20,10 @@
 | 2026-07-13 | SpeedGaming schedule data comes in via an **ETL/sync process** into SGLMan's own tables — *not* SahasrahBot's approach of live-querying the SG API per interaction |
 | 2026-07-13 | `AsyncQualifier` is a **standalone peer aggregate of `Tournament`**: created/administered the same way (many can run concurrently per tenant), but a **distinct state machine** entirely outside the `Match`/schedule system — no structural FK between the two |
 | 2026-07-13 | **SG sync is strictly one-way** (SG → SGLMan, never back). For a `Match` created by the ETL, **the ETL-owned fields are read-only in SGLMan** — enforced at the service layer, not just convention. See [Feature 4](#4-speedgaming-schedule-etl). |
-| 2026-07-13 | **Async Qualifier execution is web-first, decided (not open).** SahasrahBot's Discord-thread-driven run execution (slash command → private thread → buttons) is **dropped**, not ported, not offered as a config toggle. Drawing a permalink, timing a run, submitting time/VoD, and review all happen on SGLMan web pages; Discord is notification-only via the existing DM queue. Live races (Phase 6) still need a racetime.gg bot connection for synchronous group races, but that's separate from the core async execution loop. |
+| 2026-07-13 | **Async Qualifier execution is web-first, decided (not open).** SahasrahBot's Discord-thread-driven run execution (slash command → private thread → buttons) is **dropped**, not ported, not offered as a config toggle. Drawing a permalink, timing a run, submitting time/VoD, and review all happen on SGLMan web pages; Discord is notification-only via the existing DM queue. Live races still need a racetime.gg bot connection for synchronous group races, but that's separate from the core async execution loop. |
+| 2026-07-13 | **SahasrahBot's non-racing community features survive on a thin bot.** Only SahasrahBot's tournament/racing role is retired into SGLMan; a stripped-down SahasrahBot keeps the community-management bits (reaction/voice roles, holy images, inquiries, `konot`). SGLMan does **not** absorb them — it stays a tournament manager. |
+| 2026-07-13 | **Racetime auto-open is opt-in per tournament.** No room is auto-created until a tournament explicitly enables auto-open and sets its lead time — nothing opens unexpectedly. |
+| 2026-07-13 | **Auto-open eligibility: all entrants have a linked racetime identity.** A room auto-opens only when every player in the match has linked racetime (clean result attribution); matches with an unlinked entrant are left to manual creation. |
 
 ## Context
 
@@ -103,7 +106,9 @@ administered the same way, running a distinct machine.
 - **Spoiler races, community dailies, ranked-choice voting** — retire with
   SahasrahBot (previously misclassified here as pre-cutover parity items).
 - **General Discord-community features** (reaction/voice roles, holy images,
-  inquiries, `konot`) — outside the tournament/racing mission.
+  inquiries, `konot`) — outside the tournament/racing mission. **Decided:** these
+  survive on a **thin SahasrahBot** (only its tournament/racing role retires into
+  SGLMan); SGLMan does not absorb them.
 - **SahasrahBot's dormant `Schedule*` models** (`ScheduleEvent`,
   `ScheduleEpisode`, …) — an unfinished in-house scheduling attempt with live
   tables but no runtime usage. The SG ETL supersedes the idea; do not port the
@@ -310,14 +315,22 @@ import repositories):
 
 ### Scheduled auto-creation (decided)
 
-Rooms are **created on schedule, not on demand.** A background worker (under
-`tenant_scope`, same pattern as the SG sync and Discord-events workers) opens a
-racetime room for each eligible upcoming `Match` a configurable lead time before
-`Match.scheduled_at` (e.g. "open the room 30 minutes before start"). Lead time,
-eligibility (which tournaments/matches auto-open), room visibility, and the goal
-are per-tournament config via the [user-definable](#design-principle-user-definable-tournament-logic)
-surface — no per-tournament code. Staff can also trigger creation manually for a
-one-off, but the default path is automatic.
+Rooms are **created on schedule, not on demand** — but **auto-open is opt-in per
+tournament** (decided): a background worker (under `tenant_scope`, same pattern as
+the SG sync and Discord-events workers) opens a racetime room for eligible upcoming
+matches only in tournaments that have explicitly enabled auto-open and set a lead
+time before `Match.scheduled_at` (e.g. "open the room 30 minutes before start").
+Nothing opens unexpectedly; a tournament with auto-open off relies on manual
+creation.
+
+**Eligibility (decided): every entrant must have a linked racetime identity.** A
+match auto-opens only when all its players have linked racetime (so finishes
+attribute cleanly on capture); a match with any unlinked entrant is skipped by the
+worker and left to manual creation, where staff accept the raw-handle-reconcile
+path knowingly. Lead time, the auto-open toggle, room visibility, and the goal are
+per-tournament config via the [user-definable](#design-principle-user-definable-tournament-logic)
+surface — no per-tournament code. Staff can always trigger creation manually for a
+one-off regardless of the toggle.
 
 ### Lifecycle state machine
 
@@ -468,11 +481,9 @@ independent of the racetime track and can run in parallel.
 
 ## Open questions (for the maintainer)
 
-1. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
-   a thin community bot? (Nothing in this plan depends on the answer.)
-2. **Room-open lead time & auto-open eligibility** — sensible per-tournament
-   defaults (e.g. 30 min before start, all matches with two linked players), or
-   staff-triggered only until a tournament opts in?
+**None currently open** — the scope, succession, and behavior questions raised
+during planning are all resolved in the [decisions log](#decisions-log). New
+questions that surface as implementation begins go here.
 
 ## Related docs
 
