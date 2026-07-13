@@ -22,6 +22,8 @@ from models import (
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
     DiscordScheduledEvent, DiscordEventSource,
     BotStatus, RaceRoomStatus,
+    AsyncQualifier, AsyncQualifierPool, AsyncQualifierPermalink, AsyncQualifierRun,
+    AsyncQualifierRunStatus, AsyncQualifierReviewStatus,
 )
 from application.utils.timezone import now_eastern
 
@@ -150,7 +152,90 @@ async def seed_online_for_tenant(
 
     await _seed_speedgaming(tenant, tournament, scheduled_match)
     await _seed_discord_events(tenant, tournament, scheduled_match)
+    await _seed_qualifiers(tenant, preset)
     print(f"    [{tenant.slug}] online tournaments ok")
+
+
+async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
+    """Async Qualifier fixtures (PR 9): an active, open qualifier with two pools,
+    a preset-tied pool, permalinks, and runs across states — one finished+approved
+    (scored, sets par) and one finished+pending (shows in the reviewer queue) — so
+    the admin Qualifiers tab, reviewer queue, and leaderboard all have data, and
+    the active-window lockdown is demonstrable (non-staff can't see the board)."""
+    now = datetime.now(timezone.utc)
+    staff = await User.get_or_none(username="staff_user")
+    runner_a = await User.get_or_none(username="player_three")
+    runner_b = await User.get_or_none(username="player_four")
+
+    qualifier, _ = await AsyncQualifier.get_or_create(
+        name="Dev Async Qualifier", tenant=tenant,
+        defaults={
+            "description": "Self-paced qualifier fixture for local dev.",
+            "event_name": "SGL Dev Season",
+            "opens_at": now - timedelta(days=1),
+            "closes_at": now + timedelta(days=7),
+            "runs_per_pool": 2,
+            "allowed_reattempts": 1,
+            "is_active": True,
+            "config": {"par_sample_size": 3},
+        },
+    )
+    if staff is not None:
+        await qualifier.admins.add(staff)
+
+    standard, _ = await AsyncQualifierPool.get_or_create(
+        qualifier=qualifier, name="Standard Pool", tenant=tenant,
+        defaults={"preset": preset},
+    )
+    bonus, _ = await AsyncQualifierPool.get_or_create(
+        qualifier=qualifier, name="Bonus Pool", tenant=tenant,
+    )
+
+    async def _permalink(pool: AsyncQualifierPool, url: str) -> AsyncQualifierPermalink:
+        pl, _ = await AsyncQualifierPermalink.get_or_create(
+            pool=pool, url=url, tenant=tenant,
+        )
+        return pl
+
+    p1 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-1")
+    await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
+    await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
+    await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-1")
+    await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
+
+    # A finished, approved, scored run on p1 — par is the run's own time, so its
+    # score is 100 and the leaderboard has an entry.
+    if runner_a is not None:
+        run_a = await AsyncQualifierRun.filter(
+            qualifier=qualifier, user=runner_a, permalink=p1
+        ).first()
+        if run_a is None:
+            await AsyncQualifierRun.create(
+                tenant=tenant, qualifier=qualifier, user=runner_a, permalink=p1,
+                status=AsyncQualifierRunStatus.FINISHED,
+                review_status=AsyncQualifierReviewStatus.APPROVED,
+                started_at=now - timedelta(hours=3), finished_at=now - timedelta(hours=1, minutes=30),
+                elapsed_seconds=5400, runner_vod_url="https://twitch.tv/videos/dev-a",
+                reviewed_by=staff, reviewed_at=now - timedelta(hours=1), score=100.0,
+            )
+            if p1.par_time is None:
+                p1.par_time = 5400
+                p1.par_updated_at = now
+                await p1.save()
+
+    # A finished run awaiting review — populates the reviewer queue.
+    if runner_b is not None:
+        run_b = await AsyncQualifierRun.filter(
+            qualifier=qualifier, user=runner_b, permalink=p1
+        ).first()
+        if run_b is None:
+            await AsyncQualifierRun.create(
+                tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p1,
+                status=AsyncQualifierRunStatus.FINISHED,
+                review_status=AsyncQualifierReviewStatus.PENDING,
+                started_at=now - timedelta(hours=2), finished_at=now - timedelta(minutes=20),
+                elapsed_seconds=6000, runner_vod_url="https://twitch.tv/videos/dev-b",
+            )
 
 
 async def _seed_speedgaming(

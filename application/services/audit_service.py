@@ -208,6 +208,29 @@ class AuditActions:
     SG_PLACEHOLDER_CREATED = 'sg_sync.placeholder_created'
     SG_PLACEHOLDER_UPGRADED = 'sg_sync.placeholder_upgraded'
 
+    # Async Qualifiers (PR 9). A peer aggregate of Tournament: qualifier/pool/
+    # permalink authoring and the per-qualifier ``admins`` grants are tenant-
+    # internal config (event-less); the run submitted/reviewed outcomes DO emit
+    # events for subscribers (see EventType.ASYNC_QUALIFIER_RUN_*). The actor is
+    # a human QUALIFIER_ADMIN for management/review and the running player for
+    # start/submit/forfeit/reattempt.
+    ASYNC_QUALIFIER_CREATED = 'async_qualifier.created'
+    ASYNC_QUALIFIER_UPDATED = 'async_qualifier.updated'
+    ASYNC_QUALIFIER_DELETED = 'async_qualifier.deleted'
+    ASYNC_QUALIFIER_ADMIN_GRANTED = 'async_qualifier.admin_granted'
+    ASYNC_QUALIFIER_ADMIN_REVOKED = 'async_qualifier.admin_revoked'
+    ASYNC_QUALIFIER_POOL_CREATED = 'async_qualifier.pool_created'
+    ASYNC_QUALIFIER_POOL_UPDATED = 'async_qualifier.pool_updated'
+    ASYNC_QUALIFIER_POOL_DELETED = 'async_qualifier.pool_deleted'
+    ASYNC_QUALIFIER_PERMALINK_ADDED = 'async_qualifier.permalink_added'
+    ASYNC_QUALIFIER_PERMALINK_UPDATED = 'async_qualifier.permalink_updated'
+    ASYNC_QUALIFIER_PERMALINK_DELETED = 'async_qualifier.permalink_deleted'
+    ASYNC_QUALIFIER_RUN_STARTED = 'async_qualifier.run_started'
+    ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
+    ASYNC_QUALIFIER_RUN_FORFEITED = 'async_qualifier.run_forfeited'
+    ASYNC_QUALIFIER_RUN_REATTEMPTED = 'async_qualifier.run_reattempted'
+    ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'
     WEBHOOK_UPDATED = 'webhook.updated'

@@ -172,6 +172,25 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.DISCORD_EVENT_SYNC_COMPLETED,
     AuditActions.DISCORD_EVENT_SYNC_FAILED,
     AuditActions.DISCORD_EVENT_SETTINGS_UPDATED,
+    # Async Qualifiers (PR 9): the run submitted/reviewed outcomes DO emit events
+    # (see EventType.ASYNC_QUALIFIER_RUN_*). The rest are audit-only — qualifier/
+    # pool/permalink authoring and the per-qualifier admin grants are tenant-
+    # internal config, and run_started/forfeited/reattempted are player run-state
+    # churn no external subscriber needs (submitted/reviewed already cover review).
+    AuditActions.ASYNC_QUALIFIER_CREATED,
+    AuditActions.ASYNC_QUALIFIER_UPDATED,
+    AuditActions.ASYNC_QUALIFIER_DELETED,
+    AuditActions.ASYNC_QUALIFIER_ADMIN_GRANTED,
+    AuditActions.ASYNC_QUALIFIER_ADMIN_REVOKED,
+    AuditActions.ASYNC_QUALIFIER_POOL_CREATED,
+    AuditActions.ASYNC_QUALIFIER_POOL_UPDATED,
+    AuditActions.ASYNC_QUALIFIER_POOL_DELETED,
+    AuditActions.ASYNC_QUALIFIER_PERMALINK_ADDED,
+    AuditActions.ASYNC_QUALIFIER_PERMALINK_UPDATED,
+    AuditActions.ASYNC_QUALIFIER_PERMALINK_DELETED,
+    AuditActions.ASYNC_QUALIFIER_RUN_STARTED,
+    AuditActions.ASYNC_QUALIFIER_RUN_FORFEITED,
+    AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.

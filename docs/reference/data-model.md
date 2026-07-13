@@ -285,6 +285,21 @@ Reconciliation state of a synced SG episode (PR 7). `(str, Enum)` — render `.v
 | `CANCELLED` = `'cancelled'` | Upstream episode gone; the `Match` soft-detached |
 | `ERROR` = `'error'` | Transform/load failed (see `sync_error`) |
 
+### `AsyncQualifierRunStatus` / `AsyncQualifierReviewStatus`
+
+Async-qualifier run + review state (PR 9). Both `(str, Enum)` — render `.value`.
+Web-first collapses reveal and start, so a run is created `IN_PROGRESS` at draw;
+`PENDING` is reserved for a run pre-created before a synchronous start (live-race
+path, PR 10).
+
+| `AsyncQualifierRunStatus` | | `AsyncQualifierReviewStatus` | |
+|---|---|---|---|
+| `PENDING` = `'pending'` | reserved (live races) | `PENDING` = `'pending'` | awaiting review |
+| `IN_PROGRESS` = `'in_progress'` | drawn, timing | `APPROVED` = `'approved'` | counts + scored |
+| `FINISHED` = `'finished'` | submitted | `REJECTED` = `'rejected'` | excluded |
+| `FORFEIT` = `'forfeit'` | irreversible, scores 0 | | |
+| `DISQUALIFIED` = `'disqualified'` | staff DQ | | |
+
 ## Model reference
 
 ### Identity
@@ -1037,6 +1052,55 @@ tenant's own rows**, so a shared guild (several tenants, non-unique
 | `synced_at` | | null | Last reconcile that touched the event |
 
 Constraints: `Meta.table = 'discordscheduledevent'`; `discord_event_id` unique; unique `(tenant, source_type, source_id)` (idempotency); indexes on `tenant`, `guild_id`.
+
+### Async Qualifiers (PR 9)
+
+A **peer aggregate of `Tournament`** — created/administered like a tournament
+(per-qualifier `admins` M2M, `is_active`) but a distinct state machine entirely
+outside the Match/schedule system: window opens → draw → run → review → scored
+leaderboard → close. All five models are tenant-scoped (`CASCADE`, scoped repos,
+leak test). Config is **hybrid**: typed window/count columns + a validated-JSON
+`config` blob (`par_sample_size`, `draw_imbalance_threshold`, `messaging_templates`).
+The `AsyncQualifierRun.live_race` FK is added in PR 10.
+
+#### `AsyncQualifier`
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='async_qualifiers'` |
+| `name` | `CharField(255)` | not null | |
+| `description` / `event_name` | `TextField` / `CharField(255)` | null | `event_name` is informational only (no FK to the event it feeds) |
+| `opens_at` / `closes_at` | `DatetimeField` | null | Typed window columns (UTC) |
+| `runs_per_pool` | `IntField` | default 1 | Leaderboard slots per pool |
+| `allowed_reattempts` | `IntField` | default 0 | Reattempt budget per player |
+| `config` | `JSONField` | null | Validated by `validate_async_qualifier_config` |
+| `is_active` | `BooleanField` | default `True` | Closing it (or passing `closes_at`) lifts the info lockdown |
+| `admins` | M2M → `User` | through `AsyncQualifierAdmins` | The reviewer set (self-review blocked) |
+
+#### `AsyncQualifierPool`
+
+Named permalink pool; optional `preset` FK (`SET_NULL`). Unique `(qualifier, name)`;
+indexes on `tenant`, `qualifier`.
+
+#### `AsyncQualifierPermalink`
+
+One seed `url` in a pool (`CASCADE`), `notes`, `live_race` flag, and a maintained
+`par_time` (whole seconds, mean of the N fastest approved runs) + `par_updated_at`.
+Indexes on `tenant`, `pool`.
+
+#### `AsyncQualifierRun`
+
+A player's attempt. FKs → `qualifier` (`CASCADE`), `user`, `permalink` (`SET_NULL`
+so purging a permalink keeps run history), and nullable `reviewed_by` /
+`review_claimed_by` (`SET_NULL`). Carries `status` / `review_status` enums, timing
+(`started_at`, `finished_at`, `elapsed_seconds`), `runner_vod_url`, the one-attempt
+backstop (`reattempted` + `reattempt_reason`), `score` (0–105, null until scored),
+and review attribution/claim-lock timestamps. Indexes: `tenant`, `(qualifier,
+review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute).
+
+#### `AsyncQualifierReviewNote`
+
+A reviewer's note (`author` FK) on a run (`CASCADE`). Indexes on `tenant`, `run`.
 
 ## Match lifecycle
 

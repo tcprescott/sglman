@@ -2,6 +2,24 @@
 
 > Feature 1. Roadmap phase 7. A standalone peer aggregate of `Tournament`, web-first.
 > The largest single feature; sahabot2 has working scoring/leaderboard code to port.
+>
+> **Status: implemented (PR 9).** Five tenant-scoped models (`AsyncQualifier`,
+> `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`,
+> `AsyncQualifierReviewNote`) + the `AsyncQualifierAdmins` M2M (migration 28; leak
+> tests). `AsyncQualifierService` (+ `async_qualifier_scoring` / `async_qualifier_config`)
+> owns the atomic locked draw (one active run, `runs_per_pool` cap, no-repeat,
+> imbalance-forcing fairness), submit/forfeit/reattempt, the reviewer queue
+> (reviewers = the `admins` M2M, self-review blocked, claim-locking), par/score, the
+> slot leaderboard, and the active-window information lockdown. Admin **Qualifiers**
+> tab (`QUALIFIER_ADMIN`) authors pools/permalinks (paste or roll-N) and reviews;
+> player pages `/qualifiers` + `/qualifiers/{id}` draw/time/submit and show the
+> board. `async_qualifier.*` audit; `run_submitted`/`run_reviewed` events; DM on
+> review. **Decisions taken here:** any authenticated tenant user is eligible to
+> run (no enrollment gate); the `AsyncQualifierRun.live_race` FK is deferred to
+> PR 10 (its target model lands then); leaderboard ties keep insertion order (no
+> tie-break). See [current-state.md](../../current-state.md),
+> [data-model.md](../../reference/data-model.md), and
+> [services.md](../../reference/services.md).
 
 **Goal:** staff create qualifiers like tournaments; players run self-paced against a
 permalink pool inside a window; runs are reviewed and par-scored on a leaderboard.

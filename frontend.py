@@ -22,6 +22,7 @@ from pages import (
     equipment,
     home,
     platform,
+    qualifiers,
     racetime_oauth,
     twitch_oauth,
     volunteer,
@@ -117,6 +118,7 @@ def init(fastapi_app: FastAPI) -> None:
     volunteer.create()
     equipment.create()
     platform.create()
+    qualifiers.create()
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root

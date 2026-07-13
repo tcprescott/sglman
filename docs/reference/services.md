@@ -799,6 +799,18 @@ Staff-managed outbound webhooks: CRUD (all gated on `AuthService.is_staff` and a
 
 > The event bus itself (`application/events/`) — the publish/subscribe backbone these deliveries hang off — is documented in [event-system.md](../features/event-system.md).
 
+### async_qualifier_service.py — AsyncQualifierService (PR 9)
+
+The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` with its own state machine (window opens → draw → run → review → scored leaderboard → close). Owns every rule the repositories don't:
+
+- **Management** — qualifier/pool/permalink CRUD + per-qualifier `admins`, gated by `AuthService.can_admin_qualifier` (STAFF/`QUALIFIER_ADMIN`/super-admin, or a per-qualifier admin). `roll_permalinks` rolls N seeds from the pool's `Preset` via `SeedGenerationService`; `add_permalinks_bulk` pastes many. Config validated by `validate_async_qualifier_config` (`application/services/async_qualifier_config.py`).
+- **Draw** (`start_run`) — an atomic, row-locked (`in_transaction` + `lock_user_for_draw`) transaction enforcing one active run per player, the `runs_per_pool` cap, and permalink no-repeat, then picking a permalink by **imbalance-forcing fairness** (random unless a pool's play-count spread crosses `draw_imbalance_threshold`, then the least-played). Reveal == start (web-first).
+- **Run lifecycle** — `submit_run` (→ review), `forfeit_run` (irreversible, scores 0), `reattempt_run` (voids the prior run, frees the slot, requires a reason, limited by `allowed_reattempts`).
+- **Review** — reviewers = the qualifier's `admins`; **self-review blocked**; `claim_run`/`release_claim` claim-locking; `review_run` approves/rejects, then recomputes the permalink's par and rescores its approved runs.
+- **Scoring / leaderboard** — par + score math in `async_qualifier_scoring.py` (`compute_par` = mean of the N fastest approved runs; `compute_score` = `clamp(0,105,(2−elapsed/par)·100)`; `build_leaderboard` = per-pool slots, unfilled = 0, plus an estimate). `get_leaderboard` enforces the **active-window information lockdown** (`is_results_public`): the board/pools/pars are staff-only until the qualifier closes (inactive or past `closes_at`).
+
+Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_submitted`/`run_reviewed` onto the event bus (`EventType.ASYNC_QUALIFIER_RUN_*`). Best-effort Discord DM on review. Collaborators: the five `AsyncQualifier*` repositories, `PresetRepository`, `SeedGenerationService`, `AuthService`, `AuditService`, `application.events`. Admin UI: `pages/admin_tabs/admin_qualifiers.py`; player UI: `pages/qualifiers.py`. Plan: [pr-9-async-qualifiers.md](../online-tournaments/implementation/pr-9-async-qualifiers.md).
+
 ## Utilities (`application/utils/`)
 
 ### challonge_client.py

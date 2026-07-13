@@ -1356,3 +1356,206 @@ class DiscordScheduledEvent(Model):
         table = 'discordscheduledevent'
         unique_together = (('tenant', 'source_type', 'source_id'),)
         indexes = (('tenant',), ('guild_id',))
+
+
+class AsyncQualifierRunStatus(str, Enum):
+    """Execution state of a single async-qualifier run (PR 9).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member (which repr's as ``AsyncQualifierRunStatus.FINISHED``).
+
+    Web-first collapses reveal and start, so a run is created ``IN_PROGRESS`` the
+    moment a player draws (the permalink is revealed then). ``PENDING`` is
+    reserved for a run pre-created before a synchronous start — the live-race path
+    (PR 10) — and is unused by the self-paced core flow.
+    """
+
+    PENDING = 'pending'
+    IN_PROGRESS = 'in_progress'
+    FINISHED = 'finished'
+    FORFEIT = 'forfeit'
+    DISQUALIFIED = 'disqualified'
+
+
+class AsyncQualifierReviewStatus(str, Enum):
+    """Review state of a finished async-qualifier run (PR 9)."""
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+
+
+class AsyncQualifier(Model):
+    """A self-paced permalink-pool qualifier — a peer aggregate of ``Tournament``.
+
+    Created/administered like a tournament (per-qualifier ``admins`` M2M, an admin
+    tab, ``is_active``) but a **distinct state machine** entirely outside the
+    Match/schedule system: window opens → players draw permalinks from pools →
+    runs (in-progress → finished/forfeit) → review (pending → approved/rejected) →
+    scored leaderboard → window closes.
+
+    Tenant-scoped. Typed **window columns** (``opens_at``/``closes_at``) plus
+    ``runs_per_pool`` / ``allowed_reattempts`` are worker-/query-facing knobs; the
+    validated-JSON ``config`` blob carries scoring/reattempt/messaging strategy
+    (the hybrid config decision). ``admins`` is the reviewer set (self-review is
+    blocked in the service).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifiers', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    description = fields.TextField(null=True)
+    # Informational only: the event this qualifier feeds. No structural FK — the
+    # two machines share no workflow (decisions log).
+    event_name = fields.CharField(max_length=255, null=True)
+    opens_at = fields.DatetimeField(null=True)
+    closes_at = fields.DatetimeField(null=True)
+    runs_per_pool = fields.IntField(default=1)
+    allowed_reattempts = fields.IntField(default=0)
+    config = fields.JSONField(null=True)
+    is_active = fields.BooleanField(default=True)
+    admins = fields.ManyToManyField(
+        'models.User', related_name='admin_async_qualifiers', through='AsyncQualifierAdmins'
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    pools = fields.ReverseRelation["AsyncQualifierPool"]
+    runs = fields.ReverseRelation["AsyncQualifierRun"]
+
+    class Meta:
+        table = 'asyncqualifier'
+        indexes = (('tenant',),)
+
+
+class AsyncQualifierPool(Model):
+    """A named permalink pool inside a qualifier, optionally tied to a preset (PR 9).
+
+    ``preset`` records which preset the pool's permalinks were rolled from
+    (SET_NULL so deleting the preset detaches rather than cascade-deletes the
+    pool). ``live_race`` permalinks in the pool run synchronously on racetime
+    (PR 10); the flag lives on the permalink, not the pool.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_pools', on_delete=fields.CASCADE)
+    qualifier = fields.ForeignKeyField('models.AsyncQualifier', related_name='pools', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    preset = fields.ForeignKeyField(
+        'models.Preset', related_name='async_qualifier_pools', null=True, on_delete=fields.SET_NULL
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    permalinks = fields.ReverseRelation["AsyncQualifierPermalink"]
+
+    class Meta:
+        table = 'asyncqualifierpool'
+        unique_together = (('qualifier', 'name'),)
+        indexes = (('tenant',), ('qualifier',))
+
+
+class AsyncQualifierPermalink(Model):
+    """One seed permalink in a pool; ``par_time`` is maintained from approved runs (PR 9).
+
+    ``par_time`` (whole seconds) is the mean of the N fastest finished+approved
+    runs on this permalink, recomputed by the scoring path; ``par_updated_at``
+    timestamps that recompute. ``live_race`` marks a permalink reserved for a
+    synchronous racetime run (PR 10).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_permalinks', on_delete=fields.CASCADE)
+    pool = fields.ForeignKeyField('models.AsyncQualifierPool', related_name='permalinks', on_delete=fields.CASCADE)
+    url = fields.CharField(max_length=1024)
+    notes = fields.TextField(null=True)
+    live_race = fields.BooleanField(default=False)
+    par_time = fields.IntField(null=True)
+    par_updated_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    runs = fields.ReverseRelation["AsyncQualifierRun"]
+
+    class Meta:
+        table = 'asyncqualifierpermalink'
+        indexes = (('tenant',), ('pool',))
+
+
+class AsyncQualifierRun(Model):
+    """A player's single attempt at a drawn permalink (PR 9).
+
+    Created ``IN_PROGRESS`` at draw time (web-first collapses reveal + start):
+    the ``permalink`` is assigned inside a locked transaction so concurrent draws
+    can't double-assign, ``started_at`` is server-stamped, and the player later
+    submits ``elapsed_seconds`` + ``runner_vod_url`` (→ ``FINISHED``) or forfeits.
+    Finished runs enter review (``review_status``); an approved run is par-scored.
+
+    ``reattempted`` + ``reattempt_reason`` are the one-attempt integrity backstop:
+    a reattempt voids the prior run (excluded from par/scoring/played-count),
+    frees the pool slot, requires a reason, and is limited by
+    ``AsyncQualifier.allowed_reattempts``. ``permalink`` is SET_NULL so purging a
+    permalink keeps run history. The ``live_race`` FK is added in PR 10.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_runs', on_delete=fields.CASCADE)
+    qualifier = fields.ForeignKeyField('models.AsyncQualifier', related_name='runs', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='async_qualifier_runs')
+    permalink = fields.ForeignKeyField(
+        'models.AsyncQualifierPermalink', related_name='runs', null=True, on_delete=fields.SET_NULL
+    )
+    status = fields.CharEnumField(AsyncQualifierRunStatus, default=AsyncQualifierRunStatus.IN_PROGRESS, max_length=20)
+    review_status = fields.CharEnumField(
+        AsyncQualifierReviewStatus, default=AsyncQualifierReviewStatus.PENDING, max_length=20
+    )
+    started_at = fields.DatetimeField(null=True)
+    finished_at = fields.DatetimeField(null=True)
+    # Self-reported elapsed run time in whole seconds (submitted by the player).
+    elapsed_seconds = fields.IntField(null=True)
+    runner_vod_url = fields.CharField(max_length=1024, null=True)
+    reattempted = fields.BooleanField(default=False)
+    reattempt_reason = fields.TextField(null=True)
+    # Par score in [0, 105]; null until an approved run is scored.
+    score = fields.FloatField(null=True)
+    reviewed_by = fields.ForeignKeyField(
+        'models.User', related_name='reviewed_async_qualifier_runs', null=True, on_delete=fields.SET_NULL
+    )
+    reviewed_at = fields.DatetimeField(null=True)
+    # Claim-locking so two reviewers don't collide on the same run.
+    review_claimed_by = fields.ForeignKeyField(
+        'models.User', related_name='claimed_async_qualifier_runs', null=True, on_delete=fields.SET_NULL
+    )
+    review_claimed_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    review_notes = fields.ReverseRelation["AsyncQualifierReviewNote"]
+
+    class Meta:
+        table = 'asyncqualifierrun'
+        indexes = (
+            ('tenant',),
+            ('qualifier', 'review_status'),  # reviewer queue
+            ('user',),                       # "my runs"
+            ('permalink',),                  # par recompute
+        )
+
+
+class AsyncQualifierReviewNote(Model):
+    """A reviewer's note attached to a run during review (PR 9)."""
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_review_notes', on_delete=fields.CASCADE)
+    run = fields.ForeignKeyField('models.AsyncQualifierRun', related_name='review_notes', on_delete=fields.CASCADE)
+    author = fields.ForeignKeyField('models.User', related_name='authored_async_qualifier_review_notes')
+    note = fields.TextField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'asyncqualifierreviewnote'
+        indexes = (('tenant',), ('run',))

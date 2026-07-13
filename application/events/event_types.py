@@ -74,6 +74,13 @@ class EventType:
     # health transitions are observations by the monitor, not user actions.
     SERVICE_HEALTH_ALERT = 'service_health.alert'
 
+    # Async Qualifiers (PR 9; mirrors AuditActions.ASYNC_QUALIFIER_RUN_*). A run
+    # entering review (submitted) and a run being reviewed (approved/rejected) are
+    # tenant-scoped domain events a subscriber can act on. Qualifier/pool/permalink
+    # authoring and admin grants stay audit-only (tenant-internal config).
+    ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
+    ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -89,6 +96,7 @@ class EventType:
         SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,
         DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
         SERVICE_HEALTH_ALERT,
+        ASYNC_QUALIFIER_RUN_SUBMITTED, ASYNC_QUALIFIER_RUN_REVIEWED,
     })
 
     # Wildcard a subscriber can register to receive every event.

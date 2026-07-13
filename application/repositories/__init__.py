@@ -6,6 +6,13 @@ They should NOT contain business logic - only data fetching/persistence.
 """
 
 from .api_token_repository import ApiTokenRepository
+from .async_qualifier_repository import (
+    AsyncQualifierPermalinkRepository,
+    AsyncQualifierPoolRepository,
+    AsyncQualifierRepository,
+    AsyncQualifierReviewNoteRepository,
+    AsyncQualifierRunRepository,
+)
 from .player_availability_repository import PlayerAvailabilityRepository
 from .audit_repository import AuditRepository
 from .challonge_repository import ChallongeRepository
@@ -45,6 +52,11 @@ from .webhook_delivery_repository import WebhookDeliveryRepository
 
 __all__ = [
     'ApiTokenRepository',
+    'AsyncQualifierRepository',
+    'AsyncQualifierPoolRepository',
+    'AsyncQualifierPermalinkRepository',
+    'AsyncQualifierRunRepository',
+    'AsyncQualifierReviewNoteRepository',
     'PlayerAvailabilityRepository',
     'AuditRepository',
     'ChallongeRepository',
