@@ -32,6 +32,9 @@ from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
+from .speedgaming_etl_service import SpeedGamingETLService
+from .speedgaming_sync_service import SpeedGamingSyncService
+from . import speedgaming_sync_worker
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
 from .tenant_service import TenantService
@@ -82,6 +85,9 @@ __all__ = [
     'RacetimeService',
     'ReportsService',
     'SeedGenerationService',
+    'SpeedGamingETLService',
+    'SpeedGamingSyncService',
+    'speedgaming_sync_worker',
     'StreamRoomService',
     'SystemConfigService',
     'TenantService',

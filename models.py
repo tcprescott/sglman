@@ -122,7 +122,13 @@ class TenantMembership(Model):
 
 class User(Model):
     id = fields.IntField(pk=True)
-    discord_id = fields.BigIntField(unique=True)
+    # Nullable+unique (Postgres allows many NULLs) so an unresolved SpeedGaming
+    # player can exist as a *placeholder* User (``is_placeholder=True``,
+    # ``discord_id=NULL``) — keeping ``MatchPlayers.user`` NOT NULL. A DB CHECK
+    # (``discord_id IS NOT NULL OR is_placeholder``) enforces that only
+    # placeholders may lack a discord id; see migration 26. A placeholder is
+    # *upgraded in place* to a real User when its ``discord_id`` later appears.
+    discord_id = fields.BigIntField(unique=True, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
     username = fields.CharField(max_length=150)
@@ -156,6 +162,13 @@ class User(Model):
     racetime_user_id = fields.CharField(max_length=64, null=True, unique=True)
     racetime_username = fields.CharField(max_length=255, null=True)
     racetime_linked_at = fields.DatetimeField(null=True)
+    # Placeholder identity (SpeedGaming ETL, PR 7). A player the SG sync could not
+    # resolve to a real account becomes a placeholder User so its ``MatchPlayers``
+    # row is still first-class. ``speedgaming_id`` is the SG-side numeric id used
+    # to re-find the same placeholder across syncs; unique so an SG id maps to one
+    # User (Postgres allows many NULLs, so non-SG users are unconstrained).
+    is_placeholder = fields.BooleanField(default=False)
+    speedgaming_id = fields.CharField(max_length=64, null=True, unique=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
@@ -389,6 +402,15 @@ class Match(Model):
     title = fields.CharField(max_length=255, null=True)
     generated_seed = fields.ForeignKeyField(
         'models.GeneratedSeeds', related_name='matches', null=True, on_delete=fields.SET_NULL
+    )
+    # Source marker for the SpeedGaming ETL (PR 7). Non-null = this Match was
+    # materialized from an SG episode, which makes the ETL-owned fields
+    # (``scheduled_at``, players, ``tournament``) read-only in SGLMan — the guard
+    # lives in ``MatchService.update_match``. SET_NULL so purging a synced episode
+    # soft-detaches the Match (everything SGLMan added on top survives) rather
+    # than cascade-deleting it. OneToOne: an episode maps to exactly one Match.
+    speedgaming_episode = fields.OneToOneField(
+        'models.SpeedGamingEpisode', related_name='match', null=True, on_delete=fields.SET_NULL
     )
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -1190,3 +1212,88 @@ class RacetimeRoom(Model):
     class Meta:
         table = 'racetimeroom'
         indexes = (('match',),)
+
+
+class SyncStatus(str, Enum):
+    """Reconciliation state of a synced SpeedGaming episode (PR 7).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member (which repr's as ``SyncStatus.SYNCED``).
+    """
+
+    PENDING = 'pending'      # discovered upstream, not yet materialized
+    SYNCED = 'synced'        # materialized/refreshed into a Match this cycle
+    SKIPPED = 'skipped'      # a lifecycle guard held the refresh back
+    CANCELLED = 'cancelled'  # upstream episode gone; the Match soft-detached
+    ERROR = 'error'          # transform/load failed (see ``sync_error``)
+
+
+class SpeedGamingEventLink(Model):
+    """Config row wiring an SG event slug to a tenant tournament (PR 7).
+
+    Tenant-scoped. The sync worker iterates the *active* links, polls the SG
+    schedule API for each ``event_slug`` over a forward window, and materializes
+    the returned episodes into the linked tournament's ``Match`` rows. The
+    observability fields (``last_synced_at`` / ``last_status`` / ``last_error``)
+    make sync health visible in the admin UI without reading the audit log.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='sg_event_links', on_delete=fields.CASCADE)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='sg_event_links', on_delete=fields.CASCADE)
+    event_slug = fields.CharField(max_length=128)
+    # Optional SG ``content_type`` filter (a specific bracket within an event).
+    content_type = fields.CharField(max_length=64, null=True)
+    active = fields.BooleanField(default=True)
+    # Poll cadence; the worker skips a link whose ``last_synced_at`` is newer.
+    sync_interval_minutes = fields.IntField(default=15)
+    # How far ahead (hours) to pull episodes on each poll.
+    lookahead_hours = fields.IntField(default=72)
+    last_synced_at = fields.DatetimeField(null=True)
+    last_status = fields.CharField(max_length=32, null=True)
+    last_error = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    episodes = fields.ReverseRelation["SpeedGamingEpisode"]
+
+    class Meta:
+        table = 'speedgamingeventlink'
+        unique_together = (('tenant', 'tournament', 'event_slug'),)
+        indexes = (('tenant',), ('tournament',))
+
+
+class SpeedGamingEpisode(Model):
+    """A synced SpeedGaming schedule episode — the ETL staging record (PR 7).
+
+    Tenant-scoped, unique ``(tenant, sg_episode_id)``. Holds the raw upstream
+    payload snapshot plus a ``content_hash`` so an unchanged re-sync is a cheap
+    no-op. The materialized SGLMan ``Match`` is reachable via the reverse of
+    ``Match.speedgaming_episode`` (that FK is the canonical source marker; there
+    is no second column here).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='sg_episodes', on_delete=fields.CASCADE)
+    event_link = fields.ForeignKeyField(
+        'models.SpeedGamingEventLink', related_name='episodes', null=True, on_delete=fields.SET_NULL
+    )
+    sg_episode_id = fields.CharField(max_length=64)
+    title = fields.CharField(max_length=255, null=True)
+    scheduled_at = fields.DatetimeField(null=True)
+    payload = fields.JSONField(null=True)
+    content_hash = fields.CharField(max_length=64, null=True)
+    sync_status = fields.CharEnumField(SyncStatus, default=SyncStatus.PENDING, max_length=20)
+    synced_at = fields.DatetimeField(null=True)
+    sync_error = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields — the materialized Match (reverse of Match.speedgaming_episode)
+    match: fields.ReverseRelation["Match"]
+
+    class Meta:
+        table = 'speedgamingepisode'
+        unique_together = (('tenant', 'sg_episode_id'),)
+        indexes = (('tenant',), ('event_link',))

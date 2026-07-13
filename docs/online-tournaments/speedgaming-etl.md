@@ -1,8 +1,17 @@
 # Feature 4: SpeedGaming schedule ETL
 
-> Part of the [Online Tournaments plan](README.md) (proposed, not implemented).
+> Part of the [Online Tournaments plan](README.md).
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
+>
+> **Status: implemented (PR 7).** Placeholder-user pattern on `User`,
+> tenant-scoped `SpeedGamingEventLink` + `SpeedGamingEpisode`, the
+> `Match.speedgaming_episode` source marker, `SpeedGamingETLService` (ported from
+> sahabot2), the hybrid read-only contract (`MatchService.update_match` guard +
+> UI badge + sync lifecycle guards), the `SPEEDGAMING_SYNC_ENABLED` worker
+> (`MOCK_SPEEDGAMING` fake), and the admin **SpeedGaming** tab. Migration 26. See
+> [current-state.md](../../current-state.md) and the data-model reference for the
+> as-built shape.
 
 SahasrahBot treats speedgaming.org as a live dependency — every relevant
 interaction queries the SG API and joins on `episode_id` (`TournamentGames`,

@@ -111,6 +111,62 @@ class UserRepository:
         return user
 
     @staticmethod
+    async def get_by_username(username: str) -> Optional[User]:
+        """Exact (case-insensitive) username match — global, for SG ETL resolution.
+
+        SG supplies a ``discordTag`` (the account's handle) but not always a
+        discord id; this resolves that handle to an existing real ``User`` before
+        falling back to a placeholder. Cross-tenant on purpose (``User`` is
+        global). Returns the first match; ``username`` is not unique, so this is a
+        best-effort resolution step, not an identity guarantee.
+        """
+        return await User.filter(username__iexact=username).exclude(is_placeholder=True).first()
+
+    @staticmethod
+    async def get_placeholder_by_speedgaming_id(speedgaming_id: str) -> Optional[User]:
+        """Find an existing placeholder previously created for this SG player."""
+        return await User.get_or_none(speedgaming_id=speedgaming_id)
+
+    @staticmethod
+    async def create_placeholder(
+        speedgaming_id: str,
+        username: str,
+        display_name: Optional[str] = None,
+    ) -> User:
+        """Create a placeholder ``User`` for an unresolved SG player.
+
+        ``discord_id`` is NULL (allowed only because ``is_placeholder`` is True —
+        the DB CHECK enforces that pairing). The row is inactive for login but is
+        a valid ``MatchPlayers.user``, so an unmatched SG entrant still shows on
+        the roster. Upgraded in place by :meth:`upgrade_placeholder` when a
+        discord id later appears.
+        """
+        return await User.create(
+            username=username,
+            display_name=display_name,
+            discord_id=None,
+            is_placeholder=True,
+            speedgaming_id=speedgaming_id,
+            is_active=False,
+            dm_notifications=False,
+        )
+
+    @staticmethod
+    async def upgrade_placeholder(
+        user: User,
+        discord_id: int,
+        username: Optional[str] = None,
+    ) -> User:
+        """Promote a placeholder to a real ``User`` once its discord id appears."""
+        user.discord_id = discord_id
+        user.is_placeholder = False
+        user.is_active = True
+        if username:
+            user.username = username
+        await user.save()
+        return user
+
+    @staticmethod
     async def update(user: User, **fields) -> None:
         for key, value in fields.items():
             setattr(user, key, value)

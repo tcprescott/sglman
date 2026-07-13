@@ -130,6 +130,20 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.RACETIME_BOT_DISCONNECTED,
     AuditActions.RACETIME_BOT_ERROR,
     AuditActions.RACETIME_BOT_RESTARTED,
+    # SpeedGaming ETL: the domain-relevant outcomes (episode imported / cancelled,
+    # match auto-finished) DO emit events (see EventType.SG_*). The rest are
+    # audit-only: event-link CRUD is tenant-internal sync config, the per-run
+    # sync summary/failure and per-episode skip are worker plumbing, and the
+    # placeholder-user create/upgrade rows are identity bookkeeping — none carry
+    # domain interest a webhook subscriber would act on.
+    AuditActions.SG_EVENT_LINK_CREATED,
+    AuditActions.SG_EVENT_LINK_UPDATED,
+    AuditActions.SG_EVENT_LINK_DELETED,
+    AuditActions.SG_SYNC_COMPLETED,
+    AuditActions.SG_SYNC_FAILED,
+    AuditActions.SG_EPISODE_SKIPPED,
+    AuditActions.SG_PLACEHOLDER_CREATED,
+    AuditActions.SG_PLACEHOLDER_UPGRADED,
     # Volunteer opt-in state, scheduling config, and bulk draft churn.
     AuditActions.VOLUNTEER_OPTED_IN,
     AuditActions.VOLUNTEER_OPTED_OUT,

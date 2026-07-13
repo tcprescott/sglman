@@ -68,6 +68,18 @@ def racetime_bot_enabled() -> bool:
     return os.environ.get('RACETIME_BOT_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def speedgaming_sync_enabled() -> bool:
+    """Master switch for the SpeedGaming ETL sync worker (default: off).
+
+    The background poll loop only spins up when ``SPEEDGAMING_SYNC_ENABLED`` is
+    truthy. Off by default so a deployment with no configured SG event links —
+    the common case — never opens outbound polls. Independent of
+    ``MOCK_SPEEDGAMING``: the switch says "run the worker", the mock flag says
+    "run it against scripted fixtures instead of the live SG API".
+    """
+    return os.environ.get('SPEEDGAMING_SYNC_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

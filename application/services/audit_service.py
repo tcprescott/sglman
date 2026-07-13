@@ -182,6 +182,21 @@ class AuditActions:
     PRESET_DELETED = 'preset.deleted'
     PRESET_IMPORTED = 'preset.imported'
 
+    # SpeedGaming ETL (PR 7). Config CRUD is tenant-scoped, actor = a human
+    # SYNC_ADMIN; the sync/import/skip/cancel/auto-finish rows are written by the
+    # sync worker acting as the system user, tenant from ``tenant_scope``.
+    SG_EVENT_LINK_CREATED = 'sg_sync.event_link_created'
+    SG_EVENT_LINK_UPDATED = 'sg_sync.event_link_updated'
+    SG_EVENT_LINK_DELETED = 'sg_sync.event_link_deleted'
+    SG_SYNC_COMPLETED = 'sg_sync.completed'
+    SG_SYNC_FAILED = 'sg_sync.failed'
+    SG_EPISODE_IMPORTED = 'sg_sync.episode_imported'
+    SG_EPISODE_SKIPPED = 'sg_sync.episode_skipped'
+    SG_EPISODE_CANCELLED = 'sg_sync.episode_cancelled'
+    SG_MATCH_AUTO_FINISHED = 'sg_sync.match_auto_finished'
+    SG_PLACEHOLDER_CREATED = 'sg_sync.placeholder_created'
+    SG_PLACEHOLDER_UPGRADED = 'sg_sync.placeholder_upgraded'
+
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'
     WEBHOOK_UPDATED = 'webhook.updated'

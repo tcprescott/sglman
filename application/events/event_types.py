@@ -51,6 +51,13 @@ class EventType:
     RACE_ROOM_CANCELLED = 'race_room.cancelled'
     RACE_ROOM_RESULT_RECORDED = 'race_room.result_recorded'
 
+    # SpeedGaming ETL (mirrors AuditActions.SG_*). Tenant-scoped domain events a
+    # webhook subscriber can act on; published by the sync worker as the system
+    # user. A subscriber can react to a freshly-imported or cancelled match.
+    SG_EPISODE_IMPORTED = 'sg_sync.episode_imported'
+    SG_EPISODE_CANCELLED = 'sg_sync.episode_cancelled'
+    SG_MATCH_AUTO_FINISHED = 'sg_sync.match_auto_finished'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -63,6 +70,7 @@ class EventType:
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,
         RACE_ROOM_CREATED, RACE_ROOM_OPENED, RACE_ROOM_STARTED,
         RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
+        SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,
     })
 
     # Wildcard a subscriber can register to receive every event.

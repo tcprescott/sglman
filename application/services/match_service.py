@@ -23,6 +23,7 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.match_source_guard import assert_sg_fields_unchanged
 from application.services import discord_queue
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
@@ -328,6 +329,16 @@ class MatchService:
         else:
             new_player_ids = old_player_ids
         players_changed = old_player_ids != new_player_ids
+
+        # SpeedGaming read-only contract (PR 7): reject edits to ETL-owned fields
+        # on a sourced match (schedule / players / tournament). See helper module.
+        assert_sg_fields_unchanged(
+            match,
+            tournament_id=tournament_id,
+            scheduled_date=scheduled_date,
+            scheduled_time=scheduled_time,
+            players_changed=players_changed,
+        )
 
         effective_commentator_ids = set(commentator_ids) if commentator_ids is not None else {c.user_id for c in match.commentators}
         effective_tracker_ids = set(tracker_ids) if tracker_ids is not None else {t.user_id for t in match.trackers}

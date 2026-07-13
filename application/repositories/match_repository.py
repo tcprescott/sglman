@@ -45,6 +45,38 @@ class MatchRepository:
         return await query.first()
     
     @staticmethod
+    async def get_by_speedgaming_episode(episode_id: int) -> Optional[Match]:
+        """The Match materialized from an SG episode, or None (tenant-scoped).
+
+        Used by the ETL to find an already-materialized match on re-sync. The
+        source FK is a OneToOne, so at most one match matches.
+        """
+        return await scoped(
+            Match.filter(speedgaming_episode_id=episode_id)
+        ).prefetch_related('tournament', 'players', 'players__user').first()
+
+    @staticmethod
+    async def list_sourced_stale(cutoff: datetime, tournament_id: int) -> List[Match]:
+        """SG-sourced, unfinished matches for a tournament scheduled before ``cutoff``.
+
+        Feeds the ETL auto-finish guard (matches >4h past that nobody closed).
+        Tenant-scoped; the caller filters out room-linked matches.
+        """
+        return await scoped(Match.filter(
+            tournament_id=tournament_id,
+            speedgaming_episode_id__isnull=False,
+            finished_at__isnull=True,
+            scheduled_at__lt=cutoff,
+        )).prefetch_related('racetime_room')
+
+    @staticmethod
+    async def list_sourced_for_link(event_link_id: int) -> List[Match]:
+        """SG-sourced matches whose episode belongs to an event link (tenant-scoped)."""
+        return await scoped(Match.filter(
+            speedgaming_episode__event_link_id=event_link_id,
+        )).prefetch_related('speedgaming_episode')
+
+    @staticmethod
     async def get_all(
         *,
         tournament_ids: Optional[List[int]] = None,

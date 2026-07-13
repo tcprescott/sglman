@@ -14,9 +14,12 @@ What they cover:
   config, a room profile, an open room on the scheduled match, and finish times
   on the finished match's players.
 """
+from datetime import datetime, timedelta, timezone
+
 from models import (
-    User, UserRole, Role, Tenant, Tournament, Match, MatchPlayers,
+    User, UserRole, Role, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
     Preset, RacetimeBot, RacetimeRoom, RaceRoomProfile,
+    SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
     BotStatus, RaceRoomStatus,
 )
 from application.utils.timezone import now_eastern
@@ -143,4 +146,73 @@ async def seed_online_for_tenant(
         if mp.finish_time is None:
             mp.finish_time = secs
             await mp.save()
+
+    await _seed_speedgaming(tenant, tournament, scheduled_match)
     print(f"    [{tenant.slug}] online tournaments ok")
+
+
+async def _seed_speedgaming(
+    tenant: Tenant, tournament: Tournament, scheduled_match: Match,
+) -> None:
+    """SpeedGaming ETL fixtures (PR 7): an event link, a synced episode, and a
+    sourced match with a mixed real+placeholder roster so the admin SpeedGaming
+    tab shows sync health and the schedule shows a match with the read-only
+    'Synced from SpeedGaming' badge. Placeholder ``speedgaming_id`` is namespaced
+    per tenant (it is globally unique)."""
+    now = datetime.now(timezone.utc)
+
+    link, _ = await SpeedGamingEventLink.get_or_create(
+        tournament=tournament, event_slug=f"sgl-{tenant.slug}", tenant=tenant,
+        defaults={
+            "content_type": None,
+            "active": True,
+            "sync_interval_minutes": 15,
+            "lookahead_hours": 72,
+            "last_synced_at": now,
+            "last_status": "ok",
+        },
+    )
+
+    episode, _ = await SpeedGamingEpisode.get_or_create(
+        sg_episode_id=f"dev-{tenant.slug}-1", tenant=tenant,
+        defaults={
+            "event_link": link,
+            "title": "Synced Bracket — Round 1",
+            "scheduled_at": now + timedelta(days=1),
+            "payload": {"id": f"dev-{tenant.slug}-1", "title": "Synced Bracket — Round 1"},
+            "content_hash": "devseedhash",
+            "sync_status": SyncStatus.SYNCED,
+            "synced_at": now,
+        },
+    )
+
+    sourced_match = await Match.filter(speedgaming_episode=episode).first()
+    if sourced_match is None:
+        sourced_match = await Match.create(
+            tenant=tenant, tournament=tournament,
+            scheduled_at=now + timedelta(days=1),
+            title="Synced Bracket — Round 1",
+            speedgaming_episode=episode,
+        )
+
+    placeholder, _ = await User.get_or_create(
+        speedgaming_id=f"sg_dev_{tenant.slug}",
+        defaults={
+            "username": f"sg_dev_{tenant.slug}",
+            "display_name": "Unmatched SG Player",
+            "is_placeholder": True,
+            "is_active": False,
+            "dm_notifications": False,
+        },
+    )
+
+    # A real player alongside the placeholder (from the scheduled match's roster).
+    real_player = await MatchPlayers.filter(match=scheduled_match).prefetch_related("user").first()
+    roster = [placeholder]
+    if real_player is not None:
+        roster.append(real_player.user)
+    for user in roster:
+        # Enroll first (the real ETL does the same), then add to the match, so a
+        # sourced match's roster shows both real and placeholder entrants.
+        await TournamentPlayers.get_or_create(tournament=tournament, user=user, tenant=tenant)
+        await MatchPlayers.get_or_create(match=sourced_match, user=user, tenant=tenant)

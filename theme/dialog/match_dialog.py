@@ -370,6 +370,21 @@ class AdminMatchDialog(BaseMatchDialog):
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label('* required').classes('required-legend')
 
+                # SpeedGaming read-only contract (PR 7): a match materialized from
+                # an SG episode has read-only ETL-owned fields (schedule / players
+                # / tournament). Surface a badge and disable those inputs; the
+                # service-layer guard is the actual enforcement.
+                is_sg_sourced = self.match is not None and getattr(
+                    self.match, 'speedgaming_episode_id', None
+                ) is not None
+                if is_sg_sourced:
+                    with ui.row().classes('items-center gap-2'):
+                        ui.badge('Synced from SpeedGaming').props('color=primary')
+                        ui.label(
+                            'Schedule, players, and tournament are read-only — '
+                            'updated by the next SpeedGaming sync.'
+                        ).classes('text-caption text-grey')
+
                 selected_tournament = self._render_tournament_select(tournaments, defaults['tournament'])
 
                 stream_room_options = {None: '(None)'}
@@ -434,6 +449,15 @@ class AdminMatchDialog(BaseMatchDialog):
                 choose_any_players.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
+
+                # Lock the ETL-owned inputs on a sourced match (after the initial
+                # option population, which re-enables the players select).
+                if is_sg_sourced:
+                    selected_tournament.disable()
+                    selected_players.disable()
+                    choose_any_players.disable()
+                    date.disable()
+                    time.disable()
 
                 def get_player_ids():
                     pids = selected_players.value

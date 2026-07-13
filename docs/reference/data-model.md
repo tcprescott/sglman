@@ -272,6 +272,19 @@ room lifecycle state, written by PR 4/6.
 | `FINISHED` = `'finished'` | Race complete |
 | `CANCELLED` = `'cancelled'` | Room cancelled |
 
+### `SyncStatus`
+
+Used by `SpeedGamingEpisode.sync_status` (`max_length=20`, default `PENDING`).
+Reconciliation state of a synced SG episode (PR 7). `(str, Enum)` — render `.value`.
+
+| Value | Meaning |
+|---|---|
+| `PENDING` = `'pending'` | Discovered upstream, not yet materialized |
+| `SYNCED` = `'synced'` | Materialized/refreshed into a `Match` |
+| `SKIPPED` = `'skipped'` | A lifecycle guard held the refresh back |
+| `CANCELLED` = `'cancelled'` | Upstream episode gone; the `Match` soft-detached |
+| `ERROR` = `'error'` | Transform/load failed (see `sync_error`) |
+
 ## Model reference
 
 ### Identity
@@ -935,6 +948,60 @@ Room creation and status writes land in PR 4/6.
 | `opened_at` | `DatetimeField` | null | |
 
 Constraints: `Meta.table = 'racetimeroom'`; `Meta.indexes = (('match',),)`.
+
+### SpeedGaming ETL (PR 7)
+
+One-way sync of SpeedGaming schedule episodes into `Match` rows. Two tenant-scoped
+staging models plus the placeholder-user pattern on the global `User`.
+
+**`User` placeholder fields.** `discord_id` becomes **nullable + unique** (Postgres
+allows many NULLs) with a DB `CHECK (discord_id IS NOT NULL OR is_placeholder)`, so
+only a placeholder may lack a discord id. `is_placeholder` (`BooleanField`, default
+`False`) flags an unresolved SG player kept as a first-class `User`; `speedgaming_id`
+(`CharField(64)`, null, unique) is the SG-side id used to re-find the same
+placeholder across syncs and to **upgrade it in place** once a `discord_id` appears.
+
+**`Match.speedgaming_episode`** — O2O → `SpeedGamingEpisode` (null, `SET_NULL`). The
+single canonical **source marker**: non-null = this match was materialized by the
+ETL, which makes its ETL-owned fields (`scheduled_at`, players, `tournament`)
+read-only in SGLMan (guard in `MatchService.update_match`). SET_NULL soft-detaches
+the match if its episode is purged.
+
+#### `SpeedGamingEventLink`
+
+Tenant-scoped config: which SG event slug feeds which tournament, plus observability.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='sg_event_links'` |
+| `tournament` | FK → `Tournament` | not null, `CASCADE` | `related_name='sg_event_links'` |
+| `event_slug` | `CharField(128)` | not null | SG event slug to poll |
+| `content_type` | `CharField(64)` | null | Optional SG content-type filter |
+| `active` | `BooleanField` | default `True` | Worker only polls active links |
+| `sync_interval_minutes` | `IntField` | default `15` | Poll cadence |
+| `lookahead_hours` | `IntField` | default `72` | Forward window per poll |
+| `last_synced_at` / `last_status` / `last_error` | observability | null | Surfaced in the admin SpeedGaming tab |
+
+Constraints: `Meta.table = 'speedgamingeventlink'`; unique `(tenant, tournament, event_slug)`; indexes on `tenant`, `tournament`. Reverse: `episodes`.
+
+#### `SpeedGamingEpisode`
+
+Tenant-scoped staging record. Unique `(tenant, sg_episode_id)`. Holds the raw payload
+snapshot + a `content_hash` (cheap unchanged-since-last check). The materialized
+`Match` is reached via the reverse of `Match.speedgaming_episode` (no second column).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='sg_episodes'` |
+| `event_link` | FK → `SpeedGamingEventLink` | null, `SET_NULL` | `related_name='episodes'` |
+| `sg_episode_id` | `CharField(64)` | not null | SG-side episode id |
+| `title` / `scheduled_at` | | null | Normalized from the payload |
+| `payload` | `JSONField` | null | Raw upstream snapshot |
+| `content_hash` | `CharField(64)` | null | SHA-256 of the payload |
+| `sync_status` | `CharEnumField(SyncStatus)` | default `PENDING` | `pending`/`synced`/`skipped`/`cancelled`/`error` |
+| `synced_at` / `sync_error` | | null | Per-episode outcome |
+
+Constraints: `Meta.table = 'speedgamingepisode'`; unique `(tenant, sg_episode_id)`; indexes on `tenant`, `event_link`.
 
 ## Match lifecycle
 

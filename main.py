@@ -130,6 +130,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from application.utils.environment import racetime_bot_enabled
     if racetime_bot_enabled():
         race_room_worker.start()
+    # SpeedGaming ETL sync worker: polls active event links on their cadence and
+    # materializes SG episodes into Match rows. Gated by SPEEDGAMING_SYNC_ENABLED
+    # (off by default); mockable via MOCK_SPEEDGAMING.
+    from application.services import speedgaming_sync_worker
+    from application.utils.environment import speedgaming_sync_enabled
+    if speedgaming_sync_enabled():
+        speedgaming_sync_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -142,6 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_bus.subscribe_async(TelemetryService().record_event)
     yield
     await race_room_worker.stop()
+    await speedgaming_sync_worker.stop()
     await close_racetime_bot()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()
