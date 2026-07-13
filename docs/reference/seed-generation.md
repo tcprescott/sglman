@@ -4,26 +4,33 @@
 
 ## Overview
 
-Tournaments for randomized games need a freshly rolled game ("seed") for every match. Each [`Tournament`](../../models.py) carries a nullable `seed_generator` column naming the randomizer to use; staff roll a seed per match from the admin schedule, and the resulting URL is stored and shown to players, crew, and API consumers.
+Tournaments for randomized games need a freshly rolled game ("seed") for every match. Each [`Tournament`](../../models.py) either references a [`Preset`](#presets-db-backed) (the `preset` FK — a tenant-authored randomizer + settings blob) or names a randomizer directly via the legacy nullable `seed_generator` column. The FK wins when both are set. Staff roll a seed per match from the admin schedule, and the resulting URL is stored and shown to players, crew, and API consumers.
 
 | File | Contents |
 |---|---|
 | [`application/services/seedgen_service.py`](../../application/services/seedgen_service.py) | `SeedGenerationService`: `AVAILABLE_RANDOMIZERS`, `generate_seed()` dispatch, per-randomizer generators |
 | [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | `MatchScheduleService.generate_seed()` — the production entry point: locking, validation, persistence, DMs, audit |
-| [`presets/`](../../presets) | Per-randomizer settings files (`alttpr/`, `ootr/`, `smmap/`) |
-| [`models.py`](../../models.py) | `Tournament.seed_generator`, `GeneratedSeeds`, `Match.generated_seed` |
-| [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | Seed Generator select on the tournament create/edit dialog |
+| [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`) + `import_builtins` from the `presets/` files |
+| [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
+| [`models.py`](../../models.py) | `Tournament.seed_generator`, `Tournament.preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed` |
+| [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | Seed Generator + Seed Preset selects on the tournament create/edit dialog |
+| [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
 | [`pages/admin_tabs/admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py), [`theme/tables/match.py`](../../theme/tables/match.py) | The per-row **Generate** button and its `roll` event handling |
 | [`.env.example`](../../.env.example) | `OOTR_API_KEY`, `SMMAP_SPOILER_TOKEN` (see [deployment.md](../deployment.md)) |
 
 ### Selecting a randomizer per tournament
 
-The tournament create/edit dialog ([`tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py)) renders a select whose options are `['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS`. [`TournamentService`](../../application/services/tournament_service.py) normalizes the literal string `"None"` to `NULL` on create. On **update** the normalized `None` then falls through the `if seed_generator is not None` change guard, so picking `None` on an existing tournament leaves the stored value unchanged — once set, the generator cannot be cleared from the dialog. The admin Settings tab lists each tournament's `seed_generator` read-only.
+The tournament create/edit dialog ([`tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py)) renders two selects:
+
+- **Seed Generator** — options `['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS`. [`TournamentService`](../../application/services/tournament_service.py) normalizes the literal string `"None"` to `NULL` on create. On **update** the normalized `None` then falls through the `if seed_generator is not None` change guard, so picking `None` on an existing tournament leaves the stored value unchanged — once set, the generator cannot be cleared from the dialog.
+- **Seed Preset** — options are the tenant's `Preset` rows (loaded via `PresetService.list_selectable`), plus a `— None —` entry (id `0`) that maps back to `NULL`. `TournamentService.create_tournament`/`update_tournament` take a `preset_id`; it is validated against the tenant-scoped `PresetRepository` (a preset from another tenant is rejected), and on update `None` clears the FK while omitting the argument leaves it untouched. When set, the preset's `randomizer` overrides the Seed Generator choice.
+
+The admin Settings tab lists each tournament's `seed_generator` read-only.
 
 ### Generation flow
 
 1. The admin Schedule tab's match table shows a **Generate** button (casino icon) in the Seed column for rows where `tournament_seed_generator` is set and no seed exists yet ([`theme/tables/match.py`](../../theme/tables/match.py); the card/mobile layout has the same button). Clicking emits a `roll` event that ends in `on_generate_seed` in [`admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py).
-2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then dispatches `SeedGenerationService.generate_seed(match.tournament.seed_generator)`.
+2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the randomizer + preset — `tournament.preset` (its `randomizer` + `settings`) when the FK is set, else the legacy `tournament.seed_generator` string with no preset — and dispatches `SeedGenerationService.generate_seed(randomizer, preset)`.
 3. The returned string is persisted as a [`GeneratedSeeds`](../../models.py) row and linked from the match:
 
    | `GeneratedSeeds` field | Value |
@@ -33,7 +40,7 @@ The tournament create/edit dialog ([`tournament_edit_dialog.py`](../../theme/dia
    | `created_at` / `updated_at` | automatic timestamps |
 
    `Match.generated_seed` is a nullable FK to `GeneratedSeeds` (`related_name='matches'`). Note: `MatchScheduleService` passes a `tournament=` kwarg to `GeneratedSeeds.create()`, but the model defines no such field, so no tournament linkage is stored.
-4. Players are DM'd the seed URL in the background via the Discord queue (respecting each user's `dm_notifications` opt-out), and an audit entry `match.seed_rolled` (`AuditActions.MATCH_SEED_ROLLED`) is written with `match_id`, `preset` (which holds the randomizer name), and `seed_url`.
+4. Players are DM'd the seed URL in the background via the Discord queue (respecting each user's `dm_notifications` opt-out), and an audit entry `match.seed_rolled` (`AuditActions.MATCH_SEED_ROLLED`) is written with `match_id`, `randomizer`, `preset` (the preset name, or `None` when rolled from the legacy `seed_generator`), and `seed_url`.
 
 The seed is displayed on the home Schedule and Player tabs and in the admin match table — values matching `^https?://` render as truncated hyperlinks, anything else as plain text. The REST API exposes it as `MatchResponse.generated_seed` (`GeneratedSeedBase`: `id`, `seed_url`, `seed_info`, `created_at`) in the [`api/`](../../api/) package ([rest-api.md](rest-api.md)). The admin match dialog's **Clear Seed** button ([`match_dialog.py`](../../theme/dialog/match_dialog.py)) sets the FK back to `NULL` via `MatchService.update_match(clear_seed=True)`; the `GeneratedSeeds` row itself is not deleted.
 
@@ -53,14 +60,14 @@ Majora's Mask Randomizer (`mmr`) and Wind Waker Randomizer (`wwr`) are intention
 
 | Method | Behavior | Returns |
 |---|---|---|
-| `generate_seed(randomizer: str) -> str` | Looks up `randomizer` in an internal dispatch map (`alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `test`) and awaits the matching private generator. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names. |
+| `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Looks up `randomizer` in an internal dispatch map (`alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `test`) and awaits the matching private generator. For ALTTPR, a supplied `preset` provides the customizer settings; other backends ignore it (still hard-coded until randomizer-coverage expansion). | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names. |
 | `generate_alttpr_for_tournament(tournament_id: int, balanced: bool = True) -> str` | ALTTPR generation with a community triforce text embedded; see [below](#alttpr-tournament-generation-and-triforce-texts). Raises `ValueError` when the tournament does not exist. | ALTTPR permalink URL. |
 
 ### Dispatch targets (private generators)
 
 | Method | Registered in dispatch map | Summary |
 |---|---|---|
-| `_generate_alttpr` | yes | pyz3r customizer roll from `presets/alttpr/casualboots.yaml` |
+| `_generate_alttpr` | yes | pyz3r customizer roll from `preset.settings` when a preset is given, else the built-in `presets/alttpr/casualboots.yaml` settings |
 | `_generate_ff1r` | yes | Local URL construction: random seed substituted into a fixed flags URL |
 | `_generate_z1r` | yes | Local string: random seed number + fixed flags string |
 | `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s4.json` |
@@ -81,7 +88,7 @@ Majora's Mask Randomizer (`mmr`) and Wind Waker Randomizer (`wwr`) are intention
 | Concurrent click (per-match `asyncio.Lock` in class-level `_seed_locks` already held) | `(False, "Seed generation already in progress for this match", None)` |
 | Actor fails `AuthService.can_transition_match` | `(False, "You do not have permission to roll a seed for this match", None)` |
 | Match already has a seed | `(False, "A seed has already been generated for this match", None)` |
-| `tournament.seed_generator` is `NULL` | `(False, "No seed generator configured for this tournament", None)` |
+| Neither `tournament.preset` nor `tournament.seed_generator` is set | `(False, "No seed generator configured for this tournament", None)` |
 | Generator not in `AVAILABLE_RANDOMIZERS` | `(False, "Seed generator '…' not found", None)` |
 | Any exception during generation | `(False, "Error generating seed: …", None)` |
 | Success | `(True, "Seed generated successfully for match ID {id}", seed_url)` |
@@ -101,7 +108,7 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 
 ### alttpr
 
-`_generate_alttpr` loads [`casualboots.yaml`](../../presets/alttpr/casualboots.yaml), then calls pyz3r's `ALTTPR.generate(settings=preset['settings'], endpoint='/api/customizer')` and returns `seed.url` — an alttpr.com permalink of the form `https://alttpr.com/h/<hash>`. The customizer endpoint is required because the preset defines a custom item pool and starting equipment. No credentials needed.
+`_generate_alttpr(preset=None)` uses `preset.settings` when a preset is supplied, otherwise falls back to the built-in [`casualboots.yaml`](../../presets/alttpr/casualboots.yaml) `settings`. It then calls pyz3r's `ALTTPR.generate(settings=settings, endpoint='/api/customizer')` and returns `seed.url` — an alttpr.com permalink of the form `https://alttpr.com/h/<hash>`. The customizer endpoint is required because these presets define a custom item pool and starting equipment. No credentials needed.
 
 ### ff1r
 
@@ -140,20 +147,24 @@ preset['settings']['texts']['end_triforce'] = "{NOBORDER}\n" + text
 
 Note: the match-rolling flow always calls `generate_seed('alttpr')` → `_generate_alttpr`, which does **not** inject texts; `generate_alttpr_for_tournament` currently has no caller in the codebase.
 
-## Presets
+## Presets (DB-backed)
+
+Presets are tenant-authored `Preset` rows (`randomizer`, `name`, `settings` JSON, `description`), managed on the admin **Presets** tab via [`PresetService`](../../application/services/preset_service.py) (CRUD gated by `AuthService.can_manage_presets` — STAFF, `PRESET_MANAGER`, super-admin, or the system actor). A tournament links one through its `preset` FK; when set, seed generation resolves the preset's `randomizer` + `settings` and it overrides the legacy `seed_generator` string.
+
+The committed `presets/` files remain as **built-in starting rows**: `PresetService.import_builtins` (the "Import Built-ins" button) parses them and inserts any not already present (idempotent, matched by `(randomizer, name)`).
 
 ```
-presets/
+presets/                       # built-in files imported into the Preset table
 ├── alttpr/
-│   ├── casualboots.yaml      # used by _generate_alttpr and generate_alttpr_for_tournament
-│   └── sglive2025.yaml       # not referenced by any code
+│   ├── casualboots.yaml       # also the _generate_alttpr fallback when no preset
+│   └── sglive2025.yaml
 ├── ootr/
-│   └── sgl25.json            # used by _generate_ootr
+│   └── sgl25.json             # used by _generate_ootr (hard-coded until coverage expansion)
 └── smmap/
-    └── community_race_s4.json  # used by _generate_smmap
+    └── community_race_s4.json # used by _generate_smmap (hard-coded until coverage expansion)
 ```
 
-There is no preset-selection mechanism: each generator method opens its preset path as a hard-coded relative path (so the process must run from the repository root, as `start.sh` and the Docker image do). `Tournament.seed_generator` chooses the randomizer only, never the preset. The ALTTPR YAMLs carry a top-level `customizer: true` flag plus `goal_name`/`description` metadata; only the `settings` mapping is sent to the API.
+For ALTTPR-style files the payload lives under a top-level `settings` key (with sibling `goal_name`/`description`/`customizer` metadata); `import_builtins` stores that `settings` subtree so it is handed to the randomizer unchanged. Other backends store the whole parsed file as `settings`. Currently only ALTTPR seed generation reads `preset.settings`; the other generators still open their hard-coded paths (randomizer coverage is expanded in a later PR).
 
 | Preset | Configures |
 |---|---|
@@ -170,6 +181,6 @@ There is no preset-selection mechanism: each generator method opens its preset p
 4. Document the new env var in [`.env.example`](../../.env.example) and [deployment.md](../deployment.md), and add it to the deployment environment.
 5. Select the new name as the tournament's Seed Generator in the tournament dialog; the admin schedule's Generate button picks it up with no further wiring. Update this page and the preset table above.
 
-To change which preset an existing randomizer uses, edit the hard-coded path in its `_generate_*` method (and `generate_alttpr_for_tournament` for ALTTPR, which loads its preset independently).
+To change which settings an ALTTPR tournament rolls, author or edit a `Preset` on the admin **Presets** tab and select it on the tournament — no code change. For the still-hard-coded backends, edit the path in the `_generate_*` method (and `generate_alttpr_for_tournament` for ALTTPR, which loads `casualboots.yaml` independently).
 
 Related: [services.md](services.md) (service layer), [data-model.md](data-model.md) (`GeneratedSeeds`, `Match`, `Tournament` schemas), [frontend.md](frontend.md) (match table internals).

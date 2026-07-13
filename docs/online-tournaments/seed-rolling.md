@@ -40,7 +40,7 @@ generator samples — same user-managed authoring story.
 
 ### Coverage checklist
 
-_To be populated in Phase 1 from the authoritative `seedgen/` list._
+Phase 1 (preset infrastructure) is **implemented** — see [PR 1](implementation/pr-1-presets.md). Only ALTTPR reads `preset.settings` today; the remaining backends stay hard-coded until the randomizer-coverage expansion PR, tracked below.
 
 | Randomizer | In SGLMan today | Ported |
 |---|---|---|
@@ -64,10 +64,10 @@ enums.
 
 ## Roadmap
 
-- **Phase 1** — user-managed presets + seedgen preset selection: `Preset` model,
-  admin tab, `SeedGenerationService` preset arg, built-in preset import.
-  ALTTPR-first; immediately useful on-site too. This is the recommended starting
-  point for the whole plan.
+- **Phase 1** ✅ *implemented* — user-managed presets + seedgen preset selection:
+  `Preset` model, admin tab, `SeedGenerationService` preset arg, built-in preset
+  import. ALTTPR-first; immediately useful on-site too. This is the recommended
+  starting point for the whole plan.
 - **Phase 9+** — randomizer coverage expansion: incremental backends toward full
   SahasrahBot parity; mystery weightsets.
 

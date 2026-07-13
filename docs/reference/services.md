@@ -43,6 +43,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-watcher.md](../features/match-watcher.md) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
+| `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
@@ -286,7 +287,7 @@ Match lifecycle transitions (seat → start → finish → confirm), seed rollin
 | `start_match(match, actor=None)` | `None` | Set `started_at` (requires seated, rejects restart); audits `match.started`; DMs participants. |
 | `finish_match(match, actor=None)` | `None` | Set `finished_at` (requires started, rejects re-finish); audits `match.finished`; DMs participants. |
 | `confirm_match(match, actor=None)` | `None` | Set `confirmed_at` (requires finished, rejects re-confirm); audits `match.confirmed`; DMs participants. |
-| `generate_seed(match_id, actor=None)` | `(bool, str, str \| None)` | Roll a seed via `SeedGenerationService` using the tournament's `seed_generator` preset. Per-match `asyncio.Lock` (class-level `_seed_locks` dict) rejects concurrent rolls; also fails softly when a seed already exists, no generator is configured, the generator is unknown, or permission is denied. On success creates the `GeneratedSeeds` row, audits `match.seed_rolled`, and enqueues seed DMs to opted-in players. Exceptions are caught and returned as `(False, error, None)`. |
+| `generate_seed(match_id, actor=None)` | `(bool, str, str \| None)` | Roll a seed via `SeedGenerationService`, resolving the tournament's `preset` FK (randomizer + settings) when set, else the legacy `seed_generator` string. Per-match `asyncio.Lock` (class-level `_seed_locks` dict) rejects concurrent rolls; also fails softly when a seed already exists, no generator is configured, the generator is unknown, or permission is denied. On success creates the `GeneratedSeeds` row, audits `match.seed_rolled`, and enqueues seed DMs to opted-in players. Exceptions are caught and returned as `(False, error, None)`. |
 | `notify_match_participants(match, message)` | `None` | DM opted-in players, approved crew, and watchers — one DM per person; watchers get the Unwatch-button variant. Never raises; per-DM failures are printed. |
 | `notify_match_crew(match, message)` | `None` | DM approved crew and watchers, excluding players (players get the acknowledgment DM instead). Never raises. |
 | `notify_acknowledgment_request(match, *, rescheduled)` | `None` | DM each player whose acknowledgment is still pending with an Acknowledge button; message wording switches on `rescheduled`. Never raises. |
@@ -403,10 +404,25 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 | Member | Returns | Description |
 |---|---|---|
 | `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
-| `generate_seed(randomizer)` | `str` | Dispatch to the named generator; returns the seed URL/string. `ValueError` for unsupported keys. |
+| `generate_seed(randomizer, preset=None)` | `str` | Dispatch to the named generator; returns the seed URL/string. ALTTPR uses `preset.settings` when a `Preset` is supplied (else the built-in `casualboots` settings); other backends ignore the preset (hard-coded until PR 11). `ValueError` for unsupported keys. |
 | `generate_alttpr_for_tournament(tournament_id, balanced=True)` | `str` | ALTTPR seed with an approved community triforce text embedded — balanced selection weights every submitter equally; falls back to a plain seed when no approved texts exist. `ValueError` for unknown tournaments. |
 
-Collaborators: `TriforceTextService` (text selection), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path), `theme/dialog/tournament_edit_dialog.py` (reads `AVAILABLE_RANDOMIZERS`).
+Collaborators: `TriforceTextService` (text selection), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path, passing the resolved `Preset`), `theme/dialog/tournament_edit_dialog.py` (reads `AVAILABLE_RANDOMIZERS`).
+
+### preset_service.py — PresetService
+
+Tenant-authored seed-rolling presets (a named `randomizer` + `settings` blob). Deep dive: [seed-generation.md](seed-generation.md#presets-db-backed).
+
+| Member | Returns | Description |
+|---|---|---|
+| `list_presets(actor)` | `list[Preset]` | All of the tenant's presets. Gated by `AuthService.can_manage_presets`. |
+| `list_selectable()` | `list[Preset]` | All presets (ungated read) — populates the tournament dialog's Seed Preset select. |
+| `create_preset(actor, *, name, randomizer, settings, description=None)` | `Preset` | Validate (known randomizer, dict settings, unique `(randomizer, name)`) and insert. Audits `preset.created`. |
+| `update_preset(actor, preset_id, *, name=None, randomizer=None, settings=None, description=None)` | `Preset` | Partial update with the same validation + uniqueness re-check. Audits `preset.updated`. |
+| `delete_preset(actor, preset_id)` | `None` | Delete. Audits `preset.deleted`. Detaches linked tournaments (`SET_NULL`). |
+| `import_builtins(actor)` | `list[Preset]` | Import the committed `presets/` files as rows, idempotent by `(randomizer, name)`. Audits `preset.imported`. |
+
+All mutations gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). Collaborators: `PresetRepository`, `AuditService`, `AuthService`, `SeedGenerationService` (randomizer validity). Consumers: `pages/admin_tabs/admin_presets.py` (admin Presets tab), `theme/dialog/tournament_edit_dialog.py` (Seed Preset select).
 
 ### stream_room_service.py — StreamRoomService
 

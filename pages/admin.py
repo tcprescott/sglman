@@ -18,6 +18,7 @@ from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_webhooks import admin_webhooks_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
+from pages.admin_tabs.admin_presets import admin_presets_page
 from theme.base import BaseLayout
 
 
@@ -60,11 +61,12 @@ def create() -> None:
         is_stream_manager = Role.STREAM_MANAGER in roles
         is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
         is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
+        is_preset_manager = Role.PRESET_MANAGER in roles
         is_ta_any = await user.admin_tournaments.all().exists()
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
 
         if not (is_staff or is_stream_manager or is_equipment_manager
-                or is_volunteer_coordinator or is_ta_any or is_cc_any):
+                or is_volunteer_coordinator or is_preset_manager or is_ta_any or is_cc_any):
             await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
             with ui.row():
                 ui.label('You do not have permission to view this page.').classes('text-error')
@@ -94,6 +96,8 @@ def create() -> None:
             tabs.append({'label': 'Users', 'icon': 'people', 'content': admin_users_page})
         if is_staff or is_ta_any:
             tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page})
+        if is_staff or is_preset_manager:
+            tabs.append({'label': 'Presets', 'icon': 'tune', 'content': admin_presets_page})
         if is_staff or is_stream_manager:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
         if is_staff or is_ta_any:

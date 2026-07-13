@@ -2,6 +2,7 @@ from nicegui import app, ui
 
 from application.services import (
     ChallongeService,
+    PresetService,
     SeedGenerationService,
     TournamentService,
     get_user_from_discord_id,
@@ -16,6 +17,7 @@ class TournamentDialog:
         self.dialog = None
         self.tournament_service = TournamentService()
         self.challonge_service = ChallongeService()
+        self.preset_service = PresetService()
 
     async def open(self):
         is_create = self.tournament is None
@@ -40,6 +42,17 @@ class TournamentDialog:
                 seed_generator_input = ui.select(
                     randomizer_choices, label='Seed Generator', value=default_seed,
                 ).classes('input-full-width')
+                presets = await self.preset_service.list_selectable()
+                # None (0) clears the FK; ui.select cannot key an option on None,
+                # so a 0 sentinel stands in and maps back to None on submit.
+                preset_options = {0: '— None (use Seed Generator) —'}
+                preset_options.update({p.id: f'{p.randomizer} / {p.name}' for p in presets})
+                default_preset = self.tournament.preset_id if self.tournament and self.tournament.preset_id else 0
+                preset_input = ui.select(
+                    preset_options, label='Seed Preset', value=default_preset,
+                ).classes('input-full-width').props(
+                    'hint="Overrides Seed Generator when set — resolves the preset\'s randomizer & settings."'
+                )
                 bracket_url_input = ui.input(
                     'Bracket URL',
                     value=self.tournament.bracket_url if self.tournament and self.tournament.bracket_url else '',
@@ -155,6 +168,7 @@ class TournamentDialog:
                                 players_per_match=players_per_match_input.value,
                                 team_size=team_size_input.value,
                                 staff_administered=staff_administered_checkbox.value,
+                                preset_id=(preset_input.value or None),
                                 actor=actor,
                             )
                             ui.notify('Tournament updated.', color='positive')
@@ -176,6 +190,7 @@ class TournamentDialog:
                             players_per_match=players_per_match_input.value,
                             team_size=team_size_input.value,
                             staff_administered=staff_administered_checkbox.value,
+                            preset_id=(preset_input.value or None),
                             actor=actor,
                         )
                         with self.dialog:

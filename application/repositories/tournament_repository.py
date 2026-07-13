@@ -119,6 +119,7 @@ class TournamentRepository:
         max_match_duration: Optional[int] = None,
         staff_administered: bool = False,
         config: Optional[Dict[str, Any]] = None,
+        preset_id: Optional[int] = None,
     ) -> Tournament:
         """
         Create a new tournament.
@@ -156,8 +157,9 @@ class TournamentRepository:
             max_match_duration=max_match_duration,
             staff_administered=staff_administered,
             config=config,
+            preset_id=preset_id,
         )
-    
+
     @staticmethod
     async def update(tournament: Tournament, **fields) -> None:
         """

@@ -24,6 +24,7 @@ from .match_schedule_service import MatchScheduleService
 from .match_suggestion_service import MatchSuggestionService
 from .player_availability_service import PlayerAvailabilityService
 from .match_watcher_service import MatchWatcherService
+from .preset_service import PresetService
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
 from .stream_room_service import StreamRoomService
@@ -68,6 +69,7 @@ __all__ = [
     'MatchSuggestionService',
     'MatchWatcherService',
     'PlayerAvailabilityService',
+    'PresetService',
     'ReportsService',
     'SeedGenerationService',
     'StreamRoomService',

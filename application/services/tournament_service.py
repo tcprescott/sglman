@@ -7,11 +7,15 @@ and admin/crew-coordinator membership.
 
 from typing import Any, Dict, Optional
 
-from application.repositories import TournamentRepository
+from application.repositories import PresetRepository, TournamentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.tournament_config import validate_tournament_config
 from models import Tournament, User
+
+# Sentinel distinguishing "caller did not supply preset_id" (leave as-is) from an
+# explicit None (detach the preset). Update-only; create defaults to no preset.
+_UNSET = object()
 
 
 class TournamentService:
@@ -19,7 +23,22 @@ class TournamentService:
 
     def __init__(self) -> None:
         self.repository = TournamentRepository()
+        self.preset_repository = PresetRepository()
         self.audit_service = AuditService()
+
+    async def _resolve_preset_id(self, preset_id: Optional[int]) -> Optional[int]:
+        """Validate an incoming preset_id is a real preset in this tenant.
+
+        ``None`` clears the FK. A non-null id must resolve through the
+        tenant-scoped repository, so a preset from another tenant is rejected
+        rather than silently linked.
+        """
+        if preset_id is None:
+            return None
+        preset = await self.preset_repository.get_by_id(preset_id)
+        if preset is None:
+            raise ValueError("Preset not found")
+        return preset.id
 
     async def create_tournament(
         self,
@@ -37,6 +56,7 @@ class TournamentService:
         team_size: int = 1,
         staff_administered: bool = False,
         config: Optional[Dict[str, Any]] = None,
+        preset_id: Optional[int] = None,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -51,6 +71,7 @@ class TournamentService:
             seed_generator = None
 
         config = validate_tournament_config(config)
+        preset_id = await self._resolve_preset_id(preset_id)
 
         tournament = await self.repository.create(
             name=name.strip(),
@@ -67,6 +88,7 @@ class TournamentService:
             team_size=team_size,
             staff_administered=staff_administered,
             config=config,
+            preset_id=preset_id,
         )
 
         await self.audit_service.write_log(
@@ -94,6 +116,7 @@ class TournamentService:
         team_size: Optional[int] = None,
         staff_administered: Optional[bool] = None,
         config: Optional[Dict[str, Any]] = None,
+        preset_id: Any = _UNSET,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -138,6 +161,8 @@ class TournamentService:
             update_data['staff_administered'] = staff_administered
         if config is not None:
             update_data['config'] = validate_tournament_config(config)
+        if preset_id is not _UNSET:
+            update_data['preset_id'] = await self._resolve_preset_id(preset_id)
 
         result = await self.repository.update(tournament, **update_data)
 

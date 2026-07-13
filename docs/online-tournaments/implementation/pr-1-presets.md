@@ -2,6 +2,14 @@
 
 > Feature 2. Roadmap phase 1. The recommended **first feature PR** — useful on-site
 > too, and the foundation qualifiers (PR 9) and room seeding (PR 6) sit on.
+>
+> **Status: implemented.** Tenant-scoped `Preset` model (`unique (tenant, randomizer, name)`)
+> + `Tournament.preset` FK (`SET_NULL`, wins over legacy `seed_generator`); `PresetRepository`
+> + `PresetService` (CRUD gated by `can_manage_presets`, audited `preset.*`, `import_builtins`
+> from `presets/`); `SeedGenerationService.generate_seed(randomizer, preset)` (ALTTPR reads
+> `preset.settings`); `MatchScheduleService.generate_seed` resolves the FK; admin **Presets**
+> tab (`PRESET_MANAGER`/STAFF); Seed Preset select on the tournament dialog; migration 22;
+> leak + service + seedgen tests. Non-ALTTPR backends stay hard-coded (PR 11).
 
 **Goal:** presets become tenant-authored DB rows; seed generation takes a preset
 instead of hard-coded paths.

@@ -106,6 +106,39 @@ class TestGenerateSeed:
 
 
 # ---------------------------------------------------------------------------
+# generate_seed — ALTTPR preset selection (no network; ALTTPR.generate patched)
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateSeedPreset:
+    async def test_alttpr_uses_preset_settings(self, service):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        preset = SimpleNamespace(randomizer='alttpr', settings={'mode': 'open', 'goal': 'ganon'})
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/seed'))
+        with patch('application.services.seedgen_service.ALTTPR.generate', gen):
+            url = await service.generate_seed('alttpr', preset)
+
+        assert url == 'https://alttpr.com/h/seed'
+        # The preset's settings are handed to the randomizer verbatim.
+        assert gen.await_args.kwargs['settings'] == {'mode': 'open', 'goal': 'ganon'}
+
+    async def test_alttpr_without_preset_falls_back_to_builtin(self, service):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/builtin'))
+        with patch('application.services.seedgen_service.ALTTPR.generate', gen):
+            url = await service.generate_seed('alttpr')
+
+        assert url == 'https://alttpr.com/h/builtin'
+        # Falls back to the committed casualboots settings (a non-empty dict).
+        settings = gen.await_args.kwargs['settings']
+        assert isinstance(settings, dict) and settings
+
+
+# ---------------------------------------------------------------------------
 # _generate_ff1r — pure URL manipulation, no network
 # ---------------------------------------------------------------------------
 

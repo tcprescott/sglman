@@ -322,6 +322,14 @@ class Tournament(Model):
     # which validates it with ``validate_tournament_config`` (unknown keys raise
     # ``ValueError``). ``null`` until a tournament opts into online behavior.
     config = fields.JSONField(null=True)
+    # Seed-rolling preset (PR 1+). Coexists with the legacy ``seed_generator``
+    # string: when this FK is set it wins (seed generation resolves the preset's
+    # randomizer + settings); otherwise ``seed_generator`` still drives the
+    # hard-coded path. SET_NULL so deleting a preset detaches its tournaments
+    # rather than cascade-deleting them.
+    preset = fields.ForeignKeyField(
+        'models.Preset', related_name='tournaments', null=True, on_delete=fields.SET_NULL
+    )
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -588,6 +596,33 @@ class GeneratedSeeds(Model):
     seed_info = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class Preset(Model):
+    """A tenant-authored seed-rolling preset: a named randomizer settings blob.
+
+    Replaces the hard-coded ``presets/*`` files as the source of seed settings —
+    seed generation resolves a ``Preset`` (its ``randomizer`` + ``settings``)
+    rather than opening a path. The built-in files can be imported as starting
+    rows (see ``PresetService.import_builtins``). ``settings`` is the raw payload
+    handed to the randomizer backend (for ALTTPR, the customizer settings dict).
+    """
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='presets', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    randomizer = fields.CharField(max_length=32)
+    settings = fields.JSONField()
+    description = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    tournaments = fields.ReverseRelation["Tournament"]
+
+    class Meta:
+        table = 'preset'
+        # Formerly-global preset names are namespaced per tenant; a preset is
+        # uniquely a (randomizer, name) within its tenant.
+        unique_together = (('tenant', 'randomizer', 'name'),)
 
 class SystemConfiguration(Model):
     id = fields.IntField(pk=True)

@@ -72,6 +72,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # System configuration.
     AuditActions.SYSTEM_CONFIG_UPDATED,
     AuditActions.TRIFORCE_TEXT_DELETED,
+    # Seed-preset catalog CRUD — tenant-internal settings authoring, no external
+    # subscriber interest (the seed roll itself already emits MATCH_SEED_ROLLED).
+    AuditActions.PRESET_CREATED,
+    AuditActions.PRESET_UPDATED,
+    AuditActions.PRESET_DELETED,
+    AuditActions.PRESET_IMPORTED,
     # Secrets — leaking these to arbitrary receivers is a risk.
     AuditActions.APITOKEN_CREATED,
     AuditActions.APITOKEN_REVOKED,

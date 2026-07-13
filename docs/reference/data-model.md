@@ -44,7 +44,7 @@ tenant-scoped.**
 - **Tenant-scoped (`tenant` FK, NOT NULL, `CASCADE`):** every other model —
   `Tournament`, `Match`, `MatchPlayers`, `MatchAcknowledgment`,
   `TournamentPlayers`, `TournamentNotificationPreference`, `StreamRoom`,
-  `Commentator`, `Tracker`, `MatchWatcher`, `GeneratedSeeds`,
+  `Commentator`, `Tracker`, `MatchWatcher`, `GeneratedSeeds`, `Preset`,
   `SystemConfiguration`, `Webhook`, `WebhookDelivery`, `DiscordRoleMapping`,
   `TriforceText`, `ApiToken`, `Feedback`, `Equipment`, `EquipmentLoan`,
   `VolunteerProfile`, `VolunteerPosition`, `VolunteerShift`,
@@ -339,7 +339,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 |---|---|---|---|
 | `name` | `CharField(255)` | not null | |
 | `description` | `TextField` | null | |
-| `seed_generator` | `CharField(255)` | null | Preset name for seed generation ([seed-generation.md](seed-generation.md)) |
+| `seed_generator` | `CharField(255)` | null | Legacy randomizer name for seed generation; the `preset` FK wins when set ([seed-generation.md](seed-generation.md)) |
 | `is_active` | `BooleanField` | default `True` | |
 | `players_per_match` | `IntField` | default `2` | |
 | `team_size` | `IntField` | default `1` | |
@@ -353,6 +353,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `challonge_tournament_url` | `CharField(255)` | null | Challonge bracket URL |
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
 | `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments](../online-tournaments/README.md) |
+| `preset` | FK → `Preset` | null, `SET_NULL` | Seed-rolling preset; resolves the randomizer + settings for seed generation and overrides `seed_generator` when set. `related_name='tournaments'` |
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |
@@ -457,6 +458,19 @@ Randomizer seed generated for a match; referenced by `Match.generated_seed`. Cre
 |---|---|---|---|
 | `seed_url` | `CharField(255)` | not null | Link to the generated seed |
 | `seed_info` | `TextField` | null | Generator metadata |
+
+#### `Preset`
+
+Tenant-authored seed-rolling preset: a named `randomizer` + `settings` blob that seed generation resolves instead of a hard-coded `presets/*` file. CRUD via `PresetService` (gated by `AuthService.can_manage_presets`); the built-in files import as starting rows. Referenced by `Tournament.preset`. See [seed-generation.md](seed-generation.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `name` | `CharField(255)` | not null | Unique per `(tenant, randomizer)` |
+| `randomizer` | `CharField(32)` | not null | One of `SeedGenerationService.AVAILABLE_RANDOMIZERS` |
+| `settings` | `JSONField` | not null | Raw settings payload handed to the randomizer backend |
+| `description` | `TextField` | null | |
+
+Constraint: `unique (tenant, randomizer, name)`. Reverse accessor `tournaments`.
 
 ### Crew
 
@@ -946,7 +960,7 @@ Serves `Tournament` and `TournamentPlayers` ([`tournament_repository.py`](../../
 | `async get_by_ids(tournament_ids: List[int]) -> List[Tournament]` | Bulk lookup ordered by name |
 | `async get_all(active_only=False, staff_only=False, prefetch_players=False) -> List[Tournament]` | All tournaments ordered by name; filters on `is_active` / `staff_administered` |
 | `async get_all_as_dict(active_only=False, staff_only=False) -> dict[int, str]` | id → name map for select options |
-| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False, config=None) -> Tournament` | Insert a tournament (`config` is the validated hybrid-config blob) |
+| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False, config=None, preset_id=None) -> Tournament` | Insert a tournament (`config` is the validated hybrid-config blob; `preset_id` links a seed-rolling `Preset`) |
 | `async update(tournament: Tournament, **fields) -> None` | `setattr` each field and save |
 | `async delete(tournament: Tournament) -> None` | Delete the tournament |
 | `async enroll_player(tournament: Tournament, user) -> TournamentPlayers` | Insert an enrollment row |
@@ -1069,6 +1083,7 @@ The equipment, volunteering, availability, Challonge, API-token, feedback, and w
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `delete`, `delete_by_endpoint`, `touch_last_used` (instance methods) |
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` (instance methods) |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `prune_older_than` (instance methods) |
+| `PresetRepository` | [`preset_repository.py`](../../application/repositories/preset_repository.py) | `Preset` | `get_by_id`, `get_by_natural_key`, `list_all`, `list_by_randomizer`, `create`, `update`, `delete` (instance methods) |
 
 ## Migrations
 

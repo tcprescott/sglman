@@ -16,13 +16,14 @@ from application.repositories.equipment_repository import EquipmentRepository
 from application.repositories.feedback_repository import FeedbackRepository
 from application.repositories.match_repository import MatchRepository
 from application.repositories.match_watcher_repository import MatchWatcherRepository
+from application.repositories.preset_repository import PresetRepository
 from application.repositories.stream_room_repository import StreamRoomRepository
 from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.volunteer_position_repository import VolunteerPositionRepository
 from application.repositories.volunteer_profile_repository import VolunteerProfileRepository
 from application.tenant_context import tenant_scope
 from models import (
-    Equipment, Feedback, Match, MatchWatcher, StreamRoom, Tenant, Tournament,
+    Equipment, Feedback, Match, MatchWatcher, Preset, StreamRoom, Tenant, Tournament,
     TournamentPlayers, User, VolunteerPosition, VolunteerProfile,
 )
 
@@ -48,6 +49,26 @@ async def test_tournament_reads_are_isolated(tenants):
     with tenant_scope(b.id):
         assert [t.id for t in await TournamentRepository.get_all()] == [tb.id]
         assert await TournamentRepository.get_by_id(ta.id) is None
+
+
+async def test_preset_reads_are_isolated(tenants):
+    a, b = tenants
+    with tenant_scope(a.id):
+        pa = await Preset.create(name='Open', randomizer='alttpr', settings={'mode': 'open'})
+    with tenant_scope(b.id):
+        pb = await Preset.create(name='Open', randomizer='alttpr', settings={'mode': 'standard'})
+
+    repo = PresetRepository()
+    with tenant_scope(a.id):
+        assert [p.id for p in await repo.list_all()] == [pa.id]
+        assert await repo.get_by_id(pb.id) is None  # B's preset invisible to A
+        # Same (randomizer, name) exists in both tenants; the natural-key lookup
+        # resolves only A's row.
+        assert (await repo.get_by_natural_key('alttpr', 'Open')).id == pa.id
+    with tenant_scope(b.id):
+        assert [p.id for p in await repo.list_all()] == [pb.id]
+        assert await repo.get_by_id(pa.id) is None
+        assert (await repo.get_by_natural_key('alttpr', 'Open')).id == pb.id
 
 
 async def test_match_reads_are_isolated(tenants):

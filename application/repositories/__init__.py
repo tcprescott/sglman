@@ -16,6 +16,7 @@ from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
+from .preset_repository import PresetRepository
 from .stream_room_repository import StreamRoomRepository
 from .tenant_repository import TenantRepository
 from .tenant_membership_repository import TenantMembershipRepository
@@ -48,6 +49,7 @@ __all__ = [
     'MatchAcknowledgmentRepository',
     'MatchRepository',
     'MatchWatcherRepository',
+    'PresetRepository',
     'StreamRoomRepository',
     'TenantRepository',
     'TenantMembershipRepository',

@@ -12,13 +12,15 @@ stack. Any ``ui.*`` call inside it (``ui.notify``, element creation, navigation,
     RuntimeError: The current slot cannot be determined because the slot stack
     for this task is empty.
 
-The fix (per CLAUDE.md) is to capture ``Client.current`` at the call site and
-restore it inside the coroutine::
+The fix (per CLAUDE.md) is to capture ``context.client`` at the call site and
+restore it inside the coroutine with a **sync** ``with`` block. In NiceGUI 3.x
+``Client`` implements ``__enter__``/``__exit__`` only (no ``__aenter__``), so
+``async with client:`` raises ``TypeError`` — the guard must be sync ``with``::
 
-    table.on('evt', lambda e: background_tasks.create(handle(e.args, Client.current)))
+    table.on('evt', lambda e: background_tasks.create(handle(e.args, context.client)))
 
     async def handle(row, client):
-        async with client:
+        with client:
             ...
             ui.notify('Done', color='positive')
 
@@ -29,9 +31,11 @@ coroutine body are both visible even for fragment Edits). Using the AST it:
 
   1. Finds every ``background_tasks.create(fn(...))`` and resolves ``fn``.
   2. For each locally-defined async ``fn``, flags any ``ui.*(...)`` call that is
-     NOT lexically inside an ``async with <name>:`` block (the fix pattern —
-     an httpx-style ``async with httpx.AsyncClient() as c:`` is a Call, not a
-     bare Name, so it does not count as a guard and is not mistaken for one).
+     NOT lexically inside a sync ``with <name>:`` block (the fix pattern). Only
+     sync ``with`` counts: ``Client`` is sync-only, so ``async with client:``
+     would itself raise ``TypeError`` and is not accepted. An httpx-style
+     ``async with httpx.AsyncClient() as c:`` is a Call, not a bare Name, so it
+     does not count as a guard either.
 
 Only presentation-layer files (pages/, theme/, frontend.py) are inspected.
 Exits 2 with guidance on a hit; exits 0 otherwise (fail open — non-Python,
@@ -85,18 +89,23 @@ def _ui_target(call: ast.Call) -> str | None:
     return None
 
 
-def _async_with_binds_name(node: ast.AsyncWith) -> bool:
-    """True if any context manager is a bare Name, e.g. `async with client:`.
+def _with_binds_name(node: ast.AST) -> bool:
+    """True if a **sync** ``with`` binds a bare Name, e.g. `with client:`.
 
-    The documented fix uses `async with client:`. An unrelated
-    `async with httpx.AsyncClient() as c:` is a Call, so it does not qualify
-    and won't mask a missing slot guard.
+    The only correct fix is a sync ``with client:`` — NiceGUI's ``Client`` is a
+    sync-only context manager (``__enter__``/``__exit__`` with no ``__aenter__``),
+    so ``async with client:`` raises ``TypeError`` at runtime. An ``async with``
+    guard is therefore deliberately NOT accepted (it would itself be a bug). An
+    unrelated `with contextlib.suppress(...):` is a Call, not a bare Name, so it
+    does not qualify and won't mask a missing slot guard.
     """
+    if not isinstance(node, ast.With):
+        return False
     return any(isinstance(item.context_expr, ast.Name) for item in node.items)
 
 
 def _find_unguarded_ui_calls(func: ast.AST) -> list[tuple[int, str]]:
-    """ui.* calls in `func` not inside an `async with <name>:` block."""
+    """ui.* calls in `func` not inside a `with <name>:` block."""
     hits: list[tuple[int, str]] = []
 
     def walk(node: ast.AST, guarded: bool) -> None:
@@ -105,7 +114,7 @@ def _find_unguarded_ui_calls(func: ast.AST) -> list[tuple[int, str]]:
                 # A nested function defines its own slot scope; skip it here.
                 continue
             child_guarded = guarded
-            if isinstance(child, ast.AsyncWith) and _async_with_binds_name(child):
+            if _with_binds_name(child):
                 child_guarded = True
             if isinstance(child, ast.Call) and not guarded:
                 label = _ui_target(child)
@@ -152,12 +161,13 @@ def check(source: str, file_path: str) -> list[str]:
                     f"{label}(...) with no slot context.\n"
                     f"  In a background task the slot stack is empty, so this raises "
                     f"RuntimeError: 'The current slot cannot be determined...'.\n"
-                    f"  Fix: capture Client.current at the call site and restore it:\n"
-                    f"    background_tasks.create({name}(..., Client.current))\n"
+                    f"  Fix: capture context.client at the call site and restore it with a\n"
+                    f"  sync `with` block (Client is sync-only; `async with` raises TypeError):\n"
+                    f"    background_tasks.create({name}(..., context.client))\n"
                     f"    async def {name}(..., client):\n"
-                    f"        async with client:\n"
+                    f"        with client:\n"
                     f"            ...  # {label}(...) and other ui.* calls go here\n"
-                    f"  (from nicegui import Client). See CLAUDE.md > NiceGUI patterns."
+                    f"  (from nicegui import context). See CLAUDE.md > NiceGUI patterns."
                 )
     return violations
 

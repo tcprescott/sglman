@@ -145,6 +145,12 @@ class AuditActions:
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'
     WEB_PUSH_UNSUBSCRIBED = 'web_push.unsubscribed'
 
+    # Presets (seed-rolling settings)
+    PRESET_CREATED = 'preset.created'
+    PRESET_UPDATED = 'preset.updated'
+    PRESET_DELETED = 'preset.deleted'
+    PRESET_IMPORTED = 'preset.imported'
+
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'
     WEBHOOK_UPDATED = 'webhook.updated'
