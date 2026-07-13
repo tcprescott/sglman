@@ -94,6 +94,18 @@ class TenantService:
     async def list_tenants() -> List[Tenant]:
         return await TenantRepository.list_all()
 
+    @staticmethod
+    async def set_discord_guild_id(tenant: Tenant, guild_id: Optional[int]) -> Tenant:
+        """Set or clear a tenant's linked Discord guild, dropping the resolution cache.
+
+        Authorization is the caller's responsibility — unlike ``update_tenant``
+        there is no super-admin gate, because the verified link flow
+        (``DiscordLinkService``) proves the actor controls the guild.
+        """
+        await TenantRepository.update(tenant, discord_guild_id=guild_id)
+        _clear_cache()
+        return tenant
+
     # ---- CRUD (super-admin gated, platform-level) -------------------------
 
     @staticmethod

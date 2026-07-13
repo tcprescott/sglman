@@ -11,6 +11,7 @@ from discord.ext import commands
 
 from application.events import dispatch_queue as event_dispatch_queue
 from application.services.web_push_service import WebPushService
+from application.utils import mock_discord_data
 
 logger = logging.getLogger(__name__)
 
@@ -432,6 +433,73 @@ class DiscordService:
         except Exception as e:
             return False, f"Failed to read member roles: {str(e)}"
 
+    async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
+        """Return ``{"id", "name"}`` for a guild the bot can see, else an error.
+
+        Used to render the connected server's name and to confirm the bot is
+        actually in the guild after a link.
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+            guild = self._bot.get_guild(guild_id)
+            if guild is None:
+                try:
+                    guild = await self._bot.fetch_guild(guild_id)
+                except discord.NotFound:
+                    return False, "The bot is not in this server."
+                except discord.Forbidden:
+                    return False, "Insufficient permissions to access this guild"
+            return True, {"id": guild.id, "name": guild.name}
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while reading guild: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to read guild: {str(e)}"
+
+    async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
+        """Whether ``user_id`` may administer ``guild_id`` (owner / Administrator / Manage Server).
+
+        This is the authorization proof for linking a tenant to a Discord server:
+        only a member who could add the bot in the first place passes. Requires
+        the bot to be in the guild (it is, right after the bot-auth flow) and the
+        members intent (enabled). Returns ``(True, bool)`` on a definitive answer,
+        ``(False, error)`` when the bot cannot determine it (not ready, not in the
+        guild, API error) so callers fail closed rather than treating an error as
+        authorized.
+        """
+        try:
+            if self._bot is None:
+                return False, "Discord bot not initialized"
+            if not self._bot.is_ready():
+                return False, "Discord bot is not connected. Please try again in a moment."
+            guild = self._bot.get_guild(guild_id)
+            if guild is None:
+                try:
+                    guild = await self._bot.fetch_guild(guild_id)
+                except discord.NotFound:
+                    return False, "The bot is not in this server."
+                except discord.Forbidden:
+                    return False, "The bot cannot access this server."
+            if user_id == guild.owner_id:
+                return True, True
+            member = guild.get_member(user_id)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(user_id)
+                except discord.NotFound:
+                    # Not a member of the guild → cannot administer it.
+                    return True, False
+            perms = member.guild_permissions
+            return True, bool(perms.administrator or perms.manage_guild)
+        except discord.Forbidden:
+            return False, "Bot lacks permissions to read guild members"
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while checking permissions: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to check permissions: {str(e)}"
+
 
 class MockDiscordService:
     """Stub Discord service for local development without a real bot.
@@ -477,13 +545,10 @@ class MockDiscordService:
         return None
 
     async def list_guilds(self) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
-        return True, [{"id": 1, "name": "Mock Guild"}]
+        return True, mock_discord_data.all_guilds()
 
     async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
-        return True, [
-            {"id": 1, "name": "Mock Role"},
-            {"id": 2, "name": "Mock Admin"},
-        ]
+        return True, mock_discord_data.roles_for(guild_id)
 
     async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
         print(f"[MOCK Discord] add_role guild={guild_id} user={user_id} role={role_id} reason={reason!r}")
@@ -495,7 +560,15 @@ class MockDiscordService:
 
     async def get_member_role_ids(self, guild_id: int, user_id: int) -> Tuple[bool, Union[Set[int], str]]:
         print(f"[MOCK Discord] get_member_role_ids guild={guild_id} user={user_id}")
-        return True, set()
+        return True, mock_discord_data.member_role_ids(guild_id, user_id)
+
+    async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
+        print(f"[MOCK Discord] get_guild_summary guild={guild_id}")
+        return True, {"id": guild_id, "name": mock_discord_data.guild(guild_id)["name"]}
+
+    async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
+        print(f"[MOCK Discord] member_can_manage_guild guild={guild_id} user={user_id}")
+        return True, mock_discord_data.user_can_manage(guild_id, user_id)
 
 
 from application.utils.mock_discord import is_mock_discord  # noqa: E402

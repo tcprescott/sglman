@@ -119,6 +119,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Per-device push subscription state.
     AuditActions.WEB_PUSH_SUBSCRIBED,
     AuditActions.WEB_PUSH_UNSUBSCRIBED,
+    # Tenant ↔ Discord-server connection: admin infrastructure configuration,
+    # not a tournament domain event a webhook subscriber would act on.
+    AuditActions.DISCORD_SERVER_LINKED,
+    AuditActions.DISCORD_SERVER_UNLINKED,
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.

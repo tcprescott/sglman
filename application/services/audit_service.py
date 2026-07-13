@@ -71,6 +71,9 @@ class AuditActions:
     ROLE_DISCORD_SYNC_GRANTED = 'role.discord_sync_granted'
     ROLE_DISCORD_SYNC_REVOKED = 'role.discord_sync_revoked'
     ROLE_DISCORD_SYNC_BULK = 'role.discord_sync_bulk'
+    # Tenant ↔ Discord server link (tenant-scoped; stamped with the tenant)
+    DISCORD_SERVER_LINKED = 'discord.server_linked'
+    DISCORD_SERVER_UNLINKED = 'discord.server_unlinked'
 
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'

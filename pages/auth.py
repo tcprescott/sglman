@@ -24,8 +24,9 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from zenora import APIClient
 
-from application.services import UserService
+from application.services import DiscordLinkService, TenantService, UserService, get_user_from_discord_id
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
+from application.tenant_context import tenant_scope
 from application.utils.environment import get_base_url
 from application.utils.mock_discord import is_mock_discord
 from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
@@ -85,7 +86,73 @@ def _sanitized_return(root_path: str) -> str:
     return sanitize_return_path(root_path, app.storage.user.get('referrer_path'))
 
 
+def _register_discord_connect_callback() -> None:
+    """Register the bot-authorization callback, shared by real and mock modes.
+
+    Runs on the bare platform host (no tenant in scope), so the target tenant,
+    CSRF state, and return path are carried in the session — set by the tenant
+    admin page before redirecting to Discord. DB writes are wrapped in
+    ``tenant_scope`` so the STAFF gate and guild stamp land on the right tenant.
+    """
+    @ui.page('/oauth/discord/connect/callback')
+    async def discord_connect_callback(client: Client):
+        await client.connected()
+        url = await ui.run_javascript('window.location.href')
+        expected_state = app.storage.user.pop('discord_connect_state', None)
+        tenant_id = app.storage.user.pop('discord_connect_tenant_id', None)
+        return_path = app.storage.user.pop('discord_connect_return', None) or '/'
+        if not return_path.startswith('/'):
+            return_path = '/'
+
+        params = parse_qs(urlparse(url).query)
+        if 'error' in params:
+            ui.notify('Discord authorization was cancelled or denied.', color='warning')
+            ui.navigate.to(return_path)
+            return
+        returned_state = (params.get('state') or [None])[0]
+        if not expected_state or returned_state != expected_state or not tenant_id:
+            ui.notify('Connection session expired or invalid. Please try again.', color='warning')
+            ui.navigate.to(return_path)
+            return
+
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        tenant = await TenantService.get_by_id(int(tenant_id))
+        if actor is None or tenant is None:
+            ui.notify('Session expired. Please try again.', color='warning')
+            ui.navigate.to(return_path)
+            return
+
+        try:
+            with tenant_scope(int(tenant_id)):
+                if is_mock_discord():
+                    # Dev flow: the guild id is passed straight to the callback
+                    # (no real Discord). link_guild still runs the STAFF gate and
+                    # the (mock) authority check.
+                    guild_raw = (params.get('guild_id') or ['1'])[0]
+                    await DiscordLinkService.link_guild(actor, tenant, int(guild_raw))
+                else:
+                    code = (params.get('code') or [None])[0]
+                    if not code:
+                        ui.notify('Discord authorization was cancelled.', color='warning')
+                        ui.navigate.to(return_path)
+                        return
+                    await DiscordLinkService.complete_link(actor, tenant, code)
+        except (ValueError, PermissionError) as e:
+            ui.notify(str(e), color='warning')
+            ui.navigate.to(return_path)
+            return
+        except Exception:
+            logger.exception('Discord connect callback failed')
+            ui.notify('An unexpected error occurred while connecting Discord.', color='negative')
+            ui.navigate.to(return_path)
+            return
+
+        ui.notify('Discord server connected.', color='positive')
+        ui.navigate.to(return_path)
+
+
 def create() -> None:
+    _register_discord_connect_callback()
     if is_mock_discord():
         _create_mock()
         return
