@@ -9,7 +9,8 @@
 
 This is the **overview / index**. Each of the five features has its own document;
 this hub holds the cross-cutting material — decisions, scope, roadmap, shared
-risks, and the succession story.
+risks, and the succession story. A [gap analysis](gap-analysis.md) reviews the plan
+for unmade decisions and must-preserve behaviors before implementation.
 
 ## The five feature documents
 
