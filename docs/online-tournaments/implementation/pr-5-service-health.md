@@ -2,6 +2,19 @@
 
 > Platform observability. Resolves [gap analysis §5](../gap-analysis.md). Can land
 > any time after PR 4 (for the racetime probe); other probes are independent.
+>
+> **Status: implemented (PR 5).** `ServiceHealthService` (probe registry +
+> in-memory cache + alert-on-transition) and `service_health_worker`
+> (`SERVICE_HEALTH_ENABLED`, off by default); `ServiceStatus` = `healthy /
+> degraded / credential_warning / down / unknown`; probes for PostgreSQL, Discord
+> bot + OAuth, racetime bots (reads `RacetimeBot.status`), SpeedGaming, Challonge
+> (reachability + token expiry across tenants via an unscoped repo read), Twitch
+> OAuth, seed-gen upstreams, web-push/VAPID, and Sentry. Alert path publishes
+> `EventType.SERVICE_HEALTH_ALERT` + Sentry capture + optional super-admin DM
+> (`SERVICE_HEALTH_ALERT_DM`). Full board on `/platform`; tenant STAFF read-only
+> subset on the admin **Service Health** tab (`tenant_subset`). No persistence
+> model / migration (computed-and-cached). See [current-state.md](../../current-state.md)
+> and [services.md](../../reference/services.md).
 
 **Goal:** a SUPER_ADMIN `/platform` board showing the live health of every external
 dependency, so an admin learns something is down before it breaks a race day.

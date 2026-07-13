@@ -22,6 +22,7 @@ from pages.admin_tabs.admin_presets import admin_presets_page
 from pages.admin_tabs.admin_racetime import admin_racetime_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_discord_events import admin_discord_events_page
+from pages.admin_tabs.admin_service_health import admin_service_health_page
 from theme.base import BaseLayout
 
 
@@ -128,6 +129,8 @@ def create() -> None:
             tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': admin_equipment_page})
         if is_staff:
             tabs.append({'label': 'Feedback', 'icon': 'feedback', 'content': admin_feedback_page})
+        if is_staff:
+            tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'content': admin_service_health_page})
         if is_staff:
             tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
 

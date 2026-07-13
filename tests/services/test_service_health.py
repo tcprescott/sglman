@@ -1,0 +1,160 @@
+"""Tests for the platform service-health monitor (PR 5).
+
+Covers the pure status logic (severity aggregation, racetime/Challonge mapping),
+the cache + alert-on-transition path (driven through a monkeypatched probe set so
+no probe touches the network), and the tenant read-only subset (a granted racetime
+bot in error + a near-expiry Challonge token → down / credential-warning).
+"""
+
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from application.events import EventType, event_bus
+from application.services import service_health_service as shs
+from application.services.service_health_service import (
+    ProbeResult,
+    ServiceHealthService,
+    ServiceStatus,
+    _is_alert_transition,
+    _map_racetime_status,
+    _tenant_challonge_status,
+    _worst,
+)
+from application.services.racetime_bot_service import RacetimeBotService
+from application.tenant_context import tenant_scope
+from models import BotStatus, ChallongeConnection, Role, Tenant, User, UserRole
+
+
+def _result(key, status, *, label='X', category='core', message='') -> ProbeResult:
+    return ProbeResult(key, label, category, status, message, datetime.now(timezone.utc))
+
+
+class TestStatusLogic:
+    def test_worst_picks_highest_severity(self):
+        assert _worst([ServiceStatus.HEALTHY, ServiceStatus.DOWN]) == ServiceStatus.DOWN
+        assert _worst([ServiceStatus.HEALTHY, ServiceStatus.CREDENTIAL_WARNING]) == ServiceStatus.CREDENTIAL_WARNING
+        assert _worst([ServiceStatus.HEALTHY, ServiceStatus.UNKNOWN]) == ServiceStatus.UNKNOWN
+        assert _worst([]) == ServiceStatus.UNKNOWN
+
+    def test_racetime_status_mapping(self):
+        assert _map_racetime_status(BotStatus.CONNECTED, None) == ServiceStatus.HEALTHY
+        assert _map_racetime_status(BotStatus.DISCONNECTED, None) == ServiceStatus.DOWN
+        assert _map_racetime_status(BotStatus.ERROR, 'boom') == ServiceStatus.DOWN
+        assert _map_racetime_status(BotStatus.ERROR, 'auth rejected') == ServiceStatus.CREDENTIAL_WARNING
+        assert _map_racetime_status(BotStatus.UNKNOWN, None) == ServiceStatus.UNKNOWN
+
+    def test_tenant_challonge_status(self):
+        now = datetime.now(timezone.utc)
+        assert _tenant_challonge_status(None)[0] == ServiceStatus.HEALTHY
+        assert _tenant_challonge_status(now - timedelta(hours=1))[0] == ServiceStatus.DOWN
+        assert _tenant_challonge_status(now + timedelta(days=1))[0] == ServiceStatus.CREDENTIAL_WARNING
+        assert _tenant_challonge_status(now + timedelta(days=30))[0] == ServiceStatus.HEALTHY
+
+    def test_alert_transition_only_into_alertable_states(self):
+        down = _result('k', ServiceStatus.DOWN)
+        healthy = _result('k', ServiceStatus.HEALTHY)
+        warn = _result('k', ServiceStatus.CREDENTIAL_WARNING)
+        assert _is_alert_transition(None, down) is True          # first probe, down
+        assert _is_alert_transition(healthy, down) is True       # healthy -> down
+        assert _is_alert_transition(down, down) is False         # stayed down: no re-alert
+        assert _is_alert_transition(down, warn) is True          # down -> warning (changed)
+        assert _is_alert_transition(down, healthy) is False      # recovered: not alertable
+        assert _is_alert_transition(None, healthy) is False      # first probe, healthy
+
+
+class TestRefreshAndAlert:
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        shs.reset_cache()
+        yield
+        shs.reset_cache()
+
+    async def test_refresh_populates_cache_and_snapshot(self, db, monkeypatch):
+        async def ok():
+            return ServiceStatus.HEALTHY, 'fine'
+
+        monkeypatch.setattr(shs, '_PROBES', [shs._Probe('demo', 'Demo', 'core', ok)])
+        service = ServiceHealthService()
+        results = await service.refresh()
+        assert [r.status for r in results] == [ServiceStatus.HEALTHY]
+        assert [r.status for r in service.snapshot()] == [ServiceStatus.HEALTHY]
+
+    async def test_snapshot_is_unknown_before_probe(self, db, monkeypatch):
+        async def ok():
+            return ServiceStatus.HEALTHY, 'fine'
+
+        monkeypatch.setattr(shs, '_PROBES', [shs._Probe('demo', 'Demo', 'core', ok)])
+        snap = ServiceHealthService().snapshot()
+        assert snap[0].status == ServiceStatus.UNKNOWN
+        assert snap[0].message == 'Not yet probed'
+
+    async def test_probe_exception_becomes_down(self, db, monkeypatch):
+        async def boom():
+            raise RuntimeError('kaboom')
+
+        monkeypatch.setattr(shs, '_PROBES', [shs._Probe('demo', 'Demo', 'core', boom)])
+        results = await ServiceHealthService().refresh()
+        assert results[0].status == ServiceStatus.DOWN
+        assert 'kaboom' in results[0].message
+
+    async def test_transition_to_down_publishes_alert(self, db, monkeypatch):
+        state = {'status': ServiceStatus.HEALTHY}
+
+        async def flip():
+            return state['status'], 'msg'
+
+        monkeypatch.setattr(shs, '_PROBES', [shs._Probe('demo', 'Demo', 'core', flip)])
+
+        captured = []
+        token = event_bus.subscribe_sync(
+            lambda e: captured.append(e), [EventType.SERVICE_HEALTH_ALERT],
+        )
+        try:
+            service = ServiceHealthService()
+            await service.refresh()                 # healthy: no alert
+            assert captured == []
+            state['status'] = ServiceStatus.DOWN
+            await service.refresh()                 # healthy -> down: one alert
+            assert len(captured) == 1
+            assert captured[0].payload['key'] == 'demo'
+            assert captured[0].payload['status'] == 'down'
+            assert captured[0].payload['previous_status'] == 'healthy'
+            await service.refresh()                 # stayed down: no re-alert
+            assert len(captured) == 1
+        finally:
+            event_bus.unsubscribe(token)
+
+
+class TestTenantSubset:
+    async def test_subset_reports_bot_error_and_expiring_token(self, db):
+        tenant = await Tenant.get(id=1)
+        su = await User.create(discord_id=9000, username='root')
+        await UserRole.create(user=su, role=Role.SUPER_ADMIN, tenant=None)
+
+        bot_service = RacetimeBotService()
+        bot = await bot_service.create_bot(
+            su, category='alttpr', client_id='cid', client_secret='sec', name='ALTTPR',
+        )
+        await bot_service.grant_tenant(su, bot.id, tenant.id)
+        bot.status = BotStatus.ERROR
+        bot.status_message = 'websocket closed'
+        await bot.save()
+
+        with tenant_scope(tenant.id):
+            await ChallongeConnection.create(
+                tenant=tenant, access_token='a', refresh_token='r',
+                challonge_username='svc',
+                token_expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+            )
+            subset = await ServiceHealthService().tenant_subset(tenant.id)
+
+        by_key = {r.key: r for r in subset}
+        assert by_key['racetime_bots'].status == ServiceStatus.DOWN
+        assert by_key['challonge'].status == ServiceStatus.CREDENTIAL_WARNING
+
+    async def test_subset_empty_without_dependencies(self, db):
+        tenant = await Tenant.get(id=1)
+        with tenant_scope(tenant.id):
+            subset = await ServiceHealthService().tenant_subset(tenant.id)
+        assert subset == []

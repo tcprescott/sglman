@@ -41,6 +41,23 @@ class ChallongeRepository:
         return await scoped(ChallongeConnection.all()).order_by('-id').first()
 
     @staticmethod
+    async def list_all_connections() -> List[ChallongeConnection]:
+        """Every tenant's newest Challonge connection — **explicitly unscoped**.
+
+        Platform-level read for the service-health board: the health monitor runs
+        with no tenant in scope and needs to survey token expiry across all
+        tenants at once. Returns one row per tenant (the authoritative newest),
+        mirroring the unscoped ``ApiToken``→tenant lookup pattern; do not use it
+        from tenant-scoped request code, which must go through
+        :meth:`get_connection`.
+        """
+        rows = await ChallongeConnection.all().order_by('tenant_id', '-id')
+        newest: dict[int, ChallongeConnection] = {}
+        for row in rows:
+            newest.setdefault(row.tenant_id, row)
+        return list(newest.values())
+
+    @staticmethod
     async def save_connection(
         access_token: str,
         refresh_token: Optional[str],

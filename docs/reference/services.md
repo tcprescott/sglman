@@ -648,6 +648,20 @@ The racetime room lifecycle mapped onto a `Match` — the business layer both th
 
 **race_room_worker.py** — the auto-open background loop (peer of `volunteer_reminder`). Every 60 s it scans (cross-tenant, unscoped) not-yet-finished matches on auto-create tournaments in a wide window, then per match — inside `tenant_scope` — opens a room when it enters that tournament's `room_open_minutes_before` lead, is idempotent (one room per match), has an authorized bot, and every entrant has a linked racetime identity. Started from the lifespan only when `RACETIME_BOT_ENABLED` is on.
 
+### service_health_service.py — ServiceHealthService (PR 5)
+
+Platform external-service health monitor. **Computed-and-cached, no persistence model**: an async probe registry (`_PROBES`) whose results live in a process-global in-memory cache (`_CACHE`, owned by the single worker/on-demand refresh — safe module-level state). `ServiceStatus` = `healthy / degraded / credential_warning / down / unknown` (`credential_warning` is the distinct "up but a credential is expiring/rejected" signal). Each probe is wrapped with a hard timeout so one hung dependency can't stall the board; a raising probe becomes `down`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `refresh(*, alert=True)` | `list[ProbeResult]` | Run every probe concurrently, update the cache, and — on a transition *into* down / credential-warning — fire an alert. Sorted worst-first. |
+| `snapshot()` | `list[ProbeResult]` | Cached results (UNKNOWN placeholders for not-yet-probed keys); the board's instant initial paint. |
+| `tenant_subset(tenant_id)` | `list[ProbeResult]` | The read-only subset a tenant's STAFF may see — its authorized racetime bots + its own Challonge connection — probed live (not from the platform cache). Caller binds the tenant scope. |
+
+Probes: PostgreSQL (DB round-trip), Discord bot (gateway readiness / mock), Discord OAuth (config), racetime bots (reads `RacetimeBot.status`, maps `error` w/ auth message → credential-warning), SpeedGaming (reachability / mock), Challonge (API reachability **+** token expiry across all tenants via `ChallongeRepository.list_all_connections()`, an explicitly-unscoped read), Twitch OAuth (config), seed-gen upstreams alttpr.com / ootrandomizer.com / maprando.com (reachability), web-push/VAPID (config), Sentry (config). Alerting: `refresh` publishes `EventType.SERVICE_HEALTH_ALERT` (platform-level → no tenant webhook; the real channels are Sentry `capture_message` + optional super-admin DM under `SERVICE_HEALTH_ALERT_DM`). Consumers: `/platform` board (full, refreshable) and the admin **Service Health** tab (tenant subset) via `pages/service_health_view.py`.
+
+**service_health_worker.py** — the periodic probe loop (peer of `discord_event_worker`). Every 120 s it calls `ServiceHealthService().refresh()` with **no tenant scope** (all probes are platform-level). Started from the lifespan only when `SERVICE_HEALTH_ENABLED` is on; the board still refreshes on demand regardless. The loop never dies — a failing tick is logged and retried.
+
 ### user_service.py — UserService
 
 User lookup, profile edits (self- and admin-driven), activation, global role grants, and tournament enrollment management. Audited under `user.*`; role grants gated by `can_grant_roles`, admin fields by `is_staff`.

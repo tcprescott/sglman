@@ -92,6 +92,28 @@ def discord_events_sync_enabled() -> bool:
     return os.environ.get('DISCORD_EVENTS_SYNC_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def service_health_enabled() -> bool:
+    """Master switch for the platform service-health monitor worker (default: off).
+
+    The background probe loop only spins up when ``SERVICE_HEALTH_ENABLED`` is
+    truthy. Off by default so a deployment that doesn't watch the ``/platform``
+    board never runs periodic probes (some reach external hosts). The board still
+    refreshes on-demand from the platform UI regardless of this switch; this only
+    gates the periodic worker.
+    """
+    return os.environ.get('SERVICE_HEALTH_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def service_health_alert_dm_enabled() -> bool:
+    """Whether an unhealthy-transition alert also DMs super-admins (default: off).
+
+    Health transitions into ``down``/credential-warning always publish an event
+    and capture to Sentry; this opt-in (``SERVICE_HEALTH_ALERT_DM``) additionally
+    Discord-DMs every super-admin so a deployment can choose the noisier channel.
+    """
+    return os.environ.get('SERVICE_HEALTH_ALERT_DM', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

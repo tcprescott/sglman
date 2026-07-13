@@ -609,15 +609,23 @@ async def seed_for_tenant(
             tournament.challonge_last_synced_at = now_utc
             await tournament.save()
 
-        await ChallongeConnection.get_or_create(
+        # A near-expiry token so the service-health board / tenant subset (PR 5)
+        # has a live credential-warning to render. Heal older rows that predate the
+        # expiry column too, so a re-seed against an existing dev DB still shows it.
+        challonge_expiry = now_utc + timedelta(days=2)
+        conn, _ = await ChallongeConnection.get_or_create(
             challonge_username="sgl_service", tenant=tenant,
             defaults={
                 "access_token": "dev-access-token-not-real",
                 "refresh_token": "dev-refresh-token-not-real",
                 "scopes": "me tournaments:read tournaments:write",
+                "token_expires_at": challonge_expiry,
                 "connected_by": staff,
             },
         )
+        if conn.token_expires_at is None:
+            conn.token_expires_at = challonge_expiry
+            await conn.save()
 
         participants: dict[str, ChallongeParticipant] = {}
         participant_specs = [

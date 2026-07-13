@@ -65,6 +65,15 @@ class EventType:
     DISCORD_EVENT_UPDATED = 'discord_event.updated'
     DISCORD_EVENT_CANCELLED = 'discord_event.cancelled'
 
+    # Platform external-service health (PR 5). Published by the health monitor
+    # when a probed dependency transitions into an unhealthy state (down or a
+    # credential warning). Platform-level (no tenant), so tenant-scoped webhooks
+    # never receive it — the alert's real delivery is Sentry + optional super-
+    # admin DM; it is published here so the contract is uniform and any future
+    # platform-level subscriber can act on it. Not mirrored by an AuditAction:
+    # health transitions are observations by the monitor, not user actions.
+    SERVICE_HEALTH_ALERT = 'service_health.alert'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -79,6 +88,7 @@ class EventType:
         RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
         SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,
         DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
+        SERVICE_HEALTH_ALERT,
     })
 
     # Wildcard a subscriber can register to receive every event.

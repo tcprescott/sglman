@@ -17,6 +17,8 @@ from .discord_event_reconciler_service import DiscordEventReconcilerService
 from .discord_event_sync_service import DiscordEventSyncService
 from . import discord_event_worker
 from .discord_link_service import DiscordLinkService
+from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
+from . import service_health_worker
 from .discord_role_mapping_service import DiscordRoleMappingService
 from .discord_service import DiscordService
 from .equipment_service import EquipmentService
@@ -70,6 +72,10 @@ __all__ = [
     'get_user_from_discord_id',
     'volunteer_reminder',
     'DiscordEventReconcilerService',
+    'ServiceHealthService',
+    'ServiceStatus',
+    'ProbeResult',
+    'service_health_worker',
     'DiscordEventSyncService',
     'discord_event_worker',
     'DiscordLinkService',

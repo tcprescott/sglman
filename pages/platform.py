@@ -8,7 +8,12 @@ per-tenant scoping never applies.
 
 from nicegui import app, ui
 
-from application.services import RacetimeBotService, TenantService, get_user_from_discord_id
+from application.services import (
+    RacetimeBotService,
+    ServiceHealthService,
+    TenantService,
+    get_user_from_discord_id,
+)
 from application.services.auth_service import AuthService
 from application.tenant_context import get_current_tenant_id
 
@@ -115,6 +120,24 @@ def create() -> None:
             bot_table.on('restart_bot', _on_restart_bot)
 
             await _refresh_bots(bot_table)
+
+            ui.separator().classes('q-my-lg')
+
+            with ui.row().classes('w-full items-center justify-between'):
+                ui.label('Service Health').classes('text-2xl font-bold')
+            ui.label(
+                'Live health of every external dependency. Probed on a cadence '
+                '(when the monitor worker is enabled) and on demand below; '
+                'transitions into down / credential-warning fire an alert.'
+            ).classes('text-caption text-grey')
+
+            from pages.service_health_view import build_refreshable_board
+            health = ServiceHealthService()
+
+            async def _snapshot():
+                return health.snapshot()
+
+            build_refreshable_board(_snapshot, refresh_loader=health.refresh)
 
 
 async def _refresh(table) -> None:

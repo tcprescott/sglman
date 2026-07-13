@@ -144,6 +144,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from application.utils.environment import discord_events_sync_enabled
     if discord_events_sync_enabled():
         discord_event_worker.start()
+    # Platform external-service health monitor: periodically probes every external
+    # dependency so the /platform board is warm and alerts fire on transitions.
+    # Gated by SERVICE_HEALTH_ENABLED (off by default).
+    from application.services import service_health_worker
+    from application.utils.environment import service_health_enabled
+    if service_health_enabled():
+        service_health_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -158,6 +165,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await race_room_worker.stop()
     await speedgaming_sync_worker.stop()
     await discord_event_worker.stop()
+    await service_health_worker.stop()
     await close_racetime_bot()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()
