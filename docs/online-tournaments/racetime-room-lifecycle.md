@@ -31,7 +31,10 @@ import repositories):
   a room records the bot managing it. The `client_secret` never surfaces to tenant
   admins (Staff/super-admin only, like `ChallongeConnection` tokens), and one
   racetime app registration serves every tenant. Not per-tenant credentials, not a
-  single hard-coded connection.
+  single hard-coded connection. The `RacetimeBotTenant` grant follows the
+  **verified-linking precedent** `DiscordLinkService` set on `main` (PR #85/#86): a
+  STAFF/super-admin gate plus a server-verified step, never trusting a
+  client-supplied id — the racetime identity OAuth applies the same discipline.
 - **A connection per category, a handler per active room**, spawned via the
   `racetime-bot` framework. Each handler is a long-lived task that reacts to room
   state transitions and calls `RaceRoomService`. Gated by `RACETIME_*` env +
@@ -42,13 +45,15 @@ import repositories):
   reserved **system `User`**, so the state transitions and result capture they drive
   carry a valid `actor` for audit/events without tripping a permission gate. Tenant
   comes from `tenant_scope`.
-- **Tenant routing.** A room belongs to the tenant whose match created it; its
-  handler runs inside `tenant_scope(tenant_id)` so every service call is scoped —
-  the same discipline the Discord bot uses for guild routing, and the same
-  websocket-trap caveat ([multitenancy.md](../features/multitenancy.md)): handlers
-  run outside any HTTP request, so the tenant is resolved from the
-  `RacetimeRoom`→`Match`→tenant mapping on every inbound event (an explicitly-unscoped
-  lookup on the unique `slug`), never assumed.
+- **Tenant routing (1:1, unlike Discord).** A room belongs to exactly **one**
+  tenant — the one whose match created it — so routing is unambiguous: resolve the
+  `RacetimeRoom`→`Match`→tenant mapping on every inbound event (an
+  explicitly-unscoped lookup on the unique `slug`) and run the handler inside
+  `tenant_scope(tenant_id)`. This is *simpler* than the Discord bot, which after PR
+  #85/#86 fans a single guild's events out over **all** tenants sharing that guild;
+  a racetime room never fans out. Same websocket-trap caveat applies
+  ([multitenancy.md](../features/multitenancy.md)): handlers run outside any HTTP
+  request, so the tenant is resolved from the mapping, never assumed.
 
 ## Bot health monitoring (decided)
 

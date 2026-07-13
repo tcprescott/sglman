@@ -52,6 +52,7 @@ for unmade decisions and must-preserve behaviors before implementation.
 | 2026-07-14 | **Racetime bot health is first-class, monitored state** (sahabot2 pattern). `RacetimeBot` carries `status` (`unknown/connected/auth_failed/connection_error/disconnected`), `status_message`, `last_connected_at`, `last_checked_at`, updated by the connection loop: auth errors → `auth_failed` and stop retrying (needs a human); transient → `connection_error` with capped exponential backoff; liveness heartbeat detects wedged-without-error tasks. Transitions publish `racetime_bot.*` events; SUPER_ADMIN gets restart + status board; auto-open skips a match whose category bot isn't `connected`. See [F5](racetime-room-lifecycle.md#bot-health-monitoring-decided). |
 | 2026-07-14 | **Platform external-service health page.** A SUPER_ADMIN `/platform` board aggregates health of every external dependency (Postgres, Discord, racetime bots, SpeedGaming, Challonge + token expiry, Twitch, seed-gen upstreams, web-push, Sentry) via a probe registry, with `healthy/degraded/down/unknown` + credential warnings and alerting on transitions to down. Tenant Staff see a read-only subset for their own services. **Health is computed-and-cached in-memory (no persistence model) for now** — promotable to a persisted model later if trends are wanted. Resolves the observability gap. See [Platform: external-service health](#platform-external-service-health). |
 | 2026-07-14 | **Racetime bots are global infrastructure, authorized to tenants by SUPER_ADMIN** (sahabot2 `RacetimeBotOrganization` pattern). `RacetimeBot` (category + OAuth creds) is a **global**, non-tenant-scoped row managed on `/platform`; a `RacetimeBotTenant` junction grants a bot to a tenant. A tenant cannot use a category until authorized; then `SYNC_ADMIN` selects per tournament from its authorized bots via the `Tournament → RacetimeBot` FK. `client_secret` never surfaces to tenant admins (Staff/super-admin only, like `ChallongeConnection` tokens). One racetime app registration serves all tenants. Self-service request→approve is a future layer, no schema change. |
+| 2026-07-15 | **Reconciled with `main` (PR #85/#86): guilds can be shared by multiple tenants.** `Tenant.discord_guild_id` is no longer unique; the bot fans out over *all* tenants linked to a guild, and linking is a verified `DiscordLinkService` connect flow (STAFF/super-admin gate + Discord bot-authorization OAuth + server-side recheck). Effects on this plan: **(F3)** the Discord-events reconciler must act only on its own tenant's `DiscordScheduledEvent` rows, never the whole guild's event list (a shared guild holds sibling tenants' events); **(F5)** racetime room→tenant stays **1:1** (a room owns exactly one tenant), so racetime routing is simpler than Discord's fan-out, not the same; and `DiscordLinkService` + the bot-authorization OAuth become the **precedent** the `RacetimeBotTenant` authorization and racetime OAuth mirror (gated, server-verified, never trust a client-supplied id). |
 
 ## Context
 
@@ -75,9 +76,12 @@ Two structural facts make the port natural:
   (`alttprbot/{models,repositories,services,presentation}`), so ports are
   translations into existing layers, not rewrites.
 - **SGLMan already has the supporting substrate**: multitenancy (each SahasrahBot
-  community becomes a tenant; one Discord bot, many guilds), verified identity
-  linking on the global `User` (Challonge, Twitch — racetime.gg becomes the third),
-  seed generation for five randomizers, the event bus, and audit logging.
+  community becomes a tenant; one Discord bot, many guilds — and, as of PR #85/#86
+  on `main`, **a guild may be shared by several tenants**, with the bot fanning out
+  over all linked tenants and a **verified** tenant↔server connect flow via
+  `DiscordLinkService`), verified identity linking on the global `User` (Challonge,
+  Twitch — racetime.gg becomes the third), seed generation for five randomizers, the
+  event bus, and audit logging.
 
 ## Design principle: user-definable tournament logic
 

@@ -24,6 +24,19 @@ Source: `ScheduledEvents` model (`episode_id` ↔ `scheduled_event_id`).
   one-bot-many-guilds Discord singleton; per-tenant opt-in and templated event
   titles/descriptions via the
   [user-definable config](README.md#design-principle-user-definable-tournament-logic).
+- The target guild is `Tenant.discord_guild_id`, established by the **verified**
+  `DiscordLinkService` connect flow (`main`, PR #85/#86) — not a claimed id.
+
+### Shared guilds (reconciled with `main`)
+
+As of PR #85/#86, **`discord_guild_id` is no longer unique — several tenants may
+share one Discord server.** That guild's Scheduled Events list can therefore hold
+events owned by *sibling* tenants. So the reconciler's working set is **"the events
+this tenant created," tracked via its own `DiscordScheduledEvent` rows** — never
+"every scheduled event in the guild." Concretely: create/update/cancel only against
+rows this tenant owns; a `discord_event_id` present in the guild but absent from
+this tenant's link table belongs to someone else and is left untouched. This mirrors
+how role-sync already isolates a shared guild by `DiscordRoleMapping.tenant`.
 
 ## Data model
 
@@ -44,6 +57,11 @@ audit/event members. No new enums.
   in the Discord event (title, time, description) so an upstream schedule change
   reliably updates or cancels the mirrored event rather than leaving a stale one.
   Deleted/rescheduled source rows must cancel or move their event, not orphan it.
+- **Never cancel a sibling tenant's event (shared guilds).** Since a guild can
+  back several tenants, the reconciler must scope every create/update/**cancel** to
+  its own `DiscordScheduledEvent` rows. A "cancel everything in the guild not in my
+  schedule" implementation would delete another community's events — the sharpest
+  edge this feature has post-PR #85/#86.
 - **Discord rate limits.** Batch reconciliation and respect the shared Discord
   singleton's limits; a large schedule shift shouldn't hammer the API.
 
