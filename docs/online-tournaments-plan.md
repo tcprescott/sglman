@@ -18,6 +18,7 @@
 | 2026-07-13 | SahasrahBot's **Async Tournament** is renamed **Async Qualifier** in SGLMan — its workflow is completely different from a tournament's and the name collision with `Tournament` would mislead |
 | 2026-07-13 | SpeedGaming schedule data comes in via an **ETL/sync process** into SGLMan's own tables — *not* SahasrahBot's approach of live-querying the SG API per interaction |
 | 2026-07-13 | `AsyncQualifier` is a **standalone peer aggregate of `Tournament`**: created/administered the same way (many can run concurrently per tenant), but a **distinct state machine** entirely outside the `Match`/schedule system — no structural FK between the two |
+| 2026-07-13 | **SG sync is strictly one-way** (SG → SGLMan, never back). For a `Match` created by the ETL, **the ETL-owned fields are read-only in SGLMan** — enforced at the service layer, not just convention. See [Feature 4](#4-speedgaming-schedule-etl). |
 | 2026-07-13 | **Async Qualifier execution is web-first, decided (not open).** SahasrahBot's Discord-thread-driven run execution (slash command → private thread → buttons) is **dropped**, not ported, not offered as a config toggle. Drawing a permalink, timing a run, submitting time/VoD, and review all happen on SGLMan web pages; Discord is notification-only via the existing DM queue. Live races (Phase 6) still need a racetime.gg bot connection for synchronous group races, but that's separate from the core async execution loop. |
 
 ## Context
@@ -246,18 +247,36 @@ own tables**, making SG an upstream feed rather than a runtime dependency.
 - **Load** — upsert into a tenant-scoped staging model `SpeedGamingEpisode`
   (unique `(tenant, sg_episode_id)`, payload snapshot + content hash, `synced_at`,
   nullable FK → `Match`), then materialize/refresh linked `Match` rows.
-- **Reconciliation rules** — the sharp edge. Proposed contract: **SG owns
-  scheduling fields** (time, players, episode existence) and re-sync overwrites
-  them; **SGLMan owns everything it adds** (seeds, crew approvals, stream rooms,
-  acknowledgments, Discord event links), which survives re-sync. Cancelled
-  upstream episodes soft-detach rather than cascade-delete local work.
+- **Reconciliation contract — decided, not just directional.** Sync is strictly
+  **one-way, SG → SGLMan**; nothing SGLMan does ever writes back to SpeedGaming.
+  For a `Match` created by the ETL, **the fields the ETL populates are read-only
+  in SGLMan** — staff cannot hand-edit them; the next sync is the only thing that
+  can change them. Everything SGLMan adds on top stays fully staff-editable and
+  is never touched by sync:
+
+  | ETL-owned (read-only in SGLMan) | SGLMan-owned (editable, sync never touches) |
+  |---|---|
+  | `scheduled_at`, enrolled players (`MatchPlayers` rows sourced from SG), `title`, tournament linkage | `generated_seed`, `stream_room`, `Commentator`/`Tracker` crew, `MatchAcknowledgment`, `MatchWatcher`, station assignments, `seated_at`/`started_at`/`finished_at`/`confirmed_at`, `comment`, Discord event links |
+
+  **Enforcement, not just convention:** `Match` carries a source marker (its FK to
+  `SpeedGamingEpisode`, non-null = SG-sourced). `MatchService.update_match` rejects
+  writes to ETL-owned fields on a sourced match — an attempt raises `ValueError`
+  ("this field is synced from SpeedGaming and cannot be edited"), same pattern as
+  every other service-layer validation. The presentation layer disables those
+  form fields for SG-sourced matches (with a "Synced from SpeedGaming" badge and
+  a link to the source episode) rather than letting the click reach the service
+  and bounce. A cancelled upstream episode **soft-detaches** — the `Match` row and
+  everything SGLMan added survive; only the ETL-owned fields freeze at their last
+  synced value and no further sync updates them.
 - A `SpeedGamingEventLink` (tournament ↔ SG event slug + sync settings) configures
   which SG events feed which tenant tournaments.
 
 Benefits over the direct-query approach: SG outages don't break race-day
 operations, data is queryable/joinable locally (reports, Discord events, crew
 flows all just work on `Match`), and the sync is observable (last-synced, diffs,
-errors surfaced in the admin UI + audit log).
+errors surfaced in the admin UI + audit log). The read-only boundary also means
+staff can never "fix" a Match locally in a way the next sync silently reverts —
+today's biggest source of ETL confusion in systems like this.
 
 ---
 
@@ -269,7 +288,7 @@ errors surfaced in the admin UI + audit log).
 | `Preset` (tenant-scoped) + `Tournament`/pool preset FKs | 2 |
 | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | 1 |
 | `DiscordScheduledEvent` (tenant-scoped link/reconciliation table) | 3 |
-| `SpeedGamingEpisode`, `SpeedGamingEventLink` (tenant-scoped) | 4 |
+| `SpeedGamingEpisode`, `SpeedGamingEventLink` (tenant-scoped); `Match` gains its FK to `SpeedGamingEpisode` (source marker driving read-only enforcement) | 4 |
 | New `AuditActions` + `EventType` members per subsystem (`async_qualifier.*`, `preset.*`, `discord_event.*`, `sg_sync.*`) — EventType is an external contract: add, never rename | all |
 
 New enums: run status + review status (Feature 1), sync status (Feature 4).
@@ -305,10 +324,13 @@ qualifiers; the ETL feeds Discord events.
   Discord bot. Same disciplines as today: non-blocking I/O only, bounded
   concurrency, per-worker error isolation, `tenant_scope` everywhere
   (`require_tenant_id()` raising is the safety net).
-- **ETL reconciliation.** Upstream-wins vs. local-wins must be per-field and
-  explicit (contract above), or re-syncs will silently clobber race-day work.
-  Identity matching (SG player → `User`) needs the reconcile-later path, not
-  hard failure.
+- **ETL field-level read-only enforcement.** The one-way, per-field read-only
+  contract (above) has to be enforced at the service layer, not just documented —
+  a `MatchService.update_match` gap that lets an ETL-owned field slip through
+  would get silently reverted on the next sync and look like a bug. New
+  ETL-owned fields introduced later must be added to the guard, not just the
+  transform. Identity matching (SG player → `User`) needs the reconcile-later
+  path (raw name kept, staff link later), not hard failure.
 - **Async run integrity.** Permalinks revealed only at run start; one
   attempt enforced server-side (reattempts only per config); VoD + review flow is
   the anti-cheat backstop. Port these semantics faithfully — they are the feature.
@@ -338,9 +360,7 @@ qualifiers; the ETL feeds Discord events.
 
 1. **Racetime rooms for scheduled matches** are now out of the port scope —
    confirm that's intended long-term, or parked until after the four features.
-2. **SG ETL direction**: one-way SG → SGLMan (assumed), or does anything need to
-   flow back to SG (results, crew assignments)?
-3. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
+2. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
    a thin community bot? (Nothing in this plan depends on the answer.)
 
 ## Related docs
