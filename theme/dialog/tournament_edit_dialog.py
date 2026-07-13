@@ -1,12 +1,16 @@
 from nicegui import app, ui
 
 from application.services import (
+    AuthService,
     ChallongeService,
     PresetService,
+    RaceRoomProfileService,
+    RacetimeBotService,
     SeedGenerationService,
     TournamentService,
     get_user_from_discord_id,
 )
+from application.tenant_context import require_tenant_id
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 
 
@@ -18,10 +22,20 @@ class TournamentDialog:
         self.tournament_service = TournamentService()
         self.challonge_service = ChallongeService()
         self.preset_service = PresetService()
+        self.racetime_bot_service = RacetimeBotService()
+        self.race_room_profile_service = RaceRoomProfileService()
 
     async def open(self):
         is_create = self.tournament is None
         title = 'Add Tournament' if is_create else 'Edit Tournament'
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        can_sync = await AuthService.can_manage_sync(actor)
+        # Racetime room automation is only offered to sync managers, and only the
+        # bot categories this tenant is authorized for are selectable.
+        rt = {}
+        if can_sync:
+            rt['bots'] = await self.racetime_bot_service.list_authorized_for_tenant(require_tenant_id())
+            rt['profiles'] = await self.race_room_profile_service.list_selectable()
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
@@ -144,11 +158,60 @@ class TournamentDialog:
 
                     ui.button('Link & Sync', icon='sync', on_click=link_and_sync).props('flat color=primary')
 
+                if can_sync:
+                    ui.separator()
+                    ui.label('Racetime').classes('text-bold')
+                    t = self.tournament
+                    # 0 sentinel stands in for "no FK" — ui.select cannot key on None.
+                    bot_options = {0: '— None —'}
+                    bot_options.update({b.id: f'{b.category} ({b.name})' for b in rt['bots']})
+                    default_bot = t.racetime_bot_id if t and t.racetime_bot_id else 0
+                    rt['bot_input'] = ui.select(
+                        bot_options, label='Racetime Bot', value=default_bot,
+                    ).classes('input-full-width').props(
+                        'hint="Only categories your community is authorized for appear here."'
+                    )
+                    profile_options = {0: '— None —'}
+                    profile_options.update({p.id: p.name for p in rt['profiles']})
+                    default_profile = t.race_room_profile_id if t and t.race_room_profile_id else 0
+                    rt['profile_input'] = ui.select(
+                        profile_options, label='Race Room Profile', value=default_profile,
+                    ).classes('input-full-width')
+                    rt['goal_input'] = ui.input(
+                        'Default Goal',
+                        value=(t.racetime_default_goal if t and t.racetime_default_goal else ''),
+                    ).classes('input-full-width')
+                    with ui.row().classes('gap-2'):
+                        rt['open_before_input'] = ui.number(
+                            'Open Room (min before)',
+                            value=(t.room_open_minutes_before if t else 30),
+                            min=0,
+                        ).props('inputmode=numeric')
+                    with ui.row().classes('gap-4'):
+                        rt['auto_create_input'] = ui.checkbox(
+                            'Auto-create rooms',
+                            value=(t.racetime_auto_create_rooms if t else False),
+                        )
+                        rt['require_link_input'] = ui.checkbox(
+                            'Require racetime link',
+                            value=(t.require_racetime_link if t else False),
+                        )
+
             async def submit():
                 if not (name_input.value or '').strip():
                     with self.dialog:
                         ui.notify('Please fill required field(s): Tournament Name.', color='warning')
                     return
+                rt_kwargs = {}
+                if can_sync:
+                    rt_kwargs = dict(
+                        racetime_bot_id=(rt['bot_input'].value or None),
+                        race_room_profile_id=(rt['profile_input'].value or None),
+                        racetime_auto_create_rooms=rt['auto_create_input'].value,
+                        room_open_minutes_before=int(rt['open_before_input'].value or 0),
+                        require_racetime_link=rt['require_link_input'].value,
+                        racetime_default_goal=rt['goal_input'].value,
+                    )
                 try:
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     if self.tournament:
@@ -170,6 +233,7 @@ class TournamentDialog:
                                 staff_administered=staff_administered_checkbox.value,
                                 preset_id=(preset_input.value or None),
                                 actor=actor,
+                                **rt_kwargs,
                             )
                             ui.notify('Tournament updated.', color='positive')
                             dialog.close()
@@ -192,6 +256,7 @@ class TournamentDialog:
                             staff_administered=staff_administered_checkbox.value,
                             preset_id=(preset_input.value or None),
                             actor=actor,
+                            **rt_kwargs,
                         )
                         with self.dialog:
                             ui.notify('Tournament created.', color='positive')

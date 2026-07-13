@@ -126,6 +126,17 @@ class AuditActions:
     RACETIME_LINKED = 'racetime.linked'
     RACETIME_UNLINKED = 'racetime.unlinked'
 
+    # Racetime bots (platform-managed; CRUD + tenant grants are platform-level,
+    # tenant=NULL) and their reusable per-tenant room profiles
+    RACETIME_BOT_CREATED = 'racetime_bot.created'
+    RACETIME_BOT_UPDATED = 'racetime_bot.updated'
+    RACETIME_BOT_DELETED = 'racetime_bot.deleted'
+    RACETIME_BOT_GRANTED = 'racetime_bot.granted'
+    RACETIME_BOT_REVOKED = 'racetime_bot.revoked'
+    RACE_ROOM_PROFILE_CREATED = 'race_room_profile.created'
+    RACE_ROOM_PROFILE_UPDATED = 'race_room_profile.updated'
+    RACE_ROOM_PROFILE_DELETED = 'race_room_profile.deleted'
+
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'

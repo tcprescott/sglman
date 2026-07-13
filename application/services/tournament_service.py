@@ -7,10 +7,16 @@ and admin/crew-coordinator membership.
 
 from typing import Any, Dict, Optional
 
-from application.repositories import PresetRepository, TournamentRepository
+from application.repositories import (
+    PresetRepository,
+    RaceRoomProfileRepository,
+    RacetimeBotRepository,
+    TournamentRepository,
+)
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.tournament_config import validate_tournament_config
+from application.tenant_context import require_tenant_id
 from models import Tournament, User
 
 # Sentinel distinguishing "caller did not supply preset_id" (leave as-is) from an
@@ -24,6 +30,8 @@ class TournamentService:
     def __init__(self) -> None:
         self.repository = TournamentRepository()
         self.preset_repository = PresetRepository()
+        self.racetime_bot_repository = RacetimeBotRepository()
+        self.race_room_profile_repository = RaceRoomProfileRepository()
         self.audit_service = AuditService()
 
     async def _resolve_preset_id(self, preset_id: Optional[int]) -> Optional[int]:
@@ -39,6 +47,29 @@ class TournamentService:
         if preset is None:
             raise ValueError("Preset not found")
         return preset.id
+
+    async def _resolve_racetime_bot_id(self, racetime_bot_id: Optional[int]) -> Optional[int]:
+        """Validate the bot is one this tenant is *authorized* to use.
+
+        ``None`` clears the FK. A non-null id must appear in the tenant's active
+        authorization grants, so a category the tenant was never granted — or
+        another tenant's bot — is rejected rather than silently linked.
+        """
+        if racetime_bot_id is None:
+            return None
+        authorized = await self.racetime_bot_repository.list_active_for_tenant(require_tenant_id())
+        if not any(bot.id == racetime_bot_id for bot in authorized):
+            raise ValueError("Racetime bot not available to this tenant")
+        return racetime_bot_id
+
+    async def _resolve_race_room_profile_id(self, profile_id: Optional[int]) -> Optional[int]:
+        """Validate the room profile belongs to this tenant. ``None`` clears it."""
+        if profile_id is None:
+            return None
+        profile = await self.race_room_profile_repository.get_by_id(profile_id)
+        if profile is None:
+            raise ValueError("Race room profile not found")
+        return profile.id
 
     async def create_tournament(
         self,
@@ -57,6 +88,12 @@ class TournamentService:
         staff_administered: bool = False,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Optional[int] = None,
+        racetime_bot_id: Optional[int] = None,
+        race_room_profile_id: Optional[int] = None,
+        racetime_auto_create_rooms: bool = False,
+        room_open_minutes_before: int = 30,
+        require_racetime_link: bool = False,
+        racetime_default_goal: Optional[str] = None,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -72,6 +109,8 @@ class TournamentService:
 
         config = validate_tournament_config(config)
         preset_id = await self._resolve_preset_id(preset_id)
+        racetime_bot_id = await self._resolve_racetime_bot_id(racetime_bot_id)
+        race_room_profile_id = await self._resolve_race_room_profile_id(race_room_profile_id)
 
         tournament = await self.repository.create(
             name=name.strip(),
@@ -89,6 +128,12 @@ class TournamentService:
             staff_administered=staff_administered,
             config=config,
             preset_id=preset_id,
+            racetime_bot_id=racetime_bot_id,
+            race_room_profile_id=race_room_profile_id,
+            racetime_auto_create_rooms=racetime_auto_create_rooms,
+            room_open_minutes_before=room_open_minutes_before,
+            require_racetime_link=require_racetime_link,
+            racetime_default_goal=(racetime_default_goal.strip() if racetime_default_goal else None),
         )
 
         await self.audit_service.write_log(
@@ -117,6 +162,12 @@ class TournamentService:
         staff_administered: Optional[bool] = None,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Any = _UNSET,
+        racetime_bot_id: Any = _UNSET,
+        race_room_profile_id: Any = _UNSET,
+        racetime_auto_create_rooms: Optional[bool] = None,
+        room_open_minutes_before: Optional[int] = None,
+        require_racetime_link: Optional[bool] = None,
+        racetime_default_goal: Any = _UNSET,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -163,6 +214,20 @@ class TournamentService:
             update_data['config'] = validate_tournament_config(config)
         if preset_id is not _UNSET:
             update_data['preset_id'] = await self._resolve_preset_id(preset_id)
+        if racetime_bot_id is not _UNSET:
+            update_data['racetime_bot_id'] = await self._resolve_racetime_bot_id(racetime_bot_id)
+        if race_room_profile_id is not _UNSET:
+            update_data['race_room_profile_id'] = await self._resolve_race_room_profile_id(race_room_profile_id)
+        if racetime_auto_create_rooms is not None:
+            update_data['racetime_auto_create_rooms'] = racetime_auto_create_rooms
+        if room_open_minutes_before is not None:
+            update_data['room_open_minutes_before'] = room_open_minutes_before
+        if require_racetime_link is not None:
+            update_data['require_racetime_link'] = require_racetime_link
+        if racetime_default_goal is not _UNSET:
+            update_data['racetime_default_goal'] = (
+                racetime_default_goal.strip() if racetime_default_goal else None
+            )
 
         result = await self.repository.update(tournament, **update_data)
 

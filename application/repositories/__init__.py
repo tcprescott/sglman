@@ -17,6 +17,9 @@ from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
 from .preset_repository import PresetRepository
+from .race_room_profile_repository import RaceRoomProfileRepository
+from .racetime_bot_repository import RacetimeBotRepository
+from .racetime_room_repository import RacetimeRoomRepository
 from .stream_room_repository import StreamRoomRepository
 from .tenant_repository import TenantRepository
 from .tenant_membership_repository import TenantMembershipRepository
@@ -50,6 +53,9 @@ __all__ = [
     'MatchRepository',
     'MatchWatcherRepository',
     'PresetRepository',
+    'RaceRoomProfileRepository',
+    'RacetimeBotRepository',
+    'RacetimeRoomRepository',
     'StreamRoomRepository',
     'TenantRepository',
     'TenantMembershipRepository',

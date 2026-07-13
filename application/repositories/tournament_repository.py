@@ -120,6 +120,12 @@ class TournamentRepository:
         staff_administered: bool = False,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Optional[int] = None,
+        racetime_bot_id: Optional[int] = None,
+        race_room_profile_id: Optional[int] = None,
+        racetime_auto_create_rooms: bool = False,
+        room_open_minutes_before: int = 30,
+        require_racetime_link: bool = False,
+        racetime_default_goal: Optional[str] = None,
     ) -> Tournament:
         """
         Create a new tournament.
@@ -158,6 +164,12 @@ class TournamentRepository:
             staff_administered=staff_administered,
             config=config,
             preset_id=preset_id,
+            racetime_bot_id=racetime_bot_id,
+            race_room_profile_id=race_room_profile_id,
+            racetime_auto_create_rooms=racetime_auto_create_rooms,
+            room_open_minutes_before=room_open_minutes_before,
+            require_racetime_link=require_racetime_link,
+            racetime_default_goal=racetime_default_goal,
         )
 
     @staticmethod

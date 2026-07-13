@@ -111,6 +111,18 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Racetime.gg account linking (verified identity link, no domain webhook).
     AuditActions.RACETIME_LINKED,
     AuditActions.RACETIME_UNLINKED,
+    # Racetime bot administration: platform-level (tenant=NULL) super-admin CRUD
+    # and tenant grants carrying OAuth secrets — sensitive, and a webhook is
+    # tenant-scoped so it would reach zero subscribers. Room profiles are
+    # tenant-internal room-setting authoring, no external subscriber interest.
+    AuditActions.RACETIME_BOT_CREATED,
+    AuditActions.RACETIME_BOT_UPDATED,
+    AuditActions.RACETIME_BOT_DELETED,
+    AuditActions.RACETIME_BOT_GRANTED,
+    AuditActions.RACETIME_BOT_REVOKED,
+    AuditActions.RACE_ROOM_PROFILE_CREATED,
+    AuditActions.RACE_ROOM_PROFILE_UPDATED,
+    AuditActions.RACE_ROOM_PROFILE_DELETED,
     # Volunteer opt-in state, scheduling config, and bulk draft churn.
     AuditActions.VOLUNTEER_OPTED_IN,
     AuditActions.VOLUNTEER_OPTED_OUT,

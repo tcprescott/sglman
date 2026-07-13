@@ -55,6 +55,9 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
 | `TwitchService` | [twitch_service.py](../../application/services/twitch_service.py) | Twitch account-linking OAuth (verified identity capture) | — |
 | `RacetimeService` | [racetime_service.py](../../application/services/racetime_service.py) | racetime.gg account-linking OAuth (verified identity capture) | — |
+| `RacetimeBotService` | [racetime_bot_service.py](../../application/services/racetime_bot_service.py) | Platform CRUD + tenant authorization grants for shared racetime bots | — |
+| `RaceRoomProfileService` | [race_room_profile_service.py](../../application/services/race_room_profile_service.py) | SYNC_ADMIN CRUD for reusable racetime room settings | — |
+| `RacetimeRoomService` | [racetime_room_service.py](../../application/services/racetime_room_service.py) | Race-room record lookup (unscoped by-slug routing) | — |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
@@ -563,6 +566,45 @@ Coordinates the racetime.gg account-linking integration: a logged-in user comple
 | `unlink_player(user, actor)` | `None` | Clear a user's racetime link; audits `racetime.unlinked`. |
 
 Collaborators: `AuditService`, [`racetime_client.py`](#racetime_clientpy) (`RacetimeClient`/`MockRacetimeClient`), [`mock_racetime.py`](#mock_racetimepy). Consumers: the racetime OAuth pages ([`pages/racetime_oauth.py`](../../pages/racetime_oauth.py)) and the profile "Link racetime.gg" card ([`pages/home_tabs/racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py)).
+
+### racetime_bot_service.py — RacetimeBotService
+
+Platform administration of the shared, **global** racetime bots (one per game category, each holding that category's OAuth credentials). All mutations are SUPER_ADMIN-gated and run on `/platform` with no tenant context, so their audit rows are platform-level (`tenant=NULL`). The `client_secret` is a privileged secret: `serialize()` omits it, `update_bot` only rewrites it when a new value is supplied (blank = unchanged), and the audit log records only that the field changed — never its value.
+
+| Method | Returns | Description |
+|---|---|---|
+| `serialize(bot)` (static) | `dict` | Secret-free view for admin tables (omits `client_secret`). |
+| `list_bots(actor)` / `get_bot(actor, id)` | `[RacetimeBot]` / `RacetimeBot` | SUPER_ADMIN reads. |
+| `create_bot(actor, *, category, client_id, client_secret, name, …)` | `RacetimeBot` | Create; unique category; audits `racetime_bot.created`. |
+| `update_bot(actor, id, *, client_secret=None, …)` | `RacetimeBot` | Update; blank secret keeps the stored one; audits `racetime_bot.updated`. |
+| `delete_bot(actor, id)` | `None` | Delete; audits `racetime_bot.deleted`. |
+| `grant_tenant(actor, bot_id, tenant_id)` | `RacetimeBotTenant` | Authorize a tenant (idempotent; re-activates a suspended grant); audits `racetime_bot.granted`. |
+| `revoke_tenant(actor, bot_id, tenant_id)` | `None` | Remove a grant; audits `racetime_bot.revoked`. |
+| `list_grants(actor, bot_id)` | `[RacetimeBotTenant]` | Grants for a bot (SUPER_ADMIN). |
+| `list_authorized_for_tenant(tenant_id)` | `[RacetimeBot]` | Tenant-facing: active bots a tenant may select (no secret exposed; explicit tenant id). |
+| `is_authorized_for_tenant(bot_id, tenant_id)` | `bool` | Whether a tenant may select a given bot. |
+
+Collaborators: `AuditService`, `RacetimeBotRepository`. Consumers: the `/platform` bot CRUD + tenant-assignment UI ([`pages/platform.py`](../../pages/platform.py)) and `TournamentService` (validating a tournament's selected bot against the tenant's grants).
+
+### race_room_profile_service.py — RaceRoomProfileService
+
+Tenant-scoped CRUD for reusable racetime room settings (the `startrace` parameters a community reuses). Gated by `AuthService.can_manage_sync` (SYNC_ADMIN/STAFF/super-admin); audited (`race_room_profile.created|updated|deleted`). `list_selectable()` is an ungated read used to populate the tournament dialog's profile select.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_profiles(actor)` / `get_profile(actor, id)` | `[RaceRoomProfile]` / `RaceRoomProfile` | Gated reads. |
+| `list_selectable()` | `[RaceRoomProfile]` | Ungated read for the tournament dialog. |
+| `create_profile(actor, *, name, **fields)` | `RaceRoomProfile` | Create; per-tenant unique name; rejects negative timers. |
+| `update_profile(actor, id, *, name=None, **fields)` | `RaceRoomProfile` | Update. |
+| `delete_profile(actor, id)` | `None` | Delete. |
+
+Collaborators: `AuditService`, `RaceRoomProfileRepository`. Consumers: the admin **Racetime** tab ([`pages/admin_tabs/admin_racetime.py`](../../pages/admin_tabs/admin_racetime.py)) and the tournament dialog's profile select.
+
+### racetime_room_service.py — RacetimeRoomService
+
+Record lookup for race-room→tenant routing. Rooms are created/updated by the PR 4/6 lifecycle; this service provides `get_by_slug(slug)` — the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant) — and `get_for_match(match)`.
+
+Collaborators: `RacetimeRoomRepository`.
 
 ### user_service.py — UserService
 

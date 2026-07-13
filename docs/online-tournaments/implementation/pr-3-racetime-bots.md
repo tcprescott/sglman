@@ -2,6 +2,19 @@
 
 > Feature 5. Roadmap phase 3 (data/admin half). Models + `/platform` management +
 > per-tournament selection. **No live websocket yet** — that's PR 4.
+>
+> **Status: implemented.** Global `RacetimeBot` (per-category OAuth creds as DB
+> rows, secret write-only, `BotStatus` health fields), `RacetimeBotTenant`
+> SUPER_ADMIN authorization grants, tenant-scoped `RaceRoomProfile`, and
+> `RacetimeRoom` (globally-unique slug + unscoped by-slug routing lookup,
+> O2O→`Match`); `BotStatus`/`RaceRoomStatus` enums. `Tournament` gains
+> `racetime_bot`/`race_room_profile` FKs + `racetime_auto_create_rooms` /
+> `room_open_minutes_before` / `require_racetime_link` / `racetime_default_goal`.
+> `RacetimeBotService` (platform CRUD + grants, secret hygiene),
+> `RaceRoomProfileService` (SYNC_ADMIN CRUD), `RacetimeRoomService` (by-slug
+> routing). `/platform` bot CRUD + tenant assignment; admin **Racetime** tab;
+> tournament dialog Racetime section (authorized categories only). Migration 24;
+> leak + service tests. The websocket runtime and room lifecycle stay in PR 4/6.
 
 **Goal:** the data model and admin surfaces for racetime bots, their per-tenant
 authorization, per-tournament selection, and the room record.

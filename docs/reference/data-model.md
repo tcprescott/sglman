@@ -36,8 +36,10 @@ tenant-scoped.**
   Ties a global `User` to the tenants they belong to; queried across tenants, so
   it is never auto-scoped.
 - **Global (no `tenant` FK):** `User`, `WebPushSubscription`, `Tenant`,
-  `TenantMembership`. `User.discord_id` / `challonge_user_id` / `twitch_user_id` /
-  `racetime_user_id` uniques stay global — identity links are to the person.
+  `TenantMembership`, `RacetimeBot` (shared, platform-managed per category).
+  `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id`
+  uniques stay global — identity links are to the person; `RacetimeBot.category`
+  is globally unique.
 - **Nullable `tenant` (stamped from context, NULL = platform-level row):**
   `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), and `UserRole`
   (`CASCADE`; NULL only for the global `SUPER_ADMIN` role).
@@ -50,13 +52,16 @@ tenant-scoped.**
   `VolunteerProfile`, `VolunteerPosition`, `VolunteerShift`,
   `VolunteerAssignment`, `VolunteerQualification`, `VolunteerAvailability`,
   `PlayerAvailability`, `ChallongeConnection`, `ChallongeParticipant`,
-  `ChallongeMatch`, `ChallongeApiUsage`.
+  `ChallongeMatch`, `ChallongeApiUsage`, `RacetimeBotTenant`, `RaceRoomProfile`,
+  `RacetimeRoom`.
 - **Per-tenant uniqueness** — formerly-global uniques became composite with
   `tenant`: `StreamRoom.name`, `VolunteerPosition.name`,
   `SystemConfiguration.name` → `(tenant, name)`; `Equipment.asset_number` →
   `(tenant, asset_number)`; `ChallongeApiUsage.period` → `(tenant, period)`;
   `DiscordRoleMapping` → `(tenant, discord_role_id, app_role)`; `UserRole` →
-  `(user, role, tenant)`.
+  `(user, role, tenant)`; `RaceRoomProfile.name` → `(tenant, name)`. The
+  `RacetimeBotTenant` grant is unique on `(bot, tenant)`; `RacetimeRoom.slug`
+  stays **globally** unique (it is the tenant-routing key for inbound events).
 - **`VolunteerProfile`** changed from a global `OneToOneField(user)` to a
   tenant-scoped `ForeignKeyField(user)` with `unique_together(tenant, user)` —
   opt-in is per tenant. `User.volunteer_profile` (single) became
@@ -242,6 +247,31 @@ Used by `ChallongeMatch.state` (`max_length=20`, default `PENDING`). Mirrors the
 | `OPEN` = `'open'` | Both participants known and ready to play |
 | `COMPLETE` = `'complete'` | Result recorded on Challonge |
 
+### `BotStatus`
+
+Used by `RacetimeBot.status` (`max_length=20`, default `UNKNOWN`). Health of a
+racetime bot's websocket connection; the values are *written* by the PR 4
+runtime and read by the platform health surface.
+
+| Value | Meaning |
+|---|---|
+| `UNKNOWN` = `'unknown'` | No live connection has reported yet |
+| `CONNECTED` = `'connected'` | Websocket up |
+| `DISCONNECTED` = `'disconnected'` | Websocket down |
+| `ERROR` = `'error'` | Connection error |
+
+### `RaceRoomStatus`
+
+Used by `RacetimeRoom.status` (`max_length=20`, default `OPEN`). Cached racetime
+room lifecycle state, written by PR 4/6.
+
+| Value | Meaning |
+|---|---|
+| `OPEN` = `'open'` | Room open, race not started |
+| `IN_PROGRESS` = `'in_progress'` | Race running |
+| `FINISHED` = `'finished'` | Race complete |
+| `CANCELLED` = `'cancelled'` | Room cancelled |
+
 ## Model reference
 
 ### Identity
@@ -357,6 +387,12 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
 | `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments](../online-tournaments/README.md) |
 | `preset` | FK → `Preset` | null, `SET_NULL` | Seed-rolling preset; resolves the randomizer + settings for seed generation and overrides `seed_generator` when set. `related_name='tournaments'` |
+| `racetime_bot` | FK → `RacetimeBot` | null, `SET_NULL` | Selected racetime bot/category; validated against the tenant's authorization grants (`RacetimeBotTenant`). `related_name='tournaments'` |
+| `race_room_profile` | FK → `RaceRoomProfile` | null, `SET_NULL` | Reusable room settings applied when a room is opened. `related_name='tournaments'` |
+| `racetime_auto_create_rooms` | `BooleanField` | default `False` | Opt-in: auto-open a race room per scheduled match |
+| `room_open_minutes_before` | `IntField` | default `30` | Lead time before `scheduled_at` to open the room |
+| `require_racetime_link` | `BooleanField` | default `False` | Require players to have a linked racetime identity |
+| `racetime_default_goal` | `CharField(255)` | null | Default racetime goal for opened rooms |
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |
@@ -813,6 +849,91 @@ Per-calendar-month tally of real outbound Challonge API requests. One row per `Y
 | `request_count` | `IntField` | default `0` | Requests made this period |
 
 Constraints: `Meta.table = 'challongeapiusage'`. No relationships.
+
+### Racetime automation (PR 3)
+
+The data + admin half of the racetime room automation. The live websocket
+connection, health-field *writes*, and room creation land in PR 4/6.
+
+#### `RacetimeBot`
+
+A shared, platform-managed racetime.gg bot for one game category. **Global** (no
+`tenant` FK) like the Discord token / VAPID keys: one bot per category holding
+that category's OAuth credentials. SUPER_ADMIN authorizes tenants via
+`RacetimeBotTenant`. The `client_secret` is a privileged secret — never returned
+to a tenant-facing surface or logged (`RacetimeBotService.serialize` omits it).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `category` | `CharField(64)` | not null, `unique=True` | Racetime game category (one bot per category) |
+| `client_id` | `CharField(255)` | not null | Category OAuth client id |
+| `client_secret` | `CharField(255)` | not null | Category OAuth secret; write-only, never surfaced/logged |
+| `name` | `CharField(255)` | not null | Display name |
+| `description` | `TextField` | null | |
+| `is_active` | `BooleanField` | default `True` | Inactive bots are not selectable |
+| `handler_class` | `CharField(255)` | null | Dotted path to the PR 4 handler |
+| `status` | `CharEnumField(BotStatus)` | default `UNKNOWN` | Health; written by PR 4 |
+| `status_message` | `TextField` | null | Last health detail |
+| `last_connected_at` | `DatetimeField` | null | Written by PR 4 |
+| `last_checked_at` | `DatetimeField` | null | Written by PR 4 |
+
+Relationships: `tenant_grants` (→ `RacetimeBotTenant`), `rooms` (→ `RacetimeRoom`), `tournaments` (→ `Tournament`). `Meta.table = 'racetimebot'`.
+
+#### `RacetimeBotTenant`
+
+The SUPER_ADMIN authorization grant — a many-to-many join between a global
+`RacetimeBot` and a `Tenant`. Created on `/platform` with explicit ids (no
+ambient tenant scope). A tenant may hold several categories; a category serves
+many tenants.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `bot` | FK → `RacetimeBot` | not null, `CASCADE` | `related_name='tenant_grants'` |
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='racetime_bot_grants'` |
+| `is_active` | `BooleanField` | default `True` | Suspend a grant without deleting it |
+
+Constraints: `unique_together (('bot', 'tenant'),)`; `Meta.table = 'racetimebottenant'`.
+
+#### `RaceRoomProfile`
+
+Tenant-scoped reusable racetime room settings a tournament points at (the
+racetime `startrace` parameters). Managed by SYNC_ADMIN via `RaceRoomProfileService`.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='race_room_profiles'` |
+| `name` | `CharField(255)` | not null | |
+| `goal` | `CharField(255)` | null | Racetime goal |
+| `invitational` / `unlisted` | `BooleanField` | default `False` | Room visibility |
+| `auto_start` | `BooleanField` | default `True` | Auto-start the race |
+| `allow_comments` / `allow_midrace_chat` / `allow_non_entrant_chat` | `BooleanField` | default `True` | Chat rules |
+| `chat_message_delay` | `IntField` | default `0` | Seconds |
+| `start_delay` | `IntField` | default `15` | Seconds before an auto-started race begins |
+| `time_limit` | `IntField` | default `24` | Hours before the room auto-closes |
+| `streaming_required` | `BooleanField` | default `False` | |
+
+Constraints: `unique_together (('tenant', 'name'),)`; `Meta.table = 'raceroomprofile'`. Relationship: `tournaments` (→ `Tournament`).
+
+#### `RacetimeRoom`
+
+A racetime.gg race room record — its own model, not a slug on `Match`. `slug` is
+**globally unique + indexed**: inbound racetime events carry only the slug (no
+tenant), so the reverse lookup is deliberately *unscoped* for tenant routing
+(`RacetimeRoomRepository.get_by_slug`, mirroring the `ApiToken`→tenant pattern).
+Room creation and status writes land in PR 4/6.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='racetime_rooms'` |
+| `bot` | FK → `RacetimeBot` | null, `SET_NULL` | Removing a bot keeps room history. `related_name='rooms'` |
+| `slug` | `CharField(255)` | not null, `unique=True`, `index=True` | Global room slug — unscoped routing key |
+| `category` | `CharField(64)` | not null | |
+| `room_name` | `CharField(255)` | null | |
+| `status` | `CharEnumField(RaceRoomStatus)` | default `OPEN` | Cached room state; written by PR 4/6 |
+| `match` | O2O → `Match` | null, `SET_NULL` | `related_name='racetime_room'` |
+| `opened_at` | `DatetimeField` | null | |
+
+Constraints: `Meta.table = 'racetimeroom'`; `Meta.indexes = (('match',),)`.
 
 ## Match lifecycle
 

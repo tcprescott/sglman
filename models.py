@@ -337,6 +337,21 @@ class Tournament(Model):
     preset = fields.ForeignKeyField(
         'models.Preset', related_name='tournaments', null=True, on_delete=fields.SET_NULL
     )
+    # Racetime room automation (PR 3+). ``racetime_bot`` must be a category the
+    # tenant is authorized for (enforced in the service); SET_NULL so revoking a
+    # bot detaches its tournaments rather than deleting them. ``race_room_profile``
+    # supplies reusable room settings. The remaining knobs are worker-queried, so
+    # they are typed columns rather than living in ``config``.
+    racetime_bot = fields.ForeignKeyField(
+        'models.RacetimeBot', related_name='tournaments', null=True, on_delete=fields.SET_NULL
+    )
+    race_room_profile = fields.ForeignKeyField(
+        'models.RaceRoomProfile', related_name='tournaments', null=True, on_delete=fields.SET_NULL
+    )
+    racetime_auto_create_rooms = fields.BooleanField(default=False)
+    room_open_minutes_before = fields.IntField(default=30)
+    require_racetime_link = fields.BooleanField(default=False)
+    racetime_default_goal = fields.CharField(max_length=255, null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -1025,3 +1040,149 @@ class ChallongeApiUsage(Model):
     class Meta:
         table = 'challongeapiusage'
         unique_together = (('tenant', 'period'),)
+
+
+class BotStatus(str, Enum):
+    """Health of a racetime bot's websocket connection.
+
+    The values are *written* by the PR 4 runtime (heartbeat/connect/error) and
+    read by the platform health surface; in this PR the column exists but stays
+    at its ``UNKNOWN`` default.
+    """
+
+    UNKNOWN = 'unknown'
+    CONNECTED = 'connected'
+    DISCONNECTED = 'disconnected'
+    ERROR = 'error'
+
+
+class RaceRoomStatus(str, Enum):
+    """Cached racetime room lifecycle state (written by PR 4/6)."""
+
+    OPEN = 'open'
+    IN_PROGRESS = 'in_progress'
+    FINISHED = 'finished'
+    CANCELLED = 'cancelled'
+
+
+class RacetimeBot(Model):
+    """A shared, platform-managed racetime.gg bot for one game category.
+
+    **Global** (no ``tenant`` FK) like the Discord token and VAPID keys: one bot
+    per racetime category, holding that category's OAuth client credentials.
+    SUPER_ADMIN authorizes tenants to use it through :class:`RacetimeBotTenant`.
+    ``client_secret`` is a privileged secret — never surfaced to a tenant-facing
+    response or logged. The websocket connection and the health-field *writes*
+    land in PR 4; here the record and its admin surface exist.
+    """
+
+    id = fields.IntField(pk=True)
+    category = fields.CharField(max_length=64, unique=True)
+    client_id = fields.CharField(max_length=255)
+    client_secret = fields.CharField(max_length=255)
+    name = fields.CharField(max_length=255)
+    description = fields.TextField(null=True)
+    is_active = fields.BooleanField(default=True)
+    handler_class = fields.CharField(max_length=255, null=True)
+    # Health fields — written by the PR 4 runtime, read by the platform health
+    # page. Default to UNKNOWN until a live connection reports otherwise.
+    status = fields.CharEnumField(BotStatus, default=BotStatus.UNKNOWN, max_length=20)
+    status_message = fields.TextField(null=True)
+    last_connected_at = fields.DatetimeField(null=True)
+    last_checked_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    tenant_grants = fields.ReverseRelation["RacetimeBotTenant"]
+    rooms = fields.ReverseRelation["RacetimeRoom"]
+    tournaments = fields.ReverseRelation["Tournament"]
+
+    class Meta:
+        table = 'racetimebot'
+
+
+class RacetimeBotTenant(Model):
+    """SUPER_ADMIN authorization grant: a :class:`RacetimeBot` usable by a tenant.
+
+    **Many-to-many** — a tenant may hold several categories; a category serves
+    many tenants. Created on ``/platform`` with explicit ids (no ambient tenant
+    scope); ``is_active`` lets a grant be suspended without deleting it.
+    """
+
+    id = fields.IntField(pk=True)
+    bot = fields.ForeignKeyField('models.RacetimeBot', related_name='tenant_grants', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='racetime_bot_grants', on_delete=fields.CASCADE)
+    is_active = fields.BooleanField(default=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'racetimebottenant'
+        unique_together = (('bot', 'tenant'),)
+
+
+class RaceRoomProfile(Model):
+    """Reusable racetime room settings a tournament can point at.
+
+    Tenant-scoped; managed by ``SYNC_ADMIN``. These values become the racetime
+    ``startrace`` parameters when the PR 4/6 room-creation flow opens a room, so
+    a community defines its house rules once and reuses them across tournaments.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='race_room_profiles', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    goal = fields.CharField(max_length=255, null=True)
+    invitational = fields.BooleanField(default=False)
+    unlisted = fields.BooleanField(default=False)
+    auto_start = fields.BooleanField(default=True)
+    allow_comments = fields.BooleanField(default=True)
+    allow_midrace_chat = fields.BooleanField(default=True)
+    allow_non_entrant_chat = fields.BooleanField(default=True)
+    chat_message_delay = fields.IntField(default=0)  # seconds
+    start_delay = fields.IntField(default=15)  # seconds before an auto-started race begins
+    time_limit = fields.IntField(default=24)  # hours before the room auto-closes
+    streaming_required = fields.BooleanField(default=False)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    tournaments = fields.ReverseRelation["Tournament"]
+
+    class Meta:
+        table = 'raceroomprofile'
+        unique_together = (('tenant', 'name'),)
+
+
+class RacetimeRoom(Model):
+    """A racetime.gg race room record — its own model, not a slug on ``Match``.
+
+    ``slug`` is **globally unique + indexed**: inbound racetime events carry only
+    the slug (no tenant), so the reverse lookup is deliberately *unscoped* for
+    tenant routing (see :class:`RacetimeRoomRepository.get_by_slug`, mirroring the
+    ``ApiToken``→tenant pattern). Room creation and status *writes* land in
+    PR 4/6; this PR defines the record.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='racetime_rooms', on_delete=fields.CASCADE)
+    # SET_NULL: removing a bot must not erase the history of rooms it opened.
+    bot = fields.ForeignKeyField(
+        'models.RacetimeBot', related_name='rooms', null=True, on_delete=fields.SET_NULL
+    )
+    slug = fields.CharField(max_length=255, unique=True, index=True)
+    category = fields.CharField(max_length=64)
+    room_name = fields.CharField(max_length=255, null=True)
+    status = fields.CharEnumField(RaceRoomStatus, default=RaceRoomStatus.OPEN, max_length=20)
+    # SET_NULL: deleting a match detaches its room record rather than dropping it.
+    match = fields.OneToOneField(
+        'models.Match', related_name='racetime_room', null=True, on_delete=fields.SET_NULL
+    )
+    opened_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'racetimeroom'
+        indexes = (('match',),)
