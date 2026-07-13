@@ -14,7 +14,8 @@
 | 2026-07-12 | First online focus: **scheduled restreamed brackets**; **ALTTPR-first** game scope |
 | 2026-07-12 | Tournament logic is **user-definable** (declarative config, not code-per-tournament) — see [design principle](#design-principle-user-definable-tournament-logic) |
 | 2026-07-12 | **SGLMan succeeds SahasrahBot** (full replacement of its tournament/racing mission, not coexistence) |
-| 2026-07-13 | **Forward-port scope fixed at four features** (see [Scope](#scope-the-four-forward-ported-features)): Async Qualifiers, seed rolling, Discord Events sync, SpeedGaming ETL. Supersedes the earlier broad port map and the "parity items before cutover" framing |
+| 2026-07-13 | **Forward-port scope fixed at five features** (see [Scope](#scope-the-five-forward-ported-features)): Async Qualifiers, seed rolling, Discord Events sync, SpeedGaming ETL, racetime race-room lifecycle. Supersedes the earlier broad port map and the "parity items before cutover" framing |
+| 2026-07-13 | **SGLMan owns the full racetime race-room lifecycle** (Feature 5, added after the initial four): create → open → in-progress → finished/cancelled, for scheduled matches. **Rooms are auto-created on schedule** (opened ahead of `Match.scheduled_at`), not on demand. Reverses the earlier "race-room automation out of scope" decision and resolves the corresponding open question. |
 | 2026-07-13 | SahasrahBot's **Async Tournament** is renamed **Async Qualifier** in SGLMan — its workflow is completely different from a tournament's and the name collision with `Tournament` would mislead |
 | 2026-07-13 | SpeedGaming schedule data comes in via an **ETL/sync process** into SGLMan's own tables — *not* SahasrahBot's approach of live-querying the SG API per interaction |
 | 2026-07-13 | `AsyncQualifier` is a **standalone peer aggregate of `Tournament`**: created/administered the same way (many can run concurrently per tenant), but a **distinct state machine** entirely outside the `Match`/schedule system — no structural FK between the two |
@@ -33,7 +34,7 @@ window, submit a time, ranked against par.
 **SGLMan is the designated successor to SahasrahBot.** The end state is that
 SahasrahBot's tournament/racing mission retires and SGLMan is the single platform
 for both SGL's on-site events and the online community's tournaments. The
-maintainer has fixed the succession scope to the four features below — SahasrahBot
+maintainer has fixed the succession scope to the five features below — SahasrahBot
 functionality outside that list retires with it (or survives on a thin community
 bot), rather than being reimplemented.
 
@@ -73,16 +74,17 @@ Everything below is designed under this constraint.
 
 ---
 
-## Scope: the four forward-ported features
+## Scope: the five forward-ported features
 
 **These are additive — they sit on top of SGLMan's existing Tournament/Match
 capability, which remains the backbone for online tournaments.** Everything the
 app already does — tournaments, enrollment, match scheduling and lifecycle, crew
 signup/approval, stream rooms, notifications, Challonge mirroring, availability —
-serves online events directly; nothing here replaces those workflows. The four
+serves online events directly; nothing here replaces those workflows. The five
 ported features fill the online-specific gaps and plug into that machinery: the
 SG ETL materializes into existing `Match` rows, Discord Events sync reads the
-existing schedule, presets extend the existing seed-rolling flow, and Async
+existing schedule, presets extend the existing seed-rolling flow, the racetime
+race-room lifecycle auto-creates and drives a room per scheduled `Match`, and Async
 Qualifiers arrive as a **peer aggregate alongside `Tournament`** — created and
 administered the same way, running a distinct machine.
 
@@ -92,16 +94,12 @@ administered the same way, running a distinct machine.
 | 2 | **[Seed rolling](#2-seed-rolling)** — eventually every SahasrahBot-supported randomizer | `services/seedgen/`, `models/presets.py` | Extend `SeedGenerationService`; add user-managed `Preset` model; incremental randomizer coverage |
 | 3 | **[Discord Events sync](#3-discord-events-sync)** | `ScheduledEvents` model (`episode_id` ↔ `scheduled_event_id`) | Generalized auto-sync of Discord Scheduled Events from SGLMan schedule data, per tenant guild |
 | 4 | **[SpeedGaming schedule ETL](#4-speedgaming-schedule-etl)** | direct SG API queries keyed on `episode_id` throughout | **New approach**: periodic ETL into SGLMan tables; SG becomes an upstream data source, not a per-interaction dependency |
+| 5 | **[Racetime race-room lifecycle](#5-racetime-race-room-lifecycle)** | `services/race_room_service`, the `racetime-bot` handler framework | New `racetimebot/` subsystem (peer of `discordbot/`); **auto-creates rooms on schedule** and owns the full room lifecycle through finish/cancel, incl. seed attach + result capture |
 
 ### Explicitly not ported
 
 - **Per-tournament handler classes** — replaced by the user-definable config
   (design principle above), not translated.
-- **Racetime race-room automation for scheduled matches** (`race_room_service`,
-  tournament room handlers) — not in the succession scope. The only racetime
-  surface retained is what Async Qualifier **live races** require, plus
-  racetime **identity linking** on `User`. Room automation for scheduled brackets
-  can be revisited later; nothing in this plan forecloses it.
 - **Spoiler races, community dailies, ranked-choice voting** — retire with
   SahasrahBot (previously misclassified here as pre-cutover parity items).
 - **General Discord-community features** (reaction/voice roles, holy images,
@@ -160,7 +158,8 @@ like a `Tournament`'s, and the old name would collide with SGLMan's existing
    runs); a leaderboard ranks qualifiers.
 5. **Live races**: a pool can be flagged for synchronous group runs on
    racetime.gg (SahasrahBot's `AsyncTournamentLiveRace` — `racetime_slug`,
-   status) — the one racetime-bot dependency this plan keeps.
+   status). These reuse the [Feature 5](#5-racetime-race-room-lifecycle) racetime
+   subsystem rather than a separate integration.
 
 ### Model mapping (SahasrahBot → SGLMan)
 
@@ -278,52 +277,162 @@ errors surfaced in the admin UI + audit log). The read-only boundary also means
 staff can never "fix" a Match locally in a way the next sync silently reverts —
 today's biggest source of ETL confusion in systems like this.
 
+## Feature 5: Racetime race-room lifecycle
+
+**SGLMan owns the full lifecycle of a racetime.gg race room** for a scheduled
+match — from creation through the race finishing or being cancelled — rather than
+delegating any of it to SahasrahBot or to staff clicking through racetime.gg by
+hand. This is the piece that makes an online scheduled bracket actually run, and
+it is the backbone of the decided-first focus (scheduled restreamed brackets,
+ALTTPR-first).
+
+### The `racetimebot/` subsystem (peer of `discordbot/`)
+
+A new top-level package, structurally the sibling of `discordbot/`, following the
+established "bot handlers are a presentation layer" rule (they call services, never
+import repositories):
+
+- **One persistent connection** to racetime.gg per process, started from
+  `main.py`'s lifespan (`init_racetime_bot()`), gated by `RACETIME_*` env vars and
+  a **`MOCK_RACETIME`** flag mirroring `MOCK_DISCORD` — so the whole app stays
+  developable with no racetime credentials, and the lifecycle can be exercised end
+  to end against a stub. Unset credentials log a warning and skip the bot, exactly
+  like the Discord token today.
+- **A handler per active room**, spawned via the `racetime-bot` framework
+  (websocket per category, `RaceHandler` per room). Each handler is a long-lived
+  task that reacts to room state transitions and calls `RaceRoomService`.
+- **Tenant routing.** A room belongs to the tenant whose match created it; its
+  handler runs inside `tenant_scope(tenant_id)` so every service call is scoped —
+  the same discipline the Discord bot uses for guild routing, and the same
+  websocket-trap caveat ([multitenancy.md](features/multitenancy.md)): handlers run
+  outside any HTTP request, so the tenant must be resolved from the room→tenant
+  mapping on every inbound event, never assumed.
+
+### Scheduled auto-creation (decided)
+
+Rooms are **created on schedule, not on demand.** A background worker (under
+`tenant_scope`, same pattern as the SG sync and Discord-events workers) opens a
+racetime room for each eligible upcoming `Match` a configurable lead time before
+`Match.scheduled_at` (e.g. "open the room 30 minutes before start"). Lead time,
+eligibility (which tournaments/matches auto-open), room visibility, and the goal
+are per-tournament config via the [user-definable](#design-principle-user-definable-tournament-logic)
+surface — no per-tournament code. Staff can also trigger creation manually for a
+one-off, but the default path is automatic.
+
+### Lifecycle state machine
+
+`RaceRoomService` (in `application/services/`) is the business layer the handlers
+and the auto-open worker both call. The room's lifecycle, mapped onto the `Match`:
+
+| Room event | SGLMan action |
+|---|---|
+| **Create** (worker, on schedule) | open the racetime room from tournament config; store its slug + state on the `Match`; invite/announce to enrolled players |
+| **Open → entrants join** | track readiness; surface room status on the match's web/admin views |
+| **Attach seed** | roll (or use the already-rolled) seed via `SeedGenerationService` + the tournament's `Preset`, and post the permalink into the room at the configured moment (e.g. at `.setup`/countdown) |
+| **In-progress** (race starts) | stamp `Match.started_at`; templated race-room messages via config |
+| **Finish** | capture each entrant's finish time/place, map racetime users → `User` (via the racetime identity link below; unlinked → raw handle for staff reconcile), record results, stamp `Match.finished_at`, hand off to result reporting (Challonge) |
+| **Cancel / abort / timeout** | mark the room closed, leave the `Match` re-openable, audit the reason |
+
+Every transition writes an `AuditLog` and publishes an `EventType`
+(`race_room.created`, `.opened`, `.started`, `.finished`, `.cancelled`) so
+webhooks, telemetry, and UI refresh react through the existing bus.
+
+### racetime identity linking (prerequisite)
+
+Result capture only attributes to a `User` if that user has linked their
+racetime.gg identity. This adds the third verified-identity link on the global
+`User`, mirroring the existing Twitch/Challonge pattern exactly:
+
+| Field | Mirrors |
+|---|---|
+| `racetime_user_id` (unique, nullable) | `twitch_user_id` |
+| `racetime_username` (cached) | `twitch_username` |
+| `racetime_linked_at` | `twitch_linked_at` |
+
+Captured via one-time racetime OAuth (identity only, token discarded), a new
+`pages/racetime_oauth.py` mirroring `pages/challonge_oauth.py`. Unlinked racers
+don't block a finish — the raw racetime handle is stored on the result for staff
+to reconcile later (same graceful-degradation rule as SG player matching).
+
 ---
 
 ## Data-model additions (summary)
 
 | Model / change | Feature |
 |---|---|
-| `User.racetime_user_id` / `_username` / `_linked_at` (global, unique, OAuth identity-only) | 1 (live races, attribution) |
+| `User.racetime_user_id` / `_username` / `_linked_at` (global, unique, OAuth identity-only) | 5 (result attribution), 1 (live races) |
 | `Preset` (tenant-scoped) + `Tournament`/pool preset FKs | 2 |
 | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | 1 |
 | `DiscordScheduledEvent` (tenant-scoped link/reconciliation table) | 3 |
 | `SpeedGamingEpisode`, `SpeedGamingEventLink` (tenant-scoped); `Match` gains its FK to `SpeedGamingEpisode` (source marker driving read-only enforcement) | 4 |
-| New `AuditActions` + `EventType` members per subsystem (`async_qualifier.*`, `preset.*`, `discord_event.*`, `sg_sync.*`) — EventType is an external contract: add, never rename | all |
+| `Match` gains racetime room fields (`racetime_room_slug`, room state, `room_opened_at`) + per-entrant finish time/place on `MatchPlayers` for captured results | 5 |
+| New `AuditActions` + `EventType` members per subsystem (`async_qualifier.*`, `preset.*`, `discord_event.*`, `sg_sync.*`, `race_room.*`) — EventType is an external contract: add, never rename | all |
 
 New enums: run status + review status (Feature 1), sync status (Feature 4).
 
 ## Phased roadmap
 
-Ordering follows dependencies, not feature numbering — presets underpin
-qualifiers; the ETL feeds Discord events.
+Ordering follows dependencies, not feature numbering. The **decided first focus —
+scheduled restreamed brackets, ALTTPR-first — is delivered by Phases 1–4**
+(presets → identity → racetime bot → room lifecycle); the SG ETL, Discord events,
+and Async Qualifiers build out from there. SG ETL and Discord Events are
+independent of the racetime track and can run in parallel.
 
 1. **Phase 1 — user-managed presets + seedgen preset selection** (Feature 2
    foundation). `Preset` model, admin tab, `SeedGenerationService` preset arg,
    built-in preset import. ALTTPR-first; immediately useful on-site too.
-2. **Phase 2 — SpeedGaming ETL** (Feature 4). Staging model, sync worker,
-   reconciliation contract, admin visibility. Independent of Phase 1;
-   parallelizable.
-3. **Phase 3 — Discord Events sync** (Feature 3). Consumes native + SG-imported
+2. **Phase 2 — racetime identity linking** (Feature 5 prerequisite). `User.racetime_*`
+   + OAuth page (mirrors Twitch/Challonge linking). Small; also unblocks Async
+   Qualifier live races.
+3. **Phase 3 — racetime bot skeleton + `MOCK_RACETIME`** (Feature 5). Stand up
+   `racetimebot/` as a lifespan-managed connection with a mockable boundary and a
+   handler that connects and tracks room state — proving the single-worker /
+   long-lived-websocket architecture before wiring business logic.
+4. **Phase 4 — racetime room lifecycle for scheduled matches** (Feature 5, the
+   core online loop). `RaceRoomService`, the scheduled auto-open worker, seed
+   attach from `Preset`, full lifecycle → result capture → Challonge reporting.
+   **This completes scheduled online brackets** and reuses the existing crew /
+   stream-room / notification stack.
+5. **Phase 5 — SpeedGaming ETL** (Feature 4). Staging model, sync worker,
+   read-only reconciliation contract, admin visibility. Independent of the
+   racetime track; parallelizable with Phases 1–4.
+6. **Phase 6 — Discord Events sync** (Feature 3). Consumes native + SG-imported
    schedule data; reconciliation worker + config.
-4. **Phase 4 — racetime identity linking.** `User.racetime_*` + OAuth page
-   (mirrors Twitch/Challonge linking). Small; prerequisite for Phase 6.
-5. **Phase 5 — Async Qualifiers core** (Feature 1). Models, web run-execution
+7. **Phase 7 — Async Qualifiers core** (Feature 1). Models, web run-execution
    pages (draw permalink, timer, submit time/VoD), reviewer queue, par scoring,
    leaderboard. Discord DM notifications only — no thread-based execution.
-6. **Phase 6 — Async Qualifier live races.** The racetime-bot slice (mockable
-   `MOCK_RACETIME` boundary, room per live race, result capture).
-7. **Phase 7+ — randomizer coverage expansion** (Feature 2 completion).
+8. **Phase 8 — Async Qualifier live races** (Feature 1 + 5). Reuses the Phase 3–4
+   racetime subsystem: a room per live race, result capture into runs.
+9. **Phase 9+ — randomizer coverage expansion** (Feature 2 completion).
    Incremental backends toward full SahasrahBot parity; mystery weightsets.
 
 ## Risks & sharp edges
 
-- **Background-worker load in one process.** The single-uvicorn-worker constraint
-  ([architecture.md](architecture.md)) now hosts the SG sync worker, the Discord
-  events reconciler, and (Phase 6) racetime connections alongside the web UI and
-  Discord bot. Same disciplines as today: non-blocking I/O only, bounded
-  concurrency, per-worker error isolation, `tenant_scope` everywhere
-  (`require_tenant_id()` raising is the safety net).
+- **Background-worker load + a second persistent websocket in one process.** The
+  single-uvicorn-worker constraint ([architecture.md](architecture.md)) now hosts
+  the SG sync worker, the Discord events reconciler, the room auto-open worker, and
+  the **racetime connection with a task per live room** — alongside the web UI and
+  Discord bot. This is the sharpest architectural cost of Feature 5: a busy race
+  day could have many concurrent room handlers in the same event loop that serves
+  the UI. Disciplines: non-blocking I/O only, bounded concurrency, **per-room
+  error isolation** (a crashing handler must not drop the bot or other rooms),
+  reconnect/resume so a dropped websocket doesn't orphan live rooms, and
+  `tenant_scope` everywhere (`require_tenant_id()` raising is the safety net). If
+  load ever outgrows one process, the racetime bot is the natural first thing to
+  split into a sidecar against the same DB — explicitly not now.
+- **Tenant routing for inbound race events.** racetime handlers run entirely
+  outside any HTTP request (the websocket trap), so a room's tenant must be
+  resolved from the stored room→tenant mapping on **every** inbound event and
+  wrapped in `tenant_scope` — never inferred. A forgotten scope surfaces loudly via
+  `require_tenant_id()` raising; keep that safety net rather than defaulting a
+  tenant.
+- **Scheduled room creation reliability.** The auto-open worker must be idempotent
+  (exactly one room per match even across restarts/retries — guard on the stored
+  `racetime_room_slug`), tolerate racetime API failures without wedging the match
+  (retry with backoff, surface a staff-visible error, allow manual creation as
+  fallback), and handle reschedules (a `Match.scheduled_at` that moves after a room
+  opened). Getting "open 30 min before" wrong in either direction — no room, or a
+  duplicate room — is a race-day incident.
 - **ETL field-level read-only enforcement.** The one-way, per-field read-only
   contract (above) has to be enforced at the service layer, not just documented —
   a `MatchService.update_match` gap that lets an ETL-owned field slip through
@@ -338,7 +447,7 @@ qualifiers; the ETL feeds Discord events.
   user-breakable: finite strategy registry, schema-validated config, safe
   template substitution, no `eval`. A need config can't express becomes a new
   named strategy for everyone.
-- **Succession scope discipline.** The four features are the succession scope.
+- **Succession scope discipline.** The five features are the succession scope.
   Resist re-expanding toward "reimplement all of SahasrahBot" — anything outside
   the list retires or lives on a thin community bot.
 
@@ -346,22 +455,24 @@ qualifiers; the ETL feeds Discord events.
 
 - **Each SahasrahBot community becomes a tenant**; provisioning via the existing
   `/platform` surface. SGL is the first tenant.
-- **The cutover gate is the four features**, evaluated per community: a community
+- **The cutover gate is the five features**, evaluated per community: a community
   cuts over when the features *it uses* (from this list) are live in SGLMan.
 - **Data migration** (SahasrahBot is also Tortoise/Aerich — DB-to-DB backfill is
   feasible): verified racer links → `User.racetime_*`; presets/weightsets →
   `Preset` rows; async tournament history → `AsyncQualifier*` (drain or migrate
   in-flight qualifiers — never cut mid-window); historical results archived.
-- **Parallel run during transition**, each community's racing owned by exactly
-  one bot at a time; SahasrahBot's racetime identity transfers at the end if the
-  live-race slice needs it.
+- **Parallel run during transition**, each community's racing owned by exactly one
+  bot at a time (never two bots in one racetime room); SahasrahBot's racetime
+  category/bot identity transfers to SGLMan at the end, since Feature 5 makes
+  SGLMan the room owner.
 
 ## Open questions (for the maintainer)
 
-1. **Racetime rooms for scheduled matches** are now out of the port scope —
-   confirm that's intended long-term, or parked until after the four features.
-2. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
+1. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
    a thin community bot? (Nothing in this plan depends on the answer.)
+2. **Room-open lead time & auto-open eligibility** — sensible per-tournament
+   defaults (e.g. 30 min before start, all matches with two linked players), or
+   staff-triggered only until a tournament opts in?
 
 ## Related docs
 
