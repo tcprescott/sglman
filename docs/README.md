@@ -69,7 +69,7 @@ Some newer subsystems do not yet have a dedicated feature doc; they are covered 
 ## Proposals (not yet implemented)
 
 - [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (dual path-based `/t/<slug>` + custom-domain tenant addressing, platform super-admin surface, one-bot-many-guilds Discord). Design only; no code shipped.
-- [online-tournaments-plan.md](online-tournaments-plan.md) — phased plan for SGLMan to **succeed [SahasrahBot](https://github.com/tcprescott/sahasrahbot)** as the online tournament/racing platform: racetime.gg race rooms, async tournaments, presets, racetime identity linking, plus a per-community succession/cutover track. Core principle: tournament logic is **user-definable** (declarative config + strategy engine), not code-per-tournament. Design only; no code shipped.
+- [online-tournaments-plan.md](online-tournaments-plan.md) — phased plan for SGLMan to **succeed [SahasrahBot](https://github.com/tcprescott/sahasrahbot)** as the online tournament platform. Four forward-ported features layered on the existing Tournament/Match workflows: **Async Qualifiers** (renamed from Async Tournament), **seed rolling** (toward full randomizer coverage, user-managed presets), **Discord Events sync**, and a **SpeedGaming schedule ETL** (replacing SahasrahBot's live SG queries). Core principle: tournament logic is **user-definable**, not code-per-tournament. Design only; no code shipped.
 
 ## Coverage map
 
