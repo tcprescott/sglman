@@ -18,6 +18,7 @@
 | 2026-07-13 | SahasrahBot's **Async Tournament** is renamed **Async Qualifier** in SGLMan — its workflow is completely different from a tournament's and the name collision with `Tournament` would mislead |
 | 2026-07-13 | SpeedGaming schedule data comes in via an **ETL/sync process** into SGLMan's own tables — *not* SahasrahBot's approach of live-querying the SG API per interaction |
 | 2026-07-13 | `AsyncQualifier` is a **standalone peer aggregate of `Tournament`**: created/administered the same way (many can run concurrently per tenant), but a **distinct state machine** entirely outside the `Match`/schedule system — no structural FK between the two |
+| 2026-07-13 | **Async Qualifier execution is web-first, decided (not open).** SahasrahBot's Discord-thread-driven run execution (slash command → private thread → buttons) is **dropped**, not ported, not offered as a config toggle. Drawing a permalink, timing a run, submitting time/VoD, and review all happen on SGLMan web pages; Discord is notification-only via the existing DM queue. Live races (Phase 6) still need a racetime.gg bot connection for synchronous group races, but that's separate from the core async execution loop. |
 
 ## Context
 
@@ -86,7 +87,7 @@ administered the same way, running a distinct machine.
 
 | # | Feature | SahasrahBot source | SGLMan disposition |
 |---|---|---|---|
-| 1 | **[Async Qualifiers](#1-async-qualifiers)** (renamed from *Async Tournament*) | `models/async_tournament.py`, `services/async_tournament_*` | New tenant-scoped `AsyncQualifier*` subsystem; web-first workflow |
+| 1 | **[Async Qualifiers](#1-async-qualifiers)** (renamed from *Async Tournament*) | `models/async_tournament.py`, `services/async_tournament_*` | New tenant-scoped `AsyncQualifier*` subsystem; **web-first execution, decided** — Discord-thread run flow dropped |
 | 2 | **[Seed rolling](#2-seed-rolling)** — eventually every SahasrahBot-supported randomizer | `services/seedgen/`, `models/presets.py` | Extend `SeedGenerationService`; add user-managed `Preset` model; incremental randomizer coverage |
 | 3 | **[Discord Events sync](#3-discord-events-sync)** | `ScheduledEvents` model (`episode_id` ↔ `scheduled_event_id`) | Generalized auto-sync of Discord Scheduled Events from SGLMan schedule data, per tenant guild |
 | 4 | **[SpeedGaming schedule ETL](#4-speedgaming-schedule-etl)** | direct SG API queries keyed on `episode_id` throughout | **New approach**: periodic ETL into SGLMan tables; SG becomes an upstream data source, not a per-interaction dependency |
@@ -170,18 +171,24 @@ leak test) per [multitenancy.md](features/multitenancy.md).
 | `AsyncTournament` (guild/channel ids, owner, `allowed_reattempts`, `runs_per_pool`, `customization`) | `AsyncQualifier` | Discord channel wiring → tenant + web UI; `customization` → schema-validated config per the design principle; standalone peer of `Tournament` (no structural FK — at most an informational label for the event it feeds) |
 | `AsyncTournamentPermalinkPool` (name, preset) | `AsyncQualifierPool` | `preset` becomes FK → the new `Preset` model |
 | `AsyncTournamentPermalink` (url, notes, `live_race`, `par_time`) | `AsyncQualifierPermalink` | as-is |
-| `AsyncTournamentRace` (status, review_status, start/end, `thread_id`, `runner_vod_url`, score) | `AsyncQualifierRun` | Discord `thread_id` → web run page (+ optional Discord notification); statuses kept: `pending/in_progress/finished/forfeit/disqualified`, review `pending/approved/rejected` |
+| `AsyncTournamentRace` (status, review_status, start/end, `thread_id`, `runner_vod_url`, score) | `AsyncQualifierRun` | **`thread_id` dropped** (no Discord thread — execution is the web run page); Discord DM notifies on state changes instead; statuses kept: `pending/in_progress/finished/forfeit/disqualified`, review `pending/approved/rejected` |
 | `AsyncTournamentLiveRace` (`racetime_slug`, `episode_id`, status) | `AsyncQualifierLiveRace` | `episode_id` → FK to the SG-imported episode/match where applicable |
 | `AsyncTournamentReviewNotes` | `AsyncQualifierReviewNote` | as-is |
 | `AsyncTournamentWhitelist` / `AsyncTournamentPermissions` | eligibility + reviewer config on `AsyncQualifier` | map onto SGLMan roles (`AuthService`) + tournament enrollment instead of parallel permission tables |
 | `AsyncTournamentAuditLog` | **not ported** | SGLMan's `AuditService` + new `AuditActions`/`EventType` members (`async_qualifier.run_submitted`, `.run_reviewed`, …) |
 
-**Workflow surface shift (design decision):** SahasrahBot's async flow is
-Discord-thread-driven (buttons in threads). SGLMan is web-first — players start
-runs, submit times/VoDs, and view leaderboards on tenant pages; Discord is used
-for notifications (existing DM queue) rather than as the primary UI. A
-Discord-side entry point can be layered on later via `discordbot/` handlers
-calling the same `AsyncQualifierService`.
+**Workflow surface: web-first, decided.** SahasrahBot's async flow is
+Discord-thread-driven (slash command → private thread → buttons). SGLMan drops
+that entirely: players start runs, submit times/VoDs, and view leaderboards on
+tenant web pages; Discord is notification-only (existing DM queue — "window
+open," "run reviewed," etc.), not an execution surface. This isn't just a port
+shortcut — a web run page can show live elapsed time, inline VoD upload/embed,
+richer pool/leaderboard browsing, and a proper reviewer queue UI, none of which
+Discord's thread+button model does well. `thread_id` is dropped from
+`AsyncQualifierRun` (no replacement field — there is no thread). If a
+lightweight Discord entry point (e.g. "start my run" deep-linking into the web
+page) proves worth adding later, it goes through `discordbot/` calling the same
+`AsyncQualifierService` — but it is not part of this plan.
 
 ## Feature 2: Seed rolling
 
@@ -282,8 +289,9 @@ qualifiers; the ETL feeds Discord events.
    schedule data; reconciliation worker + config.
 4. **Phase 4 — racetime identity linking.** `User.racetime_*` + OAuth page
    (mirrors Twitch/Challonge linking). Small; prerequisite for Phase 6.
-5. **Phase 5 — Async Qualifiers core** (Feature 1). Models, web-first run
-   workflow, review queue, par scoring, leaderboard.
+5. **Phase 5 — Async Qualifiers core** (Feature 1). Models, web run-execution
+   pages (draw permalink, timer, submit time/VoD), reviewer queue, par scoring,
+   leaderboard. Discord DM notifications only — no thread-based execution.
 6. **Phase 6 — Async Qualifier live races.** The racetime-bot slice (mockable
    `MOCK_RACETIME` boundary, room per live race, result capture).
 7. **Phase 7+ — randomizer coverage expansion** (Feature 2 completion).
@@ -330,12 +338,9 @@ qualifiers; the ETL feeds Discord events.
 
 1. **Racetime rooms for scheduled matches** are now out of the port scope —
    confirm that's intended long-term, or parked until after the four features.
-2. **Async Qualifier UX**: web-first with Discord notifications (this plan's
-   default) — or does the Discord-thread workflow need day-one parity for
-   community adoption?
-3. **SG ETL direction**: one-way SG → SGLMan (assumed), or does anything need to
+2. **SG ETL direction**: one-way SG → SGLMan (assumed), or does anything need to
    flow back to SG (results, crew assignments)?
-4. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
+3. **Non-racing SahasrahBot features** (reaction roles, etc.): retire, or keep on
    a thin community bot? (Nothing in this plan depends on the answer.)
 
 ## Related docs
