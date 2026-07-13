@@ -11,7 +11,7 @@ method never calls the ``_tenant`` helpers and says so; the scoped reads/writes
 from typing import Any, List, Optional
 
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Match, RacetimeRoom
+from models import Match, RaceRoomStatus, RacetimeRoom
 
 
 class RacetimeRoomRepository:
@@ -25,6 +25,17 @@ class RacetimeRoomRepository:
         ``ApiTokenRepository.get_by_hash``).
         """
         return await RacetimeRoom.get_or_none(slug=slug).prefetch_related('tenant')
+
+    async def list_open_all(self) -> List[RacetimeRoom]:
+        """Every not-yet-terminal room across all tenants — **unscoped**.
+
+        Used by the runtime on boot to re-adopt live rooms so a redeploy does
+        not orphan them. Cross-tenant on purpose (like :meth:`get_by_slug`); the
+        caller re-establishes each room's tenant scope from ``room.tenant_id``.
+        """
+        return await RacetimeRoom.filter(
+            status__in=[RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS],
+        ).prefetch_related('tenant').order_by('id')
 
     async def get_by_id(self, room_id: int) -> Optional[RacetimeRoom]:
         return await RacetimeRoom.get_or_none(id=room_id, tenant_id=current_tenant_id())

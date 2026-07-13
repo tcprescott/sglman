@@ -21,6 +21,10 @@ class RacetimeBotRepository:
     async def list_all(self) -> List[RacetimeBot]:
         return await RacetimeBot.all().order_by('category')
 
+    async def list_active(self) -> List[RacetimeBot]:
+        """Every active bot — the set the runtime opens a connection for."""
+        return await RacetimeBot.filter(is_active=True).order_by('category')
+
     async def get_by_id(self, bot_id: int) -> Optional[RacetimeBot]:
         return await RacetimeBot.get_or_none(id=bot_id)
 

@@ -96,6 +96,8 @@ def create() -> None:
                            @click="$parent.$emit('edit_bot', props.row)" />
                     <q-btn dense flat color="secondary" label="Tenants"
                            @click="$parent.$emit('grant_bot', props.row)" />
+                    <q-btn dense flat color="orange" label="Restart"
+                           @click="$parent.$emit('restart_bot', props.row)" />
                 </q-td>
             ''')
 
@@ -105,8 +107,12 @@ def create() -> None:
             async def _on_grant_bot(e) -> None:
                 await _open_bot_tenants_dialog(user, e.args)
 
+            async def _on_restart_bot(e) -> None:
+                await _restart_bot(user, bot_table, e.args)
+
             bot_table.on('edit_bot', _on_edit_bot)
             bot_table.on('grant_bot', _on_grant_bot)
+            bot_table.on('restart_bot', _on_restart_bot)
 
             await _refresh_bots(bot_table)
 
@@ -204,11 +210,22 @@ async def _refresh_bots(table) -> None:
             'id': b.id, 'category': b.category, 'name': b.name,
             'client_id': b.client_id,
             'active': 'yes' if b.is_active else 'no',
-            'status': b.status,
+            'status': (f'{b.status} — {b.status_message}' if b.status_message else b.status),
         }
         for b in bots
     ]
     table.update()
+
+
+async def _restart_bot(actor, table, row) -> None:
+    from racetimebot import get_racetime_manager
+    try:
+        await get_racetime_manager().restart(actor, row['id'])
+    except (ValueError, PermissionError) as e:
+        ui.notify(str(e), color='warning')
+        return
+    ui.notify('Bot connection restarting', color='positive')
+    await _refresh_bots(table)
 
 
 async def _current_actor():

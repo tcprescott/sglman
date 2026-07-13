@@ -584,7 +584,22 @@ Platform administration of the shared, **global** racetime bots (one per game ca
 | `list_authorized_for_tenant(tenant_id)` | `[RacetimeBot]` | Tenant-facing: active bots a tenant may select (no secret exposed; explicit tenant id). |
 | `is_authorized_for_tenant(bot_id, tenant_id)` | `bool` | Whether a tenant may select a given bot. |
 
-Collaborators: `AuditService`, `RacetimeBotRepository`. Consumers: the `/platform` bot CRUD + tenant-assignment UI ([`pages/platform.py`](../../pages/platform.py)) and `TournamentService` (validating a tournament's selected bot against the tenant's grants).
+Runtime health methods (PR 4) are **not** SUPER_ADMIN-gated — the caller is the trusted in-process connection loop acting as the system user, writing platform-level (`tenant=NULL`) health rows. `client_secret` never appears in them.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_active_bots()` | `[RacetimeBot]` | Active bots the runtime should hold a connection for. |
+| `get_runtime_bot(id)` | `RacetimeBot?` | Load a bot with no permission gate (runtime/restart). |
+| `record_connected(id, actor)` | `None` | `status=connected`, `last_connected_at`/`last_checked_at`; audits `racetime_bot.connected`. |
+| `record_heartbeat(id)` | `None` | Refresh `last_checked_at` only (un-audited liveness tick). |
+| `record_error(id, actor, msg, *, auth_failed=False)` | `None` | `status=error` + message; audits `racetime_bot.error` (with `auth_failed`). |
+| `mark_disconnected(id, actor, msg=None)` | `None` | `status=disconnected`; audits `racetime_bot.disconnected`. |
+
+Collaborators: `AuditService`, `RacetimeBotRepository`. Consumers: the `/platform` bot CRUD + tenant-assignment UI ([`pages/platform.py`](../../pages/platform.py)), `TournamentService` (validating a tournament's selected bot against the tenant's grants), and the `racetimebot/` runtime (health writes).
+
+#### racetimebot/ — the racetime bot runtime (PR 4)
+
+A peer of `discordbot/` (presentation layer: calls services, never repositories). Started from the FastAPI lifespan when `RACETIME_BOT_ENABLED` is on; a no-op otherwise. Modules: `manager.py` (`RacetimeBotManager` singleton — one `CategoryConnection` task per active bot, re-adopts open rooms on boot, `restart(actor, id)`), `connection.py` (`CategoryConnection` — the supervised loop: authenticate → `record_connected` → run with heartbeats; auth error → `record_error(auth_failed=True)` and stop; transient → `record_error` + exponential backoff capped 5 min; graceful stop → `mark_disconnected`), `handler.py` (`RaceHandler` — resolves slug → room → tenant via the unscoped lookup, binds `tenant_scope`, delegates to a lifecycle object; a raised handler is caught so it never kills the bot), `transport.py` (`RacetimeTransport` seam: `RealRacetimeTransport` does a real `client_credentials` token fetch + liveness loop; `RaceRoomEvent`/`RaceEntrant`/`EntrantStatus` value types; `RacetimeAuthError`/`RacetimeTransientError`), and `mock.py` (`MockRacetimeTransport` — the scripted fake for `MOCK_RACETIME` and tests).
 
 ### race_room_profile_service.py — RaceRoomProfileService
 
@@ -602,9 +617,9 @@ Collaborators: `AuditService`, `RaceRoomProfileRepository`. Consumers: the admin
 
 ### racetime_room_service.py — RacetimeRoomService
 
-Record lookup for race-room→tenant routing. Rooms are created/updated by the PR 4/6 lifecycle; this service provides `get_by_slug(slug)` — the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant) — and `get_for_match(match)`.
+Record lookup + status writes for race-room→tenant routing. `get_by_slug(slug)` is the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant); `get_for_match(match)` finds a match's room; `list_open_rooms()` returns not-yet-terminal rooms across all tenants (unscoped, for boot-time re-adoption); `set_status(room, status)` writes the cached lifecycle status (stamping `opened_at` the first time a room reaches `in_progress`). The richer create/seed/result lifecycle lands in PR 6.
 
-Collaborators: `RacetimeRoomRepository`.
+Collaborators: `RacetimeRoomRepository`. Consumers: the `racetimebot/` runtime (re-adoption + status writes).
 
 ### user_service.py — UserService
 

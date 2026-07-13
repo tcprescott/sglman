@@ -41,6 +41,16 @@ class EventType:
     VOLUNTEER_UNASSIGNED = 'volunteer.unassigned'
     VOLUNTEER_ACKNOWLEDGED = 'volunteer.acknowledged'
 
+    # Racetime race-room lifecycle (mirrors AuditActions.RACE_ROOM_*). Tenant-
+    # scoped domain events a webhook subscriber can act on; published by the
+    # racetime room lifecycle as the system user.
+    RACE_ROOM_CREATED = 'race_room.created'
+    RACE_ROOM_OPENED = 'race_room.opened'
+    RACE_ROOM_STARTED = 'race_room.started'
+    RACE_ROOM_FINISHED = 'race_room.finished'
+    RACE_ROOM_CANCELLED = 'race_room.cancelled'
+    RACE_ROOM_RESULT_RECORDED = 'race_room.result_recorded'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -51,6 +61,8 @@ class EventType:
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,
+        RACE_ROOM_CREATED, RACE_ROOM_OPENED, RACE_ROOM_STARTED,
+        RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
     })
 
     # Wildcard a subscriber can register to receive every event.

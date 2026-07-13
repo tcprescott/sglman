@@ -11,12 +11,13 @@ tables) omits it, updates only rewrite it when a new value is supplied, and the
 tenant-facing :meth:`list_authorized_for_tenant` exposes only id/category/name.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from application.repositories import RacetimeBotRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from models import RacetimeBot, RacetimeBotTenant, User
+from models import BotStatus, RacetimeBot, RacetimeBotTenant, User
 
 
 class RacetimeBotService:
@@ -187,6 +188,87 @@ class RacetimeBotService:
         await self.audit_service.write_log(
             actor, AuditActions.RACETIME_BOT_REVOKED,
             {'bot_id': bot_id, 'tenant_id': tenant_id},
+        )
+
+    # ---- runtime health (written by the racetimebot/ connection loop) ----
+    #
+    # These are NOT super-admin-gated: the caller is the trusted in-process
+    # connection loop acting as the system user, not an interactive admin. They
+    # run with no tenant scope (the bot is global), so their audit rows are
+    # platform-level (``tenant=NULL``), and the ``client_secret`` never appears
+    # in the row. The health enum has no dedicated ``auth_failed`` member, so an
+    # auth failure is ``ERROR`` with the reason in ``status_message`` and an
+    # ``auth_failed`` flag on the audit detail (the loop uses it to stop retrying).
+
+    async def list_active_bots(self) -> List[RacetimeBot]:
+        """Active bots the runtime should hold a connection for."""
+        return await self.repository.list_active()
+
+    async def get_runtime_bot(self, bot_id: int) -> Optional[RacetimeBot]:
+        """Load a bot by id with no permission gate (runtime/restart use)."""
+        return await self.repository.get_by_id(bot_id)
+
+    async def record_connected(self, bot_id: int, actor: User) -> None:
+        now = datetime.now(timezone.utc)
+        bot = await self.repository.get_by_id(bot_id)
+        if bot is None:
+            return
+        await self.repository.update(
+            bot,
+            status=BotStatus.CONNECTED,
+            status_message=None,
+            last_connected_at=now,
+            last_checked_at=now,
+        )
+        await self.audit_service.write_log(
+            actor, AuditActions.RACETIME_BOT_CONNECTED,
+            {'bot_id': bot_id, 'category': bot.category},
+        )
+
+    async def record_heartbeat(self, bot_id: int) -> None:
+        """Refresh ``last_checked_at`` so a wedged-without-error task is visible.
+
+        Deliberately un-audited: it fires on every liveness tick.
+        """
+        bot = await self.repository.get_by_id(bot_id)
+        if bot is None:
+            return
+        await self.repository.update(bot, last_checked_at=datetime.now(timezone.utc))
+
+    async def record_error(
+        self, bot_id: int, actor: User, message: str, *, auth_failed: bool = False,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        bot = await self.repository.get_by_id(bot_id)
+        if bot is None:
+            return
+        await self.repository.update(
+            bot,
+            status=BotStatus.ERROR,
+            status_message=(message or '').strip()[:2000] or None,
+            last_checked_at=now,
+        )
+        await self.audit_service.write_log(
+            actor, AuditActions.RACETIME_BOT_ERROR,
+            {'bot_id': bot_id, 'category': bot.category, 'auth_failed': auth_failed},
+        )
+
+    async def mark_disconnected(
+        self, bot_id: int, actor: User, message: Optional[str] = None,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        bot = await self.repository.get_by_id(bot_id)
+        if bot is None:
+            return
+        await self.repository.update(
+            bot,
+            status=BotStatus.DISCONNECTED,
+            status_message=(message or '').strip()[:2000] or None,
+            last_checked_at=now,
+        )
+        await self.audit_service.write_log(
+            actor, AuditActions.RACETIME_BOT_DISCONNECTED,
+            {'bot_id': bot_id, 'category': bot.category},
         )
 
     # ---- tenant-facing read (no secret) ----------------------------------

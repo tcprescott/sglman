@@ -123,6 +123,13 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.RACE_ROOM_PROFILE_CREATED,
     AuditActions.RACE_ROOM_PROFILE_UPDATED,
     AuditActions.RACE_ROOM_PROFILE_DELETED,
+    # Racetime bot runtime health: platform-level (tenant=NULL) connection-state
+    # transitions written by the connection loop. A webhook is tenant-scoped, so
+    # a platform-level health event would reach zero subscribers — kept audit-only.
+    AuditActions.RACETIME_BOT_CONNECTED,
+    AuditActions.RACETIME_BOT_DISCONNECTED,
+    AuditActions.RACETIME_BOT_ERROR,
+    AuditActions.RACETIME_BOT_RESTARTED,
     # Volunteer opt-in state, scheduling config, and bulk draft churn.
     AuditActions.VOLUNTEER_OPTED_IN,
     AuditActions.VOLUNTEER_OPTED_OUT,

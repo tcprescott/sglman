@@ -8,10 +8,11 @@ tenant context exists, mirroring how an ``ApiToken`` hash routes back to a
 tenant.
 """
 
-from typing import Optional
+from datetime import datetime, timezone
+from typing import List, Optional
 
 from application.repositories import RacetimeRoomRepository
-from models import Match, RacetimeRoom
+from models import Match, RaceRoomStatus, RacetimeRoom
 
 
 class RacetimeRoomService:
@@ -26,3 +27,20 @@ class RacetimeRoomService:
 
     async def get_for_match(self, match: Match) -> Optional[RacetimeRoom]:
         return await self.repository.get_by_match(match)
+
+    async def list_open_rooms(self) -> List[RacetimeRoom]:
+        """Not-yet-terminal rooms across all tenants (unscoped, for re-adoption)."""
+        return await self.repository.list_open_all()
+
+    async def set_status(self, room: RacetimeRoom, status: RaceRoomStatus) -> RacetimeRoom:
+        """Write a room's cached lifecycle status (tenant-scoped).
+
+        The connection handler resolves ``room`` via the unscoped by-slug lookup
+        and re-establishes its tenant scope before calling this, so the write is
+        correctly attributed. Stamps ``opened_at`` the first time a room reaches
+        ``IN_PROGRESS`` if it was not already set.
+        """
+        fields = {'status': status}
+        if status == RaceRoomStatus.IN_PROGRESS and room.opened_at is None:
+            fields['opened_at'] = datetime.now(timezone.utc)
+        return await self.repository.update(room, **fields)

@@ -56,6 +56,18 @@ def telemetry_enabled() -> bool:
     return raw.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def racetime_bot_enabled() -> bool:
+    """Master switch for the racetime bot runtime (default: off).
+
+    The connection loop only spins up when ``RACETIME_BOT_ENABLED`` is truthy.
+    Off by default so a deployment without configured racetime bots — the common
+    case — never opens outbound connections. Independent of ``MOCK_RACETIME``:
+    the switch says "run the runtime", the mock flag says "run it against a
+    scripted fake instead of live racetime".
+    """
+    return os.environ.get('RACETIME_BOT_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

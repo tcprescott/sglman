@@ -137,6 +137,22 @@ class AuditActions:
     RACE_ROOM_PROFILE_UPDATED = 'race_room_profile.updated'
     RACE_ROOM_PROFILE_DELETED = 'race_room_profile.deleted'
 
+    # Racetime bot runtime health (platform-level, tenant=NULL; audit-only —
+    # written by the racetimebot/ connection loop as the system user)
+    RACETIME_BOT_CONNECTED = 'racetime_bot.connected'
+    RACETIME_BOT_DISCONNECTED = 'racetime_bot.disconnected'
+    RACETIME_BOT_ERROR = 'racetime_bot.error'
+    RACETIME_BOT_RESTARTED = 'racetime_bot.restarted'
+
+    # Racetime race-room lifecycle (tenant-scoped; mirrored on the event bus as
+    # ``race_room.*`` domain events — the system user is the actor)
+    RACE_ROOM_CREATED = 'race_room.created'
+    RACE_ROOM_OPENED = 'race_room.opened'
+    RACE_ROOM_STARTED = 'race_room.started'
+    RACE_ROOM_FINISHED = 'race_room.finished'
+    RACE_ROOM_CANCELLED = 'race_room.cancelled'
+    RACE_ROOM_RESULT_RECORDED = 'race_room.result_recorded'
+
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'

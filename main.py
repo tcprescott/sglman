@@ -119,6 +119,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # docs/reviews/2026-07-project-structure-review.md, roadmap item 21).
     import discordbot  # noqa: F401
     await init_discord_bot()
+    # Racetime bot runtime: one long-lived connection per active RacetimeBot
+    # category. Gated by RACETIME_BOT_ENABLED (off by default) and mockable via
+    # MOCK_RACETIME; a no-op when the switch is off, so it is always safe to call.
+    from racetimebot import close_racetime_bot, init_racetime_bot
+    await init_racetime_bot()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -130,6 +135,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # the presentation layer). No event_types filter — record them all.
     event_bus.subscribe_async(TelemetryService().record_event)
     yield
+    await close_racetime_bot()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()
     await discord_queue.stop()
