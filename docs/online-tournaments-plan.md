@@ -37,6 +37,16 @@ SahasrahBot is exactly this bot, plus the tournament/async/scheduling machinery
 layered on top. **This plan ports that machinery into SGLMan's three-layer
 architecture** rather than running SahasrahBot as a separate service.
 
+> **SGLMan is the designated successor to SahasrahBot** (decided 2026-07-12). The
+> end state is that SahasrahBot is **retired** and SGLMan is the single platform
+> for both SpeedGaming Live's on-site events *and* the broader community's online
+> racing/tournaments. That reframes this effort: it is not "add an online feature
+> to SGLMan" but "**absorb SahasrahBot's tournament-running mission into SGLMan and
+> switch over.**" The consequences — hosting the whole community via multitenancy,
+> inheriting SahasrahBot's racetime identity, a feature-parity bar before cutover,
+> and a data-migration story — are collected under
+> [Succession & cutover](#succession--cutover).
+
 ### Why this is a good fit
 
 - **SahasrahBot was refactored to SGLMan's exact architecture** —
@@ -107,7 +117,9 @@ not ported.
 1. **racetime.gg is the online race substrate.** We integrate against it rather
    than building a race timer. A category-scoped racetime **bot** account rolls
    and monitors rooms; individual **players link their racetime identity** by
-   OAuth (mirrors Twitch linking).
+   OAuth (mirrors Twitch linking). Because SGLMan **succeeds** SahasrahBot, the
+   long-term target is for SGLMan's bot to **take over SahasrahBot's existing
+   racetime category and bot identity** at cutover, not to run a parallel one.
 2. **One racetime bot connection per process**, started in the FastAPI lifespan
    alongside the Discord bot, subject to the same **single-uvicorn-worker**
    constraint ([architecture.md](architecture.md)). See
@@ -117,10 +129,14 @@ not ported.
    `AsyncTournament` subsystem for async qualifiers.** Scheduled head-to-head
    online matches are the current `Match` plus a race room; async qualifiers are a
    genuinely new paradigm (no `Match`, no schedule) and get their own models.
-4. **Multitenant from day one.** Everything new is tenant-scoped exactly like the
-   rest of the app ([multitenancy.md](features/multitenancy.md)): a `tenant` FK,
-   scoped repositories, per-tenant racetime category config. A racetime room is
-   routed back to its tenant the same way a Discord guild is.
+4. **Multitenant from day one — and this is how the whole community is hosted.**
+   Everything new is tenant-scoped exactly like the rest of the app
+   ([multitenancy.md](features/multitenancy.md)): a `tenant` FK, scoped
+   repositories, per-tenant racetime config. A racetime room is routed back to its
+   tenant the same way a Discord guild is. Succession makes this concrete:
+   SahasrahBot serves **many communities/guilds**, so each becomes a **tenant** in
+   SGLMan — multitenancy is not just for SGL, it is the mechanism that lets one
+   SGLMan deployment absorb SahasrahBot's entire installed base.
 5. **Reuse, don't fork, the crew/restream layer.** Online restreams reuse
    `StreamRoom`, `Commentator`, `Tracker`, and the crew signup/ack flow. "Station"
    assignment is simply unused for non-restreamed races.
@@ -139,6 +155,14 @@ classified **Port** (bring it in), **Have** (already in SGLMan), **Adapt** (port
 but reshape to SGLMan's models), **Generalize** (replace bespoke code with
 user-facing config), or **Skip** (out of scope for tournament running).
 
+**Succession raises the bar.** Because SGLMan *replaces* SahasrahBot rather than
+sitting beside it, the deferred racing features (spoiler races, settings voting,
+dailies) are no longer optional "nice-to-haves" — they become **parity items that
+must exist before cutover**, just still later phases (marked _parity_ below). Only
+the pure Discord-community features (reaction/voice roles, holy images, inquiries)
+remain genuine **Skip** candidates — see the [succession boundary](#succession--cutover)
+for where that line falls.
+
 | SahasrahBot service | Disposition | SGLMan home |
 |---|---|---|
 | `tournament/` handler classes (per-tournament logic) | **Generalize** | **not ported** — replaced by the [declarative tournament config](#declarative-tournament-configuration) + strategy engine |
@@ -150,20 +174,21 @@ user-facing config), or **Skip** (out of scope for tournament running).
 | `preset_service` | **Port** | new `PresetService` over `presets/` (see [Presets](#presets)) |
 | `seedgen/` | **Have** (partial) | `SeedGenerationService` — extend with preset selection |
 | `racer_verification_service`, `verified_racer_service`, `nick_verification_service` | **Adapt** | racetime identity linking on `User` (OAuth, like Twitch) |
-| `spoiler_race_service` | **Port** (later) | spoiler-log races — a race-room variant |
-| `daily_service` | **Skip** (later) | recurring community dailies — not tournament-critical |
-| `ranked_choice_service` | **Port** (later) | settings voting for finals |
+| `spoiler_race_service` | **Port** (_parity_, later) | spoiler-log races — a race-room variant |
+| `daily_service` | **Port** (_parity_, later) | recurring community dailies — needed to retire SahasrahBot's racing role |
+| `ranked_choice_service` | **Port** (_parity_, later) | settings voting for finals |
 | `triforce_text_service` | **Have** | already ported ([triforce-texts.md](features/triforce-texts.md)) |
 | `audit_service`, `audit_messages_service` | **Have** | `AuditService` |
 | `user_service`, `authorization/`, `guild_config_service` | **Have** | `UserService`, `AuthService`, multitenancy `config` |
-| `discord_server_service`, `reaction_role_service`, `voice_role_service`, `holy_image_service`, `konot_service`, `inquiry_message_config_service`, `_notify` | **Skip** | Discord-community features unrelated to running tournaments |
+| `discord_server_service`, `reaction_role_service`, `voice_role_service`, `holy_image_service`, `konot_service`, `inquiry_message_config_service`, `_notify` | **Skip?** | general Discord-community features, not tournament/racing — the one **succession boundary** still to confirm (retire, keep in a separate lightweight bot, or absorb) |
 
 **Takeaway:** the *tournament-running* core reduces to five new things —
 **racetime bot + room service**, the **declarative tournament config + strategy
 engine** (the piece that replaces SahasrahBot's per-tournament handlers),
 **async tournaments**, **user-managed presets**, and **racetime identity linking**
-— plus adapting scheduling/results to close the loop. Everything else is either
-already here or out of scope.
+— plus adapting scheduling/results to close the loop. The parity features
+(spoiler/voting/dailies) follow later; only the general-community bot features are
+candidates to leave behind.
 
 ---
 
@@ -335,8 +360,82 @@ the on-site "staff schedules everyone" model into player-driven scheduling.
 **Phase 5 — async tournaments.** The `AsyncTournament*` models, permalink pools,
 one-attempt enforcement, par scoring, leaderboard page, and live-race review.
 
-**Phase 6+ — extras.** Spoiler races, settings ranked-choice voting for finals,
-community dailies — port opportunistically once the core is stable.
+**Phase 6+ — parity features.** Spoiler races, settings ranked-choice voting for
+finals, and community dailies. Under succession these are **required for cutover**
+(not optional extras) but come after the scheduled-bracket core is stable — see
+[Succession & cutover](#succession--cutover).
+
+---
+
+## Succession & cutover
+
+SGLMan replacing SahasrahBot is a **migration project, not just a feature build**.
+The phased roadmap above delivers the *capabilities*; this section covers what it
+takes to actually **switch the community over and turn SahasrahBot off**. It is an
+orthogonal track that runs alongside the feature phases and gates the final cutover.
+
+### Each SahasrahBot community becomes a tenant
+
+SahasrahBot serves many Discord guilds. Succession maps each onto a **tenant**
+([multitenancy.md](features/multitenancy.md)): its guild id, racetime config,
+presets, roles, and members live under one `Tenant`. Onboarding a community is
+"provision a tenant," which the `/platform` super-admin surface already does. SGL
+itself is simply the first, already-existing tenant.
+
+### Feature-parity checklist (the cutover gate)
+
+SahasrahBot cannot be retired for a given community until SGLMan covers what that
+community actually relies on. The bar is **per-community**, not global — a bracket
+-only community can cut over long before an async-heavy one. The checklist:
+
+- [ ] Scheduled race rooms + auto-seed + result capture (Phase 3)
+- [ ] racetime identity linking for that community's racers (Phase 0)
+- [ ] The presets/settings that community races on, imported (Phase 2)
+- [ ] Result reporting to their bracket (Phase 3, Challonge today)
+- [ ] Async qualifiers, **if** the community runs them (Phase 5)
+- [ ] Spoiler races / settings voting / dailies, **if** used (Phase 6)
+- [ ] The [succession boundary](#the-succession-boundary) resolved for their
+      general-community bot features
+
+### Data migration
+
+A retirement is only clean if history and in-flight state survive. Inventory of
+SahasrahBot data that needs a migration path (SahasrahBot uses the same Tortoise +
+Aerich stack, so a direct DB-to-DB backfill is feasible):
+
+| SahasrahBot data | SGLMan target | Notes |
+|---|---|---|
+| Verified/linked racers (racetime ↔ discord) | `User.racetime_*` | so results attribute post-cutover; the whole point of Phase 0 |
+| Presets | `Preset` rows | per-tenant import |
+| Guild config | `Tenant.config` | racetime category, defaults |
+| Historical race/tournament results | results tables | preserve records, or archive read-only |
+| **In-flight async tournaments** | `AsyncTournament*` | the sharp edge — a live event cannot be cut mid-flight; migrate or drain first |
+
+### The succession boundary
+
+The one genuinely open scope question (see [Open questions](#open-questions-for-the-maintainer)):
+SahasrahBot also does **general Discord-community management** (reaction roles,
+voice roles, holy images, inquiries) that has nothing to do with racing. Three
+options, to confirm:
+
+1. **Retire them** — communities drop the feature or move it to an off-the-shelf bot.
+2. **Keep a thin SahasrahBot** — retire only its tournament/racing role; a
+   stripped-down bot keeps the community-management bits.
+3. **Absorb them** — SGLMan grows a community-management surface (largest scope,
+   dilutes SGLMan's tournament-manager focus).
+
+The plan's default is **(1)/(2)** — SGLMan succeeds the *tournament/racing*
+mission and stays a tournament manager, not a general community bot. Confirm before
+this constrains any design.
+
+### Cutover strategy
+
+**Per-community, incremental — not big-bang.** Because each community is a tenant
+and the parity bar is per-community, communities move over one at a time as their
+checklist fills. Run SGLMan and SahasrahBot **in parallel during the transition**,
+with each community's racetime handling owned by exactly one of them at a time
+(avoid two bots in one room). SahasrahBot's racetime category/bot identity transfers
+to SGLMan only once the last dependent community has cut over.
 
 ---
 
@@ -385,12 +484,17 @@ linked their racetime identity (Phase 0). Need a graceful path for unlinked
 racers: capture the raw racetime handle on the result and let staff reconcile later,
 rather than dropping the finish.
 
-### Risk: scope creep from SahasrahBot's Discord-community features
+### Risk: succession pulls in scope creep
 
-SahasrahBot is also a general community bot (reaction roles, voice roles, dailies,
-holy images, inquiries). Those are explicitly **Skip** — porting them would balloon
-scope with nothing to do with running tournaments. Hold the line at the four core
-subsystems.
+Succession is the biggest scope risk in the plan: "replace SahasrahBot" can quietly
+expand to "reimplement all of SahasrahBot." Two disciplines hold the line. First,
+SGLMan succeeds the **tournament/racing** mission only; general community-management
+features (reaction/voice roles, holy images, inquiries) are the
+[succession boundary](#the-succession-boundary), defaulting to *not absorbed*.
+Second, the parity checklist is **per-community** — build what a community actually
+uses before cutting *it* over, rather than pre-building every SahasrahBot feature for
+a hypothetical user. Cut over the communities you can serve; don't gate everything on
+the union of all features.
 
 ---
 
@@ -398,16 +502,18 @@ subsystems.
 
 _Resolved 2026-07-12:_ **Games** — start **ALTTPR-only**. **Priority** —
 **scheduled restreamed brackets** first (Phase 3); async qualifiers deferred.
+**SahasrahBot relationship** — SGLMan **succeeds** it (full replacement, not
+coexistence); see [Succession & cutover](#succession--cutover).
 
 Still open:
 
-1. **Coexistence with SahasrahBot.** Is the intent to eventually *replace*
-   SahasrahBot with SGLMan, or run both (SGLMan for SGL events, SahasrahBot for the
-   broader community)? Affects whether the racetime bot needs its own category or
-   shares SahasrahBot's.
-2. **racetime bot account/category.** One shared SGLMan bot category, or
-   per-tenant categories? (Per-tenant is cleaner isolation but more operational
-   overhead; shared with `guild_id`-style routing is simpler.)
+1. **The succession boundary.** What happens to SahasrahBot's non-racing
+   community-management features — retire, keep in a thin bot, or absorb? Default
+   is *not absorbed* ([the succession boundary](#the-succession-boundary)).
+2. **racetime bot account/category.** SGLMan inherits SahasrahBot's category at
+   cutover, but during the parallel-run transition: one shared category with
+   `guild_id`-style routing, or per-tenant categories? (Shared is simpler; per-tenant
+   is cleaner isolation but more operational overhead.)
 
 ---
 
