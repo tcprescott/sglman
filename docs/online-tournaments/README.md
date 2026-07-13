@@ -19,7 +19,7 @@ for unmade decisions and must-preserve behaviors before implementation.
 | 1 | Async Qualifiers | [async-qualifiers.md](async-qualifiers.md) | Self-paced permalink-pool qualifiers; a standalone peer aggregate of `Tournament`, web-first |
 | 2 | Seed rolling | [seed-rolling.md](seed-rolling.md) | User-managed presets + incremental coverage toward every SahasrahBot randomizer |
 | 3 | Discord Events sync | [discord-events-sync.md](discord-events-sync.md) | Idempotent auto-sync of Discord Scheduled Events from SGLMan schedule data |
-| 4 | SpeedGaming schedule ETL | [speedgaming-etl.md](speedgaming-etl.md) | One-way ETL of SG episodes into SGLMan `Match` rows, with field-level read-only enforcement |
+| 4 | SpeedGaming schedule ETL | [speedgaming-etl.md](speedgaming-etl.md) | One-way ETL of SG episodes into SGLMan `Match` rows; hybrid read-only (per-field + lifecycle guards); placeholder users for unresolved players |
 | 5 | Racetime race-room lifecycle | [racetime-room-lifecycle.md](racetime-room-lifecycle.md) | Full racetime.gg room lifecycle, auto-created on schedule, through finish/cancel |
 
 ## Decisions log
@@ -39,6 +39,16 @@ for unmade decisions and must-preserve behaviors before implementation.
 | 2026-07-13 | **SahasrahBot's non-racing community features survive on a thin bot.** Only SahasrahBot's tournament/racing role is retired into SGLMan; a stripped-down SahasrahBot keeps the community-management bits (reaction/voice roles, holy images, inquiries, `konot`). SGLMan does **not** absorb them — it stays a tournament manager. |
 | 2026-07-13 | **Racetime auto-open is opt-in per tournament.** No room is auto-created until a tournament explicitly enables auto-open and sets its lead time — nothing opens unexpectedly. |
 | 2026-07-13 | **Auto-open eligibility: all entrants have a linked racetime identity.** A room auto-opens only when every player in the match has linked racetime (clean result attribution); matches with an unlinked entrant are left to manual creation. |
+| 2026-07-14 | **Gap-analysis decisions.** The following resolve findings in the [gap analysis](gap-analysis.md); several are informed by [sahabot2](https://github.com/tcprescott/sahabot2), the maintainer's prior working port (now a reference in this session). |
+| 2026-07-14 | **Autonomous actor = a reserved system `User`.** Workers/bots (racetime handlers, auto-open worker, SG materializer, qualifier scoring) act as one seeded system `User` (sentinel `discord_id`), with tenant from `tenant_scope`. Fits the "pass `actor: User` explicitly" audit convention. (sahabot2 used a `SYSTEM_USER_ID = -1` sentinel + null-actor audit; a real row suits sglman's actor-snapshotting audit better.) |
+| 2026-07-14 | **Config storage = hybrid (typed columns + validated JSON).** Worker-queried knobs (qualifier `opens_at`/`closes_at`, `auto_open` bool, lead time, `require_racetime_link`, goal) are typed columns; templates, scoring params, and strategy choices live in a Pydantic-validated JSON config on `Tournament`/`AsyncQualifier`. Directly mirrors sahabot2's `Tournament` (typed racetime/SG columns + `settings_form_schema`/`preset_selection_rules` JSON). |
+| 2026-07-14 | **Racetime topology = shared bots, tenant-routed, DB-managed.** Refined from sahabot2: racetime bots/categories are first-class `RacetimeBot` rows (creds per category), shared across tenants, and a `Tournament` selects one via FK; rooms route back to their tenant. Not per-tenant credentials, not one hard-coded connection. |
+| 2026-07-14 | **Unresolved SG/unlinked identities = placeholder `User` rows** (sahabot2 pattern). `User.discord_id` becomes nullable+unique with `CHECK (discord_id IS NOT NULL OR is_placeholder)`, plus `is_placeholder` and `speedgaming_id`. An unresolved SG player gets a placeholder `User` (so `MatchPlayers.user` stays NOT NULL), upgraded in place when a `discord_id` later appears. Resolution order: `discord_id` → `discord_username` → placeholder-by-`speedgaming_id` → create placeholder. |
+| 2026-07-14 | **SG read-only contract = hybrid (both guards).** Keep per-field read-only in the UI (staff can't edit ETL-owned fields on SG-sourced matches) AND adopt sahabot2's lifecycle guards: re-sync skips matches that are finished, have any manual status, or have a linked racetime room; auto-finish matches >4h past scheduled. Defense in depth. |
+| 2026-07-14 | **New admin surfaces get dedicated roles.** Add `PRESET_MANAGER`, `SYNC_ADMIN` (SG links + Discord events + racetime config), and `QUALIFIER_ADMIN` to the `Role` enum, plus a per-qualifier `admins` M2M (like `Tournament.admins`) for scoping a single qualifier. |
+| 2026-07-14 | **Qualifier reviewers = the qualifier's `admins` M2M; self-review blocked.** A reviewer cannot approve/reject their own run. |
+| 2026-07-14 | **Reschedule with an open room = keep the room, update time only.** On an upstream reschedule after a room opened, update `scheduled_at` + the Discord event; leave the open room as-is (staff manually cancel/recreate if warranted). Never auto-disrupt a room. |
+| 2026-07-14 | **Racetime room = its own `RacetimeRoom` model** (sahabot2), not a slug column on `Match`: unique `slug`, `category`, `status`, `OneToOne→Match` (SET_NULL), `FK→RacetimeBot`. Decouples room lifecycle from `Match` and prevents orphaned slugs. |
 
 ## Context
 
@@ -138,7 +148,9 @@ Canonical list; each feature doc details its own slice.
 | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | 1 |
 | `DiscordScheduledEvent` (tenant-scoped link/reconciliation table) | 3 |
 | `SpeedGamingEpisode`, `SpeedGamingEventLink` (tenant-scoped); `Match` gains its FK to `SpeedGamingEpisode` (source marker driving read-only enforcement) | 4 |
-| `Match` gains racetime room fields (`racetime_room_slug`, room state, `room_opened_at`) + per-entrant finish time/place on `MatchPlayers` for captured results | 5 |
+| `RacetimeRoom` model (unique `slug`, `category`, `status`, `OneToOne→Match` SET_NULL, `FK→RacetimeBot`) + `RacetimeBot` rows; `MatchPlayers` reuses `finish_rank` and gains a finish-time column; per-tournament racetime config columns | 5 |
+| `User` gains `is_placeholder` + `speedgaming_id`; `discord_id` → nullable+unique with `CHECK (discord_id IS NOT NULL OR is_placeholder)` (placeholder pattern) | 4 |
+| New `Role` members: `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN`; `AsyncQualifier.admins` M2M | 1,2,3,4 |
 | New `AuditActions` + `EventType` members per subsystem (`async_qualifier.*`, `preset.*`, `discord_event.*`, `sg_sync.*`, `race_room.*`) — EventType is an external contract: add, never rename | all |
 
 New enums: run status + review status (Feature 1), sync status (Feature 4).
@@ -237,3 +249,4 @@ questions that surface as implementation begins go here.
 - [reference/seed-generation.md](../reference/seed-generation.md) — current seedgen + preset gap
 - [features/multitenancy.md](../features/multitenancy.md) — tenant context, `tenant_scope`, one-bot-many-guilds
 - [reference/discord-integration.md](../reference/discord-integration.md) — bot/queue patterns the new workers follow
+- [sahabot2](https://github.com/tcprescott/sahabot2) — the maintainer's prior working port (NiceGUI + FastAPI + Tortoise). Reference implementation for the SG ETL (placeholder users), `RacetimeRoom`/`RacetimeBot`/`RaceRoomProfile` models, and per-tournament config columns. Added to this session's scope.

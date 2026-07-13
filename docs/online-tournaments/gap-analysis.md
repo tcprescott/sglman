@@ -25,6 +25,32 @@ could regress; **(3)** the racetime Finish row models only a clean two-player fi
 but real races end in forfeit / no-show / DQ / N-way, results are frequently wrong
 and disputed, and the Challonge sink is strictly 1v1.
 
+## Resolution status (2026-07-14)
+
+Interactive decisions closed the Tier-1 items and several others; details in the
+[decisions log](README.md#decisions-log). Four were settled against
+[sahabot2](https://github.com/tcprescott/sahabot2), the maintainer's prior working
+port.
+
+| Finding | Resolution |
+|---|---|
+| 1.1 system actor | Reserved system `User` (sentinel `discord_id`); tenant from `tenant_scope` |
+| 1.2 config home | Hybrid — typed columns for queried knobs (incl. qualifier `opens_at`/`closes_at`) + validated JSON blob |
+| 1.3 racetime topology | Shared, DB-managed `RacetimeBot` rows selected per tournament; tenant-routed |
+| 1.4 unresolved identities | **Placeholder `User`** rows (sahabot2): nullable+CHECK `discord_id`, `is_placeholder`, `speedgaming_id`; upgrade in place |
+| 1.5 roles | Add `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN` + per-qualifier `admins` M2M |
+| 1.6 reschedule w/ open room | Keep the room, update time + Discord event only; staff handle the room |
+| 2.2 reattempt fields | Carry `reattempted` + `reattempt_reason` on `AsyncQualifierRun` |
+| 4.2 room slug uniqueness | Its own `RacetimeRoom` model (unique `slug`, `OneToOne→Match`) — from sahabot2 |
+| 4.5 reviewer set | Qualifier `admins` M2M; self-review blocked |
+| SG read-only contract | Hybrid — per-field lock **and** sahabot2's lifecycle guards (skip finished/manual/room-linked; auto-finish >4h) |
+| 5.4 MOCK_RACETIME | Scripted event-emitting fake; production-refused like other mock flags |
+
+Still open as build-time detail (Tiers 2–4 not listed above): draw-fairness/par/leaderboard
+acceptance criteria (§2.3), run atomicity/one-active-run (§2.4), terminal states &
+result dispute (§3.1, §3.3), non-Challonge closure (§3.4), and the remaining Tier-4
+schema/index specifics — all to be pinned in their build phase.
+
 ## How to read this
 
 Each finding is tagged:

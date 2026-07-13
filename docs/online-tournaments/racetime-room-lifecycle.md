@@ -20,21 +20,29 @@ A new top-level package, structurally the sibling of `discordbot/`, following th
 established "bot handlers are a presentation layer" rule (they call services, never
 import repositories):
 
-- **One persistent connection** to racetime.gg per process, started from
-  `main.py`'s lifespan (`init_racetime_bot()`), gated by `RACETIME_*` env vars and
-  a **`MOCK_RACETIME`** flag mirroring `MOCK_DISCORD` — so the whole app stays
-  developable with no racetime credentials, and the lifecycle can be exercised end
-  to end against a stub. Unset credentials log a warning and skip the bot, exactly
-  like the Discord token today.
-- **A handler per active room**, spawned via the `racetime-bot` framework
-  (websocket per category, `RaceHandler` per room). Each handler is a long-lived
-  task that reacts to room state transitions and calls `RaceRoomService`.
+- **Shared, DB-managed bots (decided).** Racetime bots/categories are first-class
+  **`RacetimeBot` rows** (client-id/secret per game category), shared across tenants
+  and selectable per tournament via an FK — the mature form of "one bot, many
+  guilds," validated by [sahabot2](https://github.com/tcprescott/sahabot2). A
+  `Tournament` names which bot/category it uses; a room records the bot managing it.
+  Not per-tenant credentials, not a single hard-coded connection.
+- **A connection per category, a handler per active room**, spawned via the
+  `racetime-bot` framework. Each handler is a long-lived task that reacts to room
+  state transitions and calls `RaceRoomService`. Gated by `RACETIME_*` env +
+  `RacetimeBot` rows and a **`MOCK_RACETIME`** flag — a *scripted event-emitting
+  fake* that drives the full lifecycle (not a no-op skip), refused under
+  `ENVIRONMENT=production` like the other mock flags since it can fabricate finishes.
+- **Autonomous actor (decided).** Handlers and the auto-open worker act as the
+  reserved **system `User`**, so the state transitions and result capture they drive
+  carry a valid `actor` for audit/events without tripping a permission gate. Tenant
+  comes from `tenant_scope`.
 - **Tenant routing.** A room belongs to the tenant whose match created it; its
   handler runs inside `tenant_scope(tenant_id)` so every service call is scoped —
   the same discipline the Discord bot uses for guild routing, and the same
   websocket-trap caveat ([multitenancy.md](../features/multitenancy.md)): handlers
-  run outside any HTTP request, so the tenant must be resolved from the room→tenant
-  mapping on every inbound event, never assumed.
+  run outside any HTTP request, so the tenant is resolved from the
+  `RacetimeRoom`→`Match`→tenant mapping on every inbound event (an explicitly-unscoped
+  lookup on the unique `slug`), never assumed.
 
 ## Scheduled auto-creation (decided)
 
@@ -95,10 +103,22 @@ also what gates [auto-open eligibility](#scheduled-auto-creation-decided) and wh
 
 ## Data model
 
-`User.racetime_user_id` / `_username` / `_linked_at` (global, unique, OAuth
-identity-only). `Match` gains racetime room fields (`racetime_room_slug`, room
-state, `room_opened_at`); `MatchPlayers` gains per-entrant finish time/place for
-captured results. `race_room.*` audit/event members.
+- **`RacetimeRoom`** (its own model, decided — from sahabot2, not a slug column on
+  `Match`): unique `slug`, `category`, `room_name`, `status`
+  (open/pending/in_progress/finished/cancelled), `OneToOne → Match` (SET_NULL),
+  `FK → RacetimeBot`, timestamps. Decouples room lifecycle from `Match`, gives the
+  unique-slug reverse lookup for tenant routing, and prevents orphaned slugs.
+- **`RacetimeBot`** (its own model): per-category client-id/secret, shared across
+  tenants; `Tournament` selects one via FK. Managed on an admin surface.
+- **`User.racetime_user_id` / `_username` / `_linked_at`** (global, unique, OAuth
+  identity-only).
+- **`MatchPlayers`** reuses the existing `finish_rank` for place and gains one
+  finish-elapsed-time column; unlinked finishes fall back to the placeholder-user /
+  raw-handle path ([Feature 4](speedgaming-etl.md)).
+- Per-tournament config columns: `racetime_auto_create_rooms`,
+  `room_open_minutes_before`, `require_racetime_link`, `racetime_default_goal`, +
+  a `RaceRoomProfile` FK (reusable room settings) — the hybrid typed-columns side.
+- New enum: race-room `status` (cached from racetime). `race_room.*` audit/event members.
 
 ## Roadmap
 
@@ -121,12 +141,19 @@ captured results. `race_room.*` audit/event members.
   `require_tenant_id()` raising; keep that safety net rather than defaulting a
   tenant.
 - **Scheduled room creation reliability.** The auto-open worker must be idempotent
-  (exactly one room per match even across restarts/retries — guard on the stored
-  `racetime_room_slug`), tolerate racetime API failures without wedging the match
-  (retry with backoff, surface a staff-visible error, allow manual creation as
-  fallback), and handle reschedules (a `Match.scheduled_at` that moves after a room
-  opened). Getting "open 30 min before" wrong in either direction — no room, or a
-  duplicate room — is a race-day incident.
+  (exactly one room per match even across restarts/retries — guard on the presence
+  of a `RacetimeRoom` for the match / its unique `slug`), tolerate racetime API
+  failures without wedging the match (retry with backoff, surface a staff-visible
+  error, allow manual creation as fallback), and re-attach live rooms on bot
+  reconnect/redeploy by re-reading open `RacetimeRoom` rows. Getting "open 30 min
+  before" wrong in either direction — no room, or a duplicate room — is a race-day
+  incident.
+- **Reschedule with an open room (decided): keep the room, update time only.** On
+  an upstream reschedule after a room opened, update `scheduled_at` + the linked
+  Discord event but **leave the open room as-is** — staff manually cancel/recreate
+  if the new time warrants it. The auto-open worker never auto-disrupts an existing
+  room. (Note the F4 interaction: `scheduled_at` is ETL-owned on SG-sourced matches,
+  so the *SG sync* is what moves the time; the room is untouched either way.)
 
 See the [overview](README.md#cross-cutting-risks) for cross-cutting risks — the
 **single-worker load + second persistent websocket** risk is driven mostly by this

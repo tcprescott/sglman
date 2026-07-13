@@ -81,15 +81,20 @@ leak test) per [multitenancy.md](../features/multitenancy.md).
 | `AsyncTournamentRace` (status, review_status, start/end, `thread_id`, `runner_vod_url`, score) | `AsyncQualifierRun` | **`thread_id` dropped** (no Discord thread — execution is the web run page); Discord DM notifies on state changes instead; statuses kept: `pending/in_progress/finished/forfeit/disqualified`, review `pending/approved/rejected` |
 | `AsyncTournamentLiveRace` (`racetime_slug`, `episode_id`, status) | `AsyncQualifierLiveRace` | `episode_id` → FK to the SG-imported episode/match ([Feature 4](speedgaming-etl.md)) where applicable |
 | `AsyncTournamentReviewNotes` | `AsyncQualifierReviewNote` | as-is |
-| `AsyncTournamentWhitelist` / `AsyncTournamentPermissions` | eligibility + reviewer config on `AsyncQualifier` | map onto SGLMan roles (`AuthService`) + tournament enrollment instead of parallel permission tables |
+| `AsyncTournamentWhitelist` / `AsyncTournamentPermissions` | eligibility + reviewer config on `AsyncQualifier` | **decided:** management gated by the new `QUALIFIER_ADMIN` role (or STAFF) + a per-qualifier `admins` M2M (like `Tournament.admins`); **reviewers = that `admins` M2M, with self-review blocked** (a reviewer cannot approve/reject their own run) |
 | `AsyncTournamentAuditLog` | **not ported** | SGLMan's `AuditService` + new `AuditActions`/`EventType` members (`async_qualifier.run_submitted`, `.run_reviewed`, …) |
 
 ## Data model
 
 Tenant-scoped: `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`,
-`AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote`. New
-enums: run status (`pending/in_progress/finished/forfeit/disqualified`) and review
-status (`pending/approved/rejected`). Depends on `Preset`
+`AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote`, plus a
+per-qualifier `admins` M2M. `AsyncQualifier` carries typed **window columns**
+(`opens_at`/`closes_at`) + `runs_per_pool` + `allowed_reattempts` and a
+validated-JSON `config` blob for scoring/reattempt/messaging (the hybrid config
+decision); `AsyncQualifierRun` carries `reattempted` + `reattempt_reason` (the
+one-attempt integrity backstop). New enums: run status
+(`pending/in_progress/finished/forfeit/disqualified`) and review status
+(`pending/approved/rejected`). Depends on `Preset`
 ([Feature 2](seed-rolling.md)) for pool presets and, for live races, on
 `User.racetime_*` + the racetime subsystem ([Feature 5](racetime-room-lifecycle.md)).
 

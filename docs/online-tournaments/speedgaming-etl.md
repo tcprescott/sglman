@@ -16,10 +16,21 @@ Source: SahasrahBot's direct SG API queries keyed on `episode_id` throughout.
 
 - **Extract** — poll the SG schedule API per configured event slug on a cadence
   (background worker, `tenant_scope`, honoring SG rate limits).
-- **Transform** — normalize episodes to SGLMan's shape: UTC datetimes, players
-  matched to `User` (via Discord id where SG provides it; unmatched players kept as
-  raw names for staff reconciliation — same graceful-degradation pattern as
-  unlinked racetime identities), crew/channel metadata mapped to SGLMan concepts.
+- **Transform** — normalize episodes to SGLMan's shape: UTC datetimes,
+  crew/channel metadata mapped to SGLMan concepts, and players resolved to `User`
+  by the **placeholder-user pattern (decided, from sahabot2)**:
+  - Resolution order: existing `User` by `discord_id` → by `discord_username`
+    (from SG `discord_tag`) → existing placeholder by `speedgaming_id` → **create a
+    placeholder `User`** (`discord_id=NULL`, `discord_username="sg_{sgid}"`,
+    `is_placeholder=True`, `speedgaming_id` set).
+  - This keeps `MatchPlayers.user` **NOT NULL** — an unresolved SG player is still a
+    first-class `User` (enrollable, assignable crew, shows on the roster), just
+    flagged placeholder. It requires `User.discord_id` become nullable+unique with
+    `CHECK (discord_id IS NOT NULL OR is_placeholder)`, plus `is_placeholder` and
+    `speedgaming_id` columns.
+  - **Upgrade in place**: when a later sync (or a real login) supplies a
+    `discord_id`, the placeholder is promoted to a full `User` (or deferred to an
+    existing real `User` with that `discord_id`).
 - **Load** — upsert into a tenant-scoped staging model `SpeedGamingEpisode` (unique
   `(tenant, sg_episode_id)`, payload snapshot + content hash, `synced_at`, nullable
   FK → `Match`), then materialize/refresh linked `Match` rows.
@@ -36,16 +47,22 @@ and is never touched by sync:
 |---|---|
 | `scheduled_at`, enrolled players (`MatchPlayers` rows sourced from SG), `title`, tournament linkage | `generated_seed`, `stream_room`, `Commentator`/`Tracker` crew, `MatchAcknowledgment`, `MatchWatcher`, station assignments, `seated_at`/`started_at`/`finished_at`/`confirmed_at`, `comment`, Discord event links |
 
-**Enforcement, not just convention:** `Match` carries a source marker (its FK to
-`SpeedGamingEpisode`, non-null = SG-sourced). `MatchService.update_match` rejects
-writes to ETL-owned fields on a sourced match — an attempt raises `ValueError`
-("this field is synced from SpeedGaming and cannot be edited"), same pattern as
-every other service-layer validation. The presentation layer disables those form
-fields for SG-sourced matches (with a "Synced from SpeedGaming" badge and a link to
-the source episode) rather than letting the click reach the service and bounce. A
-cancelled upstream episode **soft-detaches** — the `Match` row and everything SGLMan
-added survive; only the ETL-owned fields freeze at their last synced value and no
-further sync updates them.
+**Enforcement = hybrid, two guards (decided).** The plan combines strict per-field
+locking with sahabot2's proven lifecycle guards:
+
+1. **Per-field read-only (UI + service).** `Match` carries a source marker (its FK
+   to `SpeedGamingEpisode`, non-null = SG-sourced). `MatchService.update_match`
+   rejects writes to ETL-owned fields on a sourced match (`ValueError`, same pattern
+   as every other service-layer validation); the presentation layer disables those
+   form fields with a "Synced from SpeedGaming" badge.
+2. **Lifecycle guards on the sync side (from sahabot2, which ran this in production).**
+   Re-sync **skips** a match that is finished, has any manual status set
+   (`checked_in`/`started`/`finished`/`confirmed`), or has a linked `RacetimeRoom`;
+   and **auto-finishes** matches more than ~4h past their scheduled time (unless a
+   room is linked). This protects race-day work even on fields the ETL nominally owns.
+
+A cancelled upstream episode **soft-detaches** — the `Match` row and everything
+SGLMan added survive; the ETL-owned fields freeze at their last synced value.
 
 A `SpeedGamingEventLink` (tournament ↔ SG event slug + sync settings) configures
 which SG events feed which tenant tournaments.
@@ -61,9 +78,14 @@ ETL confusion in systems like this.
 
 ## Data model
 
-Tenant-scoped: `SpeedGamingEpisode`, `SpeedGamingEventLink`. `Match` gains its FK to
-`SpeedGamingEpisode` (the source marker that drives read-only enforcement). New
-`sync status` enum; `sg_sync.*` audit/event members.
+Tenant-scoped: `SpeedGamingEpisode`, `SpeedGamingEventLink` (add observability
+fields — `last_synced_at`, `last_status`, `last_error`, cadence, `active`). `Match`
+gains its FK to `SpeedGamingEpisode` (the source marker; `on_delete=SET_NULL`) and
+already carries `speedgaming_episode_id`-style linkage. Global `User` gains
+`is_placeholder` + `speedgaming_id` and its `discord_id` becomes nullable+unique
+with a `CHECK (discord_id IS NOT NULL OR is_placeholder)` constraint (the
+placeholder pattern above). New `sync status` enum; `sg_sync.*` audit/event
+members. The SG materializer runs as the reserved **system `User`**.
 
 ## Roadmap
 

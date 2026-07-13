@@ -16,11 +16,13 @@ Per the [design principle](README.md#design-principle-user-definable-tournament-
 presets are **data a tenant admin authors in the UI**, not files in the repo:
 
 - A tenant-scoped `Preset` model (`name`, `randomizer`, `settings` JSON,
-  `description`) with CRUD on an admin tab; `SeedGenerationService.generate_seed`
-  takes a preset instead of opening hard-coded paths. Existing `presets/` files
-  ship as importable defaults.
+  `description`) with CRUD on an admin tab gated by the new `PRESET_MANAGER` role
+  (or STAFF); `SeedGenerationService.generate_seed` takes a preset instead of
+  opening hard-coded paths. Existing `presets/` files ship as importable defaults.
 - This is the foundation both [Async Qualifier](async-qualifiers.md) pools and the
   [racetime room lifecycle](racetime-room-lifecycle.md) seed-attach step sit on.
+  (sahabot2's analog is `RandomizerPreset` + a `Tournament.randomizer_preset` FK and
+  `preset_selection_rules` JSON — precedent for per-match conditional preset choice.)
 
 ## Incremental randomizer coverage
 
