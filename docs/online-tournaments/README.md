@@ -12,6 +12,10 @@ this hub holds the cross-cutting material — decisions, scope, roadmap, shared
 risks, and the succession story. A [gap analysis](gap-analysis.md) reviews the plan
 for unmade decisions and must-preserve behaviors before implementation.
 
+**Ready to build?** The [implementation plan](implementation/README.md) decomposes
+this design into **PR-sized kickoff briefs** (one per agent/PR) with file-level
+scope, dependencies, reference implementations, and acceptance criteria.
+
 ## The five feature documents
 
 | # | Feature | Doc | One-line |
