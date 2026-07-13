@@ -15,7 +15,17 @@ from application.utils.environment import is_production, validate_security_confi
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
 from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware
-from pages import admin, auth, challonge_oauth, equipment, home, platform, twitch_oauth, volunteer
+from pages import (
+    admin,
+    auth,
+    challonge_oauth,
+    equipment,
+    home,
+    platform,
+    racetime_oauth,
+    twitch_oauth,
+    volunteer,
+)
 
 _ui_logger = logging.getLogger('sglman.ui')
 
@@ -101,6 +111,7 @@ def init(fastapi_app: FastAPI) -> None:
     auth.create()
     challonge_oauth.create()
     twitch_oauth.create()
+    racetime_oauth.create()
     admin.create()
     home.create()
     volunteer.create()

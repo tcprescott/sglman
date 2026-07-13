@@ -149,6 +149,13 @@ class User(Model):
     twitch_user_id = fields.CharField(max_length=64, null=True, unique=True)
     twitch_username = fields.CharField(max_length=255, null=True)
     twitch_linked_at = fields.DatetimeField(null=True)
+    # Verified racetime.gg identity (captured via one-time OAuth, read scope).
+    # Identity only — we do not retain a user's racetime access token. Unique so a
+    # racetime id resolves to exactly one user (Postgres allows multiple NULLs, so
+    # unlinked users are unconstrained).
+    racetime_user_id = fields.CharField(max_length=64, null=True, unique=True)
+    racetime_username = fields.CharField(max_length=255, null=True)
+    racetime_linked_at = fields.DatetimeField(null=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]

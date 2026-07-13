@@ -36,8 +36,8 @@ tenant-scoped.**
   Ties a global `User` to the tenants they belong to; queried across tenants, so
   it is never auto-scoped.
 - **Global (no `tenant` FK):** `User`, `WebPushSubscription`, `Tenant`,
-  `TenantMembership`. `User.discord_id` / `challonge_user_id` / `twitch_user_id`
-  uniques stay global — identity links are to the person.
+  `TenantMembership`. `User.discord_id` / `challonge_user_id` / `twitch_user_id` /
+  `racetime_user_id` uniques stay global — identity links are to the person.
 - **Nullable `tenant` (stamped from context, NULL = platform-level row):**
   `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), and `UserRole`
   (`CASCADE`; NULL only for the global `SUPER_ADMIN` role).
@@ -265,8 +265,11 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `twitch_user_id` | `CharField(64)` | null, `unique=True` | Verified Twitch identity, captured via one-time OAuth. Unique so a Twitch id resolves to exactly one user (Postgres allows multiple NULLs) |
 | `twitch_username` | `CharField(255)` | null | Cached Twitch login/display name |
 | `twitch_linked_at` | `DatetimeField` | null | When the Twitch identity was linked |
+| `racetime_user_id` | `CharField(64)` | null, `unique=True` | Verified racetime.gg identity, captured via one-time OAuth (read scope). Unique so a racetime id resolves to exactly one user (Postgres allows multiple NULLs) |
+| `racetime_username` | `CharField(255)` | null | Cached racetime.gg name |
+| `racetime_linked_at` | `DatetimeField` | null | When the racetime identity was linked |
 
-The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch identity is likewise **identity only** — the user's Twitch access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
+The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch and racetime.gg identities are likewise **identity only** — the user's access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
 
 Relationships: declared reverse/M2M accessors for `admin_tournaments` and `crew_coordinated_tournaments` (M2M from `Tournament`), `match_players`, `match_acknowledgments`, `tournament_players`, `tournament_notifications`, `commentaries`, `approved_commentaries`, `trackers`, `approved_trackers`, `watched_matches`, `roles`, `granted_roles`, `audit_logs`, `triforce_texts`, `triforce_texts_moderated`, `api_tokens`, `feedback_submissions`, `owned_equipment`, `equipment_loans`, `equipment_checkouts_performed`, `equipment_checkins_performed`, `volunteer_profile` (one-to-one), `volunteer_assignments`, `volunteer_assignments_made`, `volunteer_qualifications`, `volunteer_availability`, `challonge_participations`. Accessors that exist only implicitly via the children's `related_name` (no class-level annotation): `player_availability`, `challonge_connections`.
 

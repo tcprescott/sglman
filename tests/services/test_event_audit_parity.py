@@ -108,6 +108,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Twitch account linking.
     AuditActions.TWITCH_LINKED,
     AuditActions.TWITCH_UNLINKED,
+    # Racetime.gg account linking (verified identity link, no domain webhook).
+    AuditActions.RACETIME_LINKED,
+    AuditActions.RACETIME_UNLINKED,
     # Volunteer opt-in state, scheduling config, and bulk draft churn.
     AuditActions.VOLUNTEER_OPTED_IN,
     AuditActions.VOLUNTEER_OPTED_OUT,

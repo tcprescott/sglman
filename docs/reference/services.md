@@ -54,6 +54,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
 | `TwitchService` | [twitch_service.py](../../application/services/twitch_service.py) | Twitch account-linking OAuth (verified identity capture) | — |
+| `RacetimeService` | [racetime_service.py](../../application/services/racetime_service.py) | racetime.gg account-linking OAuth (verified identity capture) | — |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
@@ -548,6 +549,21 @@ Coordinates the Twitch account-linking integration: a logged-in user completes a
 
 Collaborators: `AuditService`, [`twitch_client.py`](#twitch_clientpy) (`TwitchClient`/`MockTwitchClient`), [`mock_twitch.py`](#mock_twitchpy). Consumers: the Twitch OAuth pages ([`pages/twitch_oauth.py`](../../pages/twitch_oauth.py)) and the profile "Link Twitch" card ([`pages/home_tabs/twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py)).
 
+### racetime_service.py — RacetimeService
+
+Coordinates the racetime.gg account-linking integration: a logged-in user completes a one-time racetime OAuth login (read scope) so we can record their verified racetime identity (id / name) on their `User`. Identity only — the access token is used once during linking and discarded (mirrors `TwitchService`). Mock mode is gated by [`MOCK_RACETIME`](#mock_racetimepy). These are the **identity-link** OAuth credentials only; the race-room bots use their own per-category credentials on `RacetimeBot` rows.
+
+| Method | Returns | Description |
+|---|---|---|
+| `is_configured()` (static) | `bool` | OAuth app credentials are present (or mock is on). |
+| `player_authorize_url(state)` (static) | `str` | racetime OAuth authorize URL to redirect the browser to. |
+| `redirect_uri()` (static) | `str` | The registered OAuth redirect URI (`RACETIME_REDIRECT_URI` or derived from `BASE_URL`). |
+| `exchange_player_code(code)` | `{user_id, username}` | Exchange a user's auth code and return their identity (token used once, discarded). |
+| `record_player_link(user, racetime_user_id, racetime_username, actor)` | `None` | Persist the linked racetime identity; rejects ids already linked elsewhere (`ValueError`); audits `racetime.linked`. |
+| `unlink_player(user, actor)` | `None` | Clear a user's racetime link; audits `racetime.unlinked`. |
+
+Collaborators: `AuditService`, [`racetime_client.py`](#racetime_clientpy) (`RacetimeClient`/`MockRacetimeClient`), [`mock_racetime.py`](#mock_racetimepy). Consumers: the racetime OAuth pages ([`pages/racetime_oauth.py`](../../pages/racetime_oauth.py)) and the profile "Link racetime.gg" card ([`pages/home_tabs/racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py)).
+
 ### user_service.py — UserService
 
 User lookup, profile edits (self- and admin-driven), activation, global role grants, and tournament enrollment management. Audited under `user.*`; role grants gated by `can_grant_roles`, admin fields by `is_staff`.
@@ -717,6 +733,18 @@ Thin async `aiohttp` wrapper over the two Twitch endpoints the account-linking f
 | `TwitchClient.get_me(access_token)` | `{user_id, username, display_name}` | The authenticated account identity for a raw token (sends the required `Client-Id` header). |
 | `MockTwitchClient` | — | `MOCK_TWITCH` stub returning a deterministic canned identity (chosen via `MOCK_TWITCH_IDENTITY`) so local dev can click through link/unlink. |
 
+### racetime_client.py
+
+Thin async `aiohttp` wrapper over the two racetime.gg endpoints the account-linking flow needs — the OAuth token exchange and the `o/userinfo` lookup ([racetime_client.py](../../application/utils/racetime_client.py)). Returns a **normalized** identity dict so `RacetimeService` never sees the wire shape. Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, `USERINFO_URL`, `IDENTITY_SCOPE`.
+
+| Member | Returns | Description |
+|---|---|---|
+| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | racetime OAuth authorize URL to redirect the browser to. |
+| `RacetimeAPIError` (exception) | — | Raised on an API error or unexpected payload. |
+| `RacetimeClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
+| `RacetimeClient.get_me(access_token)` | `{user_id, username}` | The authenticated racetime account identity for a raw token. |
+| `MockRacetimeClient` | — | `MOCK_RACETIME` stub returning a deterministic canned identity (chosen via `MOCK_RACETIME_IDENTITY`) so local dev can click through link/unlink. |
+
 ### csv_export.py
 
 CSV rendering for the report tables ([csv_export.py](../../application/utils/csv_export.py)).
@@ -785,6 +813,16 @@ The Twitch counterpart to `mock_challonge` ([mock_twitch.py](../../application/u
 | `is_mock_twitch()` | `bool` | True when `MOCK_TWITCH` is `1`/`true`/`yes`. Because it fakes a verified Twitch identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
 
 `TwitchService` reads this to choose `MockTwitchClient` over `TwitchClient` and to report `is_configured()` as true in mock mode.
+
+### mock_racetime.py
+
+The racetime.gg counterpart to `mock_twitch` ([mock_racetime.py](../../application/utils/mock_racetime.py)). Lets local development exercise the full racetime link/unlink flow without a real OAuth app. Also gates the bot runtime added in a later PR; both halves share the one production-refusal switch.
+
+| Function | Returns | Description |
+|---|---|---|
+| `is_mock_racetime()` | `bool` | True when `MOCK_RACETIME` is `1`/`true`/`yes`. Because it fakes a verified racetime identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
+
+`RacetimeService` reads this to choose `MockRacetimeClient` over `RacetimeClient` and to report `is_configured()` as true in mock mode.
 
 ### qrcode_util.py
 

@@ -122,6 +122,10 @@ class AuditActions:
     TWITCH_LINKED = 'twitch.linked'
     TWITCH_UNLINKED = 'twitch.unlinked'
 
+    # Racetime.gg identity linking
+    RACETIME_LINKED = 'racetime.linked'
+    RACETIME_UNLINKED = 'racetime.unlinked'
+
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'
