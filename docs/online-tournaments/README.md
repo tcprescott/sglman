@@ -50,7 +50,7 @@ for unmade decisions and must-preserve behaviors before implementation.
 | 2026-07-14 | **Reschedule with an open room = keep the room, update time only.** On an upstream reschedule after a room opened, update `scheduled_at` + the Discord event; leave the open room as-is (staff manually cancel/recreate if warranted). Never auto-disrupt a room. |
 | 2026-07-14 | **Racetime room = its own `RacetimeRoom` model** (sahabot2), not a slug column on `Match`: unique `slug`, `category`, `status`, `OneToOne→Match` (SET_NULL), `FK→RacetimeBot`. Decouples room lifecycle from `Match` and prevents orphaned slugs. |
 | 2026-07-14 | **Racetime bot health is first-class, monitored state** (sahabot2 pattern). `RacetimeBot` carries `status` (`unknown/connected/auth_failed/connection_error/disconnected`), `status_message`, `last_connected_at`, `last_checked_at`, updated by the connection loop: auth errors → `auth_failed` and stop retrying (needs a human); transient → `connection_error` with capped exponential backoff; liveness heartbeat detects wedged-without-error tasks. Transitions publish `racetime_bot.*` events; SUPER_ADMIN gets restart + status board; auto-open skips a match whose category bot isn't `connected`. See [F5](racetime-room-lifecycle.md#bot-health-monitoring-decided). |
-| 2026-07-14 | **Platform external-service health page.** A SUPER_ADMIN `/platform` board aggregates health of every external dependency (Postgres, Discord, racetime bots, SpeedGaming, Challonge + token expiry, Twitch, seed-gen upstreams, web-push, Sentry) via a probe registry, with `healthy/degraded/down/unknown` + credential warnings and alerting on transitions to down. Tenant Staff see a read-only subset for their own services. Resolves the observability gap. See [Platform: external-service health](#platform-external-service-health). |
+| 2026-07-14 | **Platform external-service health page.** A SUPER_ADMIN `/platform` board aggregates health of every external dependency (Postgres, Discord, racetime bots, SpeedGaming, Challonge + token expiry, Twitch, seed-gen upstreams, web-push, Sentry) via a probe registry, with `healthy/degraded/down/unknown` + credential warnings and alerting on transitions to down. Tenant Staff see a read-only subset for their own services. **Health is computed-and-cached in-memory (no persistence model) for now** — promotable to a persisted model later if trends are wanted. Resolves the observability gap. See [Platform: external-service health](#platform-external-service-health). |
 | 2026-07-14 | **Racetime bots are global infrastructure, authorized to tenants by SUPER_ADMIN** (sahabot2 `RacetimeBotOrganization` pattern). `RacetimeBot` (category + OAuth creds) is a **global**, non-tenant-scoped row managed on `/platform`; a `RacetimeBotTenant` junction grants a bot to a tenant. A tenant cannot use a category until authorized; then `SYNC_ADMIN` selects per tournament from its authorized bots via the `Tournament → RacetimeBot` FK. `client_secret` never surfaces to tenant admins (Staff/super-admin only, like `ChallongeConnection` tokens). One racetime app registration serves all tenants. Self-service request→approve is a future layer, no schema change. |
 
 ## Context
@@ -235,8 +235,7 @@ observability gap ([gap analysis](gap-analysis.md) §5) and generalizes the
 
 - **Probe registry.** Each dependency registers an async health probe
   (`check() → {status, message, checked_at}`). A background worker runs them on a
-  cadence and the page can force an on-demand refresh; last result + last-success +
-  last-error are persisted so the board survives a restart and can show trends.
+  cadence and the page can force an on-demand refresh.
 - **Dependencies covered** (current + planned): PostgreSQL; the Discord bot + OAuth;
   **racetime.gg bots** (reads each `RacetimeBot.status` — no extra probe); the
   **SpeedGaming** API; **Challonge** (reachability **plus** service-account token
@@ -252,9 +251,14 @@ observability gap ([gap analysis](gap-analysis.md) §5) and generalizes the
   subset** for services their tenant depends on — the racetime bots authorized to
   them and their own Challonge connection — so a community can see "my category bot
   is down" without platform access.
-- **Data**: an `ExternalServiceHealth` record per dependency (name, category,
-  status, message, `last_checked_at`, `last_ok_at`) — or computed-and-cached if
-  persistence proves unnecessary; decide when the page is built.
+- **Data (decided): computed-and-cached, not persisted.** The latest probe result
+  per dependency lives in an in-memory cache (safe under the single-worker model),
+  refreshed by the cadence worker; a restart simply re-probes (brief `unknown` until
+  the first run). No DB model or migration. This trades away cross-restart history
+  and trend charts — acceptable for a "is it up right now?" board — and can be
+  promoted to a persisted `ExternalServiceHealth` model later if trends are wanted,
+  with no change to the probe interface. (Note: `racetime_bot.status` *is* persisted
+  on its own row regardless, since the bot connection writes it directly.)
 
 ## Succession & cutover
 
