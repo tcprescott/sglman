@@ -44,6 +44,7 @@ port.
 | 4.2 room slug uniqueness | Its own `RacetimeRoom` model (unique `slug`, `OneToOne→Match`) — from sahabot2 |
 | 4.5 reviewer set | Qualifier `admins` M2M; self-review blocked |
 | SG read-only contract | Hybrid — per-field lock **and** sahabot2's lifecycle guards (skip finished/manual/room-linked; auto-finish >4h) |
+| §5 observability (stuck rooms / dead workers / failed syncs) | Platform external-service health page + first-class racetime bot health (status, heartbeat, alerting) |
 | 5.4 MOCK_RACETIME | Scripted event-emitting fake; production-refused like other mock flags |
 
 Still open as build-time detail (Tiers 2–4 not listed above): draw-fairness/par/leaderboard

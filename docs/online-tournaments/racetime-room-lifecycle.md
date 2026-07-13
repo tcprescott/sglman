@@ -50,6 +50,37 @@ import repositories):
   `RacetimeRoom`→`Match`→tenant mapping on every inbound event (an explicitly-unscoped
   lookup on the unique `slug`), never assumed.
 
+## Bot health monitoring (decided)
+
+Each `RacetimeBot` is a long-lived websocket connection that can silently fail
+(expired/bad credentials, racetime.gg downtime, a dropped socket), so its health is
+tracked as first-class state — the sahabot2 model, adopted directly:
+
+- **Health fields on `RacetimeBot`**: a `status` enum
+  (`unknown / connected / auth_failed / connection_error / disconnected`),
+  `status_message`, `last_connected_at`, and `last_checked_at`.
+- **Lifecycle-driven updates**, from the connection loop:
+  - Successful connect → `connected`, stamp `last_connected_at`.
+  - **Auth error (401 / unauthorized) → `auth_failed`, and stop retrying** — a
+    credential problem needs a human, so retrying is pointless and noisy; this state
+    must alert loudly.
+  - Transient error → `connection_error`, retry with **exponential backoff capped at
+    ~5 min**.
+  - Manual stop → `disconnected`.
+- **Liveness heartbeat**: `last_checked_at` is refreshed on a cadence so a task that
+  died *without* raising (a wedged socket) is detectable as staleness, not just via
+  the status column.
+- **Every transition publishes an event** (`racetime_bot.connected` /
+  `.auth_failed` / `.connection_error` / `.disconnected`) so it flows to Sentry, the
+  [external-service health page](README.md#platform-external-service-health), and any
+  webhook/DM alerting — a bot going `auth_failed` mid-event should page someone.
+- **Manual controls** on `/platform` (SUPER_ADMIN): a per-bot restart/reconnect
+  action and the status board (mirrors sahabot2's `restart_bot`).
+- **Interaction with auto-open**: the auto-open worker checks the category bot's
+  health first — if it isn't `connected`, it skips the match with a staff-visible
+  error rather than wedging, and (per the reliability risk) allows manual retry once
+  the bot recovers.
+
 ## Scheduled auto-creation (decided)
 
 Rooms are **created on schedule, not on demand** — but **auto-open is opt-in per
@@ -115,7 +146,9 @@ also what gates [auto-open eligibility](#scheduled-auto-creation-decided) and wh
   `FK → RacetimeBot`, timestamps. Decouples room lifecycle from `Match`, gives the
   unique-slug reverse lookup for tenant routing, and prevents orphaned slugs.
 - **`RacetimeBot`** (**global**, not tenant-scoped): per-category client-id/secret,
-  friendly name, status; managed by SUPER_ADMIN on `/platform`.
+  friendly name, and health fields (`status` enum, `status_message`,
+  `last_connected_at`, `last_checked_at`); managed by SUPER_ADMIN on `/platform`.
+  New enum: bot `status`. New `racetime_bot.*` events.
 - **`RacetimeBotTenant`** junction (`bot` × `tenant`, `is_active`, unique together):
   the SUPER_ADMIN authorization grant. `Tournament` selects one via FK, constrained
   to bots authorized to that tenant.
