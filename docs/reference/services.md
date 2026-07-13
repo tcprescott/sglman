@@ -121,6 +121,10 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_checkin_equipment(user)` | `bool` | Staff or Equipment Manager. |
 | `can_assign_match_stream(user, match)` | `bool` | Stream Manager globally, or TA of the match's tournament — gates stage assignment and the stream-candidate flag. |
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
+| `is_system(user)` | `bool` | Field check (`User.is_system`) — the reserved automation actor. Sync (no DB). The `can_manage_*`/`can_admin_qualifier` gates short-circuit on it so workers/bots never hit a `PermissionError`. |
+| `can_manage_presets(user)` | `bool` | System actor, super-admin, Staff, or `PRESET_MANAGER` — gates seed-rolling preset management (online tournaments). |
+| `can_manage_sync(user)` | `bool` | System actor, super-admin, Staff, or `SYNC_ADMIN` — gates upstream sync config (SpeedGaming links, Discord events, racetime bot/room config). |
+| `can_admin_qualifier(user, qualifier=None)` | `bool` | System actor, super-admin, Staff, `QUALIFIER_ADMIN`, or — when a `qualifier` is passed — a per-entity admin on its `admins` M2M. |
 | `ensure(allowed, message="Permission denied")` | `None` | Raises `PermissionError(message)` when `allowed` is falsy; the standard gate inside mutating services. |
 
 **Module-level helper:** `get_user_from_discord_id(discord_id) -> User | None` resolves a Discord id — typically `app.storage.user.get('discord_id')`, read in the page layer — to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
@@ -477,12 +481,12 @@ Collaborators: `TournamentNotificationRepository`, `TournamentRepository`. Consu
 
 ### tournament_service.py — TournamentService
 
-Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation and deletion are Staff-only; updates allow the tournament's TAs; membership grants are Staff-only (`can_grant_roles`). All mutations audited under `tournament.*`.
+Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation and deletion are Staff-only; updates allow the tournament's TAs; membership grants are Staff-only (`can_grant_roles`). All mutations audited under `tournament.*`. The optional `config` blob is validated by `validate_tournament_config` (from [`tournament_config.py`](../../application/services/tournament_config.py)) before persistence — unknown keys raise `ValueError`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `create_tournament(name, description=None, seed_generator=None, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, is_active=True, players_per_match=2, team_size=1, staff_administered=False, actor=None)` | `Tournament` | Create; trims strings; treats the literal string `"None"` as no seed generator; non-empty name required. |
-| `update_tournament(tournament, ...same optional fields..., actor=None)` | `Tournament` | Partial update of any subset of the same fields; audits the changed-field list. |
+| `create_tournament(name, description=None, seed_generator=None, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, is_active=True, players_per_match=2, team_size=1, staff_administered=False, config=None, actor=None)` | `Tournament` | Create; trims strings; treats the literal string `"None"` as no seed generator; non-empty name required; validates `config`. |
+| `update_tournament(tournament, ...same optional fields..., config=None, actor=None)` | `Tournament` | Partial update of any subset of the same fields; validates `config` when provided; audits the changed-field list. |
 | `delete_tournament(tournament, actor=None)` | `None` | Staff-only delete. |
 | `add_admin(tournament, target, actor=None)` | `None` | Grant Tournament Admin (M2M add). |
 | `remove_admin(tournament, target, actor=None)` | `None` | Revoke Tournament Admin. |
@@ -492,6 +496,10 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `get_tournament_by_id(tournament_id)` | `Tournament \| None` | Lookup by id. |
 
 Collaborators: `TournamentRepository`, `AuditService`. Consumers: `theme/dialog/tournament_edit_dialog.py`, `theme/dialog/user_edit_dialog.py`, `pages/admin_tabs/reports/shared.py` (filter options).
+
+### tournament_config.py + tournament_strategies/ — hybrid-config substrate
+
+Foundations for online-tournament user-definable logic ([online-tournaments](../online-tournaments/README.md)). `tournament_config.py` defines `TournamentConfig` (a Pydantic model with `extra='forbid'`) and `validate_tournament_config(config)`, which normalizes the blob and raises `ValueError` on any unknown key — the single entry point `TournamentService` calls before persisting `Tournament.config`. `tournament_strategies/` is the register/lookup registry for the finite set of named strategy primitives (`register_strategy(kind, name)`, `get_strategy(kind, name)`, `available_strategies(kind)`); config picks and parameterizes them — **never `eval`**. PR 0 ships the substrate empty; feature PRs add concrete config keys and strategies.
 
 ### triforce_text_service.py — TriforceTextService
 
@@ -531,6 +539,7 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | Method | Returns | Description |
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` | `User \| None` | Lookup by Discord id. |
+| `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |

@@ -156,6 +156,9 @@ Used by `UserRole.role` and `DiscordRoleMapping.app_role` (`max_length=32`). Aut
 | `VOLUNTEER_COORDINATOR` = `'volunteer_coordinator'` | Manages volunteer positions, shifts, and assignments |
 | `EQUIPMENT_MANAGER` = `'equipment_manager'` | Manages lending equipment and checkouts |
 | `VOLUNTEER` = `'volunteer'` | Opted-in onsite volunteer |
+| `PRESET_MANAGER` = `'preset_manager'` | Manages seed-rolling presets (online-tournament surface) |
+| `SYNC_ADMIN` = `'sync_admin'` | Manages upstream sync config: SpeedGaming links, Discord events, racetime bot/room config |
+| `QUALIFIER_ADMIN` = `'qualifier_admin'` | Administers async qualifiers (also grantable per-qualifier via its `admins` M2M) |
 | `SUPER_ADMIN` = `'super_admin'` | Global platform role (manages tenants on `/platform`). Its `UserRole` rows carry `tenant=NULL` and stay visible inside any tenant request; the only role that may be tenant-less. |
 
 ### `RoleSource`
@@ -254,6 +257,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `display_name` | `CharField(150)` | null | Preferred display name |
 | `pronouns` | `CharField(50)` | null | |
 | `is_active` | `BooleanField` | default `True` | |
+| `is_system` | `BooleanField` | default `False` | Marks the single reserved automation actor (sentinel `discord_id` = `SYSTEM_USER_DISCORD_ID` = `0`). Workers/bots pass this row as `actor`; resolve it via `UserService.get_system_user()`. `AuthService.is_system()` treats it as authorized for automation actions |
 | `dm_notifications` | `BooleanField` | default `True` | Master opt-out for Discord DMs |
 | `challonge_user_id` | `CharField(64)` | null, `unique=True` | Verified Challonge identity, captured via one-time OAuth (scope `me`). Unique so bracket sync resolves to exactly one user (Postgres allows multiple NULLs) |
 | `challonge_username` | `CharField(255)` | null | Cached Challonge username |
@@ -348,6 +352,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `challonge_tournament_id` | `CharField(64)` | null | Linked Challonge tournament id (enables bracket sync) |
 | `challonge_tournament_url` | `CharField(255)` | null | Challonge bracket URL |
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
+| `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments](../online-tournaments/README.md) |
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |
@@ -941,7 +946,7 @@ Serves `Tournament` and `TournamentPlayers` ([`tournament_repository.py`](../../
 | `async get_by_ids(tournament_ids: List[int]) -> List[Tournament]` | Bulk lookup ordered by name |
 | `async get_all(active_only=False, staff_only=False, prefetch_players=False) -> List[Tournament]` | All tournaments ordered by name; filters on `is_active` / `staff_administered` |
 | `async get_all_as_dict(active_only=False, staff_only=False) -> dict[int, str]` | id → name map for select options |
-| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False) -> Tournament` | Insert a tournament |
+| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False, config=None) -> Tournament` | Insert a tournament (`config` is the validated hybrid-config blob) |
 | `async update(tournament: Tournament, **fields) -> None` | `setattr` each field and save |
 | `async delete(tournament: Tournament) -> None` | Delete the tournament |
 | `async enroll_player(tournament: Tournament, user) -> TournamentPlayers` | Insert an enrollment row |

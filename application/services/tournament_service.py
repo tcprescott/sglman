@@ -5,11 +5,12 @@ Handles tournament-related operations including creation, updates, validation,
 and admin/crew-coordinator membership.
 """
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from application.repositories import TournamentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.tournament_config import validate_tournament_config
 from models import Tournament, User
 
 
@@ -35,6 +36,7 @@ class TournamentService:
         players_per_match: int = 2,
         team_size: int = 1,
         staff_administered: bool = False,
+        config: Optional[Dict[str, Any]] = None,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -47,6 +49,8 @@ class TournamentService:
 
         if seed_generator == "None":
             seed_generator = None
+
+        config = validate_tournament_config(config)
 
         tournament = await self.repository.create(
             name=name.strip(),
@@ -62,6 +66,7 @@ class TournamentService:
             players_per_match=players_per_match,
             team_size=team_size,
             staff_administered=staff_administered,
+            config=config,
         )
 
         await self.audit_service.write_log(
@@ -88,6 +93,7 @@ class TournamentService:
         players_per_match: Optional[int] = None,
         team_size: Optional[int] = None,
         staff_administered: Optional[bool] = None,
+        config: Optional[Dict[str, Any]] = None,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -101,7 +107,7 @@ class TournamentService:
         if seed_generator == "None":
             seed_generator = None
 
-        update_data = {}
+        update_data: Dict[str, Any] = {}
         if name is not None:
             update_data['name'] = name.strip()
         if description is not None:
@@ -130,6 +136,8 @@ class TournamentService:
             update_data['team_size'] = team_size
         if staff_administered is not None:
             update_data['staff_administered'] = staff_administered
+        if config is not None:
+            update_data['config'] = validate_tournament_config(config)
 
         result = await self.repository.update(tournament, **update_data)
 

@@ -12,10 +12,23 @@ class Role(str, Enum):
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
     EQUIPMENT_MANAGER = 'equipment_manager'
     VOLUNTEER = 'volunteer'
+    # Online-tournament admin surfaces (see docs/online-tournaments). Each gates a
+    # new subsystem's management UI/worker actions the way STAFF does the rest.
+    PRESET_MANAGER = 'preset_manager'
+    SYNC_ADMIN = 'sync_admin'
+    QUALIFIER_ADMIN = 'qualifier_admin'
     # Global platform role: manages tenants on the /platform surface. Its
     # UserRole rows carry tenant=NULL (the only role that may) and stay visible
     # inside any tenant request. Not grantable per-tenant.
     SUPER_ADMIN = 'super_admin'
+
+
+# Sentinel ``discord_id`` for the reserved system :class:`User` that automation
+# (workers, racetime/Discord bot handlers, ETL, qualifier scoring) acts as. A
+# real snowflake is always a large positive integer, so ``0`` can never collide
+# with a genuine Discord account. The row is marked ``is_system`` and resolved
+# via ``UserService.get_system_user()``.
+SYSTEM_USER_DISCORD_ID = 0
 
 
 class RoleSource(str, Enum):
@@ -116,6 +129,11 @@ class User(Model):
     display_name = fields.CharField(max_length=150, null=True)
     pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
+    # Marks the single reserved automation actor (sentinel ``discord_id`` =
+    # ``SYSTEM_USER_DISCORD_ID``). Workers/bots pass this row as ``actor`` so
+    # audit rows snapshot a real username instead of a bare sentinel. Resolve it
+    # via ``UserService.get_system_user()``, never construct it ad hoc.
+    is_system = fields.BooleanField(default=False)
     dm_notifications = fields.BooleanField(default=True)
     # Verified Challonge identity (captured via one-time OAuth, scope ``me``).
     # Identity only — we do not retain a player's Challonge access token.
@@ -298,6 +316,12 @@ class Tournament(Model):
     challonge_tournament_id = fields.CharField(max_length=64, null=True)
     challonge_tournament_url = fields.CharField(max_length=255, null=True)
     challonge_last_synced_at = fields.DatetimeField(null=True)
+    # Hybrid config substrate (see docs/online-tournaments): worker-queried knobs
+    # stay typed columns; templates, scoring params, and strategy choices live in
+    # this schema-validated JSON blob. Written only through the service layer,
+    # which validates it with ``validate_tournament_config`` (unknown keys raise
+    # ``ValueError``). ``null`` until a tournament opts into online behavior.
+    config = fields.JSONField(null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',

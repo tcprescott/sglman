@@ -2,6 +2,12 @@
 
 > Cross-cutting. Roadmap: prerequisite for everything. **Keep it small** — it exists
 > so feature PRs don't each reinvent these.
+>
+> **Status: implemented.** System `User` (`models.SYSTEM_USER_DISCORD_ID` + `User.is_system`,
+> resolved via `UserService.get_system_user`); `Role.PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN`
+> + `AuthService.is_system`/`can_manage_presets`/`can_manage_sync`/`can_admin_qualifier`;
+> `Tournament.config` + `validate_tournament_config` (`tournament_config.py`) + the
+> `tournament_strategies/` registry; migration `21_20260713000000_pr0_foundations.py`.
 
 **Goal:** land the three shared primitives every later PR builds on: a system actor,
 the new roles, and the hybrid-config substrate.

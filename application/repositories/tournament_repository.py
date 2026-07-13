@@ -4,7 +4,7 @@ Tournament Repository - Data Access Layer
 Handles database operations for tournaments.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Tournament, TournamentPlayers
@@ -117,7 +117,8 @@ class TournamentRepository:
         triforce_access_message: Optional[str] = None,
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
-        staff_administered: bool = False
+        staff_administered: bool = False,
+        config: Optional[Dict[str, Any]] = None,
     ) -> Tournament:
         """
         Create a new tournament.
@@ -153,7 +154,8 @@ class TournamentRepository:
             triforce_access_message=triforce_access_message,
             average_match_duration=average_match_duration,
             max_match_duration=max_match_duration,
-            staff_administered=staff_administered
+            staff_administered=staff_administered,
+            config=config,
         )
     
     @staticmethod

@@ -41,10 +41,13 @@ from .volunteer_availability_service import VolunteerAvailabilityService
 from .volunteer_position_service import VolunteerPositionService
 from .volunteer_profile_service import VolunteerProfileService
 from .volunteer_schedule_service import VolunteerScheduleService
+from .tournament_config import TournamentConfig, validate_tournament_config
 from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
+    'TournamentConfig',
+    'validate_tournament_config',
     'AnalyticsService',
     'ApiTokenService',
     'AuditService',

@@ -6,7 +6,7 @@ Handles database operations for users.
 
 from typing import List, Optional
 
-from models import Role, User
+from models import SYSTEM_USER_DISCORD_ID, Role, User
 
 
 class UserRepository:
@@ -90,6 +90,25 @@ class UserRepository:
             discord_id=discord_id,
             defaults={'username': username},
         )
+
+    @staticmethod
+    async def get_or_create_system_user() -> User:
+        """Return the reserved system :class:`User`, creating it if absent.
+
+        Idempotent: keyed on the ``SYSTEM_USER_DISCORD_ID`` sentinel so repeated
+        calls (and the migration seed) converge on one global row. The row is
+        deliberately inactive for login purposes but is a valid audit actor.
+        """
+        user, _ = await User.get_or_create(
+            discord_id=SYSTEM_USER_DISCORD_ID,
+            defaults={
+                'username': 'System',
+                'is_system': True,
+                'is_active': False,
+                'dm_notifications': False,
+            },
+        )
+        return user
 
     @staticmethod
     async def update(user: User, **fields) -> None:

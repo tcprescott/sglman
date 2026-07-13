@@ -7,7 +7,7 @@ should call get_user_from_discord_id() once at page entry to resolve the
 User, then pass it into the helpers.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from application.tenant_context import get_current_tenant_id
 from models import Match, Role, Tournament, User, UserRole
@@ -27,6 +27,17 @@ class AuthService:
     # Global roles that grant access to the Admin dashboard. Excludes PROCTOR
     # and VOLUNTEER, whose workflows live on the Volunteer page instead.
     _ADMIN_ROLES = {Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR}
+
+    @staticmethod
+    def is_system(user: Optional[User]) -> bool:
+        """The reserved automation actor (``User.is_system``).
+
+        A field check, not a role query — the system user is trusted
+        infrastructure that acts within a ``tenant_scope`` and is authorized for
+        automation actions regardless of any granted roles. Gated helpers below
+        short-circuit on it so workers/bots never hit a ``PermissionError``.
+        """
+        return user is not None and getattr(user, 'is_system', False)
 
     @staticmethod
     async def is_super_admin(user: Optional[User]) -> bool:
@@ -202,6 +213,51 @@ class AuthService:
         if await AuthService.can_manage_stream_rooms(user):
             return True
         return await AuthService.is_tournament_admin(user, match.tournament_id)
+
+    @staticmethod
+    async def can_manage_presets(user: Optional[User]) -> bool:
+        """Author/edit the tenant's seed-rolling presets (PR 1+)."""
+        if AuthService.is_system(user):
+            return True
+        if await AuthService.is_super_admin(user):
+            return True
+        if await AuthService.is_staff(user):
+            return True
+        return await AuthService.has_role(user, Role.PRESET_MANAGER)
+
+    @staticmethod
+    async def can_manage_sync(user: Optional[User]) -> bool:
+        """Manage upstream sync config: SpeedGaming links, Discord events, and
+        racetime bot/room configuration (PR 3+/7+)."""
+        if AuthService.is_system(user):
+            return True
+        if await AuthService.is_super_admin(user):
+            return True
+        if await AuthService.is_staff(user):
+            return True
+        return await AuthService.has_role(user, Role.SYNC_ADMIN)
+
+    @staticmethod
+    async def can_admin_qualifier(user: Optional[User], qualifier: Optional[Any] = None) -> bool:
+        """Administer async qualifiers (PR 9+).
+
+        Grants to STAFF/super-admin, the global ``QUALIFIER_ADMIN`` role, or — when
+        a specific ``qualifier`` is supplied — a per-entity admin listed on its
+        ``admins`` M2M. The per-entity path is forward-compatible: the
+        ``AsyncQualifier`` model lands in a later PR, so this only dereferences
+        ``qualifier.admins`` when a qualifier is actually passed.
+        """
+        if AuthService.is_system(user):
+            return True
+        if await AuthService.is_super_admin(user):
+            return True
+        if await AuthService.is_staff(user):
+            return True
+        if await AuthService.has_role(user, Role.QUALIFIER_ADMIN):
+            return True
+        if qualifier is not None and user is not None:
+            return await qualifier.admins.filter(id=user.id).exists()
+        return False
 
     @staticmethod
     async def can_grant_roles(user: Optional[User]) -> bool:
