@@ -442,7 +442,8 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_by_id(tenant_id)` / `get_by_slug(slug)` / `get_by_domain(domain)` / `get_by_guild_id(guild_id)` | `Tenant \| None` | Resolution lookups; `get_by_slug` and `get_by_guild_id` are cached. |
+| `get_by_id(tenant_id)` / `get_by_slug(slug)` / `get_by_domain(domain)` | `Tenant \| None` | Resolution lookups; `get_by_slug` is cached. |
+| `list_tenants_for_guild(guild_id)` | `list[Tenant]` | Every tenant linked to a Discord guild (a guild may back several); cached. The bot fans out over the result. |
 | `list_tenants()` | `list[Tenant]` | All tenants (platform admin table + community picker). |
 | `create_tenant(actor, *, name, slug, domain=None, discord_guild_id=None, ...)` | `Tenant` | Super-admin create; validates slug/domain uniqueness and format; audited `tenant.created`. |
 | `update_tenant(actor, tenant, **fields)` | `Tenant` | Super-admin partial update; re-validates slug/domain; audited `tenant.updated`. |

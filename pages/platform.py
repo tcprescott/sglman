@@ -89,6 +89,7 @@ def _open_create_dialog(actor, table) -> None:
         slug = ui.input('Slug').classes('w-full')
         domain = ui.input('Custom domain (optional)').classes('w-full')
         guild = ui.input('Discord guild id (optional)').classes('w-full')
+        guild.props('hint="A server may be shared by multiple tenants"')
 
         async def submit():
             try:
@@ -125,6 +126,7 @@ async def _open_edit_dialog(actor, table, row) -> None:
         slug = ui.input('Slug', value=tenant.slug).classes('w-full')
         domain = ui.input('Custom domain', value=tenant.domain or '').classes('w-full')
         guild = ui.input('Discord guild id', value=str(tenant.discord_guild_id or '')).classes('w-full')
+        guild.props('hint="A server may be shared by multiple tenants"')
         active = ui.switch('Active', value=tenant.is_active)
 
         async def submit():

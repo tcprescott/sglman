@@ -29,7 +29,9 @@ tenant-scoped.**
 - **`Tenant`** (`tenant`) — one row per hosted community. Columns: `name`,
   `slug` (unique, URL-safe — path routing key `/t/<slug>`), `domain` (unique,
   nullable — reserved for host-based addressing, not yet resolved),
-  `discord_guild_id` (nullable — bot routing key), `is_active`, `config` (JSON).
+  `discord_guild_id` (nullable, **non-unique** — bot routing key; a guild may be
+  shared by several tenants and the bot fans out over all of them), `is_active`,
+  `config` (JSON).
 - **`TenantMembership`** (`tenantmembership`) — `(user, tenant)`, `unique_together`.
   Ties a global `User` to the tenants they belong to; queried across tenants, so
   it is never auto-scoped.
@@ -1039,7 +1041,7 @@ The two tenancy tables are served by cross-tenant repositories that are **never*
 
 | Repository | Source | Serves | Key methods |
 |---|---|---|---|
-| `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | `get_by_id`, `get_by_slug`, `get_by_domain`, `get_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `delete` |
+| `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | `get_by_id`, `get_by_slug`, `get_by_domain`, `list_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `delete` |
 | `TenantMembershipRepository` | [`tenant_membership_repository.py`](../../application/repositories/tenant_membership_repository.py) | `TenantMembership` | `is_member`, `add`, `remove`, `list_for_user`, `list_for_tenant`, `tenant_ids_for_user` |
 
 ### Newer subsystem repositories

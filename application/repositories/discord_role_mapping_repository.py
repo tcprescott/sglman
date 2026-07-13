@@ -13,9 +13,10 @@ from models import DiscordRoleMapping, Role
 class DiscordRoleMappingRepository:
     """Repository for DiscordRoleMapping data access.
 
-    Each tenant owns a distinct Discord guild, so filtering by ``guild_id`` also
-    isolates tenants; the reads add an explicit tenant scope for defense in depth
-    and to guard by-id access.
+    A Discord guild may be shared by several tenants, so filtering by ``guild_id``
+    does **not** by itself isolate a tenant — every read is tenant-``scoped`` so a
+    shared guild's mappings stay separated by community, and by-id access is
+    guarded the same way.
     """
 
     @staticmethod

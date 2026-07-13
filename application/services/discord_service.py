@@ -93,15 +93,18 @@ async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
         from application.services.discord_role_mapping_service import DiscordRoleMappingService
         from models import User
 
-        # Route the guild to its tenant. Unknown guild (not linked to any tenant)
-        # -> ignore. The per-tenant sync wraps its own tenant_scope.
-        tenant = await TenantService.get_by_guild_id(guild_id)
-        if tenant is None:
+        # A guild may back several tenants (a shared server), so sync every one.
+        # Unknown guild (linked to no tenant) -> empty list -> nothing to do. Each
+        # per-tenant sync wraps its own tenant_scope and never raises.
+        tenants = await TenantService.list_tenants_for_guild(guild_id)
+        if not tenants:
             return
         user = await User.get_or_none(discord_id=discord_user_id)
         if user is None:
             return
-        await DiscordRoleMappingService().sync_user_roles_for_tenant(user, tenant)
+        service = DiscordRoleMappingService()
+        for tenant in tenants:
+            await service.sync_user_roles_for_tenant(user, tenant)
     except Exception:
         logger.exception('Live role sync failed for discord_id=%s', discord_user_id)
 

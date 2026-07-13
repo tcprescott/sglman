@@ -169,13 +169,18 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
 
 ## Discord: one bot, many guilds
 
-A single bot serves every community. `TenantService.get_by_guild_id(guild_id)`
-routes an incoming guild to its tenant:
+A single bot serves every community. `discord_guild_id` is **not unique**, so a
+Discord server may back several tenants; `TenantService.list_tenants_for_guild(guild_id)`
+resolves *every* tenant linked to an incoming guild and the callers fan out over
+them (an unknown guild resolves to an empty list and is ignored):
 
 - **Login role sync** (`discord_service.py`) and `DiscordRoleMappingService`
-  resolve the guild→tenant and wrap the sync in `tenant_scope`; unknown guilds are
-  ignored. `DiscordRoleMappingService.sync_user_roles` fans over all tenants that
-  have a guild.
+  resolve the guild→tenant(s) and wrap each per-tenant sync in `tenant_scope`.
+  `DiscordRoleMappingService.sync_user_roles` fans over all tenants that have a
+  guild; the live `GUILD_MEMBER_UPDATE` handler (`_sync_member_roles`) fans over
+  every tenant sharing the updated guild. Role mappings are tenant-scoped
+  (`DiscordRoleMapping.tenant`), so a shared server's mappings stay separated by
+  community and the same Discord role can grant different app roles per tenant.
 - **Interaction handlers** (`crew_signup`, `crew_acknowledgment`,
   `match_acknowledgment`, `volunteer_acknowledgment`, `watch_buttons`) resolve the
   tenant from the referenced entity's `tenant_id` and wrap DB work in
