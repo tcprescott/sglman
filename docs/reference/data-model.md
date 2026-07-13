@@ -460,7 +460,8 @@ Players assigned to a match, with result and station assignment.
 |---|---|---|---|
 | `match` | FK → `Match` | not null, `CASCADE` | `related_name='players'` |
 | `user` | FK → `User` | not null, `CASCADE` | `related_name='match_players'` |
-| `finish_rank` | `IntField` | null | Final placement |
+| `finish_rank` | `IntField` | null | Final placement (1 = winner) |
+| `finish_time` | `IntField` | null | Elapsed finish time in whole seconds, captured from a racetime room result (PR 6, migration 25); null for non-finishers and non-racetime matches |
 | `assigned_station` | `CharField(50)` | null | Physical/stream station label |
 
 Constraint: `unique_together (('match', 'user'),)` (added in migration 14).

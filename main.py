@@ -124,6 +124,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # MOCK_RACETIME; a no-op when the switch is off, so it is always safe to call.
     from racetimebot import close_racetime_bot, init_racetime_bot
     await init_racetime_bot()
+    # Auto-open worker: opens a racetime room ahead of each eligible scheduled
+    # match (opt-in per tournament). Runs only when the racetime runtime is on.
+    from application.services import race_room_worker
+    from application.utils.environment import racetime_bot_enabled
+    if racetime_bot_enabled():
+        race_room_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -135,6 +141,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # the presentation layer). No event_types filter — record them all.
     event_bus.subscribe_async(TelemetryService().record_event)
     yield
+    await race_room_worker.stop()
     await close_racetime_bot()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()

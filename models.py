@@ -435,6 +435,10 @@ class MatchPlayers(Model):
     match = fields.ForeignKeyField('models.Match', related_name='players')
     user = fields.ForeignKeyField('models.User', related_name='match_players')
     finish_rank = fields.IntField(null=True)
+    # Elapsed finish time in whole seconds, captured from a racetime room result
+    # (PR 6). Null for non-finishers (forfeit / no-show / DQ) and for matches not
+    # run through a race room. ``finish_rank`` remains the place (1 = winner).
+    finish_time = fields.IntField(null=True)
     assigned_station = fields.CharField(max_length=50, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

@@ -34,7 +34,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.utils.environment import racetime_bot_enabled
 from models import User
 from racetimebot.connection import CategoryConnection
-from racetimebot.handler import RaceHandler, RoomStatusLifecycle
+from racetimebot.handler import RaceHandler
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,12 @@ class RacetimeBotManager:
 
     def _spawn(self, bot_id: int, category: str, client_id: str, client_secret: str) -> None:
         assert self._system_user is not None
-        lifecycle = RoomStatusLifecycle(self.room_service)
+        # The room-lifecycle service drives seed attach + result capture; the
+        # status-only RoomStatusLifecycle in handler.py is the runtime-half
+        # fallback used before this service existed.
+        from application.services.race_room_service import RaceRoomLifecycle
+
+        lifecycle = RaceRoomLifecycle()
         handler = RaceHandler(
             category=category, room_service=self.room_service, lifecycle=lifecycle,
         )

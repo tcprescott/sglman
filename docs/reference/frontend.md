@@ -503,6 +503,7 @@ The simpler dialogs in brief:
 - Commentators and Trackers multi-selects (all users).
 - Date / Time (required), Comment textarea, Stream-candidate checkbox.
 - Edit mode adds the clear buttons and a read-only Player Acknowledgments list (check/pending icons, timestamps, `(auto)` markers) from `MatchAcknowledgmentRepository.list_for_match` — see [../features/match-acknowledgment.md](../features/match-acknowledgment.md).
+- Edit mode also shows a **Racetime Room** section when the match's tournament has a racetime bot: the room's slug + status if one exists, else (for STAFF/`SYNC_ADMIN`) a "Create racetime room" button calling `RaceRoomService.manual_create_room` — a manual open independent of the tournament's auto-open toggle.
 
 On save it validates required fields, runs `MatchService.ensure_players_enrolled`, then:
 

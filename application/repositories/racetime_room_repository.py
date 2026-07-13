@@ -37,6 +37,25 @@ class RacetimeRoomRepository:
             status__in=[RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS],
         ).prefetch_related('tenant').order_by('id')
 
+    async def matches_due_for_auto_open(self, window_start: Any, window_end: Any) -> List[Match]:
+        """Candidate matches for the auto-open worker — **unscoped** cross-tenant.
+
+        Returns not-yet-finished matches on auto-create tournaments scheduled in
+        the ``[window_start, window_end]`` band, with players/users/tournament
+        prefetched so the worker can re-check each tournament's lead time and the
+        linked-entrant eligibility without more queries. Intentionally
+        tenant-agnostic (like the volunteer-reminder scan); the worker binds each
+        match's tenant before acting.
+        """
+        return await Match.filter(
+            scheduled_at__gte=window_start,
+            scheduled_at__lte=window_end,
+            finished_at__isnull=True,
+            tournament__racetime_auto_create_rooms=True,
+        ).prefetch_related(
+            'tournament', 'players', 'players__user',
+        ).order_by('scheduled_at')
+
     async def get_by_id(self, room_id: int) -> Optional[RacetimeRoom]:
         return await RacetimeRoom.get_or_none(id=room_id, tenant_id=current_tenant_id())
 

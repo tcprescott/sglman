@@ -26,6 +26,7 @@ from .player_availability_service import PlayerAvailabilityService
 from .match_watcher_service import MatchWatcherService
 from .preset_service import PresetService
 from .race_room_profile_service import RaceRoomProfileService
+from .race_room_service import RaceRoomService
 from .racetime_bot_service import RacetimeBotService
 from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
@@ -75,6 +76,7 @@ __all__ = [
     'PlayerAvailabilityService',
     'PresetService',
     'RaceRoomProfileService',
+    'RaceRoomService',
     'RacetimeBotService',
     'RacetimeRoomService',
     'RacetimeService',
