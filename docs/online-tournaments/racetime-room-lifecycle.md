@@ -26,9 +26,13 @@ import repositories):
   [sahabot2](https://github.com/tcprescott/sahabot2). `RacetimeBot` is **global
   infrastructure** (not tenant-scoped, like the Discord bot token / VAPID keys),
   managed on `/platform`. A tenant cannot use a category until a SUPER_ADMIN grants
-  it via a **`RacetimeBotTenant`** junction; then a tenant's `SYNC_ADMIN` selects,
-  per tournament, from its authorized bots via the `Tournament → RacetimeBot` FK, and
-  a room records the bot managing it. The `client_secret` never surfaces to tenant
+  it via a **`RacetimeBotTenant`** junction. That junction is **many-to-many**: a
+  tenant may be authorized for **multiple categories** (e.g. alttpr *and* smz3 *and*
+  sm — a community running several games), and a category bot serves many tenants.
+  Then a tenant's `SYNC_ADMIN` selects, **per tournament**, the bot for that
+  tournament's game via the `Tournament → RacetimeBot` FK — constrained to the
+  categories the tenant is authorized for and matching the tournament's randomizer.
+  A room records the bot managing it. The `client_secret` never surfaces to tenant
   admins (Staff/super-admin only, like `ChallongeConnection` tokens), and one
   racetime app registration serves every tenant. Not per-tenant credentials, not a
   single hard-coded connection. The `RacetimeBotTenant` grant follows the
@@ -155,8 +159,10 @@ also what gates [auto-open eligibility](#scheduled-auto-creation-decided) and wh
   `last_connected_at`, `last_checked_at`); managed by SUPER_ADMIN on `/platform`.
   New enum: bot `status`. New `racetime_bot.*` events.
 - **`RacetimeBotTenant`** junction (`bot` × `tenant`, `is_active`, unique together):
-  the SUPER_ADMIN authorization grant. `Tournament` selects one via FK, constrained
-  to bots authorized to that tenant.
+  the SUPER_ADMIN authorization grant — **many-to-many**, so a tenant can be
+  authorized for several categories and a category serves many tenants. `Tournament`
+  selects one bot via FK, constrained to the tenant's authorized (and
+  game-matching) categories.
 - **`User.racetime_user_id` / `_username` / `_linked_at`** (global, unique, OAuth
   identity-only).
 - **`MatchPlayers`** reuses the existing `finish_rank` for place and gains one
