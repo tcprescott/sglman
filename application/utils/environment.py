@@ -80,6 +80,18 @@ def speedgaming_sync_enabled() -> bool:
     return os.environ.get('SPEEDGAMING_SYNC_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def discord_events_sync_enabled() -> bool:
+    """Master switch for the Discord Scheduled Events reconciler worker (default: off).
+
+    The background reconcile loop only spins up when ``DISCORD_EVENTS_SYNC_ENABLED``
+    is truthy. Off by default so a deployment with no opted-in tournaments — the
+    common case — never touches Discord on a timer. The reconciler still runs
+    on-demand from the admin UI regardless of this switch; this only gates the
+    periodic worker. Independent of ``MOCK_DISCORD`` (which swaps the transport).
+    """
+    return os.environ.get('DISCORD_EVENTS_SYNC_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

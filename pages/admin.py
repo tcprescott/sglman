@@ -21,6 +21,7 @@ from pages.admin_tabs.admin_feedback import admin_feedback_page
 from pages.admin_tabs.admin_presets import admin_presets_page
 from pages.admin_tabs.admin_racetime import admin_racetime_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
+from pages.admin_tabs.admin_discord_events import admin_discord_events_page
 from theme.base import BaseLayout
 
 
@@ -106,6 +107,8 @@ def create() -> None:
             tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'content': admin_racetime_page})
         if is_staff or is_sync_admin:
             tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'content': admin_speedgaming_page})
+        if is_staff or is_sync_admin:
+            tabs.append({'label': 'Discord Events', 'icon': 'event', 'content': admin_discord_events_page})
         if is_staff or is_stream_manager:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
         if is_staff or is_ta_any:

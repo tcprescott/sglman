@@ -75,6 +75,17 @@ class AuditActions:
     DISCORD_SERVER_LINKED = 'discord.server_linked'
     DISCORD_SERVER_UNLINKED = 'discord.server_unlinked'
 
+    # Discord Scheduled Events mirror (PR 8). The create/update/cancel rows are
+    # written by the reconciler (system user on the worker, or a human on-demand);
+    # the per-run summary/failure and the per-tournament settings edit are
+    # audit-only plumbing.
+    DISCORD_EVENT_CREATED = 'discord_event.created'
+    DISCORD_EVENT_UPDATED = 'discord_event.updated'
+    DISCORD_EVENT_CANCELLED = 'discord_event.cancelled'
+    DISCORD_EVENT_SYNC_COMPLETED = 'discord_event.sync_completed'
+    DISCORD_EVENT_SYNC_FAILED = 'discord_event.sync_failed'
+    DISCORD_EVENT_SETTINGS_UPDATED = 'discord_event.settings_updated'
+
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'
     STREAM_ROOM_UPDATED = 'stream_room.updated'

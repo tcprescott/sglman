@@ -1003,6 +1003,41 @@ snapshot + a `content_hash` (cheap unchanged-since-last check). The materialized
 
 Constraints: `Meta.table = 'speedgamingepisode'`; unique `(tenant, sg_episode_id)`; indexes on `tenant`, `event_link`.
 
+### Discord Events mirror (PR 8)
+
+Mirrors the SGLMan schedule into each tenant guild's **Discord Scheduled Events**.
+`Tournament` gains per-tournament opt-in columns: **`discord_events_enabled`**
+(`BOOL`, default `False`), **`discord_event_duration_minutes`** (`INT`, default
+60), and nullable **`discord_event_title_template`** / **`discord_event_description_template`**
+(`{tournament}` / `{match}` / `{players}` placeholders; a built-in default renders
+when unset). The reconciler runs against the **verified** `Tenant.discord_guild_id`.
+
+#### `DiscordEventSource` (enum)
+
+`(str, Enum)` — what SGLMan schedule row a mirrored Discord event came from. Today
+only **`MATCH`** (`'match'`); the link is polymorphic so qualifier windows / live
+races join later without a schema change.
+
+#### `DiscordScheduledEvent`
+
+Tenant-scoped reconciliation link between a schedule row and a Discord Scheduled
+Event. `content_hash` drives update-vs-noop; the working set is **only this
+tenant's own rows**, so a shared guild (several tenants, non-unique
+`discord_guild_id`) never has a sibling's event cancelled.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='discord_scheduled_events'` |
+| `guild_id` | `BigIntField` | not null | Snapshot of `Tenant.discord_guild_id` at creation |
+| `discord_event_id` | `BigIntField` | not null, **unique** | The Discord Scheduled Event id (one link per event) |
+| `source_type` | `CharEnumField(DiscordEventSource)` | not null | Today always `MATCH` |
+| `source_id` | `IntField` | not null | The `Match` id (polymorphic key) |
+| `title` / `scheduled_at` | | title not null; `scheduled_at` null | Snapshot rendered onto the event |
+| `content_hash` | `CharField(64)` | null | SHA-256 of name/description/start/end/location |
+| `synced_at` | | null | Last reconcile that touched the event |
+
+Constraints: `Meta.table = 'discordscheduledevent'`; `discord_event_id` unique; unique `(tenant, source_type, source_id)` (idempotency); indexes on `tenant`, `guild_id`.
+
 ## Match lifecycle
 
 `Match.current_state` is derived from three nullable timestamps; there is no status column. The model comment on `seated_at` notes the naming history: the field is called *seated* but the state it produces is now labeled **"Checked In"**.

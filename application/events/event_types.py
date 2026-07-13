@@ -58,6 +58,13 @@ class EventType:
     SG_EPISODE_CANCELLED = 'sg_sync.episode_cancelled'
     SG_MATCH_AUTO_FINISHED = 'sg_sync.match_auto_finished'
 
+    # Discord Scheduled Events mirror (mirrors AuditActions.DISCORD_EVENT_*).
+    # Tenant-scoped domain events a webhook subscriber can act on; published by
+    # the reconciler when it creates/updates/cancels a mirrored Discord event.
+    DISCORD_EVENT_CREATED = 'discord_event.created'
+    DISCORD_EVENT_UPDATED = 'discord_event.updated'
+    DISCORD_EVENT_CANCELLED = 'discord_event.cancelled'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -71,6 +78,7 @@ class EventType:
         RACE_ROOM_CREATED, RACE_ROOM_OPENED, RACE_ROOM_STARTED,
         RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
         SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,
+        DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
     })
 
     # Wildcard a subscriber can register to receive every event.

@@ -13,6 +13,9 @@ from .challonge_service import ChallongeService
 from .crew_service import CrewService
 from . import discord_queue
 from . import volunteer_reminder
+from .discord_event_reconciler_service import DiscordEventReconcilerService
+from .discord_event_sync_service import DiscordEventSyncService
+from . import discord_event_worker
 from .discord_link_service import DiscordLinkService
 from .discord_role_mapping_service import DiscordRoleMappingService
 from .discord_service import DiscordService
@@ -66,6 +69,9 @@ __all__ = [
     'discord_queue',
     'get_user_from_discord_id',
     'volunteer_reminder',
+    'DiscordEventReconcilerService',
+    'DiscordEventSyncService',
+    'discord_event_worker',
     'DiscordLinkService',
     'DiscordRoleMappingService',
     'DiscordService',

@@ -165,6 +165,13 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # not a tournament domain event a webhook subscriber would act on.
     AuditActions.DISCORD_SERVER_LINKED,
     AuditActions.DISCORD_SERVER_UNLINKED,
+    # Discord Scheduled Events mirror (PR 8): the per-event create/update/cancel
+    # rows DO emit events (see EventType.DISCORD_EVENT_*). The rest are audit-only:
+    # the per-run reconcile summary/failure is worker plumbing and the settings
+    # edit is tenant-internal sync config — no external subscriber interest.
+    AuditActions.DISCORD_EVENT_SYNC_COMPLETED,
+    AuditActions.DISCORD_EVENT_SYNC_FAILED,
+    AuditActions.DISCORD_EVENT_SETTINGS_UPDATED,
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.

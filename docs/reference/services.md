@@ -236,6 +236,16 @@ Verified linking of a `Tenant` to a Discord guild. Because `discord_guild_id` is
 
 Consumers: `MatchScheduleService` and `CrewService` (notification fan-out), `theme/dialog/send_message_dialog.py` (admin "send DM" dialog).
 
+### discord_event_reconciler_service.py — DiscordEventReconcilerService (PR 8)
+
+Mirrors the SGLMan schedule into a tenant guild's **Discord Scheduled Events** as idempotent reconciliation. `reconcile_tenant(tenant, *, actor, now=None)` reads the tenant's opted-in tournaments' scheduled matches in a forward window, then per match creates / updates (content-hash change) / leaves unchanged its `DiscordScheduledEvent` link, and cancels links whose source match finished or vanished. **Shared-guild safety**: the working set is only the tenant's own link rows (the repository is tenant-scoped), so a sibling tenant's event in a shared guild is never enumerated or cancelled; the target guild is the verified `Tenant.discord_guild_id`. Renders title/description from `{tournament}`/`{match}`/`{players}` templates. Audits + emits `discord_event.created`/`updated`/`cancelled` (the per-run summary is audit-only). Collaborators: `DiscordScheduledEventRepository`, `MatchRepository`, `DiscordService`, `AuditService`, event bus.
+
+**discord_event_worker.py** — the reconcile background loop (peer of `speedgaming_sync_worker`). Every 5 min it scans (cross-tenant, unscoped) every tenant with a linked guild, then reconciles each inside `tenant_scope` as the system user. Idempotent, so an unchanged schedule is a cheap no-op. Started from the lifespan only when `DISCORD_EVENTS_SYNC_ENABLED` is on.
+
+### discord_event_sync_service.py — DiscordEventSyncService (PR 8)
+
+The human-driven surface over the reconciler, gated by `AuthService.can_manage_sync`. `list_tournaments` / `update_settings(actor, tournament_id, *, enabled, duration_minutes, title_template, description_template)` manage per-tournament opt-in (audits `discord_event.settings_updated`); `list_events` feeds the admin observability table; `reconcile_now(actor)` runs the reconciler for the ambient tenant on demand (raises `ValueError` when no guild is linked). Consumer: the admin **Discord Events** tab.
+
 ### equipment_service.py — EquipmentService
 
 Lending-asset management (create/edit/delete, bulk creation with auto-assigned asset numbers) and the checkout/check-in workflow with full loan history. Asset management is gated by `AuthService.can_manage_equipment` (Staff or Equipment Manager); checkout by `can_checkout_equipment` (managers, or Volunteers checking out to themselves only); check-in by `can_checkin_equipment`. Audited under `equipment.*`. Module constant: `MAX_BULK_COUNT = 200`.

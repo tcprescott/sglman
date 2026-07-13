@@ -137,6 +137,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from application.utils.environment import speedgaming_sync_enabled
     if speedgaming_sync_enabled():
         speedgaming_sync_worker.start()
+    # Discord Scheduled Events reconciler: mirrors opted-in tournaments' schedules
+    # into each linked guild's Discord events. Gated by DISCORD_EVENTS_SYNC_ENABLED
+    # (off by default); uses the mock transport under MOCK_DISCORD.
+    from application.services import discord_event_worker
+    from application.utils.environment import discord_events_sync_enabled
+    if discord_events_sync_enabled():
+        discord_event_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -150,6 +157,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
     await race_room_worker.stop()
     await speedgaming_sync_worker.stop()
+    await discord_event_worker.stop()
     await close_racetime_bot()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()

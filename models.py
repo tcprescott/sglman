@@ -365,6 +365,16 @@ class Tournament(Model):
     room_open_minutes_before = fields.IntField(default=30)
     require_racetime_link = fields.BooleanField(default=False)
     racetime_default_goal = fields.CharField(max_length=255, null=True)
+    # Discord Scheduled Events mirror (PR 8). Per-tournament opt-in: when enabled,
+    # the reconciler worker mirrors this tournament's scheduled matches into the
+    # tenant guild's Discord Scheduled Events. ``discord_event_duration_minutes``
+    # sets each external event's end time; the templates (nullable — a built-in
+    # default is used when unset) render the event title/description from match
+    # data (``{tournament}`` / ``{match}`` / ``{players}`` placeholders).
+    discord_events_enabled = fields.BooleanField(default=False)
+    discord_event_duration_minutes = fields.IntField(default=60)
+    discord_event_title_template = fields.CharField(max_length=255, null=True)
+    discord_event_description_template = fields.TextField(null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -1297,3 +1307,52 @@ class SpeedGamingEpisode(Model):
         table = 'speedgamingepisode'
         unique_together = (('tenant', 'sg_episode_id'),)
         indexes = (('tenant',), ('event_link',))
+
+
+class DiscordEventSource(str, Enum):
+    """What SGLMan schedule row a mirrored Discord event came from (PR 8).
+
+    The ``DiscordScheduledEvent`` link is polymorphic: ``(source_type, source_id)``
+    identifies the SGLMan row a Discord Scheduled Event mirrors. Today only
+    ``MATCH`` is materialized (native + SG-imported matches both live in ``Match``);
+    qualifier windows / live races join later without a schema change.
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings.
+    """
+
+    MATCH = 'match'
+
+
+class DiscordScheduledEvent(Model):
+    """A Discord Scheduled Event mirrored from an SGLMan schedule row (PR 8).
+
+    Tenant-scoped reconciliation link. The reconciler keeps the tenant guild's
+    Scheduled Events in sync with its schedule: ``content_hash`` drives
+    update-vs-noop, and the working set is **only this tenant's own rows** —
+    never every event in the guild — so a shared guild never has a sibling
+    tenant's events cancelled (``discord_guild_id`` is not unique).
+
+    Uniqueness: ``discord_event_id`` is globally unique (one link per Discord
+    event); ``(tenant, source_type, source_id)`` is unique for idempotency (one
+    mirrored event per source row).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='discord_scheduled_events', on_delete=fields.CASCADE)
+    # The guild the event lives in, snapshotted from ``Tenant.discord_guild_id``
+    # at creation so a later re-link doesn't silently orphan the row.
+    guild_id = fields.BigIntField()
+    discord_event_id = fields.BigIntField(unique=True)
+    source_type = fields.CharEnumField(DiscordEventSource, max_length=20)
+    source_id = fields.IntField()
+    title = fields.CharField(max_length=255)
+    scheduled_at = fields.DatetimeField(null=True)
+    content_hash = fields.CharField(max_length=64, null=True)
+    synced_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'discordscheduledevent'
+        unique_together = (('tenant', 'source_type', 'source_id'),)
+        indexes = (('tenant',), ('guild_id',))

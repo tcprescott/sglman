@@ -20,6 +20,7 @@ from models import (
     User, UserRole, Role, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
     Preset, RacetimeBot, RacetimeRoom, RaceRoomProfile,
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
+    DiscordScheduledEvent, DiscordEventSource,
     BotStatus, RaceRoomStatus,
 )
 from application.utils.timezone import now_eastern
@@ -148,6 +149,7 @@ async def seed_online_for_tenant(
             await mp.save()
 
     await _seed_speedgaming(tenant, tournament, scheduled_match)
+    await _seed_discord_events(tenant, tournament, scheduled_match)
     print(f"    [{tenant.slug}] online tournaments ok")
 
 
@@ -216,3 +218,38 @@ async def _seed_speedgaming(
         # sourced match's roster shows both real and placeholder entrants.
         await TournamentPlayers.get_or_create(tournament=tournament, user=user, tenant=tenant)
         await MatchPlayers.get_or_create(match=sourced_match, user=user, tenant=tenant)
+
+
+async def _seed_discord_events(
+    tenant: Tenant, tournament: Tournament, scheduled_match: Match,
+) -> None:
+    """Discord Events mirror fixtures (PR 8): opt the tournament into the mirror
+    and seed one already-mirrored :class:`DiscordScheduledEvent` for the scheduled
+    match, so the admin Discord Events tab shows an opted-in tournament and a
+    non-empty mirrored-events table. ``discord_event_id`` is namespaced per tenant
+    (it is globally unique). Requires the tenant to have a linked guild (seed_dev
+    sets one)."""
+    if not tournament.discord_events_enabled:
+        tournament.discord_events_enabled = True
+        tournament.discord_event_duration_minutes = 90
+        await tournament.save()
+
+    guild_id = tenant.discord_guild_id
+    if guild_id is None:
+        return
+
+    # A stable synthetic Discord event id per tenant (well outside real snowflakes).
+    discord_event_id = 3900000000000000000 + tenant.id
+    await DiscordScheduledEvent.get_or_create(
+        tenant=tenant,
+        source_type=DiscordEventSource.MATCH,
+        source_id=scheduled_match.id,
+        defaults={
+            "guild_id": guild_id,
+            "discord_event_id": discord_event_id,
+            "title": scheduled_match.title or "Scheduled Match — Bracket",
+            "scheduled_at": scheduled_match.scheduled_at,
+            "content_hash": "devseedhash",
+            "synced_at": datetime.now(timezone.utc),
+        },
+    )

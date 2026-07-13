@@ -5,6 +5,7 @@ Handles Discord-related operations like sending DMs.
 """
 
 import logging
+from datetime import datetime
 from typing import Awaitable, Callable, Tuple, Optional, List, Dict, Set, Union
 import discord
 from discord.ext import commands
@@ -500,6 +501,118 @@ class DiscordService:
         except Exception as e:
             return False, f"Failed to check permissions: {str(e)}"
 
+    # --- Scheduled events (PR 8) --------------------------------------------
+    # The Discord Events reconciler mirrors SGLMan's schedule into the tenant
+    # guild's Scheduled Events. These are thin, fail-closed wrappers over the
+    # discord.py scheduled-event API; the reconciler owns idempotency (it tracks
+    # which events it created via ``DiscordScheduledEvent`` rows).
+
+    async def _get_guild(self, guild_id: int) -> Optional["discord.Guild"]:
+        guild = self._bot.get_guild(guild_id)
+        if guild is None:
+            try:
+                guild = await self._bot.fetch_guild(guild_id)
+            except (discord.NotFound, discord.Forbidden):
+                return None
+        return guild
+
+    async def create_scheduled_event(
+        self,
+        guild_id: int,
+        *,
+        name: str,
+        start_time: "datetime",
+        end_time: "datetime",
+        description: Optional[str] = None,
+        location: str = 'Stream',
+    ) -> Tuple[bool, Union[int, str]]:
+        """Create an external Scheduled Event; return ``(True, event_id)`` or an error."""
+        try:
+            if self._bot is None or not self._bot.is_ready():
+                return False, "Discord bot is not connected."
+            guild = await self._get_guild(guild_id)
+            if guild is None:
+                return False, "The bot is not in this server."
+            event = await guild.create_scheduled_event(
+                name=name[:100],
+                start_time=start_time,
+                end_time=end_time,
+                description=(description or '')[:1000] or None,
+                entity_type=discord.EntityType.external,
+                privacy_level=discord.PrivacyLevel.guild_only,
+                location=location[:100],
+            )
+            return True, int(event.id)
+        except discord.Forbidden:
+            return False, "Bot lacks permission to manage events in this server."
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while creating event: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to create event: {str(e)}"
+
+    async def edit_scheduled_event(
+        self,
+        guild_id: int,
+        event_id: int,
+        *,
+        name: str,
+        start_time: "datetime",
+        end_time: "datetime",
+        description: Optional[str] = None,
+        location: str = 'Stream',
+    ) -> Tuple[bool, str]:
+        """Edit an existing Scheduled Event to match the current schedule."""
+        try:
+            if self._bot is None or not self._bot.is_ready():
+                return False, "Discord bot is not connected."
+            guild = await self._get_guild(guild_id)
+            if guild is None:
+                return False, "The bot is not in this server."
+            event = guild.get_scheduled_event(event_id)
+            if event is None:
+                try:
+                    event = await guild.fetch_scheduled_event(event_id)
+                except discord.NotFound:
+                    return False, "Scheduled event not found."
+            await event.edit(
+                name=name[:100],
+                start_time=start_time,
+                end_time=end_time,
+                description=(description or '')[:1000] or None,
+                entity_type=discord.EntityType.external,
+                location=location[:100],
+            )
+            return True, "Event updated."
+        except discord.Forbidden:
+            return False, "Bot lacks permission to manage events in this server."
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while editing event: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to edit event: {str(e)}"
+
+    async def delete_scheduled_event(self, guild_id: int, event_id: int) -> Tuple[bool, str]:
+        """Cancel (delete) a Scheduled Event. Treats an already-gone event as success."""
+        try:
+            if self._bot is None or not self._bot.is_ready():
+                return False, "Discord bot is not connected."
+            guild = await self._get_guild(guild_id)
+            if guild is None:
+                return False, "The bot is not in this server."
+            event = guild.get_scheduled_event(event_id)
+            if event is None:
+                try:
+                    event = await guild.fetch_scheduled_event(event_id)
+                except discord.NotFound:
+                    return True, "Event already removed."
+            await event.delete()
+            return True, "Event cancelled."
+        except discord.Forbidden:
+            return False, "Bot lacks permission to manage events in this server."
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while deleting event: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to delete event: {str(e)}"
+
 
 class MockDiscordService:
     """Stub Discord service for local development without a real bot.
@@ -569,6 +682,33 @@ class MockDiscordService:
     async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
         print(f"[MOCK Discord] member_can_manage_guild guild={guild_id} user={user_id}")
         return True, mock_discord_data.user_can_manage(guild_id, user_id)
+
+    async def create_scheduled_event(
+        self, guild_id: int, *, name: str, start_time: "datetime", end_time: "datetime",
+        description: Optional[str] = None, location: str = 'Stream',
+    ) -> Tuple[bool, Union[int, str]]:
+        event_id = mock_discord_data.create_scheduled_event(
+            guild_id, name=name, start_time=start_time, end_time=end_time,
+            description=description, location=location,
+        )
+        print(f"[MOCK Discord] create_scheduled_event guild={guild_id} name={name!r} -> {event_id}")
+        return True, event_id
+
+    async def edit_scheduled_event(
+        self, guild_id: int, event_id: int, *, name: str, start_time: "datetime",
+        end_time: "datetime", description: Optional[str] = None, location: str = 'Stream',
+    ) -> Tuple[bool, str]:
+        ok = mock_discord_data.edit_scheduled_event(
+            event_id, guild_id=guild_id, name=name, start_time=start_time,
+            end_time=end_time, description=description, location=location,
+        )
+        print(f"[MOCK Discord] edit_scheduled_event guild={guild_id} event={event_id} ok={ok}")
+        return (True, "Event updated.") if ok else (False, "Scheduled event not found.")
+
+    async def delete_scheduled_event(self, guild_id: int, event_id: int) -> Tuple[bool, str]:
+        mock_discord_data.delete_scheduled_event(event_id)
+        print(f"[MOCK Discord] delete_scheduled_event guild={guild_id} event={event_id}")
+        return True, "Event cancelled."
 
 
 from application.utils.mock_discord import is_mock_discord  # noqa: E402

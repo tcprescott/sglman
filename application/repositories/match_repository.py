@@ -77,6 +77,25 @@ class MatchRepository:
         )).prefetch_related('speedgaming_episode')
 
     @staticmethod
+    async def list_for_discord_sync(
+        window_start: datetime, window_end: datetime
+    ) -> List[Match]:
+        """Scheduled, unfinished matches in opted-in tournaments within a window.
+
+        Feeds the Discord Events reconciler (PR 8): tenant-scoped, so the caller
+        already runs inside the tenant whose guild is being reconciled. Only
+        matches whose tournament has ``discord_events_enabled`` are returned;
+        finished matches are excluded (their mirrored event is cancelled).
+        """
+        return await scoped(Match.filter(
+            tournament__discord_events_enabled=True,
+            finished_at__isnull=True,
+            scheduled_at__isnull=False,
+            scheduled_at__gte=window_start,
+            scheduled_at__lte=window_end,
+        )).prefetch_related('tournament', 'players', 'players__user').order_by('scheduled_at')
+
+    @staticmethod
     async def get_all(
         *,
         tournament_ids: Optional[List[int]] = None,
