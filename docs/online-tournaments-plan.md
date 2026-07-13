@@ -17,6 +17,7 @@
 | 2026-07-13 | **Forward-port scope fixed at four features** (see [Scope](#scope-the-four-forward-ported-features)): Async Qualifiers, seed rolling, Discord Events sync, SpeedGaming ETL. Supersedes the earlier broad port map and the "parity items before cutover" framing |
 | 2026-07-13 | SahasrahBot's **Async Tournament** is renamed **Async Qualifier** in SGLMan — its workflow is completely different from a tournament's and the name collision with `Tournament` would mislead |
 | 2026-07-13 | SpeedGaming schedule data comes in via an **ETL/sync process** into SGLMan's own tables — *not* SahasrahBot's approach of live-querying the SG API per interaction |
+| 2026-07-13 | `AsyncQualifier` is a **standalone peer aggregate of `Tournament`**: created/administered the same way (many can run concurrently per tenant), but a **distinct state machine** entirely outside the `Match`/schedule system — no structural FK between the two |
 
 ## Context
 
@@ -80,7 +81,8 @@ serves online events directly; nothing here replaces those workflows. The four
 ported features fill the online-specific gaps and plug into that machinery: the
 SG ETL materializes into existing `Match` rows, Discord Events sync reads the
 existing schedule, presets extend the existing seed-rolling flow, and Async
-Qualifiers attach to existing `Tournament`s as their qualification stage.
+Qualifiers arrive as a **peer aggregate alongside `Tournament`** — created and
+administered the same way, running a distinct machine.
 
 | # | Feature | SahasrahBot source | SGLMan disposition |
 |---|---|---|---|
@@ -117,6 +119,32 @@ workflow (self-paced runs against a permalink pool inside a window) is nothing
 like a `Tournament`'s, and the old name would collide with SGLMan's existing
 `Tournament` aggregate.
 
+### A peer aggregate to `Tournament`: same creation, distinct machine
+
+`AsyncQualifier` is a **standalone, first-class aggregate** — a sibling of
+`Tournament`, not a child or a mode of one:
+
+- **Created and administered like a tournament.** The admin surface mirrors the
+  Tournaments pattern staff already know: a create/edit dialog and admin tab,
+  per-qualifier admins (M2M, like `Tournament.admins`), player enrollment,
+  `is_active`, and the same service/audit/event conventions. Standing one up
+  feels exactly like standing up a tournament — and **any number of qualifiers
+  can exist and run concurrently** per tenant, just as tournaments do.
+- **Fully outside the schedule system.** Qualifier runs are self-paced within the
+  window — they are never `Match` rows, never appear on the Schedule/On Air tabs,
+  and don't touch stream rooms or station assignment. The qualifier gets its own
+  admin tab and player-facing pages (start a run, submit, leaderboard).
+- **But a distinct state machine.** It shares none of `Tournament`'s runtime
+  machinery — no `Match`, no scheduled → seated → started → finished lifecycle,
+  no stream-room/crew flow. Its lifecycle is its own: **window opens → players
+  draw permalinks from pools → runs (in-progress → finished/forfeit) → review
+  (pending → approved/rejected) → scored leaderboard → window closes.** Keeping
+  the machines separate is the point of the rename: neither model grows
+  conditional behavior to accommodate the other.
+- **At most an informational association.** A qualifier may *name* the event it
+  feeds for display purposes, but nothing structural hangs off that — no FK
+  dependencies between the two machines' workflows.
+
 ### Workflow (ported semantics)
 
 1. Staff create a qualifier: window, **permalink pools** (each pool optionally
@@ -139,7 +167,7 @@ leak test) per [multitenancy.md](features/multitenancy.md).
 
 | SahasrahBot | SGLMan | Adaptation |
 |---|---|---|
-| `AsyncTournament` (guild/channel ids, owner, `allowed_reattempts`, `runs_per_pool`, `customization`) | `AsyncQualifier` | Discord channel wiring → tenant + web UI; `customization` → schema-validated config per the design principle; optional FK to `Tournament` (the event it qualifies players for) |
+| `AsyncTournament` (guild/channel ids, owner, `allowed_reattempts`, `runs_per_pool`, `customization`) | `AsyncQualifier` | Discord channel wiring → tenant + web UI; `customization` → schema-validated config per the design principle; standalone peer of `Tournament` (no structural FK — at most an informational label for the event it feeds) |
 | `AsyncTournamentPermalinkPool` (name, preset) | `AsyncQualifierPool` | `preset` becomes FK → the new `Preset` model |
 | `AsyncTournamentPermalink` (url, notes, `live_race`, `par_time`) | `AsyncQualifierPermalink` | as-is |
 | `AsyncTournamentRace` (status, review_status, start/end, `thread_id`, `runner_vod_url`, score) | `AsyncQualifierRun` | Discord `thread_id` → web run page (+ optional Discord notification); statuses kept: `pending/in_progress/finished/forfeit/disqualified`, review `pending/approved/rejected` |
