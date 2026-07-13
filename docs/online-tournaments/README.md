@@ -49,6 +49,7 @@ for unmade decisions and must-preserve behaviors before implementation.
 | 2026-07-14 | **Qualifier reviewers = the qualifier's `admins` M2M; self-review blocked.** A reviewer cannot approve/reject their own run. |
 | 2026-07-14 | **Reschedule with an open room = keep the room, update time only.** On an upstream reschedule after a room opened, update `scheduled_at` + the Discord event; leave the open room as-is (staff manually cancel/recreate if warranted). Never auto-disrupt a room. |
 | 2026-07-14 | **Racetime room = its own `RacetimeRoom` model** (sahabot2), not a slug column on `Match`: unique `slug`, `category`, `status`, `OneToOne→Match` (SET_NULL), `FK→RacetimeBot`. Decouples room lifecycle from `Match` and prevents orphaned slugs. |
+| 2026-07-14 | **Racetime bots are global infrastructure, authorized to tenants by SUPER_ADMIN** (sahabot2 `RacetimeBotOrganization` pattern). `RacetimeBot` (category + OAuth creds) is a **global**, non-tenant-scoped row managed on `/platform`; a `RacetimeBotTenant` junction grants a bot to a tenant. A tenant cannot use a category until authorized; then `SYNC_ADMIN` selects per tournament from its authorized bots via the `Tournament → RacetimeBot` FK. `client_secret` never surfaces to tenant admins (Staff/super-admin only, like `ChallongeConnection` tokens). One racetime app registration serves all tenants. Self-service request→approve is a future layer, no schema change. |
 
 ## Context
 
@@ -148,7 +149,7 @@ Canonical list; each feature doc details its own slice.
 | `AsyncQualifier`, `AsyncQualifierPool`, `AsyncQualifierPermalink`, `AsyncQualifierRun`, `AsyncQualifierLiveRace`, `AsyncQualifierReviewNote` | 1 |
 | `DiscordScheduledEvent` (tenant-scoped link/reconciliation table) | 3 |
 | `SpeedGamingEpisode`, `SpeedGamingEventLink` (tenant-scoped); `Match` gains its FK to `SpeedGamingEpisode` (source marker driving read-only enforcement) | 4 |
-| `RacetimeRoom` model (unique `slug`, `category`, `status`, `OneToOne→Match` SET_NULL, `FK→RacetimeBot`) + `RacetimeBot` rows; `MatchPlayers` reuses `finish_rank` and gains a finish-time column; per-tournament racetime config columns | 5 |
+| `RacetimeRoom` model (unique `slug`, `category`, `status`, `OneToOne→Match` SET_NULL, `FK→RacetimeBot`); **global** `RacetimeBot` + `RacetimeBotTenant` authorization junction; `Tournament → RacetimeBot` FK; `MatchPlayers` reuses `finish_rank` + gains a finish-time column; per-tournament racetime config columns | 5 |
 | `User` gains `is_placeholder` + `speedgaming_id`; `discord_id` → nullable+unique with `CHECK (discord_id IS NOT NULL OR is_placeholder)` (placeholder pattern) | 4 |
 | New `Role` members: `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN`; `AsyncQualifier.admins` M2M | 1,2,3,4 |
 | New `AuditActions` + `EventType` members per subsystem (`async_qualifier.*`, `preset.*`, `discord_event.*`, `sg_sync.*`, `race_room.*`) — EventType is an external contract: add, never rename | all |

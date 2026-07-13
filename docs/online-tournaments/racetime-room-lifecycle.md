@@ -20,12 +20,18 @@ A new top-level package, structurally the sibling of `discordbot/`, following th
 established "bot handlers are a presentation layer" rule (they call services, never
 import repositories):
 
-- **Shared, DB-managed bots (decided).** Racetime bots/categories are first-class
-  **`RacetimeBot` rows** (client-id/secret per game category), shared across tenants
-  and selectable per tournament via an FK — the mature form of "one bot, many
-  guilds," validated by [sahabot2](https://github.com/tcprescott/sahabot2). A
-  `Tournament` names which bot/category it uses; a room records the bot managing it.
-  Not per-tenant credentials, not a single hard-coded connection.
+- **Shared, DB-managed bots, authorized to tenants by SUPER_ADMIN (decided).**
+  Racetime bots/categories are first-class **`RacetimeBot` rows** (client-id/secret
+  per game category) — the mature form of "one bot, many guilds," validated by
+  [sahabot2](https://github.com/tcprescott/sahabot2). `RacetimeBot` is **global
+  infrastructure** (not tenant-scoped, like the Discord bot token / VAPID keys),
+  managed on `/platform`. A tenant cannot use a category until a SUPER_ADMIN grants
+  it via a **`RacetimeBotTenant`** junction; then a tenant's `SYNC_ADMIN` selects,
+  per tournament, from its authorized bots via the `Tournament → RacetimeBot` FK, and
+  a room records the bot managing it. The `client_secret` never surfaces to tenant
+  admins (Staff/super-admin only, like `ChallongeConnection` tokens), and one
+  racetime app registration serves every tenant. Not per-tenant credentials, not a
+  single hard-coded connection.
 - **A connection per category, a handler per active room**, spawned via the
   `racetime-bot` framework. Each handler is a long-lived task that reacts to room
   state transitions and calls `RaceRoomService`. Gated by `RACETIME_*` env +
@@ -108,8 +114,11 @@ also what gates [auto-open eligibility](#scheduled-auto-creation-decided) and wh
   (open/pending/in_progress/finished/cancelled), `OneToOne → Match` (SET_NULL),
   `FK → RacetimeBot`, timestamps. Decouples room lifecycle from `Match`, gives the
   unique-slug reverse lookup for tenant routing, and prevents orphaned slugs.
-- **`RacetimeBot`** (its own model): per-category client-id/secret, shared across
-  tenants; `Tournament` selects one via FK. Managed on an admin surface.
+- **`RacetimeBot`** (**global**, not tenant-scoped): per-category client-id/secret,
+  friendly name, status; managed by SUPER_ADMIN on `/platform`.
+- **`RacetimeBotTenant`** junction (`bot` × `tenant`, `is_active`, unique together):
+  the SUPER_ADMIN authorization grant. `Tournament` selects one via FK, constrained
+  to bots authorized to that tenant.
 - **`User.racetime_user_id` / `_username` / `_linked_at`** (global, unique, OAuth
   identity-only).
 - **`MatchPlayers`** reuses the existing `finish_rank` for place and gains one
