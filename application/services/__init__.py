@@ -13,6 +13,7 @@ from .challonge_service import ChallongeService
 from .crew_service import CrewService
 from . import discord_queue
 from . import volunteer_reminder
+from .discord_link_service import DiscordLinkService
 from .discord_role_mapping_service import DiscordRoleMappingService
 from .discord_service import DiscordService
 from .equipment_service import EquipmentService
@@ -53,6 +54,7 @@ __all__ = [
     'discord_queue',
     'get_user_from_discord_id',
     'volunteer_reminder',
+    'DiscordLinkService',
     'DiscordRoleMappingService',
     'DiscordService',
     'EquipmentService',

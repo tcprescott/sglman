@@ -61,8 +61,10 @@ class Tenant(Model):
     discriminator every scoped model points at. Addressable path-based at
     ``/t/<slug>`` on the platform host; ``domain`` is reserved for optional
     host-based addressing (not yet resolved). ``discord_guild_id`` is the routing
-    key the shared one-bot-many-guilds process uses to map a guild back to a
-    tenant. ``config`` holds per-tenant knobs that don't warrant columns.
+    key the shared one-bot-many-guilds process uses to map a guild back to its
+    tenant(s) — it is **not** unique, so several communities may share one Discord
+    server and the bot fans out over every linked tenant. ``config`` holds
+    per-tenant knobs that don't warrant columns.
     """
 
     id = fields.IntField(pk=True)
@@ -663,8 +665,9 @@ class UserRole(Model):
 class DiscordRoleMapping(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='discord_role_mappings', on_delete=fields.CASCADE)
-    # Retained for routing/filtering (the mapping repo still filters by guild_id,
-    # now correctly per tenant since each tenant owns one guild).
+    # The Discord guild these mappings apply to. A guild may be shared by several
+    # tenants, so ``guild_id`` alone does not isolate a tenant — reads combine it
+    # with the tenant scope, and the unique key is (tenant, discord_role_id, app_role).
     guild_id = fields.BigIntField()
     discord_role_id = fields.BigIntField()
     discord_role_name = fields.CharField(max_length=100)
