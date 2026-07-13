@@ -62,8 +62,22 @@ async def test_guild_resolution(super_admin, db):
     tenant = await TenantService.create_tenant(
         super_admin, name='Guilded', slug='guilded', discord_guild_id=42424242,
     )
-    assert (await TenantService.get_by_guild_id(42424242)).id == tenant.id
-    assert await TenantService.get_by_guild_id(999) is None
+    resolved = await TenantService.list_tenants_for_guild(42424242)
+    assert [t.id for t in resolved] == [tenant.id]
+    assert await TenantService.list_tenants_for_guild(999) == []
+
+
+async def test_guild_resolution_returns_all_sharing_tenants(super_admin, db):
+    # Several communities can share one Discord server; every linked tenant is
+    # resolved (stable id order) so the bot fans out over all of them.
+    a = await TenantService.create_tenant(
+        super_admin, name='A', slug='ga', discord_guild_id=42424242,
+    )
+    b = await TenantService.create_tenant(
+        super_admin, name='B', slug='gb', discord_guild_id=42424242,
+    )
+    resolved = await TenantService.list_tenants_for_guild(42424242)
+    assert [t.id for t in resolved] == [a.id, b.id]
 
 
 async def test_grant_and_revoke_super_admin(super_admin, db):
@@ -105,34 +119,30 @@ async def test_userrole_add_is_tenant_scoped(db):
         assert await AuthService.has_role(user, Role.PROCTOR) is False
 
 
-async def test_create_tenant_rejects_duplicate_guild_id(super_admin, db):
-    # A guild maps to exactly one tenant; a second tenant claiming the same guild
-    # would silently shadow the first's live Discord role routing, so it's rejected.
+async def test_create_tenant_allows_shared_guild_id(super_admin, db):
+    # Multiple communities may share one Discord server, so a second tenant can
+    # claim the same guild id — the bot fans out over every linked tenant.
     await TenantService.create_tenant(
         super_admin, name='First', slug='first', discord_guild_id=555,
     )
-    with pytest.raises(ValueError, match='guild id 555'):
-        await TenantService.create_tenant(
-            super_admin, name='Second', slug='second', discord_guild_id=555,
-        )
-    # A different guild is fine; NULL guild never collides.
     await TenantService.create_tenant(
-        super_admin, name='Third', slug='third', discord_guild_id=556,
+        super_admin, name='Second', slug='second', discord_guild_id=555,
     )
-    await TenantService.create_tenant(super_admin, name='Fourth', slug='fourth')
+    resolved = await TenantService.list_tenants_for_guild(555)
+    assert {t.slug for t in resolved} == {'first', 'second'}
 
 
-async def test_update_tenant_rejects_duplicate_guild_id(super_admin, db):
+async def test_update_tenant_allows_shared_guild_id(super_admin, db):
     a = await TenantService.create_tenant(
         super_admin, name='A', slug='ta', discord_guild_id=777,
     )
     b = await TenantService.create_tenant(
         super_admin, name='B', slug='tb', discord_guild_id=888,
     )
-    with pytest.raises(ValueError, match='guild id 777'):
-        await TenantService.update_tenant(super_admin, b, discord_guild_id=777)
-    # Re-saving a tenant's own guild id is allowed (exclude_id=self).
-    await TenantService.update_tenant(super_admin, a, discord_guild_id=777)
+    # Re-pointing B at A's guild is allowed; both now resolve for that guild.
+    await TenantService.update_tenant(super_admin, b, discord_guild_id=777)
+    resolved = await TenantService.list_tenants_for_guild(777)
+    assert {t.id for t in resolved} == {a.id, b.id}
 
 
 async def test_slug_cache_is_bounded(db):

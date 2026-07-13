@@ -69,10 +69,16 @@ class TestMockDiscordService:
         )
         assert ok is True
 
-    async def test_get_member_role_ids_returns_empty_set(self, mock_svc):
-        ok, data = await mock_svc.get_member_role_ids(guild_id=1, user_id=2)
+    async def test_get_member_role_ids_returns_coherent_roles(self, mock_svc):
+        # Mock members carry roles drawn from the guild's role set, so mock login
+        # role sync actually grants/revokes. Everyone is at least a Volunteer.
+        from application.utils import mock_discord_data as mdd
+
+        ok, data = await mock_svc.get_member_role_ids(guild_id=mdd.GUILD_SGL_DEFAULT, user_id=2)
         assert ok is True
         assert isinstance(data, set)
+        assert data <= {r['id'] for r in mdd.roles_for(mdd.GUILD_SGL_DEFAULT)}
+        assert mdd.ROLE_VOLUNTEER in data
 
     def test_get_bot_returns_none(self, mock_svc):
         assert mock_svc.get_bot() is None
@@ -124,3 +130,66 @@ class TestDiscordServiceNotReady:
     async def test_get_member_role_ids_fails_gracefully(self, real_svc_not_ready):
         ok, msg = await real_svc_not_ready.get_member_role_ids(guild_id=1, user_id=2)
         assert ok is False
+
+    async def test_member_can_manage_guild_fails_closed_when_not_ready(self, real_svc_not_ready):
+        # Must fail closed (ok=False) so callers never treat an error as authorized.
+        ok, result = await real_svc_not_ready.member_can_manage_guild(guild_id=1, user_id=2)
+        assert ok is False
+
+    async def test_get_guild_summary_fails_gracefully(self, real_svc_not_ready):
+        ok, result = await real_svc_not_ready.get_guild_summary(guild_id=1)
+        assert ok is False
+
+
+class TestMemberCanManageGuild:
+    """Authority check on a ready bot (owner / Administrator / Manage Server)."""
+
+    def _svc_with_guild(self, monkeypatch, guild):
+        from application.services.discord_service import _RealDiscordService
+
+        stub_bot = MagicMock()
+        stub_bot.is_ready.return_value = True
+        stub_bot.get_guild.return_value = guild
+        svc = object.__new__(_RealDiscordService)
+        svc._bot = stub_bot
+        return svc
+
+    async def test_owner_can_manage(self, monkeypatch):
+        guild = MagicMock()
+        guild.owner_id = 42
+        svc = self._svc_with_guild(monkeypatch, guild)
+        ok, can = await svc.member_can_manage_guild(guild_id=1, user_id=42)
+        assert (ok, can) == (True, True)
+
+    async def test_manage_guild_permission_grants(self, monkeypatch):
+        guild = MagicMock()
+        guild.owner_id = 999
+        member = MagicMock()
+        member.guild_permissions.administrator = False
+        member.guild_permissions.manage_guild = True
+        guild.get_member.return_value = member
+        svc = self._svc_with_guild(monkeypatch, guild)
+        ok, can = await svc.member_can_manage_guild(guild_id=1, user_id=42)
+        assert (ok, can) == (True, True)
+
+    async def test_plain_member_cannot_manage(self, monkeypatch):
+        guild = MagicMock()
+        guild.owner_id = 999
+        member = MagicMock()
+        member.guild_permissions.administrator = False
+        member.guild_permissions.manage_guild = False
+        guild.get_member.return_value = member
+        svc = self._svc_with_guild(monkeypatch, guild)
+        ok, can = await svc.member_can_manage_guild(guild_id=1, user_id=42)
+        assert (ok, can) == (True, False)
+
+
+class TestMockAuthorityHelpers:
+    async def test_member_can_manage_guild_true(self, mock_svc):
+        ok, can = await mock_svc.member_can_manage_guild(guild_id=1, user_id=2)
+        assert (ok, can) == (True, True)
+
+    async def test_get_guild_summary_returns_dict(self, mock_svc):
+        ok, data = await mock_svc.get_guild_summary(guild_id=7)
+        assert ok is True
+        assert data['id'] == 7

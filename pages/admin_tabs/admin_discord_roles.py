@@ -1,14 +1,21 @@
 """Admin Discord Role Mapping Page"""
 
+import secrets
+from urllib.parse import quote
+
 from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AuthService,
+    DiscordLinkService,
     DiscordRoleMappingService,
     DiscordService,
-    SystemConfigService,
+    TenantService,
     get_user_from_discord_id,
 )
+from application.services.discord_link_service import connect_redirect_uri
+from application.tenant_context import get_current_tenant_id
+from application.utils.mock_discord import is_mock_discord
 from models import Role
 
 
@@ -20,7 +27,51 @@ async def admin_discord_roles_page() -> None:
     can_manage = await AuthService.can_grant_roles(actor)
 
     service = DiscordRoleMappingService()
-    guild_id = await SystemConfigService.get_discord_sync_guild_id()
+    tenant_id = get_current_tenant_id()
+    tenant = await TenantService.get_by_id(tenant_id) if tenant_id else None
+    guild_id = tenant.discord_guild_id if tenant else None
+    admin_path = f'/t/{tenant.slug}/admin' if tenant else '/admin'
+
+    # Resolve the connected server's name (best-effort; the bot may be starting).
+    server_name = None
+    if guild_id:
+        ok, summary = await DiscordService().get_guild_summary(guild_id)
+        if ok and isinstance(summary, dict):
+            server_name = str(summary.get('name'))
+
+    async def connect_server():
+        if not await DiscordLinkService.can_manage_link(actor):
+            ui.notify('You need the Staff role to connect a Discord server.', color='warning')
+            return
+        if tenant is None:
+            ui.notify('No community is in scope.', color='warning')
+            return
+        # Carry the target tenant, CSRF state, and return path across the redirect
+        # — the callback lands on the bare platform host with no tenant in scope.
+        state = secrets.token_urlsafe(32)
+        app.storage.user['discord_connect_state'] = state
+        app.storage.user['discord_connect_tenant_id'] = tenant.id
+        app.storage.user['discord_connect_return'] = admin_path
+        if is_mock_discord():
+            # Dev: skip real Discord and hand a mock guild straight to the callback.
+            target = f'{connect_redirect_uri()}?state={quote(state)}&guild_id=1'
+        else:
+            target = DiscordLinkService.authorize_url(state)
+        ui.navigate.to(target)
+
+    async def disconnect_server(client):
+        with client:
+            try:
+                current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                if tenant is None:
+                    ui.notify('No community is in scope.', color='warning')
+                    return
+                await DiscordLinkService.disconnect(current, tenant)
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+                return
+            ui.notify('Discord server disconnected.', color='positive')
+            ui.navigate.to(admin_path)
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -28,11 +79,35 @@ async def admin_discord_roles_page() -> None:
 
         ui.separator().classes('separator-spacing')
 
+        # --- Server connection ---
+        with ui.card().classes('w-full'):
+            if guild_id:
+                label = server_name or f'Guild {guild_id}'
+                with ui.row().classes('items-center gap-2'):
+                    ui.icon('check_circle', color='positive')
+                    ui.label(f'Connected to {label}').classes('text-bold')
+                if not server_name:
+                    ui.label(
+                        'The bot is linked but not currently reachable in this server. '
+                        'Role sync resumes once the bot is back online in it.'
+                    ).classes('text-caption text-warning')
+                if can_manage:
+                    ui.button(
+                        'Disconnect', icon='link_off',
+                        on_click=lambda: background_tasks.create(disconnect_server(context.client)),
+                    ).props('outline color=negative')
+            else:
+                ui.label('No Discord server is connected to this community.').classes('text-bold')
+                ui.label(
+                    'Connecting opens Discord and adds the bot to a server you manage. '
+                    'You must have the "Manage Server" permission on that server.'
+                ).classes('text-caption text-grey')
+                if can_manage:
+                    ui.button(
+                        'Connect Discord server', icon='hub', on_click=connect_server,
+                    ).props('color=primary')
+
         if not guild_id:
-            ui.label(
-                'No Discord server is configured for role sync. '
-                'Choose one under the Settings tab first.'
-            ).classes('text-grey')
             return
 
         ui.label(

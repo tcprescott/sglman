@@ -4,6 +4,10 @@ Intentionally **not** tenant-scoped: a tenant is resolved *before* any tenant
 context exists (from the URL by the middleware, or from a Discord guild id by the
 bot), and the ``/platform`` super-admin surface queries every tenant. So these
 methods never call the ``_tenant`` scoping helpers.
+
+A Discord guild may back several tenants (multiple communities sharing one
+server), so guild lookup is ``list_by_guild_id`` — the bot fans out over every
+tenant linked to the guild rather than resolving a single one.
 """
 
 from typing import List, Optional
@@ -27,9 +31,10 @@ class TenantRepository:
         return await Tenant.get_or_none(domain=domain)
 
     @staticmethod
-    async def get_by_guild_id(guild_id: int) -> Optional[Tenant]:
-        # Lowest id wins if two tenants somehow share a guild (shouldn't happen).
-        return await Tenant.filter(discord_guild_id=guild_id).order_by('id').first()
+    async def list_by_guild_id(guild_id: int) -> List[Tenant]:
+        # A Discord guild may back several tenants, so this returns every tenant
+        # linked to the guild (stable id order). Callers fan out over the result.
+        return await Tenant.filter(discord_guild_id=guild_id).order_by('id')
 
     @staticmethod
     async def list_all() -> List[Tenant]:
@@ -45,13 +50,6 @@ class TenantRepository:
     @staticmethod
     async def domain_exists(domain: str, exclude_id: Optional[int] = None) -> bool:
         query = Tenant.filter(domain=domain)
-        if exclude_id is not None:
-            query = query.exclude(id=exclude_id)
-        return await query.exists()
-
-    @staticmethod
-    async def guild_id_exists(guild_id: int, exclude_id: Optional[int] = None) -> bool:
-        query = Tenant.filter(discord_guild_id=guild_id)
         if exclude_id is not None:
             query = query.exclude(id=exclude_id)
         return await query.exists()

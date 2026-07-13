@@ -169,13 +169,18 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
 
 ## Discord: one bot, many guilds
 
-A single bot serves every community. `TenantService.get_by_guild_id(guild_id)`
-routes an incoming guild to its tenant:
+A single bot serves every community. `discord_guild_id` is **not unique**, so a
+Discord server may back several tenants; `TenantService.list_tenants_for_guild(guild_id)`
+resolves *every* tenant linked to an incoming guild and the callers fan out over
+them (an unknown guild resolves to an empty list and is ignored):
 
 - **Login role sync** (`discord_service.py`) and `DiscordRoleMappingService`
-  resolve the guild→tenant and wrap the sync in `tenant_scope`; unknown guilds are
-  ignored. `DiscordRoleMappingService.sync_user_roles` fans over all tenants that
-  have a guild.
+  resolve the guild→tenant(s) and wrap each per-tenant sync in `tenant_scope`.
+  `DiscordRoleMappingService.sync_user_roles` fans over all tenants that have a
+  guild; the live `GUILD_MEMBER_UPDATE` handler (`_sync_member_roles`) fans over
+  every tenant sharing the updated guild. Role mappings are tenant-scoped
+  (`DiscordRoleMapping.tenant`), so a shared server's mappings stay separated by
+  community and the same Discord role can grant different app roles per tenant.
 - **Interaction handlers** (`crew_signup`, `crew_acknowledgment`,
   `match_acknowledgment`, `volunteer_acknowledgment`, `watch_buttons`) resolve the
   tenant from the referenced entity's `tenant_id` and wrap DB work in
@@ -183,6 +188,27 @@ routes an incoming guild to its tenant:
 - **`volunteer_reminder`** does one cross-tenant scan over a wide window, then
   re-checks each assignment against **its own tenant's** lead-time
   `SystemConfiguration` inside `tenant_scope`.
+
+### Linking a tenant to a server (verified)
+
+Because `discord_guild_id` is no longer unique, a tenant may not simply *claim*
+any guild id — that would let one community sync roles against another's server.
+Linking is gated twice, by [`DiscordLinkService`](../reference/services.md):
+
+- **App gate** — only tenant `STAFF` (or a global super-admin) may connect or
+  disconnect (`can_manage_link`).
+- **Discord gate** — the acting user must administer the target guild. The
+  "Connect Discord server" button (Admin → Discord Roles) runs Discord's
+  **bot-authorization** OAuth flow (`scope=bot`), which Discord only lets a user
+  with *Manage Server* complete and which adds the bot if it is absent. The
+  callback (`/oauth/discord/connect/callback`, on the platform host) exchanges the
+  code for an authoritative `guild` object, then **re-checks server-side** that
+  the acting user has Manage Server / Administrator / is owner of that guild
+  (`DiscordService.member_can_manage_guild`, which fails closed) before stamping
+  `Tenant.discord_guild_id`. No client-supplied guild id is ever trusted.
+
+The super-admin `/platform` surface keeps a raw guild-id field as a break-glass
+override. `MOCK_DISCORD` skips the OAuth round-trip and links a mock guild.
 
 ## Events, webhooks, telemetry
 

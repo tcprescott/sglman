@@ -6,12 +6,10 @@ from nicegui import app, ui
 
 from application.services import (
     AuthService,
-    DiscordService,
     SystemConfigService,
     get_user_from_discord_id,
 )
 from application.services.system_config_service import (
-    KEY_DISCORD_SYNC_GUILD_ID,
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,
     KEY_MAX_CONCURRENT_PLAYERS,
@@ -40,14 +38,6 @@ async def admin_system_config_page() -> None:
     station_format = await SystemConfigService.get_station_format()
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
-
-    sync_guild_id = await SystemConfigService.get_discord_sync_guild_id()
-    guild_ok, guild_payload = await DiscordService().list_guilds()
-    guild_options: dict[int, str] = {}
-    if guild_ok and isinstance(guild_payload, list):
-        guild_options = {int(g['id']): str(g['name']) for g in guild_payload}
-    if sync_guild_id and sync_guild_id not in guild_options:
-        guild_options[sync_guild_id] = f'Guild {sync_guild_id}'
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -114,14 +104,9 @@ async def admin_system_config_page() -> None:
         ui.separator().classes('separator-spacing')
         ui.label('Discord Role Sync').classes('text-subtitle1 text-bold')
         ui.label(
-            'Select the Discord server whose member roles are mapped to application '
-            'roles when a user signs in. Configure the mappings on the Discord Roles tab.'
+            'Connect a Discord server and configure role mappings on the '
+            'Discord Roles tab. Connecting verifies you manage that server.'
         ).classes('text-caption text-grey')
-        guild_select = ui.select(
-            options=guild_options, value=sync_guild_id, label='Discord Server',
-        ).props('clearable').classes('w-full')
-        if not guild_options:
-            ui.label('The bot is not connected to any servers yet.').classes('text-caption text-grey')
 
         async def save():
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -162,9 +147,6 @@ async def admin_system_config_page() -> None:
                 await SystemConfigService.set_raw(KEY_VOLUNTEER_REMINDER_LEAD_MINUTES, reminder_raw, actor)
                 await SystemConfigService.set_raw(KEY_STATION_FORMAT, station_format_input.value or StationFormat.FREE.value, actor)
                 await SystemConfigService.set_tournament_hours(hours_mapping, actor)
-
-                guild_raw = str(int(guild_select.value)) if guild_select.value else ''
-                await SystemConfigService.set_raw(KEY_DISCORD_SYNC_GUILD_ID, guild_raw, actor)
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return
