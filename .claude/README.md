@@ -192,6 +192,33 @@ whose value is a hardcoded string literal. Low false-positive bias: requires the
 literal to be ≥12 chars and not a placeholder (`your…`, `changeme`, `example`,
 `<…>`, …). Skips `tests/`, `/.claude/`, and `.env.example`.
 
+### Tenant scoping in repositories — `scripts/check_tenant_scoping.py` (PostToolUse: Write|Edit)
+CLAUDE.md > Multitenancy: there is no auto-scoping manager, so a forgotten
+`scoped(...)` is a **silent cross-tenant leak**. AST-based, scoped to
+`application/repositories/*.py` (skips `_tenant.py`, `__init__.py`). Discovers
+tenant-scoped models at runtime (any `Model` subclass in `models/` with a
+`tenant` field), then flags a read root (`Model.filter/get/get_or_none/all/
+first/exists`) that is neither inside a `scoped(...)` call nor passing a
+`tenant*` kwarg, and a write root (`create`/`get_or_create`/`update_or_create`)
+with no `tenant*` kwarg (checks `defaults={...}` keys too). Escape hatches match
+the convention `_tenant.py` documents: a function whose source says
+**"cross-tenant"**, **"unscoped"**, or **"global"** is exempt, and
+`EXEMPT_MODELS` (`TenantMembership`, `RacetimeBotTenant`) covers junction
+tables where the tenant FK is the row's *subject*, not a scoping stamp.
+**Deliberately misses** (precision over recall): `bulk_create` (rows built
+elsewhere), instance `obj.save()`, queries built outside a repository module.
+Measured **0 false positives** across all 40 repository files.
+
+### EventType registry & literals — `scripts/check_event_types.py` (PostToolUse: Write|Edit)
+CLAUDE.md > Event publishing: `EventType` names are an **external webhook
+contract** and `EventType.ALL` drives the webhook UI multiselect + validation.
+Two modes: (1) editing `application/events/event_types.py` → checks every
+string constant is in `ALL`, every `ALL` entry is a defined constant, and no
+two constants share a wire value; (2) any other non-test file → flags
+`Event.create('literal', ...)` (mirror of `check_audit_actions.py` — the event
+would publish but be invisible to the UI/validation). Fails open if the class
+shape changes beyond what it parses. Skips `tests/`, `/.claude/`.
+
 ### Migration drift — `scripts/check_migration_drift.py` (Stop)
 The mirror of `enforce_migration_safety.py`: that blocks hand-editing generated
 migrations; this catches editing the `models/` package and forgetting to generate
@@ -199,6 +226,17 @@ one. At Stop, if `git diff`/untracked shows `models.py` or a `models/*.py` file
 changed but no file under `migrations/models/` was added or modified, it blocks the
 turn and points to `poetry run aerich migrate && poetry run aerich upgrade`. Drains
 stdin (Stop hooks hang otherwise); fails open if git is unavailable.
+
+### Seed coverage — `scripts/check_seed_coverage.py` (Stop)
+The seed-side mirror of `check_migration_drift.py`, enforcing CLAUDE.md
+"Adding a new feature" step 6: at Stop, if the working tree adds a **new
+Tortoise `Model` class** under `models/` (added `+class Foo(Model)` diff lines
+or untracked model files; requires the bare word `Model` in the base list so
+enums/dataclasses/pydantic `BaseModel` never match) but `scripts/seed_dev.py`
+was not touched, it blocks the turn — a model the seed never creates is
+invisible to `/ui-validation` and every dev environment. Field edits to an
+existing model deliberately do **not** trigger it (noise). Drains stdin; fails
+open if git is unavailable.
 
 ### Related tests on edit — `scripts/run_related_tests.py` (PostToolUse: Write|Edit)
 Runs just the pytest file matching an edited module so regressions surface in-loop
@@ -229,6 +267,27 @@ don't exist in a fresh CI/web container).
 Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
 coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
 `doc-check.sh` runs at Stop.
+
+---
+
+## Skills & agents
+
+Beyond the hooks (which *block* mistakes), `skills/` and `agents/` give Claude
+procedural knowledge (how to do a thing right the first time):
+
+- **`skills/add-feature/`** — the end-to-end checklist for a new feature:
+  model → migration → repository (tenant scoping) → service (audit + events) →
+  exports → UI/API → dev seed → tests (incl. leak test) → `/ui-validation` →
+  docs. Sequenced to match the hooks, so following it never trips one.
+- **`skills/ui-validation/`** — headless-browser validation loop for
+  presentation changes (Postgres + seed + MOCK_DISCORD login + Playwright);
+  the only way to exercise client-side Vue/Quasar slot templates.
+- **`agents/architecture-reviewer.md`** — a read-only review subagent for the
+  **judgment** calls the mechanical hooks can't make: business logic at the
+  wrong layer altitude, tenant-scoping *semantics* (missing `tenant_scope` in
+  workers, unjustified cross-tenant reads), audit/event coverage gaps, error
+  contract, NiceGUI shared-state pitfalls, missing leak tests/seed rows. Use
+  after a cross-layer feature or before committing; it reports, never edits.
 
 ---
 
