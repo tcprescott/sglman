@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import random
+import secrets
 import urllib.parse
 from typing import Optional
 
@@ -17,6 +18,8 @@ import yaml
 from pyz3r import ALTTPR
 
 from application.tenant_context import require_tenant_id
+from application.utils.mock_seedgen import is_mock_seedgen
+from models import Preset
 
 
 class SeedGenerationService:
@@ -39,16 +42,20 @@ class SeedGenerationService:
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
         return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
 
-    async def generate_seed(self, randomizer: str) -> str:
+    async def generate_seed(self, randomizer: str, preset: Optional[Preset] = None) -> str:
         """
         Generate a seed for the specified randomizer.
-        
+
         Args:
             randomizer: Name of the randomizer (alttpr, ff1r, z1r, smmap, ootr, test)
-            
+            preset: Optional resolved ``Preset`` supplying the randomizer settings.
+                ALTTPR uses ``preset.settings`` when given; without a preset it
+                falls back to the built-in ``casualboots`` settings. Other
+                backends are still hard-coded until PR 11 and ignore the preset.
+
         Returns:
             URL or string representing the generated seed
-            
+
         Raises:
             ValueError: If randomizer is not supported
         """
@@ -60,24 +67,40 @@ class SeedGenerationService:
             'ootr': self._generate_ootr,
             'test': self._generate_test,
         }
-        
+
         if randomizer not in generator_map:
             raise ValueError(f"Unsupported randomizer: {randomizer}")
-        
+
+        if is_mock_seedgen():
+            return self._mock_seed_url(randomizer)
+
+        if randomizer == 'alttpr':
+            return await self._generate_alttpr(preset)
         return await generator_map[randomizer]()
-    
-    async def _generate_alttpr(self) -> str:
+
+    @staticmethod
+    def _mock_seed_url(randomizer: str) -> str:
+        """A believable, unique permalink for MOCK_SEEDGEN mode."""
+        return f"https://mock.seedgen.local/{randomizer}/{secrets.token_hex(8)}"
+
+    async def _generate_alttpr(self, preset: Optional[Preset] = None) -> str:
         """
         Generate an A Link to the Past Randomizer seed.
+
+        Uses ``preset.settings`` when a preset is supplied; otherwise falls back
+        to the built-in ``casualboots`` settings (the historical default).
 
         Returns:
             URL to the generated seed
         """
-        with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
-            preset = yaml.safe_load(f)
+        if preset is not None:
+            settings = preset.settings
+        else:
+            with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
+                settings = yaml.safe_load(f)['settings']
 
         seed = await ALTTPR.generate(
-            settings=preset['settings'],
+            settings=settings,
             endpoint='/api/customizer',
         )
         return seed.url

@@ -36,27 +36,32 @@ tenant-scoped.**
   Ties a global `User` to the tenants they belong to; queried across tenants, so
   it is never auto-scoped.
 - **Global (no `tenant` FK):** `User`, `WebPushSubscription`, `Tenant`,
-  `TenantMembership`. `User.discord_id` / `challonge_user_id` / `twitch_user_id`
-  uniques stay global — identity links are to the person.
+  `TenantMembership`, `RacetimeBot` (shared, platform-managed per category).
+  `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id`
+  uniques stay global — identity links are to the person; `RacetimeBot.category`
+  is globally unique.
 - **Nullable `tenant` (stamped from context, NULL = platform-level row):**
   `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), and `UserRole`
   (`CASCADE`; NULL only for the global `SUPER_ADMIN` role).
 - **Tenant-scoped (`tenant` FK, NOT NULL, `CASCADE`):** every other model —
   `Tournament`, `Match`, `MatchPlayers`, `MatchAcknowledgment`,
   `TournamentPlayers`, `TournamentNotificationPreference`, `StreamRoom`,
-  `Commentator`, `Tracker`, `MatchWatcher`, `GeneratedSeeds`,
+  `Commentator`, `Tracker`, `MatchWatcher`, `GeneratedSeeds`, `Preset`,
   `SystemConfiguration`, `Webhook`, `WebhookDelivery`, `DiscordRoleMapping`,
   `TriforceText`, `ApiToken`, `Feedback`, `Equipment`, `EquipmentLoan`,
   `VolunteerProfile`, `VolunteerPosition`, `VolunteerShift`,
   `VolunteerAssignment`, `VolunteerQualification`, `VolunteerAvailability`,
   `PlayerAvailability`, `ChallongeConnection`, `ChallongeParticipant`,
-  `ChallongeMatch`, `ChallongeApiUsage`.
+  `ChallongeMatch`, `ChallongeApiUsage`, `RacetimeBotTenant`, `RaceRoomProfile`,
+  `RacetimeRoom`.
 - **Per-tenant uniqueness** — formerly-global uniques became composite with
   `tenant`: `StreamRoom.name`, `VolunteerPosition.name`,
   `SystemConfiguration.name` → `(tenant, name)`; `Equipment.asset_number` →
   `(tenant, asset_number)`; `ChallongeApiUsage.period` → `(tenant, period)`;
   `DiscordRoleMapping` → `(tenant, discord_role_id, app_role)`; `UserRole` →
-  `(user, role, tenant)`.
+  `(user, role, tenant)`; `RaceRoomProfile.name` → `(tenant, name)`. The
+  `RacetimeBotTenant` grant is unique on `(bot, tenant)`; `RacetimeRoom.slug`
+  stays **globally** unique (it is the tenant-routing key for inbound events).
 - **`VolunteerProfile`** changed from a global `OneToOneField(user)` to a
   tenant-scoped `ForeignKeyField(user)` with `unique_together(tenant, user)` —
   opt-in is per tenant. `User.volunteer_profile` (single) became
@@ -156,6 +161,9 @@ Used by `UserRole.role` and `DiscordRoleMapping.app_role` (`max_length=32`). Aut
 | `VOLUNTEER_COORDINATOR` = `'volunteer_coordinator'` | Manages volunteer positions, shifts, and assignments |
 | `EQUIPMENT_MANAGER` = `'equipment_manager'` | Manages lending equipment and checkouts |
 | `VOLUNTEER` = `'volunteer'` | Opted-in onsite volunteer |
+| `PRESET_MANAGER` = `'preset_manager'` | Manages seed-rolling presets (online-tournament surface) |
+| `SYNC_ADMIN` = `'sync_admin'` | Manages upstream sync config: SpeedGaming links, Discord events, racetime bot/room config |
+| `QUALIFIER_ADMIN` = `'qualifier_admin'` | Administers async qualifiers (also grantable per-qualifier via its `admins` M2M) |
 | `SUPER_ADMIN` = `'super_admin'` | Global platform role (manages tenants on `/platform`). Its `UserRole` rows carry `tenant=NULL` and stay visible inside any tenant request; the only role that may be tenant-less. |
 
 ### `RoleSource`
@@ -239,6 +247,66 @@ Used by `ChallongeMatch.state` (`max_length=20`, default `PENDING`). Mirrors the
 | `OPEN` = `'open'` | Both participants known and ready to play |
 | `COMPLETE` = `'complete'` | Result recorded on Challonge |
 
+### `BotStatus`
+
+Used by `RacetimeBot.status` (`max_length=20`, default `UNKNOWN`). Health of a
+racetime bot's websocket connection; the values are *written* by the PR 4
+runtime and read by the platform health surface.
+
+| Value | Meaning |
+|---|---|
+| `UNKNOWN` = `'unknown'` | No live connection has reported yet |
+| `CONNECTED` = `'connected'` | Websocket up |
+| `DISCONNECTED` = `'disconnected'` | Websocket down |
+| `ERROR` = `'error'` | Connection error |
+
+### `RaceRoomStatus`
+
+Used by `RacetimeRoom.status` (`max_length=20`, default `OPEN`). Cached racetime
+room lifecycle state, written by PR 4/6.
+
+| Value | Meaning |
+|---|---|
+| `OPEN` = `'open'` | Room open, race not started |
+| `IN_PROGRESS` = `'in_progress'` | Race running |
+| `FINISHED` = `'finished'` | Race complete |
+| `CANCELLED` = `'cancelled'` | Room cancelled |
+
+### `SyncStatus`
+
+Used by `SpeedGamingEpisode.sync_status` (`max_length=20`, default `PENDING`).
+Reconciliation state of a synced SG episode (PR 7). `(str, Enum)` — render `.value`.
+
+| Value | Meaning |
+|---|---|
+| `PENDING` = `'pending'` | Discovered upstream, not yet materialized |
+| `SYNCED` = `'synced'` | Materialized/refreshed into a `Match` |
+| `SKIPPED` = `'skipped'` | A lifecycle guard held the refresh back |
+| `CANCELLED` = `'cancelled'` | Upstream episode gone; the `Match` soft-detached |
+| `ERROR` = `'error'` | Transform/load failed (see `sync_error`) |
+
+### `AsyncQualifierRunStatus` / `AsyncQualifierReviewStatus`
+
+Async-qualifier run + review state (PR 9). Both `(str, Enum)` — render `.value`.
+Web-first collapses reveal and start, so a run is created `IN_PROGRESS` at draw;
+`PENDING` is reserved for a run pre-created before a synchronous start (live-race
+path, PR 10).
+
+| `AsyncQualifierRunStatus` | | `AsyncQualifierReviewStatus` | |
+|---|---|---|---|
+| `PENDING` = `'pending'` | reserved (live races) | `PENDING` = `'pending'` | awaiting review |
+| `IN_PROGRESS` = `'in_progress'` | drawn, timing | `APPROVED` = `'approved'` | counts + scored |
+| `FINISHED` = `'finished'` | submitted | `REJECTED` = `'rejected'` | excluded |
+| `FORFEIT` = `'forfeit'` | irreversible, scores 0 | | |
+| `DISQUALIFIED` = `'disqualified'` | staff DQ | | |
+
+### `AsyncQualifierLiveRaceStatus`
+
+Lifecycle of a synchronous racetime qualifier race (PR 10). `(str, Enum)` —
+render `.value`: `SCHEDULED` = `'scheduled'` (before a room opens) → `PENDING` =
+`'pending'` (room open, not started) → `IN_PROGRESS` = `'in_progress'` → `FINISHED`
+= `'finished'` (results captured into runs).
+
 ## Model reference
 
 ### Identity
@@ -254,6 +322,7 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `display_name` | `CharField(150)` | null | Preferred display name |
 | `pronouns` | `CharField(50)` | null | |
 | `is_active` | `BooleanField` | default `True` | |
+| `is_system` | `BooleanField` | default `False` | Marks the single reserved automation actor (sentinel `discord_id` = `SYSTEM_USER_DISCORD_ID` = `0`). Workers/bots pass this row as `actor`; resolve it via `UserService.get_system_user()`. `AuthService.is_system()` treats it as authorized for automation actions |
 | `dm_notifications` | `BooleanField` | default `True` | Master opt-out for Discord DMs |
 | `challonge_user_id` | `CharField(64)` | null, `unique=True` | Verified Challonge identity, captured via one-time OAuth (scope `me`). Unique so bracket sync resolves to exactly one user (Postgres allows multiple NULLs) |
 | `challonge_username` | `CharField(255)` | null | Cached Challonge username |
@@ -261,8 +330,11 @@ Discord-authenticated account. Created/updated during OAuth login; access contro
 | `twitch_user_id` | `CharField(64)` | null, `unique=True` | Verified Twitch identity, captured via one-time OAuth. Unique so a Twitch id resolves to exactly one user (Postgres allows multiple NULLs) |
 | `twitch_username` | `CharField(255)` | null | Cached Twitch login/display name |
 | `twitch_linked_at` | `DatetimeField` | null | When the Twitch identity was linked |
+| `racetime_user_id` | `CharField(64)` | null, `unique=True` | Verified racetime.gg identity, captured via one-time OAuth (read scope). Unique so a racetime id resolves to exactly one user (Postgres allows multiple NULLs) |
+| `racetime_username` | `CharField(255)` | null | Cached racetime.gg name |
+| `racetime_linked_at` | `DatetimeField` | null | When the racetime identity was linked |
 
-The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch identity is likewise **identity only** — the user's Twitch access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
+The Challonge identity is **identity only** — the player's Challonge access token is never retained (writes use the shared service-account `ChallongeConnection`). The Twitch and racetime.gg identities are likewise **identity only** — the user's access token is used once during linking and discarded. There is no `access_token` field; the Discord OAuth token is not persisted on `User`.
 
 Relationships: declared reverse/M2M accessors for `admin_tournaments` and `crew_coordinated_tournaments` (M2M from `Tournament`), `match_players`, `match_acknowledgments`, `tournament_players`, `tournament_notifications`, `commentaries`, `approved_commentaries`, `trackers`, `approved_trackers`, `watched_matches`, `roles`, `granted_roles`, `audit_logs`, `triforce_texts`, `triforce_texts_moderated`, `api_tokens`, `feedback_submissions`, `owned_equipment`, `equipment_loans`, `equipment_checkouts_performed`, `equipment_checkins_performed`, `volunteer_profile` (one-to-one), `volunteer_assignments`, `volunteer_assignments_made`, `volunteer_qualifications`, `volunteer_availability`, `challonge_participations`. Accessors that exist only implicitly via the children's `related_name` (no class-level annotation): `player_availability`, `challonge_connections`.
 
@@ -335,7 +407,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 |---|---|---|---|
 | `name` | `CharField(255)` | not null | |
 | `description` | `TextField` | null | |
-| `seed_generator` | `CharField(255)` | null | Preset name for seed generation ([seed-generation.md](seed-generation.md)) |
+| `seed_generator` | `CharField(255)` | null | Legacy randomizer name for seed generation; the `preset` FK wins when set ([seed-generation.md](seed-generation.md)) |
 | `is_active` | `BooleanField` | default `True` | |
 | `players_per_match` | `IntField` | default `2` | |
 | `team_size` | `IntField` | default `1` | |
@@ -348,6 +420,14 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `challonge_tournament_id` | `CharField(64)` | null | Linked Challonge tournament id (enables bracket sync) |
 | `challonge_tournament_url` | `CharField(255)` | null | Challonge bracket URL |
 | `challonge_last_synced_at` | `DatetimeField` | null | Last successful Challonge sync (UTC) |
+| `config` | `JSONField` | null | Hybrid-config JSON half (messaging templates, scoring params, strategy choices). Written only through `TournamentService`, which validates it with `validate_tournament_config` (unknown keys raise `ValueError`); typed knobs stay their own columns. See [online-tournaments](../online-tournaments/README.md) |
+| `preset` | FK → `Preset` | null, `SET_NULL` | Seed-rolling preset; resolves the randomizer + settings for seed generation and overrides `seed_generator` when set. `related_name='tournaments'` |
+| `racetime_bot` | FK → `RacetimeBot` | null, `SET_NULL` | Selected racetime bot/category; validated against the tenant's authorization grants (`RacetimeBotTenant`). `related_name='tournaments'` |
+| `race_room_profile` | FK → `RaceRoomProfile` | null, `SET_NULL` | Reusable room settings applied when a room is opened. `related_name='tournaments'` |
+| `racetime_auto_create_rooms` | `BooleanField` | default `False` | Opt-in: auto-open a race room per scheduled match |
+| `room_open_minutes_before` | `IntField` | default `30` | Lead time before `scheduled_at` to open the room |
+| `require_racetime_link` | `BooleanField` | default `False` | Require players to have a linked racetime identity |
+| `racetime_default_goal` | `CharField(255)` | null | Default racetime goal for opened rooms |
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |
@@ -415,7 +495,8 @@ Players assigned to a match, with result and station assignment.
 |---|---|---|---|
 | `match` | FK → `Match` | not null, `CASCADE` | `related_name='players'` |
 | `user` | FK → `User` | not null, `CASCADE` | `related_name='match_players'` |
-| `finish_rank` | `IntField` | null | Final placement |
+| `finish_rank` | `IntField` | null | Final placement (1 = winner) |
+| `finish_time` | `IntField` | null | Elapsed finish time in whole seconds, captured from a racetime room result (PR 6, migration 25); null for non-finishers and non-racetime matches |
 | `assigned_station` | `CharField(50)` | null | Physical/stream station label |
 
 Constraint: `unique_together (('match', 'user'),)` (added in migration 14).
@@ -452,6 +533,19 @@ Randomizer seed generated for a match; referenced by `Match.generated_seed`. Cre
 |---|---|---|---|
 | `seed_url` | `CharField(255)` | not null | Link to the generated seed |
 | `seed_info` | `TextField` | null | Generator metadata |
+
+#### `Preset`
+
+Tenant-authored seed-rolling preset: a named `randomizer` + `settings` blob that seed generation resolves instead of a hard-coded `presets/*` file. CRUD via `PresetService` (gated by `AuthService.can_manage_presets`); the built-in files import as starting rows. Referenced by `Tournament.preset`. See [seed-generation.md](seed-generation.md).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `name` | `CharField(255)` | not null | Unique per `(tenant, randomizer)` |
+| `randomizer` | `CharField(32)` | not null | One of `SeedGenerationService.AVAILABLE_RANDOMIZERS` |
+| `settings` | `JSONField` | not null | Raw settings payload handed to the randomizer backend |
+| `description` | `TextField` | null | |
+
+Constraint: `unique (tenant, randomizer, name)`. Reverse accessor `tournaments`.
 
 ### Crew
 
@@ -792,6 +886,244 @@ Per-calendar-month tally of real outbound Challonge API requests. One row per `Y
 
 Constraints: `Meta.table = 'challongeapiusage'`. No relationships.
 
+### Racetime automation (PR 3)
+
+The data + admin half of the racetime room automation. The live websocket
+connection, health-field *writes*, and room creation land in PR 4/6.
+
+#### `RacetimeBot`
+
+A shared, platform-managed racetime.gg bot for one game category. **Global** (no
+`tenant` FK) like the Discord token / VAPID keys: one bot per category holding
+that category's OAuth credentials. SUPER_ADMIN authorizes tenants via
+`RacetimeBotTenant`. The `client_secret` is a privileged secret — never returned
+to a tenant-facing surface or logged (`RacetimeBotService.serialize` omits it).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `category` | `CharField(64)` | not null, `unique=True` | Racetime game category (one bot per category) |
+| `client_id` | `CharField(255)` | not null | Category OAuth client id |
+| `client_secret` | `CharField(255)` | not null | Category OAuth secret; write-only, never surfaced/logged |
+| `name` | `CharField(255)` | not null | Display name |
+| `description` | `TextField` | null | |
+| `is_active` | `BooleanField` | default `True` | Inactive bots are not selectable |
+| `handler_class` | `CharField(255)` | null | Dotted path to the PR 4 handler |
+| `status` | `CharEnumField(BotStatus)` | default `UNKNOWN` | Health; written by PR 4 |
+| `status_message` | `TextField` | null | Last health detail |
+| `last_connected_at` | `DatetimeField` | null | Written by PR 4 |
+| `last_checked_at` | `DatetimeField` | null | Written by PR 4 |
+
+Relationships: `tenant_grants` (→ `RacetimeBotTenant`), `rooms` (→ `RacetimeRoom`), `tournaments` (→ `Tournament`). `Meta.table = 'racetimebot'`.
+
+#### `RacetimeBotTenant`
+
+The SUPER_ADMIN authorization grant — a many-to-many join between a global
+`RacetimeBot` and a `Tenant`. Created on `/platform` with explicit ids (no
+ambient tenant scope). A tenant may hold several categories; a category serves
+many tenants.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `bot` | FK → `RacetimeBot` | not null, `CASCADE` | `related_name='tenant_grants'` |
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='racetime_bot_grants'` |
+| `is_active` | `BooleanField` | default `True` | Suspend a grant without deleting it |
+
+Constraints: `unique_together (('bot', 'tenant'),)`; `Meta.table = 'racetimebottenant'`.
+
+#### `RaceRoomProfile`
+
+Tenant-scoped reusable racetime room settings a tournament points at (the
+racetime `startrace` parameters). Managed by SYNC_ADMIN via `RaceRoomProfileService`.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='race_room_profiles'` |
+| `name` | `CharField(255)` | not null | |
+| `goal` | `CharField(255)` | null | Racetime goal |
+| `invitational` / `unlisted` | `BooleanField` | default `False` | Room visibility |
+| `auto_start` | `BooleanField` | default `True` | Auto-start the race |
+| `allow_comments` / `allow_midrace_chat` / `allow_non_entrant_chat` | `BooleanField` | default `True` | Chat rules |
+| `chat_message_delay` | `IntField` | default `0` | Seconds |
+| `start_delay` | `IntField` | default `15` | Seconds before an auto-started race begins |
+| `time_limit` | `IntField` | default `24` | Hours before the room auto-closes |
+| `streaming_required` | `BooleanField` | default `False` | |
+
+Constraints: `unique_together (('tenant', 'name'),)`; `Meta.table = 'raceroomprofile'`. Relationship: `tournaments` (→ `Tournament`).
+
+#### `RacetimeRoom`
+
+A racetime.gg race room record — its own model, not a slug on `Match`. `slug` is
+**globally unique + indexed**: inbound racetime events carry only the slug (no
+tenant), so the reverse lookup is deliberately *unscoped* for tenant routing
+(`RacetimeRoomRepository.get_by_slug`, mirroring the `ApiToken`→tenant pattern).
+Room creation and status writes land in PR 4/6.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='racetime_rooms'` |
+| `bot` | FK → `RacetimeBot` | null, `SET_NULL` | Removing a bot keeps room history. `related_name='rooms'` |
+| `slug` | `CharField(255)` | not null, `unique=True`, `index=True` | Global room slug — unscoped routing key |
+| `category` | `CharField(64)` | not null | |
+| `room_name` | `CharField(255)` | null | |
+| `status` | `CharEnumField(RaceRoomStatus)` | default `OPEN` | Cached room state; written by PR 4/6 |
+| `match` | O2O → `Match` | null, `SET_NULL` | `related_name='racetime_room'` |
+| `opened_at` | `DatetimeField` | null | |
+
+Constraints: `Meta.table = 'racetimeroom'`; `Meta.indexes = (('match',),)`.
+
+### SpeedGaming ETL (PR 7)
+
+One-way sync of SpeedGaming schedule episodes into `Match` rows. Two tenant-scoped
+staging models plus the placeholder-user pattern on the global `User`.
+
+**`User` placeholder fields.** `discord_id` becomes **nullable + unique** (Postgres
+allows many NULLs) with a DB `CHECK (discord_id IS NOT NULL OR is_placeholder)`, so
+only a placeholder may lack a discord id. `is_placeholder` (`BooleanField`, default
+`False`) flags an unresolved SG player kept as a first-class `User`; `speedgaming_id`
+(`CharField(64)`, null, unique) is the SG-side id used to re-find the same
+placeholder across syncs and to **upgrade it in place** once a `discord_id` appears.
+
+**`Match.speedgaming_episode`** — O2O → `SpeedGamingEpisode` (null, `SET_NULL`). The
+single canonical **source marker**: non-null = this match was materialized by the
+ETL, which makes its ETL-owned fields (`scheduled_at`, players, `tournament`)
+read-only in SGLMan (guard in `MatchService.update_match`). SET_NULL soft-detaches
+the match if its episode is purged.
+
+#### `SpeedGamingEventLink`
+
+Tenant-scoped config: which SG event slug feeds which tournament, plus observability.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='sg_event_links'` |
+| `tournament` | FK → `Tournament` | not null, `CASCADE` | `related_name='sg_event_links'` |
+| `event_slug` | `CharField(128)` | not null | SG event slug to poll |
+| `content_type` | `CharField(64)` | null | Optional SG content-type filter |
+| `active` | `BooleanField` | default `True` | Worker only polls active links |
+| `sync_interval_minutes` | `IntField` | default `15` | Poll cadence |
+| `lookahead_hours` | `IntField` | default `72` | Forward window per poll |
+| `last_synced_at` / `last_status` / `last_error` | observability | null | Surfaced in the admin SpeedGaming tab |
+
+Constraints: `Meta.table = 'speedgamingeventlink'`; unique `(tenant, tournament, event_slug)`; indexes on `tenant`, `tournament`. Reverse: `episodes`.
+
+#### `SpeedGamingEpisode`
+
+Tenant-scoped staging record. Unique `(tenant, sg_episode_id)`. Holds the raw payload
+snapshot + a `content_hash` (cheap unchanged-since-last check). The materialized
+`Match` is reached via the reverse of `Match.speedgaming_episode` (no second column).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='sg_episodes'` |
+| `event_link` | FK → `SpeedGamingEventLink` | null, `SET_NULL` | `related_name='episodes'` |
+| `sg_episode_id` | `CharField(64)` | not null | SG-side episode id |
+| `title` / `scheduled_at` | | null | Normalized from the payload |
+| `payload` | `JSONField` | null | Raw upstream snapshot |
+| `content_hash` | `CharField(64)` | null | SHA-256 of the payload |
+| `sync_status` | `CharEnumField(SyncStatus)` | default `PENDING` | `pending`/`synced`/`skipped`/`cancelled`/`error` |
+| `synced_at` / `sync_error` | | null | Per-episode outcome |
+
+Constraints: `Meta.table = 'speedgamingepisode'`; unique `(tenant, sg_episode_id)`; indexes on `tenant`, `event_link`.
+
+### Discord Events mirror (PR 8)
+
+Mirrors the SGLMan schedule into each tenant guild's **Discord Scheduled Events**.
+`Tournament` gains per-tournament opt-in columns: **`discord_events_enabled`**
+(`BOOL`, default `False`), **`discord_event_duration_minutes`** (`INT`, default
+60), and nullable **`discord_event_title_template`** / **`discord_event_description_template`**
+(`{tournament}` / `{match}` / `{players}` placeholders; a built-in default renders
+when unset). The reconciler runs against the **verified** `Tenant.discord_guild_id`.
+
+#### `DiscordEventSource` (enum)
+
+`(str, Enum)` — what SGLMan schedule row a mirrored Discord event came from. Today
+only **`MATCH`** (`'match'`); the link is polymorphic so qualifier windows / live
+races join later without a schema change.
+
+#### `DiscordScheduledEvent`
+
+Tenant-scoped reconciliation link between a schedule row and a Discord Scheduled
+Event. `content_hash` drives update-vs-noop; the working set is **only this
+tenant's own rows**, so a shared guild (several tenants, non-unique
+`discord_guild_id`) never has a sibling's event cancelled.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='discord_scheduled_events'` |
+| `guild_id` | `BigIntField` | not null | Snapshot of `Tenant.discord_guild_id` at creation |
+| `discord_event_id` | `BigIntField` | not null, **unique** | The Discord Scheduled Event id (one link per event) |
+| `source_type` | `CharEnumField(DiscordEventSource)` | not null | Today always `MATCH` |
+| `source_id` | `IntField` | not null | The `Match` id (polymorphic key) |
+| `title` / `scheduled_at` | | title not null; `scheduled_at` null | Snapshot rendered onto the event |
+| `content_hash` | `CharField(64)` | null | SHA-256 of name/description/start/end/location |
+| `synced_at` | | null | Last reconcile that touched the event |
+
+Constraints: `Meta.table = 'discordscheduledevent'`; `discord_event_id` unique; unique `(tenant, source_type, source_id)` (idempotency); indexes on `tenant`, `guild_id`.
+
+### Async Qualifiers (PR 9)
+
+A **peer aggregate of `Tournament`** — created/administered like a tournament
+(per-qualifier `admins` M2M, `is_active`) but a distinct state machine entirely
+outside the Match/schedule system: window opens → draw → run → review → scored
+leaderboard → close. All five models are tenant-scoped (`CASCADE`, scoped repos,
+leak test). Config is **hybrid**: typed window/count columns + a validated-JSON
+`config` blob (`par_sample_size`, `draw_imbalance_threshold`, `messaging_templates`).
+PR 10 adds `AsyncQualifierLiveRace` and the `AsyncQualifierRun.live_race` FK.
+
+#### `AsyncQualifier`
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='async_qualifiers'` |
+| `name` | `CharField(255)` | not null | |
+| `description` / `event_name` | `TextField` / `CharField(255)` | null | `event_name` is informational only (no FK to the event it feeds) |
+| `opens_at` / `closes_at` | `DatetimeField` | null | Typed window columns (UTC) |
+| `runs_per_pool` | `IntField` | default 1 | Leaderboard slots per pool |
+| `allowed_reattempts` | `IntField` | default 0 | Reattempt budget per player |
+| `config` | `JSONField` | null | Validated by `validate_async_qualifier_config` |
+| `is_active` | `BooleanField` | default `True` | Closing it (or passing `closes_at`) lifts the info lockdown |
+| `admins` | M2M → `User` | through `AsyncQualifierAdmins` | The reviewer set (self-review blocked) |
+
+#### `AsyncQualifierPool`
+
+Named permalink pool; optional `preset` FK (`SET_NULL`). Unique `(qualifier, name)`;
+indexes on `tenant`, `qualifier`.
+
+#### `AsyncQualifierPermalink`
+
+One seed `url` in a pool (`CASCADE`), `notes`, `live_race` flag, and a maintained
+`par_time` (whole seconds, mean of the N fastest approved runs) + `par_updated_at`.
+Indexes on `tenant`, `pool`.
+
+#### `AsyncQualifierRun`
+
+A player's attempt. FKs → `qualifier` (`CASCADE`), `user`, `permalink` (`SET_NULL`
+so purging a permalink keeps run history), and nullable `reviewed_by` /
+`review_claimed_by` (`SET_NULL`). Carries `status` / `review_status` enums, timing
+(`started_at`, `finished_at`, `elapsed_seconds`), `runner_vod_url`, the one-attempt
+backstop (`reattempted` + `reattempt_reason`), `score` (0–105, null until scored),
+and review attribution/claim-lock timestamps. Indexes: `tenant`, `(qualifier,
+review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute).
+The nullable `live_race` FK (`SET_NULL`, PR 10) marks a run captured from a
+synchronous racetime race.
+
+#### `AsyncQualifierReviewNote`
+
+A reviewer's note (`author` FK) on a run (`CASCADE`). Indexes on `tenant`, `run`.
+
+#### `AsyncQualifierLiveRace` (PR 10)
+
+A synchronous racetime race whose entrants' results are captured into
+`AsyncQualifierRun`s. FKs → `pool` (`CASCADE`) and nullable `permalink` /
+`episode` (→ `SpeedGamingEpisode`, `SET_NULL`); `match_title`; a globally-unique
+nullable `racetime_slug` that mirrors the `RacetimeRoom.slug` (so the shared
+inbound-event handler routes the room's events to the qualifier capture path when
+`RacetimeRoom.match_id` is null); and an `AsyncQualifierLiveRaceStatus` enum
+(`scheduled` → `pending` → `in_progress` → `finished`). Indexes on `tenant`,
+`pool`. Live-race runs **skip reviewer sign-off** (written `APPROVED`) — the
+racetime result is self-attributing — and are par-scored like any other approved
+run; recording is refused while any entrant is still racing.
+
 ## Match lifecycle
 
 `Match.current_state` is derived from three nullable timestamps; there is no status column. The model comment on `seated_at` notes the naming history: the field is called *seated* but the state it produces is now labeled **"Checked In"**.
@@ -941,7 +1273,7 @@ Serves `Tournament` and `TournamentPlayers` ([`tournament_repository.py`](../../
 | `async get_by_ids(tournament_ids: List[int]) -> List[Tournament]` | Bulk lookup ordered by name |
 | `async get_all(active_only=False, staff_only=False, prefetch_players=False) -> List[Tournament]` | All tournaments ordered by name; filters on `is_active` / `staff_administered` |
 | `async get_all_as_dict(active_only=False, staff_only=False) -> dict[int, str]` | id → name map for select options |
-| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False) -> Tournament` | Insert a tournament |
+| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False, config=None, preset_id=None) -> Tournament` | Insert a tournament (`config` is the validated hybrid-config blob; `preset_id` links a seed-rolling `Preset`) |
 | `async update(tournament: Tournament, **fields) -> None` | `setattr` each field and save |
 | `async delete(tournament: Tournament) -> None` | Delete the tournament |
 | `async enroll_player(tournament: Tournament, user) -> TournamentPlayers` | Insert an enrollment row |
@@ -1064,6 +1396,7 @@ The equipment, volunteering, availability, Challonge, API-token, feedback, and w
 | `WebPushRepository` | [`web_push_repository.py`](../../application/repositories/web_push_repository.py) | `WebPushSubscription` | `get_by_endpoint`, `get_by_id`, `list_for_user`, `list_for_discord_id`, `upsert` (re-binds an existing endpoint), `delete`, `delete_by_endpoint`, `touch_last_used` (instance methods) |
 | `WebhookRepository` | [`webhook_repository.py`](../../application/repositories/webhook_repository.py) | `Webhook` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` (instance methods) |
 | `WebhookDeliveryRepository` | [`webhook_delivery_repository.py`](../../application/repositories/webhook_delivery_repository.py) | `WebhookDelivery` | `create`, `list_for_webhook`, `prune_older_than` (instance methods) |
+| `PresetRepository` | [`preset_repository.py`](../../application/repositories/preset_repository.py) | `Preset` | `get_by_id`, `get_by_natural_key`, `list_all`, `list_by_randomizer`, `create`, `update`, `delete` (instance methods) |
 
 ## Migrations
 

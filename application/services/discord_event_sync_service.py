@@ -1,0 +1,98 @@
+"""Discord Events sync service (PR 8) — tenant-facing config + on-demand reconcile.
+
+The management layer over the Discord Scheduled Events reconciler: per-tournament
+opt-in (which tournaments mirror their schedule to the tenant guild) and an
+on-demand "reconcile now". All mutations are gated by
+:meth:`AuthService.can_manage_sync` (STAFF / super-admin / ``SYNC_ADMIN``) and
+audited. The background worker calls the reconciler directly as the system user;
+this service is the human-driven surface.
+"""
+
+from typing import Any, Dict, List, Optional
+
+from application.repositories import DiscordScheduledEventRepository, TournamentRepository
+from application.services.audit_service import AuditActions, AuditService
+from application.services.auth_service import AuthService
+from application.services.discord_event_reconciler_service import (
+    DiscordEventReconcilerService,
+    ReconcileResult,
+)
+from application.services.tenant_service import TenantService
+from application.tenant_context import require_tenant_id
+from models import DiscordScheduledEvent, Tenant, Tournament, User
+
+
+class DiscordEventSyncService:
+    """Per-tournament opt-in + on-demand reconcile for the Discord events mirror."""
+
+    def __init__(self) -> None:
+        self.repository = DiscordScheduledEventRepository()
+        self.audit = AuditService()
+
+    async def get_tenant(self) -> Optional[Tenant]:
+        """The ambient tenant (for the UI to show its guild-link status)."""
+        return await TenantService.get_by_id(require_tenant_id())
+
+    async def list_tournaments(self, actor: Optional[User]) -> List[Tournament]:
+        await AuthService.ensure(
+            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
+        )
+        return await TournamentRepository.get_all()
+
+    async def list_events(self, actor: Optional[User]) -> List[DiscordScheduledEvent]:
+        await AuthService.ensure(
+            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
+        )
+        return await self.repository.list_all()
+
+    async def update_settings(
+        self,
+        actor: Optional[User],
+        tournament_id: int,
+        *,
+        enabled: Optional[bool] = None,
+        duration_minutes: Optional[int] = None,
+        title_template: Optional[str] = None,
+        description_template: Optional[str] = None,
+    ) -> Tournament:
+        """Set a tournament's Discord-events opt-in + templating."""
+        await AuthService.ensure(
+            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
+        )
+        tournament = await TournamentRepository.get_by_id(tournament_id)
+        if tournament is None:
+            raise ValueError("Tournament not found")
+        changes: Dict[str, Any] = {}
+        if enabled is not None:
+            changes['discord_events_enabled'] = enabled
+        if duration_minutes is not None:
+            changes['discord_event_duration_minutes'] = max(1, duration_minutes)
+        if title_template is not None:
+            changes['discord_event_title_template'] = (title_template or '').strip() or None
+        if description_template is not None:
+            changes['discord_event_description_template'] = (description_template or '').strip() or None
+        if changes:
+            await TournamentRepository.update(tournament, **changes)
+        await self.audit.write_log(
+            actor, AuditActions.DISCORD_EVENT_SETTINGS_UPDATED,
+            {'tournament_id': tournament_id, 'changes': list(changes.keys())},
+        )
+        return tournament
+
+    async def reconcile_now(self, actor: Optional[User]) -> ReconcileResult:
+        """Reconcile the ambient tenant's Discord events on demand.
+
+        Gated by ``can_manage_sync``; the human actor is passed through so the
+        resulting audit/event rows attribute to them (the background worker uses
+        the system user). Raises :class:`ValueError` when no Discord server is
+        linked — the mirror needs a verified guild.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
+        )
+        tenant = await TenantService.get_by_id(require_tenant_id())
+        if tenant is None:
+            raise ValueError("No tenant in scope")
+        if tenant.discord_guild_id is None:
+            raise ValueError("Connect a Discord server before syncing events.")
+        return await DiscordEventReconcilerService().reconcile_tenant(tenant, actor=actor)

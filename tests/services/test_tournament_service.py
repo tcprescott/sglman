@@ -37,6 +37,8 @@ def service():
     svc.repository.update = AsyncMock(side_effect=lambda t, **f: t)
     svc.repository.get_all = AsyncMock(return_value=[])
     svc.repository.get_by_id = AsyncMock()
+    svc.preset_repository = MagicMock()
+    svc.preset_repository.get_by_id = AsyncMock()
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
     return svc
@@ -130,6 +132,104 @@ class TestCreateTournament:
 
         with pytest.raises(PermissionError):
             await service.create_tournament(name='X', actor=make_user())
+
+
+# ---------------------------------------------------------------------------
+# config substrate (hybrid config validation)
+# ---------------------------------------------------------------------------
+
+
+class TestTournamentConfig:
+    async def test_valid_config_normalized_and_passed_to_repo(self, service):
+        service.repository.create = AsyncMock(return_value=make_tournament())
+        await service.create_tournament(
+            name='X',
+            config={'messaging_templates': {'welcome': 'hi {player}'}},
+            actor=make_user(),
+        )
+        assert service.repository.create.await_args.kwargs['config'] == {
+            'messaging_templates': {'welcome': 'hi {player}'}
+        }
+
+    async def test_none_config_passed_through(self, service):
+        service.repository.create = AsyncMock(return_value=make_tournament())
+        await service.create_tournament(name='X', actor=make_user())
+        assert service.repository.create.await_args.kwargs['config'] is None
+
+    async def test_unknown_key_raises_before_create(self, service):
+        with pytest.raises(ValueError, match='Invalid tournament config'):
+            await service.create_tournament(
+                name='X', config={'bogus_key': 1}, actor=make_user(),
+            )
+        service.repository.create.assert_not_called()
+
+    async def test_update_with_valid_config(self, service):
+        t = make_tournament()
+        await service.update_tournament(
+            t, config={'messaging_templates': {}}, actor=make_user(),
+        )
+        assert service.repository.update.await_args.kwargs['config'] == {
+            'messaging_templates': {}
+        }
+
+    async def test_update_unknown_key_raises(self, service):
+        t = make_tournament()
+        with pytest.raises(ValueError, match='Invalid tournament config'):
+            await service.update_tournament(
+                t, config={'nope': True}, actor=make_user(),
+            )
+        service.repository.update.assert_not_called()
+
+    async def test_update_without_config_leaves_it_untouched(self, service):
+        t = make_tournament()
+        await service.update_tournament(t, name='Renamed', actor=make_user())
+        assert 'config' not in service.repository.update.await_args.kwargs
+
+
+# ---------------------------------------------------------------------------
+# preset_id wiring
+# ---------------------------------------------------------------------------
+
+
+class TestTournamentPreset:
+    async def test_create_with_valid_preset_passes_id_to_repo(self, service):
+        service.preset_repository.get_by_id.return_value = SimpleNamespace(id=7)
+        await service.create_tournament(name='X', preset_id=7, actor=make_user())
+        assert service.repository.create.await_args.kwargs['preset_id'] == 7
+
+    async def test_create_with_unknown_preset_raises_before_create(self, service):
+        service.preset_repository.get_by_id.return_value = None
+        with pytest.raises(ValueError, match='Preset not found'):
+            await service.create_tournament(name='X', preset_id=99, actor=make_user())
+        service.repository.create.assert_not_awaited()
+
+    async def test_create_without_preset_passes_none(self, service):
+        await service.create_tournament(name='X', actor=make_user())
+        assert service.repository.create.await_args.kwargs['preset_id'] is None
+        service.preset_repository.get_by_id.assert_not_awaited()
+
+    async def test_update_sets_preset_when_provided(self, service):
+        service.preset_repository.get_by_id.return_value = SimpleNamespace(id=3)
+        t = make_tournament()
+        await service.update_tournament(t, preset_id=3, actor=make_user())
+        assert service.repository.update.await_args.kwargs['preset_id'] == 3
+
+    async def test_update_clears_preset_with_explicit_none(self, service):
+        t = make_tournament()
+        await service.update_tournament(t, preset_id=None, actor=make_user())
+        assert service.repository.update.await_args.kwargs['preset_id'] is None
+        service.preset_repository.get_by_id.assert_not_awaited()
+
+    async def test_update_without_preset_leaves_it_untouched(self, service):
+        t = make_tournament()
+        await service.update_tournament(t, name='Renamed', actor=make_user())
+        assert 'preset_id' not in service.repository.update.await_args.kwargs
+
+    async def test_update_unknown_preset_raises(self, service):
+        service.preset_repository.get_by_id.return_value = None
+        t = make_tournament()
+        with pytest.raises(ValueError, match='Preset not found'):
+            await service.update_tournament(t, preset_id=42, actor=make_user())
 
 
 # ---------------------------------------------------------------------------

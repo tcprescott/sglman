@@ -1,8 +1,18 @@
 # Feature 3: Discord Events sync
 
-> Part of the [Online Tournaments plan](README.md) (proposed, not implemented).
+> Part of the [Online Tournaments plan](README.md).
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
+>
+> **Status: implemented (PR 8).** Tenant-scoped `DiscordScheduledEvent` link
+> (polymorphic `source_type`/`source_id` via the `DiscordEventSource` enum,
+> `discord_event_id` unique, content-hash reconciliation), per-tournament opt-in +
+> templating columns on `Tournament`, `DiscordEventReconcilerService` (create /
+> update / cancel scoped to the tenant's own rows — shared-guild sibling-safe), the
+> `DiscordService` scheduled-event methods (`MOCK_DISCORD` fake), the
+> `DISCORD_EVENTS_SYNC_ENABLED` worker, and the admin **Discord Events** tab.
+> Migration 27. See [current-state.md](../current-state.md) and the data-model
+> reference for the as-built shape.
 
 SahasrahBot maps SG episodes to Discord **Scheduled Events** 1:1
 (`ScheduledEvents`: `scheduled_event_id` PK, unique `episode_id`, `event_slug`).

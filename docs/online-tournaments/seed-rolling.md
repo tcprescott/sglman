@@ -38,9 +38,22 @@ missing config).
 separate feature: a weightset is just a `Preset` variant whose payload the
 generator samples — same user-managed authoring story.
 
+### Local development / testing (`MOCK_SEEDGEN`)
+
+Every real backend needs credentials, is slow, or is simply unreachable from a
+dev sandbox, so rolling a pool's seeds would fail there. Set `MOCK_SEEDGEN=true`
+(the dev `.env` and `./start.sh mock` do) and `SeedGenerationService.generate_seed`
+short-circuits to a believable, unique `https://mock.seedgen.local/<randomizer>/…`
+permalink — after validating the randomizer is one of `AVAILABLE_RANDOMIZERS` —
+without touching any backend. This lets the [async-qualifier](async-qualifiers.md)
+"Roll" flow and the browser-validation loop exercise the full
+roll → draw → submit → review → par-score → leaderboard lifecycle end to end. The
+flag is refused when `ENVIRONMENT=production` (`application/utils/mock_seedgen.py`),
+mirroring `MOCK_DISCORD`/`MOCK_CHALLONGE`.
+
 ### Coverage checklist
 
-_To be populated in Phase 1 from the authoritative `seedgen/` list._
+Phase 1 (preset infrastructure) is **implemented** — see [PR 1](implementation/pr-1-presets.md). Only ALTTPR reads `preset.settings` today; the remaining backends stay hard-coded until the randomizer-coverage expansion PR, tracked below.
 
 | Randomizer | In SGLMan today | Ported |
 |---|---|---|
@@ -64,10 +77,10 @@ enums.
 
 ## Roadmap
 
-- **Phase 1** — user-managed presets + seedgen preset selection: `Preset` model,
-  admin tab, `SeedGenerationService` preset arg, built-in preset import.
-  ALTTPR-first; immediately useful on-site too. This is the recommended starting
-  point for the whole plan.
+- **Phase 1** ✅ *implemented* — user-managed presets + seedgen preset selection:
+  `Preset` model, admin tab, `SeedGenerationService` preset arg, built-in preset
+  import. ALTTPR-first; immediately useful on-site too. This is the recommended
+  starting point for the whole plan.
 - **Phase 9+** — randomizer coverage expansion: incremental backends toward full
   SahasrahBot parity; mystery weightsets.
 

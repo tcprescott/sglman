@@ -10,7 +10,8 @@
 #     alias that minimal tzdata images omit -> ZoneInfoNotFoundError at runtime)
 #   * the `sglman` dev database and a `postgres`/`devpass` login
 #   * Python deps via Poetry
-#   * a dev `.env` (MOCK_DISCORD + a generated STORAGE_SECRET) if one is absent
+#   * a dev `.env` (MOCK_DISCORD, MOCK_SEEDGEN + a generated STORAGE_SECRET) if
+#     one is absent
 #
 # Idempotent and safe to re-run. Does NOT boot the app — do that per task with
 # `./start.sh dev`. See the `ui-validation` skill for the full validation loop.
@@ -76,7 +77,7 @@ poetry install --no-interaction || poetry install
 
 # 5. Dev .env (only if absent; .env is gitignored) -----------------------------
 if [ ! -f .env ]; then
-  say "Writing dev .env (MOCK_DISCORD, generated STORAGE_SECRET)"
+  say "Writing dev .env (MOCK_DISCORD, MOCK_SEEDGEN, generated STORAGE_SECRET)"
   SECRET="$(poetry run python -c 'import secrets; print(secrets.token_urlsafe(32))')"
   cat > .env <<ENV
 DB_NAME=sglman
@@ -87,6 +88,7 @@ DB_PORT=5432
 STORAGE_SECRET=${SECRET}
 ENVIRONMENT=development
 MOCK_DISCORD=true
+MOCK_SEEDGEN=true
 ENV
 else
   say ".env already present — leaving it untouched"

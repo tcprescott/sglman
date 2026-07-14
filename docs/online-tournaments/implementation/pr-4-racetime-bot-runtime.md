@@ -2,6 +2,23 @@
 
 > Feature 5. Roadmap phase 3 (runtime half). Stand up the connection and prove the
 > single-worker / long-lived-websocket architecture **before** wiring business logic.
+>
+> **Status: implemented.** `racetimebot/` package (peer of `discordbot/`,
+> presentation layer): `RacetimeBotManager` (lifespan-managed singleton, one
+> `CategoryConnection` per active bot, re-adopts open rooms on boot, `/platform`
+> restart), `CategoryConnection` (health writes via `RacetimeBotService` acting as
+> the system user — connect→`connected`, auth-reject→`error`+stop, transient→`error`
+> +exponential backoff capped 5 min, liveness heartbeat → `last_checked_at`),
+> `RaceHandler` (tenant routing via unscoped slug lookup + `tenant_scope`, crash
+> containment) with a status-only `RoomStatusLifecycle` (the room-lifecycle PR
+> injects the richer service). Transport seam: `RealRacetimeTransport` (real
+> `client_credentials` OAuth token fetch + liveness loop) and a scripted
+> `MockRacetimeTransport`. `RACETIME_BOT_ENABLED` master switch; `MOCK_RACETIME`
+> drives the scripted fake (production-refused). Health audit actions
+> (`racetime_bot.connected/disconnected/error/restarted`, tenant=NULL, audit-only).
+> `/platform` shows per-bot health + a Restart button. Runtime tests cover
+> connect/auth-fail/transient+reconnect/heartbeat, scripted lifecycle, tenant
+> routing, re-adoption, and crash containment.
 
 **Goal:** a lifespan-managed racetime connection per authorized category that
 tracks room state and its own health, fully mockable.

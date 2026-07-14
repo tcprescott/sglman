@@ -56,6 +56,64 @@ def telemetry_enabled() -> bool:
     return raw.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
+def racetime_bot_enabled() -> bool:
+    """Master switch for the racetime bot runtime (default: off).
+
+    The connection loop only spins up when ``RACETIME_BOT_ENABLED`` is truthy.
+    Off by default so a deployment without configured racetime bots — the common
+    case — never opens outbound connections. Independent of ``MOCK_RACETIME``:
+    the switch says "run the runtime", the mock flag says "run it against a
+    scripted fake instead of live racetime".
+    """
+    return os.environ.get('RACETIME_BOT_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def speedgaming_sync_enabled() -> bool:
+    """Master switch for the SpeedGaming ETL sync worker (default: off).
+
+    The background poll loop only spins up when ``SPEEDGAMING_SYNC_ENABLED`` is
+    truthy. Off by default so a deployment with no configured SG event links —
+    the common case — never opens outbound polls. Independent of
+    ``MOCK_SPEEDGAMING``: the switch says "run the worker", the mock flag says
+    "run it against scripted fixtures instead of the live SG API".
+    """
+    return os.environ.get('SPEEDGAMING_SYNC_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def discord_events_sync_enabled() -> bool:
+    """Master switch for the Discord Scheduled Events reconciler worker (default: off).
+
+    The background reconcile loop only spins up when ``DISCORD_EVENTS_SYNC_ENABLED``
+    is truthy. Off by default so a deployment with no opted-in tournaments — the
+    common case — never touches Discord on a timer. The reconciler still runs
+    on-demand from the admin UI regardless of this switch; this only gates the
+    periodic worker. Independent of ``MOCK_DISCORD`` (which swaps the transport).
+    """
+    return os.environ.get('DISCORD_EVENTS_SYNC_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def service_health_enabled() -> bool:
+    """Master switch for the platform service-health monitor worker (default: off).
+
+    The background probe loop only spins up when ``SERVICE_HEALTH_ENABLED`` is
+    truthy. Off by default so a deployment that doesn't watch the ``/platform``
+    board never runs periodic probes (some reach external hosts). The board still
+    refreshes on-demand from the platform UI regardless of this switch; this only
+    gates the periodic worker.
+    """
+    return os.environ.get('SERVICE_HEALTH_ENABLED', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def service_health_alert_dm_enabled() -> bool:
+    """Whether an unhealthy-transition alert also DMs super-admins (default: off).
+
+    Health transitions into ``down``/credential-warning always publish an event
+    and capture to Sentry; this opt-in (``SERVICE_HEALTH_ALERT_DM``) additionally
+    Discord-DMs every super-admin so a deployment can choose the noisier channel.
+    """
+    return os.environ.get('SERVICE_HEALTH_ALERT_DM', '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def validate_security_config() -> None:
     """Fail fast when security-critical configuration is missing.
 

@@ -138,6 +138,16 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 ### Discord role mappings (`/api/discord-role-mappings`)
 - `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → app-role mappings (Staff).
 
+## Not yet covered (future enhancement)
+
+The **online-tournament features** (presets, racetime bots/rooms, SpeedGaming ETL,
+Discord Events sync, service health, async qualifiers + live races, seed rolling)
+ship with service, UI, and inbound-webhook surfaces but **no REST endpoints yet** —
+they are absent from the catalogue above. A concrete, execution-ready design for
+bringing them to full read + write REST parity (endpoint tables, schemas, the
+`require_super_admin` deps, exclusions, and a test plan) is written up as a proposed
+follow-up in [online-tournaments/rest-api-coverage.md](../online-tournaments/rest-api-coverage.md).
+
 ## Tests
 
 Integration tests live in [`tests/`](../../tests/): `test_api_tokens.py`, `test_api_matches.py`, `test_api_reads.py`, `test_api_match_writes.py`, `test_api_admin_writes.py`, `test_api_phase5_writes.py`. They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client).

@@ -114,3 +114,48 @@ def user_can_manage(guild_id: int, user_id: int) -> bool:
     flow. Pin a scenario by overriding this in a test if you need a denial.
     """
     return True
+
+
+# --- Scheduled events (mock) ------------------------------------------------
+# In-memory store so the Discord Events reconciler (PR 8) runs end-to-end under
+# MOCK_DISCORD without a live bot. Keyed by a synthetic event id; ids increment
+# from a fixed base so they look like snowflakes and stay deterministic within a
+# process. Reset between tests via :func:`reset_scheduled_events`.
+_SCHEDULED_EVENT_ID_BASE = 3000000000000000000
+_scheduled_events: Dict[int, dict] = {}
+_next_scheduled_event_id = _SCHEDULED_EVENT_ID_BASE
+
+
+def reset_scheduled_events() -> None:
+    """Clear the mock scheduled-event store (test isolation)."""
+    global _next_scheduled_event_id
+    _scheduled_events.clear()
+    _next_scheduled_event_id = _SCHEDULED_EVENT_ID_BASE
+
+
+def create_scheduled_event(guild_id: int, **fields: object) -> int:
+    """Record a new mock scheduled event; return its synthetic id."""
+    global _next_scheduled_event_id
+    event_id = _next_scheduled_event_id
+    _next_scheduled_event_id += 1
+    _scheduled_events[event_id] = {'id': event_id, 'guild_id': guild_id, **fields}
+    return event_id
+
+
+def edit_scheduled_event(event_id: int, **fields: object) -> bool:
+    """Update a mock scheduled event in place. False if it's unknown."""
+    event = _scheduled_events.get(event_id)
+    if event is None:
+        return False
+    event.update(fields)
+    return True
+
+
+def delete_scheduled_event(event_id: int) -> bool:
+    """Remove a mock scheduled event. False if it was already gone."""
+    return _scheduled_events.pop(event_id, None) is not None
+
+
+def scheduled_events_for(guild_id: int) -> List[dict]:
+    """Every mock scheduled event currently in a guild."""
+    return [dict(e) for e in _scheduled_events.values() if e['guild_id'] == guild_id]

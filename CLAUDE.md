@@ -50,6 +50,7 @@ See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern 
 3. Update/create the service in `application/services/`
 4. Export from each package's `__init__.py`
 5. Build/update the UI in `pages/` or `theme/`
+6. **Extend `scripts/seed_dev.py`** so the new model/feature has at least one representative row (and, where useful, each meaningful state) in the dev database. The seed script is the fixture set the [`/ui-validation`](docs/development.md) browser loop and every dev environment run against — a feature the seed never creates is a feature no one can see in the running app. Keep it idempotent (`get_or_create`) and tenant-scoped like the existing rows.
 
 ## Coding conventions
 

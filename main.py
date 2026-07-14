@@ -119,6 +119,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # docs/reviews/2026-07-project-structure-review.md, roadmap item 21).
     import discordbot  # noqa: F401
     await init_discord_bot()
+    # Racetime bot runtime: one long-lived connection per active RacetimeBot
+    # category. Gated by RACETIME_BOT_ENABLED (off by default) and mockable via
+    # MOCK_RACETIME; a no-op when the switch is off, so it is always safe to call.
+    from racetimebot import close_racetime_bot, init_racetime_bot
+    await init_racetime_bot()
+    # Auto-open worker: opens a racetime room ahead of each eligible scheduled
+    # match (opt-in per tournament). Runs only when the racetime runtime is on.
+    from application.services import race_room_worker
+    from application.utils.environment import racetime_bot_enabled
+    if racetime_bot_enabled():
+        race_room_worker.start()
+    # SpeedGaming ETL sync worker: polls active event links on their cadence and
+    # materializes SG episodes into Match rows. Gated by SPEEDGAMING_SYNC_ENABLED
+    # (off by default); mockable via MOCK_SPEEDGAMING.
+    from application.services import speedgaming_sync_worker
+    from application.utils.environment import speedgaming_sync_enabled
+    if speedgaming_sync_enabled():
+        speedgaming_sync_worker.start()
+    # Discord Scheduled Events reconciler: mirrors opted-in tournaments' schedules
+    # into each linked guild's Discord events. Gated by DISCORD_EVENTS_SYNC_ENABLED
+    # (off by default); uses the mock transport under MOCK_DISCORD.
+    from application.services import discord_event_worker
+    from application.utils.environment import discord_events_sync_enabled
+    if discord_events_sync_enabled():
+        discord_event_worker.start()
+    # Platform external-service health monitor: periodically probes every external
+    # dependency so the /platform board is warm and alerts fire on transitions.
+    # Gated by SERVICE_HEALTH_ENABLED (off by default).
+    from application.services import service_health_worker
+    from application.utils.environment import service_health_enabled
+    if service_health_enabled():
+        service_health_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -130,6 +162,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # the presentation layer). No event_types filter — record them all.
     event_bus.subscribe_async(TelemetryService().record_event)
     yield
+    await race_room_worker.stop()
+    await speedgaming_sync_worker.stop()
+    await discord_event_worker.stop()
+    await service_health_worker.stop()
+    await close_racetime_bot()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()
     await discord_queue.stop()

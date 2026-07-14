@@ -16,7 +16,7 @@ At import time it registers `AuthMiddleware` (from [`middleware/auth.py`](../../
 
 1. Calls `validate_security_config()` ([`application/utils/environment.py`](../../application/utils/environment.py)) — aborts startup if `STORAGE_SECRET` is empty, and in production also requires `DB_USERNAME` / `DB_PASSWORD`.
 2. Mounts `/static` → `NoCacheStaticFiles(directory="static")`.
-3. Registers pages in order: `auth.create()` (login/logout/oauth pages from [`pages/auth.py`](../../pages/auth.py), or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth.create()` (Challonge link/connect OAuth routes from [`pages/challonge_oauth.py`](../../pages/challonge_oauth.py)), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
+3. Registers pages in order: `auth.create()` (login/logout/oauth pages from [`pages/auth.py`](../../pages/auth.py), or the mock-Discord user picker — see [../features/mock-discord.md](../features/mock-discord.md)), `challonge_oauth.create()` (Challonge link/connect OAuth routes from [`pages/challonge_oauth.py`](../../pages/challonge_oauth.py)), `twitch_oauth.create()` and `racetime_oauth.create()` (identity-link OAuth routes), then `admin.create()`, `home.create()`, `volunteer.create()`, and `equipment.create()`.
 4. Calls `ui.run_with(fastapi_app, storage_secret=...)` with the stripped `STORAGE_SECRET`. No `mount_path` is given, so `@ui.page` routes live at the site root.
 5. Calls `register_error_handlers(fastapi_app)` ([`middleware/error_handlers.py`](../../middleware/error_handlers.py)) to install themed 40x/50x pages — see [Error pages](#error-pages-middlewareerror_handlerspy) below.
 
@@ -130,12 +130,14 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 | [`triforce_texts.py`](../../pages/home_tabs/triforce_texts.py) | Triforce Texts | Pick a supporting tournament, then submit/track triforce-screen text |
 | [`equipment.py`](../../pages/home_tabs/equipment.py) | Equipment | Browse the lending inventory and the user's own checkouts |
 
-Three further modules render **inside** the Profile tab rather than as standalone tabs (all called from `player_edit_info.py`):
+Several further modules render **inside** the Profile tab rather than as standalone tabs (all called from `player_edit_info.py`):
 
 | Module | Renders | Responsibility |
 |---|---|---|
 | [`api_tokens_section.py`](../../pages/home_tabs/api_tokens_section.py) | "API Tokens" card in Profile | Create / list / revoke personal REST API tokens via `ApiTokenService`; the plaintext token is shown once at creation |
 | [`challonge_link_section.py`](../../pages/home_tabs/challonge_link_section.py) | "Challonge" card in Profile | Verify-link / unlink a Challonge account via `ChallongeService`; hides itself entirely when the integration isn't configured |
+| [`twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py) | "Twitch" card in Profile | Verify-link / unlink a Twitch identity via `TwitchService`; hides itself entirely when the integration isn't configured |
+| [`racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py) | "racetime.gg" card in Profile | Verify-link / unlink a racetime.gg identity via `RacetimeService`; hides itself entirely when the integration isn't configured |
 | [`web_push_section.py`](../../pages/home_tabs/web_push_section.py) | "Device Notifications" card in Profile | Enable/disable web push on the current device and manage subscribed devices via `WebPushService`. The enable/disable buttons run [`static/js/web-push.js`](../../static/js/web-push.js) client-side via `js_handler` (permission prompts must stay inside the click gesture) and report back through `emitEvent` → `ui.on`. Hides itself entirely when VAPID keys aren't configured ([../features/web-push.md](../features/web-push.md)) |
 
 ### Schedule (`pages/home_tabs/schedule.py`)
@@ -229,6 +231,8 @@ The public event schedule with crew signup.
 | [`admin_volunteer_roster.py`](../../pages/admin_tabs/admin_volunteer_roster.py) | Vol. Roster | Coordinator volunteer roster |
 | [`admin_volunteers.py`](../../pages/admin_tabs/admin_volunteers.py) | Vol. Schedule | Coordinator shift grid: positions, shifts, assignment & auto-scheduling |
 | [`reports/`](../../pages/admin_tabs/reports/__init__.py) | Reports | Read-only analytics — see [Reports subsystem](#reports-subsystem-pagesadmin_tabsreports) |
+| [`admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Presets | Seed-rolling preset CRUD (`PRESET_MANAGER`/STAFF) + import of built-in `presets/` files — see [seed-generation.md](seed-generation.md#presets-db-backed) |
+| [`admin_racetime.py`](../../pages/admin_tabs/admin_racetime.py) | Racetime | Reusable race-room profile CRUD (`SYNC_ADMIN`/STAFF) via `RaceRoomProfileService`; the bots themselves are platform-managed on `/platform` |
 | [`admin_challonge.py`](../../pages/admin_tabs/admin_challonge.py) | Challonge | Manage the shared Challonge connection and per-tournament bracket sync |
 | [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Discord Roles | Map Discord roles to application roles for sign-in role sync |
 | [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Webhooks | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
@@ -470,7 +474,7 @@ The simpler dialogs in brief:
 - **`ApproveCrewDialog(crew_member, crew_type, on_approve)`** — shows the crew member's name and an Approved checkbox; saves through `CrewService.update_crew_approval` and invokes `on_approve` (the match table passes a row-refresh).
 - **`StreamRoomDialog(match, on_submit)`** — subclasses `BaseMatchDialog` to reuse its service/repository wiring; a Stage select (with a `(None)` option) and a stream-candidate checkbox, saved via `MatchService.assign_stage` and `set_stream_candidate` (the latter only when changed).
 - **`StreamRoomEditDialog(stream_room=None, on_submit)`** — Room Name, Stream URL, Active; calls `StreamRoomService.create_stream_room` / `update_stream_room`.
-- **`TournamentDialog(tournament=None, on_submit)`** — Name (required; Create/Save button bound to it), Description, Seed Generator (options from `SeedGenerationService.AVAILABLE_RANDOMIZERS` — see [seed-generation.md](seed-generation.md)), Bracket URL, Rules URL, Tournament Format, Avg/Max Match Duration, Players per Match, Team Size, Staff Administered, Active; calls `TournamentService.create_tournament` / `update_tournament`.
+- **`TournamentDialog(tournament=None, on_submit)`** — Name (required; Create/Save button bound to it), Description, Seed Generator (options from `SeedGenerationService.AVAILABLE_RANDOMIZERS` — see [seed-generation.md](seed-generation.md)), Seed Preset, Bracket URL, Rules URL, Tournament Format, Avg/Max Match Duration, Players per Match, Team Size, Staff Administered, Active; calls `TournamentService.create_tournament` / `update_tournament`. When the actor can manage sync (`AuthService.can_manage_sync`), a **Racetime** section appears — Racetime Bot (only categories the tenant is authorized for), Race Room Profile, Default Goal, Open Room (min before), Auto-create rooms, Require racetime link.
 - **`TournamentNotificationDialog(user, on_close)`** — one level select per active tournament (None / Streamed only / Streamed & Candidates / All matches); Save upserts each via `TournamentNotificationService.upsert_preference`.
 - **`TournamentPlayersDialog(tournament)`** — read-only list from `TournamentRepository.get_enrolled_players` (name + Discord ID).
 - **`SendMessageDialog(user, send_callback=None)`** — a required message textarea (Send disabled while blank); default callback sends via `DiscordService.send_dm`.
@@ -499,6 +503,7 @@ The simpler dialogs in brief:
 - Commentators and Trackers multi-selects (all users).
 - Date / Time (required), Comment textarea, Stream-candidate checkbox.
 - Edit mode adds the clear buttons and a read-only Player Acknowledgments list (check/pending icons, timestamps, `(auto)` markers) from `MatchAcknowledgmentRepository.list_for_match` — see [../features/match-acknowledgment.md](../features/match-acknowledgment.md).
+- Edit mode also shows a **Racetime Room** section when the match's tournament has a racetime bot: the room's slug + status if one exists, else (for STAFF/`SYNC_ADMIN`) a "Create racetime room" button calling `RaceRoomService.manual_create_room` — a manual open independent of the tournament's auto-open toggle.
 
 On save it validates required fields, runs `MatchService.ensure_players_enrolled`, then:
 

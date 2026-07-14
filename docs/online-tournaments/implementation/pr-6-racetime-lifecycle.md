@@ -2,6 +2,22 @@
 
 > Feature 5. Roadmap phase 4 — **the core online loop.** Completes scheduled online
 > brackets (the decided-first focus).
+>
+> **Status: implemented.** `RaceRoomService` maps the lifecycle onto a `Match`:
+> `create_room_for_match` (idempotent; opens the room, attaches the seed via
+> `MatchScheduleService.generate_seed`), `mark_in_progress` (sets `started_at`),
+> `record_finish` (maps racetime entrants → linked `User`, records `finish_rank`
+> place + `finish_time` seconds, closes the match, feeds the existing result path +
+> optional Challonge push), `cancel_room`. Terminal states (forfeit / no-show / DQ /
+> one-finisher) map correctly; unmatched handles are surfaced in the audit for staff
+> reconcile. Every transition audits + publishes a `race_room.*` event as the system
+> user. `RaceRoomLifecycle` is the adapter the PR 4 handler injects (transport event
+> → service call). The auto-open worker (`race_room_worker`) is an opt-in background
+> loop (`racetime_auto_create_rooms` + `room_open_minutes_before`, eligibility = all
+> entrants linked, idempotent, keep-room-on-reschedule); `manual_create_room`
+> (STAFF/`SYNC_ADMIN`) is exposed from the admin match dialog. Migration 25 adds
+> `matchplayers.finish_time`. Mock-driven tests cover the full lifecycle, terminal
+> states, and the worker's eligibility rules.
 
 **Goal:** from a scheduled `Match`, auto-create and drive a racetime room through
 finish/cancel, attaching the seed and capturing results.

@@ -41,6 +41,51 @@ class EventType:
     VOLUNTEER_UNASSIGNED = 'volunteer.unassigned'
     VOLUNTEER_ACKNOWLEDGED = 'volunteer.acknowledged'
 
+    # Racetime race-room lifecycle (mirrors AuditActions.RACE_ROOM_*). Tenant-
+    # scoped domain events a webhook subscriber can act on; published by the
+    # racetime room lifecycle as the system user.
+    RACE_ROOM_CREATED = 'race_room.created'
+    RACE_ROOM_OPENED = 'race_room.opened'
+    RACE_ROOM_STARTED = 'race_room.started'
+    RACE_ROOM_FINISHED = 'race_room.finished'
+    RACE_ROOM_CANCELLED = 'race_room.cancelled'
+    RACE_ROOM_RESULT_RECORDED = 'race_room.result_recorded'
+
+    # SpeedGaming ETL (mirrors AuditActions.SG_*). Tenant-scoped domain events a
+    # webhook subscriber can act on; published by the sync worker as the system
+    # user. A subscriber can react to a freshly-imported or cancelled match.
+    SG_EPISODE_IMPORTED = 'sg_sync.episode_imported'
+    SG_EPISODE_CANCELLED = 'sg_sync.episode_cancelled'
+    SG_MATCH_AUTO_FINISHED = 'sg_sync.match_auto_finished'
+
+    # Discord Scheduled Events mirror (mirrors AuditActions.DISCORD_EVENT_*).
+    # Tenant-scoped domain events a webhook subscriber can act on; published by
+    # the reconciler when it creates/updates/cancels a mirrored Discord event.
+    DISCORD_EVENT_CREATED = 'discord_event.created'
+    DISCORD_EVENT_UPDATED = 'discord_event.updated'
+    DISCORD_EVENT_CANCELLED = 'discord_event.cancelled'
+
+    # Platform external-service health (PR 5). Published by the health monitor
+    # when a probed dependency transitions into an unhealthy state (down or a
+    # credential warning). Platform-level (no tenant), so tenant-scoped webhooks
+    # never receive it — the alert's real delivery is Sentry + optional super-
+    # admin DM; it is published here so the contract is uniform and any future
+    # platform-level subscriber can act on it. Not mirrored by an AuditAction:
+    # health transitions are observations by the monitor, not user actions.
+    SERVICE_HEALTH_ALERT = 'service_health.alert'
+
+    # Async Qualifiers (PR 9; mirrors AuditActions.ASYNC_QUALIFIER_RUN_*). A run
+    # entering review (submitted) and a run being reviewed (approved/rejected) are
+    # tenant-scoped domain events a subscriber can act on. Qualifier/pool/permalink
+    # authoring and admin grants stay audit-only (tenant-internal config).
+    ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
+    ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+
+    # Async Qualifier live races (PR 10; mirrors AuditActions). A live race whose
+    # entrants' results were captured into runs is a domain event a subscriber can
+    # act on; create/open/cancel stay audit-only (tenant-internal scheduling).
+    ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -51,6 +96,13 @@ class EventType:
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,
+        RACE_ROOM_CREATED, RACE_ROOM_OPENED, RACE_ROOM_STARTED,
+        RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
+        SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,
+        DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
+        SERVICE_HEALTH_ALERT,
+        ASYNC_QUALIFIER_RUN_SUBMITTED, ASYNC_QUALIFIER_RUN_REVIEWED,
+        ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
     })
 
     # Wildcard a subscriber can register to receive every event.

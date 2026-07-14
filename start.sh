@@ -22,11 +22,12 @@ elif [ "$1" = "dev" ]; then
     echo "Starting Uvicorn server in development mode..."
     poetry run uvicorn main:app --reload --log-level info --port 8000
 elif [ "$1" = "mock" ]; then
-    echo "Starting Uvicorn server in development mode with mocked Discord and Challonge..."
+    echo "Starting Uvicorn server in development mode with mocked Discord, Challonge, and seedgen..."
     # Mock bypasses are refused unless we're explicitly not in production.
     export ENVIRONMENT=development
     export MOCK_DISCORD=true
     export MOCK_CHALLONGE=true
+    export MOCK_SEEDGEN=true
     poetry run uvicorn main:app --reload --log-level info --port 8000
 else
     echo "Invalid parameter. Use 'prod', 'dev', or 'mock'."

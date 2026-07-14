@@ -198,7 +198,7 @@ class MatchScheduleService:
             try:
                 # Fetch match with related data
                 match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related(
-                    'tournament', 'players', 'players__user', 'stream_room'
+                    'tournament', 'tournament__preset', 'players', 'players__user', 'stream_room'
                 )
 
                 if not await AuthService.can_transition_match(actor, match):
@@ -208,16 +208,20 @@ class MatchScheduleService:
                 if match.generated_seed:
                     return False, "A seed has already been generated for this match", None
 
-                # Check if tournament has a seed generator
-                if not match.tournament.seed_generator:
+                # Resolve which randomizer + settings to roll. A Preset FK wins
+                # when set (its randomizer + settings); otherwise fall back to the
+                # legacy ``seed_generator`` string (hard-coded settings).
+                preset = match.tournament.preset
+                randomizer = preset.randomizer if preset is not None else match.tournament.seed_generator
+
+                if not randomizer:
                     return False, "No seed generator configured for this tournament", None
 
-                # Check if seed generator is supported
-                if match.tournament.seed_generator not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
-                    return False, f"Seed generator '{match.tournament.seed_generator}' not found", None
+                if randomizer not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
+                    return False, f"Seed generator '{randomizer}' not found", None
 
                 # Generate the seed
-                seed_url = await self.seedgen_service.generate_seed(match.tournament.seed_generator)
+                seed_url = await self.seedgen_service.generate_seed(randomizer, preset)
 
                 # Create GeneratedSeeds record
                 match.generated_seed = await GeneratedSeeds.create(
@@ -256,7 +260,8 @@ class MatchScheduleService:
                     AuditActions.MATCH_SEED_ROLLED,
                     {
                         'match_id': match.id,
-                        'preset': match.tournament.seed_generator,
+                        'randomizer': randomizer,
+                        'preset': preset.name if preset is not None else None,
                         'seed_url': seed_url,
                     },
                 )

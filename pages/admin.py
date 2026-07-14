@@ -18,6 +18,12 @@ from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_webhooks import admin_webhooks_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
+from pages.admin_tabs.admin_presets import admin_presets_page
+from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
+from pages.admin_tabs.admin_racetime import admin_racetime_page
+from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
+from pages.admin_tabs.admin_discord_events import admin_discord_events_page
+from pages.admin_tabs.admin_service_health import admin_service_health_page
 from theme.base import BaseLayout
 
 
@@ -60,11 +66,16 @@ def create() -> None:
         is_stream_manager = Role.STREAM_MANAGER in roles
         is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
         is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
+        is_preset_manager = Role.PRESET_MANAGER in roles
+        is_sync_admin = Role.SYNC_ADMIN in roles
+        is_qualifier_admin = Role.QUALIFIER_ADMIN in roles
         is_ta_any = await user.admin_tournaments.all().exists()
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
+        is_qa_any = await user.admin_async_qualifiers.all().exists()
 
         if not (is_staff or is_stream_manager or is_equipment_manager
-                or is_volunteer_coordinator or is_ta_any or is_cc_any):
+                or is_volunteer_coordinator or is_preset_manager or is_sync_admin
+                or is_qualifier_admin or is_qa_any or is_ta_any or is_cc_any):
             await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
             with ui.row():
                 ui.label('You do not have permission to view this page.').classes('text-error')
@@ -94,6 +105,16 @@ def create() -> None:
             tabs.append({'label': 'Users', 'icon': 'people', 'content': admin_users_page})
         if is_staff or is_ta_any:
             tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page})
+        if is_staff or is_preset_manager:
+            tabs.append({'label': 'Presets', 'icon': 'tune', 'content': admin_presets_page})
+        if is_staff or is_qualifier_admin or is_qa_any:
+            tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'content': admin_qualifiers_page})
+        if is_staff or is_sync_admin:
+            tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'content': admin_racetime_page})
+        if is_staff or is_sync_admin:
+            tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'content': admin_speedgaming_page})
+        if is_staff or is_sync_admin:
+            tabs.append({'label': 'Discord Events', 'icon': 'event', 'content': admin_discord_events_page})
         if is_staff or is_stream_manager:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
         if is_staff or is_ta_any:
@@ -113,6 +134,8 @@ def create() -> None:
             tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': admin_equipment_page})
         if is_staff:
             tabs.append({'label': 'Feedback', 'icon': 'feedback', 'content': admin_feedback_page})
+        if is_staff:
+            tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'content': admin_service_health_page})
         if is_staff:
             tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
 

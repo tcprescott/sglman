@@ -26,6 +26,18 @@ class UserService:
     async def get_user_by_discord_id(self, discord_id: str) -> Optional[User]:
         return await self.repository.get_by_discord_id(discord_id)
 
+    async def get_system_user(self) -> User:
+        """Resolve the reserved system :class:`User` that automation acts as.
+
+        Workers and bot handlers (racetime, SG ETL, auto-open, qualifier scoring)
+        pass the returned row as ``actor`` so audit trails snapshot a real
+        username. Idempotent (get-or-create on the sentinel ``discord_id``), so it
+        is safe to call before the migration seed has run or in a fresh test DB.
+        The row is authorized for automation actions via ``AuthService`` regardless
+        of its roles (see :meth:`AuthService.is_system`).
+        """
+        return await self.repository.get_or_create_system_user()
+
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         return await self.repository.get_by_id(user_id)
 

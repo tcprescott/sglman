@@ -163,8 +163,10 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
   to `/platform`.
 - **`/platform`** — [`pages/platform.py`](../../pages/platform.py), gated on
   *no tenant context* **and** `is_super_admin`. Tenant CRUD (name, slug, domain,
-  guild id, active). Its queries pass explicit ids (intended cross-tenant
-  capability), backed by `TenantService`, whose CRUD/grant methods are
+  guild id, active) **and Racetime Bot CRUD + per-tenant authorization grants**
+  (`RacetimeBotService`; client secrets are write-only and never shown). Its
+  queries pass explicit ids (intended cross-tenant capability), backed by
+  `TenantService` / `RacetimeBotService`, whose CRUD/grant methods are
   super-admin-gated and audited as platform-level rows (`tenant=NULL`).
 
 ## Discord: one bot, many guilds

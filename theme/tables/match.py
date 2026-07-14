@@ -273,25 +273,29 @@ class MatchTableView(MatchTableHandlersMixin):
         if discord_id:
             self.table.on('toggle_watch', self._handle_toggle_watch)
 
-        # Admin-specific event wiring (slots registered above under the same conditions)
+        # Admin-specific event wiring (slots registered above under the same
+        # conditions). These handlers' callbacks reach scoped repository reads
+        # (``require_tenant_id()``) before restoring any client context, so they
+        # run through ``_bg`` to rebind the captured tenant — a socket event
+        # carries neither the request contextvar nor a reachable client stash.
         if self.admin_controls:
             if self.on_generate_seed is not None:
-                self.table.on('roll', lambda event: background_tasks.create(self._handle_roll(event)))
+                self.table.on('roll', lambda event: self._bg(self._handle_roll(event)))
             if (self.on_seat is not None or self.on_start is not None
                     or self.on_finish is not None or self.on_confirm is not None):
                 if self.on_seat is not None:
-                    self.table.on('seat', lambda event: background_tasks.create(self._handle_seat(event)))
+                    self.table.on('seat', lambda event: self._bg(self._handle_seat(event)))
                 if self.on_start is not None:
-                    self.table.on('start', lambda event: background_tasks.create(self._handle_start(event)))
+                    self.table.on('start', lambda event: self._bg(self._handle_start(event)))
                 if self.on_finish is not None:
-                    self.table.on('finish', lambda event: background_tasks.create(self._handle_finish(event)))
+                    self.table.on('finish', lambda event: self._bg(self._handle_finish(event)))
                 if self.on_confirm is not None:
-                    self.table.on('confirm', lambda event: background_tasks.create(self._handle_confirm(event)))
+                    self.table.on('confirm', lambda event: self._bg(self._handle_confirm(event)))
             if self.on_edit_stream_room is not None:
-                self.table.on('edit-stream-room', lambda event: background_tasks.create(self._handle_edit_stream_room(event)))
+                self.table.on('edit-stream-room', lambda event: self._bg(self._handle_edit_stream_room(event)))
 
         if self.on_edit is not None:
-            self.table.on('edit_match', lambda event: background_tasks.create(self._handle_edit(event)))
+            self.table.on('edit_match', lambda event: self._bg(self._handle_edit(event)))
 
         # Live updates: react to match changes made by other users.
         register_view(self._on_remote_change)

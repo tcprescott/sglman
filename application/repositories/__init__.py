@@ -6,16 +6,31 @@ They should NOT contain business logic - only data fetching/persistence.
 """
 
 from .api_token_repository import ApiTokenRepository
+from .async_qualifier_repository import (
+    AsyncQualifierLiveRaceRepository,
+    AsyncQualifierPermalinkRepository,
+    AsyncQualifierPoolRepository,
+    AsyncQualifierRepository,
+    AsyncQualifierReviewNoteRepository,
+    AsyncQualifierRunRepository,
+)
 from .player_availability_repository import PlayerAvailabilityRepository
 from .audit_repository import AuditRepository
 from .challonge_repository import ChallongeRepository
 from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
+from .discord_scheduled_event_repository import DiscordScheduledEventRepository
 from .equipment_repository import EquipmentRepository
 from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
+from .preset_repository import PresetRepository
+from .race_room_profile_repository import RaceRoomProfileRepository
+from .racetime_bot_repository import RacetimeBotRepository
+from .racetime_room_repository import RacetimeRoomRepository
+from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
+from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
 from .stream_room_repository import StreamRoomRepository
 from .tenant_repository import TenantRepository
 from .tenant_membership_repository import TenantMembershipRepository
@@ -38,16 +53,29 @@ from .webhook_delivery_repository import WebhookDeliveryRepository
 
 __all__ = [
     'ApiTokenRepository',
+    'AsyncQualifierRepository',
+    'AsyncQualifierPoolRepository',
+    'AsyncQualifierPermalinkRepository',
+    'AsyncQualifierRunRepository',
+    'AsyncQualifierReviewNoteRepository',
+    'AsyncQualifierLiveRaceRepository',
     'PlayerAvailabilityRepository',
     'AuditRepository',
     'ChallongeRepository',
     'CommentatorRepository',
     'DiscordRoleMappingRepository',
+    'DiscordScheduledEventRepository',
     'EquipmentRepository',
     'FeedbackRepository',
     'MatchAcknowledgmentRepository',
     'MatchRepository',
     'MatchWatcherRepository',
+    'PresetRepository',
+    'RaceRoomProfileRepository',
+    'RacetimeBotRepository',
+    'RacetimeRoomRepository',
+    'SpeedGamingEpisodeRepository',
+    'SpeedGamingEventLinkRepository',
     'StreamRoomRepository',
     'TenantRepository',
     'TenantMembershipRepository',

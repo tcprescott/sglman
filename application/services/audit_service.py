@@ -75,6 +75,17 @@ class AuditActions:
     DISCORD_SERVER_LINKED = 'discord.server_linked'
     DISCORD_SERVER_UNLINKED = 'discord.server_unlinked'
 
+    # Discord Scheduled Events mirror (PR 8). The create/update/cancel rows are
+    # written by the reconciler (system user on the worker, or a human on-demand);
+    # the per-run summary/failure and the per-tournament settings edit are
+    # audit-only plumbing.
+    DISCORD_EVENT_CREATED = 'discord_event.created'
+    DISCORD_EVENT_UPDATED = 'discord_event.updated'
+    DISCORD_EVENT_CANCELLED = 'discord_event.cancelled'
+    DISCORD_EVENT_SYNC_COMPLETED = 'discord_event.sync_completed'
+    DISCORD_EVENT_SYNC_FAILED = 'discord_event.sync_failed'
+    DISCORD_EVENT_SETTINGS_UPDATED = 'discord_event.settings_updated'
+
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'
     STREAM_ROOM_UPDATED = 'stream_room.updated'
@@ -122,6 +133,37 @@ class AuditActions:
     TWITCH_LINKED = 'twitch.linked'
     TWITCH_UNLINKED = 'twitch.unlinked'
 
+    # Racetime.gg identity linking
+    RACETIME_LINKED = 'racetime.linked'
+    RACETIME_UNLINKED = 'racetime.unlinked'
+
+    # Racetime bots (platform-managed; CRUD + tenant grants are platform-level,
+    # tenant=NULL) and their reusable per-tenant room profiles
+    RACETIME_BOT_CREATED = 'racetime_bot.created'
+    RACETIME_BOT_UPDATED = 'racetime_bot.updated'
+    RACETIME_BOT_DELETED = 'racetime_bot.deleted'
+    RACETIME_BOT_GRANTED = 'racetime_bot.granted'
+    RACETIME_BOT_REVOKED = 'racetime_bot.revoked'
+    RACE_ROOM_PROFILE_CREATED = 'race_room_profile.created'
+    RACE_ROOM_PROFILE_UPDATED = 'race_room_profile.updated'
+    RACE_ROOM_PROFILE_DELETED = 'race_room_profile.deleted'
+
+    # Racetime bot runtime health (platform-level, tenant=NULL; audit-only —
+    # written by the racetimebot/ connection loop as the system user)
+    RACETIME_BOT_CONNECTED = 'racetime_bot.connected'
+    RACETIME_BOT_DISCONNECTED = 'racetime_bot.disconnected'
+    RACETIME_BOT_ERROR = 'racetime_bot.error'
+    RACETIME_BOT_RESTARTED = 'racetime_bot.restarted'
+
+    # Racetime race-room lifecycle (tenant-scoped; mirrored on the event bus as
+    # ``race_room.*`` domain events — the system user is the actor)
+    RACE_ROOM_CREATED = 'race_room.created'
+    RACE_ROOM_OPENED = 'race_room.opened'
+    RACE_ROOM_STARTED = 'race_room.started'
+    RACE_ROOM_FINISHED = 'race_room.finished'
+    RACE_ROOM_CANCELLED = 'race_room.cancelled'
+    RACE_ROOM_RESULT_RECORDED = 'race_room.result_recorded'
+
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'
@@ -144,6 +186,57 @@ class AuditActions:
     # Web push (device notifications)
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'
     WEB_PUSH_UNSUBSCRIBED = 'web_push.unsubscribed'
+
+    # Presets (seed-rolling settings)
+    PRESET_CREATED = 'preset.created'
+    PRESET_UPDATED = 'preset.updated'
+    PRESET_DELETED = 'preset.deleted'
+    PRESET_IMPORTED = 'preset.imported'
+
+    # SpeedGaming ETL (PR 7). Config CRUD is tenant-scoped, actor = a human
+    # SYNC_ADMIN; the sync/import/skip/cancel/auto-finish rows are written by the
+    # sync worker acting as the system user, tenant from ``tenant_scope``.
+    SG_EVENT_LINK_CREATED = 'sg_sync.event_link_created'
+    SG_EVENT_LINK_UPDATED = 'sg_sync.event_link_updated'
+    SG_EVENT_LINK_DELETED = 'sg_sync.event_link_deleted'
+    SG_SYNC_COMPLETED = 'sg_sync.completed'
+    SG_SYNC_FAILED = 'sg_sync.failed'
+    SG_EPISODE_IMPORTED = 'sg_sync.episode_imported'
+    SG_EPISODE_SKIPPED = 'sg_sync.episode_skipped'
+    SG_EPISODE_CANCELLED = 'sg_sync.episode_cancelled'
+    SG_MATCH_AUTO_FINISHED = 'sg_sync.match_auto_finished'
+    SG_PLACEHOLDER_CREATED = 'sg_sync.placeholder_created'
+    SG_PLACEHOLDER_UPGRADED = 'sg_sync.placeholder_upgraded'
+
+    # Async Qualifiers (PR 9). A peer aggregate of Tournament: qualifier/pool/
+    # permalink authoring and the per-qualifier ``admins`` grants are tenant-
+    # internal config (event-less); the run submitted/reviewed outcomes DO emit
+    # events for subscribers (see EventType.ASYNC_QUALIFIER_RUN_*). The actor is
+    # a human QUALIFIER_ADMIN for management/review and the running player for
+    # start/submit/forfeit/reattempt.
+    ASYNC_QUALIFIER_CREATED = 'async_qualifier.created'
+    ASYNC_QUALIFIER_UPDATED = 'async_qualifier.updated'
+    ASYNC_QUALIFIER_DELETED = 'async_qualifier.deleted'
+    ASYNC_QUALIFIER_ADMIN_GRANTED = 'async_qualifier.admin_granted'
+    ASYNC_QUALIFIER_ADMIN_REVOKED = 'async_qualifier.admin_revoked'
+    ASYNC_QUALIFIER_POOL_CREATED = 'async_qualifier.pool_created'
+    ASYNC_QUALIFIER_POOL_UPDATED = 'async_qualifier.pool_updated'
+    ASYNC_QUALIFIER_POOL_DELETED = 'async_qualifier.pool_deleted'
+    ASYNC_QUALIFIER_PERMALINK_ADDED = 'async_qualifier.permalink_added'
+    ASYNC_QUALIFIER_PERMALINK_UPDATED = 'async_qualifier.permalink_updated'
+    ASYNC_QUALIFIER_PERMALINK_DELETED = 'async_qualifier.permalink_deleted'
+    ASYNC_QUALIFIER_RUN_STARTED = 'async_qualifier.run_started'
+    ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
+    ASYNC_QUALIFIER_RUN_FORFEITED = 'async_qualifier.run_forfeited'
+    ASYNC_QUALIFIER_RUN_REATTEMPTED = 'async_qualifier.run_reattempted'
+    ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+    # Async Qualifier live races (PR 10). Create/open/cancel are tenant-internal
+    # scheduling (event-less); recording the finished race captures runs and DOES
+    # emit an event (see EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED).
+    ASYNC_QUALIFIER_LIVE_RACE_CREATED = 'async_qualifier.live_race_created'
+    ASYNC_QUALIFIER_LIVE_RACE_OPENED = 'async_qualifier.live_race_opened'
+    ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
+    ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
 
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'

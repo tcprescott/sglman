@@ -2,6 +2,14 @@
 
 > Feature 5 prerequisite. Roadmap phase 2. Small, self-contained; mirrors the
 > existing Twitch/Challonge identity links almost exactly.
+>
+> **Status: implemented.** Global `User.racetime_user_id` (unique) / `racetime_username`
+> / `racetime_linked_at` (identity only, token discarded); `RacetimeService` + one-time
+> OAuth (`pages/racetime_oauth.py`) mirroring the Twitch flow; profile "racetime.gg"
+> link/unlink card; `MockRacetimeClient` under `MOCK_RACETIME` (production-refused);
+> `RACETIME_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI` env (distinct from the PR 3 bot
+> credentials); audited `racetime.linked`/`racetime.unlinked`; migration 23; service +
+> uniqueness tests. Bot connection / room lifecycle stay in PR 3/4/6.
 
 **Goal:** a user links their racetime.gg identity to their global `User`, so race
 results attribute cleanly and auto-open eligibility can be checked.

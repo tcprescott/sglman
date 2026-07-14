@@ -46,9 +46,13 @@ from models import (
     VolunteerPosition, VolunteerProfile, VolunteerShift,
     VolunteerAssignment, VolunteerQualification,
     VolunteerAvailability, VolunteerAvailabilityStatus,
+    RacetimeBot,
 )
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_eastern, parse_eastern_datetime
+from scripts.seed_online import (
+    link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
+)
 
 
 # Two dev tenants. Tenant A reuses the migration's ``default`` slug; on a fresh
@@ -77,11 +81,14 @@ async def seed_users() -> dict[str, User]:
             defaults={"username": username, "display_name": display_name, "is_active": True},
         )
         users[username] = u
+    await link_racetime_identities(users)
     print("  users ok (global)")
     return users
 
 
-async def seed_for_tenant(tenant: Tenant, users: dict[str, User]) -> None:
+async def seed_for_tenant(
+    tenant: Tenant, users: dict[str, User], bots: dict[str, RacetimeBot]
+) -> None:
     """Seed all tenant-scoped fixtures for one tenant.
 
     ``tenant`` is threaded through every scoped create/get_or_create (both the
@@ -295,6 +302,11 @@ async def seed_for_tenant(tenant: Tenant, users: dict[str, User]) -> None:
             defaults={"match_notifications": MatchNotificationLevel.ALL},
         )
         print(f"    [{tenant.slug}] match extras ok")
+
+        # --- Online tournaments: presets, racetime config & rooms -----------
+        await seed_online_for_tenant(
+            tenant, tournament, scheduled_match, finished_match, bots
+        )
 
         # --- Crew signups (commentators / trackers) -------------------------
         sm = users["sm_user"]
@@ -597,15 +609,23 @@ async def seed_for_tenant(tenant: Tenant, users: dict[str, User]) -> None:
             tournament.challonge_last_synced_at = now_utc
             await tournament.save()
 
-        await ChallongeConnection.get_or_create(
+        # A near-expiry token so the service-health board / tenant subset (PR 5)
+        # has a live credential-warning to render. Heal older rows that predate the
+        # expiry column too, so a re-seed against an existing dev DB still shows it.
+        challonge_expiry = now_utc + timedelta(days=2)
+        conn, _ = await ChallongeConnection.get_or_create(
             challonge_username="sgl_service", tenant=tenant,
             defaults={
                 "access_token": "dev-access-token-not-real",
                 "refresh_token": "dev-refresh-token-not-real",
                 "scopes": "me tournaments:read tournaments:write",
+                "token_expires_at": challonge_expiry,
                 "connected_by": staff,
             },
         )
+        if conn.token_expires_at is None:
+            conn.token_expires_at = challonge_expiry
+            await conn.save()
 
         participants: dict[str, ChallongeParticipant] = {}
         participant_specs = [
@@ -663,6 +683,7 @@ async def seed() -> None:
     await Tortoise.init(config=TORTOISE_ORM)
     try:
         users = await seed_users()
+        bots = await seed_racetime_bots()
         for slug, name, guild_id, _label in TENANT_SPECS:
             tenant, created = await Tenant.get_or_create(
                 slug=slug, defaults={"name": name, "discord_guild_id": guild_id},
@@ -674,7 +695,7 @@ async def seed() -> None:
                 tenant.discord_guild_id = guild_id
                 await tenant.save()
             print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
-            await seed_for_tenant(tenant, users)
+            await seed_for_tenant(tenant, users, bots)
     finally:
         await Tortoise.close_connections()
     print("Seeding complete.")

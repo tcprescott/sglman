@@ -120,12 +120,13 @@ Every top-level entry in the repository, with the doc that covers it:
 | `main.py` | App entry point: lifespan, DB init, bot init, router mounting | this doc |
 | `frontend.py` | NiceGUI ↔ FastAPI integration, static files, page registration | [reference/frontend.md](reference/frontend.md) |
 | `api/` | Public REST API (routers, Pydantic schemas, token auth, rate limiting) | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` | All Tortoise ORM models (36) and enums (9) | [reference/data-model.md](reference/data-model.md) |
+| `models.py` | All Tortoise ORM models (43) and enums (11) | [reference/data-model.md](reference/data-model.md) |
 | `application/services/` | Business-logic layer (30 modules) | [reference/services.md](reference/services.md) |
 | `application/repositories/` | Data-access layer (25 repositories) | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` | Timezone, environment validation, CSV export, Challonge client, QR codes, Sentry, mock-Discord/Challonge flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
 | `middleware/` | `auth.py` (`protected_page` + `AuthMiddleware` route protection), `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md) |
 | `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
+| `racetimebot/` | Racetime bot runtime (peer of `discordbot/`): lifespan-managed connection per active `RacetimeBot` category, first-class health tracking, tenant-routed room-event handlers; gated by `RACETIME_BOT_ENABLED`, mockable via `MOCK_RACETIME` | [reference/services.md](reference/services.md#racetimebot--the-racetime-bot-runtime-pr-4) |
 | `pages/` | NiceGUI pages: home (7 tabs), admin (role-gated tabs), volunteer, equipment, `auth.py` (Discord OAuth login + dev mock login), `challonge_oauth.py` (Challonge OAuth) | [reference/frontend.md](reference/frontend.md), [reference/authentication.md](reference/authentication.md) |
 | `theme/` | `base.py` layout shell, `dialog/` (dialogs), `tables/` (table views), `realtime.py` | [reference/frontend.md](reference/frontend.md) |
 | `static/` | CSS (and other static assets) served at `/static` | [reference/frontend.md](reference/frontend.md) |

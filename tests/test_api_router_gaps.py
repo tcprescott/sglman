@@ -413,7 +413,7 @@ class TestGenerateSeed:
             assert 'No seed generator' in resp.json()['detail']
 
     async def test_generate_seed_success(self, db, app, monkeypatch):
-        async def _fake_generate_seed(self, randomizer):
+        async def _fake_generate_seed(self, randomizer, preset=None):
             return 'https://example.com/generated-seed'
 
         monkeypatch.setattr(

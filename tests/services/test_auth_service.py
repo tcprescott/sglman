@@ -410,6 +410,76 @@ class TestViewAdmin:
             await AuthService.ensure(False, "custom message")
 
 
+# ---------------------------------------------------------------------------
+# Online-tournament foundation roles (PR 0)
+# ---------------------------------------------------------------------------
+
+
+def make_system_user(user_id: int = 7):
+    """The reserved automation actor — marked ``is_system``."""
+    return SimpleNamespace(id=user_id, is_system=True)
+
+
+class TestOnlineTournamentRoles:
+    async def test_is_system_field_check(self):
+        assert AuthService.is_system(make_system_user()) is True
+        assert AuthService.is_system(make_user()) is False  # no is_system attr → False
+        assert AuthService.is_system(None) is False
+
+    async def test_preset_manager_role_grants(self, patch_roles):
+        patch_roles({Role.PRESET_MANAGER})
+        assert await AuthService.can_manage_presets(make_user()) is True
+
+    async def test_staff_grants_preset_management(self, patch_roles):
+        patch_roles({Role.STAFF})
+        assert await AuthService.can_manage_presets(make_user()) is True
+
+    async def test_unrelated_role_denies_preset_management(self, patch_roles):
+        patch_roles({Role.VOLUNTEER})
+        assert await AuthService.can_manage_presets(make_user()) is False
+
+    async def test_system_user_bypasses_preset_gate(self, patch_roles):
+        # No roles at all, but the system actor is always authorized.
+        patch_roles(set())
+        assert await AuthService.can_manage_presets(make_system_user()) is True
+
+    async def test_sync_admin_role_grants(self, patch_roles):
+        patch_roles({Role.SYNC_ADMIN})
+        assert await AuthService.can_manage_sync(make_user()) is True
+
+    async def test_unrelated_role_denies_sync_management(self, patch_roles):
+        patch_roles({Role.PRESET_MANAGER})
+        assert await AuthService.can_manage_sync(make_user()) is False
+
+    async def test_system_user_bypasses_sync_gate(self, patch_roles):
+        patch_roles(set())
+        assert await AuthService.can_manage_sync(make_system_user()) is True
+
+    async def test_qualifier_admin_role_grants(self, patch_roles):
+        patch_roles({Role.QUALIFIER_ADMIN})
+        assert await AuthService.can_admin_qualifier(make_user()) is True
+
+    async def test_unrelated_role_denies_qualifier_admin(self, patch_roles):
+        patch_roles({Role.PRESET_MANAGER})
+        assert await AuthService.can_admin_qualifier(make_user()) is False
+
+    async def test_per_entity_admin_grants_qualifier_admin(self, patch_roles):
+        # No global qualifier role, but the user is listed on this qualifier's
+        # admins M2M — the forward-compatible per-entity path.
+        patch_roles(set())
+        qualifier = SimpleNamespace(admins=SimpleNamespace(filter=lambda **_: _ExistsQS(True)))
+        assert await AuthService.can_admin_qualifier(make_user(), qualifier) is True
+
+    async def test_non_admin_of_specific_qualifier_denied(self, patch_roles):
+        patch_roles(set())
+        qualifier = SimpleNamespace(admins=SimpleNamespace(filter=lambda **_: _ExistsQS(False)))
+        assert await AuthService.can_admin_qualifier(make_user(), qualifier) is False
+
+    async def test_system_user_bypasses_qualifier_gate(self, patch_roles):
+        patch_roles(set())
+        assert await AuthService.can_admin_qualifier(make_system_user()) is True
+
+
 class TestGetUserFromDiscordId:
     async def test_none_discord_id_returns_none(self):
         assert await get_user_from_discord_id(None) is None

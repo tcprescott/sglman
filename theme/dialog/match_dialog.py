@@ -3,10 +3,13 @@ from typing import Awaitable, Callable
 from nicegui import app, background_tasks, context, ui
 
 from application.services import (
+    AuthService,
     CrewService,
     MatchService,
     MatchSuggestionService,
     MatchWatcherService,
+    RaceRoomService,
+    RacetimeRoomService,
     StreamRoomService,
     TournamentService,
     UserService,
@@ -302,6 +305,44 @@ class AdminMatchDialog(BaseMatchDialog):
     def __init__(self, match=None, on_submit=None):
         super().__init__(match, on_submit)
 
+    async def _render_racetime_room_section(self):
+        """Show the match's racetime room, or a manual-create button for it.
+
+        Manual creation is gated on ``can_manage_sync`` (STAFF / SYNC_ADMIN) and
+        works regardless of the tournament's auto-open toggle. The section is
+        omitted entirely when the tournament has no racetime bot configured.
+        """
+        tournament = await self.tournament_service.get_tournament_by_id(self.match.tournament_id)
+        if tournament is None or tournament.racetime_bot_id is None:
+            return
+        existing = await RacetimeRoomService().get_for_match(self.match)
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        can_sync = await AuthService.can_manage_sync(actor)
+        with ui.column().classes('gap-1'):
+            ui.label('Racetime Room').classes('text-bold')
+            if existing is not None:
+                ui.label(f'{existing.slug} — {existing.status.value}').classes('text-grey-7')
+                return
+            if not can_sync:
+                ui.label('No room yet.').classes('text-grey-6')
+                return
+            match_id = self.match.id
+
+            async def create_room():
+                try:
+                    await RaceRoomService().manual_create_room(actor, match_id)
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify('Racetime room created', color='positive')
+                self.dialog.close()
+                if self.on_submit:
+                    await self.on_submit(self.match)
+
+            ui.button(
+                'Create racetime room', icon='sports_esports', on_click=create_room,
+            ).props('outline color=secondary')
+
     async def open(self):
         users = await self.user_service.get_all_users()
         stream_rooms = await self.stream_room_service.get_all_stream_rooms()
@@ -328,6 +369,21 @@ class AdminMatchDialog(BaseMatchDialog):
             dialog_header(title, dialog)
             with ui.column().classes('q-pa-md gap-2'):
                 ui.label('* required').classes('required-legend')
+
+                # SpeedGaming read-only contract (PR 7): a match materialized from
+                # an SG episode has read-only ETL-owned fields (schedule / players
+                # / tournament). Surface a badge and disable those inputs; the
+                # service-layer guard is the actual enforcement.
+                is_sg_sourced = self.match is not None and getattr(
+                    self.match, 'speedgaming_episode_id', None
+                ) is not None
+                if is_sg_sourced:
+                    with ui.row().classes('items-center gap-2'):
+                        ui.badge('Synced from SpeedGaming').props('color=primary')
+                        ui.label(
+                            'Schedule, players, and tournament are read-only — '
+                            'updated by the next SpeedGaming sync.'
+                        ).classes('text-caption text-grey')
 
                 selected_tournament = self._render_tournament_select(tournaments, defaults['tournament'])
 
@@ -394,6 +450,15 @@ class AdminMatchDialog(BaseMatchDialog):
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
 
+                # Lock the ETL-owned inputs on a sourced match (after the initial
+                # option population, which re-enables the players select).
+                if is_sg_sourced:
+                    selected_tournament.disable()
+                    selected_players.disable()
+                    choose_any_players.disable()
+                    date.disable()
+                    time.disable()
+
                 def get_player_ids():
                     pids = selected_players.value
                     if isinstance(pids, list):
@@ -441,6 +506,9 @@ class AdminMatchDialog(BaseMatchDialog):
                                     else:
                                         ui.icon('schedule').classes('st-pending')
                                         ui.label(f'{ack.user.preferred_name} — pending').classes('text-grey-6')
+
+                if self.match:
+                    await self._render_racetime_room_section()
 
             async def submit():
                 tournament_id = selected_tournament.value

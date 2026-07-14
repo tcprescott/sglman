@@ -12,10 +12,23 @@ class Role(str, Enum):
     VOLUNTEER_COORDINATOR = 'volunteer_coordinator'
     EQUIPMENT_MANAGER = 'equipment_manager'
     VOLUNTEER = 'volunteer'
+    # Online-tournament admin surfaces (see docs/online-tournaments). Each gates a
+    # new subsystem's management UI/worker actions the way STAFF does the rest.
+    PRESET_MANAGER = 'preset_manager'
+    SYNC_ADMIN = 'sync_admin'
+    QUALIFIER_ADMIN = 'qualifier_admin'
     # Global platform role: manages tenants on the /platform surface. Its
     # UserRole rows carry tenant=NULL (the only role that may) and stay visible
     # inside any tenant request. Not grantable per-tenant.
     SUPER_ADMIN = 'super_admin'
+
+
+# Sentinel ``discord_id`` for the reserved system :class:`User` that automation
+# (workers, racetime/Discord bot handlers, ETL, qualifier scoring) acts as. A
+# real snowflake is always a large positive integer, so ``0`` can never collide
+# with a genuine Discord account. The row is marked ``is_system`` and resolved
+# via ``UserService.get_system_user()``.
+SYSTEM_USER_DISCORD_ID = 0
 
 
 class RoleSource(str, Enum):
@@ -109,13 +122,24 @@ class TenantMembership(Model):
 
 class User(Model):
     id = fields.IntField(pk=True)
-    discord_id = fields.BigIntField(unique=True)
+    # Nullable+unique (Postgres allows many NULLs) so an unresolved SpeedGaming
+    # player can exist as a *placeholder* User (``is_placeholder=True``,
+    # ``discord_id=NULL``) — keeping ``MatchPlayers.user`` NOT NULL. A DB CHECK
+    # (``discord_id IS NOT NULL OR is_placeholder``) enforces that only
+    # placeholders may lack a discord id; see migration 26. A placeholder is
+    # *upgraded in place* to a real User when its ``discord_id`` later appears.
+    discord_id = fields.BigIntField(unique=True, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
     username = fields.CharField(max_length=150)
     display_name = fields.CharField(max_length=150, null=True)
     pronouns = fields.CharField(max_length=50, null=True)
     is_active = fields.BooleanField(default=True)
+    # Marks the single reserved automation actor (sentinel ``discord_id`` =
+    # ``SYSTEM_USER_DISCORD_ID``). Workers/bots pass this row as ``actor`` so
+    # audit rows snapshot a real username instead of a bare sentinel. Resolve it
+    # via ``UserService.get_system_user()``, never construct it ad hoc.
+    is_system = fields.BooleanField(default=False)
     dm_notifications = fields.BooleanField(default=True)
     # Verified Challonge identity (captured via one-time OAuth, scope ``me``).
     # Identity only — we do not retain a player's Challonge access token.
@@ -131,6 +155,20 @@ class User(Model):
     twitch_user_id = fields.CharField(max_length=64, null=True, unique=True)
     twitch_username = fields.CharField(max_length=255, null=True)
     twitch_linked_at = fields.DatetimeField(null=True)
+    # Verified racetime.gg identity (captured via one-time OAuth, read scope).
+    # Identity only — we do not retain a user's racetime access token. Unique so a
+    # racetime id resolves to exactly one user (Postgres allows multiple NULLs, so
+    # unlinked users are unconstrained).
+    racetime_user_id = fields.CharField(max_length=64, null=True, unique=True)
+    racetime_username = fields.CharField(max_length=255, null=True)
+    racetime_linked_at = fields.DatetimeField(null=True)
+    # Placeholder identity (SpeedGaming ETL, PR 7). A player the SG sync could not
+    # resolve to a real account becomes a placeholder User so its ``MatchPlayers``
+    # row is still first-class. ``speedgaming_id`` is the SG-side numeric id used
+    # to re-find the same placeholder across syncs; unique so an SG id maps to one
+    # User (Postgres allows many NULLs, so non-SG users are unconstrained).
+    is_placeholder = fields.BooleanField(default=False)
+    speedgaming_id = fields.CharField(max_length=64, null=True, unique=True)
 
     # related fields
     admin_tournaments = fields.ManyToManyRelation["Tournament"]
@@ -298,6 +336,45 @@ class Tournament(Model):
     challonge_tournament_id = fields.CharField(max_length=64, null=True)
     challonge_tournament_url = fields.CharField(max_length=255, null=True)
     challonge_last_synced_at = fields.DatetimeField(null=True)
+    # Hybrid config substrate (see docs/online-tournaments): worker-queried knobs
+    # stay typed columns; templates, scoring params, and strategy choices live in
+    # this schema-validated JSON blob. Written only through the service layer,
+    # which validates it with ``validate_tournament_config`` (unknown keys raise
+    # ``ValueError``). ``null`` until a tournament opts into online behavior.
+    config = fields.JSONField(null=True)
+    # Seed-rolling preset (PR 1+). Coexists with the legacy ``seed_generator``
+    # string: when this FK is set it wins (seed generation resolves the preset's
+    # randomizer + settings); otherwise ``seed_generator`` still drives the
+    # hard-coded path. SET_NULL so deleting a preset detaches its tournaments
+    # rather than cascade-deleting them.
+    preset = fields.ForeignKeyField(
+        'models.Preset', related_name='tournaments', null=True, on_delete=fields.SET_NULL
+    )
+    # Racetime room automation (PR 3+). ``racetime_bot`` must be a category the
+    # tenant is authorized for (enforced in the service); SET_NULL so revoking a
+    # bot detaches its tournaments rather than deleting them. ``race_room_profile``
+    # supplies reusable room settings. The remaining knobs are worker-queried, so
+    # they are typed columns rather than living in ``config``.
+    racetime_bot = fields.ForeignKeyField(
+        'models.RacetimeBot', related_name='tournaments', null=True, on_delete=fields.SET_NULL
+    )
+    race_room_profile = fields.ForeignKeyField(
+        'models.RaceRoomProfile', related_name='tournaments', null=True, on_delete=fields.SET_NULL
+    )
+    racetime_auto_create_rooms = fields.BooleanField(default=False)
+    room_open_minutes_before = fields.IntField(default=30)
+    require_racetime_link = fields.BooleanField(default=False)
+    racetime_default_goal = fields.CharField(max_length=255, null=True)
+    # Discord Scheduled Events mirror (PR 8). Per-tournament opt-in: when enabled,
+    # the reconciler worker mirrors this tournament's scheduled matches into the
+    # tenant guild's Discord Scheduled Events. ``discord_event_duration_minutes``
+    # sets each external event's end time; the templates (nullable — a built-in
+    # default is used when unset) render the event title/description from match
+    # data (``{tournament}`` / ``{match}`` / ``{players}`` placeholders).
+    discord_events_enabled = fields.BooleanField(default=False)
+    discord_event_duration_minutes = fields.IntField(default=60)
+    discord_event_title_template = fields.CharField(max_length=255, null=True)
+    discord_event_description_template = fields.TextField(null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',
@@ -335,6 +412,15 @@ class Match(Model):
     title = fields.CharField(max_length=255, null=True)
     generated_seed = fields.ForeignKeyField(
         'models.GeneratedSeeds', related_name='matches', null=True, on_delete=fields.SET_NULL
+    )
+    # Source marker for the SpeedGaming ETL (PR 7). Non-null = this Match was
+    # materialized from an SG episode, which makes the ETL-owned fields
+    # (``scheduled_at``, players, ``tournament``) read-only in SGLMan — the guard
+    # lives in ``MatchService.update_match``. SET_NULL so purging a synced episode
+    # soft-detaches the Match (everything SGLMan added on top survives) rather
+    # than cascade-deleting it. OneToOne: an episode maps to exactly one Match.
+    speedgaming_episode = fields.OneToOneField(
+        'models.SpeedGamingEpisode', related_name='match', null=True, on_delete=fields.SET_NULL
     )
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -381,6 +467,10 @@ class MatchPlayers(Model):
     match = fields.ForeignKeyField('models.Match', related_name='players')
     user = fields.ForeignKeyField('models.User', related_name='match_players')
     finish_rank = fields.IntField(null=True)
+    # Elapsed finish time in whole seconds, captured from a racetime room result
+    # (PR 6). Null for non-finishers (forfeit / no-show / DQ) and for matches not
+    # run through a race room. ``finish_rank`` remains the place (1 = winner).
+    finish_time = fields.IntField(null=True)
     assigned_station = fields.CharField(max_length=50, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -564,6 +654,33 @@ class GeneratedSeeds(Model):
     seed_info = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+class Preset(Model):
+    """A tenant-authored seed-rolling preset: a named randomizer settings blob.
+
+    Replaces the hard-coded ``presets/*`` files as the source of seed settings —
+    seed generation resolves a ``Preset`` (its ``randomizer`` + ``settings``)
+    rather than opening a path. The built-in files can be imported as starting
+    rows (see ``PresetService.import_builtins``). ``settings`` is the raw payload
+    handed to the randomizer backend (for ALTTPR, the customizer settings dict).
+    """
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='presets', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    randomizer = fields.CharField(max_length=32)
+    settings = fields.JSONField()
+    description = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    tournaments = fields.ReverseRelation["Tournament"]
+
+    class Meta:
+        table = 'preset'
+        # Formerly-global preset names are namespaced per tenant; a preset is
+        # uniquely a (randomizer, name) within its tenant.
+        unique_together = (('tenant', 'randomizer', 'name'),)
 
 class SystemConfiguration(Model):
     id = fields.IntField(pk=True)
@@ -959,3 +1076,555 @@ class ChallongeApiUsage(Model):
     class Meta:
         table = 'challongeapiusage'
         unique_together = (('tenant', 'period'),)
+
+
+class BotStatus(str, Enum):
+    """Health of a racetime bot's websocket connection.
+
+    The values are *written* by the PR 4 runtime (heartbeat/connect/error) and
+    read by the platform health surface; in this PR the column exists but stays
+    at its ``UNKNOWN`` default.
+    """
+
+    UNKNOWN = 'unknown'
+    CONNECTED = 'connected'
+    DISCONNECTED = 'disconnected'
+    ERROR = 'error'
+
+
+class RaceRoomStatus(str, Enum):
+    """Cached racetime room lifecycle state (written by PR 4/6)."""
+
+    OPEN = 'open'
+    IN_PROGRESS = 'in_progress'
+    FINISHED = 'finished'
+    CANCELLED = 'cancelled'
+
+
+class RacetimeBot(Model):
+    """A shared, platform-managed racetime.gg bot for one game category.
+
+    **Global** (no ``tenant`` FK) like the Discord token and VAPID keys: one bot
+    per racetime category, holding that category's OAuth client credentials.
+    SUPER_ADMIN authorizes tenants to use it through :class:`RacetimeBotTenant`.
+    ``client_secret`` is a privileged secret — never surfaced to a tenant-facing
+    response or logged. The websocket connection and the health-field *writes*
+    land in PR 4; here the record and its admin surface exist.
+    """
+
+    id = fields.IntField(pk=True)
+    category = fields.CharField(max_length=64, unique=True)
+    client_id = fields.CharField(max_length=255)
+    client_secret = fields.CharField(max_length=255)
+    name = fields.CharField(max_length=255)
+    description = fields.TextField(null=True)
+    is_active = fields.BooleanField(default=True)
+    handler_class = fields.CharField(max_length=255, null=True)
+    # Health fields — written by the PR 4 runtime, read by the platform health
+    # page. Default to UNKNOWN until a live connection reports otherwise.
+    status = fields.CharEnumField(BotStatus, default=BotStatus.UNKNOWN, max_length=20)
+    status_message = fields.TextField(null=True)
+    last_connected_at = fields.DatetimeField(null=True)
+    last_checked_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    tenant_grants = fields.ReverseRelation["RacetimeBotTenant"]
+    rooms = fields.ReverseRelation["RacetimeRoom"]
+    tournaments = fields.ReverseRelation["Tournament"]
+
+    class Meta:
+        table = 'racetimebot'
+
+
+class RacetimeBotTenant(Model):
+    """SUPER_ADMIN authorization grant: a :class:`RacetimeBot` usable by a tenant.
+
+    **Many-to-many** — a tenant may hold several categories; a category serves
+    many tenants. Created on ``/platform`` with explicit ids (no ambient tenant
+    scope); ``is_active`` lets a grant be suspended without deleting it.
+    """
+
+    id = fields.IntField(pk=True)
+    bot = fields.ForeignKeyField('models.RacetimeBot', related_name='tenant_grants', on_delete=fields.CASCADE)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='racetime_bot_grants', on_delete=fields.CASCADE)
+    is_active = fields.BooleanField(default=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'racetimebottenant'
+        unique_together = (('bot', 'tenant'),)
+
+
+class RaceRoomProfile(Model):
+    """Reusable racetime room settings a tournament can point at.
+
+    Tenant-scoped; managed by ``SYNC_ADMIN``. These values become the racetime
+    ``startrace`` parameters when the PR 4/6 room-creation flow opens a room, so
+    a community defines its house rules once and reuses them across tournaments.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='race_room_profiles', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    goal = fields.CharField(max_length=255, null=True)
+    invitational = fields.BooleanField(default=False)
+    unlisted = fields.BooleanField(default=False)
+    auto_start = fields.BooleanField(default=True)
+    allow_comments = fields.BooleanField(default=True)
+    allow_midrace_chat = fields.BooleanField(default=True)
+    allow_non_entrant_chat = fields.BooleanField(default=True)
+    chat_message_delay = fields.IntField(default=0)  # seconds
+    start_delay = fields.IntField(default=15)  # seconds before an auto-started race begins
+    time_limit = fields.IntField(default=24)  # hours before the room auto-closes
+    streaming_required = fields.BooleanField(default=False)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    tournaments = fields.ReverseRelation["Tournament"]
+
+    class Meta:
+        table = 'raceroomprofile'
+        unique_together = (('tenant', 'name'),)
+
+
+class RacetimeRoom(Model):
+    """A racetime.gg race room record — its own model, not a slug on ``Match``.
+
+    ``slug`` is **globally unique + indexed**: inbound racetime events carry only
+    the slug (no tenant), so the reverse lookup is deliberately *unscoped* for
+    tenant routing (see :class:`RacetimeRoomRepository.get_by_slug`, mirroring the
+    ``ApiToken``→tenant pattern). Room creation and status *writes* land in
+    PR 4/6; this PR defines the record.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='racetime_rooms', on_delete=fields.CASCADE)
+    # SET_NULL: removing a bot must not erase the history of rooms it opened.
+    bot = fields.ForeignKeyField(
+        'models.RacetimeBot', related_name='rooms', null=True, on_delete=fields.SET_NULL
+    )
+    slug = fields.CharField(max_length=255, unique=True, index=True)
+    category = fields.CharField(max_length=64)
+    room_name = fields.CharField(max_length=255, null=True)
+    status = fields.CharEnumField(RaceRoomStatus, default=RaceRoomStatus.OPEN, max_length=20)
+    # SET_NULL: deleting a match detaches its room record rather than dropping it.
+    match = fields.OneToOneField(
+        'models.Match', related_name='racetime_room', null=True, on_delete=fields.SET_NULL
+    )
+    opened_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'racetimeroom'
+        indexes = (('match',),)
+
+
+class SyncStatus(str, Enum):
+    """Reconciliation state of a synced SpeedGaming episode (PR 7).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member (which repr's as ``SyncStatus.SYNCED``).
+    """
+
+    PENDING = 'pending'      # discovered upstream, not yet materialized
+    SYNCED = 'synced'        # materialized/refreshed into a Match this cycle
+    SKIPPED = 'skipped'      # a lifecycle guard held the refresh back
+    CANCELLED = 'cancelled'  # upstream episode gone; the Match soft-detached
+    ERROR = 'error'          # transform/load failed (see ``sync_error``)
+
+
+class SpeedGamingEventLink(Model):
+    """Config row wiring an SG event slug to a tenant tournament (PR 7).
+
+    Tenant-scoped. The sync worker iterates the *active* links, polls the SG
+    schedule API for each ``event_slug`` over a forward window, and materializes
+    the returned episodes into the linked tournament's ``Match`` rows. The
+    observability fields (``last_synced_at`` / ``last_status`` / ``last_error``)
+    make sync health visible in the admin UI without reading the audit log.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='sg_event_links', on_delete=fields.CASCADE)
+    tournament = fields.ForeignKeyField('models.Tournament', related_name='sg_event_links', on_delete=fields.CASCADE)
+    event_slug = fields.CharField(max_length=128)
+    # Optional SG ``content_type`` filter (a specific bracket within an event).
+    content_type = fields.CharField(max_length=64, null=True)
+    active = fields.BooleanField(default=True)
+    # Poll cadence; the worker skips a link whose ``last_synced_at`` is newer.
+    sync_interval_minutes = fields.IntField(default=15)
+    # How far ahead (hours) to pull episodes on each poll.
+    lookahead_hours = fields.IntField(default=72)
+    last_synced_at = fields.DatetimeField(null=True)
+    last_status = fields.CharField(max_length=32, null=True)
+    last_error = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    episodes = fields.ReverseRelation["SpeedGamingEpisode"]
+
+    class Meta:
+        table = 'speedgamingeventlink'
+        unique_together = (('tenant', 'tournament', 'event_slug'),)
+        indexes = (('tenant',), ('tournament',))
+
+
+class SpeedGamingEpisode(Model):
+    """A synced SpeedGaming schedule episode — the ETL staging record (PR 7).
+
+    Tenant-scoped, unique ``(tenant, sg_episode_id)``. Holds the raw upstream
+    payload snapshot plus a ``content_hash`` so an unchanged re-sync is a cheap
+    no-op. The materialized SGLMan ``Match`` is reachable via the reverse of
+    ``Match.speedgaming_episode`` (that FK is the canonical source marker; there
+    is no second column here).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='sg_episodes', on_delete=fields.CASCADE)
+    event_link = fields.ForeignKeyField(
+        'models.SpeedGamingEventLink', related_name='episodes', null=True, on_delete=fields.SET_NULL
+    )
+    sg_episode_id = fields.CharField(max_length=64)
+    title = fields.CharField(max_length=255, null=True)
+    scheduled_at = fields.DatetimeField(null=True)
+    payload = fields.JSONField(null=True)
+    content_hash = fields.CharField(max_length=64, null=True)
+    sync_status = fields.CharEnumField(SyncStatus, default=SyncStatus.PENDING, max_length=20)
+    synced_at = fields.DatetimeField(null=True)
+    sync_error = fields.TextField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields — the materialized Match (reverse of Match.speedgaming_episode)
+    match: fields.ReverseRelation["Match"]
+
+    class Meta:
+        table = 'speedgamingepisode'
+        unique_together = (('tenant', 'sg_episode_id'),)
+        indexes = (('tenant',), ('event_link',))
+
+
+class DiscordEventSource(str, Enum):
+    """What SGLMan schedule row a mirrored Discord event came from (PR 8).
+
+    The ``DiscordScheduledEvent`` link is polymorphic: ``(source_type, source_id)``
+    identifies the SGLMan row a Discord Scheduled Event mirrors. Today only
+    ``MATCH`` is materialized (native + SG-imported matches both live in ``Match``);
+    qualifier windows / live races join later without a schema change.
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings.
+    """
+
+    MATCH = 'match'
+
+
+class DiscordScheduledEvent(Model):
+    """A Discord Scheduled Event mirrored from an SGLMan schedule row (PR 8).
+
+    Tenant-scoped reconciliation link. The reconciler keeps the tenant guild's
+    Scheduled Events in sync with its schedule: ``content_hash`` drives
+    update-vs-noop, and the working set is **only this tenant's own rows** —
+    never every event in the guild — so a shared guild never has a sibling
+    tenant's events cancelled (``discord_guild_id`` is not unique).
+
+    Uniqueness: ``discord_event_id`` is globally unique (one link per Discord
+    event); ``(tenant, source_type, source_id)`` is unique for idempotency (one
+    mirrored event per source row).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='discord_scheduled_events', on_delete=fields.CASCADE)
+    # The guild the event lives in, snapshotted from ``Tenant.discord_guild_id``
+    # at creation so a later re-link doesn't silently orphan the row.
+    guild_id = fields.BigIntField()
+    discord_event_id = fields.BigIntField(unique=True)
+    source_type = fields.CharEnumField(DiscordEventSource, max_length=20)
+    source_id = fields.IntField()
+    title = fields.CharField(max_length=255)
+    scheduled_at = fields.DatetimeField(null=True)
+    content_hash = fields.CharField(max_length=64, null=True)
+    synced_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'discordscheduledevent'
+        unique_together = (('tenant', 'source_type', 'source_id'),)
+        indexes = (('tenant',), ('guild_id',))
+
+
+class AsyncQualifierRunStatus(str, Enum):
+    """Execution state of a single async-qualifier run (PR 9).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member (which repr's as ``AsyncQualifierRunStatus.FINISHED``).
+
+    Web-first collapses reveal and start, so a run is created ``IN_PROGRESS`` the
+    moment a player draws (the permalink is revealed then). ``PENDING`` is
+    reserved for a run pre-created before a synchronous start — the live-race path
+    (PR 10) — and is unused by the self-paced core flow.
+    """
+
+    PENDING = 'pending'
+    IN_PROGRESS = 'in_progress'
+    FINISHED = 'finished'
+    FORFEIT = 'forfeit'
+    DISQUALIFIED = 'disqualified'
+
+
+class AsyncQualifierReviewStatus(str, Enum):
+    """Review state of a finished async-qualifier run (PR 9)."""
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+
+
+class AsyncQualifier(Model):
+    """A self-paced permalink-pool qualifier — a peer aggregate of ``Tournament``.
+
+    Created/administered like a tournament (per-qualifier ``admins`` M2M, an admin
+    tab, ``is_active``) but a **distinct state machine** entirely outside the
+    Match/schedule system: window opens → players draw permalinks from pools →
+    runs (in-progress → finished/forfeit) → review (pending → approved/rejected) →
+    scored leaderboard → window closes.
+
+    Tenant-scoped. Typed **window columns** (``opens_at``/``closes_at``) plus
+    ``runs_per_pool`` / ``allowed_reattempts`` are worker-/query-facing knobs; the
+    validated-JSON ``config`` blob carries scoring/reattempt/messaging strategy
+    (the hybrid config decision). ``admins`` is the reviewer set (self-review is
+    blocked in the service).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifiers', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    description = fields.TextField(null=True)
+    # Informational only: the event this qualifier feeds. No structural FK — the
+    # two machines share no workflow (decisions log).
+    event_name = fields.CharField(max_length=255, null=True)
+    opens_at = fields.DatetimeField(null=True)
+    closes_at = fields.DatetimeField(null=True)
+    runs_per_pool = fields.IntField(default=1)
+    allowed_reattempts = fields.IntField(default=0)
+    config = fields.JSONField(null=True)
+    is_active = fields.BooleanField(default=True)
+    admins = fields.ManyToManyField(
+        'models.User', related_name='admin_async_qualifiers', through='AsyncQualifierAdmins'
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    pools = fields.ReverseRelation["AsyncQualifierPool"]
+    runs = fields.ReverseRelation["AsyncQualifierRun"]
+
+    class Meta:
+        table = 'asyncqualifier'
+        indexes = (('tenant',),)
+
+
+class AsyncQualifierPool(Model):
+    """A named permalink pool inside a qualifier, optionally tied to a preset (PR 9).
+
+    ``preset`` records which preset the pool's permalinks were rolled from
+    (SET_NULL so deleting the preset detaches rather than cascade-deletes the
+    pool). ``live_race`` permalinks in the pool run synchronously on racetime
+    (PR 10); the flag lives on the permalink, not the pool.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_pools', on_delete=fields.CASCADE)
+    qualifier = fields.ForeignKeyField('models.AsyncQualifier', related_name='pools', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=255)
+    preset = fields.ForeignKeyField(
+        'models.Preset', related_name='async_qualifier_pools', null=True, on_delete=fields.SET_NULL
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    permalinks = fields.ReverseRelation["AsyncQualifierPermalink"]
+
+    class Meta:
+        table = 'asyncqualifierpool'
+        unique_together = (('qualifier', 'name'),)
+        indexes = (('tenant',), ('qualifier',))
+
+
+class AsyncQualifierPermalink(Model):
+    """One seed permalink in a pool; ``par_time`` is maintained from approved runs (PR 9).
+
+    ``par_time`` (whole seconds) is the mean of the N fastest finished+approved
+    runs on this permalink, recomputed by the scoring path; ``par_updated_at``
+    timestamps that recompute. ``live_race`` marks a permalink reserved for a
+    synchronous racetime run (PR 10).
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_permalinks', on_delete=fields.CASCADE)
+    pool = fields.ForeignKeyField('models.AsyncQualifierPool', related_name='permalinks', on_delete=fields.CASCADE)
+    url = fields.CharField(max_length=1024)
+    notes = fields.TextField(null=True)
+    live_race = fields.BooleanField(default=False)
+    par_time = fields.IntField(null=True)
+    par_updated_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    runs = fields.ReverseRelation["AsyncQualifierRun"]
+
+    class Meta:
+        table = 'asyncqualifierpermalink'
+        indexes = (('tenant',), ('pool',))
+
+
+class AsyncQualifierRun(Model):
+    """A player's single attempt at a drawn permalink (PR 9).
+
+    Created ``IN_PROGRESS`` at draw time (web-first collapses reveal + start):
+    the ``permalink`` is assigned inside a locked transaction so concurrent draws
+    can't double-assign, ``started_at`` is server-stamped, and the player later
+    submits ``elapsed_seconds`` + ``runner_vod_url`` (→ ``FINISHED``) or forfeits.
+    Finished runs enter review (``review_status``); an approved run is par-scored.
+
+    ``reattempted`` + ``reattempt_reason`` are the one-attempt integrity backstop:
+    a reattempt voids the prior run (excluded from par/scoring/played-count),
+    frees the pool slot, requires a reason, and is limited by
+    ``AsyncQualifier.allowed_reattempts``. ``permalink`` is SET_NULL so purging a
+    permalink keeps run history. ``live_race`` (PR 10) is set on runs captured
+    from a synchronous racetime race and is ``None`` for self-paced runs.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_runs', on_delete=fields.CASCADE)
+    qualifier = fields.ForeignKeyField('models.AsyncQualifier', related_name='runs', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='async_qualifier_runs')
+    permalink = fields.ForeignKeyField(
+        'models.AsyncQualifierPermalink', related_name='runs', null=True, on_delete=fields.SET_NULL
+    )
+    # Set for runs captured from a synchronous racetime race (PR 10); SET_NULL so
+    # deleting a live race keeps the captured run history.
+    live_race = fields.ForeignKeyField(
+        'models.AsyncQualifierLiveRace', related_name='runs', null=True, on_delete=fields.SET_NULL
+    )
+    status = fields.CharEnumField(AsyncQualifierRunStatus, default=AsyncQualifierRunStatus.IN_PROGRESS, max_length=20)
+    review_status = fields.CharEnumField(
+        AsyncQualifierReviewStatus, default=AsyncQualifierReviewStatus.PENDING, max_length=20
+    )
+    started_at = fields.DatetimeField(null=True)
+    finished_at = fields.DatetimeField(null=True)
+    # Self-reported elapsed run time in whole seconds (submitted by the player).
+    elapsed_seconds = fields.IntField(null=True)
+    runner_vod_url = fields.CharField(max_length=1024, null=True)
+    reattempted = fields.BooleanField(default=False)
+    reattempt_reason = fields.TextField(null=True)
+    # Par score in [0, 105]; null until an approved run is scored.
+    score = fields.FloatField(null=True)
+    reviewed_by = fields.ForeignKeyField(
+        'models.User', related_name='reviewed_async_qualifier_runs', null=True, on_delete=fields.SET_NULL
+    )
+    reviewed_at = fields.DatetimeField(null=True)
+    # Claim-locking so two reviewers don't collide on the same run.
+    review_claimed_by = fields.ForeignKeyField(
+        'models.User', related_name='claimed_async_qualifier_runs', null=True, on_delete=fields.SET_NULL
+    )
+    review_claimed_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    review_notes = fields.ReverseRelation["AsyncQualifierReviewNote"]
+
+    class Meta:
+        table = 'asyncqualifierrun'
+        indexes = (
+            ('tenant',),
+            ('qualifier', 'review_status'),  # reviewer queue
+            ('user',),                       # "my runs"
+            ('permalink',),                  # par recompute
+        )
+
+
+class AsyncQualifierReviewNote(Model):
+    """A reviewer's note attached to a run during review (PR 9)."""
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_review_notes', on_delete=fields.CASCADE)
+    run = fields.ForeignKeyField('models.AsyncQualifierRun', related_name='review_notes', on_delete=fields.CASCADE)
+    author = fields.ForeignKeyField('models.User', related_name='authored_async_qualifier_review_notes')
+    note = fields.TextField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = 'asyncqualifierreviewnote'
+        indexes = (('tenant',), ('run',))
+
+
+class AsyncQualifierLiveRaceStatus(str, Enum):
+    """Lifecycle of a synchronous racetime qualifier race (PR 10).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member (which repr's as ``AsyncQualifierLiveRaceStatus.FINISHED``).
+
+    ``SCHEDULED`` before a room opens, ``PENDING`` once a room exists but the race
+    has not started, ``IN_PROGRESS`` while racing, ``FINISHED`` once the entrants'
+    results are captured into runs.
+    """
+
+    SCHEDULED = 'scheduled'
+    PENDING = 'pending'
+    IN_PROGRESS = 'in_progress'
+    FINISHED = 'finished'
+
+
+class AsyncQualifierLiveRace(Model):
+    """A synchronous racetime race whose results flow into ``AsyncQualifierRun``s (PR 10).
+
+    A pool permalink flagged ``live_race`` is raced live on racetime instead of
+    self-paced: every entrant runs the same ``permalink`` in one room, and on
+    finish each racetime entrant is mapped back to a ``User`` and captured as an
+    ``AsyncQualifierRun`` (racetime status → run status; ``end_time`` → elapsed).
+    Live-race runs **skip reviewer sign-off** — the racetime result is
+    self-attributing — and are par-scored like any other approved run.
+
+    Reuses the PR 4/6 racetime subsystem: opening a live race creates a
+    :class:`RacetimeRoom` (with ``match=None``) whose lifecycle events the shared
+    handler routes here by slug. ``racetime_slug`` mirrors that room's slug and is
+    globally unique (nullable until a room opens). ``episode`` optionally links an
+    SG-imported episode this race stands in for.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_live_races', on_delete=fields.CASCADE)
+    pool = fields.ForeignKeyField('models.AsyncQualifierPool', related_name='live_races', on_delete=fields.CASCADE)
+    # SET_NULL so purging a permalink keeps the live-race record + captured runs.
+    permalink = fields.ForeignKeyField(
+        'models.AsyncQualifierPermalink', related_name='live_races', null=True, on_delete=fields.SET_NULL
+    )
+    match_title = fields.CharField(max_length=255)
+    # Mirrors the RacetimeRoom slug; globally unique like the room's, nullable
+    # until a room is opened (multiple NULLs are allowed).
+    racetime_slug = fields.CharField(max_length=255, unique=True, null=True)
+    episode = fields.ForeignKeyField(
+        'models.SpeedGamingEpisode', related_name='async_qualifier_live_races', null=True,
+        on_delete=fields.SET_NULL,
+    )
+    status = fields.CharEnumField(
+        AsyncQualifierLiveRaceStatus, default=AsyncQualifierLiveRaceStatus.SCHEDULED, max_length=20
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    runs = fields.ReverseRelation["AsyncQualifierRun"]
+
+    class Meta:
+        table = 'asyncqualifierliverace'
+        indexes = (('tenant',), ('pool',))

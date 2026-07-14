@@ -43,6 +43,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-watcher.md](../features/match-watcher.md) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
+| `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
@@ -53,6 +54,11 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
 | `TwitchService` | [twitch_service.py](../../application/services/twitch_service.py) | Twitch account-linking OAuth (verified identity capture) | — |
+| `RacetimeService` | [racetime_service.py](../../application/services/racetime_service.py) | racetime.gg account-linking OAuth (verified identity capture) | — |
+| `RacetimeBotService` | [racetime_bot_service.py](../../application/services/racetime_bot_service.py) | Platform CRUD + tenant authorization grants for shared racetime bots | — |
+| `RaceRoomProfileService` | [race_room_profile_service.py](../../application/services/race_room_profile_service.py) | SYNC_ADMIN CRUD for reusable racetime room settings | — |
+| `RacetimeRoomService` | [racetime_room_service.py](../../application/services/racetime_room_service.py) | Race-room record lookup (unscoped by-slug routing) + status writes | — |
+| `RaceRoomService` | [race_room_service.py](../../application/services/race_room_service.py) | Racetime room lifecycle mapped onto a `Match` (create/open/seed/finish/cancel + result capture) | — |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
@@ -121,6 +127,10 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_checkin_equipment(user)` | `bool` | Staff or Equipment Manager. |
 | `can_assign_match_stream(user, match)` | `bool` | Stream Manager globally, or TA of the match's tournament — gates stage assignment and the stream-candidate flag. |
 | `can_grant_roles(user)` | `bool` | Staff only — gates role grants and TA/CC membership changes. |
+| `is_system(user)` | `bool` | Field check (`User.is_system`) — the reserved automation actor. Sync (no DB). The `can_manage_*`/`can_admin_qualifier` gates short-circuit on it so workers/bots never hit a `PermissionError`. |
+| `can_manage_presets(user)` | `bool` | System actor, super-admin, Staff, or `PRESET_MANAGER` — gates seed-rolling preset management (online tournaments). |
+| `can_manage_sync(user)` | `bool` | System actor, super-admin, Staff, or `SYNC_ADMIN` — gates upstream sync config (SpeedGaming links, Discord events, racetime bot/room config). |
+| `can_admin_qualifier(user, qualifier=None)` | `bool` | System actor, super-admin, Staff, `QUALIFIER_ADMIN`, or — when a `qualifier` is passed — a per-entity admin on its `admins` M2M. |
 | `ensure(allowed, message="Permission denied")` | `None` | Raises `PermissionError(message)` when `allowed` is falsy; the standard gate inside mutating services. |
 
 **Module-level helper:** `get_user_from_discord_id(discord_id) -> User | None` resolves a Discord id — typically `app.storage.user.get('discord_id')`, read in the page layer — to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
@@ -226,6 +236,16 @@ Verified linking of a `Tenant` to a Discord guild. Because `discord_guild_id` is
 
 Consumers: `MatchScheduleService` and `CrewService` (notification fan-out), `theme/dialog/send_message_dialog.py` (admin "send DM" dialog).
 
+### discord_event_reconciler_service.py — DiscordEventReconcilerService (PR 8)
+
+Mirrors the SGLMan schedule into a tenant guild's **Discord Scheduled Events** as idempotent reconciliation. `reconcile_tenant(tenant, *, actor, now=None)` reads the tenant's opted-in tournaments' scheduled matches in a forward window, then per match creates / updates (content-hash change) / leaves unchanged its `DiscordScheduledEvent` link, and cancels links whose source match finished or vanished. **Shared-guild safety**: the working set is only the tenant's own link rows (the repository is tenant-scoped), so a sibling tenant's event in a shared guild is never enumerated or cancelled; the target guild is the verified `Tenant.discord_guild_id`. Renders title/description from `{tournament}`/`{match}`/`{players}` templates. Audits + emits `discord_event.created`/`updated`/`cancelled` (the per-run summary is audit-only). Collaborators: `DiscordScheduledEventRepository`, `MatchRepository`, `DiscordService`, `AuditService`, event bus.
+
+**discord_event_worker.py** — the reconcile background loop (peer of `speedgaming_sync_worker`). Every 5 min it scans (cross-tenant, unscoped) every tenant with a linked guild, then reconciles each inside `tenant_scope` as the system user. Idempotent, so an unchanged schedule is a cheap no-op. Started from the lifespan only when `DISCORD_EVENTS_SYNC_ENABLED` is on.
+
+### discord_event_sync_service.py — DiscordEventSyncService (PR 8)
+
+The human-driven surface over the reconciler, gated by `AuthService.can_manage_sync`. `list_tournaments` / `update_settings(actor, tournament_id, *, enabled, duration_minutes, title_template, description_template)` manage per-tournament opt-in (audits `discord_event.settings_updated`); `list_events` feeds the admin observability table; `reconcile_now(actor)` runs the reconciler for the ambient tenant on demand (raises `ValueError` when no guild is linked). Consumer: the admin **Discord Events** tab.
+
 ### equipment_service.py — EquipmentService
 
 Lending-asset management (create/edit/delete, bulk creation with auto-assigned asset numbers) and the checkout/check-in workflow with full loan history. Asset management is gated by `AuthService.can_manage_equipment` (Staff or Equipment Manager); checkout by `can_checkout_equipment` (managers, or Volunteers checking out to themselves only); check-in by `can_checkin_equipment`. Audited under `equipment.*`. Module constant: `MAX_BULK_COUNT = 200`.
@@ -282,7 +302,7 @@ Match lifecycle transitions (seat → start → finish → confirm), seed rollin
 | `start_match(match, actor=None)` | `None` | Set `started_at` (requires seated, rejects restart); audits `match.started`; DMs participants. |
 | `finish_match(match, actor=None)` | `None` | Set `finished_at` (requires started, rejects re-finish); audits `match.finished`; DMs participants. |
 | `confirm_match(match, actor=None)` | `None` | Set `confirmed_at` (requires finished, rejects re-confirm); audits `match.confirmed`; DMs participants. |
-| `generate_seed(match_id, actor=None)` | `(bool, str, str \| None)` | Roll a seed via `SeedGenerationService` using the tournament's `seed_generator` preset. Per-match `asyncio.Lock` (class-level `_seed_locks` dict) rejects concurrent rolls; also fails softly when a seed already exists, no generator is configured, the generator is unknown, or permission is denied. On success creates the `GeneratedSeeds` row, audits `match.seed_rolled`, and enqueues seed DMs to opted-in players. Exceptions are caught and returned as `(False, error, None)`. |
+| `generate_seed(match_id, actor=None)` | `(bool, str, str \| None)` | Roll a seed via `SeedGenerationService`, resolving the tournament's `preset` FK (randomizer + settings) when set, else the legacy `seed_generator` string. Per-match `asyncio.Lock` (class-level `_seed_locks` dict) rejects concurrent rolls; also fails softly when a seed already exists, no generator is configured, the generator is unknown, or permission is denied. On success creates the `GeneratedSeeds` row, audits `match.seed_rolled`, and enqueues seed DMs to opted-in players. Exceptions are caught and returned as `(False, error, None)`. |
 | `notify_match_participants(match, message)` | `None` | DM opted-in players, approved crew, and watchers — one DM per person; watchers get the Unwatch-button variant. Never raises; per-DM failures are printed. |
 | `notify_match_crew(match, message)` | `None` | DM approved crew and watchers, excluding players (players get the acknowledgment DM instead). Never raises. |
 | `notify_acknowledgment_request(match, *, rescheduled)` | `None` | DM each player whose acknowledgment is still pending with an Acknowledge button; message wording switches on `rescheduled`. Never raises. |
@@ -399,10 +419,25 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 | Member | Returns | Description |
 |---|---|---|
 | `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
-| `generate_seed(randomizer)` | `str` | Dispatch to the named generator; returns the seed URL/string. `ValueError` for unsupported keys. |
+| `generate_seed(randomizer, preset=None)` | `str` | Dispatch to the named generator; returns the seed URL/string. ALTTPR uses `preset.settings` when a `Preset` is supplied (else the built-in `casualboots` settings); other backends ignore the preset (hard-coded until PR 11). `ValueError` for unsupported keys. |
 | `generate_alttpr_for_tournament(tournament_id, balanced=True)` | `str` | ALTTPR seed with an approved community triforce text embedded — balanced selection weights every submitter equally; falls back to a plain seed when no approved texts exist. `ValueError` for unknown tournaments. |
 
-Collaborators: `TriforceTextService` (text selection), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path), `theme/dialog/tournament_edit_dialog.py` (reads `AVAILABLE_RANDOMIZERS`).
+Collaborators: `TriforceTextService` (text selection), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path, passing the resolved `Preset`), `theme/dialog/tournament_edit_dialog.py` (reads `AVAILABLE_RANDOMIZERS`).
+
+### preset_service.py — PresetService
+
+Tenant-authored seed-rolling presets (a named `randomizer` + `settings` blob). Deep dive: [seed-generation.md](seed-generation.md#presets-db-backed).
+
+| Member | Returns | Description |
+|---|---|---|
+| `list_presets(actor)` | `list[Preset]` | All of the tenant's presets. Gated by `AuthService.can_manage_presets`. |
+| `list_selectable()` | `list[Preset]` | All presets (ungated read) — populates the tournament dialog's Seed Preset select. |
+| `create_preset(actor, *, name, randomizer, settings, description=None)` | `Preset` | Validate (known randomizer, dict settings, unique `(randomizer, name)`) and insert. Audits `preset.created`. |
+| `update_preset(actor, preset_id, *, name=None, randomizer=None, settings=None, description=None)` | `Preset` | Partial update with the same validation + uniqueness re-check. Audits `preset.updated`. |
+| `delete_preset(actor, preset_id)` | `None` | Delete. Audits `preset.deleted`. Detaches linked tournaments (`SET_NULL`). |
+| `import_builtins(actor)` | `list[Preset]` | Import the committed `presets/` files as rows, idempotent by `(randomizer, name)`. Audits `preset.imported`. |
+
+All mutations gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). Collaborators: `PresetRepository`, `AuditService`, `AuthService`, `SeedGenerationService` (randomizer validity). Consumers: `pages/admin_tabs/admin_presets.py` (admin Presets tab), `theme/dialog/tournament_edit_dialog.py` (Seed Preset select).
 
 ### stream_room_service.py — StreamRoomService
 
@@ -477,12 +512,12 @@ Collaborators: `TournamentNotificationRepository`, `TournamentRepository`. Consu
 
 ### tournament_service.py — TournamentService
 
-Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation and deletion are Staff-only; updates allow the tournament's TAs; membership grants are Staff-only (`can_grant_roles`). All mutations audited under `tournament.*`.
+Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation and deletion are Staff-only; updates allow the tournament's TAs; membership grants are Staff-only (`can_grant_roles`). All mutations audited under `tournament.*`. The optional `config` blob is validated by `validate_tournament_config` (from [`tournament_config.py`](../../application/services/tournament_config.py)) before persistence — unknown keys raise `ValueError`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `create_tournament(name, description=None, seed_generator=None, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, is_active=True, players_per_match=2, team_size=1, staff_administered=False, actor=None)` | `Tournament` | Create; trims strings; treats the literal string `"None"` as no seed generator; non-empty name required. |
-| `update_tournament(tournament, ...same optional fields..., actor=None)` | `Tournament` | Partial update of any subset of the same fields; audits the changed-field list. |
+| `create_tournament(name, description=None, seed_generator=None, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, is_active=True, players_per_match=2, team_size=1, staff_administered=False, config=None, actor=None)` | `Tournament` | Create; trims strings; treats the literal string `"None"` as no seed generator; non-empty name required; validates `config`. |
+| `update_tournament(tournament, ...same optional fields..., config=None, actor=None)` | `Tournament` | Partial update of any subset of the same fields; validates `config` when provided; audits the changed-field list. |
 | `delete_tournament(tournament, actor=None)` | `None` | Staff-only delete. |
 | `add_admin(tournament, target, actor=None)` | `None` | Grant Tournament Admin (M2M add). |
 | `remove_admin(tournament, target, actor=None)` | `None` | Revoke Tournament Admin. |
@@ -492,6 +527,10 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `get_tournament_by_id(tournament_id)` | `Tournament \| None` | Lookup by id. |
 
 Collaborators: `TournamentRepository`, `AuditService`. Consumers: `theme/dialog/tournament_edit_dialog.py`, `theme/dialog/user_edit_dialog.py`, `pages/admin_tabs/reports/shared.py` (filter options).
+
+### tournament_config.py + tournament_strategies/ — hybrid-config substrate
+
+Foundations for online-tournament user-definable logic ([online-tournaments](../online-tournaments/README.md)). `tournament_config.py` defines `TournamentConfig` (a Pydantic model with `extra='forbid'`) and `validate_tournament_config(config)`, which normalizes the blob and raises `ValueError` on any unknown key — the single entry point `TournamentService` calls before persisting `Tournament.config`. `tournament_strategies/` is the register/lookup registry for the finite set of named strategy primitives (`register_strategy(kind, name)`, `get_strategy(kind, name)`, `available_strategies(kind)`); config picks and parameterizes them — **never `eval`**. PR 0 ships the substrate empty; feature PRs add concrete config keys and strategies.
 
 ### triforce_text_service.py — TriforceTextService
 
@@ -524,6 +563,105 @@ Coordinates the Twitch account-linking integration: a logged-in user completes a
 
 Collaborators: `AuditService`, [`twitch_client.py`](#twitch_clientpy) (`TwitchClient`/`MockTwitchClient`), [`mock_twitch.py`](#mock_twitchpy). Consumers: the Twitch OAuth pages ([`pages/twitch_oauth.py`](../../pages/twitch_oauth.py)) and the profile "Link Twitch" card ([`pages/home_tabs/twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py)).
 
+### racetime_service.py — RacetimeService
+
+Coordinates the racetime.gg account-linking integration: a logged-in user completes a one-time racetime OAuth login (read scope) so we can record their verified racetime identity (id / name) on their `User`. Identity only — the access token is used once during linking and discarded (mirrors `TwitchService`). Mock mode is gated by [`MOCK_RACETIME`](#mock_racetimepy). These are the **identity-link** OAuth credentials only; the race-room bots use their own per-category credentials on `RacetimeBot` rows.
+
+| Method | Returns | Description |
+|---|---|---|
+| `is_configured()` (static) | `bool` | OAuth app credentials are present (or mock is on). |
+| `player_authorize_url(state)` (static) | `str` | racetime OAuth authorize URL to redirect the browser to. |
+| `redirect_uri()` (static) | `str` | The registered OAuth redirect URI (`RACETIME_REDIRECT_URI` or derived from `BASE_URL`). |
+| `exchange_player_code(code)` | `{user_id, username}` | Exchange a user's auth code and return their identity (token used once, discarded). |
+| `record_player_link(user, racetime_user_id, racetime_username, actor)` | `None` | Persist the linked racetime identity; rejects ids already linked elsewhere (`ValueError`); audits `racetime.linked`. |
+| `unlink_player(user, actor)` | `None` | Clear a user's racetime link; audits `racetime.unlinked`. |
+
+Collaborators: `AuditService`, [`racetime_client.py`](#racetime_clientpy) (`RacetimeClient`/`MockRacetimeClient`), [`mock_racetime.py`](#mock_racetimepy). Consumers: the racetime OAuth pages ([`pages/racetime_oauth.py`](../../pages/racetime_oauth.py)) and the profile "Link racetime.gg" card ([`pages/home_tabs/racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py)).
+
+### racetime_bot_service.py — RacetimeBotService
+
+Platform administration of the shared, **global** racetime bots (one per game category, each holding that category's OAuth credentials). All mutations are SUPER_ADMIN-gated and run on `/platform` with no tenant context, so their audit rows are platform-level (`tenant=NULL`). The `client_secret` is a privileged secret: `serialize()` omits it, `update_bot` only rewrites it when a new value is supplied (blank = unchanged), and the audit log records only that the field changed — never its value.
+
+| Method | Returns | Description |
+|---|---|---|
+| `serialize(bot)` (static) | `dict` | Secret-free view for admin tables (omits `client_secret`). |
+| `list_bots(actor)` / `get_bot(actor, id)` | `[RacetimeBot]` / `RacetimeBot` | SUPER_ADMIN reads. |
+| `create_bot(actor, *, category, client_id, client_secret, name, …)` | `RacetimeBot` | Create; unique category; audits `racetime_bot.created`. |
+| `update_bot(actor, id, *, client_secret=None, …)` | `RacetimeBot` | Update; blank secret keeps the stored one; audits `racetime_bot.updated`. |
+| `delete_bot(actor, id)` | `None` | Delete; audits `racetime_bot.deleted`. |
+| `grant_tenant(actor, bot_id, tenant_id)` | `RacetimeBotTenant` | Authorize a tenant (idempotent; re-activates a suspended grant); audits `racetime_bot.granted`. |
+| `revoke_tenant(actor, bot_id, tenant_id)` | `None` | Remove a grant; audits `racetime_bot.revoked`. |
+| `list_grants(actor, bot_id)` | `[RacetimeBotTenant]` | Grants for a bot (SUPER_ADMIN). |
+| `list_authorized_for_tenant(tenant_id)` | `[RacetimeBot]` | Tenant-facing: active bots a tenant may select (no secret exposed; explicit tenant id). |
+| `is_authorized_for_tenant(bot_id, tenant_id)` | `bool` | Whether a tenant may select a given bot. |
+
+Runtime health methods (PR 4) are **not** SUPER_ADMIN-gated — the caller is the trusted in-process connection loop acting as the system user, writing platform-level (`tenant=NULL`) health rows. `client_secret` never appears in them.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_active_bots()` | `[RacetimeBot]` | Active bots the runtime should hold a connection for. |
+| `get_runtime_bot(id)` | `RacetimeBot?` | Load a bot with no permission gate (runtime/restart). |
+| `record_connected(id, actor)` | `None` | `status=connected`, `last_connected_at`/`last_checked_at`; audits `racetime_bot.connected`. |
+| `record_heartbeat(id)` | `None` | Refresh `last_checked_at` only (un-audited liveness tick). |
+| `record_error(id, actor, msg, *, auth_failed=False)` | `None` | `status=error` + message; audits `racetime_bot.error` (with `auth_failed`). |
+| `mark_disconnected(id, actor, msg=None)` | `None` | `status=disconnected`; audits `racetime_bot.disconnected`. |
+
+Collaborators: `AuditService`, `RacetimeBotRepository`. Consumers: the `/platform` bot CRUD + tenant-assignment UI ([`pages/platform.py`](../../pages/platform.py)), `TournamentService` (validating a tournament's selected bot against the tenant's grants), and the `racetimebot/` runtime (health writes).
+
+#### racetimebot/ — the racetime bot runtime (PR 4)
+
+A peer of `discordbot/` (presentation layer: calls services, never repositories). Started from the FastAPI lifespan when `RACETIME_BOT_ENABLED` is on; a no-op otherwise. Modules: `manager.py` (`RacetimeBotManager` singleton — one `CategoryConnection` task per active bot, re-adopts open rooms on boot, `restart(actor, id)`), `connection.py` (`CategoryConnection` — the supervised loop: authenticate → `record_connected` → run with heartbeats; auth error → `record_error(auth_failed=True)` and stop; transient → `record_error` + exponential backoff capped 5 min; graceful stop → `mark_disconnected`), `handler.py` (`RaceHandler` — resolves slug → room → tenant via the unscoped lookup, binds `tenant_scope`, delegates to a lifecycle object; a raised handler is caught so it never kills the bot), `transport.py` (`RacetimeTransport` seam: `RealRacetimeTransport` does a real `client_credentials` token fetch + liveness loop; `RaceRoomEvent`/`RaceEntrant`/`EntrantStatus` value types; `RacetimeAuthError`/`RacetimeTransientError`), and `mock.py` (`MockRacetimeTransport` — the scripted fake for `MOCK_RACETIME` and tests).
+
+### race_room_profile_service.py — RaceRoomProfileService
+
+Tenant-scoped CRUD for reusable racetime room settings (the `startrace` parameters a community reuses). Gated by `AuthService.can_manage_sync` (SYNC_ADMIN/STAFF/super-admin); audited (`race_room_profile.created|updated|deleted`). `list_selectable()` is an ungated read used to populate the tournament dialog's profile select.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_profiles(actor)` / `get_profile(actor, id)` | `[RaceRoomProfile]` / `RaceRoomProfile` | Gated reads. |
+| `list_selectable()` | `[RaceRoomProfile]` | Ungated read for the tournament dialog. |
+| `create_profile(actor, *, name, **fields)` | `RaceRoomProfile` | Create; per-tenant unique name; rejects negative timers. |
+| `update_profile(actor, id, *, name=None, **fields)` | `RaceRoomProfile` | Update. |
+| `delete_profile(actor, id)` | `None` | Delete. |
+
+Collaborators: `AuditService`, `RaceRoomProfileRepository`. Consumers: the admin **Racetime** tab ([`pages/admin_tabs/admin_racetime.py`](../../pages/admin_tabs/admin_racetime.py)) and the tournament dialog's profile select.
+
+### racetime_room_service.py — RacetimeRoomService
+
+Record lookup + status writes for race-room→tenant routing. `get_by_slug(slug)` is the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant); `get_for_match(match)` finds a match's room; `list_open_rooms()` returns not-yet-terminal rooms across all tenants (unscoped, for boot-time re-adoption); `set_status(room, status)` writes the cached lifecycle status (stamping `opened_at` the first time a room reaches `in_progress`). The richer create/seed/result lifecycle lands in PR 6.
+
+Collaborators: `RacetimeRoomRepository`. Consumers: the `racetimebot/` runtime (re-adoption + status writes).
+
+### race_room_service.py — RaceRoomService (PR 6)
+
+The racetime room lifecycle mapped onto a `Match` — the business layer both the auto-open worker and the `racetimebot/` handlers call. Tenant-scoped (callers bind the tenant); **acts as the system user**; audits + publishes a `race_room.*` event on every transition.
+
+| Method | Returns | Description |
+|---|---|---|
+| `create_room_for_match(match, *, actor=None, attach_seed=True)` | `RacetimeRoom` | Idempotent open: one room per match; requires the tournament's authorized bot (its category names the room); attaches the seed via `MatchScheduleService.generate_seed`. Emits `race_room.created` + `race_room.opened`. |
+| `manual_create_room(actor, match_id)` | `RacetimeRoom` | STAFF/`SYNC_ADMIN`-gated manual open, ignoring the auto toggle. |
+| `mark_in_progress(room, *, actor=None)` | `None` | Sets the match's `started_at`; emits `race_room.started`. |
+| `record_finish(room, entrants, *, actor=None)` | `None` | Maps entrants → linked `User`, records `finish_rank` (place) + `finish_time` (seconds), closes the match, feeds the existing result path (+ optional Challonge push). Handles forfeit / no-show / DQ / one-finisher; unmatched handles go to the audit for reconcile. Emits `race_room.finished` + `race_room.result_recorded` + `match.result_recorded`. |
+| `cancel_room(room, *, actor=None, reason=None)` | `None` | Marks the room cancelled; emits `race_room.cancelled`. |
+
+`RaceRoomLifecycle` (same module) is the adapter the PR 4 handler injects: it translates a transport `RaceRoomEvent` into the matching transition. Collaborators: `RacetimeRoomRepository`, `AuditService`, `AuthService`, `UserService`, `MatchScheduleService`, `ChallongeService`, the event bus. Consumers: the auto-open worker, the `racetimebot/` handlers, and the admin match dialog (manual create).
+
+**race_room_worker.py** — the auto-open background loop (peer of `volunteer_reminder`). Every 60 s it scans (cross-tenant, unscoped) not-yet-finished matches on auto-create tournaments in a wide window, then per match — inside `tenant_scope` — opens a room when it enters that tournament's `room_open_minutes_before` lead, is idempotent (one room per match), has an authorized bot, and every entrant has a linked racetime identity. Started from the lifespan only when `RACETIME_BOT_ENABLED` is on.
+
+### service_health_service.py — ServiceHealthService (PR 5)
+
+Platform external-service health monitor. **Computed-and-cached, no persistence model**: an async probe registry (`_PROBES`) whose results live in a process-global in-memory cache (`_CACHE`, owned by the single worker/on-demand refresh — safe module-level state). `ServiceStatus` = `healthy / degraded / credential_warning / down / unknown` (`credential_warning` is the distinct "up but a credential is expiring/rejected" signal). Each probe is wrapped with a hard timeout so one hung dependency can't stall the board; a raising probe becomes `down`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `refresh(*, alert=True)` | `list[ProbeResult]` | Run every probe concurrently, update the cache, and — on a transition *into* down / credential-warning — fire an alert. Sorted worst-first. |
+| `snapshot()` | `list[ProbeResult]` | Cached results (UNKNOWN placeholders for not-yet-probed keys); the board's instant initial paint. |
+| `tenant_subset(tenant_id)` | `list[ProbeResult]` | The read-only subset a tenant's STAFF may see — its authorized racetime bots + its own Challonge connection — probed live (not from the platform cache). Caller binds the tenant scope. |
+
+Probes: PostgreSQL (DB round-trip), Discord bot (gateway readiness / mock), Discord OAuth (config), racetime bots (reads `RacetimeBot.status`, maps `error` w/ auth message → credential-warning), SpeedGaming (reachability / mock), Challonge (API reachability **+** token expiry across all tenants via `ChallongeRepository.list_all_connections()`, an explicitly-unscoped read), Twitch OAuth (config), seed-gen upstreams alttpr.com / ootrandomizer.com / maprando.com (reachability), web-push/VAPID (config), Sentry (config). Alerting: `refresh` publishes `EventType.SERVICE_HEALTH_ALERT` (platform-level → no tenant webhook; the real channels are Sentry `capture_message` + optional super-admin DM under `SERVICE_HEALTH_ALERT_DM`). Consumers: `/platform` board (full, refreshable) and the admin **Service Health** tab (tenant subset) via `pages/service_health_view.py`.
+
+**service_health_worker.py** — the periodic probe loop (peer of `discord_event_worker`). Every 120 s it calls `ServiceHealthService().refresh()` with **no tenant scope** (all probes are platform-level). Started from the lifespan only when `SERVICE_HEALTH_ENABLED` is on; the board still refreshes on demand regardless. The loop never dies — a failing tick is logged and retried.
+
 ### user_service.py — UserService
 
 User lookup, profile edits (self- and admin-driven), activation, global role grants, and tournament enrollment management. Audited under `user.*`; role grants gated by `can_grant_roles`, admin fields by `is_staff`.
@@ -531,6 +669,7 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | Method | Returns | Description |
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` | `User \| None` | Lookup by Discord id. |
+| `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |
@@ -660,6 +799,28 @@ Staff-managed outbound webhooks: CRUD (all gated on `AuthService.is_staff` and a
 
 > The event bus itself (`application/events/`) — the publish/subscribe backbone these deliveries hang off — is documented in [event-system.md](../features/event-system.md).
 
+### async_qualifier_service.py — AsyncQualifierService (PR 9)
+
+The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` with its own state machine (window opens → draw → run → review → scored leaderboard → close). Owns every rule the repositories don't:
+
+- **Management** — qualifier/pool/permalink CRUD + per-qualifier `admins`, gated by `AuthService.can_admin_qualifier` (STAFF/`QUALIFIER_ADMIN`/super-admin, or a per-qualifier admin). `roll_permalinks` rolls N seeds from the pool's `Preset` via `SeedGenerationService`; `add_permalinks_bulk` pastes many. Config validated by `validate_async_qualifier_config` (`application/services/async_qualifier_config.py`).
+- **Draw** (`start_run`) — an atomic, row-locked (`in_transaction` + `lock_user_for_draw`) transaction enforcing one active run per player, the `runs_per_pool` cap, and permalink no-repeat, then picking a permalink by **imbalance-forcing fairness** (random unless a pool's play-count spread crosses `draw_imbalance_threshold`, then the least-played). Reveal == start (web-first).
+- **Run lifecycle** — `submit_run` (→ review), `forfeit_run` (irreversible, scores 0), `reattempt_run` (voids the prior run, frees the slot, requires a reason, limited by `allowed_reattempts`).
+- **Review** — reviewers = the qualifier's `admins`; **self-review blocked**; `claim_run`/`release_claim` claim-locking; `review_run` approves/rejects, then recomputes the permalink's par and rescores its approved runs.
+- **Scoring / leaderboard** — par + score math in `async_qualifier_scoring.py` (`compute_par` = mean of the N fastest approved runs; `compute_score` = `clamp(0,105,(2−elapsed/par)·100)`; `build_leaderboard` = per-pool slots, unfilled = 0, plus an estimate). `get_leaderboard` enforces the **active-window information lockdown** (`is_results_public`): the board/pools/pars are staff-only until the qualifier closes (inactive or past `closes_at`).
+
+Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_submitted`/`run_reviewed` onto the event bus (`EventType.ASYNC_QUALIFIER_RUN_*`). Best-effort Discord DM on review. Collaborators: the five `AsyncQualifier*` repositories, `PresetRepository`, `SeedGenerationService`, `AuthService`, `AuditService`, `application.events`. Admin UI: `pages/admin_tabs/admin_qualifiers.py`; player UI: `pages/qualifiers.py`. Plan: [pr-9-async-qualifiers.md](../online-tournaments/implementation/pr-9-async-qualifiers.md). `recompute_par_and_scores(permalink_id)` is the public entry the live-race capture path (below) reuses.
+
+### async_qualifier_live_race_service.py — AsyncQualifierLiveRaceService (PR 10)
+
+Synchronous racetime qualifier races whose results flow into `AsyncQualifierRun`s, **reusing the PR 4/6 racetime subsystem** rather than a second integration:
+
+- **Author** (`create_live_race`) — schedule a race for a pool, optionally pinning a permalink and an SG `episode`; gated by `AuthService.can_admin_qualifier`.
+- **Open** (`open_room`) — create a `RacetimeRoom` (with `match=None`) named by one of the tenant's authorized bots (`RacetimeBotService.list_authorized_for_tenant`), mirror its slug onto the live race (`racetime_slug`), and move it to `PENDING`. Idempotent.
+- **Capture** (`record_finish`) — map each racetime entrant to a `User` (by `racetime_user_id`), write an `AsyncQualifierRun` (`done`→finished, `dnf`→forfeit, `dq`→disqualified; `finish_time`→`elapsed_seconds`), then par-score via `AsyncQualifierService.recompute_par_and_scores`. Live-race runs **skip reviewer sign-off** (written `APPROVED` — the racetime result is self-attributing); non-finishers score 0. **Refuses to record while any entrant is still racing.**
+
+`RaceRoomLifecycle` (in `race_room_service.py`) routes a finished/started/cancelled room to this service instead of the match path when `RacetimeRoom.match_id` is null and the room's slug resolves to a live race. Audits `AuditActions.ASYNC_QUALIFIER_LIVE_RACE_*` (create/open/cancel are audit-only; the captured finish also emits `EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED`). Collaborators: `AsyncQualifierLiveRaceRepository`, `AsyncQualifierRunRepository`, `RacetimeRoomRepository`, `RacetimeBotService`, `AsyncQualifierService`, `UserService`, `AuditService`. Admin UI: the **Live Races** sub-tab in `pages/admin_tabs/admin_qualifiers.py`. Plan: [pr-10-qualifier-live-races.md](../online-tournaments/implementation/pr-10-qualifier-live-races.md).
+
 ## Utilities (`application/utils/`)
 
 ### challonge_client.py
@@ -691,6 +852,18 @@ Thin async `aiohttp` wrapper over the two Twitch endpoints the account-linking f
 | `TwitchClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
 | `TwitchClient.get_me(access_token)` | `{user_id, username, display_name}` | The authenticated account identity for a raw token (sends the required `Client-Id` header). |
 | `MockTwitchClient` | — | `MOCK_TWITCH` stub returning a deterministic canned identity (chosen via `MOCK_TWITCH_IDENTITY`) so local dev can click through link/unlink. |
+
+### racetime_client.py
+
+Thin async `aiohttp` wrapper over the two racetime.gg endpoints the account-linking flow needs — the OAuth token exchange and the `o/userinfo` lookup ([racetime_client.py](../../application/utils/racetime_client.py)). Returns a **normalized** identity dict so `RacetimeService` never sees the wire shape. Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, `USERINFO_URL`, `IDENTITY_SCOPE`.
+
+| Member | Returns | Description |
+|---|---|---|
+| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | racetime OAuth authorize URL to redirect the browser to. |
+| `RacetimeAPIError` (exception) | — | Raised on an API error or unexpected payload. |
+| `RacetimeClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
+| `RacetimeClient.get_me(access_token)` | `{user_id, username}` | The authenticated racetime account identity for a raw token. |
+| `MockRacetimeClient` | — | `MOCK_RACETIME` stub returning a deterministic canned identity (chosen via `MOCK_RACETIME_IDENTITY`) so local dev can click through link/unlink. |
 
 ### csv_export.py
 
@@ -760,6 +933,16 @@ The Twitch counterpart to `mock_challonge` ([mock_twitch.py](../../application/u
 | `is_mock_twitch()` | `bool` | True when `MOCK_TWITCH` is `1`/`true`/`yes`. Because it fakes a verified Twitch identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
 
 `TwitchService` reads this to choose `MockTwitchClient` over `TwitchClient` and to report `is_configured()` as true in mock mode.
+
+### mock_racetime.py
+
+The racetime.gg counterpart to `mock_twitch` ([mock_racetime.py](../../application/utils/mock_racetime.py)). Lets local development exercise the full racetime link/unlink flow without a real OAuth app. Also gates the bot runtime added in a later PR; both halves share the one production-refusal switch.
+
+| Function | Returns | Description |
+|---|---|---|
+| `is_mock_racetime()` | `bool` | True when `MOCK_RACETIME` is `1`/`true`/`yes`. Because it fakes a verified racetime identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
+
+`RacetimeService` reads this to choose `MockRacetimeClient` over `RacetimeClient` and to report `is_configured()` as true in mock mode.
 
 ### qrcode_util.py
 

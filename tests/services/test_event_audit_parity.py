@@ -72,6 +72,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # System configuration.
     AuditActions.SYSTEM_CONFIG_UPDATED,
     AuditActions.TRIFORCE_TEXT_DELETED,
+    # Seed-preset catalog CRUD — tenant-internal settings authoring, no external
+    # subscriber interest (the seed roll itself already emits MATCH_SEED_ROLLED).
+    AuditActions.PRESET_CREATED,
+    AuditActions.PRESET_UPDATED,
+    AuditActions.PRESET_DELETED,
+    AuditActions.PRESET_IMPORTED,
     # Secrets — leaking these to arbitrary receivers is a risk.
     AuditActions.APITOKEN_CREATED,
     AuditActions.APITOKEN_REVOKED,
@@ -102,6 +108,42 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Twitch account linking.
     AuditActions.TWITCH_LINKED,
     AuditActions.TWITCH_UNLINKED,
+    # Racetime.gg account linking (verified identity link, no domain webhook).
+    AuditActions.RACETIME_LINKED,
+    AuditActions.RACETIME_UNLINKED,
+    # Racetime bot administration: platform-level (tenant=NULL) super-admin CRUD
+    # and tenant grants carrying OAuth secrets — sensitive, and a webhook is
+    # tenant-scoped so it would reach zero subscribers. Room profiles are
+    # tenant-internal room-setting authoring, no external subscriber interest.
+    AuditActions.RACETIME_BOT_CREATED,
+    AuditActions.RACETIME_BOT_UPDATED,
+    AuditActions.RACETIME_BOT_DELETED,
+    AuditActions.RACETIME_BOT_GRANTED,
+    AuditActions.RACETIME_BOT_REVOKED,
+    AuditActions.RACE_ROOM_PROFILE_CREATED,
+    AuditActions.RACE_ROOM_PROFILE_UPDATED,
+    AuditActions.RACE_ROOM_PROFILE_DELETED,
+    # Racetime bot runtime health: platform-level (tenant=NULL) connection-state
+    # transitions written by the connection loop. A webhook is tenant-scoped, so
+    # a platform-level health event would reach zero subscribers — kept audit-only.
+    AuditActions.RACETIME_BOT_CONNECTED,
+    AuditActions.RACETIME_BOT_DISCONNECTED,
+    AuditActions.RACETIME_BOT_ERROR,
+    AuditActions.RACETIME_BOT_RESTARTED,
+    # SpeedGaming ETL: the domain-relevant outcomes (episode imported / cancelled,
+    # match auto-finished) DO emit events (see EventType.SG_*). The rest are
+    # audit-only: event-link CRUD is tenant-internal sync config, the per-run
+    # sync summary/failure and per-episode skip are worker plumbing, and the
+    # placeholder-user create/upgrade rows are identity bookkeeping — none carry
+    # domain interest a webhook subscriber would act on.
+    AuditActions.SG_EVENT_LINK_CREATED,
+    AuditActions.SG_EVENT_LINK_UPDATED,
+    AuditActions.SG_EVENT_LINK_DELETED,
+    AuditActions.SG_SYNC_COMPLETED,
+    AuditActions.SG_SYNC_FAILED,
+    AuditActions.SG_EPISODE_SKIPPED,
+    AuditActions.SG_PLACEHOLDER_CREATED,
+    AuditActions.SG_PLACEHOLDER_UPGRADED,
     # Volunteer opt-in state, scheduling config, and bulk draft churn.
     AuditActions.VOLUNTEER_OPTED_IN,
     AuditActions.VOLUNTEER_OPTED_OUT,
@@ -123,6 +165,38 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # not a tournament domain event a webhook subscriber would act on.
     AuditActions.DISCORD_SERVER_LINKED,
     AuditActions.DISCORD_SERVER_UNLINKED,
+    # Discord Scheduled Events mirror (PR 8): the per-event create/update/cancel
+    # rows DO emit events (see EventType.DISCORD_EVENT_*). The rest are audit-only:
+    # the per-run reconcile summary/failure is worker plumbing and the settings
+    # edit is tenant-internal sync config — no external subscriber interest.
+    AuditActions.DISCORD_EVENT_SYNC_COMPLETED,
+    AuditActions.DISCORD_EVENT_SYNC_FAILED,
+    AuditActions.DISCORD_EVENT_SETTINGS_UPDATED,
+    # Async Qualifiers (PR 9): the run submitted/reviewed outcomes DO emit events
+    # (see EventType.ASYNC_QUALIFIER_RUN_*). The rest are audit-only — qualifier/
+    # pool/permalink authoring and the per-qualifier admin grants are tenant-
+    # internal config, and run_started/forfeited/reattempted are player run-state
+    # churn no external subscriber needs (submitted/reviewed already cover review).
+    AuditActions.ASYNC_QUALIFIER_CREATED,
+    AuditActions.ASYNC_QUALIFIER_UPDATED,
+    AuditActions.ASYNC_QUALIFIER_DELETED,
+    AuditActions.ASYNC_QUALIFIER_ADMIN_GRANTED,
+    AuditActions.ASYNC_QUALIFIER_ADMIN_REVOKED,
+    AuditActions.ASYNC_QUALIFIER_POOL_CREATED,
+    AuditActions.ASYNC_QUALIFIER_POOL_UPDATED,
+    AuditActions.ASYNC_QUALIFIER_POOL_DELETED,
+    AuditActions.ASYNC_QUALIFIER_PERMALINK_ADDED,
+    AuditActions.ASYNC_QUALIFIER_PERMALINK_UPDATED,
+    AuditActions.ASYNC_QUALIFIER_PERMALINK_DELETED,
+    AuditActions.ASYNC_QUALIFIER_RUN_STARTED,
+    AuditActions.ASYNC_QUALIFIER_RUN_FORFEITED,
+    AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
+    # Async Qualifier live races (PR 10): recording the finished race emits
+    # ASYNC_QUALIFIER_LIVE_RACE_RECORDED; create/open/cancel are tenant-internal
+    # scheduling no external subscriber needs.
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_OPENED,
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CANCELLED,
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.
