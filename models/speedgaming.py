@@ -67,7 +67,7 @@ class SpeedGamingEpisode(Model):
     updated_at = fields.DatetimeField(auto_now=True)
 
     # related fields — the materialized Match (reverse of Match.speedgaming_episode)
-    match: fields.ReverseRelation["Match"]
+    match = fields.ReverseRelation["Match"]
 
     class Meta:
         table = 'speedgamingepisode'
