@@ -17,12 +17,21 @@
  *   {
  *     "baseUrl": "http://127.0.0.1:8000",
  *     "loginAs": "staff_user",          // username in the mock picker
+ *     "tenant":  "default",              // /t/<slug> prefix for login + targets
  *     "outDir":  "/tmp/ui-smoke",        // screenshots + text dumps land here
  *     "chrome":  "/opt/pw-browsers/.../chrome",  // auto-detected if omitted
  *     "targets": [
  *       { "name": "admin-schedule", "path": "/admin", "tab": "Schedule", "selector": ".match-table" }
  *     ]
  *   }
+ *
+ * Multitenancy: the app serves every community under /t/<slug>/… — a bare
+ * /admin 404s ("only available within a community") and a bare / is the
+ * community picker, not a tenant home. Set "tenant" (dev slug: "default") and
+ * the harness prefixes the mock login and each target path with /t/<slug>. A
+ * target already starting with "/t/" is left as-is; a target marked
+ * "platform": true (e.g. the /platform surface or the bare "/" picker) is never
+ * prefixed. Omit "tenant" to drive the bare platform host as before.
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -57,6 +66,13 @@ async function clickTab(page, name) {
   const loginAs = cfg.loginAs || 'staff_user';
   const outDir = cfg.outDir || '/tmp/ui-smoke';
   const targets = cfg.targets || [{ name: 'home', path: '/', selector: 'body' }];
+  // Tenant pages live under /t/<slug>/… . Prefix login + targets when a tenant
+  // is set; leave platform targets (or already-prefixed paths) untouched.
+  const tprefix = cfg.tenant ? `/t/${cfg.tenant}` : '';
+  const withTenant = (p, target) => {
+    if (!tprefix || (target && target.platform) || p.startsWith('/t/')) return p;
+    return tprefix + p;
+  };
   fs.mkdirSync(outDir, { recursive: true });
 
   const browser = await chromium.launch({
@@ -70,7 +86,7 @@ async function clickTab(page, name) {
   page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE.ERROR: ' + m.text().slice(0, 200)); });
 
   // Mock login: click "Log in as" in the row for `loginAs`.
-  await page.goto(`${baseUrl}/login`, { waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
   const row = page.locator('tr', { hasText: loginAs }).first();
   await row.getByRole('button', { name: 'Log in as' }).click();
@@ -78,7 +94,7 @@ async function clickTab(page, name) {
   console.log(`logged in as ${loginAs} -> ${page.url()}`);
 
   for (const t of targets) {
-    await page.goto(`${baseUrl}${t.path}`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(1200);
     if (t.tab) console.log(`  [${t.name}] tab "${t.tab}" clicked: ${await clickTab(page, t.tab)}`);
     await page.waitForTimeout(1500);
