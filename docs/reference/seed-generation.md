@@ -4,7 +4,7 @@
 
 ## Overview
 
-Tournaments for randomized games need a freshly rolled game ("seed") for every match. Each [`Tournament`](../../models.py) either references a [`Preset`](#presets-db-backed) (the `preset` FK — a tenant-authored randomizer + settings blob) or names a randomizer directly via the legacy nullable `seed_generator` column. The FK wins when both are set. Staff roll a seed per match from the admin schedule, and the resulting URL is stored and shown to players, crew, and API consumers.
+Tournaments for randomized games need a freshly rolled game ("seed") for every match. Each [`Tournament`](../../models/tournament.py) either references a [`Preset`](#presets-db-backed) (the `preset` FK — a tenant-authored randomizer + settings blob) or names a randomizer directly via the legacy nullable `seed_generator` column. The FK wins when both are set. Staff roll a seed per match from the admin schedule, and the resulting URL is stored and shown to players, crew, and API consumers.
 
 | File | Contents |
 |---|---|
@@ -12,7 +12,7 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | `MatchScheduleService.generate_seed()` — the production entry point: locking, validation, persistence, DMs, audit |
 | [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`) + `import_builtins` from the `presets/` files |
 | [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
-| [`models.py`](../../models.py) | `Tournament.seed_generator`, `Tournament.preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed` |
+| [`models/tournament.py`](../../models/tournament.py) | `Tournament.seed_generator`, `Tournament.preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed` |
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | Seed Generator + Seed Preset selects on the tournament create/edit dialog |
 | [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
 | [`pages/admin_tabs/admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py), [`theme/tables/match.py`](../../theme/tables/match.py) | The per-row **Generate** button and its `roll` event handling |
@@ -31,7 +31,7 @@ The admin Settings tab lists each tournament's `seed_generator` read-only.
 
 1. The admin Schedule tab's match table shows a **Generate** button (casino icon) in the Seed column for rows where `tournament_seed_generator` is set and no seed exists yet ([`theme/tables/match.py`](../../theme/tables/match.py); the card/mobile layout has the same button). Clicking emits a `roll` event that ends in `on_generate_seed` in [`admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py).
 2. `on_generate_seed` calls `MatchScheduleService.generate_seed(match_id, actor=...)`, which validates permission and state (see [API](#seedgenerationservice-api) below), then resolves the randomizer + preset — `tournament.preset` (its `randomizer` + `settings`) when the FK is set, else the legacy `tournament.seed_generator` string with no preset — and dispatches `SeedGenerationService.generate_seed(randomizer, preset)`.
-3. The returned string is persisted as a [`GeneratedSeeds`](../../models.py) row and linked from the match:
+3. The returned string is persisted as a [`GeneratedSeeds`](../../models/tournament.py) row and linked from the match:
 
    | `GeneratedSeeds` field | Value |
    |---|---|

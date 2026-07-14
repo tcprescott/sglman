@@ -28,7 +28,7 @@ Method-level reference for each layer of the codebase.
 
 | Doc | Source area |
 |---|---|
-| [reference/data-model.md](reference/data-model.md) | `models.py` (all models, enums, match lifecycle), `application/repositories/`, `migrations/` |
+| [reference/data-model.md](reference/data-model.md) | `models/` package (all models, enums, match lifecycle), `application/repositories/`, `migrations/` |
 | [reference/services.md](reference/services.md) | `application/services/` (all modules), `application/utils/` |
 | [reference/rest-api.md](reference/rest-api.md) | `api/` (routers, schemas, auth, rate limiting), FastAPI app metadata in `main.py` |
 | [reference/authentication.md](reference/authentication.md) | `pages/auth.py`, `middleware/auth.py`, `AuthService` |
@@ -80,7 +80,7 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` — 36 models, 9 enums | [reference/data-model.md](reference/data-model.md) |
+| `models/` package — 52 models, 16 enums (per-domain submodules; re-exported from `models/__init__.py`) | [reference/data-model.md](reference/data-model.md) |
 | `application/services/` — 34 modules | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seedgen_service), [reference/authentication.md](reference/authentication.md) (auth_service), [features/telemetry.md](features/telemetry.md) (telemetry_service) |
 | `application/events/` — event bus (`bus.py`, `event.py`, `event_types.py`, `dispatch_queue.py`) | [features/event-system.md](features/event-system.md) |
 | `application/repositories/` — 29 repositories | [reference/data-model.md](reference/data-model.md) |

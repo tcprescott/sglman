@@ -3,8 +3,8 @@
 PreToolUse hook: protect *existing* migrations from hand-edits.
 
 Files under `migrations/models/` are applied migrations — editing one in place
-desyncs it from `models.py`, the aerich version table, and any database that
-already ran it. That is the footgun this guards against, so it blocks Edit and
+desyncs it from the `models/` package, the aerich version table, and any database
+that already ran it. That is the footgun this guards against, so it blocks Edit and
 any Write that would overwrite an existing migration file.
 
 Creating a *new* migration file is allowed: it is how a migration is added,
@@ -45,9 +45,9 @@ def main() -> None:
 
     print(
         f"MIGRATION SAFETY VIOLATION in '{file_path}':\n"
-        f"  This migration already exists; editing it in place desyncs it from\n"
-        f"  models.py, the aerich version table, and databases that already ran it.\n"
-        f"  Fix: change models.py and add a NEW migration (aerich migrate, or a\n"
+        f"  This migration already exists; editing it in place desyncs it from the\n"
+        f"  models/ package, the aerich version table, and databases that already ran it.\n"
+        f"  Fix: change the model in models/ and add a NEW migration (aerich migrate, or a\n"
         f"  hand-written file for constraint/data changes aerich cannot generate).",
         file=sys.stderr,
     )

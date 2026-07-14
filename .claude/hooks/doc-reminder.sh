@@ -30,11 +30,11 @@ esac
 REMINDED=0
 remind() { echo "DOC REMINDER: $1"; REMINDED=1; }
 
-# models.py
+# models/ package (historically a single models.py)
 case "$FILE_PATH" in
-  */models.py)
-    remind "models.py changed → update docs/reference/data-model.md (model list, field tables, enums, ERD)"
-    remind "models.py changed → run: poetry run aerich migrate && poetry run aerich upgrade"
+  */models.py|*/models/*.py)
+    remind "models changed → update docs/reference/data-model.md (model list, field tables, enums, ERD)"
+    remind "models changed → run: poetry run aerich migrate && poetry run aerich upgrade"
     ;;
 esac
 

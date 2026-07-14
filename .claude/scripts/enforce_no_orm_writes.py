@@ -35,21 +35,30 @@ def is_presentation(path: str) -> bool:
     return "/pages/" in norm or "/theme/" in norm or norm.endswith("frontend.py")
 
 
-def find_models_file(start_path: str) -> str | None:
+def find_models_source(start_path: str) -> str | None:
+    """Locate the model definitions: the ``models/`` package or a ``models.py``.
+
+    Returns the package directory when models are split into ``models/*.py``, or
+    the single file when it's still ``models.py``. ``None`` if neither is found
+    while walking up from ``start_path``.
+    """
     d = os.path.dirname(os.path.abspath(start_path))
     while True:
-        candidate = os.path.join(d, "models.py")
-        if os.path.isfile(candidate):
-            return candidate
+        pkg = os.path.join(d, "models")
+        if os.path.isfile(os.path.join(pkg, "__init__.py")):
+            return pkg
+        single = os.path.join(d, "models.py")
+        if os.path.isfile(single):
+            return single
         parent = os.path.dirname(d)
         if parent == d:
             return None
         d = parent
 
 
-def load_model_names(models_file: str) -> set[str]:
+def _model_names_in(source: str) -> set[str]:
     try:
-        with open(models_file, encoding="utf-8") as fh:
+        with open(source, encoding="utf-8") as fh:
             tree = ast.parse(fh.read())
     except (OSError, SyntaxError):
         return set()
@@ -64,6 +73,17 @@ def load_model_names(models_file: str) -> set[str]:
                     names.add(node.name)
                     break
     return names
+
+
+def load_model_names(models_source: str) -> set[str]:
+    """Model class names, whether ``models_source`` is a package dir or a file."""
+    if os.path.isdir(models_source):
+        names: set[str] = set()
+        for entry in sorted(os.listdir(models_source)):
+            if entry.endswith(".py"):
+                names |= _model_names_in(os.path.join(models_source, entry))
+        return names
+    return _model_names_in(models_source)
 
 
 def root_name(expr: ast.AST) -> str | None:
@@ -112,10 +132,10 @@ def main() -> None:
     except SyntaxError:
         sys.exit(0)  # check_syntax.py owns syntax-error reporting
 
-    models_file = find_models_file(file_path)
-    if not models_file:
+    models_source = find_models_source(file_path)
+    if not models_source:
         sys.exit(0)
-    models = load_model_names(models_file)
+    models = load_model_names(models_source)
     if not models:
         sys.exit(0)
 
