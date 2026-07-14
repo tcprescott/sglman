@@ -172,15 +172,17 @@ _COMMENT_DETAIL = '''
 
 _ACTIONS = '''
         <div class="mgc-actions row items-center" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && __CC__) || __WATCH__">
-            <q-btn v-if="__IA__ && props.row.state === 'Scheduled'" icon="chair" color="primary" size="md"
+            <q-btn v-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime" icon="chair" color="primary" size="md"
                    @click="$parent.$emit('seat', { key: props.row.id })">Check In</q-btn>
+            <div v-else-if="__IA__ && props.row.state === 'Scheduled' && props.row.is_racetime" class="st-neutral italic-note">
+                Managed by racetime.gg</div>
             <q-btn v-else-if="__IA__ && props.row.state === 'Checked In'" icon="play_arrow" color="primary" size="md"
                    @click="$parent.$emit('start', { key: props.row.id })">Start</q-btn>
             <q-btn v-else-if="__IA__ && props.row.state === 'Started'" icon="sports_score" color="primary" size="md"
                    @click="$parent.$emit('finish', { key: props.row.id })">Finish</q-btn>
             <q-btn v-else-if="__IA__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
                    @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
-            <q-btn v-if="__IA__ && __CC__" icon="switch_access_shortcut" color="primary" size="md" outline
+            <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" icon="switch_access_shortcut" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"

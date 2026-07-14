@@ -54,8 +54,9 @@ class TestMatchInfoBlock:
 
 
 class MockTournament:
-    def __init__(self, name="Test Tournament"):
+    def __init__(self, name="Test Tournament", is_racetime_enabled=False):
         self.name = name
+        self.is_racetime_enabled = is_racetime_enabled
 
 
 class MockMatch:
@@ -63,7 +64,8 @@ class MockMatch:
 
     def __init__(self, *, seated_at=None, started_at=None, finished_at=None,
                  confirmed_at=None, id=1, stream_room_id=None, tournament_id=1,
-                 scheduled_at=None, players=None, stream_room=None):
+                 scheduled_at=None, players=None, stream_room=None,
+                 is_racetime_enabled=False):
         self.id = id
         self.seated_at = seated_at
         self.started_at = started_at
@@ -72,7 +74,7 @@ class MockMatch:
         self.stream_room_id = stream_room_id
         self.tournament_id = tournament_id
         self.scheduled_at = scheduled_at or datetime(2025, 1, 15, 19, 30)
-        self.tournament = MockTournament()
+        self.tournament = MockTournament(is_racetime_enabled=is_racetime_enabled)
         self.players = players if players is not None else []
         self.stream_room = stream_room
         self.save = AsyncMock()
@@ -136,6 +138,18 @@ class TestSeatMatch:
         match = MockMatch(seated_at=datetime.now())
         with pytest.raises(ValueError):
             await service.seat_match(match)
+        match.save.assert_not_awaited()
+
+    async def test_racetime_tournament_rejects_check_in(self, service):
+        match = MockMatch(is_racetime_enabled=True)
+        with pytest.raises(ValueError, match="racetime.gg"):
+            await service.seat_match(match)
+
+    async def test_racetime_tournament_does_not_seat(self, service):
+        match = MockMatch(is_racetime_enabled=True)
+        with pytest.raises(ValueError):
+            await service.seat_match(match)
+        assert match.seated_at is None
         match.save.assert_not_awaited()
 
 

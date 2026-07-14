@@ -96,6 +96,13 @@ class MatchScheduleService:
         }, actor))
 
     async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
+        await match.fetch_related('tournament')
+        if match.tournament and match.tournament.is_racetime_enabled:
+            raise ValueError(
+                "Check-in is disabled for racetime.gg tournaments — the race "
+                "room manages the match lifecycle."
+            )
+
         def check() -> None:
             if match.seated_at:
                 raise ValueError("Match is already checked in")

@@ -676,6 +676,24 @@ class TestAssignStations:
         assert (await MatchPlayers.get(id=mp2.id)).assigned_station is None
         assert EventType.MATCH_STATIONS_ASSIGNED in [e.event_type for e in captured_events]
 
+    async def test_racetime_tournament_rejects_station_assignment(self, service, db):
+        from models import RacetimeBot
+
+        await SystemConfiguration.create(name=KEY_STATION_FORMAT, value="numeric")
+        actor = await make_staff()
+        bot = await RacetimeBot.create(
+            category="alttpr", client_id="cid", client_secret="secret", name="Bot",
+        )
+        t = await make_tournament(racetime_bot=bot)
+        match = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 18))
+        player = await make_user()
+        mp = await MatchPlayers.create(match=match, user=player)
+
+        with pytest.raises(ValueError, match="racetime.gg"):
+            await service.assign_stations(match_id=match.id, assignments={mp.id: "5"}, actor=actor)
+
+        assert (await MatchPlayers.get(id=mp.id)).assigned_station is None
+
 
 # ---------------------------------------------------------------------------
 # delete_match

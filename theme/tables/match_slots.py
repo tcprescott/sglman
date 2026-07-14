@@ -76,12 +76,17 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' :
 </q-td>'''
 
 STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
-    <!-- Scheduled state: show Check In button -->
+    <!-- Scheduled state: show Check In button (on-site only; racetime rooms
+         drive the lifecycle, so racetime matches show a note instead) -->
     <div v-if="props.value === 'Scheduled'" style="display: flex; justify-content: center;">
-        <q-btn @click="$parent.$emit('seat', props)"
+        <q-btn v-if="!props.row.is_racetime" @click="$parent.$emit('seat', props)"
                icon="chair" color="primary" size="sm">
             Check In
         </q-btn>
+        <span v-else class="st-neutral italic-note">
+            racetime.gg
+            <q-tooltip>Managed by the racetime.gg room</q-tooltip>
+        </span>
     </div>
 
     <!-- Checked In: show Start button and timestamp -->
@@ -187,7 +192,7 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash
                 </div>
             </template>
         </div>
-        <q-btn v-if="__IA__ && __CC__" @click="$parent.$emit('assign_stations', props)"
+        <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" @click="$parent.$emit('assign_stations', props)"
                icon="switch_access_shortcut" color="primary" size="xs" flat round>
             <q-tooltip>Assign Stations</q-tooltip>
         </q-btn>

@@ -65,7 +65,7 @@ def make_match(**overrides):
         created_at=datetime(2025, 1, 1, 12, 0),
         scheduled_at=datetime(2025, 1, 15, 19, 30),
         comment=None,
-        tournament=SimpleNamespace(name="Test Tournament", seed_generator=None),
+        tournament=SimpleNamespace(name="Test Tournament", seed_generator=None, is_racetime_enabled=False),
         stream_room=None,
         stream_room_id=None,
         generated_seed=None,
