@@ -25,7 +25,6 @@ best-effort and never block a state change.
 """
 
 import logging
-import secrets
 from datetime import datetime, timezone
 from typing import List, Optional, Sequence
 
@@ -40,14 +39,13 @@ from application.repositories import (
     AsyncQualifierRunRepository,
     PresetRepository,
 )
+from application.services import async_qualifier_rules as rules
 from application.services.async_qualifier_config import validate_async_qualifier_config
+from application.services.async_qualifier_draw import AsyncQualifierDraw
 from application.services.async_qualifier_scoring import (
-    DEFAULT_PAR_SAMPLE_SIZE,
     LeaderboardEntry,
     ScoredRun,
     build_leaderboard,
-    compute_par,
-    compute_score,
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -70,7 +68,6 @@ _TERMINAL = {
     AsyncQualifierRunStatus.FORFEIT,
     AsyncQualifierRunStatus.DISQUALIFIED,
 }
-_DEFAULT_IMBALANCE_THRESHOLD = 2
 
 
 class AsyncQualifierService:
@@ -84,6 +81,12 @@ class AsyncQualifierService:
         self.note_repository = AsyncQualifierReviewNoteRepository()
         self.preset_repository = PresetRepository()
         self.audit_service = AuditService()
+        self.draw = AsyncQualifierDraw(
+            repository=self.repository,
+            pool_repository=self.pool_repository,
+            permalink_repository=self.permalink_repository,
+            run_repository=self.run_repository,
+        )
 
     # ============================================================ management
 
@@ -119,8 +122,8 @@ class AsyncQualifierService:
         name = (name or '').strip()
         if not name:
             raise ValueError("Qualifier name is required")
-        runs_per_pool, allowed_reattempts = self._validate_counts(runs_per_pool, allowed_reattempts)
-        self._validate_window(opens_at, closes_at)
+        runs_per_pool, allowed_reattempts = rules.validate_counts(runs_per_pool, allowed_reattempts)
+        rules.validate_window(opens_at, closes_at)
         config = validate_async_qualifier_config(config)
         qualifier = await self.repository.create(
             name=name,
@@ -171,13 +174,13 @@ class AsyncQualifierService:
         new_opens = opens_at if opens_at is not None or clear_window else qualifier.opens_at
         new_closes = closes_at if closes_at is not None or clear_window else qualifier.closes_at
         if opens_at is not None or closes_at is not None or clear_window:
-            self._validate_window(new_opens, new_closes)
+            rules.validate_window(new_opens, new_closes)
             changes['opens_at'] = new_opens
             changes['closes_at'] = new_closes
         new_rpp = qualifier.runs_per_pool if runs_per_pool is None else runs_per_pool
         new_ar = qualifier.allowed_reattempts if allowed_reattempts is None else allowed_reattempts
         if runs_per_pool is not None or allowed_reattempts is not None:
-            new_rpp, new_ar = self._validate_counts(new_rpp, new_ar)
+            new_rpp, new_ar = rules.validate_counts(new_rpp, new_ar)
             changes['runs_per_pool'] = new_rpp
             changes['allowed_reattempts'] = new_ar
         if is_active is not None:
@@ -430,13 +433,13 @@ class AsyncQualifierService:
         """Pools a player may still draw from: within window, slots remaining,
         and at least one undrawn non-live-race permalink left."""
         qualifier = await self._require_qualifier(qualifier_id)
-        self._ensure_window_open(qualifier)
+        rules.ensure_window_open(qualifier)
         if user is None:
             return []
         pools = await self.pool_repository.list_for_qualifier(qualifier_id)
         eligible: List[AsyncQualifierPool] = []
         for pool in pools:
-            candidates = await self._draw_candidates(pool, user.id)
+            candidates = await self.draw.draw_candidates(pool, user.id)
             used = await self.run_repository.count_valid_runs_for_user_in_pool(pool.id, user.id)
             if candidates and used < qualifier.runs_per_pool:
                 eligible.append(pool)
@@ -461,7 +464,7 @@ class AsyncQualifierService:
         if user is None:
             raise ValueError("You must be logged in to start a run")
         qualifier = await self._require_qualifier(qualifier_id)
-        self._ensure_window_open(qualifier)
+        rules.ensure_window_open(qualifier)
         pool = await self._require_pool(pool_id)
         if pool.qualifier_id != qualifier_id:
             raise ValueError("Pool does not belong to this qualifier")
@@ -474,7 +477,7 @@ class AsyncQualifierService:
             used = await self.run_repository.count_valid_runs_for_user_in_pool(pool_id, user.id)
             if used >= qualifier.runs_per_pool:
                 raise ValueError("You have used all your runs for this pool")
-            permalink = await self._pick_permalink(qualifier, pool, user.id)
+            permalink = await self.draw.pick_permalink(qualifier, pool, user.id)
             if permalink is None:
                 raise ValueError("No permalinks left to draw in this pool")
             run = await self.run_repository.create(
@@ -557,7 +560,7 @@ class AsyncQualifierService:
         # A voided run leaves the leaderboard/par inputs, so refresh the affected
         # permalink's par + sibling scores.
         if run.permalink_id is not None:
-            await self._recompute_par_and_scores(run.permalink_id)
+            await self.draw.recompute_par_and_scores(run.permalink_id)
         await self.audit_service.write_log(
             user, AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
             {'run_id': run.id, 'qualifier_id': run.qualifier_id},
@@ -612,7 +615,7 @@ class AsyncQualifierService:
         # Recompute the permalink's par from the (now-updated) approved set, then
         # rescore every approved run on it — this run included.
         if run.permalink_id is not None:
-            await self._recompute_par_and_scores(run.permalink_id)
+            await self.draw.recompute_par_and_scores(run.permalink_id)
             run = await self.run_repository.get_by_id(run.id) or run
         await self.audit_service.write_log(
             actor, AuditActions.ASYNC_QUALIFIER_RUN_REVIEWED,
@@ -639,13 +642,7 @@ class AsyncQualifierService:
     # =========================================================== leaderboard
 
     def is_results_public(self, qualifier: AsyncQualifier, now: Optional[datetime] = None) -> bool:
-        """Active-window information lockdown: pool/par/other entrants' runs and
-        the leaderboard go public only once the qualifier closes (inactive or
-        past ``closes_at``)."""
-        now = now or datetime.now(timezone.utc)
-        if not qualifier.is_active:
-            return True
-        return qualifier.closes_at is not None and now >= qualifier.closes_at
+        return rules.is_results_public(qualifier, now)
 
     async def get_leaderboard(
         self, actor: Optional[User], qualifier_id: int
@@ -667,7 +664,7 @@ class AsyncQualifierService:
                     and run.permalink is not None):
                 scored.append(ScoredRun(
                     user_id=run.user_id,
-                    username=self._display_name(run.user),
+                    username=rules.display_name(run.user),
                     pool_id=run.permalink.pool_id,
                     score=run.score,
                 ))
@@ -731,60 +728,10 @@ class AsyncQualifierService:
         runs = await self.run_repository.list_for_user(qualifier_id, user_id)
         return sum(1 for r in runs if r.reattempted)
 
-    async def _draw_candidates(
-        self, pool: AsyncQualifierPool, user_id: int
-    ) -> List[AsyncQualifierPermalink]:
-        """Permalinks a player may still draw from a pool: not live-race and not
-        already played by them (no-repeat)."""
-        permalinks = await self.permalink_repository.list_for_pool(pool.id)
-        played = await self.run_repository.played_permalink_ids_for_user_in_pool(pool.id, user_id)
-        return [p for p in permalinks if not p.live_race and p.id not in played]
-
-    async def _pick_permalink(
-        self, qualifier: AsyncQualifier, pool: AsyncQualifierPool, user_id: int
-    ) -> Optional[AsyncQualifierPermalink]:
-        """Imbalance-forcing draw: random among candidates unless the pool's
-        play-count spread crosses the threshold, then force the least-played."""
-        candidates = await self._draw_candidates(pool, user_id)
-        if not candidates:
-            return None
-        counts = await self.run_repository.valid_run_counts_by_permalink_for_pool(pool.id)
-        cand_counts = {c.id: counts.get(c.id, 0) for c in candidates}
-        threshold = self._imbalance_threshold(qualifier)
-        spread = max(cand_counts.values()) - min(cand_counts.values())
-        if spread >= threshold:
-            fewest = min(cand_counts.values())
-            candidates = [c for c in candidates if cand_counts[c.id] == fewest]
-        return secrets.choice(candidates)
-
     async def recompute_par_and_scores(self, permalink_id: int) -> None:
-        """Public entry to :meth:`_recompute_par_and_scores` for sibling services
-        (the live-race capture path) that add approved runs on a permalink."""
-        await self._recompute_par_and_scores(permalink_id)
-
-    async def _recompute_par_and_scores(self, permalink_id: int) -> None:
-        """Recompute a permalink's par from its approved finished runs and
-        rescore every one of them (par shifts as runs are reviewed/voided)."""
-        permalink = await self.permalink_repository.get_by_id(permalink_id)
-        if permalink is None:
-            return
-        approved = await self.run_repository.list_approved_finished_for_permalink(permalink_id)
-        elapsed = [r.elapsed_seconds for r in approved if r.elapsed_seconds]
-        sample = self._par_sample_size(await self._qualifier_for_permalink(permalink))
-        par = compute_par(elapsed, sample)
-        await self.permalink_repository.update(
-            permalink, par_time=par, par_updated_at=datetime.now(timezone.utc)
-        )
-        for run in approved:
-            score = compute_score(run.elapsed_seconds, par)
-            if score != run.score:
-                await self.run_repository.update(run, score=score)
-
-    async def _qualifier_for_permalink(self, permalink: AsyncQualifierPermalink) -> Optional[AsyncQualifier]:
-        pool = await self.pool_repository.get_by_id(permalink.pool_id)
-        if pool is None:
-            return None
-        return await self.repository.get_by_id(pool.qualifier_id)
+        """Public entry for sibling services (the live-race capture path) that add
+        approved runs on a permalink and need its par + scores refreshed."""
+        await self.draw.recompute_par_and_scores(permalink_id)
 
     async def _notify_run_reviewed(self, run: AsyncQualifierRun, approved: bool) -> None:
         try:
@@ -800,45 +747,3 @@ class AsyncQualifierService:
             )
         except Exception:
             logger.debug("Failed to DM run-reviewed notification", exc_info=True)
-
-    def _ensure_window_open(self, qualifier: AsyncQualifier) -> None:
-        if not qualifier.is_active:
-            raise ValueError("This qualifier is not active")
-        now = datetime.now(timezone.utc)
-        if qualifier.opens_at is not None and now < qualifier.opens_at:
-            raise ValueError("This qualifier has not opened yet")
-        if qualifier.closes_at is not None and now >= qualifier.closes_at:
-            raise ValueError("This qualifier has closed")
-
-    @staticmethod
-    def _validate_counts(runs_per_pool: int, allowed_reattempts: int):
-        if runs_per_pool < 1:
-            raise ValueError("Runs per pool must be at least 1")
-        if allowed_reattempts < 0:
-            raise ValueError("Allowed reattempts cannot be negative")
-        return runs_per_pool, allowed_reattempts
-
-    @staticmethod
-    def _validate_window(opens_at: Optional[datetime], closes_at: Optional[datetime]) -> None:
-        if opens_at is not None and closes_at is not None and closes_at <= opens_at:
-            raise ValueError("The close time must be after the open time")
-
-    @staticmethod
-    def _par_sample_size(qualifier: Optional[AsyncQualifier]) -> int:
-        if qualifier and isinstance(qualifier.config, dict):
-            value = qualifier.config.get('par_sample_size')
-            if isinstance(value, int) and value >= 1:
-                return value
-        return DEFAULT_PAR_SAMPLE_SIZE
-
-    @staticmethod
-    def _imbalance_threshold(qualifier: AsyncQualifier) -> int:
-        if isinstance(qualifier.config, dict):
-            value = qualifier.config.get('draw_imbalance_threshold')
-            if isinstance(value, int) and value >= 1:
-                return value
-        return _DEFAULT_IMBALANCE_THRESHOLD
-
-    @staticmethod
-    def _display_name(user: User) -> str:
-        return user.display_name or user.username or f"User {user.id}"
