@@ -59,6 +59,8 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `RaceRoomProfileService` | [race_room_profile_service.py](../../application/services/race_room_profile_service.py) | SYNC_ADMIN CRUD for reusable racetime room settings | — |
 | `RacetimeRoomService` | [racetime_room_service.py](../../application/services/racetime_room_service.py) | Race-room record lookup (unscoped by-slug routing) + status writes | — |
 | `RaceRoomService` | [race_room_service.py](../../application/services/race_room_service.py) | Racetime room lifecycle mapped onto a `Match` (create/open/seed/finish/cancel + result capture) | — |
+| `SpeedGamingETLService` | [speedgaming_etl_service.py](../../application/services/speedgaming_etl_service.py) | One-way SpeedGaming→SGLMan schedule ETL (extract/transform/load into `Match`) | — |
+| `SpeedGamingSyncService` | [speedgaming_sync_service.py](../../application/services/speedgaming_sync_service.py) | Tenant-facing SpeedGaming event-link CRUD + on-demand "sync now" | — |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
@@ -341,6 +343,8 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 **Creation/reschedule flow.** `create_match` resolves every referenced user up front (so a bad id cannot leave an orphan `Match` row), creates the row, enrolls players in the tournament if needed, attaches commentators/trackers as pre-approved, audits `match.created`, then seeds per-player acknowledgment rows (the actor auto-acknowledges their own). Finally it hands the whole scheduled-notification fan-out to `MatchScheduleService.notify_match_scheduled` (ack request + crew DM + subscriber fan-out, plus stream-candidate when flagged). `update_match` re-seeds acknowledgments when `scheduled_at` or the player set changed; on a time change it calls `notify_match_scheduled(rescheduled=True)`, otherwise it enqueues just the acknowledgment request.
 
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `UserRepository`, `CommentatorRepository`, `TrackerRepository`, `AuditService`, `MatchScheduleService` (lifecycle notify + `notify_match_scheduled`/`notify_stream_candidate`), `AuthService`, `discord_queue`. Consumers: `theme/tables/match.py` (acknowledge, plus reads via `MatchDisplayService`), `theme/dialog/match_dialog.py` (create/update/delete/request), `theme/dialog/match_result_dialog.py`, `theme/dialog/station_assignment_dialog.py`, `theme/dialog/stream_room_dialog.py` (stage + candidate flag), `pages/home_tabs/schedule.py`, `pages/home_tabs/stage_timeline.py`, `pages/home_tabs/player.py`, `discordbot/match_acknowledgment.py` (DM button handler).
+
+**match_source_guard.py** — the per-field half of the SpeedGaming read-only contract, extracted from `MatchService` to keep it focused (and under the file-length guideline). `assert_sg_fields_unchanged(match, *, tournament_id, scheduled_date, scheduled_time, players_changed)` raises `ValueError` when a staff edit would change an ETL-owned field (schedule, players, tournament) on an SG-sourced match (`speedgaming_episode_id` set); a no-op for non-sourced matches. Comparison is by *value*, so the edit dialog can resubmit the disabled fields unchanged — only a genuine change is rejected. The UI also disables these fields, but this is the enforcement: a gap here would be silently reverted on the next sync and look like a bug. Called by `MatchService.update_match`.
 
 ### match_suggestion_service.py — MatchSuggestionService
 
@@ -661,6 +665,32 @@ Platform external-service health monitor. **Computed-and-cached, no persistence 
 Probes: PostgreSQL (DB round-trip), Discord bot (gateway readiness / mock), Discord OAuth (config), racetime bots (reads `RacetimeBot.status`, maps `error` w/ auth message → credential-warning), SpeedGaming (reachability / mock), Challonge (API reachability **+** token expiry across all tenants via `ChallongeRepository.list_all_connections()`, an explicitly-unscoped read), Twitch OAuth (config), seed-gen upstreams alttpr.com / ootrandomizer.com / maprando.com (reachability), web-push/VAPID (config), Sentry (config). Alerting: `refresh` publishes `EventType.SERVICE_HEALTH_ALERT` (platform-level → no tenant webhook; the real channels are Sentry `capture_message` + optional super-admin DM under `SERVICE_HEALTH_ALERT_DM`). Consumers: `/platform` board (full, refreshable) and the admin **Service Health** tab (tenant subset) via `pages/service_health_view.py`.
 
 **service_health_worker.py** — the periodic probe loop (peer of `discord_event_worker`). Every 120 s it calls `ServiceHealthService().refresh()` with **no tenant scope** (all probes are platform-level). Started from the lifespan only when `SERVICE_HEALTH_ENABLED` is on; the board still refreshes on demand regardless. The loop never dies — a failing tick is logged and retried.
+
+### speedgaming_etl_service.py — SpeedGamingETLService (PR 7)
+
+One-way SpeedGaming → SGLMan schedule ETL, ported from sahabot2 and adapted to the three-layer + multitenant shape. Per active `SpeedGamingEventLink` the sync worker (never a UI caller) drives the pipeline: **extract** a forward schedule window from the SG API (`SpeedGamingClient`), **transform** each episode to UTC and resolve every player to a `User` via the placeholder pattern, **load** by upserting a `SpeedGamingEpisode` staging row and materializing/refreshing its `Match` + `MatchPlayers`. Runs as the reserved **system `User`** (audit/event actor), always inside the worker's `tenant_scope`. Two race-day guards uphold the hybrid read-only contract: a re-sync **skips** a match that is finished / manually progressed / racetime-linked, and **auto-finishes** SG-sourced matches more than 4h past their scheduled time (unless a room is linked). The per-field read-only lock on a sourced match lives in [`match_source_guard.py`](#match_servicepy--matchservice) / `MatchService.update_match`; this service owns the sync side. Audited under `sg_sync.*`; module constant `BACKFILL_GRACE_HOURS = 1`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `sync_event_link(link, *, actor, now=None)` | `SyncResult` | Sync one active link (assumes ambient tenant = `link.tenant`): import every episode in the window, soft-detach episodes that vanished upstream, auto-finish stale matches, and record the link's observability fields (`last_synced_at`/`last_status`/`last_error`). Never raises on a per-episode failure — failures are tallied. |
+| `import_episode(link, raw, *, actor, now=None)` | `str` | Transform+load one raw SG episode: upsert its staging row and materialize/refresh its match. Returns the outcome key (`'imported'`/`'unchanged'`/`'skipped'`) for the caller to tally; raises on a transform/load failure so the caller can mark that episode ERROR. |
+
+`SyncResult` (same module) is the per-run tally dataclass — `imported`, `unchanged`, `skipped`, `cancelled`, `auto_finished`, `errors`, `error_messages` — with `as_dict()` for the audit/observability payload. Collaborators: `SpeedGamingEpisodeRepository`, `SpeedGamingEventLinkRepository`, `MatchRepository`/`MatchService`, `UserRepository`, `AuditService`, the event bus, `SpeedGamingClient`. Consumers: `speedgaming_sync_worker` and `SpeedGamingSyncService.sync_now`.
+
+### speedgaming_sync_service.py — SpeedGamingSyncService (PR 7)
+
+The human-driven management surface over the SG ETL: CRUD of `SpeedGamingEventLink` rows (which SG event slug feeds which tournament) and an on-demand "sync now" for one link. Every mutation is gated by `AuthService.can_manage_sync` (STAFF / super-admin / `SYNC_ADMIN`) and audited under `sg_sync.*`. The background worker calls the ETL directly as the system user; this service is the admin-facing peer.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_links(actor)` | `list[SpeedGamingEventLink]` | The tenant's event links. |
+| `list_episodes(actor, event_link_id)` | `list[SpeedGamingEpisode]` | Staging episodes imported for one link (observability). |
+| `create_link(actor, *, tournament_id, event_slug, content_type=None, sync_interval_minutes=15, lookahead_hours=72, active=True)` | `SpeedGamingEventLink` | Link an SG event slug to a tournament; non-empty slug and existing tournament required; rejects a duplicate `(tournament, slug)` (`ValueError`). Audits `sg_sync.event_link_created`. |
+| `update_link(actor, link_id, *, event_slug=None, content_type=None, sync_interval_minutes=None, lookahead_hours=None, active=None)` | `SpeedGamingEventLink` | Partial edit; re-checks slug uniqueness on change. Audits `sg_sync.event_link_updated`. |
+| `delete_link(actor, link_id)` | `None` | Remove a link; audits `sg_sync.event_link_deleted`. |
+| `sync_now(actor, link_id)` | `SyncResult` | Run `SpeedGamingETLService.sync_event_link` for one link on demand and return the run tally. |
+
+Collaborators: `SpeedGamingEventLinkRepository`, `SpeedGamingEpisodeRepository`, `TournamentRepository`, `SpeedGamingETLService`, `AuthService`, `AuditService`. Consumer: the admin **SpeedGaming** sync tab.
 
 ### user_service.py — UserService
 

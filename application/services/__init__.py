@@ -7,6 +7,11 @@ between repositories. They should NOT know about UI components.
 
 from .analytics_service import AnalyticsService
 from .api_token_service import ApiTokenService
+from .async_qualifier_config import (
+    AsyncQualifierConfig,
+    validate_async_qualifier_config,
+)
+from . import async_qualifier_scoring
 from .async_qualifier_live_race_service import AsyncQualifierLiveRaceService
 from .async_qualifier_service import AsyncQualifierService
 from .audit_service import AuditService
@@ -26,6 +31,7 @@ from .discord_service import DiscordService
 from .equipment_service import EquipmentService
 from .feedback_service import FeedbackService
 from .match_service import MatchService
+from .match_source_guard import assert_sg_fields_unchanged
 from .match_display_service import MatchDisplayService
 from .match_schedule_service import MatchScheduleService
 from .match_suggestion_service import MatchSuggestionService
@@ -34,6 +40,7 @@ from .match_watcher_service import MatchWatcherService
 from .preset_service import PresetService
 from .race_room_profile_service import RaceRoomProfileService
 from .race_room_service import RaceRoomService
+from . import race_room_worker
 from .racetime_bot_service import RacetimeBotService
 from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
@@ -66,6 +73,9 @@ __all__ = [
     'validate_tournament_config',
     'AnalyticsService',
     'ApiTokenService',
+    'AsyncQualifierConfig',
+    'validate_async_qualifier_config',
+    'async_qualifier_scoring',
     'AsyncQualifierService',
     'AsyncQualifierLiveRaceService',
     'AuditService',
@@ -88,6 +98,7 @@ __all__ = [
     'EquipmentService',
     'FeedbackService',
     'MatchService',
+    'assert_sg_fields_unchanged',
     'MatchDisplayService',
     'MatchScheduleService',
     'MatchSuggestionService',
@@ -96,6 +107,7 @@ __all__ = [
     'PresetService',
     'RaceRoomProfileService',
     'RaceRoomService',
+    'race_room_worker',
     'RacetimeBotService',
     'RacetimeRoomService',
     'RacetimeService',
