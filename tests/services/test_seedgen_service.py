@@ -139,6 +139,62 @@ class TestGenerateSeedPreset:
 
 
 # ---------------------------------------------------------------------------
+# generate_seed — MOCK_SEEDGEN short-circuit (no network for any randomizer)
+# ---------------------------------------------------------------------------
+
+
+class TestMockSeedgen:
+    @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'test'])
+    async def test_returns_mock_url_without_network(self, service, monkeypatch, randomizer):
+        # No ALTTPR.generate / aiohttp / OOTR_API_KEY needed: the mock returns
+        # before any backend is reached — even for randomizers that would
+        # otherwise raise for missing credentials (smmap/ootr).
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+        monkeypatch.delenv('OOTR_API_KEY', raising=False)
+        monkeypatch.delenv('SMMAP_SPOILER_TOKEN', raising=False)
+        url = await service.generate_seed(randomizer)
+        assert url.startswith(f'https://mock.seedgen.local/{randomizer}/')
+
+    async def test_mock_urls_are_distinct(self, service, monkeypatch):
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+        urls = {await service.generate_seed('alttpr') for _ in range(10)}
+        assert len(urls) == 10
+
+    async def test_mock_still_rejects_unsupported_randomizer(self, service, monkeypatch):
+        monkeypatch.setenv('ENVIRONMENT', 'development')
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+        with pytest.raises(ValueError, match='Unsupported'):
+            await service.generate_seed('not_a_randomizer')
+
+    async def test_off_by_default_uses_real_generator(self, service, monkeypatch):
+        # With MOCK_SEEDGEN unset, alttpr reaches ALTTPR.generate (patched here).
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        monkeypatch.delenv('MOCK_SEEDGEN', raising=False)
+        gen = AsyncMock(return_value=SimpleNamespace(url='https://alttpr.com/h/real'))
+        with patch('application.services.seedgen_service.ALTTPR.generate', gen):
+            url = await service.generate_seed('alttpr')
+        assert url == 'https://alttpr.com/h/real'
+
+    def test_helper_off_by_default(self, monkeypatch):
+        from application.utils.mock_seedgen import is_mock_seedgen
+
+        monkeypatch.delenv('MOCK_SEEDGEN', raising=False)
+        assert is_mock_seedgen() is False
+
+    def test_helper_refuses_in_production(self, monkeypatch):
+        from application.utils.mock_seedgen import is_mock_seedgen
+
+        monkeypatch.setenv('MOCK_SEEDGEN', 'true')
+        monkeypatch.setenv('ENVIRONMENT', 'production')
+        with pytest.raises(RuntimeError, match='must not be enabled in production'):
+            is_mock_seedgen()
+
+
+# ---------------------------------------------------------------------------
 # _generate_ff1r — pure URL manipulation, no network
 # ---------------------------------------------------------------------------
 

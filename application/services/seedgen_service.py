@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import random
+import secrets
 import urllib.parse
 from typing import Optional
 
@@ -17,6 +18,7 @@ import yaml
 from pyz3r import ALTTPR
 
 from application.tenant_context import require_tenant_id
+from application.utils.mock_seedgen import is_mock_seedgen
 from models import Preset
 
 
@@ -69,9 +71,17 @@ class SeedGenerationService:
         if randomizer not in generator_map:
             raise ValueError(f"Unsupported randomizer: {randomizer}")
 
+        if is_mock_seedgen():
+            return self._mock_seed_url(randomizer)
+
         if randomizer == 'alttpr':
             return await self._generate_alttpr(preset)
         return await generator_map[randomizer]()
+
+    @staticmethod
+    def _mock_seed_url(randomizer: str) -> str:
+        """A believable, unique permalink for MOCK_SEEDGEN mode."""
+        return f"https://mock.seedgen.local/{randomizer}/{secrets.token_hex(8)}"
 
     async def _generate_alttpr(self, preset: Optional[Preset] = None) -> str:
         """
