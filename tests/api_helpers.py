@@ -38,7 +38,13 @@ async def create_user_token(
         discord_id = random.randint(1, 10 ** 12)
     user = await User.create(discord_id=discord_id, username=username, is_active=is_active)
     for role in roles or []:
-        await UserRole.create(user=user, role=role)
+        # SUPER_ADMIN is the one *global* role (``UserRole`` with ``tenant=None``);
+        # pass tenant explicitly so the db-fixture's auto-stamp leaves it NULL.
+        # Every other role is tenant-scoped and stamped with the ambient tenant.
+        if role == Role.SUPER_ADMIN:
+            await UserRole.create(user=user, role=role, tenant=None)
+        else:
+            await UserRole.create(user=user, role=role)
     _, raw_token = await ApiTokenService().create_token(user, name='test', read_only=read_only)
     return user, raw_token
 

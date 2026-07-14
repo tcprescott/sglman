@@ -73,6 +73,16 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 | API tokens | [`api/routers/tokens.py`](../../api/routers/tokens.py) |
 | Discord role mappings | [`api/routers/discord_role_mappings.py`](../../api/routers/discord_role_mappings.py) |
 | Webhooks | [`api/routers/webhooks.py`](../../api/routers/webhooks.py) |
+| Presets | [`api/routers/presets.py`](../../api/routers/presets.py) |
+| Race room profiles | [`api/routers/race_room_profiles.py`](../../api/routers/race_room_profiles.py) |
+| Racetime bots | [`api/routers/racetime_bots.py`](../../api/routers/racetime_bots.py) |
+| Race rooms | [`api/routers/race_rooms.py`](../../api/routers/race_rooms.py) |
+| SpeedGaming | [`api/routers/speedgaming.py`](../../api/routers/speedgaming.py) |
+| Discord events | [`api/routers/discord_events.py`](../../api/routers/discord_events.py) |
+| Service health | [`api/routers/service_health.py`](../../api/routers/service_health.py) |
+| Seeds | [`api/routers/seeds.py`](../../api/routers/seeds.py) |
+| Async qualifiers | [`api/routers/async_qualifiers.py`](../../api/routers/async_qualifiers.py) |
+| Async qualifier live races | [`api/routers/async_qualifier_live_races.py`](../../api/routers/async_qualifier_live_races.py) |
 
 ### Health (`/api/health`)
 - `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
@@ -138,16 +148,76 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 ### Discord role mappings (`/api/discord-role-mappings`)
 - `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → app-role mappings (Staff).
 
-## Not yet covered (future enhancement)
+## Online-tournament features
 
-The **online-tournament features** (presets, racetime bots/rooms, SpeedGaming ETL,
-Discord Events sync, service health, async qualifiers + live races, seed rolling)
-ship with service, UI, and inbound-webhook surfaces but **no REST endpoints yet** —
-they are absent from the catalogue above. A concrete, execution-ready design for
-bringing them to full read + write REST parity (endpoint tables, schemas, the
-`require_super_admin` deps, exclusions, and a test plan) is written up as a proposed
-follow-up in [online-tournaments/rest-api-coverage.md](../online-tournaments/rest-api-coverage.md).
+The online-tournament subsystems now have full read + write REST parity. As elsewhere,
+handlers are a thin layer over the service — the same `AuthService` gate the web UI uses
+applies. Two of these groups are **global / platform** resources gated by the two
+super-admin dependencies added for them (`require_super_admin` / `require_super_admin_write`
+in [`api/dependencies.py`](../../api/dependencies.py), which check the global
+`SUPER_ADMIN` role — `UserRole` with `tenant=NULL` — rather than tenant STAFF). The
+tenant-role-gated groups (presets, sync, qualifiers) use the coarse
+`require_api_actor`/`require_write_actor` HTTP dep and let the service enforce the
+finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a
+sub-STAFF token with the right role is accepted rather than 403'd.
+
+### Presets (`/api/presets`)
+Tenant-authored seed presets (service gate `can_manage_presets`).
+- `GET /presets` (opt `?randomizer=`) · `GET /presets/selectable` · `GET /presets/{id}`.
+- `POST /presets` · `PATCH /presets/{id}` · `DELETE /presets/{id}` · `POST /presets/import-builtins` (import the built-in preset files).
+
+### Race room profiles (`/api/race-room-profiles`)
+Reusable racetime room settings (service gate `can_manage_sync`).
+- `GET /race-room-profiles` · `/selectable` · `/{id}`; `POST` · `PATCH /{id}` · `DELETE /{id}`.
+
+### Racetime bots (`/api/racetime-bots`) — **super-admin, global**
+Platform-managed racetime bots (no tenant FK). Responses are the secret-free
+`RacetimeBotService.serialize(bot)` projection — `client_secret` is never returned.
+- `GET /racetime-bots` · `/active` · `/{id}` (super-admin).
+- `POST` · `PATCH /{id}` · `DELETE /{id}` (super-admin write).
+- `GET /racetime-bots/{id}/grants` · `POST /{id}/grants` (`{tenant_id}`) · `DELETE /{id}/grants/{tenant_id}` — tenant authorization grants.
+
+### Race rooms (`/api/race-rooms`)
+- `GET /race-rooms/open` (Staff; filtered to your tenant) · `GET /race-rooms/by-match/{match_id}`.
+- `POST /race-rooms` (`{match_id}`, manual create) · `POST /{id}/cancel` (`{reason?}`) · `PATCH /{id}/status` (`{status}`). Cancel/status add an explicit `can_manage_sync` gate (the service transitions are system-path/ungated). System internals (`get_by_slug`, `record_finish`, websocket event dispatch, auto-create) are **not** exposed.
+
+### SpeedGaming (`/api/speedgaming`)
+SpeedGaming schedule ETL event links (service gate `can_manage_sync`).
+- `GET /speedgaming/links` · `GET /links/{id}/episodes` (episode `payload` blob omitted).
+- `POST /links` · `PATCH /links/{id}` · `DELETE /links/{id}` · `POST /links/{id}/sync` (returns the `SyncResult` tallies).
+
+### Discord events (`/api/discord-events`)
+Discord Scheduled Events mirror (service gate `can_manage_sync`).
+- `GET /discord-events/tournaments` (per-tournament opt-in settings) · `GET /discord-events/events` (mirrored events).
+- `PATCH /discord-events/tournaments/{id}` (settings) · `POST /discord-events/reconcile` (returns the `ReconcileResult` tallies).
+
+### Service health (`/api/service-health`)
+External-dependency health board (the HTTP dep is the only authz; the service does not re-gate).
+- `GET /service-health` — tenant subset (Staff).
+- `GET /service-health/board` — full snapshot (super-admin).
+- `POST /service-health/refresh` — force a refresh (super-admin write; always `alert=False`, so an API call never DMs).
+
+### Seeds (`/api/seeds`)
+- `GET /seeds/randomizers` — the available randomizers + their `supports_triforce_texts` flag.
+- `POST /seeds` (`{randomizer, preset_id?}`) — roll a seed (loads the tenant-scoped preset when given; unsupported randomizer → 400; honors `MOCK_SEEDGEN`). Generation is ungated, so the write token is the authz.
+
+### Async qualifiers (`/api/async-qualifiers`)
+Self-paced permalink-pool qualifiers (mixed auth: admin reads/writes gate
+`can_admin_qualifier`; player run methods enforce ownership; `/open` and `/{id}/public`
+are public-but-authenticated; the leaderboard is hidden while the window is open for non-admins).
+- **Reads:** `GET /async-qualifiers` · `/open` · `/{id}` · `/{id}/public` · `/{id}/admins` · `/{id}/pools` · `/{id}/pools/available` · `/{id}/review-queue` · `/{id}/leaderboard` · `/{id}/me/runs` · `/{id}/me/active-run` · `/runs/{run_id}/notes`.
+- **Qualifier/admin/pool/permalink writes:** `POST /async-qualifiers` · `PATCH`/`DELETE /{id}`; `POST`/`DELETE /{id}/admins[/{user_id}]`; `POST /{id}/pools`, `PATCH`/`DELETE /pools/{pool_id}`; `POST /pools/{pool_id}/permalinks` (+ `/bulk`, `/roll`), `PATCH`/`DELETE /permalinks/{permalink_id}`.
+- **Player run lifecycle:** `POST /{id}/runs` (start) · `POST /runs/{run_id}/submit|forfeit|reattempt`.
+- **Review:** `POST /runs/{run_id}/claim|release|review`.
+
+### Async qualifier live races (`/api/async-qualifiers/live-races`)
+Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).
+- `GET /async-qualifiers/live-races?qualifier_id=` · `/{id}` · `/{id}/runs`.
+- `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `DELETE /{id}` (cancel). Inbound racetime capture (`mark_in_progress`, `record_finish`) is **not** exposed.
+
+_The full design rationale (exclusions, deps, serialization notes) lives in
+[online-tournaments/rest-api-coverage.md](../online-tournaments/rest-api-coverage.md)._
 
 ## Tests
 
-Integration tests live in [`tests/`](../../tests/): `test_api_tokens.py`, `test_api_matches.py`, `test_api_reads.py`, `test_api_match_writes.py`, `test_api_admin_writes.py`, `test_api_phase5_writes.py`. They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client).
+Integration tests live in [`tests/`](../../tests/): `test_api_tokens.py`, `test_api_matches.py`, `test_api_reads.py`, `test_api_match_writes.py`, `test_api_admin_writes.py`, `test_api_phase5_writes.py`, and one `test_api_<resource>.py` per online-tournament group (`test_api_presets.py`, `test_api_race_room_profiles.py`, `test_api_racetime_bots.py`, `test_api_race_rooms.py`, `test_api_speedgaming.py`, `test_api_discord_events.py`, `test_api_service_health.py`, `test_api_seeds.py`, `test_api_async_qualifiers.py`, `test_api_async_qualifier_live_races.py`). They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client; pass `roles=[Role.SUPER_ADMIN]` for a global super-admin token). Each new group covers the baseline matrix (happy-path read, `401` unauthenticated, `403` read-only-write, cross-tenant isolation, `403` role-less) plus resource-specific cases.

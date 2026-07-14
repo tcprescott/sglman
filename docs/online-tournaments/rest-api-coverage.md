@@ -1,14 +1,15 @@
-# Future enhancement: REST API coverage for the online-tournament features
+# REST API coverage for the online-tournament features
 
-> **Status: proposed, not implemented.** The 11 online-tournament features
-> (PRs 0–11 — presets, racetime identity/bots/rooms, SpeedGaming ETL, Discord
-> Events sync, service health, async qualifiers + live races, seed rolling) shipped
-> with **service, UI, and (where relevant) Discord/inbound-webhook surfaces, but no
-> REST endpoints**. Every older domain (matches, tournaments, users, crew,
-> volunteers, webhooks, …) has a REST router; none of the new features do. This
-> doc captures the gap and a concrete, execution-ready design so the parity work
-> can be picked up as a self-contained follow-up. It intentionally does **not**
-> change any code.
+> **Status: implemented.** The online-tournament features (presets, racetime
+> bots/rooms, SpeedGaming ETL, Discord Events sync, service health, async
+> qualifiers + live races, seed rolling) now have full read + write REST parity
+> via ten new routers under [`api/routers/`](../../api/) — see the live catalogue
+> in [reference/rest-api.md](../reference/rest-api.md#online-tournament-features)
+> and the always-current Swagger UI at `/api/docs`. This doc is retained as the
+> design record: the endpoint tables, the two `require_super_admin` dependencies,
+> the deliberate exclusions, and the test plan below describe what was built and
+> why. The design was implemented essentially as written; a handful of field/method
+> names were reconciled to the actual service/model code during implementation.
 
 ## Why this is a gap
 
