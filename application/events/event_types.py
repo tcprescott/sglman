@@ -81,6 +81,11 @@ class EventType:
     ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
     ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
 
+    # Async Qualifier live races (PR 10; mirrors AuditActions). A live race whose
+    # entrants' results were captured into runs is a domain event a subscriber can
+    # act on; create/open/cancel stay audit-only (tenant-internal scheduling).
+    ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -97,6 +102,7 @@ class EventType:
         DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
         SERVICE_HEALTH_ALERT,
         ASYNC_QUALIFIER_RUN_SUBMITTED, ASYNC_QUALIFIER_RUN_REVIEWED,
+        ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
     })
 
     # Wildcard a subscriber can register to receive every event.

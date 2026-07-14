@@ -2,6 +2,24 @@
 
 > Feature 1 + 5. Roadmap phase 8. Synchronous group runs on racetime, reusing the
 > Feature 5 racetime subsystem.
+>
+> **Status: implemented (PR 10).** `AsyncQualifierLiveRace` (FKs → pool + nullable
+> permalink/episode; `match_title`; globally-unique nullable `racetime_slug`;
+> `AsyncQualifierLiveRaceStatus`) + the deferred `AsyncQualifierRun.live_race` FK
+> (migration 29; leak test). `AsyncQualifierLiveRaceService` authors a race, opens
+> a `RacetimeRoom` (`match=None`) via a tenant-authorized bot and mirrors its slug,
+> and captures each racetime entrant into an `AsyncQualifierRun` on finish
+> (done→finished, dnf→forfeit, dq→disqualified; `finish_time`→elapsed), then
+> par-scores. `RaceRoomLifecycle` routes a match-less room to this path by slug,
+> reusing the PR 4/6 subsystem. Admin **Live Races** sub-tab (create + open room).
+> `async_qualifier.live_race_*` audit; `live_race_recorded` event. **Decisions
+> taken here:** live-race runs **skip reviewer sign-off** (written `APPROVED` — the
+> racetime result is self-attributing) and are par-scored like any other approved
+> run; **recording is refused while any entrant is still racing**; the room's
+> category/bot is the tenant's first authorized bot (no per-qualifier bot FK). See
+> [current-state.md](../../current-state.md),
+> [data-model.md](../../reference/data-model.md), and
+> [services.md](../../reference/services.md).
 
 **Goal:** a qualifier pool flagged `live_race` can run as a synchronous racetime
 race whose results flow into `AsyncQualifierRun`s.

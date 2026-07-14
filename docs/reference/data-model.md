@@ -300,6 +300,13 @@ path, PR 10).
 | `FORFEIT` = `'forfeit'` | irreversible, scores 0 | | |
 | `DISQUALIFIED` = `'disqualified'` | staff DQ | | |
 
+### `AsyncQualifierLiveRaceStatus`
+
+Lifecycle of a synchronous racetime qualifier race (PR 10). `(str, Enum)` —
+render `.value`: `SCHEDULED` = `'scheduled'` (before a room opens) → `PENDING` =
+`'pending'` (room open, not started) → `IN_PROGRESS` = `'in_progress'` → `FINISHED`
+= `'finished'` (results captured into runs).
+
 ## Model reference
 
 ### Identity
@@ -1061,7 +1068,7 @@ outside the Match/schedule system: window opens → draw → run → review → 
 leaderboard → close. All five models are tenant-scoped (`CASCADE`, scoped repos,
 leak test). Config is **hybrid**: typed window/count columns + a validated-JSON
 `config` blob (`par_sample_size`, `draw_imbalance_threshold`, `messaging_templates`).
-The `AsyncQualifierRun.live_race` FK is added in PR 10.
+PR 10 adds `AsyncQualifierLiveRace` and the `AsyncQualifierRun.live_race` FK.
 
 #### `AsyncQualifier`
 
@@ -1097,10 +1104,25 @@ so purging a permalink keeps run history), and nullable `reviewed_by` /
 backstop (`reattempted` + `reattempt_reason`), `score` (0–105, null until scored),
 and review attribution/claim-lock timestamps. Indexes: `tenant`, `(qualifier,
 review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute).
+The nullable `live_race` FK (`SET_NULL`, PR 10) marks a run captured from a
+synchronous racetime race.
 
 #### `AsyncQualifierReviewNote`
 
 A reviewer's note (`author` FK) on a run (`CASCADE`). Indexes on `tenant`, `run`.
+
+#### `AsyncQualifierLiveRace` (PR 10)
+
+A synchronous racetime race whose entrants' results are captured into
+`AsyncQualifierRun`s. FKs → `pool` (`CASCADE`) and nullable `permalink` /
+`episode` (→ `SpeedGamingEpisode`, `SET_NULL`); `match_title`; a globally-unique
+nullable `racetime_slug` that mirrors the `RacetimeRoom.slug` (so the shared
+inbound-event handler routes the room's events to the qualifier capture path when
+`RacetimeRoom.match_id` is null); and an `AsyncQualifierLiveRaceStatus` enum
+(`scheduled` → `pending` → `in_progress` → `finished`). Indexes on `tenant`,
+`pool`. Live-race runs **skip reviewer sign-off** (written `APPROVED`) — the
+racetime result is self-attributing — and are par-scored like any other approved
+run; recording is refused while any entrant is still racing.
 
 ## Match lifecycle
 

@@ -757,6 +757,11 @@ class AsyncQualifierService:
             candidates = [c for c in candidates if cand_counts[c.id] == fewest]
         return secrets.choice(candidates)
 
+    async def recompute_par_and_scores(self, permalink_id: int) -> None:
+        """Public entry to :meth:`_recompute_par_and_scores` for sibling services
+        (the live-race capture path) that add approved runs on a permalink."""
+        await self._recompute_par_and_scores(permalink_id)
+
     async def _recompute_par_and_scores(self, permalink_id: int) -> None:
         """Recompute a permalink's par from its approved finished runs and
         rescore every one of them (par shifts as runs are reviewed/voided)."""

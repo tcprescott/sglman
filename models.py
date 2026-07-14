@@ -1498,7 +1498,8 @@ class AsyncQualifierRun(Model):
     a reattempt voids the prior run (excluded from par/scoring/played-count),
     frees the pool slot, requires a reason, and is limited by
     ``AsyncQualifier.allowed_reattempts``. ``permalink`` is SET_NULL so purging a
-    permalink keeps run history. The ``live_race`` FK is added in PR 10.
+    permalink keeps run history. ``live_race`` (PR 10) is set on runs captured
+    from a synchronous racetime race and is ``None`` for self-paced runs.
     """
 
     id = fields.IntField(pk=True)
@@ -1507,6 +1508,11 @@ class AsyncQualifierRun(Model):
     user = fields.ForeignKeyField('models.User', related_name='async_qualifier_runs')
     permalink = fields.ForeignKeyField(
         'models.AsyncQualifierPermalink', related_name='runs', null=True, on_delete=fields.SET_NULL
+    )
+    # Set for runs captured from a synchronous racetime race (PR 10); SET_NULL so
+    # deleting a live race keeps the captured run history.
+    live_race = fields.ForeignKeyField(
+        'models.AsyncQualifierLiveRace', related_name='runs', null=True, on_delete=fields.SET_NULL
     )
     status = fields.CharEnumField(AsyncQualifierRunStatus, default=AsyncQualifierRunStatus.IN_PROGRESS, max_length=20)
     review_status = fields.CharEnumField(
@@ -1559,3 +1565,66 @@ class AsyncQualifierReviewNote(Model):
     class Meta:
         table = 'asyncqualifierreviewnote'
         indexes = (('tenant',), ('run',))
+
+
+class AsyncQualifierLiveRaceStatus(str, Enum):
+    """Lifecycle of a synchronous racetime qualifier race (PR 10).
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member (which repr's as ``AsyncQualifierLiveRaceStatus.FINISHED``).
+
+    ``SCHEDULED`` before a room opens, ``PENDING`` once a room exists but the race
+    has not started, ``IN_PROGRESS`` while racing, ``FINISHED`` once the entrants'
+    results are captured into runs.
+    """
+
+    SCHEDULED = 'scheduled'
+    PENDING = 'pending'
+    IN_PROGRESS = 'in_progress'
+    FINISHED = 'finished'
+
+
+class AsyncQualifierLiveRace(Model):
+    """A synchronous racetime race whose results flow into ``AsyncQualifierRun``s (PR 10).
+
+    A pool permalink flagged ``live_race`` is raced live on racetime instead of
+    self-paced: every entrant runs the same ``permalink`` in one room, and on
+    finish each racetime entrant is mapped back to a ``User`` and captured as an
+    ``AsyncQualifierRun`` (racetime status → run status; ``end_time`` → elapsed).
+    Live-race runs **skip reviewer sign-off** — the racetime result is
+    self-attributing — and are par-scored like any other approved run.
+
+    Reuses the PR 4/6 racetime subsystem: opening a live race creates a
+    :class:`RacetimeRoom` (with ``match=None``) whose lifecycle events the shared
+    handler routes here by slug. ``racetime_slug`` mirrors that room's slug and is
+    globally unique (nullable until a room opens). ``episode`` optionally links an
+    SG-imported episode this race stands in for.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='async_qualifier_live_races', on_delete=fields.CASCADE)
+    pool = fields.ForeignKeyField('models.AsyncQualifierPool', related_name='live_races', on_delete=fields.CASCADE)
+    # SET_NULL so purging a permalink keeps the live-race record + captured runs.
+    permalink = fields.ForeignKeyField(
+        'models.AsyncQualifierPermalink', related_name='live_races', null=True, on_delete=fields.SET_NULL
+    )
+    match_title = fields.CharField(max_length=255)
+    # Mirrors the RacetimeRoom slug; globally unique like the room's, nullable
+    # until a room is opened (multiple NULLs are allowed).
+    racetime_slug = fields.CharField(max_length=255, unique=True, null=True)
+    episode = fields.ForeignKeyField(
+        'models.SpeedGamingEpisode', related_name='async_qualifier_live_races', null=True,
+        on_delete=fields.SET_NULL,
+    )
+    status = fields.CharEnumField(
+        AsyncQualifierLiveRaceStatus, default=AsyncQualifierLiveRaceStatus.SCHEDULED, max_length=20
+    )
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    runs = fields.ReverseRelation["AsyncQualifierRun"]
+
+    class Meta:
+        table = 'asyncqualifierliverace'
+        indexes = (('tenant',), ('pool',))

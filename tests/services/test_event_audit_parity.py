@@ -191,6 +191,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ASYNC_QUALIFIER_RUN_STARTED,
     AuditActions.ASYNC_QUALIFIER_RUN_FORFEITED,
     AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
+    # Async Qualifier live races (PR 10): recording the finished race emits
+    # ASYNC_QUALIFIER_LIVE_RACE_RECORDED; create/open/cancel are tenant-internal
+    # scheduling no external subscriber needs.
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_OPENED,
+    AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CANCELLED,
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.

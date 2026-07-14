@@ -7,6 +7,7 @@ They should NOT contain business logic - only data fetching/persistence.
 
 from .api_token_repository import ApiTokenRepository
 from .async_qualifier_repository import (
+    AsyncQualifierLiveRaceRepository,
     AsyncQualifierPermalinkRepository,
     AsyncQualifierPoolRepository,
     AsyncQualifierRepository,
@@ -57,6 +58,7 @@ __all__ = [
     'AsyncQualifierPermalinkRepository',
     'AsyncQualifierRunRepository',
     'AsyncQualifierReviewNoteRepository',
+    'AsyncQualifierLiveRaceRepository',
     'PlayerAvailabilityRepository',
     'AuditRepository',
     'ChallongeRepository',

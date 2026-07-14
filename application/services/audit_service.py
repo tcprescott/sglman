@@ -230,6 +230,13 @@ class AuditActions:
     ASYNC_QUALIFIER_RUN_FORFEITED = 'async_qualifier.run_forfeited'
     ASYNC_QUALIFIER_RUN_REATTEMPTED = 'async_qualifier.run_reattempted'
     ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+    # Async Qualifier live races (PR 10). Create/open/cancel are tenant-internal
+    # scheduling (event-less); recording the finished race captures runs and DOES
+    # emit an event (see EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED).
+    ASYNC_QUALIFIER_LIVE_RACE_CREATED = 'async_qualifier.live_race_created'
+    ASYNC_QUALIFIER_LIVE_RACE_OPENED = 'async_qualifier.live_race_opened'
+    ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
+    ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
 
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'

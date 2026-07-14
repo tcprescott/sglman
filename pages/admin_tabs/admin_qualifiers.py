@@ -14,7 +14,12 @@ without a background task.
 
 from nicegui import app, background_tasks, context, ui
 
-from application.services import AsyncQualifierService, PresetService, get_user_from_discord_id
+from application.services import (
+    AsyncQualifierLiveRaceService,
+    AsyncQualifierService,
+    PresetService,
+    get_user_from_discord_id,
+)
 from application.utils.timezone import format_eastern_display, parse_eastern_datetime
 
 
@@ -22,8 +27,18 @@ def _fmt(dt) -> str:
     return format_eastern_display(dt) if dt else '—'
 
 
+def _live_race_color(status) -> str:
+    return {
+        'scheduled': 'grey',
+        'pending': 'blue',
+        'in_progress': 'orange',
+        'finished': 'green',
+    }.get(status.value, 'grey')
+
+
 async def admin_qualifiers_page() -> None:
     service = AsyncQualifierService()
+    live_race_service = AsyncQualifierLiveRaceService()
     preset_service = PresetService()
     client = context.client
     state: dict = {'qualifiers': [], 'managing': None, 'detail': None, 'list_error': None}
@@ -56,6 +71,7 @@ async def admin_qualifiers_page() -> None:
                     'queue': await service.list_review_queue(current, qid),
                     'leaderboard': await service.get_leaderboard(current, qid),
                     'presets': await preset_service.list_selectable(),
+                    'live_races': await live_race_service.list_live_races(current, qid),
                 }
             except (ValueError, PermissionError) as e:
                 state['detail'] = {'error': str(e)}
@@ -202,11 +218,14 @@ async def admin_qualifiers_page() -> None:
             ui.button(icon='close', on_click=_close_manage).props('flat round').tooltip('Close')
         with ui.tabs().classes('w-full') as tabs:
             pools_tab = ui.tab('Pools')
+            live_tab = ui.tab('Live Races')
             review_tab = ui.tab('Review Queue')
             board_tab = ui.tab('Leaderboard')
         with ui.tab_panels(tabs, value=pools_tab).classes('w-full'):
             with ui.tab_panel(pools_tab):
                 _render_pools(detail)
+            with ui.tab_panel(live_tab):
+                _render_live_races(detail)
             with ui.tab_panel(review_tab):
                 _render_queue(detail['queue'])
             with ui.tab_panel(board_tab):
@@ -321,6 +340,87 @@ async def admin_qualifiers_page() -> None:
             ui.notify(str(e), color='warning')
             return
         ui.notify('Pool deleted', color='positive')
+        await load_detail()
+
+    def _render_live_races(detail: dict) -> None:
+        pools = detail['pools']
+        with ui.row().classes('items-center'):
+            ui.button('New Live Race', icon='add',
+                      on_click=lambda: _open_live_race_dialog(pools)
+                      ).props('color=primary')
+        ui.label(
+            'A live race runs a pool permalink synchronously on racetime; each '
+            'entrant\'s result is captured as an approved, par-scored run.'
+        ).classes('text-caption text-grey')
+        if not pools:
+            ui.label('Add a pool first, then schedule a live race for it.').classes('text-grey')
+            return
+        if not detail['live_races']:
+            ui.label('No live races scheduled.').classes('text-grey')
+        for lr in detail['live_races']:
+            with ui.card().classes('w-full'):
+                with ui.row().classes('items-center full-width'):
+                    ui.label(lr.match_title).classes('text-subtitle1')
+                    ui.badge(lr.status.value, color=_live_race_color(lr.status))
+                    ui.badge(f'pool: {lr.pool.name}', color='grey')
+                    ui.space()
+                    if not lr.racetime_slug:
+                        ui.button('Open room', icon='meeting_room',
+                                  on_click=lambda lid=lr.id: _open_room(lid)
+                                  ).props('flat color=primary')
+                    ui.button(icon='delete',
+                              on_click=lambda lid=lr.id: _cancel_live_race(lid)
+                              ).props('flat round color=negative').tooltip('Cancel')
+                if lr.racetime_slug:
+                    ui.label(f'racetime: {lr.racetime_slug}').classes('text-caption text-grey')
+
+    def _open_live_race_dialog(pools) -> None:
+        with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
+            ui.label('New Live Race').classes('text-h6')
+            title_in = ui.input('Race title').classes('w-full')
+            pool_options = {p.id: p.name for p in pools}
+            pool_in = ui.select(pool_options, label='Pool',
+                                value=pools[0].id if pools else None).classes('w-full')
+            permalink_options = {None: '(assign later)'}
+            for p in pools:
+                for pl in p.permalinks:
+                    permalink_options[pl.id] = f'{p.name}: {pl.url[:48]}'
+            permalink_in = ui.select(permalink_options, label='Permalink (optional)',
+                                     value=None).classes('w-full')
+
+            async def submit():
+                try:
+                    await live_race_service.create_live_race(
+                        await _current(), int(pool_in.value),
+                        match_title=title_in.value, permalink_id=permalink_in.value,
+                    )
+                    ui.notify('Live race scheduled', color='positive')
+                    dialog.close()
+                    await load_detail()
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+
+            with ui.row().classes('justify-end w-full'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                ui.button('Create', icon='add', on_click=submit).props('color=primary')
+        dialog.open()
+
+    async def _open_room(live_race_id: int) -> None:
+        try:
+            await live_race_service.open_room(await _current(), live_race_id)
+        except (ValueError, PermissionError) as e:
+            ui.notify(str(e), color='warning')
+            return
+        ui.notify('Room opened', color='positive')
+        await load_detail()
+
+    async def _cancel_live_race(live_race_id: int) -> None:
+        try:
+            await live_race_service.cancel_live_race(await _current(), live_race_id)
+        except (ValueError, PermissionError) as e:
+            ui.notify(str(e), color='warning')
+            return
+        ui.notify('Live race cancelled', color='positive')
         await load_detail()
 
     def _render_queue(queue) -> None:

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Set
 from application.repositories._tenant import current_tenant_id, scoped
 from models import (
     AsyncQualifier,
+    AsyncQualifierLiveRace,
     AsyncQualifierPermalink,
     AsyncQualifierPool,
     AsyncQualifierReviewNote,
@@ -206,6 +207,11 @@ class AsyncQualifierRunRepository:
             )
         ).count()
 
+    async def list_for_live_race(self, live_race_id: int) -> List[AsyncQualifierRun]:
+        return await scoped(
+            AsyncQualifierRun.filter(live_race_id=live_race_id)
+        ).prefetch_related('user', 'permalink__pool').order_by('created_at')
+
     async def create(self, **fields: Any) -> AsyncQualifierRun:
         return await AsyncQualifierRun.create(tenant_id=current_tenant_id(), **fields)
 
@@ -214,6 +220,50 @@ class AsyncQualifierRunRepository:
             setattr(run, key, value)
         await run.save()
         return run
+
+
+class AsyncQualifierLiveRaceRepository:
+    """Data access for :class:`AsyncQualifierLiveRace`."""
+
+    async def get_by_id(self, live_race_id: int) -> Optional[AsyncQualifierLiveRace]:
+        return await (
+            AsyncQualifierLiveRace.filter(id=live_race_id, tenant_id=current_tenant_id())
+            .prefetch_related('pool__qualifier', 'permalink')
+            .first()
+        )
+
+    async def get_by_racetime_slug(self, slug: str) -> Optional[AsyncQualifierLiveRace]:
+        """Resolve a live race by its room slug (tenant-scoped).
+
+        The inbound-event handler resolves the ``RacetimeRoom`` (and its tenant)
+        by slug first, then re-establishes tenant scope before calling this — so
+        this stays scoped, unlike ``RacetimeRoomRepository.get_by_slug``.
+        """
+        return await scoped(
+            AsyncQualifierLiveRace.filter(racetime_slug=slug)
+        ).prefetch_related('pool__qualifier', 'permalink').first()
+
+    async def list_for_qualifier(self, qualifier_id: int) -> List[AsyncQualifierLiveRace]:
+        return await scoped(
+            AsyncQualifierLiveRace.filter(pool__qualifier_id=qualifier_id)
+        ).prefetch_related('pool', 'permalink').order_by('-created_at')
+
+    async def list_for_pool(self, pool_id: int) -> List[AsyncQualifierLiveRace]:
+        return await scoped(
+            AsyncQualifierLiveRace.filter(pool_id=pool_id)
+        ).prefetch_related('pool', 'permalink').order_by('-created_at')
+
+    async def create(self, **fields: Any) -> AsyncQualifierLiveRace:
+        return await AsyncQualifierLiveRace.create(tenant_id=current_tenant_id(), **fields)
+
+    async def update(self, live_race: AsyncQualifierLiveRace, **fields: Any) -> AsyncQualifierLiveRace:
+        for key, value in fields.items():
+            setattr(live_race, key, value)
+        await live_race.save()
+        return live_race
+
+    async def delete(self, live_race: AsyncQualifierLiveRace) -> None:
+        await live_race.delete()
 
 
 class AsyncQualifierReviewNoteRepository:

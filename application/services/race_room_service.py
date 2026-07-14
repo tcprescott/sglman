@@ -308,6 +308,10 @@ class RaceRoomLifecycle:
         self.service = service or RaceRoomService()
 
     async def handle_event(self, room: RacetimeRoom, event: RaceRoomEvent) -> None:
+        # A room with no match is a qualifier live race (PR 10); route it to the
+        # qualifier capture path instead of the match path.
+        if room.match_id is None and await self._route_qualifier(room, event):
+            return
         if event.status == RaceRoomStatus.IN_PROGRESS:
             await self.service.mark_in_progress(room)
         elif event.status == RaceRoomStatus.FINISHED:
@@ -315,3 +319,27 @@ class RaceRoomLifecycle:
         elif event.status == RaceRoomStatus.CANCELLED:
             await self.service.cancel_room(room)
         # OPEN is a no-op: the room already exists in that state.
+
+    async def _route_qualifier(self, room: RacetimeRoom, event: RaceRoomEvent) -> bool:
+        """Drive a qualifier live race if the room maps to one; else return False.
+
+        Runs inside the handler's ``tenant_scope(room.tenant_id)`` so the scoped
+        by-slug lookup resolves the tenant's own live race.
+        """
+        from application.services.async_qualifier_live_race_service import (
+            AsyncQualifierLiveRaceService,
+        )
+
+        service = AsyncQualifierLiveRaceService()
+        live_race = await service.repository.get_by_racetime_slug(room.slug)
+        if live_race is None:
+            return False
+        if event.status == RaceRoomStatus.IN_PROGRESS:
+            await service.mark_in_progress(live_race)
+            await self.service.room_repository.update(room, status=RaceRoomStatus.IN_PROGRESS)
+        elif event.status == RaceRoomStatus.FINISHED:
+            await service.record_finish(live_race, event.entrants)
+            await self.service.room_repository.update(room, status=RaceRoomStatus.FINISHED)
+        elif event.status == RaceRoomStatus.CANCELLED:
+            await self.service.room_repository.update(room, status=RaceRoomStatus.CANCELLED)
+        return True

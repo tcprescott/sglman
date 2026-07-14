@@ -18,12 +18,13 @@ from datetime import datetime, timedelta, timezone
 
 from models import (
     User, UserRole, Role, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
-    Preset, RacetimeBot, RacetimeRoom, RaceRoomProfile,
+    Preset, RacetimeBot, RacetimeBotTenant, RacetimeRoom, RaceRoomProfile,
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
     DiscordScheduledEvent, DiscordEventSource,
     BotStatus, RaceRoomStatus,
     AsyncQualifier, AsyncQualifierPool, AsyncQualifierPermalink, AsyncQualifierRun,
     AsyncQualifierRunStatus, AsyncQualifierReviewStatus,
+    AsyncQualifierLiveRace, AsyncQualifierLiveRaceStatus,
 )
 from application.utils.timezone import now_eastern
 
@@ -106,6 +107,11 @@ async def seed_online_for_tenant(
         },
     )
     alttpr_bot = bots["alttpr"]
+    # Authorize the tenant to use the bot so live-race room opening (PR 10),
+    # which resolves an authorized bot, has one to pick.
+    await RacetimeBotTenant.get_or_create(
+        bot=alttpr_bot, tenant=tenant, defaults={"is_active": True},
+    )
     if tournament.preset_id is None:
         tournament.preset = preset
     tournament.racetime_bot = alttpr_bot
@@ -236,6 +242,25 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
                 started_at=now - timedelta(hours=2), finished_at=now - timedelta(minutes=20),
                 elapsed_seconds=6000, runner_vod_url="https://twitch.tv/videos/dev-b",
             )
+
+    # A live-race pool (PR 10): a live-flagged permalink + a scheduled live race,
+    # so the admin Live Races sub-tab has data to open a room for.
+    live_pool, _ = await AsyncQualifierPool.get_or_create(
+        qualifier=qualifier, name="Live Race Pool", tenant=tenant,
+    )
+    live_pl, _ = await AsyncQualifierPermalink.get_or_create(
+        pool=live_pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-live-1", tenant=tenant,
+        defaults={"live_race": True},
+    )
+    live_race = await AsyncQualifierLiveRace.filter(
+        pool=live_pool, match_title="Dev Live Qualifier Race"
+    ).first()
+    if live_race is None:
+        await AsyncQualifierLiveRace.create(
+            tenant=tenant, pool=live_pool, permalink=live_pl,
+            match_title="Dev Live Qualifier Race",
+            status=AsyncQualifierLiveRaceStatus.SCHEDULED,
+        )
 
 
 async def _seed_speedgaming(
