@@ -37,7 +37,17 @@ for init_file in "$REPO/application/services/__init__.py" "$REPO/application/rep
   done < <(stems_in_dir "$dir")
 done
 
-# Model count sanity note
-MODEL_COUNT=$(grep -c "^class.*Model" "$REPO/models.py" 2>/dev/null || echo "?")
+# Model count sanity note. Models live in the models/ package (historically a
+# single models.py); support both layouts.
+if [ -d "$REPO/models" ]; then
+  MODEL_COUNT=$(grep -rh "^class.*Model" "$REPO/models"/*.py 2>/dev/null | wc -l | tr -d ' ')
+  MODEL_LABEL="the models/ package"
+elif [ -f "$REPO/models.py" ]; then
+  MODEL_COUNT=$(grep -c "^class.*Model" "$REPO/models.py" 2>/dev/null || echo "?")
+  MODEL_LABEL="models.py"
+else
+  MODEL_COUNT="?"
+  MODEL_LABEL="models"
+fi
 echo ""
-echo "SESSION CONTEXT: models.py has $MODEL_COUNT Model subclasses. Verify docs/reference/data-model.md matches when editing models.py."
+echo "SESSION CONTEXT: $MODEL_LABEL has $MODEL_COUNT Model subclasses. Verify docs/reference/data-model.md matches when editing models."
