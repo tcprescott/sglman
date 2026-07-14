@@ -114,6 +114,16 @@
           },
           {
             "type": "command",
+            "command": "python3 .claude/scripts/check_tenant_scoping.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_event_types.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "python3 .claude/scripts/run_related_tests.py",
             "timeout": 60
           }
@@ -136,6 +146,11 @@
           {
             "type": "command",
             "command": "python3 .claude/scripts/check_migration_drift.py",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_seed_coverage.py",
             "timeout": 15
           },
           {
