@@ -292,6 +292,7 @@ questions that surface as implementation begins go here.
 
 ## Related docs
 
+- [rest-api-coverage.md](rest-api-coverage.md) — **future enhancement:** REST API endpoints for these features (none shipped yet); a proposed full read+write parity design
 - [architecture.md](../architecture.md) — process model, single-worker constraint, bot-as-peer pattern
 - [reference/data-model.md](../reference/data-model.md) — `User` identity links, `Match`, `Tournament`
 - [reference/seed-generation.md](../reference/seed-generation.md) — current seedgen + preset gap
