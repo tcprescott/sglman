@@ -198,6 +198,9 @@ class MatchDisplayService:
                 else ''
             ),
             'is_stream_candidate': match.is_stream_candidate,
+            # Online (racetime.gg) tournaments run remotely, so the table hides
+            # on-site-only controls (check-in, station assignment) for their rows.
+            'is_racetime': match.tournament.is_racetime_enabled if match.tournament else False,
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,

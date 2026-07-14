@@ -256,6 +256,8 @@ The public event schedule with crew signup.
 | Assign stage | "Assign" button in Stage column (`can_crud` only) | `StreamRoomDialog` | `MatchService.assign_stage` (via dialog) |
 | Assign stations | Button next to players | `StationAssignmentDialog` | `MatchService.assign_stations` (via dialog) |
 
+On-site-only controls are hidden for racetime.gg tournaments (`Tournament.is_racetime_enabled`): the display row carries an `is_racetime` flag, and the slot templates replace the **Check In** button with a muted "racetime.gg" note and drop the **Assign stations** button when it is set — the race room drives the lifecycle. The services enforce the same rule (`seat_match` / `assign_stations` raise `ValueError`), so the guard holds for API callers too.
+
 Seed generation suppresses the notification when the service reports a generation "already in progress" (the row refresh clears the button spinner either way) and downgrades "already been generated" to a warning. The tab also registers a `ui.on('selected_tab', ...)` listener that refreshes the table when the event reports `'Schedule'`.
 
 ### Admin users (`pages/admin_tabs/admin_users.py`)

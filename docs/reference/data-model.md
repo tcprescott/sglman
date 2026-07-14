@@ -436,6 +436,8 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 
 Relationships: declared reverse accessors `players`, `matches`, `teams`, `announcements`, `notification_preferences`, `triforce_texts`, `challonge_participants`, `challonge_matches`. Both M2M through tables carry a unique index on `(tournament_id, user_id)`.
 
+Computed: `is_racetime_enabled` (property) → `racetime_bot_id is not None`. This is the canonical "configured for racetime.gg" test — a racetime tournament runs online, so the schedule UI hides on-site-only controls (check-in/seating, station assignment) and `MatchScheduleService.seat_match` / `MatchService.assign_stations` reject those actions for it.
+
 #### `TournamentPlayers`
 
 Tournament enrollment row (user ⇆ tournament).

@@ -304,9 +304,42 @@ async def seed_for_tenant(
         print(f"    [{tenant.slug}] match extras ok")
 
         # --- Online tournaments: presets, racetime config & rooms -----------
+        # This wires ``tournament`` to a racetime.gg bot, so its matches now hide
+        # the on-site check-in / station-assignment controls.
         await seed_online_for_tenant(
             tenant, tournament, scheduled_match, finished_match, bots
         )
+
+        # --- On-site tournament (no racetime.gg) ----------------------------
+        # A deliberately on-site tournament so the schedule keeps demonstrating
+        # the check-in and station-assignment controls that the racetime-enabled
+        # tournament above now hides.
+        onsite, _ = await Tournament.get_or_create(
+            name="SGL On-Site Cup", tenant=tenant,
+            defaults={
+                "description": "On-site fixture — no racetime.gg integration.",
+                "seed_generator": "alttpr",
+                "is_active": True,
+                "players_per_match": 2,
+                "staff_administered": False,
+            },
+        )
+        await onsite.admins.add(staff)
+        for p in (players[0], players[1]):
+            await TournamentPlayers.get_or_create(tournament=onsite, user=p, tenant=tenant)
+
+        onsite_match, onsite_created = await Match.get_or_create(
+            title="On-Site Scheduled", tournament=onsite, tenant=tenant,
+            defaults={
+                "scheduled_at": now + timedelta(hours=2),
+                "stream_room": stage1,
+                "is_stream_candidate": True,
+            },
+        )
+        if onsite_created:
+            for p in (players[0], players[1]):
+                await MatchPlayers.get_or_create(match=onsite_match, user=p, tenant=tenant)
+        print(f"    [{tenant.slug}] on-site tournament ok")
 
         # --- Crew signups (commentators / trackers) -------------------------
         sm = users["sm_user"]

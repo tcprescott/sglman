@@ -285,7 +285,7 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL). |
+| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL, and `is_racetime` — true when the tournament is racetime.gg-enabled, which hides on-site controls). |
 | `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. |
 | `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
@@ -298,7 +298,7 @@ Match lifecycle transitions (seat → start → finish → confirm), seed rollin
 
 | Method | Returns | Description |
 |---|---|---|
-| `seat_match(match, actor=None)` | `None` | Set `seated_at` (rejects double check-in); audits `match.seated`; DMs participants. |
+| `seat_match(match, actor=None)` | `None` | Set `seated_at` (rejects double check-in; rejects racetime.gg tournaments — the race room owns the lifecycle); audits `match.seated`; DMs participants. |
 | `start_match(match, actor=None)` | `None` | Set `started_at` (requires seated, rejects restart); audits `match.started`; DMs participants. |
 | `finish_match(match, actor=None)` | `None` | Set `finished_at` (requires started, rejects re-finish); audits `match.finished`; DMs participants. |
 | `confirm_match(match, actor=None)` | `None` | Set `confirmed_at` (requires finished, rejects re-confirm); audits `match.confirmed`; DMs participants. |
@@ -330,7 +330,7 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 | `submit_match_request(tournament_id, scheduled_date, scheduled_time, player_ids, actor, comment=None)` | `Match` | Player-initiated creation: the actor must be one of the players (`PermissionError` otherwise) — bypasses the TA/Staff gate without granting other powers. Audits `match.requested` and runs the same acknowledgment/notification fan-out as `create_match`. |
 | `set_stream_candidate(match_id, flag, actor=None)` | `Match` | Toggle `is_stream_candidate`; gated by `can_assign_match_stream`; notifies stream-candidate subscribers on a false→true transition. |
 | `assign_stage(match_id, stream_room_id, actor=None)` | `Match` | Assign or clear (`None`) the match's stream room; gated by `can_assign_match_stream`; audits assigned/cleared variants. |
-| `assign_stations(match_id, assignments, actor=None)` | `Match` | Set `MatchPlayers.assigned_station` from a `{match_player_id: station}` mapping; gated by `can_transition_match`. |
+| `assign_stations(match_id, assignments, actor=None)` | `Match` | Set `MatchPlayers.assigned_station` from a `{match_player_id: station}` mapping; gated by `can_transition_match`; rejected for racetime.gg tournaments (on-site-only — players race remotely). |
 | `ensure_players_enrolled(tournament_id, player_ids)` | `None` | Enroll any of the given users not yet in the tournament (`ValueError` on unknown id). |
 | `delete_match(match_id, actor=None)` | `None` | Delete; gated by `can_crud_match`; audits `match.deleted`. |
 | `seat_players(match_id, actor=None)` | `Match` | Set `seated_at` and DM participants (older sibling of `MatchScheduleService.seat_match`, without the already-seated guard). |

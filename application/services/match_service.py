@@ -590,6 +590,12 @@ class MatchService:
             f"User cannot assign stations for match {match_id}",
         )
 
+        if match.tournament and match.tournament.is_racetime_enabled:
+            raise ValueError(
+                "Station assignment is disabled for racetime.gg tournaments — "
+                "players race remotely, so there are no on-site stations to assign."
+            )
+
         fmt = await SystemConfigService.get_station_format()
         pattern = _STATION_REGEXES[fmt]
         for player_id, station in assignments.items():

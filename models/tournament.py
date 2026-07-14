@@ -79,6 +79,18 @@ class Tournament(Model):
     challonge_participants = fields.ReverseRelation["ChallongeParticipant"]
     challonge_matches = fields.ReverseRelation["ChallongeMatch"]
 
+    @property
+    def is_racetime_enabled(self) -> bool:
+        """True when this tournament is wired to a racetime.gg category.
+
+        A racetime tournament runs online — the race room drives the match
+        lifecycle — so on-site-only actions (check-in/seating, station
+        assignment) are disabled for it. ``racetime_bot`` is the FK that names
+        the category; its ``racetime_bot_id`` is always loaded with the row, so
+        this never triggers a query.
+        """
+        return self.racetime_bot_id is not None
+
 
 class TournamentPlayers(Model):
     id = fields.IntField(pk=True)
