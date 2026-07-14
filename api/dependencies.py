@@ -137,6 +137,36 @@ async def require_staff_write(
     return user
 
 
+async def require_super_admin(actor: User = Depends(require_api_actor)) -> User:
+    """Authenticated user holding the global ``SUPER_ADMIN`` role.
+
+    Unlike :func:`require_staff` (which is tenant-scoped), this gates on the
+    platform-global role (``UserRole`` with ``tenant=None``). Use it for global,
+    non-tenant-scoped resources such as :class:`RacetimeBot` and the full
+    service-health board, whose services do not (or cannot) apply a tenant gate.
+    """
+    await AuthService.ensure(
+        await AuthService.is_super_admin(actor), "Super admin access required"
+    )
+    return actor
+
+
+async def require_super_admin_write(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> User:
+    """Super-admin user with a non-read-only token. Use on mutating global routes."""
+    user, token = await _resolve_token(creds)
+    if token.read_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This token is read-only and cannot perform write actions",
+        )
+    await AuthService.ensure(
+        await AuthService.is_super_admin(user), "Super admin access required"
+    )
+    return user
+
+
 class ServiceErrorRoute(APIRoute):
     """Translate service-layer exceptions into HTTP responses.
 
