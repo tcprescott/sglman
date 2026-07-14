@@ -35,11 +35,6 @@ def main() -> None:
     if "migrations/" in normalized:
         sys.exit(0)
 
-    # models.py is a known-oversized aggregate module; splitting it is tracked as
-    # separate follow-up work, so suppress the advisory here to cut the noise.
-    if normalized.endswith("/models.py") or normalized == "models.py":
-        sys.exit(0)
-
     try:
         with open(file_path, "r", encoding="utf-8") as fh:
             lines = sum(1 for _ in fh)

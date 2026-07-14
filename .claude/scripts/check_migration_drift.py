@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Stop hook: warn when models.py changed without a matching new migration.
+Stop hook: warn when a model changed without a matching new migration.
 
 `enforce_migration_safety.py` (PreToolUse) stops hand-edits to generated
-migrations; this catches the opposite mistake — editing models.py and forgetting
-to generate the migration. If models.py is modified in the working tree but no new
-file was added under migrations/models/, the schema and the ORM have drifted.
+migrations; this catches the opposite mistake — editing a model (under the
+models/ package, or a legacy models.py) and forgetting to generate the migration.
+If a model file is modified in the working tree but no new file was added under
+migrations/models/, the schema and the ORM have drifted.
 
 Exit 0 = in sync / models unchanged; exit 2 = drift (stderr explains the fix).
 """
@@ -34,7 +35,11 @@ def main() -> None:
 
     changed = {line.strip().replace("\\", "/") for line in (*tracked_changes, *untracked) if line.strip()}
 
-    models_changed = "models.py" in changed
+    # Model definitions live in the ``models/`` package (historically a single
+    # ``models.py``); a change to either shape means the schema may have moved.
+    models_changed = any(
+        c == "models.py" or c.startswith("models/") for c in changed
+    )
     if not models_changed:
         sys.exit(0)
 

@@ -130,7 +130,7 @@ poetry run aerich migrate    # generate a migration from model changes
 poetry run aerich upgrade    # apply pending migrations
 ```
 
-- Models live in `models.py`; migration files live in `migrations/models/`.
+- Models live in the `models/` package (per-domain submodules, re-exported from `models/__init__.py`); migration files live in `migrations/models/`.
 - Aerich is configured in the `[tool.aerich]` section of [`pyproject.toml`](../pyproject.toml), pointing at [`migrations/tortoise_config.py`](../migrations/tortoise_config.py).
 - **Auto-upgrade caveat:** booting the app applies all pending migrations to whatever database `.env` points at (`main.py:init_db()`). Keep `.env` pointed at a dev database while working on schema changes — and note that anyone who pulls your branch applies your migration on their next boot.
 
@@ -213,7 +213,7 @@ Container image publishing is handled separately by `.github/workflows/publish.y
 
 Standard checklist for a new feature:
 
-1. Add or change the model in `models.py`, then `poetry run aerich migrate` and `poetry run aerich upgrade`
+1. Add or change the model in the `models/` package (per-domain submodule; re-export from `models/__init__.py`), then `poetry run aerich migrate` and `poetry run aerich upgrade`
 2. Add or extend a repository in `application/repositories/` (export it from `application/repositories/__init__.py`)
 3. Add or extend a service in `application/services/` (export it from `application/services/__init__.py`); write audit logs for important actions
 4. Build the UI in `pages/` or `theme/dialog/`, calling only service methods

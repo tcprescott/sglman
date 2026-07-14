@@ -9,7 +9,7 @@ Scope: **Staff-managed and global** — there are no per-user webhooks. All CRUD
 staff-gated; management lives in a single admin tab.
 
 Source: [`application/services/webhook_service.py`](../../application/services/webhook_service.py),
-models `Webhook` / `WebhookDelivery` in [`models.py`](../../models.py),
+models `Webhook` / `WebhookDelivery` in [`models/webhook.py`](../../models/webhook.py),
 REST in [`api/routers/webhooks.py`](../../api/routers/webhooks.py),
 UI in [`pages/admin_tabs/admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py).
 

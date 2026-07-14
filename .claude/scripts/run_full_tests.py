@@ -4,7 +4,7 @@ Stop hook: run the full pytest suite when source code changed this session.
 
 Gated like doc-check.sh — only runs when `git diff` (working tree + staged) or
 untracked files show a changed non-test `.py` under application/, api/, pages/,
-theme/, discordbot/, or models.py. Keeps idle turns fast while catching
+theme/, discordbot/, or models/. Keeps idle turns fast while catching
 regressions before they reach CI.
 
 Exit 0 = suite passed / nothing relevant changed; exit 2 = suite failed
@@ -23,6 +23,7 @@ SOURCE_PREFIXES = (
     "pages/",
     "theme/",
     "discordbot/",
+    "models/",
 )
 
 

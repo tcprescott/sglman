@@ -81,7 +81,7 @@ application/services/   ← business logic, validation, audit, Discord notificat
   ↓ calls
 application/repositories/ ← ORM queries (Tortoise)
   ↓ uses
-models.py               ← Tortoise models (43) + enums (11: Role, RoleSource, MatchNotificationLevel, …)
+models/                 ← Tortoise models (52) + enums (16: Role, RoleSource, MatchNotificationLevel, …), per-domain submodules re-exported from models/__init__.py
 ```
 
 All datetimes stored UTC; all user-facing times in US/Eastern. See [timezone-handling.md](timezone-handling.md).
@@ -97,7 +97,7 @@ Method-level detail for every file below lives in the [code reference docs](READ
 | `main.py` | FastAPI app, DB init, lifespan, Discord bot startup |
 | `api/` | REST routers, Pydantic schemas, token auth, rate limiting under `/api` |
 | `frontend.py` | Registers NiceGUI pages |
-| `models.py` | All Tortoise ORM models + enums |
+| `models/` | All Tortoise ORM models + enums (per-domain submodules) |
 | `middleware/auth.py` | Discord OAuth; `@protected_page` decorator; mock mode |
 | `application/services/auth_service.py` | `AuthService` — role checks, `can_crud_match`, etc. |
 | `application/services/match_service.py` | Match CRUD, lifecycle transitions |

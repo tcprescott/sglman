@@ -57,7 +57,7 @@ Service       (application/services/)   business rules, validation, audit logs, 
       ↓ calls
 Repository    (application/repositories/)  pure ORM data access
       ↓ uses
-Models        (models.py)               Tortoise ORM models + enums
+Models        (models/)                 Tortoise ORM models + enums
 ```
 
 Key rules: the UI never writes through the ORM directly; services raise `ValueError` for user-facing errors (the UI catches and `ui.notify`s them); services write audit logs via `AuditService` and never import NiceGUI; repositories contain no business logic.
@@ -120,7 +120,7 @@ Every top-level entry in the repository, with the doc that covers it:
 | `main.py` | App entry point: lifespan, DB init, bot init, router mounting | this doc |
 | `frontend.py` | NiceGUI ↔ FastAPI integration, static files, page registration | [reference/frontend.md](reference/frontend.md) |
 | `api/` | Public REST API (routers, Pydantic schemas, token auth, rate limiting) | [reference/rest-api.md](reference/rest-api.md) |
-| `models.py` | All Tortoise ORM models (43) and enums (11) | [reference/data-model.md](reference/data-model.md) |
+| `models/` | All Tortoise ORM models (52) and enums (16), split into per-domain submodules | [reference/data-model.md](reference/data-model.md) |
 | `application/services/` | Business-logic layer (30 modules) | [reference/services.md](reference/services.md) |
 | `application/repositories/` | Data-access layer (25 repositories) | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` | Timezone, environment validation, CSV export, Challonge client, QR codes, Sentry, mock-Discord/Challonge flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |

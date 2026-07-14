@@ -34,7 +34,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 Respect these boundaries — they are the most-violated and most-important rule in the codebase:
 
 ```
-Presentation (pages/, theme/)  →  Service (application/services/)  →  Repository (application/repositories/)  →  Models (models.py)
+Presentation (pages/, theme/)  →  Service (application/services/)  →  Repository (application/repositories/)  →  Models (models/)
 ```
 
 - **Presentation** renders NiceGUI, handles interaction, calls services, catches their errors and shows `ui.notify()`. No business logic; no ORM *writes*. Read-only ORM lookups for simple display are acceptable but repositories are preferred.
@@ -45,7 +45,7 @@ Presentation (pages/, theme/)  →  Service (application/services/)  →  Reposi
 See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern and examples.
 
 ### Adding a new feature
-1. Add/update model in `models.py` → `poetry run aerich migrate && poetry run aerich upgrade`
+1. Add/update model in the `models/` package (per-domain submodule; re-export from `models/__init__.py`) → `poetry run aerich migrate && poetry run aerich upgrade`
 2. Update/create the repository in `application/repositories/`
 3. Update/create the service in `application/services/`
 4. Export from each package's `__init__.py`

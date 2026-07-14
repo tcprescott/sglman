@@ -22,7 +22,7 @@ discord_changed=0
 
 while IFS= read -r f; do
   case "$f" in
-    models.py)
+    models.py|models/*.py)
       models_changed=1 ;;
     application/services/*.py)
       [[ "$(basename "$f")" != "__init__.py" ]] && services_changed=1 ;;
