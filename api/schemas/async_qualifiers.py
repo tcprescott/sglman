@@ -27,6 +27,30 @@ class AsyncQualifierResponse(BaseModel):
     updated_at: datetime
 
 
+class AsyncQualifierPublicResponse(BaseModel):
+    """The player-facing public shell — name, window, and the run rules only.
+
+    Deliberately omits ``config`` (internal draw-fairness / par-scoring knobs and
+    messaging templates), which is admin-only: ``get_qualifier_for_player`` is
+    ungated, so the ``/public`` route must not leak those internals the way the
+    admin-gated ``AsyncQualifierResponse`` does.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    description: Optional[str] = None
+    event_name: Optional[str] = None
+    opens_at: Optional[datetime] = None
+    closes_at: Optional[datetime] = None
+    runs_per_pool: int
+    allowed_reattempts: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class QualifierCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None

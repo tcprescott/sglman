@@ -221,6 +221,28 @@ class TestPublicReads:
             assert resp.status_code == 200
             assert resp.json()['name'] == 'Public Shell'
 
+    async def test_ungated_reads_omit_internal_config(self, db, app):
+        # ``config`` holds internal draw-fairness / par-scoring knobs and messaging
+        # templates. The admin-gated GET exposes it; the two ungated player-facing
+        # surfaces (/{id}/public and /open) must NOT leak it.
+        _, admin_raw = await _admin_token()
+        async with client_for(app, admin_raw) as c:
+            qid = await _open_qualifier(c, name='Config Guard')
+            admin_get = await c.get(f'/api/async-qualifiers/{qid}')
+            assert admin_get.status_code == 200
+            assert 'config' in admin_get.json()
+        _, plain_raw = await create_user_token(username='config-peeker')
+        async with client_for(app, plain_raw) as c:
+            pub = await c.get(f'/api/async-qualifiers/{qid}/public')
+            assert pub.status_code == 200
+            assert pub.json()['name'] == 'Config Guard'
+            assert 'config' not in pub.json()
+
+            open_list = await c.get('/api/async-qualifiers/open')
+            assert open_list.status_code == 200
+            rows = [q for q in open_list.json() if q['id'] == qid]
+            assert rows and 'config' not in rows[0]
+
 
 # --- player run lifecycle + review ---------------------------------------
 

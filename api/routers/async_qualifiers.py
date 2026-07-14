@@ -15,6 +15,7 @@ from api.schemas.async_qualifiers import (
     AdminRequest,
     AsyncQualifierPermalinkResponse,
     AsyncQualifierPoolResponse,
+    AsyncQualifierPublicResponse,
     AsyncQualifierResponse,
     AsyncQualifierReviewNoteResponse,
     AsyncQualifierRunResponse,
@@ -61,8 +62,9 @@ async def list_qualifiers(actor: User = Depends(require_api_actor)):
     return await AsyncQualifierService().list_qualifiers(actor)
 
 
-@router.get("/open", response_model=List[AsyncQualifierResponse], summary="List open (active) qualifiers")
+@router.get("/open", response_model=List[AsyncQualifierPublicResponse], summary="List open (active) qualifiers")
 async def list_open_qualifiers(actor: User = Depends(require_api_actor)):
+    # Ungated player-facing list: the public shell only (no internal ``config``).
     return await AsyncQualifierService().list_open_qualifiers()
 
 
@@ -74,10 +76,11 @@ async def get_qualifier(qualifier_id: int, actor: User = Depends(require_api_act
 
 @router.get(
     "/{qualifier_id}/public",
-    response_model=AsyncQualifierResponse,
+    response_model=AsyncQualifierPublicResponse,
     summary="Get a qualifier's public shell",
 )
 async def get_qualifier_public(qualifier_id: int, actor: User = Depends(require_api_actor)):
+    # Ungated player shell: the public response model omits the internal ``config``.
     await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().get_qualifier_for_player(qualifier_id)
 
