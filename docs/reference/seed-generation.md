@@ -49,12 +49,19 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 `SeedGenerationService` ([`seedgen_service.py`](../../application/services/seedgen_service.py)) is stateless — instantiate it freely; `MatchScheduleService` creates one in its constructor. See [services.md](services.md) for the surrounding service layer.
 
 ```python
-AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'test']
+AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'mmr', 'smdash', 'dk64r', 'wwr', 'test']
+STUB_RANDOMIZERS = {'mmr', 'smdash', 'dk64r', 'wwr'}
 ```
 
-This class constant drives both the tournament dialog options and `MatchScheduleService`'s validity check.
+`AVAILABLE_RANDOMIZERS` drives both the tournament dialog options and `MatchScheduleService`'s validity check.
 
-Majora's Mask Randomizer (`mmr`) and Wind Waker Randomizer (`wwr`) are intentionally **not** supported. The Wind Waker Randomizer ([wwrando](https://github.com/LagoLunatic/wwrando)) is a desktop-only tool with no public seed-generation HTTP API. The Majora's Mask Randomizer ([mmrandomizer.com](https://mmrandomizer.com/api/docs)) does expose a seed API, but generation endpoints require a manually-issued, heavily-scoped API key (requested via Discord) — there is no key, preset, or usable public contract to integrate against. Their dead TODO-stub generator methods were removed; re-add a `_generate_*` method only once a usable API contract and credentials exist (see [Adding a randomizer](#adding-a-randomizer-or-preset)).
+### Stub randomizers
+
+`mmr` (Majora's Mask), `smdash` (Super Metroid: DASH), `dk64r` (Donkey Kong 64), and `wwr` (Wind Waker) are **registered stubs** (`STUB_RANDOMIZERS`): they are selectable on tournaments and appear in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but their `_generate_*` methods are not yet wired to an upstream API and **raise `NotImplementedError`**. Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so they render normally in dev.
+
+To promote a stub to a real backend, replace the `NotImplementedError` body with an actual generator (drop a preset under `presets/<name>/` if the upstream API takes one, read any credential from an env var and raise `ValueError` when missing — see [Adding a randomizer](#adding-a-randomizer-or-preset)) and remove the name from `STUB_RANDOMIZERS`. No changes to `AVAILABLE_RANDOMIZERS` or the dispatch map are needed.
+
+Notes on the two Nintendo desktop tools: the Wind Waker Randomizer ([wwrando](https://github.com/LagoLunatic/wwrando)) is a desktop-only tool with no public seed-generation HTTP API, and the Majora's Mask Randomizer ([mmrandomizer.com](https://mmrandomizer.com/api/docs)) exposes a seed API whose generation endpoints require a manually-issued, heavily-scoped API key (requested via Discord). Their stubs will stay `NotImplementedError` until a usable API contract and credentials exist.
 
 ### Public methods
 
@@ -72,6 +79,10 @@ Majora's Mask Randomizer (`mmr`) and Wind Waker Randomizer (`wwr`) are intention
 | `_generate_z1r` | yes | Local string: random seed number + fixed flags string |
 | `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s4.json` |
 | `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl25.json` |
+| `_generate_mmr` | yes | **Stub** — raises `NotImplementedError` (Majora's Mask) |
+| `_generate_smdash` | yes | **Stub** — raises `NotImplementedError` (Super Metroid: DASH) |
+| `_generate_dk64r` | yes | **Stub** — raises `NotImplementedError` (Donkey Kong 64) |
+| `_generate_wwr` | yes | **Stub** — raises `NotImplementedError` (Wind Waker) |
 | `_generate_test` | yes | 5-second sleep, then a fixed example URL |
 
 ### Error behavior
@@ -104,6 +115,10 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 | `z1r` | Zelda 1 Randomizer | none (string built locally) | — | — | `"<seed> - <flags>"` (not a URL) |
 | `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `SMMAP_SPOILER_TOKEN` (optional) | `https://maprando.com<seed_url>` |
 | `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `OOTR_API_KEY` (required) | `https://ootrandomizer.com/seed/get?id=<id>` |
+| `mmr` | Majora's Mask Randomizer | none yet (**stub**) | — | — | raises `NotImplementedError` |
+| `smdash` | Super Metroid: DASH | none yet (**stub**) | — | — | raises `NotImplementedError` |
+| `dk64r` | Donkey Kong 64 Randomizer | none yet (**stub**) | — | — | raises `NotImplementedError` |
+| `wwr` | Wind Waker Randomizer | none yet (**stub**) | — | — | raises `NotImplementedError` |
 | `test` | — (testing) | none | — | — | fixed example URL after 5 s |
 
 ### alttpr

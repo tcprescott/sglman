@@ -51,27 +51,31 @@ class TestAvailableRandomizers:
 
     def test_exact_membership(self):
         assert set(SeedGenerationService.AVAILABLE_RANDOMIZERS) == {
-            'alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'test'
+            'alttpr', 'ff1r', 'z1r', 'smmap', 'ootr',
+            'mmr', 'smdash', 'dk64r', 'wwr', 'test',
         }
 
-    def test_mmr_and_wwr_not_registered(self):
-        # No usable public seed API exists for MMR/WWR, so their generators
-        # were removed; they must never appear as selectable randomizers.
-        assert 'mmr' not in SeedGenerationService.AVAILABLE_RANDOMIZERS
-        assert 'wwr' not in SeedGenerationService.AVAILABLE_RANDOMIZERS
+    def test_stub_randomizers_are_registered(self):
+        # Registered for selection but not yet wired to an upstream API.
+        for stub in ('mmr', 'smdash', 'dk64r', 'wwr'):
+            assert stub in SeedGenerationService.AVAILABLE_RANDOMIZERS
+            assert stub in SeedGenerationService.STUB_RANDOMIZERS
 
 
 # ---------------------------------------------------------------------------
-# Removed generator stubs
+# Stub generators — registered but not yet implemented
 # ---------------------------------------------------------------------------
 
 
-class TestRemovedGenerators:
-    def test_mmr_generator_method_is_gone(self, service):
-        assert not hasattr(service, '_generate_mmr')
+class TestStubGenerators:
+    @pytest.mark.parametrize('randomizer', ['mmr', 'smdash', 'dk64r', 'wwr'])
+    def test_generator_method_exists(self, service, randomizer):
+        assert hasattr(service, f'_generate_{randomizer}')
 
-    def test_wwr_generator_method_is_gone(self, service):
-        assert not hasattr(service, '_generate_wwr')
+    @pytest.mark.parametrize('randomizer', ['mmr', 'smdash', 'dk64r', 'wwr'])
+    async def test_raises_not_implemented(self, service, randomizer):
+        with pytest.raises(NotImplementedError, match='not yet implemented'):
+            await service.generate_seed(randomizer)
 
 
 # ---------------------------------------------------------------------------
@@ -87,11 +91,6 @@ class TestGenerateSeed:
     async def test_raises_for_empty_string(self, service):
         with pytest.raises(ValueError, match='Unsupported'):
             await service.generate_seed('')
-
-    @pytest.mark.parametrize('randomizer', ['mmr', 'wwr'])
-    async def test_raises_for_removed_randomizer(self, service, randomizer):
-        with pytest.raises(ValueError, match='Unsupported'):
-            await service.generate_seed(randomizer)
 
     async def test_test_generator_returns_url(self, service):
         """The 'test' generator has a 5-second sleep which we patch out."""
