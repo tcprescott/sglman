@@ -3,6 +3,7 @@ Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
 Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, and Test.
+Registers not-yet-implemented stubs: MMR, SMDASH, DK64R, WWR.
 """
 
 import asyncio
@@ -32,8 +33,16 @@ class SeedGenerationService:
         'z1r',
         'smmap',
         'ootr',
+        'mmr',
+        'smdash',
+        'dk64r',
+        'wwr',
         'test',
     ]
+
+    # Randomizers registered for selection but whose generator is not yet
+    # wired to an upstream API — rolling one raises ``NotImplementedError``.
+    STUB_RANDOMIZERS = {'mmr', 'smdash', 'dk64r', 'wwr'}
 
     # Randomizers whose generator can embed community triforce texts.
     TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}
@@ -65,6 +74,10 @@ class SeedGenerationService:
             'z1r': self._generate_z1r,
             'smmap': self._generate_smmap,
             'ootr': self._generate_ootr,
+            'mmr': self._generate_mmr,
+            'smdash': self._generate_smdash,
+            'dk64r': self._generate_dk64r,
+            'wwr': self._generate_wwr,
             'test': self._generate_test,
         }
 
@@ -224,6 +237,22 @@ class SeedGenerationService:
 
         return f"https://ootrandomizer.com/seed/get?id={result['id']}"
     
+    async def _generate_mmr(self) -> str:
+        """Generate a Majora's Mask Randomizer seed. Not yet implemented."""
+        raise NotImplementedError("Majora's Mask Randomizer seed generation is not yet implemented.")
+
+    async def _generate_smdash(self) -> str:
+        """Generate a Super Metroid: DASH seed. Not yet implemented."""
+        raise NotImplementedError("Super Metroid: DASH seed generation is not yet implemented.")
+
+    async def _generate_dk64r(self) -> str:
+        """Generate a Donkey Kong 64 Randomizer seed. Not yet implemented."""
+        raise NotImplementedError("Donkey Kong 64 Randomizer seed generation is not yet implemented.")
+
+    async def _generate_wwr(self) -> str:
+        """Generate a Wind Waker Randomizer seed. Not yet implemented."""
+        raise NotImplementedError("Wind Waker Randomizer seed generation is not yet implemented.")
+
     async def _generate_test(self) -> str:
         """
         Generate a test seed (for testing purposes).
