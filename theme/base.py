@@ -1,6 +1,19 @@
+import re
+
 from nicegui import app, ui
 
 from models import User
+
+
+def tab_slug(label: str) -> str:
+    """Derive a URL path segment from a tab's display label.
+
+    Lowercases and collapses each run of non-alphanumeric characters to a
+    single hyphen: ``"Vol. Roster"`` → ``vol-roster``, ``"On Air"`` → ``on-air``.
+    Auto-derived slugs are collision-free within each page's label set; a tab
+    dict may override with an explicit ``'slug'`` key if ever needed.
+    """
+    return re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
 
 
 class BaseLayout:
@@ -9,7 +22,8 @@ class BaseLayout:
     def __init__(
         self,
         copyright_text: str | None = None,
-        default_tab: str = None,
+        section: str = None,
+        base_path: str = None,
         tabs: list = None,
         user: User = None,
         show_admin: bool = False,
@@ -28,6 +42,10 @@ class BaseLayout:
         self._bottom_tab_labels: list = []
         self._syncing_nav = False
         self._tab_item_refs: dict = {}
+        # Base URL (including any /t/<slug> root_path) that section slugs hang
+        # off of, e.g. '/t/foo/admin'. None for tab-less pages, which never
+        # rewrite the URL.
+        self._base_path = base_path
 
         self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
         if show_volunteer:
@@ -36,9 +54,15 @@ class BaseLayout:
             self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
 
         if tabs:
-            tab_labels = [tab['label'] for tab in tabs]
-            self._default_tab = default_tab if default_tab in tab_labels else tabs[0]['label']
+            # Sections are addressed in the URL by slug; internally everything
+            # keys off the display label, so keep a slug↔label map for read-in
+            # (path → default tab) and write-out (tab change → path).
+            self._slug_by_label = {t['label']: t.get('slug') or tab_slug(t['label']) for t in tabs}
+            self._label_by_slug = {slug: label for label, slug in self._slug_by_label.items()}
+            self._default_tab = self._label_by_slug.get(section) or tabs[0]['label']
         else:
+            self._slug_by_label = {}
+            self._label_by_slug = {}
             self._default_tab = None
 
     async def render(self) -> None:
@@ -267,16 +291,17 @@ class BaseLayout:
             ui.label(self._copyright).classes('text-caption q-px-md q-pb-md sgl-drawer-copyright')
 
     def _switch_tab(self, label: str) -> None:
-        # Only move the panel; the drawer highlight and ?tab= history push are
-        # handled centrally by _handle_tab_change so every entry point (drawer,
-        # bottom nav, swipe) produces identical side effects and no push loops.
+        # Only move the panel; the drawer highlight and the /base/<slug> history
+        # replace are handled centrally by _handle_tab_change so every entry point
+        # (drawer, bottom nav, swipe) produces identical side effects and no loops.
         self._tab_panels.set_value(label)
 
     def _handle_tab_change(self) -> None:
         """Single sink for panel-value changes: sync the drawer highlight, the
-        bottom-nav highlight, and the ?tab= URL regardless of what drove the change
-        (drawer item, bottom tab, or swipe). Registered after the panels are built
-        so the initial deep-linked value does not fire a spurious history entry."""
+        bottom-nav highlight, and the /base/<slug> section URL regardless of what
+        drove the change (drawer item, bottom tab, or swipe). Registered after the
+        panels are built so the initial deep-linked value does not fire a spurious
+        history entry."""
         label = self._tab_panels.value
         for lbl, item in self._tab_item_refs.items():
             if lbl == label:
@@ -286,8 +311,10 @@ class BaseLayout:
         self._sync_bottom_nav(label)
         # replace(), not push(): tab switches (incl. every swipe) update the URL for
         # deep-linking/sharing without stacking history entries that would turn the
-        # Back button into a per-tab trap on mobile.
-        ui.navigate.history.replace(f'?tab={label}')
+        # Back button into a per-tab trap on mobile. The section is a path segment
+        # (/base/<slug>), not a query param, so the URL reads like an app route.
+        if self._base_path is not None:
+            ui.navigate.history.replace(f'{self._base_path}/{self._slug_by_label[label]}')
 
     def _sync_bottom_nav(self, label: str) -> None:
         """Highlight the active tab in the bottom nav. Tabs beyond the first four

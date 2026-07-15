@@ -1,7 +1,8 @@
 """Volunteer Section Page (self-service for volunteers)."""
 
+from fastapi import Request
 from nicegui import app, ui
-from middleware.auth import protected_page
+from middleware.auth import protected_tab_page
 
 from application.services import AuthService
 from models import FeatureFlag, Role, User
@@ -12,9 +13,9 @@ from theme.base import BaseLayout
 
 
 def create() -> None:
-    @protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
-                    feature=FeatureFlag.VOLUNTEERS)
-    async def volunteer_page(tab: str = None) -> None:
+    @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
+                        feature=FeatureFlag.VOLUNTEERS)
+    async def volunteer_page(section: str = None, request: Request = None) -> None:
         ui.page_title('Speedgaming Live Onsite - Volunteer')
         discord_id = app.storage.user.get('discord_id', None)
         user = await User.get_or_none(discord_id=discord_id)
@@ -32,7 +33,8 @@ def create() -> None:
             tabs.append({'label': 'Proctor Station', 'icon': 'schedule',
                          'content': (admin_schedule_page, (), {'can_crud': is_staff})})
         show_admin = await AuthService.can_view_admin(user)
+        base_path = f"{request.scope.get('root_path', '')}/volunteer" if request else '/volunteer'
         await BaseLayout(
-            tabs=tabs, default_tab=tab, page_name='volunteer', user=user,
+            tabs=tabs, section=section, base_path=base_path, page_name='volunteer', user=user,
             show_admin=show_admin, show_volunteer=True,
         ).render()

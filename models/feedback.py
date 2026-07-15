@@ -8,8 +8,8 @@ class Feedback(Model):
     """An in-app feedback submission from a logged-in attendee.
 
     Captures the submitting ``user``, a free-text ``message`` and ``category``,
-    and the ``page_url`` (path + query, including any ``?tab=``) the user was on
-    when they submitted, so staff have the context to act on it.
+    and the ``page_url`` (path + query, e.g. ``/admin/reports?report=capacity``)
+    the user was on when they submitted, so staff have the context to act on it.
     """
 
     id = fields.IntField(pk=True)

@@ -178,7 +178,7 @@ async def capacity_page(
                         ui.label(f'{format_eastern_display(peak_time)} — {count} players')
                         ui.link(
                             'Inspect',
-                            f'/admin?tab=Reports&report=capacity'
+                            f'/admin/reports?report=capacity'
                             f'&start={start_d.isoformat()}&end={end_d.isoformat()}'
                             + (f'&tournament_id={tournament_id}' if tournament_id else '')
                             + f'&focus={peak_time.isoformat()}',

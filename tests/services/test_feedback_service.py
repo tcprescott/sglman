@@ -33,7 +33,7 @@ class TestSubmit:
             actor=actor,
             category='bug',
             message='  something is broken  ',
-            page_url='/admin?tab=Users',
+            page_url='/admin/users',
         )
 
         service.repository.create.assert_awaited_once()
@@ -41,7 +41,7 @@ class TestSubmit:
         assert kwargs['user'] is actor
         assert kwargs['category'] == FeedbackCategory.BUG
         assert kwargs['message'] == 'something is broken'  # trimmed
-        assert kwargs['page_url'] == '/admin?tab=Users'
+        assert kwargs['page_url'] == '/admin/users'
 
         service.audit_service.write_log.assert_awaited_once()
         args = service.audit_service.write_log.await_args.args

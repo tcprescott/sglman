@@ -624,11 +624,11 @@ async def seed_for_tenant(
         # --- Feedback --------------------------------------------------------
         feedback_specs = [
             ("player_one", FeedbackCategory.BUG, FeedbackStatus.NEW,
-             "Schedule times looked off on mobile.", "/?tab=schedule"),
+             "Schedule times looked off on mobile.", "/home/schedule"),
             ("player_two", FeedbackCategory.SUGGESTION, FeedbackStatus.REVIEWED,
              "Would love a dark mode toggle.", "/"),
             ("sm_user", FeedbackCategory.PRAISE, FeedbackStatus.NEW,
-             "The new crew view is great, thanks!", "/admin?tab=schedule"),
+             "The new crew view is great, thanks!", "/admin/schedule"),
         ]
         for uname, category, status, message, page_url in feedback_specs:
             if not await Feedback.filter(user=users[uname], message=message, tenant=tenant).exists():
