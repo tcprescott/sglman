@@ -10,9 +10,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
+from application.services.feature_flag_service import FeatureFlagService
 from application.services.telemetry_service import TelemetryService
 from application.tenant_context import get_current_tenant_id, stash_client_tenant_id, tenant_scope
-from models import Role
+from models import FeatureFlag, Role
 
 
 async def _run_in_tenant(tenant_id, coro) -> None:
@@ -88,6 +89,7 @@ def protected_page(
     *,
     roles: Optional[Iterable[Role]] = None,
     allow_tournament_membership: bool = False,
+    feature: Optional[FeatureFlag] = None,
     **page_kwargs,
 ):
     """Register a NiceGUI page that requires authentication and optional roles.
@@ -99,6 +101,9 @@ def protected_page(
             or Crew Coordinator of any tournament also pass the role gate.
             Use for pages whose subset of features may be available to per-
             tournament admins (e.g. the admin dashboard shell).
+        feature: If set, the page is gated behind a per-tenant feature flag —
+            when the flag is not live for the current tenant the page 404s
+            (hidden, like an unknown route), independent of the user's roles.
     """
     role_list = list(roles) if roles else None
 
@@ -128,6 +133,19 @@ def protected_page(
             # Stash the tenant onto the connection so websocket UI event handlers
             # (which run outside any request) can resolve it via the fallback.
             stash_client_tenant_id(tid)
+
+            # Feature gate (before the role gate): a subsystem the tenant hasn't
+            # enabled is hidden from everyone — 404, like an unknown route — so a
+            # not-yet-released feature never leaks and role has no bearing.
+            if feature is not None and not await FeatureFlagService().is_enabled(feature):
+                from theme.error_page import render_error_page
+                render_error_page(
+                    status_code=404,
+                    headline='Not Found',
+                    message='This feature is not enabled for this community.',
+                    user=None,
+                )
+                return
 
             # Authorization for a *gated* page comes from the user's tenant-scoped
             # roles / tournament-admin membership / super-admin — all evaluated in

@@ -18,6 +18,7 @@ from .enums import (
     ChallongeMatchState,
     DiscordEventSource,
     EquipmentStatus,
+    FeatureFlag,
     FeedbackCategory,
     FeedbackStatus,
     MatchNotificationLevel,
@@ -29,6 +30,7 @@ from .enums import (
     VolunteerAvailabilityStatus,
 )
 from .tenant import Tenant, TenantMembership
+from .feature_flag import TenantFeatureFlag
 from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
 from .tournament import (
     GeneratedSeeds,
@@ -90,6 +92,7 @@ __all__ = [
     'ChallongeMatchState',
     'DiscordEventSource',
     'EquipmentStatus',
+    'FeatureFlag',
     'FeedbackCategory',
     'FeedbackStatus',
     'MatchNotificationLevel',
@@ -102,6 +105,7 @@ __all__ = [
     # tenant
     'Tenant',
     'TenantMembership',
+    'TenantFeatureFlag',
     # user / auth
     'ApiToken',
     'DiscordRoleMapping',

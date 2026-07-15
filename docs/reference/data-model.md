@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for the [`models/`](../../models/) package (all 52 models and its 16 enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for the [`models/`](../../models/) package (all 53 models and its 17 enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 > **Package layout.** Models were split out of the former single `models.py` into per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`), with the shared enums in `models/enums.py`. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.*
 
@@ -55,11 +55,17 @@ tenant-scoped.**
   `VolunteerAssignment`, `VolunteerQualification`, `VolunteerAvailability`,
   `PlayerAvailability`, `ChallongeConnection`, `ChallongeParticipant`,
   `ChallongeMatch`, `ChallongeApiUsage`, `RacetimeBotTenant`, `RaceRoomProfile`,
-  `RacetimeRoom`.
+  `RacetimeRoom`, `TenantFeatureFlag`.
+- **`TenantFeatureFlag`** (`tenantfeatureflag`) — per-tenant state of one feature
+  flag: `flag` (a `FeatureFlag` key), `available` (super-admin grant), `enabled`
+  (tenant toggle); `(tenant, flag)` unique. A missing row = both false
+  (disabled-by-default); effective = `available AND enabled`. See
+  [feature-flags.md](../features/feature-flags.md).
 - **Per-tenant uniqueness** — formerly-global uniques became composite with
   `tenant`: `StreamRoom.name`, `VolunteerPosition.name`,
   `SystemConfiguration.name` → `(tenant, name)`; `Equipment.asset_number` →
-  `(tenant, asset_number)`; `ChallongeApiUsage.period` → `(tenant, period)`;
+  `(tenant, asset_number)`; `TenantFeatureFlag.flag` → `(tenant, flag)`;
+  `ChallongeApiUsage.period` → `(tenant, period)`;
   `DiscordRoleMapping` → `(tenant, discord_role_id, app_role)`; `UserRole` →
   `(user, role, tenant)`; `RaceRoomProfile.name` → `(tenant, name)`. The
   `RacetimeBotTenant` grant is unique on `(bot, tenant)`; `RacetimeRoom.slug`

@@ -1,7 +1,8 @@
 from nicegui import app, ui
 
-from application.services import AuthService, TenantService, get_user_from_discord_id
+from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
 from application.tenant_context import get_current_tenant_id, stash_client_tenant_id
+from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_tab
 from pages.home_tabs.player_edit_info import render_edit_info_tab
@@ -66,9 +67,15 @@ def create() -> None:
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
         ]
         if user is not None:
+            # My Availability is intentionally ungated — availability feeds crew
+            # signup too, not only volunteer scheduling. Triforce Texts and
+            # Equipment are hidden unless the tenant has that feature enabled.
+            live = await FeatureFlagService().enabled_flags()
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
-            tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})
-            tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': equipment_tab})
+            if FeatureFlag.TRIFORCE_TEXTS in live:
+                tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})
+            if FeatureFlag.EQUIPMENT in live:
+                tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': equipment_tab})
         show_admin = await AuthService.can_view_admin(user)
         show_volunteer = user is not None
         await BaseLayout(

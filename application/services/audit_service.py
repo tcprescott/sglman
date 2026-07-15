@@ -244,6 +244,13 @@ class AuditActions:
     WEBHOOK_DELETED = 'webhook.deleted'
     WEBHOOK_SECRET_REGENERATED = 'webhook.secret_regenerated'
 
+    # Feature flags. Availability is a platform-level grant (super-admin on
+    # /platform, tenant=NULL row, target tenant in details); the enable/disable
+    # toggle is a tenant-level action by that community's STAFF (tenant-scoped).
+    FEATURE_FLAG_AVAILABILITY_SET = 'feature_flag.availability_set'
+    FEATURE_FLAG_ENABLED = 'feature_flag.enabled'
+    FEATURE_FLAG_DISABLED = 'feature_flag.disabled'
+
     # Tenancy / platform (these audit rows carry tenant=NULL — platform-level)
     TENANT_CREATED = 'tenant.created'
     TENANT_UPDATED = 'tenant.updated'

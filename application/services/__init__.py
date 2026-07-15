@@ -29,6 +29,7 @@ from . import service_health_worker
 from .discord_role_mapping_service import DiscordRoleMappingService
 from .discord_service import DiscordService
 from .equipment_service import EquipmentService
+from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
 from .match_service import MatchService
 from .match_source_guard import assert_sg_fields_unchanged
@@ -96,6 +97,7 @@ __all__ = [
     'DiscordRoleMappingService',
     'DiscordService',
     'EquipmentService',
+    'FeatureFlagService',
     'FeedbackService',
     'MatchService',
     'assert_sg_fields_unchanged',

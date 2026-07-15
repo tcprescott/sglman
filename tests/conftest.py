@@ -71,6 +71,17 @@ async def db(monkeypatch):
         id=DEFAULT_TEST_TENANT_ID, name='Default', slug='default',
     )
 
+    # Feature flags default OFF (available AND enabled), which would make every
+    # flag-gated service guard raise for the ~all-features-on legacy test suite.
+    # Turn every flag fully on for the default tenant so existing tests exercise
+    # features as before; feature-flag-specific tests set their own state under
+    # their own tenants.
+    for flag in _models.FeatureFlag:
+        await _models.TenantFeatureFlag.create(
+            tenant_id=DEFAULT_TEST_TENANT_ID, flag=flag.value,
+            available=True, enabled=True,
+        )
+
     for model in _scoped_models():
         original = model.create
 

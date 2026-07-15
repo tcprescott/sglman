@@ -21,6 +21,7 @@ from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
 from .discord_scheduled_event_repository import DiscordScheduledEventRepository
 from .equipment_repository import EquipmentRepository
+from .feature_flag_repository import TenantFeatureFlagRepository
 from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
@@ -66,6 +67,7 @@ __all__ = [
     'DiscordRoleMappingRepository',
     'DiscordScheduledEventRepository',
     'EquipmentRepository',
+    'TenantFeatureFlagRepository',
     'FeedbackRepository',
     'MatchAcknowledgmentRepository',
     'MatchRepository',

@@ -47,6 +47,7 @@ Implementation notes for each shipped feature.
 | [features/crew-management.md](features/crew-management.md) | Commentator/tracker signup, approval, acknowledgment |
 | [features/discord-notifications.md](features/discord-notifications.md) | Match lifecycle DM notifications and fan-out |
 | [features/event-system.md](features/event-system.md) | In-process event bus: publish/subscribe, sync vs async subscribers, `EventType` registry |
+| [features/feature-flags.md](features/feature-flags.md) | Per-tenant feature flags: two-tier (super-admin availability + tenant enable), page/tab/API/worker gating |
 | [features/webhooks.md](features/webhooks.md) | Staff-managed outbound webhooks: signing, retries, delivery log, config UI |
 | [features/telemetry.md](features/telemetry.md) | Engagement telemetry: page views, interactions, domain-event mirror, Staff-only report |
 | [features/web-push.md](features/web-push.md) | Device notifications: Declarative Web Push (iOS/Android/desktop) mirroring Discord DMs |

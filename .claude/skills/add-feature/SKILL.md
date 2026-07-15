@@ -17,6 +17,23 @@ hooks block the turn if a model changed without a migration or a seed row).
 Skip steps that don't apply (a service-only feature has no model/migration; a
 UI-only change starts at step 5).
 
+## 0. Feature flag? (always ask)
+
+Before building, **ask the user whether this feature warrants a per-tenant
+feature flag.** Flags exist only for deliberately-gated subsystems — not one per
+feature — and do not get retrofitted onto existing features. If the answer is
+yes:
+
+- Add a member to `models.enums.FeatureFlag` and a `FeatureFlagSpec` to
+  `application/feature_flags.py` (`established=True` only for an already-live
+  feature — then add its key to the migration backfill so existing tenants keep
+  it).
+- Gate the surfaces in step 5: `@protected_page(feature=FeatureFlag.X)` on pages,
+  `and FeatureFlag.X in live` on admin/home tabs, `require_feature(FeatureFlag.X)`
+  on the REST router, an `is_enabled` skip in any worker.
+- Seed it (step 6) and cover it (step 7). Full guide:
+  [docs/features/feature-flags.md](../../../docs/features/feature-flags.md).
+
 ## 1. Model (`models/`)
 
 - Add the model to the right per-domain submodule (`models/match.py`,

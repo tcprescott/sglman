@@ -11,6 +11,7 @@ from middleware.auth import protected_page
 
 from application.services import AuthService, EquipmentService, TenantService, get_user_from_discord_id
 from application.tenant_context import get_current_tenant_id
+from models import FeatureFlag
 from application.utils.environment import get_base_url
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
 from application.utils.timezone import format_eastern_display
@@ -25,7 +26,7 @@ _STATUS_LABELS = {
 
 
 def create() -> None:
-    @protected_page('/equipment/{asset_id}')
+    @protected_page('/equipment/{asset_id}', feature=FeatureFlag.EQUIPMENT)
     async def equipment_detail(asset_id: int) -> None:
         ui.page_title('Speedgaming Live Onsite - Equipment')
         # get_user_from_discord_id enforces is_active so a deactivated user

@@ -9,6 +9,7 @@ per-tenant scoping never applies.
 from nicegui import app, ui
 
 from application.services import (
+    FeatureFlagService,
     RacetimeBotService,
     ServiceHealthService,
     TenantService,
@@ -16,6 +17,7 @@ from application.services import (
 )
 from application.services.auth_service import AuthService
 from application.tenant_context import get_current_tenant_id
+from models import FeatureFlag
 
 _bot_service = RacetimeBotService()
 
@@ -62,6 +64,8 @@ def create() -> None:
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
                            @click="$parent.$emit('edit', props.row)" />
+                    <q-btn dense flat color="secondary" label="Features"
+                           @click="$parent.$emit('features', props.row)" />
                 </q-td>
             ''')
 
@@ -70,7 +74,11 @@ def create() -> None:
                 # background task), so ui.* calls in the dialog are safe.
                 await _open_edit_dialog(user, table, e.args)
 
+            async def _on_features(e) -> None:
+                await _open_tenant_features_dialog(user, e.args)
+
             table.on('edit', _on_edit)
+            table.on('features', _on_features)
 
             await _refresh(table)
 
@@ -223,6 +231,51 @@ async def _open_edit_dialog(actor, table, row) -> None:
         with ui.row().classes('w-full justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Save', on_click=submit, color='primary')
+    dialog.open()
+
+
+async def _open_tenant_features_dialog(actor, row) -> None:
+    """Super-admin tier: grant which features a tenant *may* use.
+
+    Toggling ``available`` here is the platform grant; the tenant's STAFF then
+    enable a granted feature in Admin → Features. Effective (what users see) is
+    available AND enabled, shown per row.
+    """
+    tenant_id = row['id']
+    service = FeatureFlagService()
+    flags = await service.list_for_tenant(actor, tenant_id)
+
+    async def _toggle(flag_value: str, available: bool) -> None:
+        try:
+            await service.set_availability(actor, tenant_id, FeatureFlag(flag_value), available)
+        except (ValueError, PermissionError) as e:
+            ui.notify(str(e), color='warning')
+            return
+        ui.notify('Updated', color='positive')
+
+    with ui.dialog() as dialog, ui.card().classes('w-96 gap-2'):
+        ui.label(f"Features for {row['name']}").classes('text-lg font-semibold')
+        ui.label(
+            'Grant which features this community may use. Its staff then enable '
+            'the granted ones in Admin → Features.'
+        ).classes('text-caption text-grey')
+        for f in flags:
+            with ui.row().classes('items-center justify-between w-full no-wrap'):
+                with ui.column().classes('gap-0'):
+                    ui.label(f['label'])
+                    if f['available'] and f['enabled']:
+                        status = 'Live (tenant has it on)'
+                    elif f['available']:
+                        status = 'Available (tenant has it off)'
+                    else:
+                        status = 'Not available'
+                    ui.label(status).classes('text-caption text-grey')
+                ui.switch(
+                    value=f['available'],
+                    on_change=lambda e, fv=f['flag']: _toggle(fv, e.value),
+                ).props('color=primary')
+        with ui.row().classes('w-full justify-end'):
+            ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()
 
 

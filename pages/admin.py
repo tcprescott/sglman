@@ -3,8 +3,8 @@
 from nicegui import app, ui
 from middleware.auth import protected_page
 
-from application.services import AuthService, get_user_from_discord_id
-from models import Role
+from application.services import AuthService, FeatureFlagService, get_user_from_discord_id
+from models import FeatureFlag, Role
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
 from pages.admin_tabs.admin_users import admin_users_page
@@ -24,6 +24,7 @@ from pages.admin_tabs.admin_racetime import admin_racetime_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_discord_events import admin_discord_events_page
 from pages.admin_tabs.admin_service_health import admin_service_health_page
+from pages.admin_tabs.admin_features import admin_features_page
 from theme.base import BaseLayout
 
 
@@ -73,6 +74,11 @@ def create() -> None:
         is_cc_any = await user.crew_coordinated_tournaments.all().exists()
         is_qa_any = await user.admin_async_qualifiers.all().exists()
 
+        # Per-tenant feature flags: a subsystem's tab only appears when the
+        # tenant has that feature live (available AND enabled), in addition to
+        # the role gate. Loaded once for all tabs.
+        live = await FeatureFlagService().enabled_flags()
+
         if not (is_staff or is_stream_manager or is_equipment_manager
                 or is_volunteer_coordinator or is_preset_manager or is_sync_admin
                 or is_qualifier_admin or is_qa_any or is_ta_any or is_cc_any):
@@ -107,35 +113,37 @@ def create() -> None:
             tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page})
         if is_staff or is_preset_manager:
             tabs.append({'label': 'Presets', 'icon': 'tune', 'content': admin_presets_page})
-        if is_staff or is_qualifier_admin or is_qa_any:
+        if (is_staff or is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
             tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'content': admin_qualifiers_page})
-        if is_staff or is_sync_admin:
+        if (is_staff or is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
             tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'content': admin_racetime_page})
-        if is_staff or is_sync_admin:
+        if (is_staff or is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
             tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'content': admin_speedgaming_page})
         if is_staff or is_sync_admin:
             tabs.append({'label': 'Discord Events', 'icon': 'event', 'content': admin_discord_events_page})
         if is_staff or is_stream_manager:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
-        if is_staff or is_ta_any:
+        if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': admin_triforce_texts_page})
-        if is_staff or is_volunteer_coordinator:
+        if (is_staff or is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
             tabs.append({'label': 'Vol. Roster', 'icon': 'people', 'content': admin_volunteer_roster_page})
             tabs.append({'label': 'Vol. Schedule', 'icon': 'volunteer_activism', 'content': admin_volunteers_page})
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
-        if is_staff:
+        if is_staff and FeatureFlag.CHALLONGE in live:
             tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'content': admin_challonge_page})
         if is_staff:
             tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'content': admin_discord_roles_page})
         if is_staff:
             tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'content': admin_webhooks_page})
-        if is_staff or is_equipment_manager:
+        if (is_staff or is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
             tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': admin_equipment_page})
         if is_staff:
             tabs.append({'label': 'Feedback', 'icon': 'feedback', 'content': admin_feedback_page})
         if is_staff:
             tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'content': admin_service_health_page})
+        if is_staff:
+            tabs.append({'label': 'Features', 'icon': 'toggle_on', 'content': admin_features_page})
         if is_staff:
             tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
 

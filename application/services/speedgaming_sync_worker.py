@@ -28,8 +28,10 @@ _task: Optional[asyncio.Task] = None
 
 async def _tick() -> None:
     from application.repositories import SpeedGamingEventLinkRepository
+    from application.services.feature_flag_service import FeatureFlagService
     from application.services.speedgaming_etl_service import SpeedGamingETLService
     from application.services.user_service import UserService
+    from models import FeatureFlag
 
     repo = SpeedGamingEventLinkRepository()
     links = await repo.list_active_all()
@@ -49,6 +51,8 @@ async def _tick() -> None:
             continue  # not due yet on this link's cadence
         try:
             with tenant_scope(tenant_id):
+                if not await FeatureFlagService().is_enabled(FeatureFlag.SPEEDGAMING_ETL):
+                    continue  # tenant has SpeedGaming sync disabled
                 result = await etl.sync_event_link(link, actor=system_user, now=now)
             logger.info(
                 'SG sync for link %s (%s): %s',

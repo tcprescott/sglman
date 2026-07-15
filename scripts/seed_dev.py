@@ -31,7 +31,7 @@ from migrations.tortoise_config import TORTOISE_ORM
 from tortoise import Tortoise
 from tortoise.functions import Max
 from models import (
-    Tenant, TenantMembership,
+    Tenant, TenantMembership, TenantFeatureFlag, FeatureFlag,
     User, UserRole, Role,
     Tournament, TournamentPlayers,
     Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
@@ -86,6 +86,33 @@ async def seed_users() -> dict[str, User]:
     return users
 
 
+async def seed_feature_flags(tenant: Tenant) -> None:
+    """Seed the two-tier feature flags for a dev tenant.
+
+    Tenant A ('default') gets every feature live (available + enabled) so the
+    running app shows the full surface. Tenant B gets the established
+    (already-in-use) features live, one online feature available-but-off, and
+    the online rest not-available — so the Admin → Features and /platform
+    surfaces exercise all three states side by side.
+    """
+    live = {
+        FeatureFlag.CHALLONGE, FeatureFlag.EQUIPMENT,
+        FeatureFlag.VOLUNTEERS, FeatureFlag.TRIFORCE_TEXTS,
+    }
+    available_off = {FeatureFlag.ASYNC_QUALIFIERS}
+    for flag in FeatureFlag:
+        if tenant.slug == 'default':
+            available, enabled = True, True
+        else:
+            available = flag in live or flag in available_off
+            enabled = flag in live
+        await TenantFeatureFlag.get_or_create(
+            tenant=tenant, flag=flag.value,
+            defaults={'available': available, 'enabled': enabled},
+        )
+    print(f"    [{tenant.slug}] feature flags ok")
+
+
 async def seed_for_tenant(
     tenant: Tenant, users: dict[str, User], bots: dict[str, RacetimeBot]
 ) -> None:
@@ -100,6 +127,8 @@ async def seed_for_tenant(
         # Every scoped user is a member of this tenant.
         for u in users.values():
             await TenantMembership.get_or_create(user=u, tenant=tenant)
+
+        await seed_feature_flags(tenant)
 
         # Roles (per tenant)
         role_grants = [
