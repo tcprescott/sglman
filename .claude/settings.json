@@ -47,6 +47,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": ".claude/hooks/install-deps.sh",
+            "timeout": 300
+          },
+          {
+            "type": "command",
             "command": ".claude/hooks/session-start.sh",
             "timeout": 10
           }
