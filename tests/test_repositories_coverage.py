@@ -7,8 +7,6 @@ Repositories perform no Discord I/O, so no queue stub is needed.
 
 from datetime import date, datetime, timezone
 
-import pytest
-
 from application.repositories.match_acknowledgment_repository import MatchAcknowledgmentRepository
 from application.repositories.match_repository import MatchRepository
 from application.repositories.tournament_notification_repository import TournamentNotificationRepository
@@ -82,18 +80,15 @@ class TestUserRepository:
         users = await UserRepository.get_all(has_discord=True)
         assert [x.id for x in users] == [u.id]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug (documented in docs/reference/data-model.md): search_by_name filters "
-            "on preferred_name, a Python @property rather than a DB column, so every call "
-            "raises FieldError. Remove this xfail when the repository is fixed."
-        ),
-    )
     async def test_search_by_name_returns_matches(self, db):
         await make_user(1, "alice", display_name="Alice Wonder")
         results = await UserRepository.search_by_name("ali")
         assert any(u.username == "alice" for u in results)
+
+    async def test_search_by_name_matches_display_name(self, db):
+        await make_user(1, "xyz", display_name="Alice Wonder")
+        results = await UserRepository.search_by_name("wonder")
+        assert any(u.username == "xyz" for u in results)
 
     async def test_create_sets_fields(self, db):
         u = await UserRepository.create(
