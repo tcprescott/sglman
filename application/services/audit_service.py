@@ -250,6 +250,12 @@ class AuditActions:
     FEATURE_FLAG_AVAILABILITY_SET = 'feature_flag.availability_set'
     FEATURE_FLAG_ENABLED = 'feature_flag.enabled'
     FEATURE_FLAG_DISABLED = 'feature_flag.disabled'
+    # Feature-flag groups (live tiers) — super-admin, platform-level (tenant=NULL).
+    # Group CRUD and the per-tenant group assignment.
+    FEATURE_GROUP_CREATED = 'feature_group.created'
+    FEATURE_GROUP_UPDATED = 'feature_group.updated'
+    FEATURE_GROUP_DELETED = 'feature_group.deleted'
+    FEATURE_GROUP_ASSIGNED = 'feature_group.assigned'
 
     # Tenancy / platform (these audit rows carry tenant=NULL — platform-level)
     TENANT_CREATED = 'tenant.created'

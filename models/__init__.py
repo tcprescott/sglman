@@ -30,7 +30,7 @@ from .enums import (
     VolunteerAvailabilityStatus,
 )
 from .tenant import Tenant, TenantMembership
-from .feature_flag import TenantFeatureFlag
+from .feature_flag import FeatureFlagGroup, TenantFeatureFlag
 from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
 from .tournament import (
     GeneratedSeeds,
@@ -106,6 +106,7 @@ __all__ = [
     'Tenant',
     'TenantMembership',
     'TenantFeatureFlag',
+    'FeatureFlagGroup',
     # user / auth
     'ApiToken',
     'DiscordRoleMapping',

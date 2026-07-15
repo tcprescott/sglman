@@ -30,15 +30,18 @@ async def admin_features_page() -> None:
     except PermissionError as e:
         ui.notify(str(e), color='warning')
         return
+    tier = await service.current_tenant_group_name()
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
             ui.label('Features').classes('page-title')
         ui.label(
-            'Turn community features on or off. A feature must first be made '
-            'available to your community by a platform administrator before you '
-            'can enable it here.'
+            'Turn community features on or off. Which features are available to '
+            'your community is set by a platform administrator (your tier); you '
+            'control whether each available one is on.'
         ).classes('text-caption text-grey')
+        if tier:
+            ui.label(f'Your tier: {tier}').classes('text-caption text-primary')
         ui.separator().classes('separator-spacing')
 
         # Group by category, preserving the registry declaration order.

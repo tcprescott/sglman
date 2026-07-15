@@ -2,26 +2,39 @@
 
 Per-tenant feature flags let a community turn whole subsystems on or off. A flag
 exists **only** for a deliberately-gated feature — this is not a switch for every
-feature in the app. Flags are **disabled by default** and governed **two-tier**.
+feature in the app. Availability is driven by a **live group (tier)** with a
+per-tenant override on top, and the community controls enablement.
 
 - **Registry (code):** [`application/feature_flags.py`](../../application/feature_flags.py) — one `FeatureFlagSpec` per flag (label, description, category, `established`). Enum keys live in [`models.enums.FeatureFlag`](../../models/enums.py).
-- **State (per tenant):** [`TenantFeatureFlag`](../../models/feature_flag.py) — one row per `(tenant, flag)` with two booleans: `available` and `enabled`.
-- **Service:** [`FeatureFlagService`](../../application/services/feature_flag_service.py).
-- **Repository:** [`TenantFeatureFlagRepository`](../../application/repositories/feature_flag_repository.py).
+- **Group (tier):** [`FeatureFlagGroup`](../../models/feature_flag.py) — a global, super-admin-defined bundle of flags (`name`, `flags`, `is_default`). A tenant points at one via `Tenant.feature_group`.
+- **Override:** [`TenantFeatureFlag`](../../models/feature_flag.py) — one row per `(tenant, flag)`; `available`/`enabled` are **tri-state** (NULL = inherit, True/False = explicit).
+- **Service / repos:** [`FeatureFlagService`](../../application/services/feature_flag_service.py), [`TenantFeatureFlagRepository`](../../application/repositories/feature_flag_repository.py), [`FeatureFlagGroupRepository`](../../application/repositories/feature_flag_group_repository.py).
 
-## The two tiers
+## Resolving `available` and `enabled`
+
+Availability is resolved live, override → group → default group:
+
+1. **Group (tier).** A super-admin defines named `FeatureFlagGroup` bundles on `/platform` and assigns each tenant to one; a tenant's available flags derive from its group **live** — editing the group updates every tenant on it. A tenant with **no** group falls back to the single `is_default` group.
+2. **Per-tenant override.** A super-admin may force one flag on/off for one tenant (the tri-state `available` column); the explicit override wins over the group.
+3. **Enable tier.** Whenever a flag is available it is **ON by default**; the community's STAFF may switch it off — a sticky per-tenant choice (the tri-state `enabled` column).
+
+```
+effective_available = override.available if set, else (flag ∈ tenant-group ∪ default-group)
+effective_enabled   = override.enabled if set, else True when available
+is_enabled          = effective_available AND effective_enabled   ← what every gate reads
+```
+
+`is_enabled` returns `False` when there is no tenant in scope (the platform
+surface) rather than raising. A `TenantFeatureFlag` row left with both columns
+NULL carries no information and is deleted, so an override never lingers as a
+no-op. Deleting a group reassigns its tenants to ungrouped (→ default fallback);
+`is_default` is single (setting one clears the rest).
 
 | Tier | Who | Controls | Where |
 |---|---|---|---|
-| Availability | Super-admin | `available` — is the feature *offered* to this tenant | `/platform` → a tenant's **Features** button |
-| Enablement | Tenant STAFF | `enabled` — has the community *turned it on* | Admin → **Features** tab |
-
-**A feature is live only when `available AND enabled`.** A missing row means both
-are false — the disabled-by-default posture, so a new flag needs no per-tenant
-backfill to be off everywhere. `is_enabled` is the single read every gate calls;
-it returns `False` when there is no tenant in scope (e.g. the platform surface)
-rather than raising. Revoking availability makes a feature go dark while
-preserving the tenant's `enabled` choice, so re-granting restores it.
+| Group / tier | Super-admin | which features a tenant's group offers (live) | `/platform` → **Feature Groups** + a tenant's **Features** button |
+| Availability override | Super-admin | force one flag on/off for one tenant | `/platform` → tenant **Features** → Inherit / Force-on / Force-off |
+| Enablement | Tenant STAFF | whether each available feature is on | Admin → **Features** tab |
 
 ## Where gating is enforced
 
@@ -53,10 +66,26 @@ it is the control panel.
 | `triforce_texts` | Community | **yes** | home + admin Triforce tabs, `/triforce-texts` API |
 
 `established=True` marks a feature that was **already in live use** when its flag
-was added. The [migration](../../migrations/models/30_20260715000000_feature_flags.py)
-backfills those flags as `available+enabled` for every existing tenant so gating
-them doesn't make them vanish; new/unreleased features (the three online ones)
-ship dark.
+was added. [Migration 30](../../migrations/models/30_20260715000000_feature_flags.py)
+pinned those flags `available+enabled` for every existing tenant so gating them
+didn't make them vanish; new/unreleased features (the three online ones) ship
+dark.
+
+## Groups (tiers)
+
+[Migration 31](../../migrations/models/31_20260715120000_feature_flag_groups.py)
+adds the group layer on top: `FeatureFlagGroup` + `Tenant.feature_group`, makes
+`TenantFeatureFlag.available/enabled` nullable (tri-state), and seeds an **empty**
+`Default` group plus an `Online Tournaments` group. The migration is
+non-destructive — the migration-30 pins stay in place as per-tenant overrides, so
+existing communities keep their features; you migrate them onto groups at your
+pace via `/platform`.
+
+Super-admins manage groups on `/platform` → **Feature Groups** (create/edit/
+delete, mark one default, pick its flags) and assign a tenant to a group from its
+**Features** button. Because availability derives from the group **live**, editing
+a group re-tiers every tenant on it in one edit. `FeatureFlagService` owns the
+group CRUD, the `assign_tenant_group` write, and the effective-state resolution.
 
 ## Adding a feature flag
 
@@ -73,9 +102,11 @@ first** (see CLAUDE.md). When you do:
 
 ## Testing
 
-The `db` fixture provisions the default tenant (id 1) with every flag fully on,
-so the legacy suite exercises features as before. New tenants start off (the
-production default); a test that spins up a second tenant to hit a gated router
-must call `enable_all_features(tenant_id)`. See
+The `db` fixture provisions the default tenant (id 1) with every flag fully on
+(explicit `available+enabled` override rows), so the legacy suite exercises
+features as before regardless of groups. New tenants start off (the production
+default); a test that spins up a second tenant to hit a gated router must call
+`enable_all_features(tenant_id)`. See
 [`tests/test_feature_flags.py`](../../tests/test_feature_flags.py) for the
-two-tier semantics and isolation coverage.
+effective-state resolution, override precedence, live group derivation, default
+fallback, single-default, deletion-reassign, and isolation coverage.

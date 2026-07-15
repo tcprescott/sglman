@@ -98,10 +98,12 @@ Detail: [docs/features/multitenancy.md](docs/features/multitenancy.md).
 ## Feature flags
 
 Some subsystems are gated behind **per-tenant feature flags** — disabled by
-default, governed two-tier: a **super-admin** grants a flag's *availability* to a
-tenant (`/platform`), then that tenant's **STAFF** *enable* it (Admin → Features).
-A feature is live only when `available AND enabled`. Flags exist **only** for
-deliberately-gated features — not one per feature.
+default. Availability derives from a **live group/tier** (`FeatureFlagGroup` a
+super-admin assigns per tenant on `/platform`; ungrouped tenants fall back to the
+default group) with a tri-state per-tenant override on top; the community's
+**STAFF** control enable (Admin → Features; available ⇒ on by default, opt-out
+sticky). A feature is live when it is **available AND enabled**. Flags exist
+**only** for deliberately-gated features — not one per feature.
 
 ```python
 from application.services import FeatureFlagService

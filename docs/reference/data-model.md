@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for the [`models/`](../../models/) package (all 53 models and its 17 enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for the [`models/`](../../models/) package (all 54 models and its 17 enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 > **Package layout.** Models were split out of the former single `models.py` into per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`), with the shared enums in `models/enums.py`. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.*
 
@@ -38,7 +38,9 @@ tenant-scoped.**
   Ties a global `User` to the tenants they belong to; queried across tenants, so
   it is never auto-scoped.
 - **Global (no `tenant` FK):** `User`, `WebPushSubscription`, `Tenant`,
-  `TenantMembership`, `RacetimeBot` (shared, platform-managed per category).
+  `TenantMembership`, `RacetimeBot` (shared, platform-managed per category),
+  `FeatureFlagGroup` (super-admin-defined feature tier; a tenant points at one via
+  `Tenant.feature_group`, `SET NULL` on delete).
   `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id`
   uniques stay global — identity links are to the person; `RacetimeBot.category`
   is globally unique.
@@ -56,11 +58,13 @@ tenant-scoped.**
   `PlayerAvailability`, `ChallongeConnection`, `ChallongeParticipant`,
   `ChallongeMatch`, `ChallongeApiUsage`, `RacetimeBotTenant`, `RaceRoomProfile`,
   `RacetimeRoom`, `TenantFeatureFlag`.
-- **`TenantFeatureFlag`** (`tenantfeatureflag`) — per-tenant state of one feature
-  flag: `flag` (a `FeatureFlag` key), `available` (super-admin grant), `enabled`
-  (tenant toggle); `(tenant, flag)` unique. A missing row = both false
-  (disabled-by-default); effective = `available AND enabled`. See
-  [feature-flags.md](../features/feature-flags.md).
+- **`TenantFeatureFlag`** (`tenantfeatureflag`) — per-tenant **override** of one
+  feature flag: `flag` (a `FeatureFlag` key) + **tri-state** `available`/`enabled`
+  (NULL = inherit from the tenant's `FeatureFlagGroup`, else the default group;
+  True/False = explicit); `(tenant, flag)` unique. Effective state is computed in
+  `FeatureFlagService` (override → group → default; available ⇒ enabled-by-default).
+  `FeatureFlagGroup` (global) is the live tier a tenant derives availability from.
+  See [feature-flags.md](../features/feature-flags.md).
 - **Per-tenant uniqueness** — formerly-global uniques became composite with
   `tenant`: `StreamRoom.name`, `VolunteerPosition.name`,
   `SystemConfiguration.name` → `(tenant, name)`; `Equipment.asset_number` →
@@ -1394,6 +1398,8 @@ The equipment, volunteering, availability, Challonge, API-token, feedback, and w
 |---|---|---|---|
 | `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `get_by_id`, `get_by_hash`, `list_for_user`, `touch_last_used`, `revoke` |
 | `FeedbackRepository` | [`feedback_repository.py`](../../application/repositories/feedback_repository.py) | `Feedback` | `create`, `get_by_id`, `list_recent`, `set_status` |
+| `TenantFeatureFlagRepository` | [`feature_flag_repository.py`](../../application/repositories/feature_flag_repository.py) | `TenantFeatureFlag` | `list_for_tenant`, `map_for_tenant`, `get_for_tenant`, `set_override` (tri-state; deletes an all-NULL row) |
+| `FeatureFlagGroupRepository` | [`feature_flag_group_repository.py`](../../application/repositories/feature_flag_group_repository.py) | `FeatureFlagGroup` | `list_all`, `get_by_id`, `get_by_name`, `get_default`, `create`, `update`, `delete`, `clear_default`, `count_tenants` |
 | `EquipmentRepository` | [`equipment_repository.py`](../../application/repositories/equipment_repository.py) | `Equipment`, `EquipmentLoan` | `create`, `get_by_id`, `list_all`, `next_asset_number`, `bulk_create`, `update`, `delete`, `create_loan`, `get_open_loan`, `close_loan`, `list_open_loans_for_user`, `list_loans_for_equipment`, `open_loans_by_equipment_id` |
 | `VolunteerProfileRepository` | [`volunteer_profile_repository.py`](../../application/repositories/volunteer_profile_repository.py) | `VolunteerProfile` | `get_for_user`, `get_or_create_for_user`, `save`, `list_opted_in`, `opted_in_user_ids` |
 | `VolunteerPositionRepository` | [`volunteer_position_repository.py`](../../application/repositories/volunteer_position_repository.py) | `VolunteerPosition` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |

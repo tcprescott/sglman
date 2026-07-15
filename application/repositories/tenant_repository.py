@@ -65,5 +65,15 @@ class TenantRepository:
         await tenant.save()
 
     @staticmethod
+    async def set_feature_group(tenant_id: int, group_id: Optional[int]) -> None:
+        """Assign (or clear, with ``None``) a tenant's feature-flag group."""
+        await Tenant.filter(id=tenant_id).update(feature_group_id=group_id)
+
+    @staticmethod
+    async def clear_feature_group(group_id: int) -> None:
+        """Un-assign every tenant on a group (used before deleting it)."""
+        await Tenant.filter(feature_group_id=group_id).update(feature_group_id=None)
+
+    @staticmethod
     async def delete(tenant: Tenant) -> None:
         await tenant.delete()

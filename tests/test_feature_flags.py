@@ -9,6 +9,7 @@ disabled-by-default posture.
 import pytest
 
 from application.feature_flags import FEATURE_FLAG_REGISTRY, established_flags
+from application.repositories.feature_flag_group_repository import FeatureFlagGroupRepository
 from application.repositories.feature_flag_repository import TenantFeatureFlagRepository
 from application.services.feature_flag_service import FeatureFlagService
 from application.tenant_context import reset_tenant_id, set_tenant_id, tenant_scope
@@ -168,15 +169,26 @@ async def test_set_availability_requires_super_admin(tenants):
         await FeatureFlagService().set_availability(staff, b.id, FeatureFlag.EQUIPMENT, True)
 
 
-async def test_super_admin_grants_availability_without_enabling(tenants):
+async def test_forcing_availability_makes_feature_live_by_default(tenants):
+    # New semantics: availability ⇒ enabled ON by default (community may opt out).
     a, b = tenants
     sa = await _super_admin(5005)
     await FeatureFlagService().set_availability(sa, b.id, FeatureFlag.ASYNC_QUALIFIERS, True)
     row = await TenantFeatureFlagRepository.get_for_tenant(b.id, 'async_qualifiers')
-    assert row is not None and row.available is True and row.enabled is False
-    # Available but not yet enabled → still off for users.
+    assert row is not None and row.available is True and row.enabled is None  # enabled inherits
     with tenant_scope(b.id):
-        assert await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS) is False
+        assert await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS) is True
+
+
+async def test_clearing_availability_override_returns_to_inherit(tenants):
+    a, b = tenants
+    sa = await _super_admin(5006)
+    svc = FeatureFlagService()
+    # Force off, then clear (None) → the override row is deleted (back to inherit).
+    await svc.set_availability(sa, b.id, FeatureFlag.EQUIPMENT, False)
+    assert await TenantFeatureFlagRepository.get_for_tenant(b.id, 'equipment') is not None
+    await svc.set_availability(sa, b.id, FeatureFlag.EQUIPMENT, None)
+    assert await TenantFeatureFlagRepository.get_for_tenant(b.id, 'equipment') is None
 
 
 async def test_revoking_availability_preserves_enabled_choice(tenants):
@@ -205,3 +217,116 @@ async def test_flags_do_not_leak_across_tenants(db):
         # C never had a row — B's flag must not bleed across.
         assert await svc.is_enabled(FeatureFlag.EQUIPMENT) is False
         assert await svc.enabled_flags() == set()
+
+
+# --- groups (live tiers) ----------------------------------------------------
+
+async def test_group_grants_availability_and_enables_by_default(tenants):
+    a, b = tenants
+    sa = await _super_admin(6001)
+    svc = FeatureFlagService()
+    g = await svc.create_group(sa, name='Online', flags=['async_qualifiers', 'racetime_rooms'])
+    await svc.assign_tenant_group(sa, b.id, g.id)
+    with tenant_scope(b.id):
+        assert await svc.is_enabled(FeatureFlag.ASYNC_QUALIFIERS) is True
+        assert await svc.is_enabled(FeatureFlag.RACETIME_ROOMS) is True
+        assert await svc.is_enabled(FeatureFlag.EQUIPMENT) is False  # not in the group
+        assert await svc.enabled_flags() == {
+            FeatureFlag.ASYNC_QUALIFIERS, FeatureFlag.RACETIME_ROOMS,
+        }
+
+
+async def test_default_group_is_live_fallback_for_ungrouped(tenants):
+    a, b = tenants  # b is never assigned a group
+    sa = await _super_admin(6002)
+    svc = FeatureFlagService()
+    await svc.create_group(sa, name='Base', flags=['equipment'], is_default=True)
+    with tenant_scope(b.id):
+        assert await svc.is_enabled(FeatureFlag.EQUIPMENT) is True   # from default
+        assert await svc.is_enabled(FeatureFlag.CHALLONGE) is False
+
+
+async def test_override_forces_off_a_group_granted_flag(tenants):
+    a, b = tenants
+    sa = await _super_admin(6003)
+    svc = FeatureFlagService()
+    g = await svc.create_group(sa, name='Online', flags=['async_qualifiers'])
+    await svc.assign_tenant_group(sa, b.id, g.id)
+    await svc.set_availability(sa, b.id, FeatureFlag.ASYNC_QUALIFIERS, False)  # exception
+    with tenant_scope(b.id):
+        assert await svc.is_enabled(FeatureFlag.ASYNC_QUALIFIERS) is False
+
+
+async def test_override_forces_on_an_ungrouped_flag(tenants):
+    a, b = tenants
+    sa = await _super_admin(6004)
+    svc = FeatureFlagService()
+    g = await svc.create_group(sa, name='Online', flags=['async_qualifiers'])
+    await svc.assign_tenant_group(sa, b.id, g.id)
+    await svc.set_availability(sa, b.id, FeatureFlag.EQUIPMENT, True)  # exception grant
+    with tenant_scope(b.id):
+        assert await svc.is_enabled(FeatureFlag.EQUIPMENT) is True
+
+
+async def test_community_can_disable_a_group_granted_feature(tenants):
+    a, b = tenants
+    sa = await _super_admin(6005)
+    svc = FeatureFlagService()
+    g = await svc.create_group(sa, name='Online', flags=['async_qualifiers'])
+    await svc.assign_tenant_group(sa, b.id, g.id)
+    with tenant_scope(b.id):
+        staff = await _staff(6006, b.id)
+        await svc.set_tenant_enabled(staff, FeatureFlag.ASYNC_QUALIFIERS, False)
+        assert await svc.is_enabled(FeatureFlag.ASYNC_QUALIFIERS) is False  # sticky opt-out
+        assert FeatureFlag.ASYNC_QUALIFIERS not in await svc.enabled_flags()
+
+
+async def test_editing_group_updates_assigned_tenants_live(tenants):
+    a, b = tenants
+    sa = await _super_admin(6007)
+    svc = FeatureFlagService()
+    g = await svc.create_group(sa, name='Online', flags=['async_qualifiers'])
+    await svc.assign_tenant_group(sa, b.id, g.id)
+    with tenant_scope(b.id):
+        assert await svc.is_enabled(FeatureFlag.RACETIME_ROOMS) is False
+    await svc.update_group(sa, g.id, flags=['async_qualifiers', 'racetime_rooms'])
+    with tenant_scope(b.id):
+        assert await svc.is_enabled(FeatureFlag.RACETIME_ROOMS) is True  # live update
+
+
+async def test_single_default_is_enforced(tenants):
+    a, b = tenants
+    sa = await _super_admin(6008)
+    svc = FeatureFlagService()
+    g1 = await svc.create_group(sa, name='D1', flags=[], is_default=True)
+    g2 = await svc.create_group(sa, name='D2', flags=[], is_default=True)
+    default = await FeatureFlagGroupRepository.get_default()
+    assert default is not None and default.id == g2.id
+    g1_reloaded = await FeatureFlagGroupRepository.get_by_id(g1.id)
+    assert g1_reloaded.is_default is False
+
+
+async def test_deleting_group_reassigns_tenant_to_ungrouped(tenants):
+    a, b = tenants
+    sa = await _super_admin(6009)
+    svc = FeatureFlagService()
+    g = await svc.create_group(sa, name='Online', flags=['async_qualifiers'])
+    await svc.assign_tenant_group(sa, b.id, g.id)
+    await svc.delete_group(sa, g.id)
+    tenant = await Tenant.get(id=b.id)
+    assert tenant.feature_group_id is None
+
+
+async def test_group_flags_are_validated_against_registry(tenants):
+    a, b = tenants
+    sa = await _super_admin(6010)
+    g = await FeatureFlagService().create_group(sa, name='Weird', flags=['equipment', 'not_a_real_flag'])
+    assert g.flags == ['equipment']  # unknown key dropped
+
+
+async def test_group_management_requires_super_admin(tenants):
+    a, b = tenants
+    with tenant_scope(b.id):
+        staff = await _staff(6011, b.id)
+    with pytest.raises(PermissionError):
+        await FeatureFlagService().create_group(staff, name='X', flags=[])
