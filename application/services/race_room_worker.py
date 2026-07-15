@@ -34,8 +34,10 @@ _task: Optional[asyncio.Task] = None
 
 async def _tick() -> None:
     from application.repositories import RacetimeRoomRepository
+    from application.services.feature_flag_service import FeatureFlagService
     from application.services.race_room_service import RaceRoomService
     from application.services.user_service import UserService
+    from models import FeatureFlag
 
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(minutes=GRACE_MINUTES)
@@ -55,6 +57,8 @@ async def _tick() -> None:
             continue
         try:
             with tenant_scope(tenant_id):
+                if not await FeatureFlagService().is_enabled(FeatureFlag.RACETIME_ROOMS):
+                    continue  # tenant has racetime rooms disabled
                 lead = match.tournament.room_open_minutes_before or 30
                 if match.scheduled_at is None or match.scheduled_at > now + timedelta(minutes=lead):
                     continue  # not yet within this tournament's lead window

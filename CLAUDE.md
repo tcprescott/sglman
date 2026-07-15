@@ -26,6 +26,7 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | Outbound webhooks (event subscriber) | [docs/features/webhooks.md](docs/features/webhooks.md) |
 | Datetime/timezone implementation | [docs/timezone-handling.md](docs/timezone-handling.md) |
 | Multitenancy (tenant context, `/t/<slug>`, query scoping, `/platform`) | [docs/features/multitenancy.md](docs/features/multitenancy.md) |
+| Per-tenant feature flags (two-tier availability + enable, gating) | [docs/features/feature-flags.md](docs/features/feature-flags.md) |
 | Engagement telemetry (page views, interactions, event mirror) | [docs/features/telemetry.md](docs/features/telemetry.md) |
 | Per-feature docs (auth, crew, notifications, etc.) | [docs/features/](docs/features/) |
 
@@ -45,6 +46,7 @@ Presentation (pages/, theme/)  →  Service (application/services/)  →  Reposi
 See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern and examples.
 
 ### Adding a new feature
+0. **Ask the user whether this feature warrants a per-tenant feature flag.** Not every feature needs one — flags exist only for deliberately-gated subsystems (see [Feature flags](#feature-flags)). Always ask; if yes, gate it (page/tab/API/worker) and register the flag. Do **not** add flags retroactively to existing features unless asked.
 1. Add/update model in the `models/` package (per-domain submodule; re-export from `models/__init__.py`) → `poetry run aerich migrate && poetry run aerich upgrade`
 2. Update/create the repository in `application/repositories/`
 3. Update/create the service in `application/services/`
@@ -92,6 +94,31 @@ The app is **logically multitenant**: one DB, a `tenant` FK on ~33 models, tenan
 - When adding a tenant-scoped model: add the `tenant` FK, scope its repo, make formerly-global uniques composite with `tenant`, and add a leak test.
 
 Detail: [docs/features/multitenancy.md](docs/features/multitenancy.md).
+
+## Feature flags
+
+Some subsystems are gated behind **per-tenant feature flags** — disabled by
+default. Availability derives from a **live group/tier** (`FeatureFlagGroup` a
+super-admin assigns per tenant on `/platform`; ungrouped tenants fall back to the
+default group) with a tri-state per-tenant override on top; the community's
+**STAFF** control enable (Admin → Features; available ⇒ on by default, opt-out
+sticky). A feature is live when it is **available AND enabled**. Flags exist
+**only** for deliberately-gated features — not one per feature.
+
+```python
+from application.services import FeatureFlagService
+from models import FeatureFlag
+
+if await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS): ...
+live = await FeatureFlagService().enabled_flags()   # set[FeatureFlag], one query
+```
+
+Gating is an **authorization-style gate at the entry surfaces**, never a DB read
+inside a service transaction: `@protected_page(feature=FeatureFlag.X)` for pages,
+`and FeatureFlag.X in live` on admin/home tabs, `require_feature(...)` on REST
+routers, and an `is_enabled` skip in background workers. **When adding a feature,
+always ask whether it warrants a flag** (step 0 above); do not retrofit existing
+features. Detail: [docs/features/feature-flags.md](docs/features/feature-flags.md).
 
 ## Authentication
 

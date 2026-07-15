@@ -15,7 +15,7 @@ from models import (
     Tenant,
     Tournament,
 )
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 
 @pytest.fixture
@@ -217,6 +217,7 @@ class TestTenantIsolation:
             ta = await Tournament.create(name='A Cup')
             link_a = await SpeedGamingEventLink.create(tenant_id=a.id, tournament=ta, event_slug='a-event')
         with tenant_scope(b.id):
+            await enable_all_features(b.id)
             _, token_b = await create_user_token(username='b-staff', roles=[Role.STAFF])
         return {'app': build_api_app(), 'token_b': token_b, 'link_a': link_a}
 

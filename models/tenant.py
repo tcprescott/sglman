@@ -29,6 +29,12 @@ class Tenant(Model):
     # role sync by matching this. Nullable until a guild is linked.
     discord_guild_id = fields.BigIntField(null=True, index=True)
     is_active = fields.BooleanField(default=True)
+    # Assigned feature-flag group (live tier). NULL → falls back to the default
+    # group. SET NULL on group delete so removing a group never orphans a tenant.
+    feature_group = fields.ForeignKeyField(
+        'models.FeatureFlagGroup', related_name='tenants',
+        on_delete=fields.SET_NULL, null=True,
+    )
     config = fields.JSONField(default=dict)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

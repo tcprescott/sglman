@@ -17,7 +17,7 @@ from models import (
     Tenant,
     User,
 )
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 
 @pytest.fixture(autouse=True)
@@ -222,6 +222,7 @@ class TestTenantIsolation:
                 actor_a, pool_a.id, match_title='A Race'
             )
         with tenant_scope(b.id):
+            await enable_all_features(b.id)
             _, token_b = await _admin_token(username='b-admin')
             qualifier_b, _ = await _make_qualifier_and_pool(
                 await User.get(username='b-admin'), name='QB'

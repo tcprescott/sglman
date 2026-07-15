@@ -10,7 +10,7 @@ import pytest
 
 from application.tenant_context import tenant_scope
 from models import RaceRoomProfile, Role, Tenant
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 
 @pytest.fixture(autouse=True)
@@ -189,6 +189,7 @@ class TestTenantIsolation:
         with tenant_scope(a.id):
             profile_a = await RaceRoomProfile.create(name='A Profile')
         with tenant_scope(b.id):
+            await enable_all_features(b.id)
             _, token_b = await create_user_token(username='b-sync', roles=[Role.SYNC_ADMIN])
             profile_b = await RaceRoomProfile.create(name='B Profile')
         return {'app': app, 'token_b': token_b, 'profile_a': profile_a, 'profile_b': profile_b}

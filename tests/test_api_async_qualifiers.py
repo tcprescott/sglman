@@ -11,7 +11,7 @@ import pytest
 
 from application.tenant_context import tenant_scope
 from models import AsyncQualifier, Role, Tenant, User
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 UTC = timezone.utc
 
@@ -331,6 +331,7 @@ class TestTenantIsolation:
         with tenant_scope(a.id):
             qa = await AsyncQualifier.create(name='A Cup', is_active=True)
         with tenant_scope(b.id):
+            await enable_all_features(b.id)
             _, token_b = await create_user_token(username='b-admin', roles=[Role.QUALIFIER_ADMIN])
         return {'app': build_api_app(), 'token_b': token_b, 'qa': qa}
 

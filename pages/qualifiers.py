@@ -15,6 +15,7 @@ from middleware.auth import protected_page
 
 from application.services import AsyncQualifierService, AuthService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
+from models import FeatureFlag
 from theme.base import BaseLayout
 
 
@@ -54,7 +55,7 @@ def _parse_hms(text: str) -> int:
 def create() -> None:
     service = AsyncQualifierService()
 
-    @protected_page('/qualifiers')
+    @protected_page('/qualifiers', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifiers_list() -> None:
         ui.page_title('SGL - Async Qualifiers')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -81,7 +82,7 @@ def create() -> None:
                     if q.description:
                         ui.label(q.description).classes('text-caption')
 
-    @protected_page('/qualifiers/{qualifier_id}')
+    @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifier_detail(qualifier_id: int) -> None:
         ui.page_title('SGL - Async Qualifier')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))

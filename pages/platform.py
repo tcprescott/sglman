@@ -9,13 +9,16 @@ per-tenant scoping never applies.
 from nicegui import app, ui
 
 from application.services import (
+    FeatureFlagService,
     RacetimeBotService,
     ServiceHealthService,
     TenantService,
     get_user_from_discord_id,
 )
 from application.services.auth_service import AuthService
+from application.feature_flags import all_specs, spec_for
 from application.tenant_context import get_current_tenant_id
+from models import FeatureFlag
 
 _bot_service = RacetimeBotService()
 
@@ -62,6 +65,8 @@ def create() -> None:
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
                            @click="$parent.$emit('edit', props.row)" />
+                    <q-btn dense flat color="secondary" label="Features"
+                           @click="$parent.$emit('features', props.row)" />
                 </q-td>
             ''')
 
@@ -70,7 +75,11 @@ def create() -> None:
                 # background task), so ui.* calls in the dialog are safe.
                 await _open_edit_dialog(user, table, e.args)
 
+            async def _on_features(e) -> None:
+                await _open_tenant_features_dialog(user, e.args)
+
             table.on('edit', _on_edit)
+            table.on('features', _on_features)
 
             await _refresh(table)
 
@@ -120,6 +129,45 @@ def create() -> None:
             bot_table.on('restart_bot', _on_restart_bot)
 
             await _refresh_bots(bot_table)
+
+            ui.separator().classes('q-my-lg')
+
+            with ui.row().classes('w-full items-center justify-between'):
+                ui.label('Feature Groups').classes('text-2xl font-bold')
+                ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table))
+            ui.label(
+                'Named feature bundles (tiers). Assign a tenant to a group from its '
+                'Features button; ungrouped tenants fall back to the default group. '
+                'Editing a group updates every tenant on it, live.'
+            ).classes('text-caption text-grey')
+
+            group_columns = [
+                {'name': 'name', 'label': 'Name', 'field': 'name', 'align': 'left', 'sortable': True},
+                {'name': 'flags', 'label': 'Features', 'field': 'flags', 'align': 'left'},
+                {'name': 'default', 'label': 'Default', 'field': 'default', 'align': 'left'},
+                {'name': 'tenants', 'label': 'Tenants', 'field': 'tenants', 'align': 'left'},
+                {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
+            ]
+            group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full')
+            group_table.add_slot('body-cell-actions', '''
+                <q-td :props="props">
+                    <q-btn dense flat color="primary" label="Edit"
+                           @click="$parent.$emit('edit_group', props.row)" />
+                    <q-btn dense flat color="negative" label="Delete"
+                           @click="$parent.$emit('delete_group', props.row)" />
+                </q-td>
+            ''')
+
+            async def _on_edit_group(e) -> None:
+                await _open_group_edit_dialog(user, group_table, e.args)
+
+            async def _on_delete_group(e) -> None:
+                await _delete_group(user, group_table, e.args)
+
+            group_table.on('edit_group', _on_edit_group)
+            group_table.on('delete_group', _on_delete_group)
+
+            await _refresh_groups(group_table)
 
             ui.separator().classes('q-my-lg')
 
@@ -224,6 +272,164 @@ async def _open_edit_dialog(actor, table, row) -> None:
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Save', on_click=submit, color='primary')
     dialog.open()
+
+
+async def _open_tenant_features_dialog(actor, row) -> None:
+    """Super-admin: set a tenant's tier (group) and per-feature overrides.
+
+    Availability normally derives from the assigned group (or the default group
+    when ungrouped); a per-feature Inherit / Force-on / Force-off override is the
+    exception. Effective state is shown per row. Reopen after assigning a group to
+    see refreshed effective values.
+    """
+    tenant_id = row['id']
+    service = FeatureFlagService()
+    flags = await service.list_for_tenant(actor, tenant_id)
+    groups = await service.list_groups(actor)
+    tenant = await TenantService.get_by_id(tenant_id)
+    current_group_id = tenant.feature_group_id if tenant is not None else None
+
+    async def _assign(group_id) -> None:
+        try:
+            await service.assign_tenant_group(actor, tenant_id, group_id or None)
+        except (ValueError, PermissionError) as e:
+            ui.notify(str(e), color='warning')
+            return
+        ui.notify('Tier assigned — reopen to see updated availability', color='positive')
+
+    async def _override(flag_value: str, choice: str) -> None:
+        mapped = {'inherit': None, 'on': True, 'off': False}[choice]
+        try:
+            await service.set_availability(actor, tenant_id, FeatureFlag(flag_value), mapped)
+        except (ValueError, PermissionError) as e:
+            ui.notify(str(e), color='warning')
+            return
+        ui.notify('Updated', color='positive')
+
+    with ui.dialog() as dialog, ui.card().classes('w-[34rem] gap-2'):
+        ui.label(f"Features for {row['name']}").classes('text-lg font-semibold')
+
+        group_options = {0: '— None (default fallback) —'}
+        for g in groups:
+            group_options[g.id] = g.name + (' (default)' if g.is_default else '')
+        ui.select(
+            options=group_options, value=current_group_id or 0, label='Tier / group',
+            on_change=lambda e: _assign(e.value),
+        ).classes('w-full')
+
+        ui.separator()
+        ui.label('Per-feature overrides (exceptions to the tier)').classes('text-caption text-grey')
+        for f in flags:
+            tier = 'on' if f['group_available'] else 'off'
+            effective = 'live' if f['live'] else ('available' if f['available'] else 'off')
+            current = 'inherit' if f['override'] is None else ('on' if f['override'] else 'off')
+            with ui.row().classes('items-center justify-between w-full no-wrap'):
+                with ui.column().classes('gap-0'):
+                    ui.label(f['label'])
+                    ui.label(f"tier: {tier} · effective: {effective}").classes('text-caption text-grey')
+                ui.select(
+                    options={'inherit': f'Inherit ({tier})', 'on': 'Force on', 'off': 'Force off'},
+                    value=current,
+                    on_change=lambda e, fv=f['flag']: _override(fv, e.value),
+                ).props('dense outlined').classes('w-44')
+        with ui.row().classes('w-full justify-end'):
+            ui.button('Close', on_click=dialog.close).props('flat')
+    dialog.open()
+
+
+async def _refresh_groups(table) -> None:
+    groups = await FeatureFlagService().list_groups_with_counts(await _current_actor())
+    rows = []
+    for g in groups:
+        labels = [spec_for(FeatureFlag(k)).label for k in g['flags']]
+        rows.append({
+            'id': g['id'], 'name': g['name'],
+            'flags': ', '.join(labels) or '—',
+            'default': 'yes' if g['is_default'] else '',
+            'tenants': str(g['tenant_count']),
+        })
+    table.rows = rows
+    table.update()
+
+
+def _group_form(existing=None):
+    """Render the shared group input widgets; returns them for the submit handler."""
+    is_edit = existing is not None
+    name = ui.input('Name', value=existing['name'] if is_edit else '').classes('w-full')
+    description = ui.textarea(
+        'Description', value=existing.get('description', '') if is_edit else '',
+    ).classes('w-full')
+    flag_options = {spec.flag.value: spec.label for spec in all_specs()}
+    flags = ui.select(
+        options=flag_options, multiple=True, label='Features in this group',
+        value=list(existing['flags']) if is_edit else [],
+    ).props('use-chips').classes('w-full')
+    is_default = ui.switch('Default group (fallback for ungrouped tenants)',
+                           value=existing['is_default'] if is_edit else False)
+    return name, description, flags, is_default
+
+
+def _open_group_create_dialog(actor, table) -> None:
+    with ui.dialog() as dialog, ui.card().classes('w-[32rem] gap-2'):
+        ui.label('New feature group').classes('text-lg font-semibold')
+        name, description, flags, is_default = _group_form()
+
+        async def submit():
+            try:
+                await FeatureFlagService().create_group(
+                    actor, name=name.value, flags=flags.value or [],
+                    description=description.value, is_default=is_default.value,
+                )
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+                return
+            ui.notify('Group created', color='positive')
+            dialog.close()
+            await _refresh_groups(table)
+
+        with ui.row().classes('w-full justify-end'):
+            ui.button('Cancel', on_click=dialog.close).props('flat')
+            ui.button('Create', on_click=submit, color='primary')
+    dialog.open()
+
+
+async def _open_group_edit_dialog(actor, table, row) -> None:
+    group = await FeatureFlagService().get_group(actor, row['id'])
+    existing = {
+        'name': group.name, 'description': group.description or '',
+        'flags': list(group.flags or []), 'is_default': group.is_default,
+    }
+    with ui.dialog() as dialog, ui.card().classes('w-[32rem] gap-2'):
+        ui.label(f"Edit group '{group.name}'").classes('text-lg font-semibold')
+        name, description, flags, is_default = _group_form(existing)
+
+        async def submit():
+            try:
+                await FeatureFlagService().update_group(
+                    actor, group.id, name=name.value, flags=flags.value or [],
+                    description=description.value, is_default=is_default.value,
+                )
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+                return
+            ui.notify('Group updated', color='positive')
+            dialog.close()
+            await _refresh_groups(table)
+
+        with ui.row().classes('w-full justify-end'):
+            ui.button('Cancel', on_click=dialog.close).props('flat')
+            ui.button('Save', on_click=submit, color='primary')
+    dialog.open()
+
+
+async def _delete_group(actor, table, row) -> None:
+    try:
+        await FeatureFlagService().delete_group(actor, row['id'])
+    except (ValueError, PermissionError) as e:
+        ui.notify(str(e), color='warning')
+        return
+    ui.notify('Group deleted; its tenants fell back to the default', color='positive')
+    await _refresh_groups(table)
 
 
 async def _refresh_bots(table) -> None:

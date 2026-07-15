@@ -31,7 +31,7 @@ from migrations.tortoise_config import TORTOISE_ORM
 from tortoise import Tortoise
 from tortoise.functions import Max
 from models import (
-    Tenant, TenantMembership,
+    Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
     User, UserRole, Role,
     Tournament, TournamentPlayers,
     Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
@@ -84,6 +84,57 @@ async def seed_users() -> dict[str, User]:
     await link_racetime_identities(users)
     print("  users ok (global)")
     return users
+
+
+async def seed_feature_groups() -> dict:
+    """Create the demo feature-flag groups (tiers). Idempotent by name.
+
+    Migration 31 already creates 'Default' (empty, is_default) and 'Online
+    Tournaments'; this also ensures a 'Full Access' tier for dev and returns all
+    three keyed by role.
+    """
+    default, _ = await FeatureFlagGroup.get_or_create(
+        name='Default',
+        defaults={
+            'description': 'Live fallback for tenants with no group assigned.',
+            'flags': [], 'is_default': True,
+        },
+    )
+    online, _ = await FeatureFlagGroup.get_or_create(
+        name='Online Tournaments',
+        defaults={'flags': ['async_qualifiers', 'racetime_rooms', 'speedgaming_etl']},
+    )
+    full, _ = await FeatureFlagGroup.get_or_create(
+        name='Full Access',
+        defaults={'flags': [f.value for f in FeatureFlag]},
+    )
+    print('  feature groups ok (Default / Online Tournaments / Full Access)')
+    return {'default': default, 'online': online, 'full': full}
+
+
+async def assign_feature_group(tenant: Tenant, groups: dict) -> None:
+    """Assign a dev tenant to a tier plus one demo override.
+
+    Tenant A → Full Access (everything live), with one feature the community has
+    switched OFF (sticky enable override). Tenant B → Online Tournaments, with one
+    extra feature force-granted as a per-tenant availability exception. Together
+    they exercise group-derived, community-disabled, and override states.
+    """
+    if tenant.slug == 'default':
+        tenant.feature_group = groups['full']
+        await tenant.save()
+        await TenantFeatureFlag.get_or_create(
+            tenant=tenant, flag=FeatureFlag.TRIFORCE_TEXTS.value,
+            defaults={'available': None, 'enabled': False},  # community opted out
+        )
+    else:
+        tenant.feature_group = groups['online']
+        await tenant.save()
+        await TenantFeatureFlag.get_or_create(
+            tenant=tenant, flag=FeatureFlag.EQUIPMENT.value,
+            defaults={'available': True, 'enabled': None},  # per-tenant exception
+        )
+    print(f"    [{tenant.slug}] feature tier ok")
 
 
 async def seed_for_tenant(
@@ -717,6 +768,7 @@ async def seed() -> None:
     try:
         users = await seed_users()
         bots = await seed_racetime_bots()
+        groups = await seed_feature_groups()
         for slug, name, guild_id, _label in TENANT_SPECS:
             tenant, created = await Tenant.get_or_create(
                 slug=slug, defaults={"name": name, "discord_guild_id": guild_id},
@@ -729,6 +781,7 @@ async def seed() -> None:
                 await tenant.save()
             print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
             await seed_for_tenant(tenant, users, bots)
+            await assign_feature_group(tenant, groups)
     finally:
         await Tortoise.close_connections()
     print("Seeding complete.")

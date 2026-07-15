@@ -49,6 +49,21 @@ async def create_user_token(
     return user, raw_token
 
 
+async def enable_all_features(tenant_id: int) -> None:
+    """Provision every feature flag (available+enabled) for a tenant.
+
+    New tenants start with all features OFF (the production default), so a test
+    that spins up a *second* tenant to hit a feature-gated router must provision
+    it — the ``db`` fixture already does this for the default tenant (id 1).
+    """
+    from models import FeatureFlag, TenantFeatureFlag
+    for flag in FeatureFlag:
+        await TenantFeatureFlag.get_or_create(
+            tenant_id=tenant_id, flag=flag.value,
+            defaults={'available': True, 'enabled': True},
+        )
+
+
 def client_for(app: FastAPI, raw_token: Optional[str] = None) -> AsyncClient:
     headers = {'Authorization': f'Bearer {raw_token}'} if raw_token else {}
     return AsyncClient(transport=ASGITransport(app=app), base_url='http://test', headers=headers)

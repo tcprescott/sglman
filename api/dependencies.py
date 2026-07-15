@@ -20,9 +20,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from application.services.api_token_service import ApiTokenService
 from application.services.auth_service import AuthService
+from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_service import TenantService
 from application.tenant_context import reset_tenant_id, set_tenant_id
-from models import ApiToken, User
+from models import ApiToken, FeatureFlag, User
 
 
 async def tenant_context_scope():
@@ -165,6 +166,26 @@ async def require_super_admin_write(
         await AuthService.is_super_admin(user), "Super admin access required"
     )
     return user
+
+
+def require_feature(flag: FeatureFlag):
+    """Router dependency factory that 404s when the tenant lacks a feature flag.
+
+    Depends on :func:`require_api_actor` so the bearer token has resolved and set
+    the tenant context before the flag is read. A subsystem the tenant hasn't
+    enabled is hidden (404) — the REST mirror of the web ``@protected_page``
+    feature gate — so the API can't be used to reach a feature the community
+    turned off. Attach it via ``include_router(..., dependencies=[...])``.
+    """
+
+    async def _require_feature(actor: User = Depends(require_api_actor)) -> None:
+        if not await FeatureFlagService().is_enabled(flag):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="This feature is not enabled for this community.",
+            )
+
+    return _require_feature
 
 
 class ServiceErrorRoute(APIRoute):

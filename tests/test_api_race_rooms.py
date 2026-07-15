@@ -17,7 +17,7 @@ from models import (
     Tenant,
     Tournament,
 )
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 
 @pytest.fixture(autouse=True)
@@ -186,6 +186,7 @@ class TestTenantIsolation:
             match_a = await Match.create(tournament=tournament_a)
             room_a = await _make_room(slug='alttp/a-match', match=match_a)
         with tenant_scope(b.id):
+            await enable_all_features(b.id)
             _, token_b = await create_user_token(username='b-staff', roles=[Role.STAFF])
 
         async with client_for(app, token_b) as c:

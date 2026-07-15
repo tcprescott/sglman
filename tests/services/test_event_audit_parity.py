@@ -197,6 +197,20 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CREATED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_OPENED,
     AuditActions.ASYNC_QUALIFIER_LIVE_RACE_CANCELLED,
+    # Feature-flag administration: the super-admin availability grant is
+    # platform-level (tenant=NULL, so a tenant-scoped webhook reaches zero
+    # subscribers) and the tenant enable/disable toggle is internal
+    # feature-administration config — not a tournament domain event.
+    AuditActions.FEATURE_FLAG_AVAILABILITY_SET,
+    AuditActions.FEATURE_FLAG_ENABLED,
+    AuditActions.FEATURE_FLAG_DISABLED,
+    # Feature-flag group (tier) CRUD + per-tenant assignment: super-admin,
+    # platform-level (tenant=NULL) — a tenant-scoped webhook reaches zero
+    # subscribers, and this is feature-administration config, not a domain event.
+    AuditActions.FEATURE_GROUP_CREATED,
+    AuditActions.FEATURE_GROUP_UPDATED,
+    AuditActions.FEATURE_GROUP_DELETED,
+    AuditActions.FEATURE_GROUP_ASSIGNED,
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.

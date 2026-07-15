@@ -4,7 +4,7 @@ from nicegui import app, ui
 from middleware.auth import protected_page
 
 from application.services import AuthService
-from models import Role, User
+from models import FeatureFlag, Role, User
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.volunteer_tabs.availability import availability_tab
 from pages.volunteer_tabs.my_shifts import my_shifts_tab
@@ -12,7 +12,8 @@ from theme.base import BaseLayout
 
 
 def create() -> None:
-    @protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF])
+    @protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
+                    feature=FeatureFlag.VOLUNTEERS)
     async def volunteer_page(tab: str = None) -> None:
         ui.page_title('Speedgaming Live Onsite - Volunteer')
         discord_id = app.storage.user.get('discord_id', None)

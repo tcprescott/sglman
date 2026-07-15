@@ -28,6 +28,27 @@ class Role(str, Enum):
 SYSTEM_USER_DISCORD_ID = 0
 
 
+class FeatureFlag(str, Enum):
+    """Per-tenant feature flags — one member per deliberately-gated subsystem.
+
+    A flag exists ONLY when a feature is intentionally gated; this is not a
+    per-feature switch for the whole app. Flags default OFF and are governed
+    two-tier (super-admin availability + tenant enable). The human copy and
+    grouping for each flag live in :mod:`application.feature_flags`.
+
+    ``(str, Enum)`` — the ``.value`` is the stable key persisted on
+    ``TenantFeatureFlag.flag``, so renaming a value is a data migration.
+    """
+
+    ASYNC_QUALIFIERS = 'async_qualifiers'
+    RACETIME_ROOMS = 'racetime_rooms'
+    SPEEDGAMING_ETL = 'speedgaming_etl'
+    CHALLONGE = 'challonge'
+    EQUIPMENT = 'equipment'
+    VOLUNTEERS = 'volunteers'
+    TRIFORCE_TEXTS = 'triforce_texts'
+
+
 class RoleSource(str, Enum):
     MANUAL = 'manual'
     DISCORD = 'discord'
