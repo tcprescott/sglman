@@ -23,7 +23,7 @@ from application.utils.mock_racetime import is_mock_racetime
 
 logger = logging.getLogger(__name__)
 
-_PROFILE_RETURN = '/?tab=Profile'
+_PROFILE_RETURN = '/home/profile'
 
 
 def create() -> None:

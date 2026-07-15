@@ -1,7 +1,8 @@
 """Admin Dashboard Page"""
 
+from fastapi import Request
 from nicegui import app, ui
-from middleware.auth import protected_page
+from middleware.auth import protected_tab_page
 
 from application.services import AuthService, FeatureFlagService, get_user_from_discord_id
 from models import FeatureFlag, Role
@@ -29,9 +30,10 @@ from theme.base import BaseLayout
 
 
 def create() -> None:
-    @protected_page('/admin')
+    @protected_tab_page('/admin')
     async def admin_dashboard_page(
-        tab: str = None,
+        section: str = None,
+        request: Request = None,
         report: str = None,
         start: str = None,
         end: str = None,
@@ -147,8 +149,9 @@ def create() -> None:
         if is_staff:
             tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
 
+        base_path = f"{request.scope.get('root_path', '')}/admin" if request else '/admin'
         base_layout = BaseLayout(
-            tabs=tabs, default_tab=tab, page_name='admin', user=user,
+            tabs=tabs, section=section, base_path=base_path, page_name='admin', user=user,
             show_admin=True, show_volunteer=user is not None,
         )
         await base_layout.render()

@@ -1,3 +1,4 @@
+from fastapi import Request
 from nicegui import app, ui
 
 from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
@@ -35,8 +36,7 @@ async def _render_platform_landing() -> None:
 
 
 def create() -> None:
-    @ui.page('/')
-    async def home(tab: str = None):
+    async def home(section: str = None, request: Request = None):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
         if tid is None:
@@ -78,7 +78,15 @@ def create() -> None:
                 tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': equipment_tab})
         show_admin = await AuthService.can_view_admin(user)
         show_volunteer = user is not None
+        base_path = f"{request.scope.get('root_path', '')}/home" if request else '/home'
         await BaseLayout(
-            tabs=tabs, default_tab=tab, page_name='home', user=user,
+            tabs=tabs, section=section, base_path=base_path, page_name='home', user=user,
             show_admin=show_admin, show_volunteer=show_volunteer,
         ).render()
+
+    # Home is the tenant landing (`/`) and its sections hang off `/home/<slug>`,
+    # matching the /admin/<slug> and /volunteer/<slug> hubs. Bare `/` renders the
+    # default section (the URL stays `/` until the first tab switch).
+    ui.page('/')(home)
+    ui.page('/home')(home)
+    ui.page('/home/{section}')(home)

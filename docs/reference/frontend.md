@@ -24,10 +24,11 @@ At import time it registers `AuthMiddleware` (from [`middleware/auth.py`](../../
 
 [`theme/base.py`](../../theme/base.py) defines **`BaseLayout`**, the shell used by every page.
 
-Constructor: `BaseLayout(copyright_text=..., default_tab=None, tabs=None, user=None, show_admin=False, show_volunteer=False, **_kwargs)`.
+Constructor: `BaseLayout(copyright_text=..., section=None, base_path=None, tabs=None, user=None, show_admin=False, show_volunteer=False, **_kwargs)`.
 
-- `tabs` is a list of dicts `{'label', 'icon', 'content'}`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass `can_crud` and the report query params.
-- `default_tab` selects the initially active tab by label; an unknown or missing label falls back to the first tab.
+- `tabs` is a list of dicts `{'label', 'icon', 'content'}` (optionally `'slug'`). `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass `can_crud` and the report query params.
+- `section` is the URL **slug** of the initially active tab (e.g. `reports`); it resolves to a label via the auto-derived slug map (`tab_slug()`, or an explicit `'slug'` key). An unknown or missing slug falls back to the first tab.
+- `base_path` is the section URL base **including any `/t/<slug>` root_path** (e.g. `/t/foo/admin`); tab switches rewrite the URL to `{base_path}/{slug}`. `None` on tab-less pages, which never touch the URL.
 - `show_admin=True` adds an "Admin" entry to the drawer's top menu (Home is always present).
 - `show_volunteer=True` adds a "Volunteer" entry (→ `/volunteer`) to the drawer's top menu; every page passes it as `user is not None` so any logged-in user sees the link.
 - Callers also pass `page_name=...`; `BaseLayout` absorbs it via `**_kwargs` and does not use it.
@@ -42,7 +43,7 @@ Constructor: `BaseLayout(copyright_text=..., default_tab=None, tabs=None, user=N
 | Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.sgl-bottom-nav`), and only when there are tabs: the first four tabs plus a **More** button that opens the drawer; hidden ≥1024px, so desktop and tab-less pages render no footer. The wrapping `ui.footer()` (`.footer-dark-override`) supplies the surface + top border. Copyright and Feedback live in the drawer |
 | Tabs | `_render_tab_panels()` | A `ui.tab_panels` whose value is switched programmatically; every tab's content renders eagerly at page load |
 
-**Tab deep-linking.** Tab switching does not reload the page: `_switch_tab(label)` moves the `active` prop in the drawer, sets the tab-panels value, and pushes `?tab={label}` onto browser history via `ui.navigate.history.push`. The reverse direction works because the page functions declare a `tab: str = None` parameter — NiceGUI maps query-string params onto page-function arguments — and pass it as `default_tab`. So `/admin?tab=Reports` opens directly on the Reports tab.
+**Tab deep-linking.** Sections are addressed by **path segment** (`/admin/reports`), not a query param, so URLs read like app routes. Tab switching does not reload the page: `_switch_tab(label)` moves the `active` prop in the drawer, sets the tab-panels value, and — via `_handle_tab_change` — replaces the URL with `{base_path}/{slug}` through `ui.navigate.history.replace` (`replace`, not `push`, so per-tab switches don't stack a Back-button trap). The reverse direction works because each hub is registered under both `/base` and `/base/{section}` (via `protected_tab_page`, or three `ui.page()` calls for the public home page): the page function declares a `section: str = None` parameter — NiceGUI maps the path param onto it — and passes it to `BaseLayout`, which resolves the slug to the active tab. So `/admin/reports` opens directly on the Reports tab. The home hub lives at `/` (default section) with sections at `/home/<slug>`. Report filters (`report`, `start`, `end`, …) remain query params on top of the path (`/admin/reports?report=capacity`).
 
 ## Error pages (`middleware/error_handlers.py`)
 
@@ -64,9 +65,9 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 
 | Route | File | Auth |
 |---|---|---|
-| `/` | [`pages/home.py`](../../pages/home.py) | Public; some tabs degrade to a login prompt |
-| `/admin` | [`pages/admin.py`](../../pages/admin.py) | Login required (`@protected_page`); content gated by role |
-| `/volunteer` | [`pages/volunteer.py`](../../pages/volunteer.py) | Login required (`@protected_page`); volunteer self-service hub |
+| `/`, `/home/{section}` | [`pages/home.py`](../../pages/home.py) | Public; some tabs degrade to a login prompt. `/` = default section |
+| `/admin`, `/admin/{section}` | [`pages/admin.py`](../../pages/admin.py) | Login required (`@protected_tab_page`); content gated by role |
+| `/volunteer`, `/volunteer/{section}` | [`pages/volunteer.py`](../../pages/volunteer.py) | Login required (`@protected_tab_page`); volunteer self-service hub |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
 | `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md) |
 
@@ -114,7 +115,7 @@ Tab visibility by role (a user sees the union of all rows they match). "VC" = Vo
 
 `can_crud = staff or tournament-admin-of-any` is passed into the Schedule tab; crew coordinators get a read-mostly Schedule — lifecycle buttons but no create/edit/stage-assign (see [Admin schedule](#admin-schedule-pagesadmin_tabsadmin_schedulepy)). Proctors reach the same `admin_schedule_page` (with `can_crud=False`) from the `/volunteer` page instead.
 
-**Deep-link query params.** Besides `tab`, the page accepts `report`, `start`, `end`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, and `page`, all forwarded as a kwargs dict into the Reports tab. Every report filter change navigates to a new `/admin?tab=Reports&report=...` URL, so report state is fully URL-driven and shareable.
+**Deep-link query params.** Besides the `section` path segment, the page accepts `report`, `start`, `end`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, and `page`, all forwarded as a kwargs dict into the Reports tab. Every report filter change navigates to a new `/admin/reports?report=...` URL, so report state is fully URL-driven and shareable.
 
 Triforce texts has no standalone route: player submission lives in the home **Triforce Texts** tab ([`pages/home_tabs/triforce_texts.py`](../../pages/home_tabs/triforce_texts.py)) and admin moderation in the admin **Triforce Texts** tab ([`pages/admin_tabs/triforce_texts.py`](../../pages/admin_tabs/triforce_texts.py)) — behavior doc: [../features/triforce-texts.md](../features/triforce-texts.md).
 
@@ -157,7 +158,7 @@ The public event schedule with crew signup.
 - Header: previous/next-day arrows, a Today button, a date input with calendar popup and Go button, plus a floating refresh button (`.refresh-button`). All handlers dispatch through `background_tasks.create`.
 - Data: `MatchService.get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)`, grouped via `MatchService.group_matches_by_stream_room(matches)`; rooms sorted by name. The current date is tracked in US/Eastern (see [../timezone-handling.md](../timezone-handling.md)).
 - Each room renders a card with a header (name, optional "Watch Stream" link, match count) and one `match-card` per match: Eastern time, status badge, tournament name, players ("A vs B"), and approved commentators/trackers. Card borders are color-coded by state (`.border-left-*`).
-- Match IDs link to `/admin?tab=Schedule` when `AuthService.can_view_admin(user)` is true; otherwise they are plain labels.
+- Match IDs link to `/admin/schedule` when `AuthService.can_view_admin(user)` is true; otherwise they are plain labels.
 
 ### Profile (`pages/home_tabs/player_edit_info.py`)
 
@@ -369,7 +370,7 @@ The `insights` report is the longitudinal counterpart to the point-in-time snaps
 
 ### URL-driven state and CSV export
 
-Reports hold no client-side state. Every filter widget's change handler calls `navigate_with_params(report=..., **filters)`, which rebuilds an `/admin?tab=Reports&...` URL and triggers a full page reload — the back button and shareable links work for free. Date ranges default to the configured event window (`SystemConfigService.get_event_window()`) when not in the URL (the `insights` report defaults to a trailing 90-day window instead).
+Reports hold no client-side state. Every filter widget's change handler calls `navigate_with_params(report=..., **filters)`, which rebuilds an `/admin/reports?...` URL and triggers a full page reload — the back button and shareable links work for free. Date ranges default to the configured event window (`SystemConfigService.get_event_window()`) when not in the URL (the `insights` report defaults to a trailing 90-day window instead).
 
 CSV export (`csv_export_button`) downloads the currently rendered rows using `rows_to_csv_bytes` / `timestamped_filename` from [`application/utils/csv_export.py`](../../application/utils/csv_export.py) — UTF-8 with BOM, formula-injection prefixes escaped, hidden columns skipped.
 
@@ -378,7 +379,7 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 | Helper | Purpose |
 |---|---|
 | `REPORT_KEYS` | Tuple of the five report keys |
-| `reports_url(report=None, **params)` | Build `/admin?tab=Reports[&report=…]` URLs; drops empty params, ISO-formats dates |
+| `reports_url(report=None, **params)` | Build `/admin/reports[?report=…]` URLs; drops empty params, ISO-formats dates |
 | `parse_date(value)` | Lenient `YYYY-MM-DD` parsing; `None` on garbage |
 | `parse_int(value)` | Lenient int parsing; `None` on garbage |
 | `eastern_bounds(start_d, end_d)` | Eastern date range → half-open aware datetime bounds (end clamped ≥ start) |

@@ -135,7 +135,7 @@ async def stage_timeline_tab():
 
                     # Match ID (clickable for admins)
                     if show_admin_link:
-                        ui.link(f'Match #{match.id}', '/admin?tab=Schedule').classes('text-link')
+                        ui.link(f'Match #{match.id}', '/admin/schedule').classes('text-link')
                     else:
                         ui.label(f'Match #{match.id}').classes('text-gray')
 

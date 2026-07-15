@@ -59,8 +59,11 @@ def themed_chart_option(option: dict) -> dict:
 
 
 def reports_url(report: Optional[str] = None, **params) -> str:
-    """Build an ``/admin?tab=Reports[&report=…&…]`` URL preserving filters."""
-    payload: dict = {'tab': 'Reports'}
+    """Build an ``/admin/reports[?report=…&…]`` URL preserving filters.
+
+    The Reports section is a path segment (``/admin/reports``); the report name
+    and its filters stay query params, since they are orthogonal report state."""
+    payload: dict = {}
     if report:
         payload['report'] = report
     for key, value in params.items():
@@ -70,7 +73,7 @@ def reports_url(report: Optional[str] = None, **params) -> str:
             payload[key] = value.isoformat()
         else:
             payload[key] = value
-    return '/admin?' + urlencode(payload)
+    return '/admin/reports?' + urlencode(payload) if payload else '/admin/reports'
 
 
 def parse_date(value: Optional[str]) -> Optional[date]:

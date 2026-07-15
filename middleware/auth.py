@@ -90,6 +90,7 @@ def protected_page(
     roles: Optional[Iterable[Role]] = None,
     allow_tournament_membership: bool = False,
     feature: Optional[FeatureFlag] = None,
+    telemetry_path: Optional[str] = None,
     **page_kwargs,
 ):
     """Register a NiceGUI page that requires authentication and optional roles.
@@ -104,8 +105,12 @@ def protected_page(
         feature: If set, the page is gated behind a per-tenant feature flag —
             when the flag is not live for the current tenant the page 404s
             (hidden, like an unknown route), independent of the user's roles.
+        telemetry_path: Page-view path recorded for engagement telemetry. Lets
+            sibling routes that render the same page (e.g. ``/admin`` and
+            ``/admin/{section}``) report under one stable path.
     """
     role_list = list(roles) if roles else None
+    view_path = telemetry_path or path
 
     gated = role_list is not None or allow_tournament_membership
 
@@ -116,7 +121,7 @@ def protected_page(
         async def wrapper(*args, **kwargs):
             # Capture engagement telemetry for every authenticated page load,
             # gated or not, before any auth short-circuit.
-            _record_page_view(path, kwargs)
+            _record_page_view(view_path, kwargs)
 
             # Every @protected_page is a tenant page. If reached with no tenant
             # (a bare /admin on the platform host, not /t/<slug>/admin), 404.
@@ -179,6 +184,23 @@ def protected_page(
 
         return ui.page(path, **page_kwargs)(wrapper)
     return decorator
+
+
+def protected_tab_page(base: str, **kwargs):
+    """Register a tabbed hub page under both ``base`` and ``base/{section}``.
+
+    The section slug lives in the path (``/admin/schedule``) rather than a query
+    param; both routes render the same page function, which reads the ``section``
+    slug and resolves it to the active tab. Two ``protected_page`` calls (rather
+    than stacked decorators, which return the ``ui.page`` object, not the
+    function) with a shared ``telemetry_path`` so both report under ``base``.
+    """
+    def deco(func):
+        protected_page(base, telemetry_path=base, **kwargs)(func)
+        protected_page(f'{base}/{{section}}', telemetry_path=base, **kwargs)(func)
+        return func
+    return deco
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

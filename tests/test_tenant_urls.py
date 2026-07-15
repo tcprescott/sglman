@@ -21,7 +21,7 @@ class TestSanitizeReturnPath:
         assert sanitize_return_path('/t/sgl', '/t/sgl/admin') == '/t/sgl/admin'
 
     def test_honors_referrer_with_query_within_tenant(self):
-        assert sanitize_return_path('/t/sgl', '/t/sgl/admin?tab=Challonge') == '/t/sgl/admin?tab=Challonge'
+        assert sanitize_return_path('/t/sgl', '/t/sgl/admin/reports?report=capacity') == '/t/sgl/admin/reports?report=capacity'
 
     def test_rejects_referrer_from_other_tenant(self):
         # Stale referrer for a *different* community -> fall back to this home.

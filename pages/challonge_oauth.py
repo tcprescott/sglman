@@ -32,8 +32,8 @@ from application.utils.mock_challonge import is_mock_challonge
 
 logger = logging.getLogger(__name__)
 
-_ADMIN_RETURN = '/admin?tab=Challonge'
-_PROFILE_RETURN = '/?tab=Profile'
+_ADMIN_RETURN = '/admin/challonge'
+_PROFILE_RETURN = '/home/profile'
 
 
 def create() -> None:

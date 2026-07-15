@@ -23,7 +23,7 @@ from application.utils.mock_twitch import is_mock_twitch
 
 logger = logging.getLogger(__name__)
 
-_PROFILE_RETURN = '/?tab=Profile'
+_PROFILE_RETURN = '/home/profile'
 
 
 def create() -> None:
