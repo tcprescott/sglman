@@ -1341,7 +1341,7 @@ Serves `User` ([`user_repository.py`](../../application/repositories/user_reposi
 | `async get_by_id(user_id: int) -> Optional[User]` | Lookup by primary key |
 | `async get_by_discord_id(discord_id: str) -> Optional[User]` | Lookup by Discord snowflake |
 | `async get_all(role: Optional[Role] = None, has_discord: bool = False) -> List[User]` | All users ordered by username; `role` filters through the `userrole` join (distinct); `has_discord` excludes null `discord_id` |
-| `async search_by_name(search_term: str, limit: int = 20) -> List[User]` | Case-insensitive name search; note it filters on `preferred_name`, which is a Python property rather than a database column |
+| `async search_by_name(search_term: str, limit: int = 20) -> List[User]` | Case-insensitive name search across the `username` and `display_name` columns |
 | `async create(username: str, discord_id=None, display_name=None, pronouns=None, is_active=True, access_token=None) -> User` | Insert a user |
 | `async update(user: User, **fields) -> None` | `setattr` each field and save |
 | `async delete(user: User) -> None` | Delete the user |

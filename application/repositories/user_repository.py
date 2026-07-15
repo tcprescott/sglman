@@ -6,6 +6,8 @@ Handles database operations for users.
 
 from typing import List, Optional
 
+from tortoise.expressions import Q
+
 from models import SYSTEM_USER_DISCORD_ID, Role, User
 
 
@@ -60,9 +62,8 @@ class UserRepository:
         limit: int = 20,
     ) -> List[User]:
         return await User.filter(
-            username__icontains=search_term
-        ).limit(limit) | await User.filter(
-            preferred_name__icontains=search_term
+            Q(username__icontains=search_term)
+            | Q(display_name__icontains=search_term)
         ).limit(limit)
 
     @staticmethod

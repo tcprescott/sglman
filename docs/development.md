@@ -199,7 +199,7 @@ Still not covered (intentionally — each needs live infra the SQLite suite can'
 poetry run pytest --cov=application --cov=api --cov=middleware --cov-report=term-missing
 ```
 
-Two documented, unused repository quirks are pinned by tests so a future fix is flagged: `UserRepository.search_by_name` (filters on the `preferred_name` property, not a column — `xfail(strict=True)`) and `UserRepository.update_discord_info` (drops the non-field `discriminator`/`avatar` args). See [reference/data-model.md](reference/data-model.md).
+One documented, unused repository quirk is pinned by a test so a future fix is flagged: `UserRepository.update_discord_info` (drops the non-field `discriminator`/`avatar` args). See [reference/data-model.md](reference/data-model.md).
 
 ## Continuous integration
 
