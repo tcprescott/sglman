@@ -7,8 +7,6 @@ Repositories perform no Discord I/O, so no queue stub is needed.
 
 from datetime import date, datetime, timezone
 
-import pytest
-
 from application.repositories.match_acknowledgment_repository import MatchAcknowledgmentRepository
 from application.repositories.match_repository import MatchRepository
 from application.repositories.tournament_notification_repository import TournamentNotificationRepository
