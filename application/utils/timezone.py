@@ -84,6 +84,19 @@ def to_eastern(dt: Optional[datetime]) -> Optional[datetime]:
     return dt.astimezone(EASTERN_TZ)
 
 
+def to_utc_aware(dt: datetime) -> datetime:
+    """Return a UTC tz-aware datetime.
+
+    A naive input is interpreted as UTC and stamped with ``timezone.utc``;
+    an already-aware input is converted to UTC. Use to normalize datetimes
+    that may have lost their tzinfo (e.g. after a round-trip through a store
+    that strips it) before comparison or storage.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def format_eastern_datetime(dt: Optional[datetime], fmt: str = "%Y-%m-%d %H:%M") -> str:
     """
     Format a datetime in US/Eastern timezone.

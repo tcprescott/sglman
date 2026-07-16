@@ -7,6 +7,7 @@ read-only token may not trigger a refresh.
 
 import pytest
 
+from application.services import service_health_service as shs
 from application.services.service_health_service import reset_cache
 from models import Role
 from tests.api_helpers import build_api_app, client_for, create_user_token
@@ -73,6 +74,18 @@ class TestBoard:
 
 
 class TestRefresh:
+    @pytest.fixture(autouse=True)
+    def _no_network_probes(self, monkeypatch):
+        """Replace the probe registry so a refresh touches no third-party host.
+
+        Mirrors tests/services/test_service_health.py: only the real ``postgres``
+        probe (a local test-DB round-trip) is kept, so the endpoint's assertions
+        stay meaningful while the five network probes never run.
+        """
+        monkeypatch.setattr(shs, '_PROBES', [
+            shs._Probe('postgres', 'PostgreSQL', 'core', shs._probe_postgres),
+        ])
+
     async def test_refresh_super_admin_write_ok(self, db, app):
         """A super-admin write token refreshes and must not raise (alert=False)."""
         _, raw = await create_user_token(username='sa', roles=[Role.SUPER_ADMIN])

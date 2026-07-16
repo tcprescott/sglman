@@ -7,6 +7,7 @@ Position-scoped, time-windowed shifts.
 from datetime import datetime
 from typing import List, Optional
 
+from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import VolunteerShift
 
@@ -14,8 +15,10 @@ from models import VolunteerShift
 _PREFETCH = ('position', 'assignments', 'assignments__user')
 
 
-class VolunteerShiftRepository:
+class VolunteerShiftRepository(TenantScopedRepository[VolunteerShift]):
     """Repository for volunteer shifts."""
+
+    model = VolunteerShift
 
     @staticmethod
     async def get_by_id(shift_id: int) -> Optional[VolunteerShift]:
@@ -60,17 +63,6 @@ class VolunteerShiftRepository:
             slots_needed=slots_needed,
             notes=notes,
         )
-
-    @staticmethod
-    async def update(shift: VolunteerShift, **fields) -> VolunteerShift:
-        for key, value in fields.items():
-            setattr(shift, key, value)
-        await shift.save()
-        return shift
-
-    @staticmethod
-    async def delete(shift: VolunteerShift) -> None:
-        await shift.delete()
 
     @staticmethod
     async def delete_all() -> int:

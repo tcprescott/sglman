@@ -5,14 +5,17 @@ Tenant-scoped staging records for the SG ETL. Reads/writes go through the
 ambient tenant is set. Upsert is keyed on the unique ``(tenant, sg_episode_id)``.
 """
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
-from application.repositories._tenant import current_tenant_id, scoped
+from application.repositories._base import TenantScopedRepository
+from application.repositories._tenant import scoped
 from models import SpeedGamingEpisode
 
 
-class SpeedGamingEpisodeRepository:
+class SpeedGamingEpisodeRepository(TenantScopedRepository[SpeedGamingEpisode]):
     """Data access for SpeedGaming staging episodes."""
+
+    model = SpeedGamingEpisode
 
     async def get_by_sg_id(self, sg_episode_id: str) -> Optional[SpeedGamingEpisode]:
         return await scoped(
@@ -29,12 +32,3 @@ class SpeedGamingEpisodeRepository:
 
     async def list_all(self) -> List[SpeedGamingEpisode]:
         return await scoped(SpeedGamingEpisode.all()).order_by('-scheduled_at')
-
-    async def create(self, **fields: Any) -> SpeedGamingEpisode:
-        return await SpeedGamingEpisode.create(tenant_id=current_tenant_id(), **fields)
-
-    async def update(self, episode: SpeedGamingEpisode, **fields: Any) -> SpeedGamingEpisode:
-        for key, value in fields.items():
-            setattr(episode, key, value)
-        await episode.save()
-        return episode

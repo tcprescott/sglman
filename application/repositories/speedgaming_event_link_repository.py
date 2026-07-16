@@ -7,14 +7,17 @@ each link's tenant before touching scoped data. That scan method never calls the
 ``_tenant`` helpers and says so; the CRUD reads/writes use them.
 """
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
-from application.repositories._tenant import current_tenant_id, scoped
+from application.repositories._base import TenantScopedRepository
+from application.repositories._tenant import scoped
 from models import SpeedGamingEventLink
 
 
-class SpeedGamingEventLinkRepository:
+class SpeedGamingEventLinkRepository(TenantScopedRepository[SpeedGamingEventLink]):
     """Data access for SpeedGaming event-link config rows."""
+
+    model = SpeedGamingEventLink
 
     async def list_all(self) -> List[SpeedGamingEventLink]:
         return await scoped(SpeedGamingEventLink.all()).prefetch_related('tournament').order_by('event_slug')
@@ -42,15 +45,3 @@ class SpeedGamingEventLinkRepository:
         return await SpeedGamingEventLink.filter(active=True).prefetch_related(
             'tournament'
         ).order_by('tenant_id', 'id')
-
-    async def create(self, **fields: Any) -> SpeedGamingEventLink:
-        return await SpeedGamingEventLink.create(tenant_id=current_tenant_id(), **fields)
-
-    async def update(self, link: SpeedGamingEventLink, **fields: Any) -> SpeedGamingEventLink:
-        for key, value in fields.items():
-            setattr(link, key, value)
-        await link.save()
-        return link
-
-    async def delete(self, link: SpeedGamingEventLink) -> None:
-        await link.delete()

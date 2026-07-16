@@ -8,11 +8,19 @@ tenant-scoped — groups are offered across tenants and a tenant points at one v
 
 from typing import List, Optional
 
+from application.repositories._base import TenantScopedRepository
 from models import FeatureFlagGroup, Tenant
 
 
-class FeatureFlagGroupRepository:
-    """CRUD + default-group resolution for feature-flag groups."""
+class FeatureFlagGroupRepository(TenantScopedRepository[FeatureFlagGroup]):
+    """CRUD + default-group resolution for feature-flag groups.
+
+    ``FeatureFlagGroup`` is **global** (no tenant column), so ``create`` and
+    ``get_by_id`` are overridden to stay unscoped; only the tenant-agnostic
+    ``update``/``delete`` come from the base.
+    """
+
+    model = FeatureFlagGroup
 
     @staticmethod
     async def list_all() -> List[FeatureFlagGroup]:
@@ -34,17 +42,6 @@ class FeatureFlagGroupRepository:
     @staticmethod
     async def create(**fields) -> FeatureFlagGroup:
         return await FeatureFlagGroup.create(**fields)
-
-    @staticmethod
-    async def update(group: FeatureFlagGroup, **fields) -> FeatureFlagGroup:
-        for key, value in fields.items():
-            setattr(group, key, value)
-        await group.save()
-        return group
-
-    @staticmethod
-    async def delete(group: FeatureFlagGroup) -> None:
-        await group.delete()
 
     @staticmethod
     async def clear_default(exclude_id: Optional[int] = None) -> None:

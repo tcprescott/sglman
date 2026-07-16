@@ -5,6 +5,8 @@ Services orchestrate business operations, validate data, and coordinate
 between repositories. They should NOT know about UI components.
 """
 
+from application.errors import NotFoundError, require_found
+
 from .analytics_service import AnalyticsService
 from .api_token_service import ApiTokenService
 from .async_qualifier_config import (
@@ -12,7 +14,9 @@ from .async_qualifier_config import (
     validate_async_qualifier_config,
 )
 from . import async_qualifier_scoring
+from .async_qualifier_draw import AsyncQualifierDraw
 from .async_qualifier_live_race_service import AsyncQualifierLiveRaceService
+from .async_qualifier_rules import validate_counts, validate_window
 from .async_qualifier_service import AsyncQualifierService
 from .audit_service import AuditService
 from .auth_service import AuthService, get_user_from_discord_id
@@ -31,6 +35,7 @@ from .discord_service import DiscordService
 from .equipment_service import EquipmentService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
+from .match_participants import MatchParticipants
 from .match_service import MatchService
 from .match_source_guard import assert_sg_fields_unchanged
 from .match_display_service import MatchDisplayService
@@ -70,6 +75,8 @@ from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
+    'NotFoundError',
+    'require_found',
     'TournamentConfig',
     'validate_tournament_config',
     'AnalyticsService',
@@ -77,8 +84,11 @@ __all__ = [
     'AsyncQualifierConfig',
     'validate_async_qualifier_config',
     'async_qualifier_scoring',
+    'AsyncQualifierDraw',
     'AsyncQualifierService',
     'AsyncQualifierLiveRaceService',
+    'validate_counts',
+    'validate_window',
     'AuditService',
     'AuthService',
     'ChallongeService',
@@ -99,6 +109,7 @@ __all__ = [
     'EquipmentService',
     'FeatureFlagService',
     'FeedbackService',
+    'MatchParticipants',
     'MatchService',
     'assert_sg_fields_unchanged',
     'MatchDisplayService',

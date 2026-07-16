@@ -10,6 +10,7 @@ FOR UPDATE), not business logic.
 
 from typing import Any, Dict, List, Optional, Set
 
+from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import (
     AsyncQualifier,
@@ -28,18 +29,10 @@ from models import (
 _VOIDED = {'reattempted': True}
 
 
-class AsyncQualifierRepository:
+class AsyncQualifierRepository(TenantScopedRepository[AsyncQualifier]):
     """Data access for :class:`AsyncQualifier`."""
 
-    async def get_by_id(self, qualifier_id: int) -> Optional[AsyncQualifier]:
-        return await AsyncQualifier.get_or_none(id=qualifier_id, tenant_id=current_tenant_id())
-
-    async def get_with_relations(self, qualifier_id: int) -> Optional[AsyncQualifier]:
-        return await (
-            AsyncQualifier.filter(id=qualifier_id, tenant_id=current_tenant_id())
-            .prefetch_related('admins', 'pools__permalinks', 'pools__preset')
-            .first()
-        )
+    model = AsyncQualifier
 
     async def list_all(self) -> List[AsyncQualifier]:
         return await scoped(AsyncQualifier.all()).order_by('-created_at')
@@ -47,24 +40,11 @@ class AsyncQualifierRepository:
     async def list_active(self) -> List[AsyncQualifier]:
         return await scoped(AsyncQualifier.filter(is_active=True)).order_by('-created_at')
 
-    async def create(self, **fields: Any) -> AsyncQualifier:
-        return await AsyncQualifier.create(tenant_id=current_tenant_id(), **fields)
 
-    async def update(self, qualifier: AsyncQualifier, **fields: Any) -> AsyncQualifier:
-        for key, value in fields.items():
-            setattr(qualifier, key, value)
-        await qualifier.save()
-        return qualifier
-
-    async def delete(self, qualifier: AsyncQualifier) -> None:
-        await qualifier.delete()
-
-
-class AsyncQualifierPoolRepository:
+class AsyncQualifierPoolRepository(TenantScopedRepository[AsyncQualifierPool]):
     """Data access for :class:`AsyncQualifierPool`."""
 
-    async def get_by_id(self, pool_id: int) -> Optional[AsyncQualifierPool]:
-        return await AsyncQualifierPool.get_or_none(id=pool_id, tenant_id=current_tenant_id())
+    model = AsyncQualifierPool
 
     async def get_with_permalinks(self, pool_id: int) -> Optional[AsyncQualifierPool]:
         return await (
@@ -78,43 +58,20 @@ class AsyncQualifierPoolRepository:
             AsyncQualifierPool.filter(qualifier_id=qualifier_id)
         ).prefetch_related('permalinks', 'preset').order_by('name')
 
-    async def create(self, **fields: Any) -> AsyncQualifierPool:
-        return await AsyncQualifierPool.create(tenant_id=current_tenant_id(), **fields)
 
-    async def update(self, pool: AsyncQualifierPool, **fields: Any) -> AsyncQualifierPool:
-        for key, value in fields.items():
-            setattr(pool, key, value)
-        await pool.save()
-        return pool
-
-    async def delete(self, pool: AsyncQualifierPool) -> None:
-        await pool.delete()
-
-
-class AsyncQualifierPermalinkRepository:
+class AsyncQualifierPermalinkRepository(TenantScopedRepository[AsyncQualifierPermalink]):
     """Data access for :class:`AsyncQualifierPermalink`."""
 
-    async def get_by_id(self, permalink_id: int) -> Optional[AsyncQualifierPermalink]:
-        return await AsyncQualifierPermalink.get_or_none(id=permalink_id, tenant_id=current_tenant_id())
+    model = AsyncQualifierPermalink
 
     async def list_for_pool(self, pool_id: int) -> List[AsyncQualifierPermalink]:
         return await scoped(AsyncQualifierPermalink.filter(pool_id=pool_id)).order_by('id')
 
-    async def create(self, **fields: Any) -> AsyncQualifierPermalink:
-        return await AsyncQualifierPermalink.create(tenant_id=current_tenant_id(), **fields)
 
-    async def update(self, permalink: AsyncQualifierPermalink, **fields: Any) -> AsyncQualifierPermalink:
-        for key, value in fields.items():
-            setattr(permalink, key, value)
-        await permalink.save()
-        return permalink
-
-    async def delete(self, permalink: AsyncQualifierPermalink) -> None:
-        await permalink.delete()
-
-
-class AsyncQualifierRunRepository:
+class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
     """Data access for :class:`AsyncQualifierRun`."""
+
+    model = AsyncQualifierRun
 
     async def get_by_id(self, run_id: int) -> Optional[AsyncQualifierRun]:
         return await (
@@ -212,18 +169,11 @@ class AsyncQualifierRunRepository:
             AsyncQualifierRun.filter(live_race_id=live_race_id)
         ).prefetch_related('user', 'permalink__pool').order_by('created_at')
 
-    async def create(self, **fields: Any) -> AsyncQualifierRun:
-        return await AsyncQualifierRun.create(tenant_id=current_tenant_id(), **fields)
 
-    async def update(self, run: AsyncQualifierRun, **fields: Any) -> AsyncQualifierRun:
-        for key, value in fields.items():
-            setattr(run, key, value)
-        await run.save()
-        return run
-
-
-class AsyncQualifierLiveRaceRepository:
+class AsyncQualifierLiveRaceRepository(TenantScopedRepository[AsyncQualifierLiveRace]):
     """Data access for :class:`AsyncQualifierLiveRace`."""
+
+    model = AsyncQualifierLiveRace
 
     async def get_by_id(self, live_race_id: int) -> Optional[AsyncQualifierLiveRace]:
         return await (
@@ -252,18 +202,6 @@ class AsyncQualifierLiveRaceRepository:
         return await scoped(
             AsyncQualifierLiveRace.filter(pool_id=pool_id)
         ).prefetch_related('pool', 'permalink').order_by('-created_at')
-
-    async def create(self, **fields: Any) -> AsyncQualifierLiveRace:
-        return await AsyncQualifierLiveRace.create(tenant_id=current_tenant_id(), **fields)
-
-    async def update(self, live_race: AsyncQualifierLiveRace, **fields: Any) -> AsyncQualifierLiveRace:
-        for key, value in fields.items():
-            setattr(live_race, key, value)
-        await live_race.save()
-        return live_race
-
-    async def delete(self, live_race: AsyncQualifierLiveRace) -> None:
-        await live_race.delete()
 
 
 class AsyncQualifierReviewNoteRepository:

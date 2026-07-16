@@ -122,7 +122,7 @@ features. Detail: [docs/features/feature-flags.md](docs/features/feature-flags.m
 
 ## Authentication
 
-Role-based via the `UserRole` junction table — there is **no** `permission` field on `User`. The `Role` enum has seven members: `STAFF`, `PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `VOLUNTEER_COORDINATOR`, `EQUIPMENT_MANAGER`, `VOLUNTEER` (canonical list: `models.Role` / [docs/features/role-based-auth.md](docs/features/role-based-auth.md)). Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
+Role-based via the `UserRole` junction table — there is **no** `permission` field on `User`. The `Role` enum has eleven members: the seven per-tenant community roles `STAFF`, `PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `VOLUNTEER_COORDINATOR`, `EQUIPMENT_MANAGER`, `VOLUNTEER`; three per-tenant online-tournament admin roles `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN` (each gates a management surface/worker the way STAFF gates the rest); and the one global platform role `SUPER_ADMIN` (its `UserRole` row carries `tenant=NULL`, checked via `AuthService.is_super_admin`, and bypasses the per-tenant role gate). Canonical list: `models.Role` / [docs/features/role-based-auth.md](docs/features/role-based-auth.md). Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
 
 ```python
 from application.services import AuthService, get_user_from_discord_id

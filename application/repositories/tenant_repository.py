@@ -12,11 +12,19 @@ tenant linked to the guild rather than resolving a single one.
 
 from typing import List, Optional
 
+from application.repositories._base import TenantScopedRepository
 from models import Tenant
 
 
-class TenantRepository:
-    """Cross-tenant lookups + CRUD for :class:`~models.Tenant`."""
+class TenantRepository(TenantScopedRepository[Tenant]):
+    """Cross-tenant lookups + CRUD for :class:`~models.Tenant`.
+
+    ``Tenant`` is resolved before any tenant context exists, so ``create`` and
+    ``get_by_id`` are overridden to stay unscoped; only the tenant-agnostic
+    ``update``/``delete`` come from the base.
+    """
+
+    model = Tenant
 
     @staticmethod
     async def get_by_id(tenant_id: int) -> Optional[Tenant]:
@@ -57,12 +65,6 @@ class TenantRepository:
     @staticmethod
     async def create(**fields) -> Tenant:
         return await Tenant.create(**fields)
-
-    @staticmethod
-    async def update(tenant: Tenant, **fields) -> None:
-        for key, value in fields.items():
-            setattr(tenant, key, value)
-        await tenant.save()
 
     @staticmethod
     async def set_feature_group(tenant_id: int, group_id: Optional[int]) -> None:

@@ -215,27 +215,30 @@ class AuthService:
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 
     @staticmethod
-    async def can_manage_presets(user: Optional[User]) -> bool:
-        """Author/edit the tenant's seed-rolling presets (PR 1+)."""
+    async def _system_admin_staff_or(user: Optional[User], role: Role) -> bool:
+        """Shared cascade: system actor, super-admin, staff, or the given role.
+
+        The common ``is_system → is_super_admin → is_staff → has_role`` ladder used
+        by the gated ``can_manage_*`` / ``can_admin_*`` helpers.
+        """
         if AuthService.is_system(user):
             return True
         if await AuthService.is_super_admin(user):
             return True
         if await AuthService.is_staff(user):
             return True
-        return await AuthService.has_role(user, Role.PRESET_MANAGER)
+        return await AuthService.has_role(user, role)
+
+    @staticmethod
+    async def can_manage_presets(user: Optional[User]) -> bool:
+        """Author/edit the tenant's seed-rolling presets (PR 1+)."""
+        return await AuthService._system_admin_staff_or(user, Role.PRESET_MANAGER)
 
     @staticmethod
     async def can_manage_sync(user: Optional[User]) -> bool:
         """Manage upstream sync config: SpeedGaming links, Discord events, and
         racetime bot/room configuration (PR 3+/7+)."""
-        if AuthService.is_system(user):
-            return True
-        if await AuthService.is_super_admin(user):
-            return True
-        if await AuthService.is_staff(user):
-            return True
-        return await AuthService.has_role(user, Role.SYNC_ADMIN)
+        return await AuthService._system_admin_staff_or(user, Role.SYNC_ADMIN)
 
     @staticmethod
     async def can_admin_qualifier(user: Optional[User], qualifier: Optional[Any] = None) -> bool:
@@ -247,13 +250,7 @@ class AuthService:
         ``AsyncQualifier`` model lands in a later PR, so this only dereferences
         ``qualifier.admins`` when a qualifier is actually passed.
         """
-        if AuthService.is_system(user):
-            return True
-        if await AuthService.is_super_admin(user):
-            return True
-        if await AuthService.is_staff(user):
-            return True
-        if await AuthService.has_role(user, Role.QUALIFIER_ADMIN):
+        if await AuthService._system_admin_staff_or(user, Role.QUALIFIER_ADMIN):
             return True
         if qualifier is not None and user is not None:
             return await qualifier.admins.filter(id=user.id).exists()
@@ -268,6 +265,40 @@ class AuthService:
     async def ensure(allowed: bool, message: str = "Permission denied") -> None:
         if not allowed:
             raise PermissionError(message)
+
+    @staticmethod
+    async def ensure_super_admin(user: Optional[User]) -> None:
+        """Raise ``PermissionError`` unless ``user`` is the global super-admin."""
+        await AuthService.ensure(
+            await AuthService.is_super_admin(user),
+            "Super-admin privileges required",
+        )
+
+    @staticmethod
+    async def ensure_can_manage_presets(user: Optional[User]) -> None:
+        """Raise ``PermissionError`` unless ``user`` may manage seed presets."""
+        await AuthService.ensure(
+            await AuthService.can_manage_presets(user),
+            "You do not have permission to manage presets",
+        )
+
+    @staticmethod
+    async def ensure_can_manage_sync(user: Optional[User]) -> None:
+        """Raise ``PermissionError`` unless ``user`` may manage sync config."""
+        await AuthService.ensure(
+            await AuthService.can_manage_sync(user),
+            "You do not have permission to manage sync configuration",
+        )
+
+    @staticmethod
+    async def ensure_can_admin_qualifier(
+        user: Optional[User], qualifier: Optional[Any] = None
+    ) -> None:
+        """Raise ``PermissionError`` unless ``user`` may administer qualifiers."""
+        await AuthService.ensure(
+            await AuthService.can_admin_qualifier(user, qualifier),
+            "You do not have permission to administer this qualifier",
+        )
 
 
 async def get_user_from_discord_id(discord_id: str | None) -> Optional[User]:

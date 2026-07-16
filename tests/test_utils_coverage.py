@@ -358,11 +358,15 @@ class TestEasterEggs:
 
     def test_random_fact_deterministic_with_seed(self):
         import random
-        random.seed(1234)
-        first = easter_eggs.random_fact()
-        random.seed(1234)
-        second = easter_eggs.random_fact()
-        assert first == second
+        state = random.getstate()
+        try:
+            random.seed(1234)
+            first = easter_eggs.random_fact()
+            random.seed(1234)
+            second = easter_eggs.random_fact()
+            assert first == second
+        finally:
+            random.setstate(state)
 
 
 # ---------------------------------------------------------------------------

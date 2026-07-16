@@ -70,13 +70,6 @@ class MatchRepository:
         )).prefetch_related('racetime_room')
 
     @staticmethod
-    async def list_sourced_for_link(event_link_id: int) -> List[Match]:
-        """SG-sourced matches whose episode belongs to an event link (tenant-scoped)."""
-        return await scoped(Match.filter(
-            speedgaming_episode__event_link_id=event_link_id,
-        )).prefetch_related('speedgaming_episode')
-
-    @staticmethod
     async def list_for_discord_sync(
         window_start: datetime, window_end: datetime
     ) -> List[Match]:

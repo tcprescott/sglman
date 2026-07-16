@@ -9,15 +9,24 @@ The client returns a **normalized** identity dict so the service layer never has
 to know the wire shape:
 
     get_me -> {'user_id', 'username', 'display_name'}
+
+The transport (``build_authorize_url`` / ``exchange_code`` / ``get_me``) lives in
+``oauth_identity_client``; this module is the Twitch-specific configuration.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
-from urllib.parse import quote
+from typing import Any, Dict
 
-import aiohttp
+from application.utils.oauth_identity_client import (
+    OAuthIdentityClient,
+    ProviderConfig,
+    opt_str,
+)
+from application.utils.oauth_identity_client import (
+    build_authorize_url as _build_authorize_url,
+)
 
 AUTHORIZE_URL = 'https://id.twitch.tv/oauth2/authorize'
 OAUTH_EXCHANGE_URL = 'https://id.twitch.tv/oauth2/token'
@@ -30,73 +39,34 @@ class TwitchAPIError(Exception):
 
 def build_authorize_url(client_id: str, redirect_uri: str, scope: str, state: str) -> str:
     """Return the Twitch OAuth authorize URL to redirect the browser to."""
-    return (
-        f"{AUTHORIZE_URL}"
-        f"?client_id={quote(client_id, safe='')}"
-        f"&redirect_uri={quote(redirect_uri, safe='')}"
-        f"&response_type=code"
-        f"&scope={quote(scope, safe='')}"
-        f"&state={quote(state, safe='')}"
-    )
+    return _build_authorize_url(AUTHORIZE_URL, client_id, redirect_uri, scope, state)
 
 
-def _opt_str(value: Any) -> Optional[str]:
-    return None if value is None else str(value)
+def _extract_identity(payload: Any) -> Dict[str, Any]:
+    records = payload.get('data') or []
+    if not records:
+        raise TwitchAPIError(f"Twitch users response contained no user: {payload}")
+    record = records[0]
+    return {
+        'user_id': opt_str(record.get('id')),
+        'username': record.get('login'),
+        'display_name': record.get('display_name'),
+    }
 
 
-class TwitchClient:
+class TwitchClient(OAuthIdentityClient):
     """Async Twitch OAuth + Helix client."""
 
-    def __init__(self, client_id: str, client_secret: str):
-        self.client_id = client_id
-        self.client_secret = client_secret
-
-    async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
-        """Exchange an authorization code for a token payload."""
-        data = {
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'code': code,
-            'grant_type': 'authorization_code',
-            'redirect_uri': redirect_uri,
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(OAUTH_EXCHANGE_URL, data=data) as resp:
-                payload = await resp.json()
-                if resp.status >= 400:
-                    raise TwitchAPIError(
-                        f"Twitch token request failed ({resp.status}): {payload}"
-                    )
-                return payload
-
-    async def get_me(self, access_token: str) -> Dict[str, Any]:
-        """Fetch the authenticated Twitch account identity for a raw token.
-
-        Helix requires both the bearer token and the app ``Client-Id`` header.
-        """
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Client-Id': self.client_id,
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.get(USERS_URL, headers=headers) as resp:
-                text = await resp.text()
-                if resp.status >= 400:
-                    raise TwitchAPIError(f"Twitch users request failed ({resp.status}): {text}")
-                import json as _json
-                try:
-                    payload = _json.loads(text)
-                except ValueError as e:
-                    raise TwitchAPIError(f"Twitch API returned non-JSON: {text[:200]}") from e
-        records = payload.get('data') or []
-        if not records:
-            raise TwitchAPIError(f"Twitch users response contained no user: {payload}")
-        record = records[0]
-        return {
-            'user_id': _opt_str(record.get('id')),
-            'username': record.get('login'),
-            'display_name': record.get('display_name'),
-        }
+    config = ProviderConfig(
+        label='Twitch',
+        token_url=OAUTH_EXCHANGE_URL,
+        userinfo_url=USERS_URL,
+        error_class=TwitchAPIError,
+        userinfo_noun='users',
+        # Helix requires the app Client-Id header alongside the bearer token.
+        userinfo_headers=lambda client_id: {'Client-Id': client_id},
+        extract_identity=_extract_identity,
+    )
 
 
 # ----------------------------------------------------------------------
