@@ -41,12 +41,7 @@ async def _load_room_or_404(room_id: int) -> RacetimeRoom:
 
 @router.get("/open", response_model=List[RaceRoomResponse], summary="List open race rooms")
 async def list_open(actor: User = Depends(require_staff)):
-    # ``list_open_rooms`` is deliberately unscoped (the bot loop needs every
-    # tenant's rooms). This request is tenant-bound, so filter to the token's
-    # tenant defensively — see concerns re: a scoped service method.
-    tenant_id = require_tenant_id()
-    rooms = await RacetimeRoomService().list_open_rooms()
-    return [r for r in rooms if r.tenant_id == tenant_id]
+    return await RacetimeRoomService().list_open_rooms_for_current_tenant()
 
 
 @router.get("/by-match/{match_id}", response_model=RaceRoomResponse, summary="Get the race room for a match")

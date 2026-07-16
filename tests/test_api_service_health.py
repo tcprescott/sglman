@@ -10,12 +10,7 @@ import pytest
 from application.services import service_health_service as shs
 from application.services.service_health_service import reset_cache
 from models import Role
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 @pytest.fixture(autouse=True)

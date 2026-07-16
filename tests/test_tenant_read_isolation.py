@@ -12,13 +12,12 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.system_config_service import SystemConfigService
 from application.services.telemetry_service import TelemetryService
 from application.tenant_context import tenant_scope
-from models import Role, Tenant, User, UserRole
+from models import Role, User, UserRole
 
 
 @pytest.fixture
-async def tenants_with_staff(db):
-    a = await Tenant.get(id=1)
-    b = await Tenant.create(name='Beta', slug='beta')
+async def tenants_with_staff(two_tenants):
+    a, b = two_tenants
     staff = await User.create(discord_id=700, username='staff')
     # STAFF in both tenants so the staff-gated writers/readers work in each scope.
     await UserRole.create(user=staff, role=Role.STAFF, tenant=a)

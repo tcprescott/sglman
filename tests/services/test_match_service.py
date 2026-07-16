@@ -7,27 +7,21 @@ import pytest
 from application.services.match_service import MatchService
 
 
+pytestmark = pytest.mark.usefixtures("bypass_auth")
+
+
 @pytest.fixture(autouse=True)
-def bypass_auth(monkeypatch):
-    """Disable AuthService permission checks for tests; they exercise business logic."""
-    from application.services import auth_service, system_config_service
-
-    async def allow(*_args, **_kwargs):
-        return True
-
-    async def noop_ensure(*_args, **_kwargs):
-        return None
+def _no_tournament_window(monkeypatch):
+    """Match tests don't set up tournament hours; suppress the scheduling window."""
+    from application.services import system_config_service
 
     async def no_window(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr(auth_service.AuthService, 'can_transition_match', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'can_crud_match', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'can_assign_match_stream', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'is_staff', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'is_tournament_admin', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
-    monkeypatch.setattr(system_config_service.SystemConfigService, 'get_tournament_window_for_date', no_window)
+    monkeypatch.setattr(
+        system_config_service.SystemConfigService,
+        'get_tournament_window_for_date', no_window,
+    )
 
 
 @pytest.fixture

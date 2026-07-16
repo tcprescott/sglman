@@ -15,18 +15,10 @@ from api.schemas.presets import (
     PresetResponse,
     PresetUpdateRequest,
 )
-from application.errors import require_found
 from application.services import PresetService
-from application.tenant_context import require_tenant_id
-from models import Preset, User
+from models import User
 
 router = APIRouter(prefix="/presets", tags=["Presets"], route_class=ServiceErrorRoute)
-
-
-async def _load_preset_or_404(preset_id: int) -> Preset:
-    return require_found(
-        await Preset.get_or_none(id=preset_id, tenant_id=require_tenant_id()), "Preset"
-    )
 
 
 @router.get("", response_model=List[PresetResponse], summary="List presets")
@@ -47,7 +39,6 @@ async def list_selectable(actor: User = Depends(require_api_actor)):
 
 @router.get("/{preset_id}", response_model=PresetResponse, summary="Get a preset")
 async def get_preset(preset_id: int, actor: User = Depends(require_api_actor)):
-    await _load_preset_or_404(preset_id)
     return await PresetService().get_preset(actor, preset_id)
 
 
@@ -64,7 +55,6 @@ async def create_preset(body: PresetCreateRequest, actor: User = Depends(require
 
 @router.patch("/{preset_id}", response_model=PresetResponse, summary="Update a preset")
 async def update_preset(preset_id: int, body: PresetUpdateRequest, actor: User = Depends(require_write_actor)):
-    await _load_preset_or_404(preset_id)
     return await PresetService().update_preset(
         actor, preset_id, **body.model_dump(exclude_unset=True)
     )
@@ -72,7 +62,6 @@ async def update_preset(preset_id: int, body: PresetUpdateRequest, actor: User =
 
 @router.delete("/{preset_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a preset")
 async def delete_preset(preset_id: int, actor: User = Depends(require_write_actor)):
-    await _load_preset_or_404(preset_id)
     await PresetService().delete_preset(actor, preset_id)
 
 

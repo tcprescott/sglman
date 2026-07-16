@@ -7,15 +7,9 @@
 tenant grant sub-resource.
 """
 
-import pytest
 
 from models import RacetimeBot, RacetimeBotTenant, Role, Tenant
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 async def _super_admin_token(username='super'):

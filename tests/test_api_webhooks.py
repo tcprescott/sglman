@@ -3,15 +3,9 @@
 Uses the function-scoped in-memory ``db`` fixture from conftest.
 """
 
-import pytest
 
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import client_for, create_user_token
 from models import Role
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
 
 
 class TestWebhookApiAuth:

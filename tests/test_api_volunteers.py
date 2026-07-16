@@ -6,9 +6,8 @@ for a success path (with the right role), a 403 for the wrong role or a
 read-only token, and 400/404 where the service or router rejects input.
 """
 
-from datetime import datetime, timezone
+from datetime import timezone
 
-import pytest
 
 from models import (
     Role,
@@ -17,31 +16,16 @@ from models import (
     VolunteerPosition,
     VolunteerShift,
 )
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import client_for, create_user_token
 
 UTC = timezone.utc
 
 
-def utc(y, mo, d, h=0, mi=0):
-    return datetime(y, mo, d, h, mi, tzinfo=UTC)
+from tests.factories import utc
 
 
 def iso(y, mo, d, h=0, mi=0):
     return utc(y, mo, d, h, mi).isoformat()
-
-
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
 
 
 async def _coordinator_token(username='coord'):

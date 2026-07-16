@@ -68,7 +68,6 @@ async def list_open_qualifiers(actor: User = Depends(require_api_actor)):
 
 @router.get("/{qualifier_id}", response_model=AsyncQualifierResponse, summary="Get a qualifier (admin)")
 async def get_qualifier(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().get_qualifier(actor, qualifier_id)
 
 
@@ -79,7 +78,6 @@ async def get_qualifier(qualifier_id: int, actor: User = Depends(require_api_act
 )
 async def get_qualifier_public(qualifier_id: int, actor: User = Depends(require_api_actor)):
     # Ungated player shell: the public response model omits the internal ``config``.
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().get_qualifier_for_player(qualifier_id)
 
 
@@ -89,7 +87,6 @@ async def get_qualifier_public(qualifier_id: int, actor: User = Depends(require_
     summary="List a qualifier's admins/reviewers",
 )
 async def list_admins(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().list_admins(actor, qualifier_id)
 
 
@@ -99,7 +96,6 @@ async def list_admins(qualifier_id: int, actor: User = Depends(require_api_actor
     summary="List a qualifier's pools (admin)",
 )
 async def list_pools(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().list_pools(actor, qualifier_id)
 
 
@@ -109,7 +105,6 @@ async def list_pools(qualifier_id: int, actor: User = Depends(require_api_actor)
     summary="Pools the caller may still draw from",
 )
 async def get_player_pools(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().get_player_pools(actor, qualifier_id)
 
 
@@ -119,7 +114,6 @@ async def get_player_pools(qualifier_id: int, actor: User = Depends(require_api_
     summary="Runs pending review (admin)",
 )
 async def list_review_queue(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().list_review_queue(actor, qualifier_id)
 
 
@@ -129,7 +123,6 @@ async def list_review_queue(qualifier_id: int, actor: User = Depends(require_api
     summary="Qualifier leaderboard (hidden while open for non-admins)",
 )
 async def get_leaderboard(qualifier_id: int, actor: User = Depends(require_api_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().get_leaderboard(actor, qualifier_id)
 
 
@@ -178,7 +171,6 @@ async def create_qualifier(body: QualifierCreateRequest, actor: User = Depends(r
 async def update_qualifier(
     qualifier_id: int, body: QualifierUpdateRequest, actor: User = Depends(require_write_actor),
 ):
-    await _load_qualifier_or_404(qualifier_id)
     return await AsyncQualifierService().update_qualifier(
         actor, qualifier_id, **body.model_dump(exclude_unset=True)
     )
@@ -188,7 +180,6 @@ async def update_qualifier(
     "/{qualifier_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a qualifier",
 )
 async def delete_qualifier(qualifier_id: int, actor: User = Depends(require_write_actor)):
-    await _load_qualifier_or_404(qualifier_id)
     await AsyncQualifierService().delete_qualifier(actor, qualifier_id)
 
 

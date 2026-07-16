@@ -35,6 +35,7 @@ from .discord_service import DiscordService
 from .equipment_service import EquipmentService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
+from .identity_link_service import IdentityLinkProvider, IdentityLinkService
 from .match_participants import MatchParticipants
 from .match_service import MatchService
 from .match_source_guard import assert_sg_fields_unchanged
@@ -109,6 +110,8 @@ __all__ = [
     'EquipmentService',
     'FeatureFlagService',
     'FeedbackService',
+    'IdentityLinkProvider',
+    'IdentityLinkService',
     'MatchParticipants',
     'MatchService',
     'assert_sg_fields_unchanged',

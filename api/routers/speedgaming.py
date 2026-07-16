@@ -66,18 +66,15 @@ async def update_link(
     body: SpeedGamingLinkUpdateRequest,
     actor: User = Depends(require_write_actor),
 ):
-    await _load_link_or_404(link_id)
     return await SpeedGamingSyncService().update_link(actor, link_id, **body.model_dump(exclude_unset=True))
 
 
 @router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a SpeedGaming event link")
 async def delete_link(link_id: int, actor: User = Depends(require_write_actor)):
-    await _load_link_or_404(link_id)
     await SpeedGamingSyncService().delete_link(actor, link_id)
 
 
 @router.post("/links/{link_id}/sync", response_model=SyncResultResponse, summary="Run an on-demand sync for a link")
 async def sync_link(link_id: int, actor: User = Depends(require_write_actor)):
-    await _load_link_or_404(link_id)
     result = await SpeedGamingSyncService().sync_now(actor, link_id)
     return result.as_dict()

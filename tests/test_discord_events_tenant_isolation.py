@@ -12,6 +12,8 @@ matches, and cancelling a match in tenant A removes only A's event.
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from application.repositories import DiscordScheduledEventRepository
 from application.services.discord_event_reconciler_service import DiscordEventReconcilerService
 from application.services.discord_service import MockDiscordService
@@ -22,7 +24,6 @@ from models import (
     DiscordScheduledEvent,
     Match,
     MatchPlayers,
-    Tenant,
     Tournament,
     User,
 )
@@ -36,16 +37,18 @@ def _reconciler() -> DiscordEventReconcilerService:
     return svc
 
 
-async def _tenants(db):
-    a = await Tenant.get(id=1)
-    a.discord_guild_id = SHARED_GUILD
-    await a.save()
-    b = await Tenant.create(name='Tenant B', slug='tenant-b', discord_guild_id=SHARED_GUILD)
+@pytest.fixture
+async def shared_guild_tenants(two_tenants):
+    """The canonical two tenants, both sharing one Discord guild (guild → many tenants)."""
+    a, b = two_tenants
+    for tenant in (a, b):
+        tenant.discord_guild_id = SHARED_GUILD
+        await tenant.save()
     return a, b
 
 
-async def test_scheduled_event_reads_are_isolated(db):
-    a, b = await _tenants(db)
+async def test_scheduled_event_reads_are_isolated(shared_guild_tenants):
+    a, b = shared_guild_tenants
     repo = DiscordScheduledEventRepository()
     with tenant_scope(a.id):
         ra = await DiscordScheduledEvent.create(
@@ -78,10 +81,10 @@ async def _enabled_match(tenant, *, name):
     return tourn, match
 
 
-async def test_shared_guild_cancel_only_touches_own_event(db):
+async def test_shared_guild_cancel_only_touches_own_event(shared_guild_tenants):
     """Cancelling A's match removes only A's Discord event; B's survives."""
     mock_discord_data.reset_scheduled_events()
-    a, b = await _tenants(db)
+    a, b = shared_guild_tenants
     actor = await User.create(discord_id=1, username='sys', is_system=True)
     _, match_a = await _enabled_match(a, name='A')
     _, match_b = await _enabled_match(b, name='B')

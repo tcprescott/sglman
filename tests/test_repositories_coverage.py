@@ -5,7 +5,7 @@ repositories in isolation against the in-memory SQLite ``db`` fixture.
 Repositories perform no Discord I/O, so no queue stub is needed.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date
 
 from application.repositories.match_acknowledgment_repository import MatchAcknowledgmentRepository
 from application.repositories.match_repository import MatchRepository
@@ -26,16 +26,7 @@ from models import (
     User,
     UserRole,
 )
-
-UTC = timezone.utc
-
-
-def utc(y, mo, d, h=0, mi=0):
-    return datetime(y, mo, d, h, mi, tzinfo=UTC)
-
-
-async def make_user(discord_id: int, username: str, **kwargs) -> User:
-    return await User.create(discord_id=discord_id, username=username, **kwargs)
+from tests.factories import make_user, utc
 
 
 # ---------------------------------------------------------------------------

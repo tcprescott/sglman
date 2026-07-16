@@ -7,16 +7,10 @@ before scoping, `GET /api/config` leaked every tenant's config and
 tenant's value when the same key existed in more than one tenant.
 """
 
-import pytest
 
 from application.tenant_context import tenant_scope
 from models import Role, SystemConfiguration, Tenant
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 async def test_config_reads_are_tenant_scoped(db, app):

@@ -18,11 +18,6 @@ from models import (
 from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 
-@pytest.fixture
-def app():
-    return build_api_app()
-
-
 async def _staff_token(username='sg-staff'):
     return await create_user_token(username=username, roles=[Role.STAFF])
 

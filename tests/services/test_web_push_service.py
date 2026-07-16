@@ -17,8 +17,7 @@ from tests.test_web_push_protocol import (
 ENDPOINT = 'https://push.example.net/send/abc123'
 
 
-async def _user(discord_id: int = 1) -> User:
-    return await User.create(discord_id=discord_id, username=f'user{discord_id}')
+from tests.factories import make_user as _user
 
 
 async def _subscribed_user(discord_id: int = 1) -> User:

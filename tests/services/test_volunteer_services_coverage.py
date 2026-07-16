@@ -29,13 +29,11 @@ from models import (
     VolunteerShift,
 )
 
+from tests.factories import utc
+
 UTC = timezone.utc
 
 _next_discord_id = itertools.count(500000)
-
-
-def utc(hour, minute=0, day=4):
-    return datetime(2026, 10, day, hour, minute, tzinfo=UTC)
 
 
 def eastern(hour, minute=0, day=4):
@@ -69,11 +67,11 @@ async def _volunteer(name='vol'):
 class TestShiftReads:
     async def test_list_shifts_for_window_returns_overlapping(self, db):
         pos = await VolunteerPosition.create(name='Check-in')
-        inside = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
-        await VolunteerShift.create(position=pos, starts_at=utc(20), ends_at=utc(23))
+        inside = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
+        await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 20), ends_at=utc(2026, 10, 4, 23))
         svc = VolunteerScheduleService()
 
-        rows = await svc.list_shifts_for_window(utc(0), utc(14))
+        rows = await svc.list_shifts_for_window(utc(2026, 10, 4, 0), utc(2026, 10, 4, 14))
         ids = {s.id for s in rows}
         assert inside.id in ids
         # The 20:00-23:00 shift starts after the window end -> excluded.
@@ -81,7 +79,7 @@ class TestShiftReads:
 
     async def test_get_shift_returns_row(self, db):
         pos = await VolunteerPosition.create(name='Race Proctor')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         svc = VolunteerScheduleService()
         found = await svc.get_shift(shift.id)
         assert found is not None and found.id == shift.id
@@ -125,8 +123,8 @@ class TestResetAllShifts:
     async def test_deletes_all_shifts_and_reports_count(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
-        await VolunteerShift.create(position=pos, starts_at=utc(12), ends_at=utc(16))
+        await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
+        await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 12), ends_at=utc(2026, 10, 4, 16))
         svc = VolunteerScheduleService()
 
         deleted = await svc.reset_all_shifts(staff)
@@ -152,7 +150,7 @@ class TestGetAssignment:
     async def test_returns_assignment_by_id(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('finder')
         svc = VolunteerScheduleService()
         assignment, _ = await svc.assign(staff, shift, vol)
@@ -173,7 +171,7 @@ class TestUnassign:
     async def test_removes_assignment_and_audits(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('dropme')
         svc = VolunteerScheduleService()
         assignment, _ = await svc.assign(staff, shift, vol)
@@ -185,7 +183,7 @@ class TestUnassign:
     async def test_rejects_unprivileged_actor(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('keepme')
         svc = VolunteerScheduleService()
         assignment, _ = await svc.assign(staff, shift, vol)
@@ -203,7 +201,7 @@ class TestCheckIn:
     async def test_rejects_unprivileged_actor(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('showsup')
         svc = VolunteerScheduleService()
         assignment, _ = await svc.assign(staff, shift, vol)
@@ -220,7 +218,7 @@ class TestCheckIn:
         staff = await _staff()
         coord = await _coordinator()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('present')
         svc = VolunteerScheduleService()
         assignment, _ = await svc.assign(staff, shift, vol)
@@ -232,7 +230,7 @@ class TestCheckIn:
     async def test_is_idempotent(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('twice')
         svc = VolunteerScheduleService()
         assignment, _ = await svc.assign(staff, shift, vol)
@@ -252,8 +250,8 @@ class TestAssignmentsForUser:
     async def test_lists_all_for_user(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        s1 = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
-        s2 = await VolunteerShift.create(position=pos, starts_at=utc(12), ends_at=utc(16))
+        s1 = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
+        s2 = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 12), ends_at=utc(2026, 10, 4, 16))
         vol = await _volunteer('busy')
         svc = VolunteerScheduleService()
         await svc.assign(staff, s1, vol)
@@ -265,14 +263,14 @@ class TestAssignmentsForUser:
     async def test_filters_by_upcoming_after(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Admin Desk')
-        past = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(10))
-        future = await VolunteerShift.create(position=pos, starts_at=utc(18), ends_at=utc(22))
+        past = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 10))
+        future = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 18), ends_at=utc(2026, 10, 4, 22))
         vol = await _volunteer('sched')
         svc = VolunteerScheduleService()
         await svc.assign(staff, past, vol)
         await svc.assign(staff, future, vol)
 
-        rows = await svc.assignments_for_user(vol, upcoming_after=utc(12))
+        rows = await svc.assignments_for_user(vol, upcoming_after=utc(2026, 10, 4, 12))
         assert len(rows) == 1
         assert rows[0].shift_id == future.id
 
@@ -286,11 +284,11 @@ class TestAssignAvailabilityWarning:
     async def test_warns_when_time_not_marked_available(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Photography')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('partial')
         # Declares availability elsewhere, but nothing overlapping the shift.
         await VolunteerAvailability.create(
-            user=vol, starts_at=utc(14), ends_at=utc(18),
+            user=vol, starts_at=utc(2026, 10, 4, 14), ends_at=utc(2026, 10, 4, 18),
             status=VolunteerAvailabilityStatus.AVAILABLE,
         )
 
@@ -300,7 +298,7 @@ class TestAssignAvailabilityWarning:
     async def test_no_warning_when_no_windows_declared(self, db):
         staff = await _staff()
         pos = await VolunteerPosition.create(name='Photography')
-        shift = await VolunteerShift.create(position=pos, starts_at=utc(8), ends_at=utc(12))
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2026, 10, 4, 8), ends_at=utc(2026, 10, 4, 12))
         vol = await _volunteer('nowindows')
 
         _, warnings = await VolunteerScheduleService().assign(staff, shift, vol)
@@ -321,8 +319,8 @@ class TestSetWindows:
         await self._opt_in(vol)
         svc = VolunteerAvailabilityService()
         windows = [
-            (utc(8), utc(12), VolunteerAvailabilityStatus.AVAILABLE, 'morning'),
-            (utc(14), utc(18), VolunteerAvailabilityStatus.PREFERRED, None),
+            (utc(2026, 10, 4, 8), utc(2026, 10, 4, 12), VolunteerAvailabilityStatus.AVAILABLE, 'morning'),
+            (utc(2026, 10, 4, 14), utc(2026, 10, 4, 18), VolunteerAvailabilityStatus.PREFERRED, None),
         ]
 
         created = await svc.set_windows(vol, windows)
@@ -336,25 +334,25 @@ class TestSetWindows:
         vol = await _volunteer('replacer')
         await self._opt_in(vol)
         await VolunteerAvailability.create(
-            user=vol, starts_at=utc(6), ends_at=utc(7),
+            user=vol, starts_at=utc(2026, 10, 4, 6), ends_at=utc(2026, 10, 4, 7),
             status=VolunteerAvailabilityStatus.AVAILABLE,
         )
         svc = VolunteerAvailabilityService()
 
         created = await svc.set_windows(
-            vol, [(utc(9), utc(10), VolunteerAvailabilityStatus.AVAILABLE, None)],
+            vol, [(utc(2026, 10, 4, 9), utc(2026, 10, 4, 10), VolunteerAvailabilityStatus.AVAILABLE, None)],
         )
         assert len(created) == 1
         stored = await VolunteerAvailability.filter(user=vol)
         # The pre-existing 06:00-07:00 window was cleared out.
         assert len(stored) == 1
-        assert stored[0].starts_at == utc(9)
+        assert stored[0].starts_at == utc(2026, 10, 4, 9)
 
     async def test_empty_windows_clears_availability(self, db):
         vol = await _volunteer('clearer')
         await self._opt_in(vol)
         await VolunteerAvailability.create(
-            user=vol, starts_at=utc(6), ends_at=utc(7),
+            user=vol, starts_at=utc(2026, 10, 4, 6), ends_at=utc(2026, 10, 4, 7),
             status=VolunteerAvailabilityStatus.AVAILABLE,
         )
         svc = VolunteerAvailabilityService()

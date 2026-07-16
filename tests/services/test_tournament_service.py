@@ -13,22 +13,7 @@ import pytest
 from application.services.tournament_service import TournamentService
 
 
-@pytest.fixture(autouse=True)
-def bypass_auth(monkeypatch):
-    from application.services import auth_service
-
-    async def allow(*_args, **_kwargs):
-        return True
-
-    async def noop_ensure(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(auth_service.AuthService, 'is_staff', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'can_edit_tournament', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'can_grant_roles', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
-
-
+pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
 def service():
     svc = object.__new__(TournamentService)
