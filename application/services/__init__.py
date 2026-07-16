@@ -13,6 +13,7 @@ from .async_qualifier_config import (
     AsyncQualifierConfig,
     validate_async_qualifier_config,
 )
+from . import async_qualifier_access
 from . import async_qualifier_scoring
 from .async_qualifier_draw import AsyncQualifierDraw
 from .async_qualifier_live_race_service import AsyncQualifierLiveRaceService
@@ -42,6 +43,7 @@ from .match_source_guard import assert_sg_fields_unchanged
 from .match_display_service import MatchDisplayService
 from .match_schedule_service import MatchScheduleService
 from .match_suggestion_service import MatchSuggestionService
+from . import availability_windows
 from .player_availability_service import PlayerAvailabilityService
 from .match_watcher_service import MatchWatcherService
 from .preset_service import PresetService
@@ -51,6 +53,7 @@ from . import race_room_worker
 from .racetime_bot_service import RacetimeBotService
 from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
+from . import reporting_shared
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
 from .speedgaming_etl_service import SpeedGamingETLService
@@ -84,7 +87,10 @@ __all__ = [
     'ApiTokenService',
     'AsyncQualifierConfig',
     'validate_async_qualifier_config',
+    'async_qualifier_access',
     'async_qualifier_scoring',
+    'availability_windows',
+    'reporting_shared',
     'AsyncQualifierDraw',
     'AsyncQualifierService',
     'AsyncQualifierLiveRaceService',
