@@ -7,6 +7,7 @@ as the system user; this surface is the human-driven half.
 """
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.services import (
     SpeedGamingSyncService,
@@ -80,7 +81,7 @@ async def admin_speedgaming_page() -> None:
                 try:
                     await service.delete_link(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Event link deleted', color='positive')
                 await refresh_table()
@@ -90,7 +91,7 @@ async def admin_speedgaming_page() -> None:
                 try:
                     result = await service.sync_now(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 if result.errors:
                     ui.notify(
@@ -166,7 +167,7 @@ async def admin_speedgaming_page() -> None:
                             dialog.close()
                             await refresh_table()
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
 
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')

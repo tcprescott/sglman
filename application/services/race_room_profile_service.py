@@ -8,6 +8,7 @@ audited. The PR 4/6 room-creation flow reads these values when it opens a room.
 
 from typing import Any, Dict, List, Optional
 
+from application.errors import require_found
 from application.repositories import RaceRoomProfileRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -112,14 +113,8 @@ class RaceRoomProfileService:
         return clean
 
     async def _require(self, profile_id: int) -> RaceRoomProfile:
-        profile = await self.repository.get_by_id(profile_id)
-        if profile is None:
-            raise ValueError('Race room profile not found')
-        return profile
+        return require_found(await self.repository.get_by_id(profile_id), 'Race room profile')
 
     @staticmethod
     async def _ensure(actor: Optional[User]) -> None:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor),
-            'Cannot manage race room profiles',
-        )
+        await AuthService.ensure_can_manage_sync(actor)

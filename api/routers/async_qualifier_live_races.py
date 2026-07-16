@@ -9,7 +9,7 @@ tenant-scoped load-or-404 for by-id routes so a missing/cross-tenant race yields
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.async_qualifier_live_races import (
@@ -17,6 +17,7 @@ from api.schemas.async_qualifier_live_races import (
     LiveRaceResponse,
     RunResponse,
 )
+from application.errors import require_found
 from application.services import AsyncQualifierLiveRaceService
 from application.tenant_context import require_tenant_id
 from models import AsyncQualifierLiveRace, User
@@ -29,12 +30,10 @@ router = APIRouter(
 
 
 async def _load_live_race_or_404(live_race_id: int) -> AsyncQualifierLiveRace:
-    live_race = await AsyncQualifierLiveRace.get_or_none(
-        id=live_race_id, tenant_id=require_tenant_id()
+    return require_found(
+        await AsyncQualifierLiveRace.get_or_none(id=live_race_id, tenant_id=require_tenant_id()),
+        "Live race",
     )
-    if live_race is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Live race not found")
-    return live_race
 
 
 @router.get("", response_model=List[LiveRaceResponse], summary="List live races for a qualifier")

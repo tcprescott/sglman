@@ -8,7 +8,7 @@ list are ungated by design (a valid token is still required). Every read uses th
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.async_qualifiers import (
@@ -34,6 +34,7 @@ from api.schemas.async_qualifiers import (
     SubmitRunRequest,
 )
 from api.schemas.common import UserBase
+from application.errors import require_found
 from application.services import AsyncQualifierService, UserService
 from application.tenant_context import require_tenant_id
 from models import AsyncQualifier, User
@@ -42,17 +43,14 @@ router = APIRouter(prefix="/async-qualifiers", tags=["Async qualifiers"], route_
 
 
 async def _load_qualifier_or_404(qualifier_id: int) -> AsyncQualifier:
-    qualifier = await AsyncQualifier.get_or_none(id=qualifier_id, tenant_id=require_tenant_id())
-    if qualifier is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Qualifier not found")
-    return qualifier
+    return require_found(
+        await AsyncQualifier.get_or_none(id=qualifier_id, tenant_id=require_tenant_id()),
+        "Qualifier",
+    )
 
 
 async def _load_user_or_404(user_id: int) -> User:
-    user = await UserService().get_user_by_id(user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return user
+    return require_found(await UserService().get_user_by_id(user_id), "User")
 
 
 # ============================================================ reads (A)

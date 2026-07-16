@@ -2,10 +2,11 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from api.dependencies import ServiceErrorRoute, require_api_actor
 from api.schemas.tournaments import TournamentResponse
+from application.errors import require_found
 from application.services import TournamentService
 
 router = APIRouter(
@@ -25,7 +26,6 @@ async def list_tournaments(
 
 @router.get("/{tournament_id}", response_model=TournamentResponse, summary="Get a tournament")
 async def get_tournament(tournament_id: int):
-    tournament = await TournamentService().get_tournament_by_id(tournament_id)
-    if tournament is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
-    return tournament
+    return require_found(
+        await TournamentService().get_tournament_by_id(tournament_id), "Tournament"
+    )

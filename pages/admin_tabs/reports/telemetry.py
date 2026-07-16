@@ -7,8 +7,7 @@ service boundary; this page also pre-checks so a non-Staff admin gets a clear
 message instead of a raw permission error.
 """
 
-import json
-from typing import Any, Optional
+from typing import Optional
 
 from nicegui import app, ui
 
@@ -16,11 +15,13 @@ from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
 from application.utils.timezone import format_eastern_display
 from .shared import (
-    csv_export_button,
     date_range_filter,
     default_date_range,
     eastern_bounds,
+    kpi_card,
     navigate_with_params,
+    paginated_event_log,
+    parse_details,
     parse_int,
     report_page_shell,
 )
@@ -34,20 +35,6 @@ _CATEGORY_OPTIONS = {
     TelemetryCategory.INTERACTION: 'Interactions',
     TelemetryCategory.DOMAIN: 'Domain events',
 }
-
-
-def _parse_details(raw: Optional[str]) -> tuple[Optional[Any], str]:
-    if not raw:
-        return None, ''
-    try:
-        parsed = json.loads(raw)
-    except (ValueError, TypeError):
-        return None, raw
-    if parsed is None:
-        return None, ''
-    if isinstance(parsed, (dict, list)):
-        return parsed, json.dumps(parsed, indent=2, sort_keys=True)
-    return parsed, str(parsed)
 
 
 async def telemetry_page(
@@ -121,10 +108,10 @@ async def telemetry_page(
         # ---- KPIs
         summary = await service.engagement_summary(actor, start=bounds_start, end=bounds_end)
         with ui.row().classes('full-width gap-3 q-mt-md').style('flex-wrap: wrap;'):
-            _kpi('Total events', f"{summary['total_events']:,}", 'captured in window')
-            _kpi('Unique users', f"{summary['unique_users']:,}", 'identified actors')
-            _kpi('Unique sessions', f"{summary['unique_sessions']:,}", 'browser sessions')
-            _kpi('Page views', f"{summary['page_views']:,}", 'authenticated loads')
+            kpi_card('Total events', f"{summary['total_events']:,}", 'captured in window', min_width=200)
+            kpi_card('Unique users', f"{summary['unique_users']:,}", 'identified actors', min_width=200)
+            kpi_card('Unique sessions', f"{summary['unique_sessions']:,}", 'browser sessions', min_width=200)
+            kpi_card('Page views', f"{summary['page_views']:,}", 'authenticated loads', min_width=200)
 
         # ---- Leaderboards (only meaningful without a single-user filter)
         top_paths = await service.top_paths(actor, start=bounds_start, end=bounds_end)
@@ -185,7 +172,7 @@ async def telemetry_page(
 
         rows = []
         for ev in events:
-            _, display = _parse_details(ev.details)
+            _, display = parse_details(ev.details)
             truncated = display[:200] + ('…' if len(display) > 200 else '')
             rows.append({
                 'ev_id': ev.id,
@@ -208,64 +195,27 @@ async def telemetry_page(
             {'name': 'details', 'label': 'Details', 'field': 'details', 'sortable': False},
         ]
 
-        with ui.card().classes('full-width q-pa-md q-mt-md'):
-            with ui.row().classes('items-center justify-between full-width'):
-                ui.label(f'{total:,} events').classes('text-h6')
-                csv_export_button(
-                    f'telemetry-page-{page_int}-{start_d}-to-{end_d}',
-                    lambda: columns,
-                    lambda: rows,
-                )
-
-            table = ui.table(columns=columns, rows=rows, row_key='ev_id').classes('full-width')
-            table.add_slot('body', r'''
-                <q-tr :props="props">
-                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <template v-if="col.name !== 'details'">
-                            {{ col.value }}
-                        </template>
-                        <div v-else @click.stop>
-                            <q-expansion-item
-                                v-if="props.row.full_details && props.row.full_details.length > 0"
-                                dense dense-toggle switch-toggle-side
-                                :label="props.row.details"
-                                class="text-body2"
-                            >
-                                <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
-                            </q-expansion-item>
-                            <span v-else class="text-grey-7">—</span>
-                        </div>
-                    </q-td>
-                </q-tr>
-            ''')
-            ui.label(
+        paginated_event_log(
+            columns=columns,
+            rows=rows,
+            row_key='ev_id',
+            total=total,
+            page=page_int,
+            page_size=PAGE_SIZE,
+            on_page=lambda new_page: _nav(page=new_page),
+            csv_filename_prefix=f'telemetry-page-{page_int}-{start_d}-to-{end_d}',
+            count_label=f'{total:,} events',
+            note=(
                 'Click a user in "Most active users" to filter. Category filters the '
                 'log; the "Event contains" box matches the path.'
-            ).classes('italic-note')
-
-            total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-            with ui.row().classes('items-center q-mt-sm'):
-                ui.label(f'Page {page_int} of {total_pages}').classes('text-caption')
-                ui.button(
-                    'Previous', icon='chevron_left',
-                    on_click=lambda: _nav(page=page_int - 1),
-                ).props('flat dense').set_enabled(page_int > 1)
-                ui.button(
-                    'Next', icon='chevron_right',
-                    on_click=lambda: _nav(page=page_int + 1),
-                ).props('flat dense').set_enabled(page_int < total_pages)
+            ),
+            card_classes='full-width q-pa-md q-mt-md',
+        )
 
 
 async def _is_staff(actor) -> bool:
     from application.services import AuthService
     return await AuthService.is_staff(actor)
-
-
-def _kpi(title: str, value: str, subtitle: str) -> None:
-    with ui.card().classes('q-pa-md').style('flex: 1 1 200px; min-width: 200px;'):
-        ui.label(title).classes('text-caption text-grey-7')
-        ui.label(value).classes('text-h4').style('color: var(--q-primary);')
-        ui.label(subtitle).classes('text-caption')
 
 
 def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:

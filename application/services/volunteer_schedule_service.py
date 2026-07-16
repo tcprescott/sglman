@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from tortoise.transactions import in_transaction
 
+from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import (
     VolunteerAssignmentRepository,
@@ -282,9 +283,9 @@ class VolunteerScheduleService:
 
     async def acknowledge(self, assignment_id: int, user: User) -> VolunteerAssignment:
         """Self-acknowledge an assignment. Idempotent."""
-        assignment = await self.assignment_repository.get_by_id(assignment_id)
-        if assignment is None:
-            raise ValueError("Volunteer assignment not found.")
+        assignment = require_found(
+            await self.assignment_repository.get_by_id(assignment_id), "Volunteer assignment"
+        )
         if assignment.user_id != user.id:
             raise ValueError("You can only acknowledge your own assignments.")
         if assignment.acknowledged_at is not None:
@@ -304,9 +305,9 @@ class VolunteerScheduleService:
         """Record that a volunteer appeared for their shift."""
         if not await AuthService.can_manage_volunteers(actor):
             raise PermissionError('Only coordinators and staff can record check-ins.')
-        assignment = await self.assignment_repository.get_by_id(assignment_id)
-        if assignment is None:
-            raise ValueError('Assignment not found.')
+        assignment = require_found(
+            await self.assignment_repository.get_by_id(assignment_id), "Assignment"
+        )
         if assignment.checked_in_at is None:
             assignment.checked_in_at = datetime.now(timezone.utc)
             assignment.checked_in_by_id = actor.id

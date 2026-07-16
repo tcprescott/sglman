@@ -4,12 +4,13 @@ Defines the common filter strip (date range + tournament), CSV export
 button, URL-state helpers, and a small page-shell wrapper.
 """
 
+import json
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
-from typing import Callable, Iterable, Mapping, Optional, Sequence
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 from urllib.parse import urlencode
 
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from application.services import SystemConfigService, TournamentService
 from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
@@ -220,6 +221,118 @@ def navigate_with_params(report: Optional[str] = None, **params) -> None:
     ui.navigate.to(reports_url(report=report, **params))
 
 
-def schedule(coro_fn):
-    """Helper to spawn an async UI handler from a sync event."""
-    background_tasks.create(coro_fn())
+def parse_details(raw: Optional[str]) -> tuple[Optional[Any], str]:
+    """Return ``(parsed_json_or_none, display_text)`` for an audit/telemetry blob.
+
+    Legacy rows store plain-text details — those parse to None and display
+    as-is. New rows store JSON and display pretty-printed.
+    """
+    if not raw:
+        return None, ''
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return None, raw
+    if parsed is None:
+        return None, ''
+    if isinstance(parsed, (dict, list)):
+        return parsed, json.dumps(parsed, indent=2, sort_keys=True)
+    return parsed, str(parsed)
+
+
+def kpi_card(
+    title: str,
+    value: str,
+    subtitle: str,
+    color: str = 'primary',
+    min_width: int = 220,
+) -> None:
+    """A single flex KPI tile (title / big value / subtitle) for report strips."""
+    with ui.card().classes('q-pa-md').style(f'flex: 1 1 {min_width}px; min-width: {min_width}px;'):
+        ui.label(title).classes('text-caption text-grey-7')
+        ui.label(value).classes('text-h4').style(f'color: var(--q-{color});')
+        ui.label(subtitle).classes('text-caption')
+
+
+def clicked_row(e) -> dict:
+    """Extract the row dict from a NiceGUI table ``row-click`` event.
+
+    Body-slot templates emit ``$event, props.row`` (args ``[evt, row]``); a bare
+    table emits the row directly. Return ``{}`` when neither yields a dict.
+    """
+    args = e.args
+    row = args[1] if isinstance(args, list) and len(args) > 1 else args
+    return row if isinstance(row, dict) else {}
+
+
+# Expandable-details ``body`` slot for event-log tables. The ``details`` column
+# renders a collapsible pretty-printed JSON cell; every other column is plain.
+# Two variants: one emits ``row-click`` for a drill-down filter, one does not.
+_EVENT_LOG_DETAILS_CELL = r'''
+        <q-td v-for="col in props.cols" :key="col.name" :props="props">
+            <template v-if="col.name !== 'details'">
+                {{ col.value }}
+            </template>
+            <div v-else @click.stop>
+                <q-expansion-item
+                    v-if="props.row.full_details && props.row.full_details.length > 0"
+                    dense dense-toggle switch-toggle-side
+                    :label="props.row.details"
+                    class="text-body2"
+                >
+                    <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
+                </q-expansion-item>
+                <span v-else class="text-grey-7">—</span>
+            </div>
+        </q-td>
+'''
+_EVENT_LOG_BODY_ROWCLICK = (
+    r'''<q-tr :props="props" @click="$parent.$emit('row-click', $event, props.row)" style="cursor: pointer">'''
+    + _EVENT_LOG_DETAILS_CELL + '</q-tr>'
+)
+_EVENT_LOG_BODY_PLAIN = r'<q-tr :props="props">' + _EVENT_LOG_DETAILS_CELL + '</q-tr>'
+
+
+def paginated_event_log(
+    *,
+    columns: Sequence[Mapping],
+    rows: Sequence[Mapping],
+    row_key: str,
+    total: int,
+    page: int,
+    page_size: int,
+    on_page: Callable[[int], None],
+    csv_filename_prefix: str,
+    count_label: str,
+    note: str,
+    on_row_click: Optional[Callable[[dict], None]] = None,
+    card_classes: str = 'full-width q-pa-md',
+) -> None:
+    """Server-paginated event-log card (count + CSV + expandable table + pager).
+
+    Shared by the Audit Log and Engagement Telemetry reports. ``on_row_click``,
+    when given, wires a per-row drill-down filter (receives the clicked row
+    dict); ``on_page`` reloads the page for a new 1-based page number.
+    """
+    with ui.card().classes(card_classes):
+        with ui.row().classes('items-center justify-between full-width'):
+            ui.label(count_label).classes('text-h6')
+            csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
+
+        table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')
+        table.add_slot('body', _EVENT_LOG_BODY_ROWCLICK if on_row_click else _EVENT_LOG_BODY_PLAIN)
+        if on_row_click is not None:
+            table.on('row-click', lambda e: on_row_click(clicked_row(e)))
+        ui.label(note).classes('italic-note')
+
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        with ui.row().classes('items-center q-mt-sm'):
+            ui.label(f'Page {page} of {total_pages}').classes('text-caption')
+            ui.button(
+                'Previous', icon='chevron_left',
+                on_click=lambda: on_page(page - 1),
+            ).props('flat dense').set_enabled(page > 1)
+            ui.button(
+                'Next', icon='chevron_right',
+                on_click=lambda: on_page(page + 1),
+            ).props('flat dense').set_enabled(page < total_pages)

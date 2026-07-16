@@ -239,19 +239,19 @@ class SeedGenerationService:
     
     async def _generate_mmr(self) -> str:
         """Generate a Majora's Mask Randomizer seed. Not yet implemented."""
-        raise NotImplementedError("Majora's Mask Randomizer seed generation is not yet implemented.")
+        raise ValueError("Majora's Mask Randomizer seed generation is not yet implemented.")
 
     async def _generate_smdash(self) -> str:
         """Generate a Super Metroid: DASH seed. Not yet implemented."""
-        raise NotImplementedError("Super Metroid: DASH seed generation is not yet implemented.")
+        raise ValueError("Super Metroid: DASH seed generation is not yet implemented.")
 
     async def _generate_dk64r(self) -> str:
         """Generate a Donkey Kong 64 Randomizer seed. Not yet implemented."""
-        raise NotImplementedError("Donkey Kong 64 Randomizer seed generation is not yet implemented.")
+        raise ValueError("Donkey Kong 64 Randomizer seed generation is not yet implemented.")
 
     async def _generate_wwr(self) -> str:
         """Generate a Wind Waker Randomizer seed. Not yet implemented."""
-        raise NotImplementedError("Wind Waker Randomizer seed generation is not yet implemented.")
+        raise ValueError("Wind Waker Randomizer seed generation is not yet implemented.")
 
     async def _generate_test(self) -> str:
         """

@@ -20,7 +20,6 @@ locally without contacting Challonge.
 
 import logging
 import secrets
-from urllib.parse import parse_qs, urlparse
 
 from nicegui import Client, app, ui
 from starlette.requests import Request
@@ -29,8 +28,11 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
 from application.utils.mock_challonge import is_mock_challonge
+from pages._oauth_link import read_callback_code, returned_state
 
 logger = logging.getLogger(__name__)
+
+_PROVIDER_LABEL = 'Challonge'
 
 _ADMIN_RETURN = '/admin/challonge'
 _PROFILE_RETURN = '/home/profile'
@@ -72,11 +74,15 @@ def create() -> None:
             ui.navigate.to(service_return if service_state is not None else player_return)
             return
         # The pending CSRF state tells us which flow this single callback completes.
-        returned_state = _returned_state(url)
-        if player_state is not None and (returned_state == player_state or service_state is None):
-            await _finish_player_link(user, _read_callback_code(url, player_state), player_return)
+        state = returned_state(url)
+        if player_state is not None and (state == player_state or service_state is None):
+            await _finish_player_link(
+                user, read_callback_code(url, player_state, _PROVIDER_LABEL), player_return,
+            )
         else:
-            await _finish_service_connect(user, _read_callback_code(url, service_state), service_return)
+            await _finish_service_connect(
+                user, read_callback_code(url, service_state, _PROVIDER_LABEL), service_return,
+            )
 
     @ui.page('/challonge/link')
     async def challonge_link(request: Request) -> RedirectResponse:
@@ -104,6 +110,8 @@ async def _finish_service_connect(user, code: str | None, return_path: str) -> N
             payload = await service.exchange_service_code(code)
             await service.save_service_connection(payload, user)
             ui.notify('Challonge account connected.', color='positive')
+        except ValueError as e:
+            ui.notify(str(e), color='warning')
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge service connection failed')
             ui.notify('Could not connect Challonge. Please try again.', color='negative')
@@ -119,32 +127,9 @@ async def _finish_player_link(user, code: str | None, return_path: str) -> None:
             me = await service.exchange_player_code(code)
             await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
             ui.notify('Challonge account linked.', color='positive')
+        except ValueError as e:
+            ui.notify(str(e), color='warning')
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge player linking failed')
             ui.notify('Could not link Challonge. Please try again.', color='negative')
     ui.navigate.to(return_path)
-
-
-def _returned_state(url: str) -> str | None:
-    """Extract the OAuth ``state`` parameter from a callback URL, if present."""
-    try:
-        params = parse_qs(urlparse(url).query)
-    except ValueError:
-        return None
-    return (params.get('state') or [None])[0]
-
-
-def _read_callback_code(url: str, expected_state: str | None):
-    """Validate the OAuth callback URL and return the authorization code or None."""
-    try:
-        params = parse_qs(urlparse(url).query)
-    except ValueError:
-        return None
-    if 'error' in params:
-        logger.warning('Challonge OAuth callback returned error: %s', params.get('error'))
-        return None
-    returned_state = (params.get('state') or [None])[0]
-    if not expected_state or returned_state != expected_state:
-        logger.warning('Challonge OAuth state mismatch on callback.')
-        return None
-    return (params.get('code') or [None])[0]

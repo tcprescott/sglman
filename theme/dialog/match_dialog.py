@@ -31,6 +31,7 @@ from theme.dialog._helpers import (
     submit_on_enter,
 )
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.notify import notify_error
 
 
 class BaseMatchDialog:
@@ -202,12 +203,9 @@ class BaseMatchDialog:
                 dialog.close()
             if self.on_submit:
                 await self.on_submit(None)
-        except PermissionError as e:
+        except (ValueError, PermissionError) as e:
             with dialog:
-                ui.notify(str(e), color='negative')
-        except ValueError as e:
-            with dialog:
-                ui.notify(f'Error deleting match: {str(e)}', color='negative')
+                notify_error(e)
 
     async def _run_submit(
         self,
@@ -241,7 +239,7 @@ class BaseMatchDialog:
             await self.match_service.ensure_players_enrolled(tournament_id, player_ids)
         except ValueError as e:
             with self.dialog:
-                ui.notify(f'Error enrolling players: {str(e)}', color='negative')
+                notify_error(e)
             return
 
         if self.match:
@@ -258,12 +256,9 @@ class BaseMatchDialog:
                     dialog.close()
                 if self.on_submit:
                     await self.on_submit(self.match)
-            except PermissionError as e:
+            except (ValueError, PermissionError) as e:
                 with self.dialog:
-                    ui.notify(str(e), color='negative')
-            except ValueError as e:
-                with self.dialog:
-                    ui.notify(f'Error updating match: {str(e)}', color='negative')
+                    notify_error(e)
         else:
             try:
                 await do_create()
@@ -272,12 +267,9 @@ class BaseMatchDialog:
                     dialog.close()
                 if self.on_submit:
                     await self.on_submit()
-            except PermissionError as e:
+            except (ValueError, PermissionError) as e:
                 with self.dialog:
-                    ui.notify(str(e), color='negative')
-            except ValueError as e:
-                with self.dialog:
-                    ui.notify(f'Error creating match: {str(e)}', color='negative')
+                    notify_error(e)
 
     def _render_submit_footer(self, dialog, submit, *, create_label: str) -> None:
         """Render the shared footer (Delete/Cancel/primary) and wire Enter-to-submit.

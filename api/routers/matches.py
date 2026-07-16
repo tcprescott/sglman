@@ -3,11 +3,12 @@
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from api._match_view import MATCH_PREFETCH, serialize_match
 from api.dependencies import ServiceErrorRoute, require_api_actor
 from api.schemas.matches import MatchResponse
+from application.errors import require_found
 from application.services import MatchWatcherService
 from application.tenant_context import require_tenant_id
 from models import Match, User
@@ -80,7 +81,10 @@ async def get_watched_matches(actor: User = Depends(require_api_actor)):
     summary="Get a single match",
 )
 async def get_match(match_id: int):
-    match = await Match.filter(id=match_id, tenant_id=require_tenant_id()).prefetch_related(*MATCH_PREFETCH).first()
-    if match is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+    match = require_found(
+        await Match.filter(id=match_id, tenant_id=require_tenant_id())
+        .prefetch_related(*MATCH_PREFETCH)
+        .first(),
+        "Match",
+    )
     return serialize_match(match)

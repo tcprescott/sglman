@@ -2,10 +2,11 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from api.dependencies import ServiceErrorRoute, require_api_actor
 from api.schemas.stream_rooms import StreamRoomResponse
+from application.errors import require_found
 from application.services import StreamRoomService
 
 router = APIRouter(
@@ -25,7 +26,6 @@ async def list_stream_rooms(
 
 @router.get("/{stream_room_id}", response_model=StreamRoomResponse, summary="Get a stream room")
 async def get_stream_room(stream_room_id: int):
-    room = await StreamRoomService().get_stream_room_by_id(stream_room_id)
-    if room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream room not found")
-    return room
+    return require_found(
+        await StreamRoomService().get_stream_room_by_id(stream_room_id), "Stream room"
+    )

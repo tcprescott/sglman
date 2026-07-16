@@ -5,11 +5,12 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from models import (
-    AsyncQualifierLiveRaceStatus,
-    AsyncQualifierReviewStatus,
-    AsyncQualifierRunStatus,
-)
+from api.schemas.async_qualifiers import AsyncQualifierRunResponse
+from models import AsyncQualifierLiveRaceStatus
+
+# A live-race run and an async-qualifier run are the same row; serialize them the
+# same way. ``RunResponse`` is retained as the name this router imports.
+RunResponse = AsyncQualifierRunResponse
 
 
 class LiveRaceResponse(BaseModel):
@@ -22,23 +23,6 @@ class LiveRaceResponse(BaseModel):
     status: AsyncQualifierLiveRaceStatus
     permalink_id: Optional[int] = None
     episode_id: Optional[int] = None
-    created_at: datetime
-
-
-class RunResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    qualifier_id: int
-    user_id: int
-    permalink_id: Optional[int] = None
-    live_race_id: Optional[int] = None
-    status: AsyncQualifierRunStatus
-    review_status: AsyncQualifierReviewStatus
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    elapsed_seconds: Optional[int] = None
-    score: Optional[float] = None
     created_at: datetime
 
 

@@ -24,7 +24,6 @@ inside a ``tenant_scope`` established by the worker.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -32,6 +31,7 @@ from typing import Any, Dict, List, Optional
 
 from application.events import Event, EventType, event_bus
 from application.repositories import (
+    MatchAcknowledgmentRepository,
     MatchRepository,
     SpeedGamingEpisodeRepository,
     SpeedGamingEventLinkRepository,
@@ -40,6 +40,8 @@ from application.repositories import (
 )
 from application.repositories.racetime_room_repository import RacetimeRoomRepository
 from application.services.audit_service import AuditActions, AuditService
+from application.services.match_participants import MatchParticipants
+from application.utils.hashing import stable_content_hash
 from application.utils.speedgaming_client import (
     SpeedGamingAPIError,
     SpeedGamingClient,
@@ -175,7 +177,7 @@ class SpeedGamingETLService:
         sg_id = self._episode_id(raw)
         when = self._parse_when(raw.get('when'))
         title = (raw.get('title') or self._match_title(raw) or None)
-        content_hash = self._content_hash(raw)
+        content_hash = stable_content_hash(raw)
 
         episode = await self.episode_repo.get_by_sg_id(sg_id)
         if episode is None:
@@ -323,32 +325,29 @@ class SpeedGamingETLService:
         )
         return placeholder
 
+    def _participants(self) -> MatchParticipants:
+        """Roster orchestrator bound to the ETL's repositories (no ack seeding
+        happens here, but the collaborator requires the repo)."""
+        return MatchParticipants(
+            match_repository=MatchRepository(),
+            user_repository=UserRepository(),
+            tournament_repository=TournamentRepository(),
+            ack_repository=MatchAcknowledgmentRepository(),
+        )
+
     async def _sync_match_players(
         self, match: Match, tournament_id: int, users: List[User]
     ) -> None:
         """Reconcile a sourced match's players to the resolved SG set.
 
         The ETL owns the roster on a sourced match, so this is a full replace:
-        enroll+add new users, remove players no longer in the episode. Dedupes so
-        a player listed twice upstream yields one row.
+        enroll+add new users, remove players no longer in the episode. Delegates
+        to :class:`MatchParticipants` (the shared batch roster syncer), which
+        dedupes so a player listed twice upstream yields one row.
         """
-        desired: Dict[int, User] = {}
-        for user in users:
-            desired.setdefault(user.id, user)
-
-        existing = await MatchRepository.get_players(match)
-        existing_ids = {p.user_id for p in existing}
-
-        for user_id, user in desired.items():
-            if user_id in existing_ids:
-                continue
-            if not await TournamentRepository.is_player_enrolled_by_id(tournament_id, user):
-                await TournamentRepository.enroll_player_by_id(tournament_id, user)
-            await MatchRepository.add_player(match, user)
-
-        for player in existing:
-            if player.user_id not in desired:
-                await MatchRepository.remove_player(match, player.user)
+        await self._participants().sync_players(
+            match, [user.id for user in users], tournament_id
+        )
 
     # ------------------------------------------------------------ reconciliation
 
@@ -453,12 +452,6 @@ class SpeedGamingETLService:
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone(timezone.utc)
-
-    @staticmethod
-    def _content_hash(raw: Dict[str, Any]) -> str:
-        """Stable hash of the raw payload for a cheap unchanged-since-last check."""
-        blob = json.dumps(raw, sort_keys=True, default=str)
-        return hashlib.sha256(blob.encode()).hexdigest()
 
     @staticmethod
     def _opt_str(value: Any) -> Optional[str]:

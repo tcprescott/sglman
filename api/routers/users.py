@@ -19,6 +19,7 @@ from api.schemas.user_actions import (
     UserSelfUpdate,
 )
 from api.schemas.users import UserDetailResponse, UserListItem
+from application.errors import require_found
 from application.services import UserService
 from application.services.auth_service import AuthService
 from models import Role, User
@@ -27,10 +28,7 @@ router = APIRouter(prefix="/users", tags=["Users"], route_class=ServiceErrorRout
 
 
 async def _load_user_or_404(user_id: int) -> User:
-    user = await UserService().get_user_by_id(user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return user
+    return require_found(await UserService().get_user_by_id(user_id), "User")
 
 
 async def _to_detail(user: User) -> UserDetailResponse:
@@ -76,10 +74,7 @@ async def get_me(actor: User = Depends(require_api_actor)):
 async def get_user(user_id: int, actor: User = Depends(require_api_actor)):
     if actor.id != user_id and not await AuthService.is_staff(actor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
-    user = await UserService().get_user_by_id(user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return await _to_detail(user)
+    return await _to_detail(await _load_user_or_404(user_id))
 
 
 # --- Writes -----------------------------------------------------------------

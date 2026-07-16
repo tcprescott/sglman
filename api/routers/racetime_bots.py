@@ -8,7 +8,7 @@ privileged ``client_secret`` is never serialized.
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import (
     ServiceErrorRoute,
@@ -22,6 +22,7 @@ from api.schemas.racetime_bots import (
     RacetimeBotResponse,
     RacetimeBotUpdateRequest,
 )
+from application.errors import require_found
 from application.services import RacetimeBotService
 from models import RacetimeBot, User
 
@@ -30,10 +31,7 @@ router = APIRouter(prefix="/racetime-bots", tags=["Racetime bots"], route_class=
 
 async def _load_bot_or_404(bot_id: int) -> RacetimeBot:
     """Global load-or-404 (no tenant filter) for a documented 404 on missing ids."""
-    bot = await RacetimeBot.get_or_none(id=bot_id)
-    if bot is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Racetime bot not found")
-    return bot
+    return require_found(await RacetimeBot.get_or_none(id=bot_id), "Racetime bot")
 
 
 # --- Bot CRUD -------------------------------------------------------------

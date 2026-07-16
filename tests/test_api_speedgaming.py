@@ -128,13 +128,14 @@ class TestCreateLink:
             })
             assert resp.status_code == 403
 
-    async def test_create_link_unknown_tournament_400(self, db, app):
+    async def test_create_link_unknown_tournament_404(self, db, app):
         _, raw = await _staff_token()
         async with client_for(app, raw) as c:
             resp = await c.post('/api/speedgaming/links', json={
                 'tournament_id': 999999, 'event_slug': 'alttpr',
             })
-            assert resp.status_code == 400
+            # Unknown referenced tournament -> NotFoundError -> 404 (audit §2B.6).
+            assert resp.status_code == 404
 
 
 class TestUpdateDeleteLink:

@@ -4,8 +4,12 @@ import asyncio
 
 from nicegui import app, ui
 
-from application.services import ChallongeService, TournamentNotificationService, UserService
-from models import User
+from application.services import (
+    ChallongeService,
+    TournamentNotificationService,
+    UserService,
+    get_user_from_discord_id,
+)
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import render_challonge_link_section
 from pages.home_tabs.racetime_link_section import render_racetime_link_section
@@ -74,7 +78,7 @@ async def render_edit_info_tab():
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
         
-        user = await User.get_or_none(discord_id=discord_id)
+        user = await get_user_from_discord_id(discord_id)
         if user is None:
             with ui.card().classes('card-centered'):
                 ui.icon('error', size='3em').classes('icon-error')

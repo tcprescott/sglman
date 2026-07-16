@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from models import MatchNotificationLevel, Tournament, TournamentNotificationPreference, User
+from application.errors import require_found
 from application.repositories import TournamentNotificationRepository, TournamentRepository
 from application.tenant_context import require_tenant_id
 
@@ -33,9 +34,10 @@ class TournamentNotificationService:
                 f"Invalid notification level '{match_notifications}'. "
                 f"Must be one of: {', '.join(sorted(valid_levels))}"
             )
-        tournament = await self.tournament_repository.get_by_id(tournament_id)
-        if not tournament:
-            raise ValueError(f"Tournament {tournament_id} not found")
+        tournament = require_found(
+            await self.tournament_repository.get_by_id(tournament_id),
+            f"Tournament {tournament_id}",
+        )
         return await self.repository.upsert(
             user=user,
             tournament=tournament,

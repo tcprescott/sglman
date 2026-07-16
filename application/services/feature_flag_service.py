@@ -25,6 +25,7 @@ STAFF-gated and audited.
 
 from typing import Any, Dict, List, Optional, Set
 
+from application.errors import require_found
 from application.feature_flags import FEATURE_FLAG_REGISTRY, all_specs, spec_for
 from application.repositories.feature_flag_group_repository import FeatureFlagGroupRepository
 from application.repositories.feature_flag_repository import TenantFeatureFlagRepository
@@ -299,19 +300,28 @@ class FeatureFlagService:
         if flags is not None:
             changes['flags'] = self._clean_flags(flags)
         if is_default is not None:
+            if group.is_default and not is_default:
+                # Un-defaulting the sole default group would leave every ungrouped
+                # tenant with no availability tier — refuse unless another exists.
+                await self._ensure_another_default_exists(group.id)
             changes['is_default'] = is_default
         group = await self.group_repository.update(group, **changes)
         if changes.get('is_default'):
             await self.group_repository.clear_default(exclude_id=group.id)
         await self.audit_service.write_log(
             actor, AuditActions.FEATURE_GROUP_UPDATED,
-            {'group_id': group.id, 'changed_fields': list(changes.keys())},
+            {'group_id': group.id, 'changed_fields': list(changes.keys()), **changes},
         )
         return group
 
     async def delete_group(self, actor: Optional[User], group_id: int) -> None:
         await self._ensure_super_admin(actor)
         group = await self._require_group(group_id)
+        if group.is_default:
+            # Deleting the sole default group would leave every ungrouped tenant
+            # with no availability tier, silently disabling group-derived
+            # features platform-wide — refuse unless another default exists.
+            await self._ensure_another_default_exists(group.id)
         # Reassign tenants on this group to ungrouped (→ default fallback). The FK
         # is ON DELETE SET NULL too, but doing it explicitly keeps behavior
         # identical across backends (SQLite in tests doesn't enforce FKs).
@@ -347,9 +357,21 @@ class FeatureFlagService:
 
     async def _require_group(self, group_id: int) -> FeatureFlagGroup:
         group = await self.group_repository.get_by_id(group_id)
-        if group is None:
-            raise ValueError('Feature group not found')
-        return group
+        return require_found(group, 'Feature group')
+
+    async def _ensure_another_default_exists(self, exclude_id: int) -> None:
+        """Raise unless a default group other than ``exclude_id`` exists.
+
+        Guards operations (delete, un-default) that would otherwise leave the
+        platform with zero default groups, silently turning off every
+        group-derived feature for ungrouped tenants.
+        """
+        groups = await self.group_repository.list_all()
+        if not any(g.is_default and g.id != exclude_id for g in groups):
+            raise ValueError(
+                'Cannot leave the platform without a default feature group. '
+                'Assign another group as the default first.'
+            )
 
     @staticmethod
     async def _ensure_super_admin(actor: Optional[User]) -> None:

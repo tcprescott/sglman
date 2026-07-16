@@ -52,10 +52,11 @@ class TestMatchWatchers:
             assert removed.status_code == 204
             assert (await c.get('/api/matches/watching')).json() == []
 
-    async def test_watch_missing_match_is_400(self, db, app):
+    async def test_watch_missing_match_is_404(self, db, app):
         _, raw = await create_user_token(username='fan')
         async with client_for(app, raw) as c:
-            assert (await c.post('/api/matches/999/watch')).status_code == 400
+            # Missing match -> NotFoundError -> 404 (audit §2B.6).
+            assert (await c.post('/api/matches/999/watch')).status_code == 404
 
     async def test_read_only_token_cannot_watch(self, db, app):
         _, raw = await create_user_token(username='fan', read_only=True)

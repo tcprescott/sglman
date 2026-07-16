@@ -27,6 +27,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import (
     AsyncQualifierLiveRaceRepository,
@@ -36,12 +37,13 @@ from application.repositories import (
     AsyncQualifierRunRepository,
     RacetimeRoomRepository,
 )
+from application.services import async_qualifier_access as access
 from application.services.async_qualifier_service import AsyncQualifierService
 from application.services.audit_service import AuditActions, AuditService
-from application.services.auth_service import AuthService
 from application.services.racetime_bot_service import RacetimeBotService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
+from application.utils.racetime_entrants import unmatched_handle
 from models import (
     AsyncQualifier,
     AsyncQualifierLiveRace,
@@ -86,9 +88,7 @@ class AsyncQualifierLiveRaceService:
         self, actor: Optional[User], qualifier_id: int
     ) -> List[AsyncQualifierLiveRace]:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         return await self.repository.list_for_qualifier(qualifier_id)
 
     async def get_live_race(self, actor: Optional[User], live_race_id: int) -> AsyncQualifierLiveRace:
@@ -110,9 +110,7 @@ class AsyncQualifierLiveRaceService:
     ) -> AsyncQualifierLiveRace:
         pool = await self._require_pool(pool_id)
         qualifier = await self._require_qualifier(pool.qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         match_title = (match_title or '').strip()
         if not match_title:
             raise ValueError("A race title is required")
@@ -214,7 +212,7 @@ class AsyncQualifierLiveRaceService:
         for entrant in entrants:
             user = by_rtid.get(entrant.user_id)
             if user is None:
-                unmatched.append(entrant.display_name or entrant.user_id)
+                unmatched.append(unmatched_handle(entrant))
                 continue
             run_status = _ENTRANT_TO_RUN_STATUS.get(entrant.status)
             if run_status is None:
@@ -281,29 +279,19 @@ class AsyncQualifierLiveRaceService:
         pool = getattr(live_race, 'pool', None)
         if isinstance(pool, AsyncQualifierPool):
             return pool.qualifier_id
-        loaded = await self.pool_repository.get_by_id(live_race.pool_id)
-        if loaded is None:
-            raise ValueError("Live race pool not found")
+        loaded = require_found(
+            await self.pool_repository.get_by_id(live_race.pool_id), "Live race pool"
+        )
         return loaded.qualifier_id
 
     async def _require_qualifier(self, qualifier_id: int) -> AsyncQualifier:
-        qualifier = await self.qualifier_repository.get_by_id(qualifier_id)
-        if qualifier is None:
-            raise ValueError("Qualifier not found")
-        return qualifier
+        return await access.require_qualifier(self.qualifier_repository, qualifier_id)
 
     async def _require_pool(self, pool_id: int) -> AsyncQualifierPool:
-        pool = await self.pool_repository.get_by_id(pool_id)
-        if pool is None:
-            raise ValueError("Pool not found")
-        return pool
+        return await access.require_pool(self.pool_repository, pool_id)
 
     async def _require_live_race_admin(self, actor: Optional[User], live_race_id: int):
-        live_race = await self.repository.get_by_id(live_race_id)
-        if live_race is None:
-            raise ValueError("Live race not found")
+        live_race = require_found(await self.repository.get_by_id(live_race_id), "Live race")
         qualifier = await self._require_qualifier(await self._qualifier_id_of(live_race))
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         return live_race, qualifier

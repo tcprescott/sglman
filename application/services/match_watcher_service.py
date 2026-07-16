@@ -8,6 +8,7 @@ being a participant or crew member.
 
 from typing import List
 
+from application.errors import require_found
 from application.repositories import MatchRepository, MatchWatcherRepository
 from application.services.audit_service import AuditActions, AuditService
 from models import MatchWatcher, User
@@ -22,9 +23,10 @@ class MatchWatcherService:
         self.audit_service = AuditService()
 
     async def watch(self, match_id: int, user: User) -> MatchWatcher:
-        match = await self.match_repository.get_by_id(match_id, prefetch_relations=False)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = require_found(
+            await self.match_repository.get_by_id(match_id, prefetch_relations=False),
+            f"Match {match_id}",
+        )
         if match.confirmed_at is not None:
             raise ValueError("Match is already confirmed; no further updates will be sent.")
 

@@ -26,12 +26,14 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
+from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import RacetimeRoomRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
 from application.services.user_service import UserService
+from application.utils.racetime_entrants import unmatched_handle
 from models import (
     Match,
     MatchPlayers,
@@ -95,13 +97,8 @@ class RaceRoomService:
 
     async def manual_create_room(self, actor: Optional[User], match_id: int) -> RacetimeRoom:
         """Create a room on demand (STAFF / SYNC_ADMIN), ignoring the auto toggle."""
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor),
-            'You do not have permission to open a racetime room.',
-        )
-        match = await self._load_match(match_id)
-        if match is None:
-            raise ValueError('Match not found')
+        await AuthService.ensure_can_manage_sync(actor)
+        match = require_found(await self._load_match(match_id), 'Match')
         return await self.create_room_for_match(match, actor=actor)
 
     # ---- transitions -----------------------------------------------------
@@ -210,7 +207,7 @@ class RaceRoomService:
                 results[mp] = (rank, entrant.finish_time)
                 seen.add(entrant.user_id)
             else:
-                unmatched.append(entrant.display_name or entrant.user_id)
+                unmatched.append(unmatched_handle(entrant))
 
         for entrant in entrants:
             if entrant.user_id in seen:
@@ -219,7 +216,7 @@ class RaceRoomService:
             if mp is not None:
                 results[mp] = (None, None)  # forfeit / no-show / DQ
             elif entrant.status != EntrantStatus.DONE:
-                unmatched.append(entrant.display_name or entrant.user_id)
+                unmatched.append(unmatched_handle(entrant))
         return results, unmatched
 
     # ---- internals -------------------------------------------------------

@@ -4,10 +4,11 @@
 Commentator/Tracker signup row.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from api.dependencies import ServiceErrorRoute, require_write_actor
 from api.schemas.crew import CrewApprovalRequest
+from application.errors import require_found
 from application.services import CrewService
 from models import User
 
@@ -26,9 +27,9 @@ async def update_crew_approval(
     actor: User = Depends(require_write_actor),
 ):
     service = CrewService()
-    crew_member = await service.get_crew_member_by_id(crew_id, crew_type)
-    if crew_member is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Crew signup not found")
+    crew_member = require_found(
+        await service.get_crew_member_by_id(crew_id, crew_type), "Crew signup"
+    )
     await service.update_crew_approval(crew_member, crew_type, body.approved, actor=actor)
     return {"detail": "approved" if body.approved else "rejected"}
 

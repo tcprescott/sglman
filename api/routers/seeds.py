@@ -7,10 +7,11 @@ the existing :class:`SeedGenerationService`. Seed generation itself is ungated
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.seeds import RandomizerResponse, SeedGenerateRequest, SeedResponse
+from application.errors import require_found
 from application.services import SeedGenerationService
 from application.tenant_context import require_tenant_id
 from models import Preset, User
@@ -37,8 +38,8 @@ async def list_randomizers(actor: User = Depends(require_api_actor)):
 async def generate_seed(body: SeedGenerateRequest, actor: User = Depends(require_write_actor)):
     preset = None
     if body.preset_id is not None:
-        preset = await Preset.get_or_none(id=body.preset_id, tenant_id=require_tenant_id())
-        if preset is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found")
+        preset = require_found(
+            await Preset.get_or_none(id=body.preset_id, tenant_id=require_tenant_id()), "Preset"
+        )
     url = await SeedGenerationService().generate_seed(body.randomizer, preset)
     return SeedResponse(url=url)

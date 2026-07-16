@@ -161,6 +161,89 @@ STREAM_ROOM_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? '
 </q-td>'''
 
 
+# Read-only seed cell (no Generate button) — the variant the home schedule /
+# player dashboards embed via ``extra_slots``. Identical to ``SEED_SLOT`` minus
+# the roll button, so a viewer without a roll callback sees the value only.
+SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+    <span v-if="props.value">
+        <template v-if="/^https?:\\/\\//.test(props.value)">
+            <a :href="props.value" target="_blank" style="color: var(--sgl-link); text-decoration: underline;" :title="props.value">
+                {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
+            </a>
+        </template>
+        <template v-else>{{ props.value }}</template>
+    </span>
+</q-td>'''
+
+
+# Read-only state cell (icons + timestamps, no lifecycle action buttons) — the
+# variant the home schedule / player dashboards embed. The only divergence
+# between the two page copies is the ``Scheduled`` fallback: the schedule board
+# renders an icon + timestamp (``scheduled_detailed=True``); the player board
+# renders a plain label (``scheduled_detailed=False``). Everything else matches
+# byte-for-byte so pages can drop their inline templates.
+_STATE_READONLY_HEAD = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+                <!-- Confirmed state -->
+                <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="verified" class="st-ok" size="sm" />
+                        <span style="font-weight: 500;">{{ props.value }}</span>
+                    </div>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Finished state -->
+                <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="flag" class="st-pending" size="sm" />
+                        <span>{{ props.value }}</span>
+                    </div>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Started state -->
+                <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="play_arrow" class="st-live" size="sm" />
+                        <span>{{ props.value }}</span>
+                    </div>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
+                </div>
+                <!-- Checked In state -->
+                <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="check" class="st-neutral" size="sm" />
+                        <span>{{ props.value }}</span>
+                    </div>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
+                </div>
+'''
+
+_STATE_READONLY_SCHEDULED_DETAILED = '''                <!-- Scheduled state -->
+                <div v-else style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <q-icon name="schedule" class="st-neutral" size="sm" />
+                        <span>{{ props.value || 'Scheduled' }}</span>
+                    </div>
+                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
+                </div>
+            </q-td>'''
+
+_STATE_READONLY_SCHEDULED_PLAIN = '''                <!-- Scheduled state -->
+                <span v-else>{{ props.value || 'Scheduled' }}</span>
+            </q-td>'''
+
+
+def state_readonly_slot(*, scheduled_detailed: bool = True) -> str:
+    """Return the read-only match-state cell template.
+
+    ``scheduled_detailed=True`` renders the ``Scheduled`` fallback with an icon
+    and timestamp (home schedule board); ``False`` renders a plain label (player
+    dashboard). All other states render identically.
+    """
+    tail = (_STATE_READONLY_SCHEDULED_DETAILED if scheduled_detailed
+            else _STATE_READONLY_SCHEDULED_PLAIN)
+    return _STATE_READONLY_HEAD + tail
+
+
 # --- Parameterized slots (admin / admin+crud / non-admin collapsed) --------
 
 # Players: station shown only for admins; the self-acknowledge button and the

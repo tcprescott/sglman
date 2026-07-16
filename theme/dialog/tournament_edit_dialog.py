@@ -12,6 +12,7 @@ from application.services import (
 )
 from application.tenant_context import require_tenant_id
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.notify import notify_error
 
 
 class TournamentDialog:
@@ -149,12 +150,9 @@ class TournamentDialog:
                             with self.dialog:
                                 ui.notify('Linked and synced with Challonge.', color='positive')
                                 render_challonge_status()
-                        except ValueError as e:
+                        except (ValueError, PermissionError) as e:
                             with self.dialog:
-                                ui.notify(str(e), color='warning')
-                        except Exception as e:  # noqa: BLE001
-                            with self.dialog:
-                                ui.notify(f'Challonge link failed: {e}', color='negative')
+                                notify_error(e)
 
                     ui.button('Link & Sync', icon='sync', on_click=link_and_sync).props('flat color=primary')
 
@@ -263,12 +261,9 @@ class TournamentDialog:
                             dialog.close()
                             if self.on_submit:
                                 await self.on_submit(new_tournament)
-                except PermissionError as e:
+                except (ValueError, PermissionError) as e:
                     with self.dialog:
-                        ui.notify(str(e), color='negative')
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(f'Error: {str(e)}', color='negative')
+                        notify_error(e)
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

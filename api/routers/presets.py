@@ -7,7 +7,7 @@ service). Writes reject read-only tokens at the HTTP layer and are re-gated by
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.presets import (
@@ -15,6 +15,7 @@ from api.schemas.presets import (
     PresetResponse,
     PresetUpdateRequest,
 )
+from application.errors import require_found
 from application.services import PresetService
 from application.tenant_context import require_tenant_id
 from models import Preset, User
@@ -23,10 +24,9 @@ router = APIRouter(prefix="/presets", tags=["Presets"], route_class=ServiceError
 
 
 async def _load_preset_or_404(preset_id: int) -> Preset:
-    preset = await Preset.get_or_none(id=preset_id, tenant_id=require_tenant_id())
-    if preset is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found")
-    return preset
+    return require_found(
+        await Preset.get_or_none(id=preset_id, tenant_id=require_tenant_id()), "Preset"
+    )
 
 
 @router.get("", response_model=List[PresetResponse], summary="List presets")

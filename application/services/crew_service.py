@@ -10,6 +10,7 @@ from typing import Optional, Union
 from tortoise.transactions import in_transaction
 
 from application import match_events
+from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
@@ -56,9 +57,10 @@ class CrewService:
             raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
 
         # Get match with crew prefetched
-        match = await self.match_repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = require_found(
+            await self.match_repository.get_by_id(match_id, prefetch_relations=True),
+            f"Match {match_id}",
+        )
 
         # Crew signup closes once the match is finished. Enforced here (not in a
         # single caller) so the web UI, REST API, and Discord button all honor it.
@@ -113,9 +115,10 @@ class CrewService:
             raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
 
         # Get match with crew prefetched
-        match = await self.match_repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = require_found(
+            await self.match_repository.get_by_id(match_id, prefetch_relations=True),
+            f"Match {match_id}",
+        )
 
         # Find crew member
         crew_list = match.commentators if role == 'commentator' else match.trackers
@@ -227,9 +230,10 @@ class CrewService:
         only after an admin has approved it. Already-acknowledged assignments
         are treated as a no-op so double-clicks don't surface confusing errors.
         """
-        crew_member = await self.get_crew_member_by_id(crew_id, crew_type)
-        if crew_member is None:
-            raise ValueError(f"{crew_type.capitalize()} assignment not found.")
+        crew_member = require_found(
+            await self.get_crew_member_by_id(crew_id, crew_type),
+            f"{crew_type.capitalize()} assignment",
+        )
 
         await crew_member.fetch_related('user', 'match')
 

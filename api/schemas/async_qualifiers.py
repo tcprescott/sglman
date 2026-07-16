@@ -150,6 +150,7 @@ class AsyncQualifierRunResponse(BaseModel):
     qualifier_id: int
     user_id: int
     permalink_id: Optional[int] = None
+    live_race_id: Optional[int] = None
     status: AsyncQualifierRunStatus
     review_status: AsyncQualifierReviewStatus
     started_at: Optional[datetime] = None

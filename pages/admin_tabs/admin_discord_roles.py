@@ -4,6 +4,7 @@ import secrets
 from urllib.parse import quote
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.services import (
     AuthService,
@@ -68,7 +69,7 @@ async def admin_discord_roles_page() -> None:
                     return
                 await DiscordLinkService.disconnect(current, tenant)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Discord server disconnected.', color='positive')
             ui.navigate.to(admin_path)
@@ -142,7 +143,7 @@ async def admin_discord_roles_page() -> None:
                     current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     await service.remove_mapping(row['id'], current)
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Mapping removed', color='positive')
                 await refresh_table()
@@ -164,7 +165,7 @@ async def admin_discord_roles_page() -> None:
                     current = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                     result = await service.sync_all_users(current)
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify(
                     f"Synced {result['users_processed']} users: "
@@ -203,7 +204,7 @@ async def admin_discord_roles_page() -> None:
                                 actor=current,
                             )
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
                             return
                         dialog.close()
                         ui.notify('Mapping added', color='positive')

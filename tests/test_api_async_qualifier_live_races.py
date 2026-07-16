@@ -167,14 +167,15 @@ class TestWrites:
             )
             assert resp.status_code == 400
 
-    async def test_create_missing_pool_bad_request(self, db, app):
+    async def test_create_missing_pool_not_found(self, db, app):
         _, raw = await _admin_token()
         async with client_for(app, raw) as c:
             resp = await c.post(
                 '/api/async-qualifiers/live-races',
                 json={'pool_id': 9999, 'match_title': 'Race'},
             )
-            assert resp.status_code == 400
+            # Missing referenced entity -> NotFoundError -> 404 (audit §2B.6).
+            assert resp.status_code == 404
 
     async def test_open_room_missing_is_404(self, db, app):
         _, raw = await _admin_token()

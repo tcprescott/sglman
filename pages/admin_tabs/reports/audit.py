@@ -3,44 +3,25 @@
 Server-side paginated, filterable view of the AuditLog table.
 """
 
-import json
-from typing import Any, Optional
+from typing import Optional
 
 from nicegui import ui
 
 from application.services import AuditService
 from application.utils.timezone import format_eastern_display
 from .shared import (
-    csv_export_button,
     date_range_filter,
     default_date_range,
     eastern_bounds,
     navigate_with_params,
+    paginated_event_log,
+    parse_details,
     parse_int,
     report_page_shell,
 )
 
 
 PAGE_SIZE = 50
-
-
-def _parse_details(raw: Optional[str]) -> tuple[Optional[Any], str]:
-    """Return (parsed_json_or_none, display_text).
-
-    Legacy rows store plain-text details — those parse to None and display
-    as-is. New rows store JSON and display pretty-printed.
-    """
-    if not raw:
-        return None, ''
-    try:
-        parsed = json.loads(raw)
-    except (ValueError, TypeError):
-        return None, raw
-    if parsed is None:
-        return None, ''
-    if isinstance(parsed, (dict, list)):
-        return parsed, json.dumps(parsed, indent=2, sort_keys=True)
-    return parsed, str(parsed)
 
 
 async def audit_page(
@@ -107,7 +88,7 @@ async def audit_page(
 
         rows = []
         for log in logs:
-            _, display = _parse_details(log.details)
+            _, display = parse_details(log.details)
             truncated = display[:200] + ('…' if len(display) > 200 else '')
             rows.append({
                 'log_id': log.id,
@@ -125,80 +106,38 @@ async def audit_page(
             {'name': 'details', 'label': 'Details', 'field': 'details', 'sortable': False},
         ]
 
-        with ui.card().classes('full-width q-pa-md'):
-            with ui.row().classes('items-center justify-between full-width'):
-                ui.label(f'{total} entries').classes('text-h6')
-                csv_export_button(
-                    f'audit-log-page-{page_int}-{start_d}-to-{end_d}',
-                    lambda: columns,
-                    lambda: rows,
+        def _on_user_click(row: dict) -> None:
+            clicked_uid = row.get('user_id')
+            if clicked_uid:
+                navigate_with_params(
+                    report='audit',
+                    start=start_d, end=end_d,
+                    user_id=clicked_uid,
+                    action=action_filter or None,
                 )
 
-            def _on_user_click(e):
-                row = e.args[1] if isinstance(e.args, list) and len(e.args) > 1 else e.args
-                clicked_uid = row.get('user_id') if isinstance(row, dict) else None
-                if clicked_uid:
-                    navigate_with_params(
-                        report='audit',
-                        start=start_d, end=end_d,
-                        user_id=clicked_uid,
-                        action=action_filter or None,
-                    )
+        def _go_to_page(new_page: int) -> None:
+            navigate_with_params(
+                report='audit',
+                start=start_d, end=end_d,
+                user_id=user_id_int,
+                action=action_filter or None,
+                page=new_page,
+            )
 
-            table = ui.table(
-                columns=columns,
-                rows=rows,
-                row_key='log_id',
-            ).classes('full-width')
-            table.add_slot('body', r'''
-                <q-tr :props="props" @click="$parent.$emit('row-click', $event, props.row)" style="cursor: pointer">
-                    <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <template v-if="col.name !== 'details'">
-                            {{ col.value }}
-                        </template>
-                        <div v-else @click.stop>
-                            <q-expansion-item
-                                v-if="props.row.full_details && props.row.full_details.length > 0"
-                                dense
-                                dense-toggle
-                                switch-toggle-side
-                                :label="props.row.details"
-                                class="text-body2"
-                            >
-                                <pre class="q-mt-xs q-pa-sm bg-grey-2 text-body2" style="white-space: pre-wrap;">{{ props.row.full_details }}</pre>
-                            </q-expansion-item>
-                            <span v-else class="text-grey-7">—</span>
-                        </div>
-                    </q-td>
-                </q-tr>
-            ''')
-            table.on('row-click', _on_user_click)
-            ui.label(
+        paginated_event_log(
+            columns=columns,
+            rows=rows,
+            row_key='log_id',
+            total=total,
+            page=page_int,
+            page_size=PAGE_SIZE,
+            on_page=_go_to_page,
+            csv_filename_prefix=f'audit-log-page-{page_int}-{start_d}-to-{end_d}',
+            count_label=f'{total} entries',
+            note=(
                 'Click a row to filter by that user. Click the details cell to expand JSON. '
                 'Try action filters like "match." or "user.role_".'
-            ).classes('italic-note')
-
-            # Pager
-            total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-            with ui.row().classes('items-center q-mt-sm'):
-                ui.label(f'Page {page_int} of {total_pages}').classes('text-caption')
-                ui.button(
-                    'Previous', icon='chevron_left',
-                    on_click=lambda: navigate_with_params(
-                        report='audit',
-                        start=start_d, end=end_d,
-                        user_id=user_id_int,
-                        action=action_filter or None,
-                        page=page_int - 1,
-                    ),
-                ).props('flat dense').set_enabled(page_int > 1)
-                ui.button(
-                    'Next', icon='chevron_right',
-                    on_click=lambda: navigate_with_params(
-                        report='audit',
-                        start=start_d, end=end_d,
-                        user_id=user_id_int,
-                        action=action_filter or None,
-                        page=page_int + 1,
-                    ),
-                ).props('flat dense').set_enabled(page_int < total_pages)
+            ),
+            on_row_click=_on_user_click,
+        )

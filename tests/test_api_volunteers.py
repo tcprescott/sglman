@@ -345,12 +345,12 @@ class TestAssignments:
             assert resp.status_code == 200
             assert resp.json()['acknowledged_at'] is not None
 
-    async def test_acknowledge_not_found_bad_request(self, db, app):
-        """acknowledge raises ValueError (not a router 404) -> 400."""
+    async def test_acknowledge_not_found(self, db, app):
+        """acknowledge on a missing assignment raises NotFoundError -> 404 (audit §2B.6)."""
         _, raw = await create_user_token(username='vol')
         async with client_for(app, raw) as c:
             resp = await c.post('/api/volunteers/assignments/9999/acknowledge')
-            assert resp.status_code == 400
+            assert resp.status_code == 404
 
     async def test_acknowledge_other_users_assignment_bad_request(self, db, app):
         owner = await User.create(discord_id=6001, username='owner')

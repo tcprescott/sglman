@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 from typing import Any, Mapping, Optional
 
+from application.events import Event, event_bus
 from application.repositories.audit_repository import AuditRepository
 from application.tenant_context import get_current_tenant_id
 from models import AuditLog, User
@@ -357,6 +358,24 @@ class AuditService:
             action=action,
             details=_encode_details(enriched),
         )
+
+    async def write_and_publish(
+        self,
+        actor: User,
+        action: str,
+        details: Optional[Mapping[str, Any]],
+        event_type: str,
+    ) -> AuditLog:
+        """Write an audit row, then fire the matching event on the in-process bus.
+
+        Promotes the audit-then-publish pairing that services previously
+        hand-rolled into one call: the event carries the same ``details`` dict
+        and the same ``actor``. Publishing is synchronous, fire-and-forget, and
+        never raises, so a subscriber failure cannot roll back the audit write.
+        """
+        log = await self.write_log(actor, action, details)
+        event_bus.publish(Event.create(event_type, dict(details) if details else {}, actor))
+        return log
 
     async def get_logs_for_user(
         self,

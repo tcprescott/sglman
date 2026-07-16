@@ -3,6 +3,7 @@
 import json
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
@@ -136,7 +137,7 @@ async def admin_webhooks_page() -> None:
                 try:
                     await service.delete_webhook(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Webhook deleted', color='positive')
                 await refresh_table()
@@ -146,7 +147,7 @@ async def admin_webhooks_page() -> None:
                 try:
                     secret = await service.regenerate_secret(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 show_secret('New signing secret', secret)
 
@@ -155,7 +156,7 @@ async def admin_webhooks_page() -> None:
                 try:
                     deliveries = await service.list_deliveries(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 with ui.dialog() as dialog, ui.card().classes('w-[36rem]'):
                     ui.label(f"Recent deliveries — {row['name']}").classes('text-h6')
@@ -238,7 +239,7 @@ async def admin_webhooks_page() -> None:
                                 await refresh_table()
                                 show_secret('Webhook created — signing secret', webhook.secret)
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
 
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')

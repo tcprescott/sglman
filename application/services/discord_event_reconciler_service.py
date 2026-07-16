@@ -23,8 +23,6 @@ inside a ``tenant_scope`` the caller establishes.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -34,6 +32,7 @@ from application.events import Event, EventType, event_bus
 from application.repositories import DiscordScheduledEventRepository, MatchRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.discord_service import DiscordService
+from application.utils.hashing import stable_content_hash
 from models import DiscordEventSource, DiscordScheduledEvent, Match, Tenant, User
 
 logger = logging.getLogger(__name__)
@@ -259,9 +258,7 @@ class DiscordEventReconcilerService:
     def _content_hash(
         name: str, description: str, start: datetime, end: datetime, location: str,
     ) -> str:
-        blob = json.dumps(
-            {'name': name, 'description': description,
-             'start': start.isoformat(), 'end': end.isoformat(), 'location': location},
-            sort_keys=True,
-        )
-        return hashlib.sha256(blob.encode()).hexdigest()
+        return stable_content_hash({
+            'name': name, 'description': description,
+            'start': start.isoformat(), 'end': end.isoformat(), 'location': location,
+        })

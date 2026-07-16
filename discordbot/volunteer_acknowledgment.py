@@ -6,11 +6,13 @@ import logging
 
 import discord
 
-from application.utils.discord_messages import (
-    MSG_NO_ACCOUNT,
-    volunteer_ack_confirmation,
+from application.utils.discord_messages import volunteer_ack_confirmation
+from discordbot._ack_common import (
+    DMInteractionError,
+    make_acknowledged_view,
+    run_dm_interaction,
+    SendFn,
 )
-from discordbot._ack_common import make_acknowledged_view, send_ephemeral
 
 
 logger = logging.getLogger(__name__)
@@ -34,8 +36,14 @@ def make_volunteer_acknowledgment_view(assignment_id: int) -> discord.ui.View:
     return view
 
 
-async def _send(interaction: discord.Interaction, message: str) -> None:
-    await send_ephemeral(interaction, message, log_label=CUSTOM_ID_PREFIX)
+def _parse(custom_id: str) -> int:
+    parts = custom_id.split(':')
+    if len(parts) != 2:
+        raise DMInteractionError('Invalid interaction.')
+    try:
+        return int(parts[1])
+    except ValueError:
+        raise DMInteractionError('Invalid assignment ID.')
 
 
 async def handle_volunteer_acknowledgment_interaction(interaction: discord.Interaction) -> None:
@@ -43,52 +51,32 @@ async def handle_volunteer_acknowledgment_interaction(interaction: discord.Inter
 
     custom_id format: 'volunteer_ack:<assignment_id>'
     """
-    from application.services import UserService, VolunteerScheduleService
-    from application.tenant_context import tenant_scope
+    from application.services import VolunteerScheduleService
     from discordbot._tenant import assignment_tenant_id
 
-    try:
-        await interaction.response.defer(ephemeral=True)
-    except Exception:
-        logger.exception("Failed to defer Discord volunteer_ack interaction")
+    async def resolve_tenant(assignment_id: int):
+        return await assignment_tenant_id(assignment_id)
 
-    custom_id = (interaction.data or {}).get('custom_id', '')
-    parts = custom_id.split(':')
-    if len(parts) != 2:
-        await _send(interaction, 'Invalid interaction.')
-        return
-    try:
-        assignment_id = int(parts[1])
-    except ValueError:
-        await _send(interaction, 'Invalid assignment ID.')
-        return
-
-    try:
-        tenant_id = await assignment_tenant_id(assignment_id)
-        if tenant_id is None:
-            await _send(interaction, 'Assignment not found.')
-            return
-
-        with tenant_scope(tenant_id):
-            user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-            if not user:
-                await _send(interaction, MSG_NO_ACCOUNT)
-                return
-
-            assignment = await VolunteerScheduleService().acknowledge(assignment_id, user)
-            position_name = (
-                assignment.shift.position.name
-                if assignment.shift and assignment.shift.position else 'volunteer'
-            )
+    async def handle(inter: discord.Interaction, assignment_id: int, user, send: SendFn) -> None:
+        assignment = await VolunteerScheduleService().acknowledge(assignment_id, user)
+        position_name = (
+            assignment.shift.position.name
+            if assignment.shift and assignment.shift.position else 'volunteer'
+        )
 
         try:
-            await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))
+            await inter.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))
         except Exception:
             logger.warning("Could not disable volunteer_ack button (assignment_id=%s)", assignment_id)
 
-        await _send(interaction, volunteer_ack_confirmation(position_name))
-    except ValueError as e:
-        await _send(interaction, str(e))
-    except Exception:
-        logger.exception("Volunteer acknowledgment handler failed (assignment_id=%s)", assignment_id)
-        await _send(interaction, MSG_UNEXPECTED_ERROR)
+        await send(volunteer_ack_confirmation(position_name))
+
+    await run_dm_interaction(
+        interaction,
+        log_label=CUSTOM_ID_PREFIX,
+        parse=_parse,
+        resolve_tenant=resolve_tenant,
+        not_found_message='Assignment not found.',
+        handle=handle,
+        unexpected_error_message=MSG_UNEXPECTED_ERROR,
+    )

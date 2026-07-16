@@ -6,6 +6,7 @@ Records in-app feedback from logged-in attendees and lets staff review it.
 
 from typing import List
 
+from application.errors import require_found
 from application.repositories.feedback_repository import FeedbackRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -67,9 +68,7 @@ class FeedbackService:
             await AuthService.can_view_admin(actor),
             "Only admins can review feedback.",
         )
-        feedback = await self.repository.get_by_id(feedback_id)
-        if feedback is None:
-            raise ValueError("Feedback not found.")
+        feedback = require_found(await self.repository.get_by_id(feedback_id), "Feedback")
 
         await self.repository.set_status(feedback, FeedbackStatus.REVIEWED)
         await self.audit_service.write_log(

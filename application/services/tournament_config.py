@@ -15,7 +15,9 @@ cross-cutting messaging-templates facet.
 
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict
+
+from application.utils.config_validation import validate_config_blob
 
 
 class TournamentConfig(BaseModel):
@@ -45,12 +47,4 @@ def validate_tournament_config(
     keys dropped. Raises :class:`ValueError` on any unknown key or bad value, so
     the service layer can surface it the same as every other user error.
     """
-    if config is None:
-        return None
-    if not isinstance(config, dict):
-        raise ValueError("Tournament config must be an object")
-    try:
-        model = TournamentConfig.model_validate(config)
-    except ValidationError as exc:
-        raise ValueError(f"Invalid tournament config: {exc}") from exc
-    return model.model_dump(exclude_none=True)
+    return validate_config_blob(config, TournamentConfig, "tournament")

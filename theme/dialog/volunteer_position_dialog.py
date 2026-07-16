@@ -5,6 +5,7 @@ from nicegui import app, ui
 from application.services import get_user_from_discord_id
 from application.services.volunteer_position_service import VolunteerPositionService
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.notify import notify_error
 from models import VolunteerPosition
 
 
@@ -78,12 +79,9 @@ class VolunteerPositionDialog:
                     dialog.close()
                     if self.on_submit:
                         await self.on_submit(result)
-                except PermissionError as e:
+                except (ValueError, PermissionError) as e:
                     with self.dialog:
-                        ui.notify(str(e), color='negative')
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(f'Error: {str(e)}', color='negative')
+                        notify_error(e)
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

@@ -9,6 +9,7 @@ from models import Match, StationFormat
 from application.services import MatchService, get_user_from_discord_id
 from application.services.system_config_service import SystemConfigService
 from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.notify import notify_error
 
 _STATION_REGEXES = {
     StationFormat.FREE:         re.compile(r'^.{0,50}$'),
@@ -120,9 +121,5 @@ class StationAssignmentDialog:
 
             self.dialog.close()
 
-        except PermissionError as e:
-            ui.notify(str(e), color='negative')
-        except ValueError as e:
-            ui.notify(f'Error: {str(e)}', color='negative')
-        except Exception as e:
-            ui.notify(f'Error assigning stations: {str(e)}', color='negative')
+        except (ValueError, PermissionError) as e:
+            notify_error(e)

@@ -12,6 +12,7 @@ from application.utils.timezone import (
 )
 from models import VolunteerPosition, VolunteerShift
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.notify import notify_error
 
 
 class VolunteerShiftDialog:
@@ -117,12 +118,9 @@ class VolunteerShiftDialog:
                     dialog.close()
                     if self.on_submit:
                         await self.on_submit(result)
-                except PermissionError as e:
+                except (ValueError, PermissionError) as e:
                     with self.dialog:
-                        ui.notify(str(e), color='negative')
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(f'Error: {str(e)}', color='negative')
+                        notify_error(e)
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')

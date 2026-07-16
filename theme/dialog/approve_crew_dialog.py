@@ -5,6 +5,7 @@ from nicegui import app, ui
 from models import Commentator, Tracker
 from application.services import CrewService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.notify import notify_error
 
 
 class ApproveCrewDialog:
@@ -37,10 +38,8 @@ class ApproveCrewDialog:
                         if self.on_approve:
                             await self.on_approve()
                         self.dialog.close()
-                    except PermissionError as e:
-                        ui.notify(str(e), color='negative')
-                    except ValueError as e:
-                        ui.notify(f'Error: {str(e)}', color='negative')
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
 
                 with dialog_actions().classes('justify-end'):
                     ui.button('Cancel', on_click=self.dialog.close).props('flat')

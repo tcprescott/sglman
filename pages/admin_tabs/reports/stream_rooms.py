@@ -13,6 +13,7 @@ from application.utils.timezone import format_eastern_display
 from .shared import (
     CHART_GOLD,
     CHART_NEUTRAL,
+    clicked_row,
     csv_export_button,
     date_range_filter,
     default_date_range,
@@ -113,8 +114,7 @@ async def stream_rooms_page(
                 )
 
             def _row_clicked(e):
-                row = e.args[1] if isinstance(e.args, list) and len(e.args) > 1 else e.args
-                rid = row.get('stream_room_id') if isinstance(row, dict) else None
+                rid = clicked_row(e).get('stream_room_id')
                 if rid:
                     navigate_with_params(
                         report='stream_rooms',

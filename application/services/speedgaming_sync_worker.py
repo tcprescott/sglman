@@ -12,18 +12,14 @@ Per-link failures are logged and retried next tick — one bad event slug never
 stops the others, and the loop itself never dies.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
-from application.tenant_context import tenant_scope
+from application.utils.background_loop import for_each_tenant_scoped, run_worker_loop
 
 logger = logging.getLogger(__name__)
 
 TICK_SECONDS = 60
-
-_task: Optional[asyncio.Task] = None
 
 
 async def _tick() -> None:
@@ -42,48 +38,33 @@ async def _tick() -> None:
     system_user = await UserService().get_system_user()
     etl = SpeedGamingETLService()
 
-    for link in links:
-        tenant_id = link.tenant_id
-        if tenant_id is None:
-            continue
+    async def _sync(link) -> None:
         interval = timedelta(minutes=link.sync_interval_minutes or 15)
         if link.last_synced_at is not None and now - link.last_synced_at < interval:
-            continue  # not due yet on this link's cadence
-        try:
-            with tenant_scope(tenant_id):
-                if not await FeatureFlagService().is_enabled(FeatureFlag.SPEEDGAMING_ETL):
-                    continue  # tenant has SpeedGaming sync disabled
-                result = await etl.sync_event_link(link, actor=system_user, now=now)
-            logger.info(
-                'SG sync for link %s (%s): %s',
-                link.id, link.event_slug, result.as_dict(),
-            )
-        except Exception:
-            logger.exception('SG sync failed for event link %s', getattr(link, 'id', None))
+            return  # not due yet on this link's cadence
+        if not await FeatureFlagService().is_enabled(FeatureFlag.SPEEDGAMING_ETL):
+            return  # tenant has SpeedGaming sync disabled
+        result = await etl.sync_event_link(link, actor=system_user, now=now)
+        logger.info(
+            'SG sync for link %s (%s): %s',
+            link.id, link.event_slug, result.as_dict(),
+        )
+
+    await for_each_tenant_scoped(
+        links,
+        _sync,
+        tenant_id_of=lambda link: link.tenant_id,
+        logger=logger,
+        describe=lambda link: f'event link {getattr(link, "id", None)}',
+    )
 
 
-async def _loop() -> None:
-    while True:
-        try:
-            await _tick()
-        except Exception as e:  # never let the loop die
-            logger.exception('SpeedGaming sync tick failed: %s', e)
-        await asyncio.sleep(TICK_SECONDS)
+_loop = run_worker_loop(_tick, TICK_SECONDS, 'SpeedGaming sync', logger)
 
 
 def start() -> None:
-    global _task
-    if _task is None:
-        _task = asyncio.get_event_loop().create_task(_loop())
+    _loop.start()
 
 
 async def stop() -> None:
-    global _task
-    if _task is None:
-        return
-    _task.cancel()
-    try:
-        await _task
-    except asyncio.CancelledError:
-        pass
-    _task = None
+    await _loop.stop()

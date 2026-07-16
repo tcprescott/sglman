@@ -10,6 +10,7 @@ this service is the human-driven surface.
 
 from typing import Any, Dict, List, Optional
 
+from application.errors import require_found
 from application.repositories import DiscordScheduledEventRepository, TournamentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -34,15 +35,11 @@ class DiscordEventSyncService:
         return await TenantService.get_by_id(require_tenant_id())
 
     async def list_tournaments(self, actor: Optional[User]) -> List[Tournament]:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         return await TournamentRepository.get_all()
 
     async def list_events(self, actor: Optional[User]) -> List[DiscordScheduledEvent]:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         return await self.repository.list_all()
 
     async def update_settings(
@@ -56,12 +53,10 @@ class DiscordEventSyncService:
         description_template: Optional[str] = None,
     ) -> Tournament:
         """Set a tournament's Discord-events opt-in + templating."""
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
+        await AuthService.ensure_can_manage_sync(actor)
+        tournament = require_found(
+            await TournamentRepository.get_by_id(tournament_id), "Tournament"
         )
-        tournament = await TournamentRepository.get_by_id(tournament_id)
-        if tournament is None:
-            raise ValueError("Tournament not found")
         changes: Dict[str, Any] = {}
         if enabled is not None:
             changes['discord_events_enabled'] = enabled
@@ -87,9 +82,7 @@ class DiscordEventSyncService:
         the system user). Raises :class:`ValueError` when no Discord server is
         linked — the mirror needs a verified guild.
         """
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage Discord events"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         tenant = await TenantService.get_by_id(require_tenant_id())
         if tenant is None:
             raise ValueError("No tenant in scope")

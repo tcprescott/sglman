@@ -14,6 +14,7 @@ tenant-facing :meth:`list_authorized_for_tenant` exposes only id/category/name.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from application.errors import require_found
 from application.repositories import RacetimeBotRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -77,8 +78,7 @@ class RacetimeBotService:
             raise ValueError('A bot name is required')
         if not client_id or not client_secret:
             raise ValueError('Both client id and client secret are required')
-        if await self.repository.get_by_category(category) is not None:
-            raise ValueError(f"A bot for category '{category}' already exists")
+        await self._ensure_category_available(category)
         bot = await self.repository.create(
             category=category,
             client_id=client_id,
@@ -115,9 +115,7 @@ class RacetimeBotService:
             if not new_category:
                 raise ValueError('A racetime category is required')
             if new_category != bot.category:
-                existing = await self.repository.get_by_category(new_category)
-                if existing is not None and existing.id != bot.id:
-                    raise ValueError(f"A bot for category '{new_category}' already exists")
+                await self._ensure_category_available(new_category, exclude_id=bot.id)
             changes['category'] = new_category
         if client_id is not None:
             new_client_id = (client_id or '').strip()
@@ -209,20 +207,9 @@ class RacetimeBotService:
         return await self.repository.get_by_id(bot_id)
 
     async def record_connected(self, bot_id: int, actor: User) -> None:
-        now = datetime.now(timezone.utc)
-        bot = await self.repository.get_by_id(bot_id)
-        if bot is None:
-            return
-        await self.repository.update(
-            bot,
-            status=BotStatus.CONNECTED,
-            status_message=None,
-            last_connected_at=now,
-            last_checked_at=now,
-        )
-        await self.audit_service.write_log(
-            actor, AuditActions.RACETIME_BOT_CONNECTED,
-            {'bot_id': bot_id, 'category': bot.category},
+        await self._write_status(
+            bot_id, actor, BotStatus.CONNECTED, AuditActions.RACETIME_BOT_CONNECTED,
+            mark_connected=True,
         )
 
     async def record_heartbeat(self, bot_id: int) -> None:
@@ -238,37 +225,17 @@ class RacetimeBotService:
     async def record_error(
         self, bot_id: int, actor: User, message: str, *, auth_failed: bool = False,
     ) -> None:
-        now = datetime.now(timezone.utc)
-        bot = await self.repository.get_by_id(bot_id)
-        if bot is None:
-            return
-        await self.repository.update(
-            bot,
-            status=BotStatus.ERROR,
-            status_message=(message or '').strip()[:2000] or None,
-            last_checked_at=now,
-        )
-        await self.audit_service.write_log(
-            actor, AuditActions.RACETIME_BOT_ERROR,
-            {'bot_id': bot_id, 'category': bot.category, 'auth_failed': auth_failed},
+        await self._write_status(
+            bot_id, actor, BotStatus.ERROR, AuditActions.RACETIME_BOT_ERROR,
+            message=message, detail_extra={'auth_failed': auth_failed},
         )
 
     async def mark_disconnected(
         self, bot_id: int, actor: User, message: Optional[str] = None,
     ) -> None:
-        now = datetime.now(timezone.utc)
-        bot = await self.repository.get_by_id(bot_id)
-        if bot is None:
-            return
-        await self.repository.update(
-            bot,
-            status=BotStatus.DISCONNECTED,
-            status_message=(message or '').strip()[:2000] or None,
-            last_checked_at=now,
-        )
-        await self.audit_service.write_log(
-            actor, AuditActions.RACETIME_BOT_DISCONNECTED,
-            {'bot_id': bot_id, 'category': bot.category},
+        await self._write_status(
+            bot_id, actor, BotStatus.DISCONNECTED, AuditActions.RACETIME_BOT_DISCONNECTED,
+            message=message,
         )
 
     # ---- tenant-facing read (no secret) ----------------------------------
@@ -288,14 +255,50 @@ class RacetimeBotService:
     # ---- internals -------------------------------------------------------
 
     async def _require(self, bot_id: int) -> RacetimeBot:
+        return require_found(await self.repository.get_by_id(bot_id), 'Racetime bot')
+
+    async def _ensure_category_available(
+        self, category: str, *, exclude_id: Optional[int] = None,
+    ) -> None:
+        """Reject a category already taken by a different bot (create + rename)."""
+        existing = await self.repository.get_by_category(category)
+        if existing is not None and existing.id != exclude_id:
+            raise ValueError(f"A bot for category '{category}' already exists")
+
+    async def _write_status(
+        self,
+        bot_id: int,
+        actor: User,
+        status: str,
+        audit_action: str,
+        *,
+        message: Optional[str] = None,
+        mark_connected: bool = False,
+        detail_extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Shared status-writer for the runtime health transitions.
+
+        Loads the bot (no-op if gone), stamps ``last_checked_at`` (and
+        ``last_connected_at`` on a successful connect), writes the cached status,
+        and audits it. ``message`` is trimmed/capped into ``status_message``;
+        a connect clears it.
+        """
+        now = datetime.now(timezone.utc)
         bot = await self.repository.get_by_id(bot_id)
         if bot is None:
-            raise ValueError('Racetime bot not found')
-        return bot
+            return
+        fields: Dict[str, Any] = {'status': status, 'last_checked_at': now}
+        if mark_connected:
+            fields['status_message'] = None
+            fields['last_connected_at'] = now
+        else:
+            fields['status_message'] = (message or '').strip()[:2000] or None
+        await self.repository.update(bot, **fields)
+        detail: Dict[str, Any] = {'bot_id': bot_id, 'category': bot.category}
+        if detail_extra:
+            detail.update(detail_extra)
+        await self.audit_service.write_log(actor, audit_action, detail)
 
     @staticmethod
     async def _ensure_super_admin(actor: Optional[User]) -> None:
-        await AuthService.ensure(
-            await AuthService.is_super_admin(actor),
-            'Only super-admins can manage racetime bots',
-        )
+        await AuthService.ensure_super_admin(actor)

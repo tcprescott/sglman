@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
+from application.errors import require_found
 from application.repositories import ChallongeRepository, TournamentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -347,9 +348,9 @@ class ChallongeService:
         return slug or value
 
     async def link_tournament(self, tournament_id: int, id_or_url: str, actor: User) -> Tournament:
-        tournament = await self.tournament_repository.get_by_id(tournament_id)
-        if tournament is None:
-            raise ValueError(f"Tournament {tournament_id} not found")
+        tournament = require_found(
+            await self.tournament_repository.get_by_id(tournament_id), f"Tournament {tournament_id}"
+        )
         await AuthService.ensure(
             await AuthService.can_edit_tournament(actor, tournament),
             "You do not have permission to link this tournament",
@@ -377,9 +378,9 @@ class ChallongeService:
         return tournament
 
     async def sync_bracket(self, tournament_id: int, actor: User, force: bool = False) -> Dict[str, int]:
-        tournament = await self.tournament_repository.get_by_id(tournament_id)
-        if tournament is None:
-            raise ValueError(f"Tournament {tournament_id} not found")
+        tournament = require_found(
+            await self.tournament_repository.get_by_id(tournament_id), f"Tournament {tournament_id}"
+        )
         await AuthService.ensure(
             await AuthService.can_edit_tournament(actor, tournament),
             "You do not have permission to sync this tournament",
@@ -487,9 +488,9 @@ class ChallongeService:
         actor: User,
         comment: Optional[str] = None,
     ) -> Match:
-        cmatch = await self.repository.get_match(challonge_match_pk)
-        if cmatch is None:
-            raise ValueError("Challonge match not found")
+        cmatch = require_found(
+            await self.repository.get_match(challonge_match_pk), "Challonge match"
+        )
         if cmatch.match_id is not None:
             raise ValueError("This match has already been scheduled.")
         if cmatch.state != ChallongeMatchState.OPEN:

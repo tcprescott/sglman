@@ -7,6 +7,7 @@ from nicegui import app, ui
 from application.services import MatchService, get_user_from_discord_id
 from models import Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
+from theme.notify import notify_error
 
 
 class MatchResultDialog:
@@ -103,14 +104,8 @@ class MatchResultDialog:
                 winner_id=winner_id,
                 actor=actor,
             )
-        except PermissionError as e:
-            ui.notify(str(e), color='negative')
-            return
-        except ValueError as e:
-            ui.notify(str(e), color='warning')
-            return
-        except Exception as e:
-            ui.notify(f'Error saving results: {str(e)}', color='negative')
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
             return
 
         winner = next((p for p in self.match.players if p.id == winner_id), None)

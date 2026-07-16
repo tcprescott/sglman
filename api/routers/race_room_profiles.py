@@ -2,7 +2,7 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.race_room_profiles import (
@@ -10,6 +10,7 @@ from api.schemas.race_room_profiles import (
     RaceRoomProfileResponse,
     RaceRoomProfileUpdateRequest,
 )
+from application.errors import require_found
 from application.services import RaceRoomProfileService
 from application.tenant_context import require_tenant_id
 from models import RaceRoomProfile, User
@@ -18,10 +19,10 @@ router = APIRouter(prefix="/race-room-profiles", tags=["Race room profiles"], ro
 
 
 async def _load_or_404(profile_id: int) -> RaceRoomProfile:
-    profile = await RaceRoomProfile.get_or_none(id=profile_id, tenant_id=require_tenant_id())
-    if profile is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Race room profile not found")
-    return profile
+    return require_found(
+        await RaceRoomProfile.get_or_none(id=profile_id, tenant_id=require_tenant_id()),
+        "Race room profile",
+    )
 
 
 @router.get("", response_model=List[RaceRoomProfileResponse], summary="List race room profiles")

@@ -8,6 +8,7 @@ The mirror needs a **linked Discord server** — the page surfaces that up front
 """
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.services import (
     DiscordEventSyncService,
@@ -106,7 +107,7 @@ async def admin_discord_events_page() -> None:
                 try:
                     result = await service.reconcile_now(await _current())
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 if result.errors:
                     ui.notify(
@@ -152,7 +153,7 @@ async def admin_discord_events_page() -> None:
                             dialog.close()
                             await refresh_tables()
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
 
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')

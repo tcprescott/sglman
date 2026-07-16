@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from nicegui import app, ui
+from theme.notify import notify_error
 
 from application.services import AuthService, SystemConfigService, get_user_from_discord_id
 from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
@@ -156,7 +157,7 @@ async def admin_volunteers_page() -> None:
                         await schedule_service.unassign(actor, a)
                         ui.notify('Removed assignment.', color='info')
                     except (ValueError, PermissionError) as e:
-                        ui.notify(str(e), color='warning')
+                        notify_error(e)
                     finally:
                         # The chip already removed itself client-side; refresh to
                         # re-sync regardless of whether the service call succeeded.
@@ -171,7 +172,7 @@ async def admin_volunteers_page() -> None:
                             await schedule_service.check_in(a_id, actor)
                             ui.notify('Volunteer checked in.', color='positive')
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
                         grid.refresh()
                     ui.button(icon='login', on_click=do_check_in) \
                         .props('flat dense color=teal').tooltip('Check in volunteer')
@@ -253,7 +254,7 @@ async def admin_volunteers_page() -> None:
                     try:
                         _, warnings = await schedule_service.assign(actor, shift, u)
                     except (ValueError, PermissionError) as e:
-                        ui.notify(str(e), color='warning')
+                        notify_error(e)
                         return
                     for w in warnings:
                         ui.notify(w, color='warning')
@@ -269,7 +270,7 @@ async def admin_volunteers_page() -> None:
                     actor, state['day'], [position.id], STANDARD_BLOCKS,
                 )
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify(f'Generated shifts for {position.name} (staggered where configured).',
                       color='positive')
@@ -294,7 +295,7 @@ async def admin_volunteers_page() -> None:
                 try:
                     await schedule_service.delete_shift(actor, shift)
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Shift deleted.', color='info')
                 grid.refresh()
@@ -307,7 +308,7 @@ async def admin_volunteers_page() -> None:
             try:
                 result = await autoschedule_service.generate_draft(actor, win_start, win_end)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             unfilled = sum(u['open'] for u in result['unfilled'])
             ui.notify(
@@ -322,7 +323,7 @@ async def admin_volunteers_page() -> None:
             try:
                 removed = await autoschedule_service.clear_draft(actor, win_start, win_end)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
             grid.refresh()
@@ -348,7 +349,7 @@ async def admin_volunteers_page() -> None:
                         try:
                             deleted = await schedule_service.reset_all_shifts(actor)
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
                             return
                         ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
                         grid.refresh()

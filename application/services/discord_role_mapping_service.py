@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import List, Set
 
+from application.errors import require_found
 from application.repositories.discord_role_mapping_repository import DiscordRoleMappingRepository
 from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
@@ -71,9 +72,7 @@ class DiscordRoleMappingService:
             await AuthService.can_grant_roles(actor),
             "Only Staff can manage Discord role mappings",
         )
-        mapping = await self.mapping_repository.get_by_id(mapping_id)
-        if mapping is None:
-            raise ValueError("Mapping not found")
+        mapping = require_found(await self.mapping_repository.get_by_id(mapping_id), "Mapping")
         details = {
             'guild_id': mapping.guild_id,
             'discord_role_id': mapping.discord_role_id,
