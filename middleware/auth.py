@@ -12,7 +12,13 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.telemetry_service import TelemetryService
-from application.tenant_context import get_current_tenant_id, stash_client_tenant_id, tenant_scope
+from application.tenant_context import (
+    get_current_tenant_id,
+    is_host_mode,
+    stash_client_host_mode,
+    stash_client_tenant_id,
+    tenant_scope,
+)
 from models import FeatureFlag, Role
 
 
@@ -138,6 +144,9 @@ def protected_page(
             # Stash the tenant onto the connection so websocket UI event handlers
             # (which run outside any request) can resolve it via the fallback.
             stash_client_tenant_id(tid)
+            # Carry host mode too, so custom-domain-only affordances (e.g. the
+            # Discord-connect button) can hide in websocket event handlers.
+            stash_client_host_mode(is_host_mode())
 
             # Feature gate (before the role gate): a subsystem the tenant hasn't
             # enabled is hidden from everyone — 404, like an unknown route — so a

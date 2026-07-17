@@ -2,7 +2,12 @@ from fastapi import Request
 from nicegui import app, ui
 
 from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
-from application.tenant_context import get_current_tenant_id, stash_client_tenant_id
+from application.tenant_context import (
+    get_current_tenant_id,
+    is_host_mode,
+    stash_client_host_mode,
+    stash_client_tenant_id,
+)
 from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.equipment import equipment_tab
@@ -44,6 +49,8 @@ def create() -> None:
             return
         # Stash the tenant onto the connection so websocket UI handlers resolve it.
         stash_client_tenant_id(tid)
+        # Carry host mode too, so link-section buttons can hide on a custom domain.
+        stash_client_host_mode(is_host_mode())
 
         ui.page_title('Speedgaming Live Onsite')
         discord_id = app.storage.user.get('discord_id', None)

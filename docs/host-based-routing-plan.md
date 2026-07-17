@@ -1,6 +1,10 @@
 # Host-based tenant routing — implementation plan
 
-**Status:** proposal, not implemented. Design only.
+**Status:** **Phase 1 implemented** (Design A — host-local Discord login). The
+resolution branch, `Tenant.domain` normalization, the canonical `redirect_uri`
+builder, secondary-provider gating, config, seed, and tests are shipped; the
+sections below are retained as the design record. Phase 2 (§11) remains a
+proposal.
 **Depends on:** the shipped [multitenancy](features/multitenancy.md) layer.
 **Supersedes:** the "deferred host-mode addressing" note in
 [multitenancy-plan.md](multitenancy-plan.md) (Phase 3/4) — this doc is the

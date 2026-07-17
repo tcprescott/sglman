@@ -28,7 +28,7 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
 from application.utils.mock_challonge import is_mock_challonge
-from pages._oauth_link import read_callback_code, returned_state
+from pages._oauth_link import platform_link_redirect, read_callback_code, returned_state
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,11 @@ _PROFILE_RETURN = '/home/profile'
 def create() -> None:
     @ui.page('/challonge/connect')
     async def challonge_connect(request: Request) -> RedirectResponse:
+        # Custom domain: the shared callback is on the platform host, so bounce
+        # there rather than silently failing to complete the connection.
+        detour = await platform_link_redirect(_ADMIN_RETURN)
+        if detour:
+            return RedirectResponse(detour)
         # Initiation runs with tenant context; the shared callback lands on the
         # bare platform host, so pin the tenant-qualified return here.
         root_path = request.scope.get('root_path', '') or ''
@@ -86,6 +91,9 @@ def create() -> None:
 
     @ui.page('/challonge/link')
     async def challonge_link(request: Request) -> RedirectResponse:
+        detour = await platform_link_redirect(_PROFILE_RETURN)
+        if detour:
+            return RedirectResponse(detour)
         root_path = request.scope.get('root_path', '') or ''
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:

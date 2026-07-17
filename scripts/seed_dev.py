@@ -56,10 +56,13 @@ from scripts.seed_online import (
 
 
 # Two dev tenants. Tenant A reuses the migration's ``default`` slug; on a fresh
-# dev DB the backfill creates it empty and this adopts it.
+# dev DB the backfill creates it empty and this adopts it. Tenant B carries a
+# custom ``domain`` so host-based routing is exercisable locally: browsers
+# resolve ``*.localhost`` to 127.0.0.1, so http://second.localhost:8000/ serves
+# the second community with no /etc/hosts edit.
 TENANT_SPECS = [
-    ("default", "SGL Default", 1000000000000000001, "a"),
-    ("second", "Second Community", 1000000000000000002, "b"),
+    ("default", "SGL Default", 1000000000000000001, "a", None),
+    ("second", "Second Community", 1000000000000000002, "b", "second.localhost:8000"),
 ]
 
 
@@ -769,15 +772,20 @@ async def seed() -> None:
         users = await seed_users()
         bots = await seed_racetime_bots()
         groups = await seed_feature_groups()
-        for slug, name, guild_id, _label in TENANT_SPECS:
+        for slug, name, guild_id, _label, domain in TENANT_SPECS:
             tenant, created = await Tenant.get_or_create(
-                slug=slug, defaults={"name": name, "discord_guild_id": guild_id},
+                slug=slug,
+                defaults={"name": name, "discord_guild_id": guild_id, "domain": domain},
             )
             # The migration backfills the ``default`` tenant with the guild id
             # from config (NULL on a fresh dev DB); give it a dev guild so the
             # role-mapping fixtures below have a non-null guild to attach to.
             if tenant.discord_guild_id is None:
                 tenant.discord_guild_id = guild_id
+                await tenant.save()
+            # Idempotently adopt the custom domain (e.g. on a pre-existing dev DB).
+            if domain and tenant.domain != domain:
+                tenant.domain = domain
                 await tenant.save()
             print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
             await seed_for_tenant(tenant, users, bots)

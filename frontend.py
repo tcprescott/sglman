@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
-from application.utils.environment import is_production, validate_security_config
+from application.utils.environment import get_platform_host, is_production, validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
 from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware
@@ -91,6 +91,14 @@ def init(fastapi_app: FastAPI) -> None:
     """
     # Refuse to start with an insecure session/DB configuration.
     validate_security_config()
+
+    # Log the resolved platform host so a proxy that isn't forwarding Host (which
+    # would make every configured custom domain silently render the platform
+    # surface) is diagnosable from startup logs.
+    logging.getLogger('sglman').info(
+        'Tenant routing: PLATFORM_HOST=%s (path mode /t/<slug> + host mode for custom domains)',
+        get_platform_host(),
+    )
 
     # Mount static files directory with no-cache in development
     fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")

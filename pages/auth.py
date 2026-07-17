@@ -27,11 +27,12 @@ from zenora import APIClient
 
 from application.services import DiscordLinkService, TenantService, UserService, get_user_from_discord_id
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
-from application.tenant_context import tenant_scope
+from application.tenant_context import get_current_tenant_id, is_host_mode, tenant_scope
 from application.utils.environment import get_base_url
+from application.utils.hostname import normalize_hostname
 from application.utils.mock_discord import is_mock_discord
 from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
-from models import Role, User
+from models import Role, Tenant, User
 
 logger = logging.getLogger(__name__)
 
@@ -49,19 +50,61 @@ discordClient = (
     if not is_mock_discord() else None
 )
 
-def _redirect_uri() -> str:
-    """Discord OAuth callback, resolved at request time.
+def _platform_redirect_uri() -> str:
+    """Discord OAuth callback on the platform host (path mode + platform surface).
 
-    Path-mode tenants and the platform surface share ``PLATFORM_HOST``, so one
-    registered redirect URI on that host serves every tenant; the tenant return
-    path is carried in the session (``referrer_path``), not the callback URL.
     Read lazily so a per-deploy override or ``BASE_URL`` change applies without
     reimporting (the old module-level build captured stale values at import).
     """
     return os.getenv("REDIRECT_URL") or f"{get_base_url()}/oauth/callback"
 
 
-def _oauth_url(state: str) -> str:
+def _is_local_host(host: str) -> bool:
+    """Whether ``host`` is a local dev host (so the callback may stay ``http``)."""
+    bare = host.split(':', 1)[0]
+    return bare == 'localhost' or bare.endswith('.localhost') or bare == '127.0.0.1'
+
+
+def _redirect_uri_for_tenant(tenant: Optional[Tenant]) -> str:
+    """The canonical Discord callback URI for a resolved tenant, or the platform.
+
+    Built from the tenant's **stored** ``domain`` (never a reflected ``Host``
+    header), so the ``/login`` authorize leg and the callback exchange leg
+    produce a byte-identical string — which Discord requires — and there is
+    nothing attacker-controlled to inject. ``https`` is forced for a real domain;
+    only a ``*.localhost`` dev host keeps ``http``. Off a custom domain (platform
+    host, or an unresolved tenant) it is the shared platform callback.
+    """
+    if tenant is not None and tenant.domain:
+        scheme = 'http' if _is_local_host(tenant.domain) else 'https'
+        return f'{scheme}://{tenant.domain}/oauth/callback'
+    return _platform_redirect_uri()
+
+
+async def _host_mode_tenant() -> Optional[Tenant]:
+    """The tenant when this request is on its own custom domain, else None."""
+    if not is_host_mode():
+        return None
+    tid = get_current_tenant_id()
+    return await TenantService.get_by_id(tid) if tid is not None else None
+
+
+async def _callback_tenant(url: str) -> Optional[Tenant]:
+    """Resolve the tenant a callback landed on, from its browser URL host.
+
+    ``window.location.href`` is the real address the browser is on (not a
+    spoofable header), so its host names the custom domain when the callback ran
+    in host mode; resolving that back to the tenant reproduces the exact
+    ``redirect_uri`` the ``/login`` leg sent.
+    """
+    host = normalize_hostname(urlparse(url).netloc)
+    if not host:
+        return None
+    tenant = await TenantService.get_by_domain(host)
+    return tenant if (tenant is not None and tenant.is_active) else None
+
+
+def _oauth_url(state: str, redirect_uri: str) -> str:
     """Discord authorize URL for this login attempt, built at request time."""
     explicit = os.getenv("OAUTH_URL")
     if explicit:
@@ -69,7 +112,7 @@ def _oauth_url(state: str) -> str:
         return f'{explicit}{sep}state={quote(state, safe="")}'
     params = urlencode({
         'client_id': _client_id or '',
-        'redirect_uri': _redirect_uri(),
+        'redirect_uri': redirect_uri,
         'response_type': 'code',
         'scope': 'identify',
         'state': state,
@@ -159,18 +202,22 @@ def create() -> None:
         return
 
     @ui.page('/login')
-    def login(request: Request, client: Client) -> Optional[RedirectResponse]:
+    async def login(request: Request, client: Client) -> Optional[RedirectResponse]:
         root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
             return RedirectResponse(tenant_home(root_path))
-        # Pin the post-login return to this tenant before leaving for Discord —
-        # the callback lands on the bare platform host with no tenant in scope.
+        # Pin the post-login return to this tenant before leaving for Discord. In
+        # path mode the callback lands on the bare platform host; in host mode it
+        # lands on this same custom domain (so the session cookie is visible).
         app.storage.user['referrer_path'] = _sanitized_return(root_path)
         # CSRF protection: bind this login attempt to a one-time state token
         # that must come back on the OAuth callback.
         state = secrets.token_urlsafe(32)
         app.storage.user['oauth_state'] = state
-        return RedirectResponse(_oauth_url(state))
+        # On a custom domain the whole flow completes on that host, so the
+        # redirect_uri points at it — built from the tenant's stored domain.
+        tenant = await _host_mode_tenant()
+        return RedirectResponse(_oauth_url(state, _redirect_uri_for_tenant(tenant)))
 
     @ui.page('/logout')
     def logout(request: Request, client: Client) -> Optional[RedirectResponse]:
@@ -207,12 +254,19 @@ def create() -> None:
                 ui.navigate.to('/login')
                 return
 
+            # Rebuild the exact redirect_uri the /login leg sent (Discord requires
+            # the exchange to match the authorize call). In host mode the callback
+            # ran on the custom domain, so recover the tenant from the browser URL
+            # host and build from its stored domain — byte-identical by construction.
+            callback_tenant = await _callback_tenant(url)
+            redirect_uri = _redirect_uri_for_tenant(callback_tenant)
+
             # zenora.APIClient is synchronous (requests-based); running these two
             # Discord round-trips inline would block the single shared event loop
             # for every connected user. Offload them to worker threads.
             def _exchange_and_fetch():
                 access_token = discordClient.oauth.get_access_token(
-                    code, _redirect_uri(),
+                    code, redirect_uri,
                 ).access_token
                 bearer_client = APIClient(access_token, bearer=True)
                 return bearer_client.users.get_current_user()

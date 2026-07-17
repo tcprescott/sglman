@@ -1,17 +1,27 @@
-"""Tenant resolution middleware (path mode).
+"""Tenant resolution middleware (path mode + host mode).
 
-Every tenant is reachable at ``https://<platform>/t/<slug>/…``. This middleware
-resolves the slug to a :class:`~models.Tenant`, sets the request-time tenant
-context, and **rewrites the ASGI scope** so the app's single set of unprefixed
-routes serve the request: ``/t/<slug>`` is stripped from ``scope['path']`` and
-appended to ``scope['root_path']``, so downstream routing matches ``/admin`` while
-redirects and ``url_for`` built from ``root_path`` keep the ``/t/<slug>`` prefix.
+Every tenant is reachable at ``https://<platform>/t/<slug>/…``. In **path mode**
+this middleware resolves the slug to a :class:`~models.Tenant`, sets the
+request-time tenant context, and **rewrites the ASGI scope** so the app's single
+set of unprefixed routes serve the request: ``/t/<slug>`` is stripped from
+``scope['path']`` and appended to ``scope['root_path']``, so downstream routing
+matches ``/admin`` while redirects and ``url_for`` built from ``root_path`` keep
+the ``/t/<slug>`` prefix.
 
-Host-based addressing (a tenant's custom ``domain``) is deferred — the ``domain``
-column exists but is not resolved here yet. Requests with no ``/t/`` prefix run
-with **no** tenant context: that is the platform surface (landing page,
-``/platform``, the shared OAuth callbacks). Tenant pages guard themselves —
-``@protected_page`` returns 404 when reached with no tenant.
+In **host mode** a request whose (normalized) ``Host`` matches a tenant's custom
+``domain`` resolves to that tenant with the scope **left untouched**: the whole
+host is the tenant, so the unprefixed routes already match and ``root_path``
+stays empty (absolute links remain bare paths on-host). Host mode is checked
+first and is authoritative for a custom domain — a stray ``/t/<other>`` there is
+left literal and 404s, so one domain serves exactly one tenant. Path mode stays
+authoritative on the platform host, where every tenant is reachable at
+``/t/<slug>`` regardless of any domain. An unknown host falls through leniently
+to the platform surface (a rate-limited warning flags a likely proxy misconfig).
+
+Requests with neither a matching custom host nor a ``/t/`` prefix run with **no**
+tenant context: that is the platform surface (landing page, ``/platform``, the
+shared OAuth callbacks). Tenant pages guard themselves — ``@protected_page``
+returns 404 when reached with no tenant.
 
 Transport/API paths (``/_nicegui``, ``/static``, ``/sw.js``, ``/api``) are
 tenant-agnostic and skipped: the REST API derives its tenant from the bearer
@@ -22,13 +32,23 @@ Ordering: added in ``frontend.py`` after ``AuthMiddleware`` so it wraps auth
 happen before authentication reads the (already-rewritten) path.
 """
 
+import logging
 import re
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from application.services.tenant_service import TenantService
-from application.tenant_context import reset_tenant_id, set_tenant_id
+from application.tenant_context import (
+    reset_host_mode,
+    reset_tenant_id,
+    set_host_mode,
+    set_tenant_id,
+)
+from application.utils.environment import get_platform_host
+from application.utils.hostname import effective_request_host, normalize_hostname
+
+logger = logging.getLogger(__name__)
 
 # /t/<slug> optionally followed by the rest of the path.
 _TENANT_PATH_RE = re.compile(r'^/t/(?P<slug>[a-z0-9][a-z0-9-]*)(?P<rest>/.*)?$')
@@ -51,6 +71,27 @@ _EXCLUDED_EXACT = ('/sw.js',)
 
 def _is_excluded(path: str) -> bool:
     return path in _EXCLUDED_EXACT or path.startswith(_EXCLUDED_PREFIXES)
+
+
+# Bounded dedup so a configured-domain miss is logged once per host, not on every
+# request. A distinct-host flood (scanners) can only churn this set, never grow it.
+_warned_hosts: dict[str, None] = {}
+_WARNED_MAX = 256
+
+
+def _warn_unresolved_host(host: str) -> None:
+    if host in _warned_hosts:
+        return
+    if len(_warned_hosts) >= _WARNED_MAX:
+        _warned_hosts.pop(next(iter(_warned_hosts)), None)
+    _warned_hosts[host] = None
+    logger.warning(
+        'Request Host %r is neither the platform host nor a known tenant domain; '
+        'serving the platform surface. If %r is a configured custom domain, the '
+        'reverse proxy is likely not forwarding Host verbatim (set '
+        'TRUST_FORWARDED_HOST behind a trusted proxy, or forward Host).',
+        host, host,
+    )
 
 
 class TransportPrefixMiddleware:
@@ -97,6 +138,32 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         if _is_excluded(path):
             return await call_next(request)
+
+        # Host mode (authoritative for a custom domain): a Host that is not the
+        # platform host and maps to an active tenant serves that tenant on its
+        # own unprefixed routes. Runs before path mode, so a stray /t/<other> on
+        # a custom domain stays a literal (unrouted → 404): one domain, one
+        # tenant. root_path/scope are left untouched — the tenant owns the whole
+        # host, so absolute links and redirects stay bare paths on-host.
+        platform_host = normalize_hostname(get_platform_host()) or get_platform_host()
+        host = effective_request_host(request.headers)
+        if host and host != platform_host:
+            tenant = await TenantService.get_by_domain(host)
+            if tenant is not None:
+                if not tenant.is_active:
+                    return Response('Tenant not found', status_code=404)
+                tenant_token = set_tenant_id(tenant.id)
+                host_token = set_host_mode(True)
+                try:
+                    return await call_next(request)
+                finally:
+                    reset_host_mode(host_token)
+                    reset_tenant_id(tenant_token)
+            # Unknown host: lenient fall-through to path/platform (health checks by
+            # IP, stray CNAMEs). Warn only when it is not a path-mode request, since
+            # that is the shape of a configured-domain-behind-a-broken-proxy miss.
+            if _TENANT_PATH_RE.match(path) is None:
+                _warn_unresolved_host(host)
 
         match = _TENANT_PATH_RE.match(path)
         if match is None:

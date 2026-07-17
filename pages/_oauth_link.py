@@ -24,6 +24,9 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
 from application.services.auth_service import get_user_from_discord_id
+from application.services.tenant_service import TenantService
+from application.tenant_context import get_current_tenant_id, is_host_mode
+from application.utils.environment import get_base_url
 from models import User
 
 logger = logging.getLogger(__name__)
@@ -33,7 +36,28 @@ __all__ = [
     'register_identity_link_pages',
     'read_callback_code',
     'returned_state',
+    'platform_link_redirect',
 ]
+
+
+async def platform_link_redirect(local_return: str) -> Optional[str]:
+    """Where to send a secondary OAuth link that was initiated on a custom domain.
+
+    The secondary providers (Challonge, Twitch, racetime, Discord connect) all
+    redirect to a single registered callback on the **platform** host, which
+    can't see a custom domain's host-only session cookie — so the flow would
+    silently fail there. In host mode, send the user to the equivalent path-mode
+    URL on the platform host, where linking works. Returns ``None`` in path mode
+    / platform surface (the flow runs in place).
+    """
+    if not is_host_mode():
+        return None
+    tid = get_current_tenant_id()
+    tenant = await TenantService.get_by_id(tid) if tid is not None else None
+    base = get_base_url()
+    if tenant is None:
+        return base or '/'
+    return f'{base}/t/{tenant.slug}{local_return}'
 
 
 def returned_state(url: str) -> Optional[str]:
@@ -88,6 +112,12 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
 
     @ui.page(flow.link_route)
     async def link(request: Request) -> RedirectResponse:
+        # On a custom domain this flow can't complete (its callback is on the
+        # platform host); bounce to the platform-host equivalent instead of
+        # silently failing.
+        detour = await platform_link_redirect(flow.profile_return)
+        if detour:
+            return RedirectResponse(detour)
         # Initiation runs with tenant context; the callback lands on the bare
         # platform host, so pin the tenant-qualified return here.
         root_path = request.scope.get('root_path', '') or ''
