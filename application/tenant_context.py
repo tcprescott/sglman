@@ -96,7 +96,9 @@ def stash_client_host_mode(value: bool) -> None:
 
     Only writes when host mode is active: path mode / platform surface leave the
     stash unset, which :func:`_client_stash_host_mode` reads back as ``False``.
-    No-op when there is no client context.
+    No-op when there is no client context. Safe because ``app.storage.client`` is
+    per-connection and a connection never changes host — so a stale ``True`` can
+    never linger (there is nothing to clear on a path-mode build).
     """
     if not value:
         return
