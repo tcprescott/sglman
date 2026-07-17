@@ -44,7 +44,9 @@ and links built from `root_path` keep the `/t/<slug>` prefix.
   this, so those are prefixed explicitly with `root_path`.
 
 Host-based addressing (a tenant's custom `domain`) is **deferred**: the nullable
-`domain` column exists but is not resolved yet.
+`domain` column exists but is not resolved yet. The concrete plan to finish it —
+middleware host resolution plus how login survives per-host session cookies — is
+in [host-based-routing-plan.md](../host-based-routing-plan.md) (design only).
 
 ## Tenant context
 
