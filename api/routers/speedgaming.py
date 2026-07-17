@@ -8,7 +8,7 @@ tokens); authorization proper is enforced in-service.
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.speedgaming import (
@@ -18,6 +18,7 @@ from api.schemas.speedgaming import (
     SpeedGamingLinkUpdateRequest,
     SyncResultResponse,
 )
+from application.errors import require_found
 from application.services import SpeedGamingSyncService
 from application.tenant_context import require_tenant_id
 from models import SpeedGamingEventLink, User
@@ -26,10 +27,10 @@ router = APIRouter(prefix="/speedgaming", tags=["SpeedGaming"], route_class=Serv
 
 
 async def _load_link_or_404(link_id: int) -> SpeedGamingEventLink:
-    link = await SpeedGamingEventLink.get_or_none(id=link_id, tenant_id=require_tenant_id())
-    if link is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SpeedGaming event link not found")
-    return link
+    return require_found(
+        await SpeedGamingEventLink.get_or_none(id=link_id, tenant_id=require_tenant_id()),
+        "SpeedGaming event link",
+    )
 
 
 # --- Links ----------------------------------------------------------------
@@ -65,18 +66,15 @@ async def update_link(
     body: SpeedGamingLinkUpdateRequest,
     actor: User = Depends(require_write_actor),
 ):
-    await _load_link_or_404(link_id)
     return await SpeedGamingSyncService().update_link(actor, link_id, **body.model_dump(exclude_unset=True))
 
 
 @router.delete("/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a SpeedGaming event link")
 async def delete_link(link_id: int, actor: User = Depends(require_write_actor)):
-    await _load_link_or_404(link_id)
     await SpeedGamingSyncService().delete_link(actor, link_id)
 
 
 @router.post("/links/{link_id}/sync", response_model=SyncResultResponse, summary="Run an on-demand sync for a link")
 async def sync_link(link_id: int, actor: User = Depends(require_write_actor)):
-    await _load_link_or_404(link_id)
     result = await SpeedGamingSyncService().sync_now(actor, link_id)
     return result.as_dict()

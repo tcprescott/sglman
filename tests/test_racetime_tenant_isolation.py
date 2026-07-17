@@ -12,17 +12,11 @@ from application.repositories.race_room_profile_repository import RaceRoomProfil
 from application.repositories.racetime_bot_repository import RacetimeBotRepository
 from application.repositories.racetime_room_repository import RacetimeRoomRepository
 from application.tenant_context import tenant_scope
-from models import RaceRoomProfile, RacetimeBot, RacetimeRoom, Tenant
+from models import RaceRoomProfile, RacetimeBot, RacetimeRoom
 
 
-async def _tenants(db):
-    a = await Tenant.get(id=1)
-    b = await Tenant.create(name='Tenant B', slug='tenant-b')
-    return a, b
-
-
-async def test_race_room_profile_reads_are_isolated(db):
-    a, b = await _tenants(db)
+async def test_race_room_profile_reads_are_isolated(two_tenants):
+    a, b = two_tenants
     repo = RaceRoomProfileRepository()
     with tenant_scope(a.id):
         pa = await RaceRoomProfile.create(name='House')
@@ -38,8 +32,8 @@ async def test_race_room_profile_reads_are_isolated(db):
         assert await repo.get_by_id(pa.id) is None
 
 
-async def test_racetime_room_scoped_reads_are_isolated(db):
-    a, b = await _tenants(db)
+async def test_racetime_room_scoped_reads_are_isolated(two_tenants):
+    a, b = two_tenants
     repo = RacetimeRoomRepository()
     with tenant_scope(a.id):
         ra = await RacetimeRoom.create(slug='alttpr/room-a', category='alttpr')
@@ -53,9 +47,9 @@ async def test_racetime_room_scoped_reads_are_isolated(db):
         assert [r.id for r in await repo.list_all()] == [rb.id]
 
 
-async def test_racetime_room_by_slug_is_unscoped(db):
+async def test_racetime_room_by_slug_is_unscoped(two_tenants):
     """Inbound events carry no tenant, so slug → room resolves cross-tenant."""
-    a, b = await _tenants(db)
+    a, b = two_tenants
     repo = RacetimeRoomRepository()
     with tenant_scope(b.id):
         rb = await RacetimeRoom.create(slug='alttpr/only-in-b', category='alttpr')
@@ -66,8 +60,8 @@ async def test_racetime_room_by_slug_is_unscoped(db):
     assert room.tenant_id == b.id
 
 
-async def test_bot_grants_do_not_leak_across_tenants(db):
-    a, b = await _tenants(db)
+async def test_bot_grants_do_not_leak_across_tenants(two_tenants):
+    a, b = two_tenants
     repo = RacetimeBotRepository()
     # The bot is global; grant it only to A.
     bot = await RacetimeBot.create(category='alttpr', client_id='c', client_secret='s', name='A')

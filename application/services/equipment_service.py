@@ -8,6 +8,7 @@ numbers) and the checkout/check-in workflow with full loan history.
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from application.errors import require_found
 from application.repositories.equipment_repository import EquipmentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -125,9 +126,7 @@ class EquipmentService:
             await AuthService.can_manage_equipment(actor),
             "You do not have permission to manage equipment.",
         )
-        equipment = await self.repository.get_by_id(equipment_id)
-        if equipment is None:
-            raise ValueError("Asset not found.")
+        equipment = require_found(await self.repository.get_by_id(equipment_id), "Asset")
         name = (name or '').strip()
         if not name:
             raise ValueError("Asset name is required.")
@@ -157,9 +156,7 @@ class EquipmentService:
             await AuthService.can_manage_equipment(actor),
             "You do not have permission to manage equipment.",
         )
-        equipment = await self.repository.get_by_id(equipment_id)
-        if equipment is None:
-            raise ValueError("Asset not found.")
+        equipment = require_found(await self.repository.get_by_id(equipment_id), "Asset")
         if await self.repository.get_open_loan(equipment) is not None:
             raise ValueError("Cannot delete an asset that is currently checked out.")
 
@@ -192,9 +189,7 @@ class EquipmentService:
         else:
             borrower = actor
 
-        equipment = await self.repository.get_by_id(equipment_id)
-        if equipment is None:
-            raise ValueError("Asset not found.")
+        equipment = require_found(await self.repository.get_by_id(equipment_id), "Asset")
         if equipment.status == EquipmentStatus.RETIRED:
             raise ValueError("This asset is retired and cannot be checked out.")
         if await self.repository.get_open_loan(equipment) is not None:
@@ -216,9 +211,7 @@ class EquipmentService:
             await AuthService.can_checkin_equipment(actor),
             "You do not have permission to check in equipment.",
         )
-        equipment = await self.repository.get_by_id(equipment_id)
-        if equipment is None:
-            raise ValueError("Asset not found.")
+        equipment = require_found(await self.repository.get_by_id(equipment_id), "Asset")
         loan = await self.repository.get_open_loan(equipment)
         if loan is None:
             raise ValueError("This asset is not currently checked out.")

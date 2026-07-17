@@ -14,6 +14,8 @@ from application.services import discord_role_mapping_service as drms
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
 from models import Role, RoleSource
 
+pytestmark = pytest.mark.usefixtures("bypass_auth")
+
 
 def make_service():
     svc = object.__new__(DiscordRoleMappingService)
@@ -174,18 +176,6 @@ class TestSyncUserRoles:
 # ---------------------------------------------------------------------------
 # add_mapping / remove_mapping
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def bypass_auth(monkeypatch):
-    async def allow(*_args, **_kwargs):
-        return True
-
-    async def noop_ensure(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(drms.AuthService, 'can_grant_roles', allow)
-    monkeypatch.setattr(drms.AuthService, 'ensure', noop_ensure)
 
 
 class TestMappingCrud:

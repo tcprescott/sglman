@@ -13,34 +13,36 @@ import application.services.volunteer_reminder as reminder_mod
 
 
 class TestStartStop:
+    # start/stop now delegate to the shared BackgroundLoop (application/utils/
+    # background_loop.py); the task lives at reminder_mod._loop._task, so these
+    # target and reset that rather than the old module-global _task.
     async def test_start_creates_task(self):
-        reminder_mod._task = None
+        reminder_mod._loop._task = None
         loop = asyncio.get_event_loop()
         with patch.object(loop, 'create_task', return_value=MagicMock()) as mock_create:
             reminder_mod.start()
         mock_create.assert_called_once()
         # Clean up
-        reminder_mod._task = None
+        reminder_mod._loop._task = None
 
     async def test_start_is_idempotent(self):
-        fake_task = MagicMock()
-        reminder_mod._task = fake_task
+        reminder_mod._loop._task = MagicMock()
         loop = asyncio.get_event_loop()
         with patch.object(loop, 'create_task') as mock_create:
             reminder_mod.start()
         mock_create.assert_not_called()
-        reminder_mod._task = None
+        reminder_mod._loop._task = None
 
     async def test_stop_when_no_task_is_noop(self):
-        reminder_mod._task = None
+        reminder_mod._loop._task = None
         await reminder_mod.stop()  # must not raise
 
     async def test_stop_cancels_task(self):
         task = asyncio.ensure_future(asyncio.sleep(100))
-        reminder_mod._task = task
+        reminder_mod._loop._task = task
         await reminder_mod.stop()
         assert task.cancelled()
-        assert reminder_mod._task is None
+        assert reminder_mod._loop._task is None
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ performing real Discord OAuth. User provisioning writes go through
 ``UserService`` to keep the presentation layer free of direct ORM writes.
 """
 
+import asyncio
 import logging
 import os
 import random
@@ -206,9 +207,17 @@ def create() -> None:
                 ui.navigate.to('/login')
                 return
 
-            access_token = discordClient.oauth.get_access_token(code, _redirect_uri()).access_token
-            bearer_client = APIClient(access_token, bearer=True)
-            current_user = bearer_client.users.get_current_user()
+            # zenora.APIClient is synchronous (requests-based); running these two
+            # Discord round-trips inline would block the single shared event loop
+            # for every connected user. Offload them to worker threads.
+            def _exchange_and_fetch():
+                access_token = discordClient.oauth.get_access_token(
+                    code, _redirect_uri(),
+                ).access_token
+                bearer_client = APIClient(access_token, bearer=True)
+                return bearer_client.users.get_current_user()
+
+            current_user = await asyncio.to_thread(_exchange_and_fetch)
 
             user, _created = await UserService().provision_from_discord_login(
                 current_user.id, current_user.username,

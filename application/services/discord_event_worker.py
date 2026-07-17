@@ -14,20 +14,16 @@ tenant whose schedule hasn't changed is a cheap no-op (content hashes match, no
 Discord calls).
 """
 
-import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
-from application.tenant_context import tenant_scope
+from application.utils.background_loop import for_each_tenant_scoped, run_worker_loop
 
 logger = logging.getLogger(__name__)
 
 # Reconcile is idempotent and mostly no-op, so a slower tick than the SG/racetime
 # workers is plenty — a schedule change surfaces within a few minutes.
 TICK_SECONDS = 300
-
-_task: Optional[asyncio.Task] = None
 
 
 async def _tick() -> None:
@@ -43,38 +39,26 @@ async def _tick() -> None:
     system_user = await UserService().get_system_user()
     reconciler = DiscordEventReconcilerService()
 
-    for tenant in tenants:
-        try:
-            with tenant_scope(tenant.id):
-                result = await reconciler.reconcile_tenant(tenant, actor=system_user, now=now)
-            if result.created or result.updated or result.cancelled or result.errors:
-                logger.info('Discord events reconcile for tenant %s: %s', tenant.id, result.as_dict())
-        except Exception:
-            logger.exception('Discord events reconcile failed for tenant %s', getattr(tenant, 'id', None))
+    async def _reconcile(tenant) -> None:
+        result = await reconciler.reconcile_tenant(tenant, actor=system_user, now=now)
+        if result.created or result.updated or result.cancelled or result.errors:
+            logger.info('Discord events reconcile for tenant %s: %s', tenant.id, result.as_dict())
+
+    await for_each_tenant_scoped(
+        tenants,
+        _reconcile,
+        tenant_id_of=lambda tenant: tenant.id,
+        logger=logger,
+        describe=lambda tenant: f'tenant {getattr(tenant, "id", None)}',
+    )
 
 
-async def _loop() -> None:
-    while True:
-        try:
-            await _tick()
-        except Exception as e:  # never let the loop die
-            logger.exception('Discord events reconcile tick failed: %s', e)
-        await asyncio.sleep(TICK_SECONDS)
+_loop = run_worker_loop(_tick, TICK_SECONDS, 'Discord events reconcile', logger)
 
 
 def start() -> None:
-    global _task
-    if _task is None:
-        _task = asyncio.get_event_loop().create_task(_loop())
+    _loop.start()
 
 
 async def stop() -> None:
-    global _task
-    if _task is None:
-        return
-    _task.cancel()
-    try:
-        await _task
-    except asyncio.CancelledError:
-        pass
-    _task = None
+    await _loop.stop()

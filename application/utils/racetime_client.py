@@ -9,15 +9,24 @@ The client returns a **normalized** identity dict so the service layer never has
 to know the wire shape:
 
     get_me -> {'user_id', 'username'}
+
+The transport (``build_authorize_url`` / ``exchange_code`` / ``get_me``) lives in
+``oauth_identity_client``; this module is the racetime-specific configuration.
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
-from urllib.parse import quote
+from typing import Any, Dict
 
-import aiohttp
+from application.utils.oauth_identity_client import (
+    OAuthIdentityClient,
+    ProviderConfig,
+    opt_str,
+)
+from application.utils.oauth_identity_client import (
+    build_authorize_url as _build_authorize_url,
+)
 
 RACETIME_BASE = 'https://racetime.gg'
 AUTHORIZE_URL = f'{RACETIME_BASE}/o/authorize'
@@ -35,67 +44,30 @@ class RacetimeAPIError(Exception):
 
 def build_authorize_url(client_id: str, redirect_uri: str, scope: str, state: str) -> str:
     """Return the racetime OAuth authorize URL to redirect the browser to."""
-    return (
-        f"{AUTHORIZE_URL}"
-        f"?client_id={quote(client_id, safe='')}"
-        f"&redirect_uri={quote(redirect_uri, safe='')}"
-        f"&response_type=code"
-        f"&scope={quote(scope, safe='')}"
-        f"&state={quote(state, safe='')}"
-    )
+    return _build_authorize_url(AUTHORIZE_URL, client_id, redirect_uri, scope, state)
 
 
-def _opt_str(value: Any) -> Optional[str]:
-    return None if value is None else str(value)
+def _extract_identity(payload: Any) -> Dict[str, Any]:
+    user_id = opt_str(payload.get('id'))
+    if not user_id:
+        raise RacetimeAPIError(f"racetime userinfo response missing id: {payload}")
+    return {
+        'user_id': user_id,
+        'username': payload.get('name'),
+    }
 
 
-class RacetimeClient:
+class RacetimeClient(OAuthIdentityClient):
     """Async racetime.gg OAuth client."""
 
-    def __init__(self, client_id: str, client_secret: str):
-        self.client_id = client_id
-        self.client_secret = client_secret
-
-    async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:
-        """Exchange an authorization code for a token payload."""
-        data = {
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'code': code,
-            'grant_type': 'authorization_code',
-            'redirect_uri': redirect_uri,
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(OAUTH_EXCHANGE_URL, data=data) as resp:
-                payload = await resp.json()
-                if resp.status >= 400:
-                    raise RacetimeAPIError(
-                        f"racetime token request failed ({resp.status}): {payload}"
-                    )
-                return payload
-
-    async def get_me(self, access_token: str) -> Dict[str, Any]:
-        """Fetch the authenticated racetime account identity for a raw token."""
-        headers = {'Authorization': f'Bearer {access_token}'}
-        async with aiohttp.ClientSession() as session:
-            async with session.get(USERINFO_URL, headers=headers) as resp:
-                text = await resp.text()
-                if resp.status >= 400:
-                    raise RacetimeAPIError(
-                        f"racetime userinfo request failed ({resp.status}): {text}"
-                    )
-                import json as _json
-                try:
-                    payload = _json.loads(text)
-                except ValueError as e:
-                    raise RacetimeAPIError(f"racetime API returned non-JSON: {text[:200]}") from e
-        user_id = _opt_str(payload.get('id'))
-        if not user_id:
-            raise RacetimeAPIError(f"racetime userinfo response missing id: {payload}")
-        return {
-            'user_id': user_id,
-            'username': payload.get('name'),
-        }
+    config = ProviderConfig(
+        label='racetime',
+        token_url=OAUTH_EXCHANGE_URL,
+        userinfo_url=USERINFO_URL,
+        error_class=RacetimeAPIError,
+        userinfo_noun='userinfo',
+        extract_identity=_extract_identity,
+    )
 
 
 # ----------------------------------------------------------------------

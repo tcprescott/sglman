@@ -6,17 +6,11 @@ and on-demand reconcile. All operations are service-gated by
 read-only tokens at the HTTP layer.
 """
 
-import pytest
 
 from application.services.discord_event_reconciler_service import ReconcileResult
 from application.tenant_context import tenant_scope
 from models import DiscordScheduledEvent, Role, Tenant, Tournament
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 async def _make_event(**over):

@@ -42,8 +42,7 @@ UTC = timezone.utc
 _discord_ids = itertools.count(9000)
 
 
-def utc(y, mo, d, h=0, mi=0):
-    return datetime(y, mo, d, h, mi, tzinfo=UTC)
+from tests.factories import utc
 
 
 async def make_user(username="player", display_name=None, roles=None):

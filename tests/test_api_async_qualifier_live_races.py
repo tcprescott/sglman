@@ -17,21 +17,7 @@ from models import (
     Tenant,
     User,
 )
-from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
-
-
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token, enable_all_features
 
 
 async def _make_qualifier_and_pool(actor: User, *, name='Q'):
@@ -167,14 +153,15 @@ class TestWrites:
             )
             assert resp.status_code == 400
 
-    async def test_create_missing_pool_bad_request(self, db, app):
+    async def test_create_missing_pool_not_found(self, db, app):
         _, raw = await _admin_token()
         async with client_for(app, raw) as c:
             resp = await c.post(
                 '/api/async-qualifiers/live-races',
                 json={'pool_id': 9999, 'match_title': 'Race'},
             )
-            assert resp.status_code == 400
+            # Missing referenced entity -> NotFoundError -> 404 (audit §2B.6).
+            assert resp.status_code == 404
 
     async def test_open_room_missing_is_404(self, db, app):
         _, raw = await _admin_token()

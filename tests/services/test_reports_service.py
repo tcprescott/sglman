@@ -5,7 +5,7 @@ in conftest.py is available for async DB tests but not used for the pure
 computations below.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Optional
 
@@ -56,8 +56,7 @@ def eastern(year, month, day, hour=0, minute=0) -> datetime:
     return datetime(year, month, day, hour, minute, tzinfo=EASTERN_TZ)
 
 
-def utc(year, month, day, hour=0, minute=0) -> datetime:
-    return datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
+from tests.factories import utc
 
 
 def naive(year, month, day, hour=0, minute=0) -> datetime:

@@ -5,14 +5,19 @@ Services orchestrate business operations, validate data, and coordinate
 between repositories. They should NOT know about UI components.
 """
 
+from application.errors import NotFoundError, require_found
+
 from .analytics_service import AnalyticsService
 from .api_token_service import ApiTokenService
 from .async_qualifier_config import (
     AsyncQualifierConfig,
     validate_async_qualifier_config,
 )
+from . import async_qualifier_access
 from . import async_qualifier_scoring
+from .async_qualifier_draw import AsyncQualifierDraw
 from .async_qualifier_live_race_service import AsyncQualifierLiveRaceService
+from .async_qualifier_rules import validate_counts, validate_window
 from .async_qualifier_service import AsyncQualifierService
 from .audit_service import AuditService
 from .auth_service import AuthService, get_user_from_discord_id
@@ -31,11 +36,14 @@ from .discord_service import DiscordService
 from .equipment_service import EquipmentService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
+from .identity_link_service import IdentityLinkProvider, IdentityLinkService
+from .match_participants import MatchParticipants
 from .match_service import MatchService
 from .match_source_guard import assert_sg_fields_unchanged
 from .match_display_service import MatchDisplayService
 from .match_schedule_service import MatchScheduleService
 from .match_suggestion_service import MatchSuggestionService
+from . import availability_windows
 from .player_availability_service import PlayerAvailabilityService
 from .match_watcher_service import MatchWatcherService
 from .preset_service import PresetService
@@ -45,6 +53,7 @@ from . import race_room_worker
 from .racetime_bot_service import RacetimeBotService
 from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
+from . import reporting_shared
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
 from .speedgaming_etl_service import SpeedGamingETLService
@@ -70,15 +79,23 @@ from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
+    'NotFoundError',
+    'require_found',
     'TournamentConfig',
     'validate_tournament_config',
     'AnalyticsService',
     'ApiTokenService',
     'AsyncQualifierConfig',
     'validate_async_qualifier_config',
+    'async_qualifier_access',
     'async_qualifier_scoring',
+    'availability_windows',
+    'reporting_shared',
+    'AsyncQualifierDraw',
     'AsyncQualifierService',
     'AsyncQualifierLiveRaceService',
+    'validate_counts',
+    'validate_window',
     'AuditService',
     'AuthService',
     'ChallongeService',
@@ -99,6 +116,9 @@ __all__ = [
     'EquipmentService',
     'FeatureFlagService',
     'FeedbackService',
+    'IdentityLinkProvider',
+    'IdentityLinkService',
+    'MatchParticipants',
     'MatchService',
     'assert_sg_fields_unchanged',
     'MatchDisplayService',

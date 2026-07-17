@@ -2,7 +2,7 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.match_actions import MatchSuggestionResponse
@@ -12,6 +12,7 @@ from api.schemas.tournament_actions import (
     TournamentUpdateRequest,
 )
 from api.schemas.tournaments import TournamentResponse
+from application.errors import require_found
 from application.services import MatchSuggestionService, TournamentService, UserService
 from application.tenant_context import require_tenant_id
 from models import Tournament, User
@@ -20,17 +21,14 @@ router = APIRouter(prefix="/tournaments", tags=["Tournaments"], route_class=Serv
 
 
 async def _load_tournament_or_404(tournament_id: int) -> Tournament:
-    tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
-    if tournament is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
-    return tournament
+    return require_found(
+        await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id()),
+        "Tournament",
+    )
 
 
 async def _load_user_or_404(user_id: int) -> User:
-    user = await UserService().get_user_by_id(user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return user
+    return require_found(await UserService().get_user_by_id(user_id), "User")
 
 
 @router.post(

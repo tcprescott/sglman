@@ -11,26 +11,10 @@ These exercise auth failures (403), read-only-token rejection, not-found (404), 
 validation branches without touching existing test cases.
 """
 
-import pytest
 from tortoise import connections
 
 from models import AuditLog, Match, MatchPlayers, Role, StreamRoom, Tournament, User
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    """Capture enqueued coroutines without running them (mirrors services conftest)."""
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 async def _tournament_and_players(**tournament_kwargs):
@@ -362,11 +346,11 @@ class TestUpdateMatch:
             resp = await c.patch(f'/api/matches/{mid}', json={'commentator_ids': [p1.id]})
             assert resp.status_code == 400
 
-    async def test_update_missing_match_is_400(self, db, app):
+    async def test_update_missing_match_is_404(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
         async with client_for(app, raw) as c:
-            # The service raises ValueError("Match ... not found") -> 400.
-            assert (await c.patch('/api/matches/999', json={'comment': 'x'})).status_code == 400
+            # The service raises NotFoundError("Match ... not found") -> 404 (audit §2B.6).
+            assert (await c.patch('/api/matches/999', json={'comment': 'x'})).status_code == 404
 
 
 class TestStreamAssignments:

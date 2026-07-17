@@ -9,7 +9,9 @@ threshold, and messaging templates live in the schema-validated ``config`` blob.
 
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
+
+from application.utils.config_validation import validate_config_blob
 
 
 class AsyncQualifierConfig(BaseModel):
@@ -30,12 +32,4 @@ def validate_async_qualifier_config(
     config: Optional[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
     """Validate/normalize an ``AsyncQualifier.config`` blob (None passes through)."""
-    if config is None:
-        return None
-    if not isinstance(config, dict):
-        raise ValueError("Qualifier config must be an object")
-    try:
-        model = AsyncQualifierConfig.model_validate(config)
-    except ValidationError as exc:
-        raise ValueError(f"Invalid qualifier config: {exc}") from exc
-    return model.model_dump(exclude_none=True)
+    return validate_config_blob(config, AsyncQualifierConfig, "qualifier")

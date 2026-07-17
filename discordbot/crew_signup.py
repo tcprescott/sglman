@@ -5,9 +5,14 @@ Discord crew signup interaction handler and view factory.
 import discord
 
 from application.utils.discord_messages import crew_signup_confirmation
+from discordbot._ack_common import DMInteractionError, SendFn, run_dm_interaction
 
 
 CUSTOM_ID_PREFIX = 'crew_signup'
+
+MSG_UNEXPECTED_ERROR = (
+    'An unexpected error occurred. Please try again or use the website to sign up.'
+)
 
 
 def make_crew_signup_view(match_id: int) -> discord.ui.View:
@@ -26,6 +31,20 @@ def make_crew_signup_view(match_id: int) -> discord.ui.View:
     return view
 
 
+def _parse(custom_id: str) -> tuple[str, int]:
+    parts = custom_id.split(':')
+    if len(parts) != 3:
+        raise DMInteractionError('Invalid interaction.')
+    _, role, match_id_str = parts
+    try:
+        match_id = int(match_id_str)
+    except ValueError:
+        raise DMInteractionError('Invalid match ID.')
+    if role not in ('commentator', 'tracker'):
+        raise DMInteractionError('Invalid role.')
+    return role, match_id
+
+
 async def handle_crew_signup_interaction(interaction: discord.Interaction) -> None:
     """
     Handle a crew_signup button press from a Discord DM.
@@ -33,60 +52,29 @@ async def handle_crew_signup_interaction(interaction: discord.Interaction) -> No
     custom_id format: 'crew_signup:<role>:<match_id>'
     Responds ephemerally so only the clicking user sees the result.
     """
-    from application.services import CrewService, MatchService, UserService
-    from application.tenant_context import tenant_scope
+    from application.services import CrewService, MatchService
     from discordbot._tenant import match_tenant_id
 
-    custom_id = (interaction.data or {}).get('custom_id', '')
-    parts = custom_id.split(':')
-    if len(parts) != 3:
-        await interaction.response.send_message('Invalid interaction.', ephemeral=True)
-        return
+    async def resolve_tenant(parsed: tuple[str, int]):
+        _, match_id = parsed
+        return await match_tenant_id(match_id)
 
-    _, role, match_id_str = parts
-    try:
-        match_id = int(match_id_str)
-    except ValueError:
-        await interaction.response.send_message('Invalid match ID.', ephemeral=True)
-        return
-
-    if role not in ('commentator', 'tracker'):
-        await interaction.response.send_message('Invalid role.', ephemeral=True)
-        return
-
-    user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-    if not user:
-        await interaction.response.send_message(
-            'You do not have an SGLMan account. Please log in at the website first.',
-            ephemeral=True,
-        )
-        return
-
-    # DM buttons carry no tenant; discover it from the match, then scope all
-    # tenant-aware service work to it.
-    tenant_id = await match_tenant_id(match_id)
-    if tenant_id is None:
-        await interaction.response.send_message('Match not found.', ephemeral=True)
-        return
-
-    with tenant_scope(tenant_id):
+    async def handle(_interaction, parsed, user, send: SendFn) -> None:
+        role, match_id = parsed
         match_service = MatchService()
-        match = await match_service.get_by_id(match_id, prefetch_relations=False)
-        if not match:
-            await interaction.response.send_message('Match not found.', ephemeral=True)
-            return
+        # The "match finished -> signup closed" rule lives in
+        # CrewService.signup_crew (raised as ValueError, handled by the wrapper)
+        # so the web UI and REST API enforce it too.
+        await CrewService().signup_crew(match_id, user, role)
+        player_names = await match_service.get_player_names(match_id)
+        await send(crew_signup_confirmation(role, player_names))
 
-        # The "match finished -> signup closed" rule now lives in
-        # CrewService.signup_crew (raised as ValueError, handled below) so the web
-        # UI and REST API enforce it too.
-        try:
-            await CrewService().signup_crew(match_id, user, role)
-
-            player_names = await match_service.get_player_names(match_id)
-
-            await interaction.response.send_message(
-                crew_signup_confirmation(role, player_names),
-                ephemeral=True,
-            )
-        except ValueError as e:
-            await interaction.response.send_message(str(e), ephemeral=True)
+    await run_dm_interaction(
+        interaction,
+        log_label=CUSTOM_ID_PREFIX,
+        parse=_parse,
+        resolve_tenant=resolve_tenant,
+        not_found_message='Match not found.',
+        handle=handle,
+        unexpected_error_message=MSG_UNEXPECTED_ERROR,
+    )

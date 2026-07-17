@@ -7,6 +7,21 @@ refuses to start in an insecure state rather than silently degrading.
 
 import os
 
+_TRUTHY = frozenset({'1', 'true', 'yes', 'on'})
+
+
+def env_flag(name: str, default: bool = False) -> bool:
+    """Return the boolean value of environment variable ``name``.
+
+    The single canonical truthy-env grammar: a value is true iff, once
+    stripped and lowercased, it is one of ``1``/``true``/``yes``/``on``.
+    An unset variable yields ``default``; any other value is false.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in _TRUTHY
+
 
 def get_environment() -> str:
     """Return the configured environment name (default: 'development')."""

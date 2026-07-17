@@ -39,6 +39,8 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
+from application.utils.timezone import to_utc_aware
+
 logger = logging.getLogger(__name__)
 
 # A probe gets a hard ceiling so one hung dependency can't stall the whole board.
@@ -231,10 +233,9 @@ def _map_racetime_status(status: str, message: Optional[str]) -> ServiceStatus:
 
 
 async def _probe_speedgaming() -> Tuple[ServiceStatus, str]:
-    from application.utils.environment import get_environment
-    if os.environ.get('MOCK_SPEEDGAMING', '').lower() in ('1', 'true', 'yes') and get_environment() != 'production':
+    from application.utils.speedgaming_client import SPEEDGAMING_BASE, is_mock_speedgaming
+    if is_mock_speedgaming():
         return ServiceStatus.HEALTHY, 'Mock feed (MOCK_SPEEDGAMING)'
-    from application.utils.speedgaming_client import SPEEDGAMING_BASE
     ok, detail = await _http_reachable(SPEEDGAMING_BASE)
     if ok:
         return ServiceStatus.HEALTHY, f'Reachable ({detail})'
@@ -268,8 +269,7 @@ async def _challonge_token_health() -> Tuple[ServiceStatus, str]:
         expires = conn.token_expires_at
         if expires is None:
             continue
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
+        expires = to_utc_aware(expires)
         if expires <= now:
             expired += 1
         elif expires <= now + CHALLONGE_EXPIRY_WARNING:
@@ -445,9 +445,7 @@ def _board_sort_key(result: ProbeResult) -> Tuple[int, str]:
 def _tenant_challonge_status(token_expires_at: Optional[datetime]) -> Tuple[ServiceStatus, str]:
     if token_expires_at is None:
         return ServiceStatus.HEALTHY, 'Connected (no token expiry)'
-    expires = token_expires_at
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
+    expires = to_utc_aware(token_expires_at)
     now = _now()
     if expires <= now:
         return ServiceStatus.DOWN, 'Token expired — reconnect required'

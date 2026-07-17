@@ -15,6 +15,7 @@ import secrets
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
+from application.errors import NotFoundError
 from application.repositories.api_token_repository import ApiTokenRepository
 from application.services.audit_service import AuditActions, AuditService
 from models import ApiToken, User
@@ -75,7 +76,7 @@ class ApiTokenService:
     async def revoke_token(self, actor: User, token_id: int) -> None:
         token = await self.repository.get_by_id(token_id)
         if token is None or token.revoked_at is not None:
-            raise ValueError("Token not found")
+            raise NotFoundError("Token not found")
         if token.user_id != actor.id:
             raise PermissionError("You can only revoke your own tokens")
 

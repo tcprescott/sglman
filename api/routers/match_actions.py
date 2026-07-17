@@ -21,6 +21,7 @@ from api.schemas.match_actions import (
     StreamCandidateRequest,
 )
 from api.schemas.matches import MatchResponse
+from application.errors import require_found
 from application.services import CrewService, MatchScheduleService, MatchService, MatchWatcherService
 from application.tenant_context import require_tenant_id
 from models import Match, User
@@ -29,10 +30,9 @@ router = APIRouter(prefix="/matches", tags=["Matches"], route_class=ServiceError
 
 
 async def _load_match_or_404(match_id: int) -> Match:
-    match = await Match.get_or_none(id=match_id, tenant_id=require_tenant_id())
-    if match is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
-    return match
+    return require_found(
+        await Match.get_or_none(id=match_id, tenant_id=require_tenant_id()), "Match"
+    )
 
 
 @router.post("", response_model=MatchResponse, status_code=status.HTTP_201_CREATED, summary="Create a match")

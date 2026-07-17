@@ -18,11 +18,6 @@ from models import (
 from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 
-@pytest.fixture
-def app():
-    return build_api_app()
-
-
 async def _staff_token(username='sg-staff'):
     return await create_user_token(username=username, roles=[Role.STAFF])
 
@@ -128,13 +123,14 @@ class TestCreateLink:
             })
             assert resp.status_code == 403
 
-    async def test_create_link_unknown_tournament_400(self, db, app):
+    async def test_create_link_unknown_tournament_404(self, db, app):
         _, raw = await _staff_token()
         async with client_for(app, raw) as c:
             resp = await c.post('/api/speedgaming/links', json={
                 'tournament_id': 999999, 'event_slug': 'alttpr',
             })
-            assert resp.status_code == 400
+            # Unknown referenced tournament -> NotFoundError -> 404 (audit §2B.6).
+            assert resp.status_code == 404
 
 
 class TestUpdateDeleteLink:

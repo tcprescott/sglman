@@ -8,10 +8,14 @@ import discord
 
 from application.utils.discord_messages import (
     crew_ack_confirmation,
-    MSG_NO_ACCOUNT,
     MSG_UNEXPECTED_ERROR_CREW,
 )
-from discordbot._ack_common import make_acknowledged_view, send_ephemeral
+from discordbot._ack_common import (
+    DMInteractionError,
+    make_acknowledged_view,
+    run_dm_interaction,
+    SendFn,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -30,8 +34,16 @@ def make_crew_acknowledgment_view(crew_type: str, crew_id: int) -> discord.ui.Vi
     return view
 
 
-async def _send(interaction: discord.Interaction, message: str) -> None:
-    await send_ephemeral(interaction, message, log_label=CUSTOM_ID_PREFIX)
+def _parse(custom_id: str) -> tuple[str, int]:
+    parts = custom_id.split(':')
+    if len(parts) != 3 or parts[1] not in ('commentator', 'tracker'):
+        raise DMInteractionError('Invalid interaction.')
+    crew_type = parts[1]
+    try:
+        crew_id = int(parts[2])
+    except ValueError:
+        raise DMInteractionError('Invalid crew ID.')
+    return crew_type, crew_id
 
 
 async def handle_crew_acknowledgment_interaction(interaction: discord.Interaction) -> None:
@@ -41,55 +53,31 @@ async def handle_crew_acknowledgment_interaction(interaction: discord.Interactio
     custom_id format: 'crew_ack:<crew_type>:<crew_id>'
     Responds ephemerally so only the clicking user sees the result.
     """
-    from application.services import CrewService, MatchService, UserService
-    from application.tenant_context import tenant_scope
+    from application.services import CrewService, MatchService
     from discordbot._tenant import crew_tenant_id
 
-    # Defer immediately to extend Discord's 3-second interaction deadline; the
-    # downstream DB work (fetch user, fetch crew, update, audit) can exceed it.
-    try:
-        await interaction.response.defer(ephemeral=True)
-    except Exception:
-        logger.exception("Failed to defer Discord crew_ack interaction")
+    async def resolve_tenant(parsed: tuple[str, int]):
+        crew_type, crew_id = parsed
+        return await crew_tenant_id(crew_id, crew_type)
 
-    custom_id = (interaction.data or {}).get('custom_id', '')
-    parts = custom_id.split(':')
-    if len(parts) != 3 or parts[1] not in ('commentator', 'tracker'):
-        await _send(interaction, 'Invalid interaction.')
-        return
-
-    crew_type = parts[1]
-    try:
-        crew_id = int(parts[2])
-    except ValueError:
-        await _send(interaction, 'Invalid crew ID.')
-        return
-
-    try:
-        tenant_id = await crew_tenant_id(crew_id, crew_type)
-        if tenant_id is None:
-            await _send(interaction, 'Crew assignment not found.')
-            return
-
-        with tenant_scope(tenant_id):
-            user = await UserService().get_user_by_discord_id(str(interaction.user.id))
-            if not user:
-                await _send(interaction, MSG_NO_ACCOUNT)
-                return
-
-            crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
-            match_id = crew_member.match_id
-
-            player_names = await MatchService().get_player_names(match_id)
+    async def handle(inter: discord.Interaction, parsed, user, send: SendFn) -> None:
+        crew_type, crew_id = parsed
+        crew_member = await CrewService().acknowledge_crew_assignment(crew_id, crew_type, user)
+        player_names = await MatchService().get_player_names(crew_member.match_id)
 
         try:
-            await interaction.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))
+            await inter.message.edit(view=make_acknowledged_view(CUSTOM_ID_PREFIX))
         except Exception:
             logger.warning("Could not disable crew_ack button (crew_id=%s)", crew_id)
 
-        await _send(interaction, crew_ack_confirmation(crew_type, player_names))
-    except ValueError as e:
-        await _send(interaction, str(e))
-    except Exception:
-        logger.exception("Crew acknowledgment handler failed (crew_id=%s)", crew_id)
-        await _send(interaction, MSG_UNEXPECTED_ERROR_CREW)
+        await send(crew_ack_confirmation(crew_type, player_names))
+
+    await run_dm_interaction(
+        interaction,
+        log_label=CUSTOM_ID_PREFIX,
+        parse=_parse,
+        resolve_tenant=resolve_tenant,
+        not_found_message='Crew assignment not found.',
+        handle=handle,
+        unexpected_error_message=MSG_UNEXPECTED_ERROR_CREW,
+    )

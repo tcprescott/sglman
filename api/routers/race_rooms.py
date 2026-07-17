@@ -2,7 +2,7 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import (
     ServiceErrorRoute,
@@ -16,6 +16,7 @@ from api.schemas.race_rooms import (
     RaceRoomResponse,
     RaceRoomStatusUpdateRequest,
 )
+from application.errors import require_found
 from application.services import (
     AuthService,
     MatchService,
@@ -29,10 +30,10 @@ router = APIRouter(prefix="/race-rooms", tags=["Race rooms"], route_class=Servic
 
 
 async def _load_room_or_404(room_id: int) -> RacetimeRoom:
-    room = await RacetimeRoom.get_or_none(id=room_id, tenant_id=require_tenant_id())
-    if room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Race room not found")
-    return room
+    return require_found(
+        await RacetimeRoom.get_or_none(id=room_id, tenant_id=require_tenant_id()),
+        "Race room",
+    )
 
 
 # --- Reads ----------------------------------------------------------------
@@ -40,20 +41,13 @@ async def _load_room_or_404(room_id: int) -> RacetimeRoom:
 
 @router.get("/open", response_model=List[RaceRoomResponse], summary="List open race rooms")
 async def list_open(actor: User = Depends(require_staff)):
-    rooms = await RacetimeRoomService().list_open_rooms()
-    tenant_id = require_tenant_id()
-    return [r for r in rooms if r.tenant_id == tenant_id]
+    return await RacetimeRoomService().list_open_rooms_for_current_tenant()
 
 
 @router.get("/by-match/{match_id}", response_model=RaceRoomResponse, summary="Get the race room for a match")
 async def get_by_match(match_id: int, actor: User = Depends(require_api_actor)):
-    match = await MatchService().get_by_id(match_id)
-    if match is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
-    room = await RacetimeRoomService().get_for_match(match)
-    if room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Race room not found")
-    return room
+    match = require_found(await MatchService().get_by_id(match_id), "Match")
+    return require_found(await RacetimeRoomService().get_for_match(match), "Race room")
 
 
 # --- Writes ---------------------------------------------------------------

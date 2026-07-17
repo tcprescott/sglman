@@ -44,8 +44,10 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
 | `MatchWatcherService` | [match_watcher_service.py](../../application/services/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-watcher.md](../features/match-watcher.md) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
+| `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
+| `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours` helpers used by both Reports and Insights (so on-time % can't drift) | — |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
@@ -56,6 +58,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
 | `TwitchService` | [twitch_service.py](../../application/services/twitch_service.py) | Twitch account-linking OAuth (verified identity capture) | — |
 | `RacetimeService` | [racetime_service.py](../../application/services/racetime_service.py) | racetime.gg account-linking OAuth (verified identity capture) | — |
+| `IdentityLinkService` / `IdentityLinkProvider` | [identity_link_service.py](../../application/services/identity_link_service.py) | Provider-parameterized account-linking engine (redirect/authorize/exchange/record/unlink + duplicate-account guard) that `TwitchService` and `RacetimeService` both delegate to | — |
 | `RacetimeBotService` | [racetime_bot_service.py](../../application/services/racetime_bot_service.py) | Platform CRUD + tenant authorization grants for shared racetime bots | — |
 | `RaceRoomProfileService` | [race_room_profile_service.py](../../application/services/race_room_profile_service.py) | SYNC_ADMIN CRUD for reusable racetime room settings | — |
 | `RacetimeRoomService` | [racetime_room_service.py](../../application/services/racetime_room_service.py) | Race-room record lookup (unscoped by-slug routing) + status writes | — |
@@ -71,7 +74,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-All classes and `get_user_from_discord_id` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); `discord_queue` and `volunteer_reminder` are imported as modules (`from application.services import discord_queue`).
+All classes and `get_user_from_discord_id` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); the helper modules `discord_queue`, `volunteer_reminder`, `async_qualifier_access`, `async_qualifier_scoring`, `availability_windows`, and `reporting_shared` are imported as modules (`from application.services import discord_queue`). `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)) are also re-exported here.
 
 ### api_token_service.py — ApiTokenService
 
@@ -847,6 +850,7 @@ Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_su
 Two sibling helpers keep the service under the file-length guideline (both extracted from it, same three-layer standing as `async_qualifier_config.py`/`async_qualifier_scoring.py`):
 
 - **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window` (input validation), `ensure_window_open` (raises when the window is closed/not-yet-open), `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (read tunables off `qualifier.config` with defaults), and `display_name`. `is_results_public` stays a thin `AsyncQualifierService` method delegating here, so `pages/qualifiers.py` keeps calling `service.is_results_public`.
+- **async_qualifier_access.py** — shared access helpers the two split qualifier services both use: `ensure_qualifier_admin(...)` (the repeated admin gate) and `require_qualifier`/`require_pool`/`require_permalink`/`require_run` (load-or-`NotFoundError` lookups), so the gate + entity-resolution ladder lives in one place.
 - **async_qualifier_draw.py** — `AsyncQualifierDraw`, the fairness draw + par/score recompute engine that touches repositories. `draw_candidates`/`pick_permalink` implement the imbalance-forcing draw; `recompute_par_and_scores` recomputes a permalink's par (via `async_qualifier_scoring`) and rescores its approved runs. Composed by `AsyncQualifierService.__init__` as `self.draw`; `start_run` and the review/reattempt/live-race recompute paths call through it.
 
 ### async_qualifier_live_race_service.py — AsyncQualifierLiveRaceService (PR 10)

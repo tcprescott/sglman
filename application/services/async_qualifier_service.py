@@ -30,6 +30,7 @@ from typing import List, Optional, Sequence
 
 from tortoise.transactions import in_transaction
 
+from application.errors import NotFoundError, require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import (
     AsyncQualifierPermalinkRepository,
@@ -39,6 +40,7 @@ from application.repositories import (
     AsyncQualifierRunRepository,
     PresetRepository,
 )
+from application.services import async_qualifier_access as access
 from application.services import async_qualifier_rules as rules
 from application.services.async_qualifier_config import validate_async_qualifier_config
 from application.services.async_qualifier_draw import AsyncQualifierDraw
@@ -91,16 +93,12 @@ class AsyncQualifierService:
     # ============================================================ management
 
     async def list_qualifiers(self, actor: Optional[User]) -> List[AsyncQualifier]:
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor), "Cannot administer qualifiers"
-        )
+        await access.ensure_qualifier_admin(actor, message="Cannot administer qualifiers")
         return await self.repository.list_all()
 
     async def get_qualifier(self, actor: Optional[User], qualifier_id: int) -> AsyncQualifier:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         return qualifier
 
     async def create_qualifier(
@@ -116,9 +114,7 @@ class AsyncQualifierService:
         allowed_reattempts: int = 0,
         config: Optional[dict] = None,
     ) -> AsyncQualifier:
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor), "Cannot administer qualifiers"
-        )
+        await access.ensure_qualifier_admin(actor, message="Cannot administer qualifiers")
         name = (name or '').strip()
         if not name:
             raise ValueError("Qualifier name is required")
@@ -158,9 +154,7 @@ class AsyncQualifierService:
         clear_window: bool = False,
     ) -> AsyncQualifier:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         changes: dict = {}
         if name is not None:
             name = name.strip()
@@ -196,9 +190,7 @@ class AsyncQualifierService:
 
     async def delete_qualifier(self, actor: Optional[User], qualifier_id: int) -> None:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         await self.audit_service.write_log(
             actor, AuditActions.ASYNC_QUALIFIER_DELETED,
             {'qualifier_id': qualifier.id, 'name': qualifier.name},
@@ -207,9 +199,7 @@ class AsyncQualifierService:
 
     async def add_admin(self, actor: Optional[User], qualifier_id: int, target: User) -> None:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         await qualifier.admins.add(target)
         await self.audit_service.write_log(
             actor, AuditActions.ASYNC_QUALIFIER_ADMIN_GRANTED,
@@ -218,9 +208,7 @@ class AsyncQualifierService:
 
     async def remove_admin(self, actor: Optional[User], qualifier_id: int, target: User) -> None:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         await qualifier.admins.remove(target)
         await self.audit_service.write_log(
             actor, AuditActions.ASYNC_QUALIFIER_ADMIN_REVOKED,
@@ -229,18 +217,14 @@ class AsyncQualifierService:
 
     async def list_admins(self, actor: Optional[User], qualifier_id: int) -> List[User]:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         return await qualifier.admins.all()
 
     # ------------------------------------------------------------------ pools
 
     async def list_pools(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierPool]:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         return await self.pool_repository.list_for_qualifier(qualifier_id)
 
     async def create_pool(
@@ -252,14 +236,12 @@ class AsyncQualifierService:
         preset_id: Optional[int] = None,
     ) -> AsyncQualifierPool:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
         name = (name or '').strip()
         if not name:
             raise ValueError("Pool name is required")
         if preset_id is not None and await self.preset_repository.get_by_id(preset_id) is None:
-            raise ValueError("Preset not found")
+            raise NotFoundError("Preset not found")
         existing = await self.pool_repository.list_for_qualifier(qualifier_id)
         if any(p.name.lower() == name.lower() for p in existing):
             raise ValueError(f"A pool named '{name}' already exists")
@@ -293,7 +275,7 @@ class AsyncQualifierService:
             changes['preset_id'] = None
         elif preset_id is not None:
             if await self.preset_repository.get_by_id(preset_id) is None:
-                raise ValueError("Preset not found")
+                raise NotFoundError("Preset not found")
             changes['preset_id'] = preset_id
         pool = await self.pool_repository.update(pool, **changes)
         await self.audit_service.write_log(
@@ -359,9 +341,7 @@ class AsyncQualifierService:
         self, actor: Optional[User], pool_id: int, *, count: int
     ) -> List[AsyncQualifierPermalink]:
         """Roll ``count`` fresh seeds from the pool's preset into permalinks."""
-        pool = await self.pool_repository.get_with_permalinks(pool_id)
-        if pool is None:
-            raise ValueError("Pool not found")
+        pool = require_found(await self.pool_repository.get_with_permalinks(pool_id), "Pool")
         await self._ensure_pool_admin(actor, pool)
         if pool.preset is None:
             raise ValueError("Pool has no preset to roll from")
@@ -542,7 +522,7 @@ class AsyncQualifierService:
         """
         run = await self.run_repository.get_by_id(run_id)
         if run is None or run.user_id != user.id:
-            raise ValueError("Run not found")
+            raise NotFoundError("Run not found")
         reason = (reason or '').strip()
         if not reason:
             raise ValueError("A reattempt reason is required")
@@ -571,9 +551,7 @@ class AsyncQualifierService:
 
     async def list_review_queue(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierRun]:
         qualifier = await self._require_qualifier(qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot review this qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
         return await self.run_repository.list_pending_review(qualifier_id)
 
     async def claim_run(self, actor: Optional[User], run_id: int) -> AsyncQualifierRun:
@@ -629,9 +607,7 @@ class AsyncQualifierService:
         return run
 
     async def get_run_notes(self, actor: Optional[User], run_id: int):
-        run = await self.run_repository.get_by_id(run_id)
-        if run is None:
-            raise ValueError("Run not found")
+        run = await access.require_run(self.run_repository, run_id)
         qualifier = await self._require_qualifier(run.qualifier_id)
         # A reviewer sees any run's notes; a runner sees their own.
         if not (await AuthService.can_admin_qualifier(actor, qualifier)
@@ -649,9 +625,9 @@ class AsyncQualifierService:
     ) -> List[LeaderboardEntry]:
         qualifier = await self._require_qualifier(qualifier_id)
         if not self.is_results_public(qualifier):
-            await AuthService.ensure(
-                await AuthService.can_admin_qualifier(actor, qualifier),
-                "The leaderboard is hidden while this qualifier is open",
+            await access.ensure_qualifier_admin(
+                actor, qualifier,
+                message="The leaderboard is hidden while this qualifier is open",
             )
         pools = await self.pool_repository.list_for_qualifier(qualifier_id)
         pool_ids = [p.id for p in pools]
@@ -677,28 +653,17 @@ class AsyncQualifierService:
     # ============================================================= internals
 
     async def _require_qualifier(self, qualifier_id: int) -> AsyncQualifier:
-        qualifier = await self.repository.get_by_id(qualifier_id)
-        if qualifier is None:
-            raise ValueError("Qualifier not found")
-        return qualifier
+        return await access.require_qualifier(self.repository, qualifier_id)
 
     async def _require_pool(self, pool_id: int) -> AsyncQualifierPool:
-        pool = await self.pool_repository.get_by_id(pool_id)
-        if pool is None:
-            raise ValueError("Pool not found")
-        return pool
+        return await access.require_pool(self.pool_repository, pool_id)
 
     async def _require_permalink(self, permalink_id: int) -> AsyncQualifierPermalink:
-        permalink = await self.permalink_repository.get_by_id(permalink_id)
-        if permalink is None:
-            raise ValueError("Permalink not found")
-        return permalink
+        return await access.require_permalink(self.permalink_repository, permalink_id)
 
     async def _ensure_pool_admin(self, actor: Optional[User], pool: AsyncQualifierPool) -> None:
         qualifier = await self._require_qualifier(pool.qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot administer qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier)
 
     async def _ensure_permalink_admin(self, actor: Optional[User], permalink: AsyncQualifierPermalink) -> None:
         pool = await self._require_pool(permalink.pool_id)
@@ -707,7 +672,7 @@ class AsyncQualifierService:
     async def _require_own_active_run(self, user: User, run_id: int) -> AsyncQualifierRun:
         run = await self.run_repository.get_by_id(run_id)
         if run is None or run.user_id != user.id:
-            raise ValueError("Run not found")
+            raise NotFoundError("Run not found")
         if run.status != AsyncQualifierRunStatus.IN_PROGRESS:
             raise ValueError("This run is no longer in progress")
         return run
@@ -715,13 +680,9 @@ class AsyncQualifierService:
     async def _require_reviewable(self, actor: Optional[User], run_id: int):
         if actor is None:
             raise PermissionError("Cannot review this run")
-        run = await self.run_repository.get_by_id(run_id)
-        if run is None:
-            raise ValueError("Run not found")
+        run = await access.require_run(self.run_repository, run_id)
         qualifier = await self._require_qualifier(run.qualifier_id)
-        await AuthService.ensure(
-            await AuthService.can_admin_qualifier(actor, qualifier), "Cannot review this qualifier"
-        )
+        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
         return run, qualifier
 
     async def _count_reattempts(self, user_id: int, qualifier_id: int) -> int:

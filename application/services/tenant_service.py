@@ -140,7 +140,7 @@ class TenantService:
         is_active: bool = True,
         config: Optional[dict] = None,
     ) -> Tenant:
-        await AuthService.ensure(await AuthService.is_super_admin(actor), 'Super-admin required')
+        await AuthService.ensure_super_admin(actor)
         name = (name or '').strip()
         if not name:
             raise ValueError('Tenant name is required.')
@@ -161,7 +161,7 @@ class TenantService:
 
     @staticmethod
     async def update_tenant(actor: User, tenant: Tenant, **fields) -> Tenant:
-        await AuthService.ensure(await AuthService.is_super_admin(actor), 'Super-admin required')
+        await AuthService.ensure_super_admin(actor)
         if 'slug' in fields:
             fields['slug'] = await TenantService._validate_slug(fields['slug'], exclude_id=tenant.id)
         if 'domain' in fields:
@@ -185,28 +185,11 @@ class TenantService:
     async def is_member(user_id: int, tenant_id: int) -> bool:
         return await TenantMembershipRepository.is_member(user_id, tenant_id)
 
-    @staticmethod
-    async def add_member(actor: User, user: User, tenant_id: int) -> None:
-        await AuthService.ensure(await AuthService.is_super_admin(actor), 'Super-admin required')
-        await TenantMembershipRepository.add(user, tenant_id)
-        await AuditService().write_log(
-            actor, AuditActions.TENANT_MEMBER_ADDED,
-            {'tenant_id': tenant_id, 'user_id': user.id},
-        )
-
-    @staticmethod
-    async def list_members(tenant_id: int) -> List:
-        return await TenantMembershipRepository.list_for_tenant(tenant_id)
-
-    @staticmethod
-    async def list_memberships_for_user(user: User) -> List:
-        return await TenantMembershipRepository.list_for_user(user)
-
     # ---- super-admin grants + per-tenant bootstrap ------------------------
 
     @staticmethod
     async def grant_super_admin(actor: User, user: User) -> None:
-        await AuthService.ensure(await AuthService.is_super_admin(actor), 'Super-admin required')
+        await AuthService.ensure_super_admin(actor)
         # SUPER_ADMIN carries tenant=NULL; UserRoleRepository.add encodes that.
         await UserRoleRepository.add(user, Role.SUPER_ADMIN, granted_by=actor)
         await AuditService().write_log(
@@ -215,7 +198,7 @@ class TenantService:
 
     @staticmethod
     async def revoke_super_admin(actor: User, user: User) -> None:
-        await AuthService.ensure(await AuthService.is_super_admin(actor), 'Super-admin required')
+        await AuthService.ensure_super_admin(actor)
         await UserRoleRepository.remove(user, Role.SUPER_ADMIN)
         await AuditService().write_log(
             actor, AuditActions.SUPER_ADMIN_REVOKED, {'user_id': user.id},
@@ -230,7 +213,7 @@ class TenantService:
         """
         from application.tenant_context import tenant_scope
 
-        await AuthService.ensure(await AuthService.is_super_admin(actor), 'Super-admin required')
+        await AuthService.ensure_super_admin(actor)
         await TenantMembershipRepository.add(user, tenant_id)
         with tenant_scope(tenant_id):
             await UserRoleRepository.add(user, Role.STAFF, granted_by=actor, source=RoleSource.MANUAL)

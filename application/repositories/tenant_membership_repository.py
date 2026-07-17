@@ -35,8 +35,3 @@ class TenantMembershipRepository:
     @staticmethod
     async def list_for_tenant(tenant_id: int) -> List[TenantMembership]:
         return await TenantMembership.filter(tenant_id=tenant_id).prefetch_related('user')
-
-    @staticmethod
-    async def tenant_ids_for_user(user_id: int) -> set[int]:
-        rows = await TenantMembership.filter(user_id=user_id).values_list('tenant_id', flat=True)
-        return set(rows)

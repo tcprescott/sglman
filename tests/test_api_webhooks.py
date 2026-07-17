@@ -3,15 +3,9 @@
 Uses the function-scoped in-memory ``db`` fixture from conftest.
 """
 
-import pytest
 
-from tests.api_helpers import build_api_app, client_for, create_user_token
+from tests.api_helpers import client_for, create_user_token
 from models import Role
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
 
 
 class TestWebhookApiAuth:
@@ -79,7 +73,7 @@ class TestWebhookApiCrud:
             assert deleted.status_code == 204
 
             missing = await client.get(f'/api/webhooks/{wid}')
-            assert missing.status_code == 400  # service raises ValueError -> 400
+            assert missing.status_code == 404  # service raises NotFoundError -> 404 (audit §2B.6)
 
     async def test_regenerate_secret_returns_new_secret(self, app, db):
         _, token = await create_user_token(roles=[Role.STAFF])

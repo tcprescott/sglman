@@ -8,7 +8,7 @@ read-only tokens (``require_write_actor``). Tenancy comes from the token.
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.discord_events import (
@@ -18,17 +18,9 @@ from api.schemas.discord_events import (
     ReconcileResultResponse,
 )
 from application.services import DiscordEventSyncService
-from application.tenant_context import require_tenant_id
-from models import Tournament, User
+from models import User
 
 router = APIRouter(prefix="/discord-events", tags=["Discord events"], route_class=ServiceErrorRoute)
-
-
-async def _load_tournament_or_404(tournament_id: int) -> Tournament:
-    tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
-    if tournament is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tournament not found")
-    return tournament
 
 
 @router.get(
@@ -59,7 +51,6 @@ async def update_tournament_settings(
     body: DiscordEventTournamentUpdateRequest,
     actor: User = Depends(require_write_actor),
 ):
-    await _load_tournament_or_404(tournament_id)
     return await DiscordEventSyncService().update_settings(
         actor, tournament_id, **body.model_dump(exclude_unset=True)
     )

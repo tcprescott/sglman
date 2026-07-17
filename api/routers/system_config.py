@@ -2,10 +2,11 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from api.dependencies import ServiceErrorRoute, require_staff, require_staff_write
 from api.schemas.config import ConfigEntryResponse, ConfigValueUpdate
+from application.errors import require_found
 from application.services import SystemConfigService
 from application.tenant_context import require_tenant_id
 from models import SystemConfiguration, User
@@ -29,10 +30,10 @@ async def list_config(actor: User = Depends(require_staff)):
     summary="Get a configuration entry",
 )
 async def get_config(key: str, actor: User = Depends(require_staff)):
-    entry = await SystemConfiguration.get_or_none(name=key, tenant_id=require_tenant_id())
-    if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Config key not found")
-    return entry
+    return require_found(
+        await SystemConfiguration.get_or_none(name=key, tenant_id=require_tenant_id()),
+        "Config key",
+    )
 
 
 @router.put(

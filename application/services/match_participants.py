@@ -11,6 +11,7 @@ events — those stay with the service methods that call it.
 from typing import List
 
 from models import Match, User
+from application.errors import require_found
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
@@ -44,10 +45,7 @@ class MatchParticipants:
         users_by_id = await self.user_repository.get_by_ids(user_ids)
         resolved: List[User] = []
         for uid in user_ids:
-            user = users_by_id.get(uid)
-            if not user:
-                raise ValueError(f"User {uid} not found")
-            resolved.append(user)
+            resolved.append(require_found(users_by_id.get(uid), f"User {uid}"))
         return resolved
 
     async def ensure_enrolled(self, tournament_id: int, users: List[User]) -> None:

@@ -10,6 +10,7 @@ from application.services import AuthService, ChallongeService, get_user_from_di
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_eastern_display
 from models import Tournament
+from theme.notify import notify_error
 
 
 async def admin_challonge_page() -> None:
@@ -65,8 +66,8 @@ async def admin_challonge_page() -> None:
             try:
                 await service.disconnect(actor)
                 ui.notify('Challonge disconnected.', color='positive')
-            except ValueError as e:
-                ui.notify(str(e), color='warning')
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
             await connection_card.refresh()
 
         await connection_card()

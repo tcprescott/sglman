@@ -8,6 +8,7 @@ see) is available AND enabled. See docs/features/feature-flags.md.
 """
 
 from nicegui import app, ui
+from theme.notify import notify_error
 
 from application.services import FeatureFlagService, get_user_from_discord_id
 from models import FeatureFlag
@@ -21,7 +22,7 @@ async def admin_features_page() -> None:
         try:
             await service.set_tenant_enabled(actor, FeatureFlag(flag_value), enabled)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Feature enabled' if enabled else 'Feature disabled', color='positive')
 

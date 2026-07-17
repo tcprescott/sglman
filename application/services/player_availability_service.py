@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from tortoise.transactions import in_transaction
 
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
+from application.services import availability_windows
 from application.services.audit_service import AuditActions, AuditService
 from models import PlayerAvailability, User, VolunteerAvailabilityStatus
 
@@ -62,10 +63,7 @@ class PlayerAvailabilityService:
     ) -> Dict[int, List[PlayerAvailability]]:
         """Map user_id -> availability windows overlapping [start, end]."""
         rows = await self.repository.for_users_overlapping(user_ids, start, end)
-        out: Dict[int, List[PlayerAvailability]] = {}
-        for row in rows:
-            out.setdefault(row.user_id, []).append(row)
-        return out
+        return availability_windows.group_by_user(rows)
 
     @staticmethod
     def covers(
@@ -76,16 +74,7 @@ class PlayerAvailabilityService:
         PREFERRED beats AVAILABLE; an overlapping UNAVAILABLE window wins outright.
         Returns None when no window overlaps the range.
         """
-        result: Optional[VolunteerAvailabilityStatus] = None
-        for w in windows:
-            if w.starts_at < end and w.ends_at > start:
-                if w.status == VolunteerAvailabilityStatus.UNAVAILABLE:
-                    return VolunteerAvailabilityStatus.UNAVAILABLE
-                if w.status == VolunteerAvailabilityStatus.PREFERRED:
-                    result = VolunteerAvailabilityStatus.PREFERRED
-                elif result is None:
-                    result = VolunteerAvailabilityStatus.AVAILABLE
-        return result
+        return availability_windows.covers(windows, start, end)
 
     @staticmethod
     def effective_segments(
@@ -98,19 +87,4 @@ class PlayerAvailabilityService:
         window carry a ``None`` status. Adjacent segments of equal status are
         merged so the result is the minimal set of contiguous spans.
         """
-        if end <= start:
-            return []
-        boundaries = {start, end}
-        for w in windows:
-            if w.ends_at > start and w.starts_at < end:
-                boundaries.add(max(w.starts_at, start))
-                boundaries.add(min(w.ends_at, end))
-        points = sorted(boundaries)
-        segments: List[Tuple[datetime, datetime, Optional[VolunteerAvailabilityStatus]]] = []
-        for seg_start, seg_end in zip(points, points[1:]):
-            status = PlayerAvailabilityService.covers(windows, seg_start, seg_end)
-            if segments and segments[-1][2] == status:
-                segments[-1] = (segments[-1][0], seg_end, status)
-            else:
-                segments.append((seg_start, seg_end, status))
-        return segments
+        return availability_windows.effective_segments(windows, start, end)

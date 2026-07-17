@@ -8,25 +8,10 @@
 
 from datetime import timedelta
 
-import pytest
 
 from application.utils.timezone import now_eastern
 from models import Match, Role, SystemConfiguration, Tournament, User
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 # ---------------------------------------------------------------------------
@@ -52,10 +37,11 @@ class TestMatchWatchers:
             assert removed.status_code == 204
             assert (await c.get('/api/matches/watching')).json() == []
 
-    async def test_watch_missing_match_is_400(self, db, app):
+    async def test_watch_missing_match_is_404(self, db, app):
         _, raw = await create_user_token(username='fan')
         async with client_for(app, raw) as c:
-            assert (await c.post('/api/matches/999/watch')).status_code == 400
+            # Missing match -> NotFoundError -> 404 (audit §2B.6).
+            assert (await c.post('/api/matches/999/watch')).status_code == 404
 
     async def test_read_only_token_cannot_watch(self, db, app):
         _, raw = await create_user_token(username='fan', read_only=True)

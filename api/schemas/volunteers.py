@@ -5,6 +5,9 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Re-exported for callers that import the availability schemas from this module.
+from api.schemas.common import AvailabilityWindowInput as AvailabilityWindowInput
+from api.schemas.common import SetAvailabilityRequest as SetAvailabilityRequest
 from models import VolunteerAvailabilityStatus
 
 
@@ -102,19 +105,6 @@ class VolunteerAvailabilityResponse(BaseModel):
     ends_at: datetime
     status: VolunteerAvailabilityStatus
     note: Optional[str] = None
-
-
-class AvailabilityWindowInput(BaseModel):
-    starts_at: datetime
-    ends_at: datetime
-    status: VolunteerAvailabilityStatus = VolunteerAvailabilityStatus.AVAILABLE
-    note: Optional[str] = Field(default=None, max_length=1000)
-
-
-class SetAvailabilityRequest(BaseModel):
-    # Bounded so a single authenticated request cannot submit an unbounded
-    # window list (request-body / storage exhaustion).
-    windows: List[AvailabilityWindowInput] = Field(default_factory=list, max_length=500)
 
 
 # --- Profile / coverage ---------------------------------------------------

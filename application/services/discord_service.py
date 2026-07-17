@@ -516,6 +516,35 @@ class DiscordService:
                 return None
         return guild
 
+    async def _scheduled_event_op(
+        self,
+        guild_id: int,
+        op: Callable[["discord.Guild"], Awaitable[Tuple[bool, Union[int, str]]]],
+        *,
+        gerund: str,
+        verb: str,
+    ) -> Tuple[bool, Union[int, str]]:
+        """Run a guild-scoped scheduled-event ``op`` with the shared guard + error tail.
+
+        Applies the not-connected preamble, resolves the guild (via ``_get_guild``,
+        returning "not in this server" when absent), then delegates to ``op(guild)``
+        and maps the discord.py exception tail to a ``(False, message)`` tuple.
+        ``gerund``/``verb`` name the action for the error text (e.g. 'creating'/'create').
+        """
+        try:
+            if self._bot is None or not self._bot.is_ready():
+                return False, "Discord bot is not connected."
+            guild = await self._get_guild(guild_id)
+            if guild is None:
+                return False, "The bot is not in this server."
+            return await op(guild)
+        except discord.Forbidden:
+            return False, "Bot lacks permission to manage events in this server."
+        except discord.HTTPException as e:
+            return False, f"Discord HTTP error while {gerund} event: {str(e)}"
+        except Exception as e:
+            return False, f"Failed to {verb} event: {str(e)}"
+
     async def create_scheduled_event(
         self,
         guild_id: int,
@@ -527,12 +556,7 @@ class DiscordService:
         location: str = 'Stream',
     ) -> Tuple[bool, Union[int, str]]:
         """Create an external Scheduled Event; return ``(True, event_id)`` or an error."""
-        try:
-            if self._bot is None or not self._bot.is_ready():
-                return False, "Discord bot is not connected."
-            guild = await self._get_guild(guild_id)
-            if guild is None:
-                return False, "The bot is not in this server."
+        async def _op(guild: "discord.Guild") -> Tuple[bool, Union[int, str]]:
             event = await guild.create_scheduled_event(
                 name=name[:100],
                 start_time=start_time,
@@ -543,12 +567,8 @@ class DiscordService:
                 location=location[:100],
             )
             return True, int(event.id)
-        except discord.Forbidden:
-            return False, "Bot lacks permission to manage events in this server."
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while creating event: {str(e)}"
-        except Exception as e:
-            return False, f"Failed to create event: {str(e)}"
+
+        return await self._scheduled_event_op(guild_id, _op, gerund="creating", verb="create")
 
     async def edit_scheduled_event(
         self,
@@ -562,12 +582,7 @@ class DiscordService:
         location: str = 'Stream',
     ) -> Tuple[bool, str]:
         """Edit an existing Scheduled Event to match the current schedule."""
-        try:
-            if self._bot is None or not self._bot.is_ready():
-                return False, "Discord bot is not connected."
-            guild = await self._get_guild(guild_id)
-            if guild is None:
-                return False, "The bot is not in this server."
+        async def _op(guild: "discord.Guild") -> Tuple[bool, Union[int, str]]:
             event = guild.get_scheduled_event(event_id)
             if event is None:
                 try:
@@ -583,21 +598,12 @@ class DiscordService:
                 location=location[:100],
             )
             return True, "Event updated."
-        except discord.Forbidden:
-            return False, "Bot lacks permission to manage events in this server."
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while editing event: {str(e)}"
-        except Exception as e:
-            return False, f"Failed to edit event: {str(e)}"
+
+        return await self._scheduled_event_op(guild_id, _op, gerund="editing", verb="edit")
 
     async def delete_scheduled_event(self, guild_id: int, event_id: int) -> Tuple[bool, str]:
         """Cancel (delete) a Scheduled Event. Treats an already-gone event as success."""
-        try:
-            if self._bot is None or not self._bot.is_ready():
-                return False, "Discord bot is not connected."
-            guild = await self._get_guild(guild_id)
-            if guild is None:
-                return False, "The bot is not in this server."
+        async def _op(guild: "discord.Guild") -> Tuple[bool, Union[int, str]]:
             event = guild.get_scheduled_event(event_id)
             if event is None:
                 try:
@@ -606,12 +612,8 @@ class DiscordService:
                     return True, "Event already removed."
             await event.delete()
             return True, "Event cancelled."
-        except discord.Forbidden:
-            return False, "Bot lacks permission to manage events in this server."
-        except discord.HTTPException as e:
-            return False, f"Discord HTTP error while deleting event: {str(e)}"
-        except Exception as e:
-            return False, f"Failed to delete event: {str(e)}"
+
+        return await self._scheduled_event_op(guild_id, _op, gerund="deleting", verb="delete")
 
 
 class MockDiscordService:

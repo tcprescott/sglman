@@ -3,9 +3,10 @@
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
+from application.errors import require_found
 from api.schemas.volunteers import (
     AssignRequest,
     AssignResponse,
@@ -86,9 +87,7 @@ async def create_position(payload: VolunteerPositionCreate, actor: User = Depend
 @router.patch("/positions/{position_id}", response_model=VolunteerPositionResponse, summary="Update a position")
 async def update_position(position_id: int, payload: VolunteerPositionUpdate, actor: User = Depends(require_write_actor)):
     service = VolunteerPositionService()
-    position = await service.get(position_id)
-    if position is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    position = require_found(await service.get(position_id), "Position")
     fields = payload.model_dump(exclude_unset=True)
     if not fields:
         return position
@@ -98,9 +97,7 @@ async def update_position(position_id: int, payload: VolunteerPositionUpdate, ac
 @router.delete("/positions/{position_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a position")
 async def delete_position(position_id: int, actor: User = Depends(require_write_actor)):
     service = VolunteerPositionService()
-    position = await service.get(position_id)
-    if position is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Position not found")
+    position = require_found(await service.get(position_id), "Position")
     await service.delete(actor, position)
 
 
@@ -117,9 +114,7 @@ async def list_shifts(
 
 @router.get("/shifts/{shift_id}", response_model=VolunteerShiftResponse, summary="Get a shift")
 async def get_shift(shift_id: int):
-    shift = await VolunteerScheduleService().get_shift(shift_id)
-    if shift is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift not found")
+    shift = require_found(await VolunteerScheduleService().get_shift(shift_id), "Shift")
     return _shift_resp(shift)
 
 
@@ -137,9 +132,7 @@ async def create_shift(payload: VolunteerShiftCreate, actor: User = Depends(requ
 @router.delete("/shifts/{shift_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a shift")
 async def delete_shift(shift_id: int, actor: User = Depends(require_write_actor)):
     service = VolunteerScheduleService()
-    shift = await service.get_shift(shift_id)
-    if shift is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift not found")
+    shift = require_found(await service.get_shift(shift_id), "Shift")
     await service.delete_shift(actor, shift)
 
 
@@ -148,12 +141,8 @@ async def delete_shift(shift_id: int, actor: User = Depends(require_write_actor)
 @router.post("/shifts/{shift_id}/assignments", response_model=AssignResponse, summary="Assign a volunteer to a shift")
 async def assign(shift_id: int, payload: AssignRequest, actor: User = Depends(require_write_actor)):
     service = VolunteerScheduleService()
-    shift = await service.get_shift(shift_id)
-    if shift is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shift not found")
-    target = await User.get_or_none(id=payload.user_id)
-    if target is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    shift = require_found(await service.get_shift(shift_id), "Shift")
+    target = require_found(await User.get_or_none(id=payload.user_id), "User")
     assignment, warnings = await service.assign(actor, shift, target)
     assignment.user = target  # for the response name
     return AssignResponse(assignment=_assignment_resp(assignment), warnings=warnings)
@@ -162,9 +151,7 @@ async def assign(shift_id: int, payload: AssignRequest, actor: User = Depends(re
 @router.delete("/assignments/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Remove an assignment")
 async def unassign(assignment_id: int, actor: User = Depends(require_write_actor)):
     service = VolunteerScheduleService()
-    assignment = await service.get_assignment(assignment_id)
-    if assignment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+    assignment = require_found(await service.get_assignment(assignment_id), "Assignment")
     await service.unassign(actor, assignment)
 
 

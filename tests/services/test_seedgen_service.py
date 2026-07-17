@@ -74,7 +74,10 @@ class TestStubGenerators:
 
     @pytest.mark.parametrize('randomizer', ['mmr', 'smdash', 'dk64r', 'wwr'])
     async def test_raises_not_implemented(self, service, randomizer):
-        with pytest.raises(NotImplementedError, match='not yet implemented'):
+        # Stub generators raise ValueError (the documented user-error contract),
+        # so a user-reachable roll surfaces a 400 / UI warning rather than an
+        # unhandled NotImplementedError -> 500 (audit §1.3).
+        with pytest.raises(ValueError, match='not yet implemented'):
             await service.generate_seed(randomizer)
 
 

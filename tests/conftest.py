@@ -36,6 +36,38 @@ def _tenant_context():
         reset_tenant_id(token)
 
 
+@pytest.fixture
+def app():
+    """The full REST API app (all routers under ``/api``).
+
+    Hoisted here from the ~19 API test modules that re-pasted it. The two
+    hand-built apps (``test_api_matches.py`` / ``test_api_tokens.py``) keep
+    their own bespoke fixtures.
+    """
+    from tests.api_helpers import build_api_app
+    return build_api_app()
+
+
+@pytest.fixture(autouse=True)
+def stub_discord_queue(monkeypatch):
+    """Capture coroutines handed to ``discord_queue.enqueue`` without running them.
+
+    Discord notifications/DMs are fire-and-forget via the queue worker, so
+    services only enqueue the coroutine — they never await it. Capturing and
+    closing the coroutines lets tests assert the call happened while avoiding
+    'coroutine was never awaited' warnings. Applied suite-wide; the handful of
+    tests that need the *real* enqueue (``tests/services/test_discord_queue.py``)
+    restore it explicitly with their own ``monkeypatch``.
+    """
+    captured = []
+    monkeypatch.setattr(
+        'application.services.discord_queue.enqueue', captured.append
+    )
+    yield captured
+    for coro in captured:
+        coro.close()
+
+
 @pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """Isolate the process-global API rate-limiter counters per test.
@@ -101,3 +133,50 @@ async def db(monkeypatch):
         yield
     finally:
         await Tortoise.close_connections()
+
+
+# Canonical two-tenant fixtures. Historically each isolation test re-created a
+# second tenant inline under one of four drifting slugs (``tenant-b``/``beta``/
+# ``b``/``community``); these fixtures give one slug convention (``tenant-b``)
+# and one place to build on. ``tenant_a`` is the default tenant (id 1) the
+# ``db`` fixture creates.
+SECOND_TENANT_SLUG = 'tenant-b'
+
+
+@pytest.fixture
+async def two_tenants(db):
+    """The default tenant plus a second one (slug ``tenant-b``).
+
+    Returns ``(tenant_a, tenant_b)``. Build tenant-scoped rows on top with
+    ``tenant_scope(tenant.id)``.
+    """
+    tenant_a = await _models.Tenant.get(id=DEFAULT_TEST_TENANT_ID)
+    tenant_b = await _models.Tenant.create(name='Tenant B', slug=SECOND_TENANT_SLUG)
+    return tenant_a, tenant_b
+
+
+@pytest.fixture
+async def two_tenant_api(two_tenants):
+    """Two tenants each with a STAFF token, a tournament, and a match, plus an API app.
+
+    Returns a dict: ``app``, ``token_a``/``token_b``, ``ta``/``tb``, ``ma``/``mb``.
+    """
+    from application.tenant_context import tenant_scope
+    from models import Match, Role, Tournament
+    from tests.api_helpers import build_api_app, create_user_token
+
+    tenant_a, tenant_b = two_tenants
+    with tenant_scope(tenant_a.id):
+        _, token_a = await create_user_token(username='a-staff', roles=[Role.STAFF])
+        ta = await Tournament.create(name='A Cup')
+        ma = await Match.create(tournament=ta)
+    with tenant_scope(tenant_b.id):
+        _, token_b = await create_user_token(username='b-staff', roles=[Role.STAFF])
+        tb = await Tournament.create(name='B Cup')
+        mb = await Match.create(tournament=tb)
+
+    return {
+        'app': build_api_app(),
+        'token_a': token_a, 'token_b': token_b,
+        'ta': ta, 'tb': tb, 'ma': ma, 'mb': mb,
+    }

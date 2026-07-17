@@ -8,18 +8,20 @@ are timezone-aware datetimes.
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Tuple
 
+from application.services.reporting_shared import (
+    DEFAULT_MATCH_DURATION_MIN,
+    ON_TIME_THRESHOLD_MIN,
+    eastern,
+    window_hours,
+)
 from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import EASTERN_TZ, to_eastern
+from application.utils.timezone import EASTERN_TZ
 from models import (
     Match,
     StreamRoom,
     User,
 )
-
-
-DEFAULT_MATCH_DURATION_MIN = 90
-ON_TIME_THRESHOLD_MIN = 5
 
 
 class ReportsService:
@@ -29,7 +31,7 @@ class ReportsService:
 
     @staticmethod
     def _eastern(dt: Optional[datetime]) -> Optional[datetime]:
-        return to_eastern(dt)
+        return eastern(dt)
 
     @staticmethod
     def _match_window(match: Match) -> Optional[Tuple[datetime, datetime]]:
@@ -317,7 +319,7 @@ class ReportsService:
                 window = self._match_window(match)
                 if window:
                     ws, we = window
-                    duration_hours = max(0.0, (we - ws).total_seconds() / 3600.0)
+                    duration_hours = window_hours(ws, we)
 
             def bump(entry, slot_total, slot_approved, hours) -> None:
                 entry[f'{slot_total}_total'] += 1

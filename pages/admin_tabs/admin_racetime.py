@@ -6,6 +6,7 @@ per-tenant authorization) are platform-level and managed on ``/platform``.
 """
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.services import RaceRoomProfileService, get_user_from_discord_id
 
@@ -74,7 +75,7 @@ async def admin_racetime_page() -> None:
                 try:
                     await service.delete_profile(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Profile deleted', color='positive')
                 await refresh_table()
@@ -84,7 +85,7 @@ async def admin_racetime_page() -> None:
                 try:
                     profile = await service.get_profile(await _current(), row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 open_profile_dialog(profile)
 
@@ -123,7 +124,7 @@ async def admin_racetime_page() -> None:
                             dialog.close()
                             await refresh_table()
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
 
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')

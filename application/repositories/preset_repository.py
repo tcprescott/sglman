@@ -4,17 +4,17 @@ Preset Repository - Data Access Layer
 Handles database operations for tenant-scoped seed-rolling presets.
 """
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
+from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Preset
 
 
-class PresetRepository:
+class PresetRepository(TenantScopedRepository[Preset]):
     """Repository for Preset data access."""
 
-    async def get_by_id(self, preset_id: int) -> Optional[Preset]:
-        return await Preset.get_or_none(id=preset_id, tenant_id=current_tenant_id())
+    model = Preset
 
     async def get_by_natural_key(self, randomizer: str, name: str) -> Optional[Preset]:
         """Resolve a preset by its per-tenant natural key (randomizer, name)."""
@@ -27,15 +27,3 @@ class PresetRepository:
 
     async def list_by_randomizer(self, randomizer: str) -> List[Preset]:
         return await scoped(Preset.filter(randomizer=randomizer)).order_by('name')
-
-    async def create(self, **fields: Any) -> Preset:
-        return await Preset.create(tenant_id=current_tenant_id(), **fields)
-
-    async def update(self, preset: Preset, **fields: Any) -> Preset:
-        for key, value in fields.items():
-            setattr(preset, key, value)
-        await preset.save()
-        return preset
-
-    async def delete(self, preset: Preset) -> None:
-        await preset.delete()

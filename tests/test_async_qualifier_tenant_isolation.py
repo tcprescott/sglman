@@ -16,19 +16,12 @@ from models import (
     AsyncQualifierPool,
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
-    Tenant,
     User,
 )
 
 
-async def _tenants(db):
-    a = await Tenant.get(id=1)
-    b = await Tenant.create(name='Tenant B', slug='tenant-b')
-    return a, b
-
-
-async def test_qualifier_reads_are_isolated(db):
-    a, b = await _tenants(db)
+async def test_qualifier_reads_are_isolated(two_tenants):
+    a, b = two_tenants
     repo = AsyncQualifierRepository()
     with tenant_scope(a.id):
         qa = await AsyncQualifier.create(name='QA')
@@ -43,8 +36,8 @@ async def test_qualifier_reads_are_isolated(db):
         assert await repo.get_by_id(qa.id) is None
 
 
-async def test_pool_reads_are_isolated(db):
-    a, b = await _tenants(db)
+async def test_pool_reads_are_isolated(two_tenants):
+    a, b = two_tenants
     repo = AsyncQualifierPoolRepository()
     with tenant_scope(a.id):
         qa = await AsyncQualifier.create(name='QA')
@@ -60,8 +53,8 @@ async def test_pool_reads_are_isolated(db):
         assert [p.id for p in await repo.list_for_qualifier(qb.id)] == [pb.id]
 
 
-async def test_run_reads_are_isolated(db):
-    a, b = await _tenants(db)
+async def test_run_reads_are_isolated(two_tenants):
+    a, b = two_tenants
     repo = AsyncQualifierRunRepository()
     with tenant_scope(a.id):
         qa = await AsyncQualifier.create(name='QA')

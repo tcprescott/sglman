@@ -8,11 +8,19 @@ from typing import List, Optional
 
 from tortoise.expressions import Q
 
+from application.repositories._base import TenantScopedRepository
 from models import SYSTEM_USER_DISCORD_ID, Role, User
 
 
-class UserRepository:
-    """Repository for user data access."""
+class UserRepository(TenantScopedRepository[User]):
+    """Repository for user data access.
+
+    ``User`` is a **global** identity with no tenant column, so ``create`` and
+    ``get_by_id`` are overridden to stay unscoped; only the tenant-agnostic
+    ``update``/``delete`` come from the base.
+    """
+
+    model = User
 
     @staticmethod
     async def get_by_id(user_id: int) -> Optional[User]:
@@ -166,16 +174,6 @@ class UserRepository:
             user.username = username
         await user.save()
         return user
-
-    @staticmethod
-    async def update(user: User, **fields) -> None:
-        for key, value in fields.items():
-            setattr(user, key, value)
-        await user.save()
-
-    @staticmethod
-    async def delete(user: User) -> None:
-        await user.delete()
 
     @staticmethod
     async def update_discord_info(

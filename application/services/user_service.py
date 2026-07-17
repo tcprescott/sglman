@@ -41,6 +41,23 @@ class UserService:
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         return await self.repository.get_by_id(user_id)
 
+    async def _check_concurrency(
+        self,
+        user: User,
+        check_concurrency: bool,
+        initial_updated_at: Optional[datetime],
+    ) -> None:
+        """Optimistic-concurrency guard for admin edits.
+
+        Raises if the row was modified since the editor loaded it, so a second
+        admin's save can't silently clobber the first.
+        """
+        if not (check_concurrency and initial_updated_at is not None):
+            return
+        latest_user = await self.repository.get_by_id(user.id)
+        if latest_user and latest_user.updated_at != initial_updated_at:
+            raise ValueError("This user has been modified by another admin. Please reload and try again.")
+
     async def get_all_users(
         self,
         role: Optional[Role] = None,
@@ -251,10 +268,7 @@ class UserService:
         if actor.id != user.id and not await AuthService.is_staff(actor):
             raise PermissionError("User cannot edit another user's profile")
 
-        if check_concurrency and initial_updated_at is not None:
-            latest_user = await self.repository.get_by_id(user.id)
-            if latest_user and latest_user.updated_at != initial_updated_at:
-                raise ValueError("This user has been modified by another admin. Please reload and try again.")
+        await self._check_concurrency(user, check_concurrency, initial_updated_at)
 
         update_data = {}
         if display_name is not None:
@@ -285,10 +299,7 @@ class UserService:
             "Only Staff can edit admin fields",
         )
 
-        if check_concurrency and initial_updated_at is not None:
-            latest_user = await self.repository.get_by_id(user.id)
-            if latest_user and latest_user.updated_at != initial_updated_at:
-                raise ValueError("This user has been modified by another admin. Please reload and try again.")
+        await self._check_concurrency(user, check_concurrency, initial_updated_at)
 
         update_data = {}
         if is_active is not None:

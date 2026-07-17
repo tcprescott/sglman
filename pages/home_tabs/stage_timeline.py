@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from nicegui import app, ui
 
-from application.services import AuthService, MatchService
+from application.services import AuthService, MatchService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_time
 from models import Match, User
 from theme.empty_state import empty_state
@@ -16,7 +16,7 @@ from theme.realtime import register_view
 async def stage_timeline_tab():
     """Display a daily calendar view of matches organized by stream room."""
     discord_id = app.storage.user.get('discord_id', None)
-    user = await User.get_or_none(discord_id=discord_id) if discord_id else None
+    user = await get_user_from_discord_id(discord_id) if discord_id else None
     show_admin_link = await AuthService.can_view_admin(user)
 
     # Initialize service

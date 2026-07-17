@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from application.errors import require_found
 from application.repositories import PresetRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -169,10 +170,7 @@ class PresetService:
     # ------------------------------------------------------------ internals
 
     async def _require(self, preset_id: int) -> Preset:
-        preset = await self.repository.get_by_id(preset_id)
-        if preset is None:
-            raise ValueError("Preset not found")
-        return preset
+        return require_found(await self.repository.get_by_id(preset_id), "Preset")
 
     @staticmethod
     def _validate(name: str, randomizer: str, settings: Any) -> None:

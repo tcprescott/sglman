@@ -10,6 +10,7 @@ from application.services import (
 from models import Role, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.dialog.send_message_dialog import SendMessageDialog
+from theme.notify import notify_error
 
 
 class BaseUserDialog:
@@ -107,12 +108,9 @@ class UserDialog(BaseUserDialog):
                         dialog.close()
                         if self.on_submit:
                             await self.on_submit(self.user)
-                except PermissionError as e:
+                except (ValueError, PermissionError) as e:
                     with self.dialog:
-                        ui.notify(str(e), color='negative')
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(f'Error: {str(e)}', color='negative')
+                        notify_error(e)
 
             with dialog_actions().classes('justify-end'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -316,12 +314,9 @@ class AdminUserDialog(BaseUserDialog):
                             dialog.close()
                             if self.on_submit:
                                 await self.on_submit(new_user)
-                except PermissionError as e:
+                except (ValueError, PermissionError) as e:
                     with self.dialog:
-                        ui.notify(str(e), color='negative')
-                except ValueError as e:
-                    with self.dialog:
-                        ui.notify(f'Error: {str(e)}', color='negative')
+                        notify_error(e)
 
             async def open_message_dialog():
                 if self.user:

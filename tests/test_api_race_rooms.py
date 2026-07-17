@@ -6,7 +6,6 @@ read-only tokens rejected on writes), and cross-tenant isolation — a token for
 one tenant never sees or mutates another tenant's rooms.
 """
 
-import pytest
 
 from application.tenant_context import tenant_scope
 from models import (
@@ -17,21 +16,7 @@ from models import (
     Tenant,
     Tournament,
 )
-from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
-
-
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token, enable_all_features
 
 
 async def _staff_token(username='staff'):

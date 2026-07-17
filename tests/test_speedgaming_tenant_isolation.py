@@ -6,15 +6,18 @@ deliberately **unscoped** (a timer has no ambient tenant), so it resolves
 cross-tenant on purpose — that behavior is asserted too.
 """
 
+import pytest
+
 from application.repositories.speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from application.repositories.speedgaming_event_link_repository import SpeedGamingEventLinkRepository
 from application.tenant_context import tenant_scope
-from models import SpeedGamingEpisode, SpeedGamingEventLink, Tenant, Tournament
+from models import SpeedGamingEpisode, SpeedGamingEventLink, Tournament
 
 
-async def _tenants(db):
-    a = await Tenant.get(id=1)
-    b = await Tenant.create(name='Tenant B', slug='tenant-b')
+@pytest.fixture
+async def tenants_with_tournaments(two_tenants):
+    """Builds on the canonical ``two_tenants``, giving each tenant a tournament."""
+    a, b = two_tenants
     with tenant_scope(a.id):
         ta = await Tournament.create(name='TA')
     with tenant_scope(b.id):
@@ -22,8 +25,8 @@ async def _tenants(db):
     return (a, ta), (b, tb)
 
 
-async def test_event_link_reads_are_isolated(db):
-    (a, ta), (b, tb) = await _tenants(db)
+async def test_event_link_reads_are_isolated(tenants_with_tournaments):
+    (a, ta), (b, tb) = tenants_with_tournaments
     repo = SpeedGamingEventLinkRepository()
     with tenant_scope(a.id):
         la = await SpeedGamingEventLink.create(tournament=ta, event_slug='ev')
@@ -38,8 +41,8 @@ async def test_event_link_reads_are_isolated(db):
         assert await repo.get_by_id(la.id) is None
 
 
-async def test_episode_reads_are_isolated(db):
-    (a, ta), (b, tb) = await _tenants(db)
+async def test_episode_reads_are_isolated(tenants_with_tournaments):
+    (a, ta), (b, tb) = tenants_with_tournaments
     repo = SpeedGamingEpisodeRepository()
     with tenant_scope(a.id):
         ea = await SpeedGamingEpisode.create(sg_episode_id='1', tenant_id=a.id)
@@ -53,9 +56,9 @@ async def test_episode_reads_are_isolated(db):
         assert (await repo.get_by_sg_id('1')).id == eb.id
 
 
-async def test_active_scan_is_unscoped_cross_tenant(db):
+async def test_active_scan_is_unscoped_cross_tenant(tenants_with_tournaments):
     """The worker resolves due links across every tenant in one query."""
-    (a, ta), (b, tb) = await _tenants(db)
+    (a, ta), (b, tb) = tenants_with_tournaments
     repo = SpeedGamingEventLinkRepository()
     with tenant_scope(a.id):
         la = await SpeedGamingEventLink.create(tournament=ta, event_slug='ea', active=True)

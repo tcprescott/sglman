@@ -33,6 +33,76 @@ from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, Ma
 logger = logging.getLogger(__name__)
 
 
+def _dm_opt_ok(user: User, *, require_opt_in: bool) -> bool:
+    """Whether a user can receive a DM: has a discord_id and (if required) opts in."""
+    return bool(user.discord_id) and (not require_opt_in or user.dm_notifications)
+
+
+async def collect_match_recipients(
+    match: Match,
+    *,
+    include_players: bool = True,
+    include_watchers: bool = True,
+    exclude_players: bool = False,
+    require_opt_in: bool = True,
+) -> dict[int, bool]:
+    """Return ``{discord_id: is_watcher}`` for a match's DM recipients.
+
+    Players, approved commentators, and approved trackers are collected as
+    non-watchers (``False``); watchers override to ``True`` (they get the
+    unwatch-button DM). Insertion order is players → commentators → trackers →
+    watchers, and each discord_id appears once.
+
+    - ``include_players``: add players to the recipient set.
+    - ``include_watchers``: add match watchers (with the watcher flag).
+    - ``exclude_players``: drop any crew/watcher who is also a player (used by the
+      crew notification, where players get a separate acknowledgment DM).
+    - ``require_opt_in``: honor each user's ``dm_notifications`` opt-out. Set
+      ``False`` for the subscriber-dedup pass, which only needs the ids.
+    """
+    tenant_id = require_tenant_id()
+    recipients: dict[int, bool] = {}
+
+    players = await MatchPlayers.filter(
+        match=match, tenant_id=tenant_id
+    ).prefetch_related('user')
+    player_discord_ids: set[int] = {
+        mp.user.discord_id for mp in players if mp.user.discord_id
+    }
+
+    def _blocked(user: User) -> bool:
+        return exclude_players and user.discord_id in player_discord_ids
+
+    if include_players:
+        for mp in players:
+            if _dm_opt_ok(mp.user, require_opt_in=require_opt_in):
+                recipients.setdefault(mp.user.discord_id, False)
+
+    commentators = await Commentator.filter(
+        match=match, approved=True, tenant_id=tenant_id
+    ).prefetch_related('user')
+    for c in commentators:
+        if _dm_opt_ok(c.user, require_opt_in=require_opt_in) and not _blocked(c.user):
+            recipients.setdefault(c.user.discord_id, False)
+
+    trackers = await Tracker.filter(
+        match=match, approved=True, tenant_id=tenant_id
+    ).prefetch_related('user')
+    for t in trackers:
+        if _dm_opt_ok(t.user, require_opt_in=require_opt_in) and not _blocked(t.user):
+            recipients.setdefault(t.user.discord_id, False)
+
+    if include_watchers:
+        watchers = await MatchWatcher.filter(
+            match=match, tenant_id=tenant_id
+        ).prefetch_related('user')
+        for w in watchers:
+            if _dm_opt_ok(w.user, require_opt_in=require_opt_in) and not _blocked(w.user):
+                recipients[w.user.discord_id] = True
+
+    return recipients
+
+
 def _match_descriptor(match: Match) -> dict:
     """Extract human-readable match fields from a match with ``players__user``,
     ``stream_room`` (and ``scheduled_at``) loaded, for passing to message builders."""
@@ -301,38 +371,8 @@ class MatchScheduleService:
         calling lifecycle operation is never blocked.
         """
         try:
-            recipients: dict[int, bool] = {}
-
-            players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
-            for mp in players:
-                if mp.user.dm_notifications and mp.user.discord_id:
-                    recipients.setdefault(mp.user.discord_id, False)
-
-            commentators = await Commentator.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
-            for c in commentators:
-                if c.user.dm_notifications and c.user.discord_id:
-                    recipients.setdefault(c.user.discord_id, False)
-
-            trackers = await Tracker.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
-            for t in trackers:
-                if t.user.dm_notifications and t.user.discord_id:
-                    recipients.setdefault(t.user.discord_id, False)
-
-            watchers = await MatchWatcher.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
-            for w in watchers:
-                if w.user.dm_notifications and w.user.discord_id:
-                    recipients[w.user.discord_id] = True
-
-            for discord_id, is_watcher in recipients.items():
-                if is_watcher:
-                    success, err = await self.discord_service.send_dm_with_unwatch_button(
-                        discord_id, message, match.id,
-                    )
-                else:
-                    success, err = await self.discord_service.send_dm(discord_id, message)
-                if not success:
-                    logger.warning("notify_match_participants DM failed for %s: %s", discord_id, err)
-
+            recipients = await collect_match_recipients(match)
+            await self._send_dms(match, recipients, message, log_label='notify_match_participants')
         except Exception:
             logger.exception("notify_match_participants unexpected error for match %s", match.id)
 
@@ -346,42 +386,35 @@ class MatchScheduleService:
         plain DM. Never raises; per-DM failures are logged and swallowed.
         """
         try:
-            # Player discord_ids are skipped — they get the ack DM instead.
-            player_discord_ids: set[int] = set()
-            players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
-            for mp in players:
-                if mp.user.discord_id:
-                    player_discord_ids.add(mp.user.discord_id)
-
-            # discord_id -> is_watcher flag (watchers get the unwatch button DM)
-            recipients: dict[int, bool] = {}
-
-            commentators = await Commentator.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
-            for c in commentators:
-                if c.user.dm_notifications and c.user.discord_id and c.user.discord_id not in player_discord_ids:
-                    recipients.setdefault(c.user.discord_id, False)
-
-            trackers = await Tracker.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
-            for t in trackers:
-                if t.user.dm_notifications and t.user.discord_id and t.user.discord_id not in player_discord_ids:
-                    recipients.setdefault(t.user.discord_id, False)
-
-            watchers = await MatchWatcher.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
-            for w in watchers:
-                if w.user.dm_notifications and w.user.discord_id and w.user.discord_id not in player_discord_ids:
-                    recipients[w.user.discord_id] = True
-
-            for discord_id, is_watcher in recipients.items():
-                if is_watcher:
-                    success, err = await self.discord_service.send_dm_with_unwatch_button(
-                        discord_id, message, match.id,
-                    )
-                else:
-                    success, err = await self.discord_service.send_dm(discord_id, message)
-                if not success:
-                    logger.warning("notify_match_crew DM failed for %s: %s", discord_id, err)
+            recipients = await collect_match_recipients(
+                match, include_players=False, exclude_players=True,
+            )
+            await self._send_dms(match, recipients, message, log_label='notify_match_crew')
         except Exception:
             logger.exception("notify_match_crew unexpected error for match %s", match.id)
+
+    async def _send_dms(
+        self,
+        match: Match,
+        recipients: dict[int, bool],
+        message: str,
+        *,
+        log_label: str,
+    ) -> None:
+        """Send ``message`` to each recipient; watchers get the unwatch-button DM.
+
+        ``recipients`` maps discord_id -> is_watcher (see collect_match_recipients).
+        Per-DM failures are logged (prefixed with ``log_label``) and swallowed.
+        """
+        for discord_id, is_watcher in recipients.items():
+            if is_watcher:
+                success, err = await self.discord_service.send_dm_with_unwatch_button(
+                    discord_id, message, match.id,
+                )
+            else:
+                success, err = await self.discord_service.send_dm(discord_id, message)
+            if not success:
+                logger.warning("%s DM failed for %s: %s", log_label, discord_id, err)
 
     async def notify_acknowledgment_request(
         self,
@@ -543,17 +576,7 @@ class MatchScheduleService:
         Return the discord_ids of players and approved crew for a match.
         Used to deduplicate tournament-subscriber notifications.
         """
-        ids: list = []
-        players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
-        for mp in players:
-            if mp.user.discord_id:
-                ids.append(mp.user.discord_id)
-        commentators = await Commentator.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
-        for c in commentators:
-            if c.user.discord_id and c.user.discord_id not in ids:
-                ids.append(c.user.discord_id)
-        trackers = await Tracker.filter(match=match, approved=True, tenant_id=require_tenant_id()).prefetch_related('user')
-        for t in trackers:
-            if t.user.discord_id and t.user.discord_id not in ids:
-                ids.append(t.user.discord_id)
-        return ids
+        recipients = await collect_match_recipients(
+            match, include_watchers=False, require_opt_in=False,
+        )
+        return list(recipients)

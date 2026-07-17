@@ -38,8 +38,7 @@ from models import (
 UTC = timezone.utc
 
 
-def utc(y, mo, d, h=0, mi=0):
-    return datetime(y, mo, d, h, mi, tzinfo=UTC)
+from tests.factories import utc
 
 
 async def make_user(discord_id, *, name="u", dm=True):

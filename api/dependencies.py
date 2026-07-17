@@ -18,6 +18,7 @@ from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.routing import APIRoute
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from application.errors import NotFoundError
 from application.services.api_token_service import ApiTokenService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
@@ -49,7 +50,24 @@ bearer_scheme = HTTPBearer(
 )
 
 
-async def _resolve_token(creds: Optional[HTTPAuthorizationCredentials]) -> Tuple[User, ApiToken]:
+def _reject_read_only(token: ApiToken) -> None:
+    """Raise ``403`` if the token may not perform write actions."""
+    if token.read_only:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This token is read-only and cannot perform write actions",
+        )
+
+
+async def resolve_token(
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> Tuple[User, ApiToken]:
+    """Resolve and authenticate the bearer token, returning ``(user, token)``.
+
+    Declared as a FastAPI dependency so its result is *cached per request*: an
+    endpoint that gates on both a router-level actor dep and a per-endpoint
+    write dep authenticates the token (and its tenant lookup) exactly once.
+    """
     if creds is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -83,23 +101,19 @@ async def _resolve_token(creds: Optional[HTTPAuthorizationCredentials]) -> Tuple
 
 
 async def require_api_actor(
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    resolved: Tuple[User, ApiToken] = Depends(resolve_token),
 ) -> User:
     """Resolve the authenticated user from the bearer token (any token)."""
-    user, _ = await _resolve_token(creds)
+    user, _ = resolved
     return user
 
 
 async def require_write_actor(
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    resolved: Tuple[User, ApiToken] = Depends(resolve_token),
 ) -> User:
     """Resolve the user and reject read-only tokens. Use on mutating routes."""
-    user, token = await _resolve_token(creds)
-    if token.read_only:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This token is read-only and cannot perform write actions",
-        )
+    user, token = resolved
+    _reject_read_only(token)
     return user
 
 
@@ -121,17 +135,13 @@ async def require_staff(actor: User = Depends(require_api_actor)) -> User:
 
 
 async def require_staff_write(
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    resolved: Tuple[User, ApiToken] = Depends(resolve_token),
 ) -> User:
     """Staff user with a non-read-only token. Use on mutating Staff-only routes
     so the HTTP-layer gate matches the documented contract while still rejecting
     read-only tokens (defense in depth alongside the service-layer check)."""
-    user, token = await _resolve_token(creds)
-    if token.read_only:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This token is read-only and cannot perform write actions",
-        )
+    user, token = resolved
+    _reject_read_only(token)
     await AuthService.ensure(
         await AuthService.is_staff(user), "Staff access required"
     )
@@ -153,15 +163,11 @@ async def require_super_admin(actor: User = Depends(require_api_actor)) -> User:
 
 
 async def require_super_admin_write(
-    creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    resolved: Tuple[User, ApiToken] = Depends(resolve_token),
 ) -> User:
     """Super-admin user with a non-read-only token. Use on mutating global routes."""
-    user, token = await _resolve_token(creds)
-    if token.read_only:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This token is read-only and cannot perform write actions",
-        )
+    user, token = resolved
+    _reject_read_only(token)
     await AuthService.ensure(
         await AuthService.is_super_admin(user), "Super admin access required"
     )
@@ -192,6 +198,7 @@ class ServiceErrorRoute(APIRoute):
     """Translate service-layer exceptions into HTTP responses.
 
     - ``PermissionError`` -> 403
+    - ``NotFoundError``   -> 404 (checked before ``ValueError``, which it subclasses)
     - ``ValueError``      -> 400
     """
 
@@ -205,6 +212,11 @@ class ServiceErrorRoute(APIRoute):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=str(exc) or "Permission denied",
+                ) from exc
+            except NotFoundError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(exc) or "Not found",
                 ) from exc
             except ValueError as exc:
                 raise HTTPException(

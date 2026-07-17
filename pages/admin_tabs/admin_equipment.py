@@ -1,6 +1,7 @@
 """Admin Equipment Management Page (Equipment Manager / Staff)."""
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.services import EquipmentService, get_user_from_discord_id
 from theme.dialog import ConfirmationDialog, EquipmentDialog, open_checkout, quick_checkin
@@ -154,7 +155,7 @@ async def admin_equipment_page() -> None:
                         try:
                             await service.delete_asset(actor, row['id'])
                         except (ValueError, PermissionError) as e:
-                            ui.notify(str(e), color='warning')
+                            notify_error(e)
                             return
                         ui.notify('Asset deleted.', color='positive')
                         await _render_table.refresh()

@@ -10,6 +10,7 @@ from nicegui import ui
 from application.services import ReportsService
 from application.utils.timezone import format_eastern_display
 from .shared import (
+    clicked_row,
     csv_export_button,
     date_range_filter,
     default_date_range,
@@ -172,8 +173,7 @@ async def crew_page(
                 )
 
             def _row_clicked(e):
-                row = e.args[1] if isinstance(e.args, list) and len(e.args) > 1 else e.args
-                clicked_uid = row.get('user_id') if isinstance(row, dict) else None
+                clicked_uid = clicked_row(e).get('user_id')
                 if clicked_uid:
                     navigate_with_params(
                         report='crew',

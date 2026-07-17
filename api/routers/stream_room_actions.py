@@ -1,10 +1,11 @@
 """Stream room write endpoints (Staff or Stream Manager)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import ServiceErrorRoute, require_write_actor
 from api.schemas.stream_room_actions import StreamRoomCreateRequest, StreamRoomUpdateRequest
 from api.schemas.stream_rooms import StreamRoomResponse
+from application.errors import require_found
 from application.services import StreamRoomService
 from application.tenant_context import require_tenant_id
 from models import StreamRoom, User
@@ -13,10 +14,10 @@ router = APIRouter(prefix="/stream-rooms", tags=["Stream Rooms"], route_class=Se
 
 
 async def _load_or_404(stream_room_id: int) -> StreamRoom:
-    room = await StreamRoom.get_or_none(id=stream_room_id, tenant_id=require_tenant_id())
-    if room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream room not found")
-    return room
+    return require_found(
+        await StreamRoom.get_or_none(id=stream_room_id, tenant_id=require_tenant_id()),
+        "Stream room",
+    )
 
 
 @router.post(

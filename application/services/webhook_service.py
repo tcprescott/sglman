@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from application.errors import require_found
 from application.events import Event, EventType, dispatch_queue
 from application.repositories import WebhookDeliveryRepository, WebhookRepository
 from application.services.audit_service import AuditActions, AuditService
@@ -310,10 +311,7 @@ class WebhookService:
     # ------------------------------------------------------------ internals
 
     async def _require(self, webhook_id: int) -> Webhook:
-        webhook = await self.repository.get_by_id(webhook_id)
-        if webhook is None:
-            raise ValueError("Webhook not found")
-        return webhook
+        return require_found(await self.repository.get_by_id(webhook_id), "Webhook")
 
     def _validate_event_types(self, event_types: List[str]) -> None:
         if not event_types:

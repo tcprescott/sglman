@@ -1,6 +1,7 @@
 """Admin Feedback Review Page"""
 
 from nicegui import app, background_tasks, ui
+from theme.notify import notify_error
 
 from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
@@ -73,7 +74,7 @@ async def admin_feedback_page() -> None:
                 try:
                     await service.mark_reviewed(actor, row['id'])
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 ui.notify('Marked as reviewed.', color='positive')
                 await _render_table.refresh()

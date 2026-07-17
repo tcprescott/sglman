@@ -3,7 +3,6 @@
 from nicegui import app, background_tasks, ui
 
 from application.services import ChallongeService, MatchService, get_user_from_discord_id
-from models import User
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
@@ -36,7 +35,7 @@ async def render_player_dashboard():
         async def challonge_section():
             if not challonge_service.is_configured():
                 return
-            user = await User.get_or_none(discord_id=discord_id)
+            user = await get_user_from_discord_id(discord_id)
             if user is None:
                 return
             matches = await challonge_service.list_unscheduled_matches_for_user(user)

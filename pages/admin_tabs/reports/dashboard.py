@@ -11,6 +11,7 @@ from application.services import ReportsService, SystemConfigService
 from application.utils.timezone import format_eastern_date, format_eastern_display
 from .shared import (
     eastern_bounds,
+    kpi_card,
     reports_url,
 )
 
@@ -121,24 +122,24 @@ async def dashboard_page() -> None:
 
         with ui.row().classes('full-width gap-3 q-mt-md no-wrap items-stretch') \
                 .style('flex-wrap: wrap;'):
-            _kpi_card(
+            kpi_card(
                 'Peak players',
                 f'{peak_players} / {forecast["max_capacity"]}',
                 _peak_subtitle(peak_time),
                 color='primary' if peak_players <= forecast['max_capacity'] else 'negative',
             )
-            _kpi_card(
+            kpi_card(
                 'Peak stages used',
                 f'{peak_stages} / {max_stages}',
                 'across the event window',
                 color='primary' if peak_stages <= max_stages else 'negative',
             )
-            _kpi_card(
+            kpi_card(
                 'Matches',
                 f'{total_matches}',
                 f'{in_progress} in flight • {finished} finished',
             )
-            _kpi_card(
+            kpi_card(
                 'Stream candidate coverage',
                 f'{coverage_pct:.0f}%' if coverage_pct is not None else '—',
                 f'{covered}/{len(candidate_rows)} fully covered'
@@ -150,13 +151,6 @@ async def dashboard_page() -> None:
         with ui.row().classes('full-width gap-3').style('flex-wrap: wrap;'):
             for card in REPORT_CARDS:
                 _report_card(card)
-
-
-def _kpi_card(title: str, value: str, subtitle: str, color: str = 'primary') -> None:
-    with ui.card().classes('q-pa-md').style('flex: 1 1 220px; min-width: 220px;'):
-        ui.label(title).classes('text-caption text-grey-7')
-        ui.label(value).classes('text-h4').style(f'color: var(--q-{color});')
-        ui.label(subtitle).classes('text-caption')
 
 
 def _report_card(card: dict) -> None:

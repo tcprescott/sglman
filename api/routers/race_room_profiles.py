@@ -2,7 +2,7 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.race_room_profiles import (
@@ -11,17 +11,9 @@ from api.schemas.race_room_profiles import (
     RaceRoomProfileUpdateRequest,
 )
 from application.services import RaceRoomProfileService
-from application.tenant_context import require_tenant_id
-from models import RaceRoomProfile, User
+from models import User
 
 router = APIRouter(prefix="/race-room-profiles", tags=["Race room profiles"], route_class=ServiceErrorRoute)
-
-
-async def _load_or_404(profile_id: int) -> RaceRoomProfile:
-    profile = await RaceRoomProfile.get_or_none(id=profile_id, tenant_id=require_tenant_id())
-    if profile is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Race room profile not found")
-    return profile
 
 
 @router.get("", response_model=List[RaceRoomProfileResponse], summary="List race room profiles")
@@ -36,7 +28,6 @@ async def list_selectable(actor: User = Depends(require_api_actor)):
 
 @router.get("/{profile_id}", response_model=RaceRoomProfileResponse, summary="Get a race room profile")
 async def get_profile(profile_id: int, actor: User = Depends(require_api_actor)):
-    await _load_or_404(profile_id)
     return await RaceRoomProfileService().get_profile(actor, profile_id)
 
 
@@ -49,11 +40,9 @@ async def create_profile(body: RaceRoomProfileCreateRequest, actor: User = Depen
 
 @router.patch("/{profile_id}", response_model=RaceRoomProfileResponse, summary="Update a race room profile")
 async def update_profile(profile_id: int, body: RaceRoomProfileUpdateRequest, actor: User = Depends(require_write_actor)):
-    await _load_or_404(profile_id)
     return await RaceRoomProfileService().update_profile(actor, profile_id, **body.model_dump(exclude_unset=True))
 
 
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a race room profile")
 async def delete_profile(profile_id: int, actor: User = Depends(require_write_actor)):
-    await _load_or_404(profile_id)
     await RaceRoomProfileService().delete_profile(actor, profile_id)

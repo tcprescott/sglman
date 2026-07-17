@@ -21,6 +21,7 @@ from .shared import (
     csv_export_button,
     date_range_filter,
     eastern_bounds,
+    kpi_card,
     navigate_with_params,
     parse_date,
     report_page_shell,
@@ -129,23 +130,16 @@ def _kpi_strip(crew: dict, hours: dict, health: dict) -> None:
     approved = crew['totals']['commentator_approved'] + crew['totals']['tracker_approved']
 
     with ui.row().classes('full-width gap-3 q-mt-md items-stretch').style('flex-wrap: wrap;'):
-        _kpi_card('Approved crew slots', f'{approved}',
+        kpi_card('Approved crew slots', f'{approved}',
                   f"{crew['totals']['unique_people']} unique people")
-        _kpi_card('Volunteer hours', f"{hours['totals']['scheduled_hours']:g}",
+        kpi_card('Volunteer hours', f"{hours['totals']['scheduled_hours']:g}",
                   f"{hours['totals']['checked_in_hours']:g}h checked in")
-        _kpi_card('Tournaments scored', f"{len(scored)}",
+        kpi_card('Tournaments scored', f"{len(scored)}",
                   f"of {len(health['rows'])} in window")
-        _kpi_card('Avg health score',
+        kpi_card('Avg health score',
                   f'{avg_health:.0f}' if avg_health is not None else '—',
                   'across scored tournaments',
                   color=_health_color(avg_health))
-
-
-def _kpi_card(title: str, value: str, subtitle: str, color: str = 'primary') -> None:
-    with ui.card().classes('q-pa-md').style('flex: 1 1 220px; min-width: 220px;'):
-        ui.label(title).classes('text-caption text-grey-7')
-        ui.label(value).classes('text-h4').style(f'color: var(--q-{color});')
-        ui.label(subtitle).classes('text-caption')
 
 
 # --- Crew participation ---------------------------------------------------

@@ -21,20 +21,6 @@ from models import (
 )
 
 
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    """Capture enqueued DM coroutines without running them."""
-    captured = []
-
-    def capture(coro):
-        captured.append(coro)
-
-    monkeypatch.setattr('application.services.discord_queue.enqueue', capture)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
 UTC = timezone.utc
 
 _next_discord_id = itertools.count(100000)

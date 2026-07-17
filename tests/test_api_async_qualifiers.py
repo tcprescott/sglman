@@ -24,20 +24,6 @@ def future_iso():
     return (datetime.now(UTC) + timedelta(days=1)).isoformat()
 
 
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
-
-
 async def _admin_token(username='qadmin', read_only=False):
     return await create_user_token(username=username, roles=[Role.QUALIFIER_ADMIN], read_only=read_only)
 

@@ -1,11 +1,16 @@
 """Schemas for player self-service availability endpoints."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
+from api.schemas.common import AvailabilityWindowInput, SetAvailabilityRequest
 from models import VolunteerAvailabilityStatus
+
+# Player and volunteer availability share the window/set-request shapes.
+PlayerAvailabilityWindowInput = AvailabilityWindowInput
+SetPlayerAvailabilityRequest = SetAvailabilityRequest
 
 
 class PlayerAvailabilityResponse(BaseModel):
@@ -16,16 +21,3 @@ class PlayerAvailabilityResponse(BaseModel):
     ends_at: datetime
     status: VolunteerAvailabilityStatus
     note: Optional[str] = None
-
-
-class PlayerAvailabilityWindowInput(BaseModel):
-    starts_at: datetime
-    ends_at: datetime
-    status: VolunteerAvailabilityStatus = VolunteerAvailabilityStatus.AVAILABLE
-    note: Optional[str] = Field(default=None, max_length=1000)
-
-
-class SetPlayerAvailabilityRequest(BaseModel):
-    # Bounded so a single authenticated request cannot submit an unbounded
-    # window list (request-body / storage exhaustion).
-    windows: List[PlayerAvailabilityWindowInput] = Field(default_factory=list, max_length=500)

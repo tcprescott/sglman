@@ -27,21 +27,7 @@ from models import (
 )
 
 
-@pytest.fixture(autouse=True)
-def bypass_auth(monkeypatch):
-    from application.services import auth_service
-
-    async def allow(*_args, **_kwargs):
-        return True
-
-    async def noop_ensure(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(auth_service.AuthService, 'is_staff', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'can_edit_tournament', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
-
-
+pytestmark = pytest.mark.usefixtures("bypass_auth")
 def make_service(api=None, oauth=None) -> ChallongeService:
     service = ChallongeService()
     if api is not None:

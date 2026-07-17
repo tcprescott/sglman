@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any, Tuple
 
 from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
 from application import match_events
+from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import (
     MatchAcknowledgmentRepository,
@@ -69,6 +70,15 @@ class MatchService:
             tournament_repository=self.tournament_repository,
             ack_repository=self.ack_repository,
         )
+
+    async def _require_match(
+        self, match_id: int, *, prefetch_relations: bool = True
+    ) -> Match:
+        """Load a match or raise :class:`NotFoundError` (API maps to 404)."""
+        match = await self.repository.get_by_id(
+            match_id, prefetch_relations=prefetch_relations
+        )
+        return require_found(match, f"Match {match_id}")
 
     async def get_match_by_id(self, match_id: int) -> Optional[Match]:
         return await self.repository.get_by_id(match_id)
@@ -316,9 +326,7 @@ class MatchService:
         Returns:
             Updated Match object
         """
-        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = await self._require_match(match_id)
 
         await AuthService.ensure(
             await AuthService.can_crud_match(actor, match),
@@ -521,9 +529,7 @@ class MatchService:
         actor: Optional[User] = None,
     ) -> Match:
         """Toggle Match.is_stream_candidate. Stream Managers globally; TAs within their tournaments."""
-        match = await self.repository.get_by_id(match_id)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = await self._require_match(match_id)
 
         await AuthService.ensure(
             await AuthService.can_assign_match_stream(actor, match),
@@ -558,9 +564,7 @@ class MatchService:
         actor: Optional[User] = None,
     ) -> Match:
         """Assign or clear the StreamRoom for a match. Stream Managers globally; TAs within their tournaments."""
-        match = await self.repository.get_by_id(match_id)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = await self._require_match(match_id)
 
         await AuthService.ensure(
             await AuthService.can_assign_match_stream(actor, match),
@@ -597,9 +601,7 @@ class MatchService:
             assignments: Mapping of MatchPlayers.id -> station string (or None).
             actor: User performing the assignment.
         """
-        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = await self._require_match(match_id)
 
         await AuthService.ensure(
             await AuthService.can_transition_match(actor, match),
@@ -662,9 +664,7 @@ class MatchService:
         await self.participants.ensure_enrolled(tournament_id, users)
 
     async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
-        match = await self.repository.get_by_id(match_id)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = await self._require_match(match_id)
         await AuthService.ensure(
             await AuthService.can_crud_match(actor, match),
             f"User cannot delete match {match_id}",
@@ -695,9 +695,7 @@ class MatchService:
         Winner gets rank 1; remaining player gets rank 2. The ``winner_id``
         is a :class:`MatchPlayers` row id, not a User id.
         """
-        match = await self.repository.get_by_id(match_id, prefetch_relations=True)
-        if not match:
-            raise ValueError(f"Match {match_id} not found")
+        match = await self._require_match(match_id)
 
         await AuthService.ensure(
             await AuthService.can_transition_match(actor, match),
@@ -741,9 +739,7 @@ class MatchService:
 
         Only current players of the match may acknowledge.
         """
-        match = await self.repository.get_by_id(match_id, prefetch_relations=False)
-        if not match:
-            raise ValueError("Match not found")
+        match = await self._require_match(match_id, prefetch_relations=False)
 
         players = await self.repository.get_players(match)
         if not any(p.user_id == user.id for p in players):

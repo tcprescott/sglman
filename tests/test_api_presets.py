@@ -9,21 +9,7 @@ import pytest
 
 from application.tenant_context import tenant_scope
 from models import Preset, Role, Tenant
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture(autouse=True)
-def stub_discord_queue(monkeypatch):
-    captured = []
-    monkeypatch.setattr('application.services.discord_queue.enqueue', captured.append)
-    yield captured
-    for coro in captured:
-        coro.close()
-
-
-@pytest.fixture
-def app():
-    return build_api_app()
+from tests.api_helpers import client_for, create_user_token
 
 
 async def _staff_token(username='staff'):

@@ -49,21 +49,7 @@ def stub_storage(monkeypatch):
     return storage
 
 
-@pytest.fixture(autouse=True)
-def bypass_auth(monkeypatch):
-    """Default to allowing all auth checks; individual tests can override."""
-    from application.services import auth_service
-
-    async def allow(*_args, **_kwargs):
-        return True
-
-    async def noop_ensure(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(auth_service.AuthService, 'is_staff', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
-
-
+pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
 def bypass_audit(monkeypatch):
     """Patch the AuditService class so set_raw doesn't try to write a log."""

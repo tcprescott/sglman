@@ -1,4 +1,33 @@
+from contextlib import contextmanager
+
 from nicegui import ui
+
+
+@contextmanager
+def form_dialog(title: str, *, card_classes: str = 'dialog-card'):
+    """Standard inline add/edit dialog scaffold as a context manager.
+
+    Opens ``ui.dialog()`` + ``ui.card()``, applies the mobile-sheet behaviour and
+    the standard :func:`dialog_header`, then yields the ``dialog`` so the caller
+    adds a body column, a :func:`dialog_actions` bar, and :func:`submit_on_enter`.
+    Lets the inline admin-tab dialogs share the class-dialog chrome (mobile sheet,
+    header, Enter-to-submit) instead of hand-rolling ``ui.dialog``/``ui.card``.
+
+    Usage::
+
+        with form_dialog('Add Webhook') as dialog:
+            with ui.column().classes('q-pa-md gap-2 full-width'):
+                name = ui.input('Name')
+            with dialog_actions().classes('justify-end'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                ui.button('Save', on_click=submit).props('color=primary')
+            submit_on_enter(dialog, submit)
+        dialog.open()
+    """
+    with ui.dialog() as dialog, ui.card().classes(card_classes):
+        mobile_sheet(dialog)
+        dialog_header(title, dialog)
+        yield dialog
 
 
 def dialog_header(title: str, dialog) -> None:

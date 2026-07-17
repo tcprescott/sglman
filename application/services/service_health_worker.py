@@ -11,17 +11,15 @@ Challonge probes read across all tenants via explicitly-unscoped queries). The l
 never dies: a failing tick is logged and retried next interval.
 """
 
-import asyncio
 import logging
-from typing import Optional
+
+from application.utils.background_loop import run_worker_loop
 
 logger = logging.getLogger(__name__)
 
 # Probes reach external hosts, so a gentle cadence is plenty — an outage surfaces
 # within a couple of minutes, and the board can always be force-refreshed.
 TICK_SECONDS = 120
-
-_task: Optional[asyncio.Task] = None
 
 
 async def _tick() -> None:
@@ -33,28 +31,12 @@ async def _tick() -> None:
                     len(unhealthy), ', '.join(f'{r.label}={r.status.value}' for r in unhealthy))
 
 
-async def _loop() -> None:
-    while True:
-        try:
-            await _tick()
-        except Exception as e:  # never let the loop die
-            logger.exception('Service health tick failed: %s', e)
-        await asyncio.sleep(TICK_SECONDS)
+_loop = run_worker_loop(_tick, TICK_SECONDS, 'Service health', logger)
 
 
 def start() -> None:
-    global _task
-    if _task is None:
-        _task = asyncio.get_event_loop().create_task(_loop())
+    _loop.start()
 
 
 async def stop() -> None:
-    global _task
-    if _task is None:
-        return
-    _task.cancel()
-    try:
-        await _task
-    except asyncio.CancelledError:
-        pass
-    _task = None
+    await _loop.stop()

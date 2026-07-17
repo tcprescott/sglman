@@ -13,6 +13,7 @@ without a background task.
 """
 
 from nicegui import app, background_tasks, context, ui
+from theme.notify import notify_error
 
 from application.services import (
     AsyncQualifierLiveRaceService,
@@ -123,7 +124,7 @@ async def admin_qualifiers_page() -> None:
         try:
             await service.delete_qualifier(await _current(), qid)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Qualifier deleted', color='positive')
         if state['managing'] == qid:
@@ -192,7 +193,7 @@ async def admin_qualifiers_page() -> None:
                     dialog.close()
                     await load_list()
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -285,7 +286,7 @@ async def admin_qualifiers_page() -> None:
                     dialog.close()
                     await load_detail()
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -306,7 +307,7 @@ async def admin_qualifiers_page() -> None:
                     dialog.close()
                     await load_detail()
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -326,7 +327,7 @@ async def admin_qualifiers_page() -> None:
                     dialog.close()
                     await load_detail()
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -337,7 +338,7 @@ async def admin_qualifiers_page() -> None:
         try:
             await service.delete_pool(await _current(), pool_id)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Pool deleted', color='positive')
         await load_detail()
@@ -398,7 +399,7 @@ async def admin_qualifiers_page() -> None:
                     dialog.close()
                     await load_detail()
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
             with ui.row().classes('justify-end w-full'):
                 ui.button('Cancel', on_click=dialog.close).props('flat')
@@ -409,7 +410,7 @@ async def admin_qualifiers_page() -> None:
         try:
             await live_race_service.open_room(await _current(), live_race_id)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Room opened', color='positive')
         await load_detail()
@@ -418,7 +419,7 @@ async def admin_qualifiers_page() -> None:
         try:
             await live_race_service.cancel_live_race(await _current(), live_race_id)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Live race cancelled', color='positive')
         await load_detail()
@@ -451,7 +452,7 @@ async def admin_qualifiers_page() -> None:
         try:
             await service.review_run(await _current(), run_id, approved=approved)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            notify_error(e)
             return
         ui.notify('Run approved' if approved else 'Run rejected', color='positive')
         await load_detail()

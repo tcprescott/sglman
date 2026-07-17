@@ -30,6 +30,7 @@ from urllib.parse import urlparse
 import httpx
 from cryptography.hazmat.primitives.asymmetric import ec
 
+from application.errors import NotFoundError
 from application.repositories import WebPushRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.utils import web_push as protocol
@@ -231,7 +232,7 @@ class WebPushService:
         """
         subscription = await self.repository.get_by_id(subscription_id)
         if subscription is None or subscription.user_id != user.id:
-            raise ValueError('Subscription not found')
+            raise NotFoundError('Subscription not found')
         await self.repository.delete(subscription)
         await self.audit_service.write_log(
             user,

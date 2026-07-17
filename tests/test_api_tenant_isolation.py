@@ -6,32 +6,9 @@ A's data — both through the repository-backed list endpoints and the direct
 load-or-404 reads in the action routers.
 """
 
-import pytest
+from tests.api_helpers import client_for
 
-from application.tenant_context import tenant_scope
-from models import Match, Role, Tenant, Tournament
-from tests.api_helpers import build_api_app, client_for, create_user_token
-
-
-@pytest.fixture
-async def two_tenant_api(db):
-    a = await Tenant.get(id=1)
-    b = await Tenant.create(name='Beta', slug='beta')
-
-    with tenant_scope(a.id):
-        _, token_a = await create_user_token(username='a-staff', roles=[Role.STAFF])
-        ta = await Tournament.create(name='A Cup')
-        ma = await Match.create(tournament=ta)
-    with tenant_scope(b.id):
-        _, token_b = await create_user_token(username='b-staff', roles=[Role.STAFF])
-        tb = await Tournament.create(name='B Cup')
-        mb = await Match.create(tournament=tb)
-
-    return {
-        'app': build_api_app(),
-        'token_a': token_a, 'token_b': token_b,
-        'ta': ta, 'tb': tb, 'ma': ma, 'mb': mb,
-    }
+# ``two_tenant_api`` is the canonical fixture in tests/conftest.py.
 
 
 async def test_matches_list_is_tenant_isolated(two_tenant_api):

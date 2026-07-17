@@ -17,13 +17,15 @@ going through repositories — the aggregations are read-only and self-contained
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from application.services.reporting_shared import (
+    ON_TIME_THRESHOLD_MIN,
+    eastern,
+    window_hours,
+)
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import EASTERN_TZ, now_eastern, to_eastern
 from models import AuditLog, Match, VolunteerShift
 
-
-ON_TIME_THRESHOLD_MIN = 5
-DEFAULT_MATCH_DURATION_MIN = 90
 
 # Weights for the composite tournament-health score. Components with no data
 # (e.g. no stream candidates) are dropped and the remaining weights renormalize,
@@ -49,7 +51,7 @@ class AnalyticsService:
 
     @staticmethod
     def _eastern(dt: Optional[datetime]) -> Optional[datetime]:
-        return to_eastern(dt)
+        return eastern(dt)
 
     @staticmethod
     def bucket_start(d: date, bucket: str) -> date:
@@ -127,8 +129,8 @@ class AnalyticsService:
         """Return the series position for an event instant, or None if out of range."""
         if instant is None:
             return None
-        eastern = to_eastern(instant)
-        key = cls.bucket_start(eastern.date(), bucket)
+        eastern_dt = to_eastern(instant)
+        key = cls.bucket_start(eastern_dt.date(), bucket)
         return index_map.get(key)
 
     @classmethod
@@ -533,10 +535,7 @@ class AnalyticsService:
 
     @staticmethod
     def _duration_hours(starts_at: datetime, ends_at: datetime) -> float:
-        if not starts_at or not ends_at:
-            return 0.0
-        hours = (ends_at - starts_at).total_seconds() / 3600.0
-        return max(0.0, hours)
+        return window_hours(starts_at, ends_at)
 
 
 def _new_contributor(user) -> Dict:

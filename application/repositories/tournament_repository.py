@@ -6,11 +6,12 @@ Handles database operations for tournaments.
 
 from typing import Any, Dict, List, Optional
 
+from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Tournament, TournamentPlayers
 
 
-class TournamentRepository:
+class TournamentRepository(TenantScopedRepository[Tournament]):
     """Repository for tournament data access.
 
     Every read is constrained to the current tenant via ``scoped(...)`` and every
@@ -19,6 +20,8 @@ class TournamentRepository:
     sharp edge — they must be tenant-filtered explicitly, since the reverse
     relation spans tenants.
     """
+
+    model = Tournament
 
     @staticmethod
     async def get_by_id(tournament_id: int, prefetch_players: bool = False) -> Optional[Tournament]:
@@ -172,29 +175,6 @@ class TournamentRepository:
             racetime_default_goal=racetime_default_goal,
         )
 
-    @staticmethod
-    async def update(tournament: Tournament, **fields) -> None:
-        """
-        Update tournament fields.
-        
-        Args:
-            tournament: Tournament to update
-            **fields: Fields to update
-        """
-        for key, value in fields.items():
-            setattr(tournament, key, value)
-        await tournament.save()
-    
-    @staticmethod
-    async def delete(tournament: Tournament) -> None:
-        """
-        Delete a tournament.
-        
-        Args:
-            tournament: Tournament to delete
-        """
-        await tournament.delete()
-    
     @staticmethod
     async def enroll_player(tournament: Tournament, user) -> TournamentPlayers:
         """

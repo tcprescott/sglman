@@ -10,6 +10,7 @@ service is the human-driven surface.
 
 from typing import Any, Dict, List, Optional
 
+from application.errors import require_found
 from application.repositories import (
     SpeedGamingEpisodeRepository,
     SpeedGamingEventLinkRepository,
@@ -30,17 +31,13 @@ class SpeedGamingSyncService:
         self.audit_service = AuditService()
 
     async def list_links(self, actor: Optional[User]) -> List[SpeedGamingEventLink]:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage SpeedGaming sync"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         return await self.repository.list_all()
 
     async def list_episodes(
         self, actor: Optional[User], event_link_id: int
     ) -> List[SpeedGamingEpisode]:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage SpeedGaming sync"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         return await self.episode_repository.list_for_link(event_link_id)
 
     async def create_link(
@@ -54,15 +51,11 @@ class SpeedGamingSyncService:
         lookahead_hours: int = 72,
         active: bool = True,
     ) -> SpeedGamingEventLink:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage SpeedGaming sync"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         event_slug = (event_slug or '').strip()
         if not event_slug:
             raise ValueError("Event slug is required")
-        tournament = await TournamentRepository.get_by_id(tournament_id)
-        if tournament is None:
-            raise ValueError("Tournament not found")
+        require_found(await TournamentRepository.get_by_id(tournament_id), "Tournament")
         if await self.repository.get_by_natural_key(tournament_id, event_slug) is not None:
             raise ValueError(f"'{event_slug}' is already linked to this tournament")
         link = await self.repository.create(
@@ -90,9 +83,7 @@ class SpeedGamingSyncService:
         lookahead_hours: Optional[int] = None,
         active: Optional[bool] = None,
     ) -> SpeedGamingEventLink:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage SpeedGaming sync"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         link = await self._require(link_id)
         changes: Dict[str, Any] = {}
         if event_slug is not None:
@@ -121,9 +112,7 @@ class SpeedGamingSyncService:
         return link
 
     async def delete_link(self, actor: Optional[User], link_id: int) -> None:
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage SpeedGaming sync"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         link = await self._require(link_id)
         await self.audit_service.write_log(
             actor, AuditActions.SG_EVENT_LINK_DELETED,
@@ -138,14 +127,11 @@ class SpeedGamingSyncService:
         resulting audit/event rows attribute to them (the background worker uses
         the system user instead). Assumes the caller's tenant is in scope.
         """
-        await AuthService.ensure(
-            await AuthService.can_manage_sync(actor), "Cannot manage SpeedGaming sync"
-        )
+        await AuthService.ensure_can_manage_sync(actor)
         link = await self._require(link_id)
         return await SpeedGamingETLService().sync_event_link(link, actor=actor)
 
     async def _require(self, link_id: int) -> SpeedGamingEventLink:
-        link = await self.repository.get_by_id(link_id)
-        if link is None:
-            raise ValueError("SpeedGaming event link not found")
-        return link
+        return require_found(
+            await self.repository.get_by_id(link_id), "SpeedGaming event link"
+        )

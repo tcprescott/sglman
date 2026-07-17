@@ -8,20 +8,7 @@ import pytest
 from application.services.crew_service import CrewService
 
 
-@pytest.fixture(autouse=True)
-def bypass_auth(monkeypatch):
-    from application.services import auth_service
-
-    async def allow(*_args, **_kwargs):
-        return True
-
-    async def noop_ensure(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(auth_service.AuthService, 'can_approve_crew', allow)
-    monkeypatch.setattr(auth_service.AuthService, 'ensure', noop_ensure)
-
-
+pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture(autouse=True)
 def bypass_transactions(monkeypatch):
     """Replace in_transaction() with a no-op async context manager for unit tests."""
