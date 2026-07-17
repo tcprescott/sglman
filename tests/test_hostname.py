@@ -57,6 +57,19 @@ def test_effective_host_takes_last_forwarded_value(monkeypatch):
     assert effective_request_host(headers) == 'foo.gg'
 
 
+def test_effective_host_last_of_repeated_forwarded_headers(monkeypatch):
+    monkeypatch.setenv('TRUST_FORWARDED_HOST', 'true')
+    from starlette.datastructures import Headers
+    # Two separate X-Forwarded-Host lines (proxy appended a new header rather than
+    # extending the comma list): the last line is the nearest trusted proxy.
+    headers = Headers(raw=[
+        (b'host', b'platform'),
+        (b'x-forwarded-host', b'evil.gg'),
+        (b'x-forwarded-host', b'foo.gg'),
+    ])
+    assert effective_request_host(headers) == 'foo.gg'
+
+
 def test_effective_host_none_when_no_host(monkeypatch):
     monkeypatch.delenv('TRUST_FORWARDED_HOST', raising=False)
     assert effective_request_host({}) is None

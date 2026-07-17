@@ -149,9 +149,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         host = effective_request_host(request.headers)
         if host and host != platform_host:
             tenant = await TenantService.get_by_domain(host)
-            if tenant is not None:
-                if not tenant.is_active:
-                    return Response('Tenant not found', status_code=404)
+            if tenant is not None and tenant.is_active:
                 tenant_token = set_tenant_id(tenant.id)
                 host_token = set_host_mode(True)
                 try:
@@ -159,10 +157,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 finally:
                     reset_host_mode(host_token)
                     reset_tenant_id(tenant_token)
-            # Unknown host: lenient fall-through to path/platform (health checks by
-            # IP, stray CNAMEs). Warn only when it is not a path-mode request, since
-            # that is the shape of a configured-domain-behind-a-broken-proxy miss.
-            if _TENANT_PATH_RE.match(path) is None:
+            # Not an active custom domain — unknown host, or a *deactivated*
+            # tenant's domain. Fall through leniently to path/platform rather than
+            # 404ing the whole host: that keeps path mode (/t/<slug>) reachable on
+            # this host and matches the unknown-host behavior, so deactivating one
+            # tenant never blocks the others. Warn only for a genuinely unknown
+            # host on a non-path request (a known-but-inactive domain isn't a proxy
+            # misconfig, so it must not warn).
+            if tenant is None and _TENANT_PATH_RE.match(path) is None:
                 _warn_unresolved_host(host)
 
         match = _TENANT_PATH_RE.match(path)

@@ -84,7 +84,11 @@ compared to `get_platform_host()`):
    `host != PLATFORM_HOST`, and `get_by_domain(host)` returns an **active**
    tenant → set tenant context and **leave `scope['path']`/`root_path`
    untouched** (the whole host is the tenant; unprefixed routes already match,
-   absolute links stay on-host). An **inactive** matched domain → 404.
+   absolute links stay on-host). A matched-but-**inactive** domain is **not**
+   host mode: it falls through leniently to path/platform exactly like an unknown
+   host (below), so `/t/<slug>` stays reachable on that host and deactivating one
+   tenant never 404s the others. (Revised from the original "inactive → 404" after
+   round-2 review flagged the asymmetry with unknown-host leniency.)
 3. **Path mode (on `PLATFORM_HOST`)** — path matches `^/t/<slug>` → resolve slug,
    rewrite scope (`root_path=/t/<slug>`), set tenant (unchanged).
 4. **Platform surface** — `PLATFORM_HOST` with no `/t/` prefix, **or an unknown

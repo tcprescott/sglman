@@ -70,20 +70,38 @@ def normalize_hostname(value: Optional[str]) -> Optional[str]:
     return host
 
 
+def _forwarded_host(headers: Mapping[str, str]) -> Optional[str]:
+    """The nearest-proxy ``X-Forwarded-Host`` value, or ``None``.
+
+    ``X-Forwarded-Host`` is append-ordered, so the value set by the nearest
+    (trusted) proxy is the **last** one — both across comma-separated values
+    *and* across repeated header lines. A proxy may append either way, so read
+    all header instances (``getlist`` when the mapping supports it, e.g.
+    Starlette ``Headers``) and take the last comma-value of the last line. Using
+    only ``.get()`` (first instance) would read a client-forgeable leftmost value.
+    """
+    getlist = getattr(headers, 'getlist', None)
+    values = list(getlist('x-forwarded-host')) if callable(getlist) else []
+    if not values:
+        single = headers.get('x-forwarded-host')
+        values = [single] if single else []
+    if not values:
+        return None
+    last = values[-1].split(',')[-1].strip()
+    return last or None
+
+
 def effective_request_host(headers: Mapping[str, str]) -> Optional[str]:
     """The normalized host this request is addressed to, or ``None``.
 
     Uses the real ``Host`` header by default. ``X-Forwarded-Host`` is honored
     only when ``TRUST_FORWARDED_HOST`` is set — off by default because a client
-    can forge it — and then only its **last** comma-separated value: the header
-    is append-ordered, so the rightmost element is the one set by the nearest
-    (trusted) proxy while the leftmost is client-supplied.
+    can forge it — and then only its last (nearest-proxy) value (see
+    :func:`_forwarded_host`).
     """
     raw: Optional[str] = None
     if env_flag('TRUST_FORWARDED_HOST'):
-        forwarded = headers.get('x-forwarded-host')
-        if forwarded:
-            raw = forwarded.split(',')[-1].strip()
+        raw = _forwarded_host(headers)
     if not raw:
         raw = headers.get('host')
     return normalize_hostname(raw)

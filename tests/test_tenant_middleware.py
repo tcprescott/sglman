@@ -187,9 +187,19 @@ async def test_host_is_authoritative_path_prefix_ignored(host_tenants):
     assert r.status_code == 404
 
 
-async def test_inactive_domain_404(host_tenants):
+async def test_inactive_domain_falls_through_to_platform(host_tenants):
+    # A deactivated tenant's domain is not host mode; it falls through leniently
+    # (like an unknown host) rather than 404ing the whole host.
     r = await _get(_build_app(), '/admin', host='gone.gg')
-    assert r.status_code == 404
+    assert r.status_code == 200
+    assert r.json()['tenant'] is None
+
+
+async def test_path_mode_works_on_inactive_domain(host_tenants):
+    # Deactivating one tenant must not block path-mode access to others on its host.
+    a, _b, _ = host_tenants
+    r = await _get(_build_app(), '/t/acme/admin', host='gone.gg')
+    assert r.json()['tenant'] == a.id
 
 
 async def test_unknown_host_falls_through_to_platform(host_tenants):
@@ -225,6 +235,19 @@ async def test_forwarded_host_last_value_when_trusted(host_tenants, monkeypatch)
     r = await _get(
         _build_app(), '/admin', host='platform',
         headers={'x-forwarded-host': 'evil.gg, foo.gg'},
+    )
+    assert r.json()['tenant'] == a.id
+
+
+async def test_forwarded_host_multiple_header_lines_last_wins(host_tenants, monkeypatch):
+    monkeypatch.setenv('TRUST_FORWARDED_HOST', 'true')
+    a, _b, _ = host_tenants
+    # A proxy that *appends* a new header line (rather than extending the comma
+    # list) must still be honored: the last line (foo.gg) is the nearest proxy;
+    # the first (evil.gg) is client-forgeable and must be ignored.
+    r = await _get(
+        _build_app(), '/admin', host='platform',
+        headers=[('x-forwarded-host', 'evil.gg'), ('x-forwarded-host', 'foo.gg')],
     )
     assert r.json()['tenant'] == a.id
 
