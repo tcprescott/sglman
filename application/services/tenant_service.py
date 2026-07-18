@@ -18,6 +18,8 @@ from application.repositories.tenant_membership_repository import TenantMembersh
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.utils.environment import get_platform_host
+from application.utils.hostname import normalize_hostname
 from models import Role, RoleSource, Tenant, User
 
 _SLUG_RE = re.compile(r'^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$')
@@ -30,16 +32,24 @@ _RESERVED_SLUGS = {'platform', 'api', 'static', 'login', 'logout', 'oauth', 't',
 # A guild may back several tenants, so the guild cache holds the full list.
 _cache_by_slug: dict[str, Optional[Tenant]] = {}
 _cache_by_guild: dict[int, List[Tenant]] = {}
+# Host mode puts get_by_domain on the hot path of every custom-domain request.
+# Positives and negatives are capped *separately*: a flood of distinct random
+# Host values (scanners) is all-negatives, and sharing one FIFO pool would let
+# that flood evict the handful of real domains. Negatives also help only against
+# repeated unknown hosts, so their pool stays small.
+_cache_by_domain: dict[str, Tenant] = {}
+_neg_cache_by_domain: dict[str, None] = {}
 
 # Bound the resolution caches. get_by_slug caches negative lookups too, keyed on
 # the attacker-controlled URL slug, so without a cap a flood of distinct
 # /t/<slug> requests would grow the cache without limit (memory-exhaustion DoS).
 # Dicts preserve insertion order, so evict the oldest key (FIFO) when full.
 _CACHE_MAX = 2048
+_CACHE_NEG_MAX = 512
 
 
-def _cache_put(cache: dict, key, value) -> None:
-    if key not in cache and len(cache) >= _CACHE_MAX:
+def _cache_put(cache: dict, key, value, cap: int = _CACHE_MAX) -> None:
+    if key not in cache and len(cache) >= cap:
         cache.pop(next(iter(cache)), None)
     cache[key] = value
 
@@ -47,6 +57,8 @@ def _cache_put(cache: dict, key, value) -> None:
 def _clear_cache() -> None:
     _cache_by_slug.clear()
     _cache_by_guild.clear()
+    _cache_by_domain.clear()
+    _neg_cache_by_domain.clear()
 
 
 def slugify(name: str) -> str:
@@ -75,7 +87,22 @@ class TenantService:
 
     @staticmethod
     async def get_by_domain(domain: str) -> Optional[Tenant]:
-        return await TenantRepository.get_by_domain((domain or '').lower())
+        # Normalize the same way domains are stored (see _validate_domain), so a
+        # browser's Host matches the verbatim-stored value. A non-normalizable
+        # input can never match a stored domain, so short-circuit to None.
+        key = normalize_hostname(domain)
+        if key is None:
+            return None
+        if key in _cache_by_domain:
+            return _cache_by_domain[key]
+        if key in _neg_cache_by_domain:
+            return None
+        tenant = await TenantRepository.get_by_domain(key)
+        if tenant is not None:
+            _cache_put(_cache_by_domain, key, tenant)
+        else:
+            _cache_put(_neg_cache_by_domain, key, None, cap=_CACHE_NEG_MAX)
+        return tenant
 
     @staticmethod
     async def list_tenants_for_guild(guild_id: int) -> List[Tenant]:
@@ -124,10 +151,30 @@ class TenantService:
 
     @staticmethod
     async def _validate_domain(domain: Optional[str], exclude_id: Optional[int] = None) -> Optional[str]:
-        domain = (domain or '').strip().lower() or None
-        if domain and await TenantRepository.domain_exists(domain, exclude_id=exclude_id):
-            raise ValueError(f"A tenant with domain '{domain}' already exists.")
-        return domain
+        """Normalize + validate a custom domain, or None when blank.
+
+        Normalization is the shared contract with request-time resolution
+        (:func:`~application.utils.hostname.normalize_hostname`): stored and
+        matched forms must agree, or a domain silently never routes. Rejecting a
+        malformed value or the platform host here surfaces the problem at
+        ``/platform`` immediately rather than as a mysterious wrong-surface
+        render later.
+        """
+        if not (domain or '').strip():
+            return None
+        normalized = normalize_hostname(domain)
+        if normalized is None:
+            raise ValueError(
+                'Enter a valid custom domain like "example.com" — no scheme, path, or spaces.'
+            )
+        platform_host = normalize_hostname(get_platform_host()) or get_platform_host()
+        if normalized == platform_host:
+            raise ValueError(
+                'That is the platform host. A custom domain must differ from the main site host.'
+            )
+        if await TenantRepository.domain_exists(normalized, exclude_id=exclude_id):
+            raise ValueError(f"A tenant with domain '{normalized}' already exists.")
+        return normalized
 
     @staticmethod
     async def create_tenant(

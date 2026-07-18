@@ -43,8 +43,21 @@ and links built from `root_path` keep the `/t/<slug>` prefix.
   tenant with no per-call plumbing. Server-side `RedirectResponse`s do **not** get
   this, so those are prefixed explicitly with `root_path`.
 
-Host-based addressing (a tenant's custom `domain`) is **deferred**: the nullable
-`domain` column exists but is not resolved yet.
+**Host-based addressing (a tenant's custom `domain`) is live** (Phase 1). When a
+request's normalized `Host` matches a tenant's `domain`, `TenantMiddleware`
+resolves that tenant with the scope **left untouched** (`root_path` stays empty —
+the host owns the whole host) and marks the request *host mode*
+(`application/tenant_context.is_host_mode`). Host mode is authoritative for a
+custom domain: a stray `/t/<other>` there stays literal and 404s, so one domain
+serves exactly one tenant; path mode stays authoritative on `PLATFORM_HOST`.
+Discord login runs entirely on the custom domain (the `redirect_uri` is built
+from the tenant's stored `domain`, https-forced), so the host-only session cookie
+lands on the right host. The secondary OAuth link flows (Challonge / Twitch /
+racetime / Discord-connect) still complete on the platform host, so their buttons
+are hidden on a custom domain and their initiation routes bounce to the
+path-mode surface. `X-Forwarded-Host` is honored only behind
+`TRUST_FORWARDED_HOST` (last value). Full design + rationale (incl. the deferred
+Phase 2 scale-out): [host-based-routing-plan.md](../host-based-routing-plan.md).
 
 ## Tenant context
 

@@ -15,7 +15,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.services.discord_link_service import connect_redirect_uri
-from application.tenant_context import get_current_tenant_id
+from application.tenant_context import get_current_tenant_id, is_host_mode
 from application.utils.mock_discord import is_mock_discord
 from models import Role
 
@@ -41,6 +41,14 @@ async def admin_discord_roles_page() -> None:
             server_name = str(summary.get('name'))
 
     async def connect_server():
+        if is_host_mode():
+            # The connect callback is registered on the platform host; it can't
+            # see this custom domain's session cookie, so complete it there.
+            ui.notify(
+                'Connect Discord from the main site (…/t/<slug>/admin), not this custom domain.',
+                color='warning',
+            )
+            return
         if not await DiscordLinkService.can_manage_link(actor):
             ui.notify('You need the Staff role to connect a Discord server.', color='warning')
             return
@@ -103,7 +111,12 @@ async def admin_discord_roles_page() -> None:
                     'Connecting opens Discord and adds the bot to a server you manage. '
                     'You must have the "Manage Server" permission on that server.'
                 ).classes('text-caption text-grey')
-                if can_manage:
+                if can_manage and is_host_mode():
+                    ui.label(
+                        'Connect a Discord server from the main site (…/t/<slug>/admin); '
+                        'this step is unavailable on a custom domain.'
+                    ).classes('text-caption text-warning')
+                elif can_manage:
                     ui.button(
                         'Connect Discord server', icon='hub', on_click=connect_server,
                     ).props('color=primary')

@@ -11,6 +11,7 @@ from typing import Callable, Optional
 
 from nicegui import ui
 
+from application.tenant_context import is_host_mode
 from models import User
 
 __all__ = ['LinkSectionConfig', 'render_link_section']
@@ -48,10 +49,17 @@ async def render_link_section(user: User, config: LinkSectionConfig) -> None:
                 ui.button('Unlink', icon='link_off', on_click=unlink).props('flat color=negative')
             else:
                 ui.label('Not linked.').classes('text-muted')
-                ui.button(
-                    config.link_button_label, icon='link',
-                    on_click=lambda: ui.navigate.to(config.link_route),
-                ).props('color=primary')
+                if is_host_mode():
+                    # The link flow's callback is on the platform host and can't
+                    # see this custom domain's cookie; do it from the main site.
+                    ui.label(
+                        'Account linking is available on the main site.'
+                    ).classes('text-caption text-grey')
+                else:
+                    ui.button(
+                        config.link_button_label, icon='link',
+                        on_click=lambda: ui.navigate.to(config.link_route),
+                    ).props('color=primary')
 
         async def unlink() -> None:
             try:

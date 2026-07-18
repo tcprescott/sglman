@@ -12,6 +12,7 @@ from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from application.services import tenant_service
 from application.tenant_context import get_current_tenant_id, reset_tenant_id, set_tenant_id
 from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware, _TENANT_TRANSPORT_RE
 from models import Tenant
@@ -26,6 +27,22 @@ def _no_ambient_tenant():
         yield
     finally:
         reset_tenant_id(token)
+
+
+@pytest.fixture(autouse=True)
+def _host_env(monkeypatch):
+    """Pin PLATFORM_HOST to the test host and isolate the cross-tenant caches.
+
+    The suite drives ``Host: platform``; pinning ``PLATFORM_HOST='platform'``
+    makes that the platform host (so path/platform behavior is unchanged) and
+    lets the host-mode tests use distinct custom domains. The domain cache is
+    process-global, so clear it around each test to avoid cross-test bleed.
+    """
+    monkeypatch.setenv('PLATFORM_HOST', 'platform')
+    monkeypatch.delenv('TRUST_FORWARDED_HOST', raising=False)
+    tenant_service._clear_cache()
+    yield
+    tenant_service._clear_cache()
 
 
 async def _probe(request):
@@ -48,10 +65,10 @@ def _build_app() -> Starlette:
     return app
 
 
-async def _get(app, path):
+async def _get(app, path, host='platform', headers=None):
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url='http://platform') as client:
-        return await client.get(path)
+    async with httpx.AsyncClient(transport=transport, base_url=f'http://{host}') as client:
+        return await client.get(path, headers=headers or {})
 
 
 @pytest.fixture
@@ -130,6 +147,109 @@ async def test_context_is_reset_after_request(two_tenants):
     await _get(_build_app(), '/t/acme/admin')
     # The contextvar the middleware set must not leak past the request.
     assert get_current_tenant_id() is None
+
+
+# --- Host mode: a tenant's custom domain resolves without a /t/<slug> prefix ---
+
+
+@pytest.fixture
+async def host_tenants(two_tenants):
+    """The path-mode fixture, plus custom domains on the active + inactive tenants."""
+    a, b, inactive = two_tenants
+    a.domain = 'foo.gg'
+    await a.save()
+    inactive.domain = 'gone.gg'
+    await inactive.save()
+    tenant_service._clear_cache()
+    return a, b, inactive
+
+
+async def test_host_mode_resolves_without_prefix(host_tenants):
+    a, _b, _ = host_tenants
+    r = await _get(_build_app(), '/admin', host='foo.gg')
+    assert r.status_code == 200
+    body = r.json()
+    assert body['tenant'] == a.id
+    assert body['path'] == '/admin'      # scope untouched
+    assert body['root_path'] == ''       # the host owns the whole host; no prefix
+
+
+async def test_host_mode_home(host_tenants):
+    a, _b, _ = host_tenants
+    r = await _get(_build_app(), '/', host='foo.gg')
+    assert r.json()['tenant'] == a.id
+
+
+async def test_host_is_authoritative_path_prefix_ignored(host_tenants):
+    # /t/<other> on a custom domain stays a literal path -> unrouted -> 404, so
+    # one domain serves exactly one tenant.
+    r = await _get(_build_app(), '/t/beta/admin', host='foo.gg')
+    assert r.status_code == 404
+
+
+async def test_inactive_domain_falls_through_to_platform(host_tenants):
+    # A deactivated tenant's domain is not host mode; it falls through leniently
+    # (like an unknown host) rather than 404ing the whole host.
+    r = await _get(_build_app(), '/admin', host='gone.gg')
+    assert r.status_code == 200
+    assert r.json()['tenant'] is None
+
+
+async def test_path_mode_works_on_inactive_domain(host_tenants):
+    # Deactivating one tenant must not block path-mode access to others on its host.
+    a, _b, _ = host_tenants
+    r = await _get(_build_app(), '/t/acme/admin', host='gone.gg')
+    assert r.json()['tenant'] == a.id
+
+
+async def test_unknown_host_falls_through_to_platform(host_tenants):
+    r = await _get(_build_app(), '/', host='random.example')
+    assert r.status_code == 200
+    body = r.json()
+    assert body['tenant'] is None
+    assert body['root_path'] == ''
+
+
+async def test_path_mode_still_wins_on_platform_host(host_tenants):
+    a, _b, _ = host_tenants
+    r = await _get(_build_app(), '/t/acme/admin', host='platform')
+    assert r.json()['tenant'] == a.id
+
+
+async def test_forwarded_host_ignored_by_default(host_tenants):
+    # Without TRUST_FORWARDED_HOST the forged forwarded host is ignored; the real
+    # Host (platform) wins, so /admin runs with no tenant.
+    r = await _get(
+        _build_app(), '/admin', host='platform',
+        headers={'x-forwarded-host': 'foo.gg'},
+    )
+    assert r.status_code == 200
+    assert r.json()['tenant'] is None
+
+
+async def test_forwarded_host_last_value_when_trusted(host_tenants, monkeypatch):
+    monkeypatch.setenv('TRUST_FORWARDED_HOST', 'true')
+    a, _b, _ = host_tenants
+    # Append-ordered header: the leftmost element is client-forgeable, the last is
+    # set by the trusted proxy. The last value (foo.gg) must select the tenant.
+    r = await _get(
+        _build_app(), '/admin', host='platform',
+        headers={'x-forwarded-host': 'evil.gg, foo.gg'},
+    )
+    assert r.json()['tenant'] == a.id
+
+
+async def test_forwarded_host_multiple_header_lines_last_wins(host_tenants, monkeypatch):
+    monkeypatch.setenv('TRUST_FORWARDED_HOST', 'true')
+    a, _b, _ = host_tenants
+    # A proxy that *appends* a new header line (rather than extending the comma
+    # list) must still be honored: the last line (foo.gg) is the nearest proxy;
+    # the first (evil.gg) is client-forgeable and must be ignored.
+    r = await _get(
+        _build_app(), '/admin', host='platform',
+        headers=[('x-forwarded-host', 'evil.gg'), ('x-forwarded-host', 'foo.gg')],
+    )
+    assert r.json()['tenant'] == a.id
 
 
 # --- TransportPrefixMiddleware: NiceGUI assets/websocket under /t/<slug> -------

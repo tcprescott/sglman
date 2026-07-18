@@ -47,6 +47,71 @@ def reset_tenant_id(token: Token) -> None:
     _tenant_id_var.reset(token)
 
 
+# Host mode: the request arrived on a tenant's own custom domain (not the
+# platform host at /t/<slug>). Tracked alongside the tenant id because a few
+# surfaces behave differently on a custom domain — chiefly the OAuth callback
+# builder and the secondary-provider link flows, which cannot complete on a
+# host whose session cookie the platform-host callback can't see. Default False
+# means path mode / platform surface, exactly as before host routing existed.
+_host_mode_var: ContextVar[bool] = ContextVar('sglman_host_mode', default=False)
+
+
+def set_host_mode(value: bool) -> Token:
+    """Mark the ambient request host-mode, returning a token for :func:`reset_host_mode`."""
+    return _host_mode_var.set(value)
+
+
+def reset_host_mode(token: Token) -> None:
+    """Restore the host-mode flag the matching :func:`set_host_mode` replaced."""
+    _host_mode_var.reset(token)
+
+
+def _client_stash_host_mode() -> bool:
+    """Whether the current NiceGUI client was built in host mode (defensive)."""
+    try:
+        from nicegui import app
+    except Exception:
+        return False
+    try:
+        return bool(app.storage.client.get('host_mode'))
+    except Exception:
+        return False
+
+
+def is_host_mode() -> bool:
+    """True when the current request/connection is on a tenant's custom domain.
+
+    Contextvar first (set by ``TenantMiddleware`` for the HTTP request), then the
+    per-client stash (written at page build) so a websocket UI event handler —
+    which runs after the request context is gone — can still tell host mode from
+    path mode.
+    """
+    if _host_mode_var.get():
+        return True
+    return _client_stash_host_mode()
+
+
+def stash_client_host_mode(value: bool) -> None:
+    """Persist the host-mode flag onto the current NiceGUI client (page-build time).
+
+    Only writes when host mode is active: path mode / platform surface leave the
+    stash unset, which :func:`_client_stash_host_mode` reads back as ``False``.
+    No-op when there is no client context. Safe because ``app.storage.client`` is
+    per-connection and a connection never changes host — so a stale ``True`` can
+    never linger (there is nothing to clear on a path-mode build).
+    """
+    if not value:
+        return
+    try:
+        from nicegui import app
+    except Exception:
+        return
+    try:
+        app.storage.client['host_mode'] = True
+    except Exception:
+        pass
+
+
 def _client_stash_tenant_id() -> Optional[int]:
     """The tenant id stashed on the current NiceGUI client, or None.
 
