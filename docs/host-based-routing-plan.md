@@ -536,8 +536,13 @@ must-fixes land before the mechanism that depends on them:
 - **Design B signed-handoff — DONE.** `application/services/oauth_handoff_service.py`
   mints a `STORAGE_SECRET`-signed token; single-use is enforced by an in-memory
   nonce store (documented single-worker precondition), TTL 30 s, host **and**
-  `discord_id` bound, `next` allow-listed (`_safe_next`, rejects protocol-relative
-  and auth routes). Entry points: `/oauth/start` (platform host, target-host
+  `discord_id` bound, `next` allow-listed (`_safe_next`, rejects protocol-relative,
+  backslash, whitespace, and auth routes). **Login-CSRF / forced-login is closed**
+  by a browser binding: `/login` on the custom domain stashes a secret in that
+  browser's session and publishes only its `sha256` through the platform hop; the
+  mint carries the commitment and `/session/claim` requires the browser to prove
+  the secret (`hmac.compare_digest`), so a token minted in one browser can't be
+  delivered to another. Entry points: `/oauth/start` (platform host, target-host
   allow-listed against active tenant domains) and `/session/claim` (custom
   domain). Flag: `HOST_OAUTH_MODE=handoff`.
 - **`tenant_base_url()` deep-link helper — DONE.** `application/utils/tenant_urls.py`;

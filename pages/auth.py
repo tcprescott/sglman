@@ -13,6 +13,8 @@ performing real Discord OAuth. User provisioning writes go through
 """
 
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
 import random
@@ -101,21 +103,31 @@ async def _callback_tenant(url: str) -> Optional[Tenant]:
 def _safe_next(path) -> str:
     """A safe in-app return path, or ``/``.
 
-    Rejects anything that isn't a same-host absolute path — protocol-relative
-    ``//evil.com`` and auth routes included — so a ``next`` carried across the
-    handoff can never become an open redirect when fed to ``ui.navigate.to``.
+    Rejects anything that isn't a plain same-host absolute path so a ``next``
+    carried across the handoff can never become an open redirect when fed to
+    ``ui.navigate.to``: protocol-relative ``//evil.com``, a backslash form
+    ``/\\evil.com`` (browsers normalize ``\\`` to ``/`` per the WHATWG URL spec),
+    any control/whitespace char that could smuggle a second target, and auth
+    routes (which would loop).
     """
     if not isinstance(path, str) or not path.startswith('/') or path.startswith('//'):
+        return '/'
+    if '\\' in path or any(c in path for c in '\r\n\t '):
         return '/'
     if path.split('?', 1)[0] in AUTH_ROUTES:
         return '/'
     return path
 
 
-def _handoff_start_url(target_host: str, next_path: str) -> str:
+def _bind_commit(secret: str) -> str:
+    """The commitment published through the platform hop for a ``/login`` secret."""
+    return hashlib.sha256(secret.encode()).hexdigest()
+
+
+def _handoff_start_url(target_host: str, next_path: str, bind_commit: str = '') -> str:
     """Platform-host ``/oauth/start`` URL that begins a Design B login for a domain."""
     platform = get_platform_host()
-    query = urlencode({'host': target_host, 'next': next_path})
+    query = urlencode({'host': target_host, 'next': next_path, 'b': bind_commit})
     return f'{scheme_for_host(platform)}://{platform}/oauth/start?{query}'
 
 
@@ -237,8 +249,14 @@ def create() -> None:
         if host_oauth_handoff_enabled() and is_host_mode():
             tenant = await _host_mode_tenant()
             if tenant is not None and tenant.domain:
+                # Bind the handoff to *this* browser: keep a secret in this custom
+                # domain's session and publish only its hash through the platform
+                # hop, so a token minted in another browser can't be replayed here
+                # (login-CSRF / forced login).
+                bind = secrets.token_urlsafe(32)
+                app.storage.user['handoff_bind'] = bind
                 return RedirectResponse(
-                    _handoff_start_url(tenant.domain, _safe_next(return_path))
+                    _handoff_start_url(tenant.domain, _safe_next(return_path), _bind_commit(bind))
                 )
         # Pin the post-login return to this tenant before leaving for Discord. In
         # path mode the callback lands on the bare platform host; in host mode
@@ -329,6 +347,7 @@ def create() -> None:
             # target domain's /session/claim, where the cookie belongs.
             handoff_host = app.storage.user.pop('handoff_target_host', None)
             handoff_next = app.storage.user.pop('handoff_next', None)
+            handoff_bind_commit = app.storage.user.pop('handoff_bind_commit', None)
             if handoff_host and host_oauth_handoff_enabled():
                 token = handoff_service.mint(
                     discord_id=current_user.id,
@@ -336,6 +355,7 @@ def create() -> None:
                     avatar=current_user.avatar_url,
                     target_host=handoff_host,
                     next_path=_safe_next(handoff_next or '/'),
+                    bind_commit=handoff_bind_commit or None,
                 )
                 if token:
                     ui.navigate.to(_claim_url(handoff_host, token))
@@ -381,6 +401,9 @@ def create() -> None:
         params = request.query_params
         target = normalize_hostname(params.get('host'))
         next_path = _safe_next(params.get('next') or '/')
+        # Browser-binding commitment (hex sha256) from the initiating /login;
+        # kept opaque here and carried through to the mint.
+        bind_commit = (params.get('b') or '')[:64]
         tenant = await TenantService.get_by_domain(target) if target else None
         if tenant is None or not tenant.is_active:
             # Unknown/inactive target host — refuse rather than hand a session to
@@ -390,6 +413,7 @@ def create() -> None:
         app.storage.user['oauth_state'] = state
         app.storage.user['handoff_target_host'] = target
         app.storage.user['handoff_next'] = next_path
+        app.storage.user['handoff_bind_commit'] = bind_commit
         return RedirectResponse(_oauth_url(state, _platform_redirect_uri()))
 
     @ui.page('/session/claim')
@@ -400,9 +424,22 @@ def create() -> None:
         parsed = urlparse(url)
         token = (parse_qs(parsed.query).get('token') or [None])[0]
         request_host = normalize_hostname(parsed.netloc)
+        # Consume the browser-binding secret this domain's /login stashed.
+        bind = app.storage.user.pop('handoff_bind', None)
         payload = handoff_service.claim(token, request_host) if (token and request_host) else None
         if payload is None:
             ui.notify('Login link expired or already used. Please try again.', color='warning')
+            ui.navigate.to('/login')
+            return
+        # Login-CSRF guard: the token must have been minted for a login *this*
+        # browser initiated — i.e. the secret behind the committed hash must be
+        # present in this domain's session. A token delivered to a different
+        # browser (which lacks the secret) is rejected here.
+        expected = payload.get('bind_commit')
+        if not (expected and isinstance(bind, str)
+                and hmac.compare_digest(expected, _bind_commit(bind))):
+            logger.warning('OAuth handoff browser-binding mismatch on %r', request_host)
+            ui.notify('Login link is not valid for this browser. Please try again.', color='warning')
             ui.navigate.to('/login')
             return
         # Re-check the account is still active (it was provisioned at mint time,

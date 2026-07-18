@@ -72,12 +72,17 @@ def reset() -> None:
 
 
 def mint(*, discord_id, username: Optional[str], avatar: Optional[str],
-         target_host: str, next_path: str) -> Optional[str]:
+         target_host: str, next_path: str, bind_commit: Optional[str] = None) -> Optional[str]:
     """Mint a handoff token for ``discord_id`` bound to ``target_host``.
 
     ``target_host`` must already be validated as a known active tenant domain by
     the caller; it is normalized here so the claim's host comparison is apples to
     apples. Returns ``None`` if the host is not normalizable.
+
+    ``bind_commit`` is a hash the *initiating* browser committed to at ``/login``
+    (the raw secret stays in that browser's custom-domain session). The claim
+    route re-derives it from the browser's cookie and compares, so a token minted
+    in one browser can't be delivered to another (login-CSRF / forced login).
     """
     host = normalize_hostname(target_host)
     if host is None:
@@ -93,6 +98,7 @@ def mint(*, discord_id, username: Optional[str], avatar: Optional[str],
         'avatar': avatar,
         'host': host,
         'next': next_path,
+        'bind_commit': bind_commit,
         'expiry': now + _TTL_SECONDS,
     }
     return _serializer().dumps({'n': nonce, 'h': host})

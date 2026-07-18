@@ -90,6 +90,10 @@ def auth(monkeypatch):
     ('/admin', '/admin'),
     ('/home/profile?tab=1', '/home/profile?tab=1'),
     ('//evil.com', '/'),            # protocol-relative open-redirect
+    ('/\\evil.com', '/'),           # backslash form (browsers normalize \ to /)
+    ('/a\\b', '/'),                 # any backslash rejected
+    ('/a\r\nSet-Cookie: x', '/'),   # control chars / header smuggling
+    ('/a b', '/'),                  # whitespace
     ('https://evil.com', '/'),      # absolute URL
     ('/login', '/'),                # auth route would loop
     ('', '/'),
@@ -99,10 +103,28 @@ def test_safe_next(auth, raw, expected):
     assert auth._safe_next(raw) == expected
 
 
+def test_bind_commit_is_deterministic_sha256(auth):
+    import hashlib
+    secret = 'a-login-secret'
+    assert auth._bind_commit(secret) == hashlib.sha256(secret.encode()).hexdigest()
+    assert auth._bind_commit('other') != auth._bind_commit(secret)
+
+
+def test_mint_carries_bind_commit_through_claim():
+    commit = 'deadbeef' * 8
+    token = h.mint(discord_id=9, username='z', avatar=None,
+                   target_host='foo.gg', next_path='/', bind_commit=commit)
+    payload = h.claim(token, 'foo.gg')
+    assert payload is not None
+    # The route compares this against sha256(browser-secret); the service just
+    # carries it end to end unmodified.
+    assert payload['bind_commit'] == commit
+
+
 def test_handoff_start_url(auth, monkeypatch):
     monkeypatch.setenv('PLATFORM_HOST', 'main.gg')
-    url = auth._handoff_start_url('foo.gg', '/admin')
-    assert url == 'https://main.gg/oauth/start?host=foo.gg&next=%2Fadmin'
+    url = auth._handoff_start_url('foo.gg', '/admin', 'abc123')
+    assert url == 'https://main.gg/oauth/start?host=foo.gg&next=%2Fadmin&b=abc123'
 
 
 def test_claim_url(auth):
