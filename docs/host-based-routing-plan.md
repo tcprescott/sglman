@@ -1,10 +1,14 @@
 # Host-based tenant routing — implementation plan
 
-**Status:** **Phase 1 implemented** (Design A — host-local Discord login). The
-resolution branch, `Tenant.domain` normalization, the canonical `redirect_uri`
-builder, secondary-provider gating, config, seed, and tests are shipped; the
-sections below are retained as the design record. Phase 2 (§11) remains a
-proposal.
+**Status:** **Phase 1 implemented** (Design A — host-local Discord login) and
+**Phase 2 partially implemented.** Shipped in Phase 2: the Design B signed-handoff
+for Discord login (flag-gated `HOST_OAUTH_MODE=handoff`, default `local`) and the
+`tenant_base_url()` / `tenant_url()` deep-link helper (wired into the equipment
+QR link). **Still deferred from Phase 2:** host-native *secondary* providers over
+the handoff (the Phase-1 platform-host detour still handles them), and the forced
+`/t/<slug>`→domain 301 (skipped: it forces a re-auth across the host boundary; the
+deep-link helper delivers the canonical-domain benefit for generated links without
+that cost). The sections below are retained as the design record.
 **Depends on:** the shipped [multitenancy](features/multitenancy.md) layer.
 **Supersedes:** the "deferred host-mode addressing" note in
 [multitenancy-plan.md](multitenancy-plan.md) (Phase 3/4) — this doc is the
@@ -528,11 +532,20 @@ must-fixes land before the mechanism that depends on them:
    via `/ui-validation`.
 8. Update `features/multitenancy.md` (host mode now live) and this doc's status.
 
-**Phase 2 (only if needed) — scale-out:** Design B signed-handoff (specify the
-single-use nonce store — DB unique constraint or documented single-worker
-precondition — TTL ≤30 s, host + `discord_id` binding, `next` allow-listing), or
-host-native secondary providers, plus a `tenant_base_url()` deep-link helper and
-a per-tenant canonical-domain 301.
+**Phase 2 — scale-out.** Status per item:
+- **Design B signed-handoff — DONE.** `application/services/oauth_handoff_service.py`
+  mints a `STORAGE_SECRET`-signed token; single-use is enforced by an in-memory
+  nonce store (documented single-worker precondition), TTL 30 s, host **and**
+  `discord_id` bound, `next` allow-listed (`_safe_next`, rejects protocol-relative
+  and auth routes). Entry points: `/oauth/start` (platform host, target-host
+  allow-listed against active tenant domains) and `/session/claim` (custom
+  domain). Flag: `HOST_OAUTH_MODE=handoff`.
+- **`tenant_base_url()` deep-link helper — DONE.** `application/utils/tenant_urls.py`;
+  wired into the equipment QR link (points at the tenant's domain when set).
+- **Host-native secondary providers — deferred.** Reuse the handoff primitive
+  when built; the Phase-1 detour handles them today.
+- **Per-tenant canonical-domain 301 — deferred** (re-auth-across-hosts cost; see
+  status note at the top).
 
 ---
 

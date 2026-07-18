@@ -26,10 +26,11 @@ from starlette.responses import RedirectResponse
 from zenora import APIClient
 
 from application.services import DiscordLinkService, TenantService, UserService, get_user_from_discord_id
+from application.services import oauth_handoff_service as handoff_service
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
 from application.tenant_context import get_current_tenant_id, is_host_mode, tenant_scope
-from application.utils.environment import get_base_url
-from application.utils.hostname import normalize_hostname
+from application.utils.environment import get_base_url, get_platform_host, host_oauth_handoff_enabled
+from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mock_discord import is_mock_discord
 from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
 from models import Role, Tenant, User
@@ -59,12 +60,6 @@ def _platform_redirect_uri() -> str:
     return os.getenv("REDIRECT_URL") or f"{get_base_url()}/oauth/callback"
 
 
-def _is_local_host(host: str) -> bool:
-    """Whether ``host`` is a local dev host (so the callback may stay ``http``)."""
-    bare = host.split(':', 1)[0]
-    return bare == 'localhost' or bare.endswith('.localhost') or bare == '127.0.0.1'
-
-
 def _redirect_uri_for_tenant(tenant: Optional[Tenant]) -> str:
     """The canonical Discord callback URI for a resolved tenant, or the platform.
 
@@ -76,8 +71,7 @@ def _redirect_uri_for_tenant(tenant: Optional[Tenant]) -> str:
     host, or an unresolved tenant) it is the shared platform callback.
     """
     if tenant is not None and tenant.domain:
-        scheme = 'http' if _is_local_host(tenant.domain) else 'https'
-        return f'{scheme}://{tenant.domain}/oauth/callback'
+        return f'{scheme_for_host(tenant.domain)}://{tenant.domain}/oauth/callback'
     return _platform_redirect_uri()
 
 
@@ -102,6 +96,32 @@ async def _callback_tenant(url: str) -> Optional[Tenant]:
         return None
     tenant = await TenantService.get_by_domain(host)
     return tenant if (tenant is not None and tenant.is_active) else None
+
+
+def _safe_next(path) -> str:
+    """A safe in-app return path, or ``/``.
+
+    Rejects anything that isn't a same-host absolute path — protocol-relative
+    ``//evil.com`` and auth routes included — so a ``next`` carried across the
+    handoff can never become an open redirect when fed to ``ui.navigate.to``.
+    """
+    if not isinstance(path, str) or not path.startswith('/') or path.startswith('//'):
+        return '/'
+    if path.split('?', 1)[0] in AUTH_ROUTES:
+        return '/'
+    return path
+
+
+def _handoff_start_url(target_host: str, next_path: str) -> str:
+    """Platform-host ``/oauth/start`` URL that begins a Design B login for a domain."""
+    platform = get_platform_host()
+    query = urlencode({'host': target_host, 'next': next_path})
+    return f'{scheme_for_host(platform)}://{platform}/oauth/start?{query}'
+
+
+def _claim_url(target_host: str, token: str) -> str:
+    """Custom-domain ``/session/claim`` URL the platform callback hands off to."""
+    return f'{scheme_for_host(target_host)}://{target_host}/session/claim?token={quote(token, safe="")}'
 
 
 def _oauth_url(state: str, redirect_uri: str) -> str:
@@ -209,7 +229,21 @@ def create() -> None:
         # Pin the post-login return to this tenant before leaving for Discord. In
         # path mode the callback lands on the bare platform host; in host mode it
         # lands on this same custom domain (so the session cookie is visible).
-        app.storage.user['referrer_path'] = _sanitized_return(root_path)
+        return_path = _sanitized_return(root_path)
+        # Design B (HOST_OAUTH_MODE=handoff): on a custom domain, run OAuth on the
+        # platform host and hand the session back, so no per-domain Discord
+        # redirect URI is needed. The return path travels in the URL (the platform
+        # session can't see this host's cookie), not the session.
+        if host_oauth_handoff_enabled() and is_host_mode():
+            tenant = await _host_mode_tenant()
+            if tenant is not None and tenant.domain:
+                return RedirectResponse(
+                    _handoff_start_url(tenant.domain, _safe_next(return_path))
+                )
+        # Pin the post-login return to this tenant before leaving for Discord. In
+        # path mode the callback lands on the bare platform host; in host mode
+        # (Design A) it lands on this same custom domain (cookie visible).
+        app.storage.user['referrer_path'] = return_path
         # CSRF protection: bind this login attempt to a one-time state token
         # that must come back on the OAuth callback.
         state = secrets.token_urlsafe(32)
@@ -289,6 +323,26 @@ def create() -> None:
                 ui.navigate.to('/login')
                 return
 
+            # Design B: this login began via /oauth/start on the platform host for
+            # a custom domain. Do NOT authenticate the platform-host session —
+            # mint a single-use, host-bound token and hand the session over to the
+            # target domain's /session/claim, where the cookie belongs.
+            handoff_host = app.storage.user.pop('handoff_target_host', None)
+            handoff_next = app.storage.user.pop('handoff_next', None)
+            if handoff_host and host_oauth_handoff_enabled():
+                token = handoff_service.mint(
+                    discord_id=current_user.id,
+                    username=current_user.username,
+                    avatar=current_user.avatar_url,
+                    target_host=handoff_host,
+                    next_path=_safe_next(handoff_next or '/'),
+                )
+                if token:
+                    ui.navigate.to(_claim_url(handoff_host, token))
+                    return
+                # Mint failed (host no longer valid) — fall through to a normal
+                # platform-host login rather than stranding the user.
+
             app.storage.user.update({
                 'username': current_user.username,
                 'avatar': current_user.avatar_url,
@@ -312,6 +366,62 @@ def create() -> None:
             logger.exception('Unexpected error during OAuth callback')
             ui.notify('An unexpected error occurred during login. Please try again.', color='negative')
             ui.navigate.to('/login')
+
+    @ui.page('/oauth/start')
+    async def oauth_start(request: Request, client: Client) -> Optional[RedirectResponse]:
+        """Design B entry point (platform host): begin OAuth for a custom domain.
+
+        Records the target host + return path in the platform-host session (the
+        custom domain's cookie isn't visible here, so they arrive in the URL) and
+        runs the normal Discord flow to the single platform callback. The target
+        host is allow-listed against known active tenant domains.
+        """
+        if not host_oauth_handoff_enabled():
+            return RedirectResponse('/login')
+        params = request.query_params
+        target = normalize_hostname(params.get('host'))
+        next_path = _safe_next(params.get('next') or '/')
+        tenant = await TenantService.get_by_domain(target) if target else None
+        if tenant is None or not tenant.is_active:
+            # Unknown/inactive target host — refuse rather than hand a session to
+            # an arbitrary host (open-redirect / session-fixation guard).
+            return RedirectResponse('/')
+        state = secrets.token_urlsafe(32)
+        app.storage.user['oauth_state'] = state
+        app.storage.user['handoff_target_host'] = target
+        app.storage.user['handoff_next'] = next_path
+        return RedirectResponse(_oauth_url(state, _platform_redirect_uri()))
+
+    @ui.page('/session/claim')
+    async def session_claim(client: Client) -> None:
+        """Design B claim (custom domain): validate the handoff and set the session."""
+        await client.connected()
+        url = await ui.run_javascript('window.location.href')
+        parsed = urlparse(url)
+        token = (parse_qs(parsed.query).get('token') or [None])[0]
+        request_host = normalize_hostname(parsed.netloc)
+        payload = handoff_service.claim(token, request_host) if (token and request_host) else None
+        if payload is None:
+            ui.notify('Login link expired or already used. Please try again.', color='warning')
+            ui.navigate.to('/login')
+            return
+        # Re-check the account is still active (it was provisioned at mint time,
+        # but could have been deactivated inside the short TTL window).
+        user = await get_user_from_discord_id(payload['discord_id'])
+        if user is None:
+            app.storage.user.clear()
+            ui.notify('This account is inactive. Contact staff if this is a mistake.', color='negative')
+            ui.navigate.to('/login')
+            return
+        app.storage.user.update({
+            'username': payload.get('username'),
+            'avatar': payload.get('avatar'),
+            'authenticated': True,
+            'discord_id': payload['discord_id'],
+        })
+        # Self-defensive; never blocks login.
+        await DiscordRoleMappingService().sync_user_roles(user)
+        ui.navigate.to(_safe_next(payload.get('next') or '/'))
 
 
 def _login_as(user: User) -> None:

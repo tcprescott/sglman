@@ -57,6 +57,20 @@ def get_platform_host() -> str:
     return (urlparse(get_base_url()).netloc or 'localhost:8000').lower()
 
 
+def host_oauth_handoff_enabled() -> bool:
+    """Whether custom-domain login uses the Design B signed-handoff (default: off).
+
+    Off (default) is Design A — host-local Discord login, where each custom
+    domain's ``/oauth/callback`` must be a registered Discord redirect URI. Set
+    ``HOST_OAUTH_MODE=handoff`` to switch to Design B: OAuth always completes on
+    the platform host (one registered URI regardless of domain count) and a
+    short-lived signed token hands the session to the custom domain. Flip this
+    once the number of custom domains approaches the provider's redirect-URI
+    ceiling (see docs/host-based-routing-plan.md §4.2).
+    """
+    return (os.environ.get('HOST_OAUTH_MODE') or '').strip().lower() == 'handoff'
+
+
 def telemetry_enabled() -> bool:
     """Whether engagement telemetry capture is on (default: on).
 

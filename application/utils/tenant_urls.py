@@ -11,8 +11,31 @@ layer reads the pending referrer from ``app.storage.user`` and passes it in.
 
 from typing import Any, Sequence
 
+from application.utils.environment import get_base_url
+from application.utils.hostname import scheme_for_host
+
 # Routes that must never be used as a post-login return target (they would loop).
 AUTH_ROUTES: tuple[str, ...] = ('/login', '/logout', '/oauth/callback')
+
+
+def tenant_base_url(tenant: Any) -> str:
+    """The tenant's canonical absolute base URL (no trailing slash).
+
+    A tenant with a custom ``domain`` is canonically reached there
+    (``https://foo.gg``); otherwise it lives under the platform host's path-mode
+    prefix (``{BASE_URL}/t/<slug>``). Use this for **outbound deep links** — QR
+    codes, web-push ``navigate`` targets, Discord DM links — that are consumed
+    outside any request context and so must be absolute and self-contained.
+    """
+    domain = getattr(tenant, 'domain', None)
+    if domain:
+        return f'{scheme_for_host(domain)}://{domain}'
+    return f'{get_base_url()}/t/{tenant.slug}'
+
+
+def tenant_url(tenant: Any, path: str) -> str:
+    """:func:`tenant_base_url` joined to an absolute in-app ``path`` (leading ``/``)."""
+    return f'{tenant_base_url(tenant)}{path}'
 
 
 def tenant_home(root_path: str) -> str:

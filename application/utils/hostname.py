@@ -25,6 +25,19 @@ _HOSTNAME_RE = re.compile(rf'^{_LABEL}(?:\.{_LABEL})*$')
 _DEFAULT_PORTS = frozenset({'80', '443'})
 
 
+def scheme_for_host(host: str) -> str:
+    """``'http'`` for a local dev host, else ``'https'``.
+
+    A ``*.localhost`` / ``127.0.0.1`` host is the local dev case where TLS isn't
+    available; every real domain is served over https. Shared by the OAuth
+    redirect builder and the deep-link builder so both agree on the scheme.
+    """
+    bare = host.split(':', 1)[0]
+    if bare in ('localhost', '127.0.0.1') or bare.endswith('.localhost'):
+        return 'http'
+    return 'https'
+
+
 def normalize_hostname(value: Optional[str]) -> Optional[str]:
     """Reduce a host/domain to canonical comparison form, or ``None`` if invalid.
 

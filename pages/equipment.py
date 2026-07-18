@@ -14,6 +14,7 @@ from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
 from application.utils.environment import get_base_url
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
+from application.utils.tenant_urls import tenant_url
 from application.utils.timezone import format_eastern_display
 from theme.base import BaseLayout
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
@@ -57,12 +58,15 @@ def create() -> None:
             history = await service.loan_history(asset)
 
             # Tenant-qualified deep link so a scanned QR resolves to this
-            # community (/t/<slug>/equipment/<id>); on the bare platform host a
-            # bare /equipment/<id> would 404 (protected pages require a tenant).
+            # community: its own custom domain when set, else the path-mode form
+            # (/t/<slug>/equipment/<id>). On the bare platform host a bare
+            # /equipment/<id> would 404 (protected pages require a tenant).
             tid = get_current_tenant_id()
             tenant = await TenantService.get_by_id(tid) if tid is not None else None
-            prefix = f'/t/{tenant.slug}' if tenant is not None else ''
-            asset_link = f'{get_base_url()}{prefix}/equipment/{asset.id}'
+            asset_link = (
+                tenant_url(tenant, f'/equipment/{asset.id}')
+                if tenant is not None else f'{get_base_url()}/equipment/{asset.id}'
+            )
 
             with ui.column().classes('page-container-narrow w-full'):
                 with ui.row().classes('header-row items-center'):
