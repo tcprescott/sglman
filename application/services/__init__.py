@@ -46,6 +46,7 @@ from .match_suggestion_service import MatchSuggestionService
 from . import availability_windows
 from .player_availability_service import PlayerAvailabilityService
 from .match_watcher_service import MatchWatcherService
+from . import oauth_handoff_service
 from .preset_service import PresetService
 from .race_room_profile_service import RaceRoomProfileService
 from .race_room_service import RaceRoomService
@@ -125,6 +126,7 @@ __all__ = [
     'MatchScheduleService',
     'MatchSuggestionService',
     'MatchWatcherService',
+    'oauth_handoff_service',
     'PlayerAvailabilityService',
     'PresetService',
     'RaceRoomProfileService',

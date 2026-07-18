@@ -1,6 +1,6 @@
 # Service Layer Reference
 
-_Method-level reference for `application/services/` (all 30 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
+_Method-level reference for `application/services/` (all 35 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
 
 ## Pattern & conventions
 
@@ -53,6 +53,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
+| `oauth_handoff_service` (module) | [oauth_handoff_service.py](../../application/services/oauth_handoff_service.py) | Design B cross-host login: mint/claim a single-use, host-bound signed token (`HOST_OAUTH_MODE=handoff`) | [host-based-routing-plan.md](../host-based-routing-plan.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [tournament-notifications.md](../features/tournament-notifications.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -74,7 +75,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-All classes and `get_user_from_discord_id` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); the helper modules `discord_queue`, `volunteer_reminder`, `async_qualifier_access`, `async_qualifier_scoring`, `availability_windows`, and `reporting_shared` are imported as modules (`from application.services import discord_queue`). `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)) are also re-exported here.
+All classes and `get_user_from_discord_id` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); the helper modules `discord_queue`, `volunteer_reminder`, `async_qualifier_access`, `async_qualifier_scoring`, `availability_windows`, `oauth_handoff_service`, and `reporting_shared` are imported as modules (`from application.services import discord_queue`). `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)) are also re-exported here.
 
 ### api_token_service.py — ApiTokenService
 
@@ -506,6 +507,18 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
 Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`. Consumers: `middleware/tenant.py` (slug→tenant resolution), `pages/platform.py` (tenant CRUD UI), `pages/home.py` (community picker), `application/services/discord_service.py` + `discord_role_mapping_service.py` (guild→tenant routing).
+
+### oauth_handoff_service.py — module functions (Design B cross-host login)
+
+Module-level functions (not a class — like `discord_queue`) backing the **Design B** host-based-login handoff, active only when `HOST_OAUTH_MODE=handoff`. When a tenant is reached on its custom domain, Discord OAuth completes on the platform host (one registered redirect URI regardless of domain count) and this service hands the resulting session to the custom domain via a short-lived token. Holds a small module-level `_pending` nonce store (single-worker precondition, like the tenant caches). Feature doc: [host-based-routing-plan.md](../host-based-routing-plan.md) §4.2.
+
+| Function | Returns | Description |
+|---|---|---|
+| `mint(*, discord_id, username, avatar, target_host, next_path, bind_commit=None)` | `str \| None` | Mint a `STORAGE_SECRET`-signed token bound to `target_host`; stashes identity + `next` + the browser-binding commitment server-side in `_pending` under a random nonce (only nonce+host travel in the URL). `None` if the host isn't normalizable. |
+| `claim(token, request_host)` | `dict \| None` | Validate + **consume** (single-use) a token presented on `request_host`: signature, TTL (30 s), host binding (signed **and** stored), returning the stored payload (`discord_id`/`username`/`avatar`/`next`/`bind_commit`) or `None`. |
+| `reset()` | `None` | Clear the pending store (test isolation). |
+
+The login-CSRF guard (browser binding via `bind_commit`) is enforced in the `/session/claim` route (`pages/auth.py`), which re-derives the commitment from the initiating browser's session secret. Collaborators: `itsdangerous` (`URLSafeTimedSerializer`), `application/utils/hostname.normalize_hostname`. Consumers: `pages/auth.py` (`/oauth/start`, `/oauth/callback`, `/session/claim`).
 
 ### tournament_notification_service.py — TournamentNotificationService
 
