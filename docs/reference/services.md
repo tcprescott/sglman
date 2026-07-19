@@ -1,6 +1,6 @@
 # Service Layer Reference
 
-_Method-level reference for `application/services/` (all 30 modules) and `application/utils/`. Part of the [documentation index](../README.md)._
+_Method-level reference for `application/services/` (69 modules) and `application/utils/` (30 modules). Part of the [documentation index](../README.md)._
 
 ## Pattern & conventions
 
@@ -22,6 +22,8 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 - **Fire-and-forget Discord work** is wrapped in a coroutine and handed to `discord_queue.enqueue(...)` rather than awaited inline, so DB transactions never block on Discord rate limits.
 
 ## Service catalog
+
+This table is a curated index of the primary services; the online-tournament, event/webhook, service-health, and background-worker modules are documented in the sections further down rather than repeated here. For the authoritative module list, see `application/services/` (69 modules).
 
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
@@ -753,7 +755,7 @@ Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthServ
 
 ## Volunteering
 
-The onsite volunteer subsystem spans five services plus a background reminder loop. The data flow is: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`) and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
+The onsite volunteer subsystem spans six services plus a background reminder loop. The data flow is: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
 
 ### volunteer_profile_service.py — VolunteerProfileService
 
@@ -874,7 +876,7 @@ The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` wit
 - **Review** — reviewers = the qualifier's `admins`; **self-review blocked**; `claim_run`/`release_claim` claim-locking; `review_run` approves/rejects, then recomputes the permalink's par and rescores its approved runs.
 - **Scoring / leaderboard** — par + score math in `async_qualifier_scoring.py` (`compute_par` = mean of the N fastest approved runs; `compute_score` = `clamp(0,105,(2−elapsed/par)·100)`; `build_leaderboard` = per-pool slots, unfilled = 0, plus an estimate). `get_leaderboard` enforces the **active-window information lockdown** (`is_results_public`): the board/pools/pars are staff-only until the qualifier closes (inactive or past `closes_at`).
 
-Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_submitted`/`run_reviewed` onto the event bus (`EventType.ASYNC_QUALIFIER_RUN_*`). Best-effort Discord DM on review. Collaborators: the five `AsyncQualifier*` repositories, `PresetRepository`, `SeedGenerationService`, `AuthService`, `AuditService`, `application.events`. Admin UI: `pages/admin_tabs/admin_qualifiers.py`; player UI: `pages/qualifiers.py`. Plan: [pr-9-async-qualifiers.md](../online-tournaments/implementation/pr-9-async-qualifiers.md). `recompute_par_and_scores(permalink_id)` is the public entry the live-race capture path (below) reuses.
+Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_submitted`/`run_reviewed` onto the event bus (`EventType.ASYNC_QUALIFIER_RUN_*`). Best-effort Discord DM on review. Collaborators: the five `AsyncQualifier*` repositories, `PresetRepository`, `SeedGenerationService`, `AuthService`, `AuditService`, `application.events`. Admin UI: `pages/admin_tabs/admin_qualifiers.py`; player UI: `pages/qualifiers.py`. Design: [async-qualifiers.md](../online-tournaments/async-qualifiers.md). `recompute_par_and_scores(permalink_id)` is the public entry the live-race capture path (below) reuses.
 
 Two sibling helpers keep the service under the file-length guideline (both extracted from it, same three-layer standing as `async_qualifier_config.py`/`async_qualifier_scoring.py`):
 
@@ -890,7 +892,7 @@ Synchronous racetime qualifier races whose results flow into `AsyncQualifierRun`
 - **Open** (`open_room`) — create a `RacetimeRoom` (with `match=None`) named by one of the tenant's authorized bots (`RacetimeBotService.list_authorized_for_tenant`), mirror its slug onto the live race (`racetime_slug`), and move it to `PENDING`. Idempotent.
 - **Capture** (`record_finish`) — map each racetime entrant to a `User` (by `racetime_user_id`), write an `AsyncQualifierRun` (`done`→finished, `dnf`→forfeit, `dq`→disqualified; `finish_time`→`elapsed_seconds`), then par-score via `AsyncQualifierService.recompute_par_and_scores`. Live-race runs **skip reviewer sign-off** (written `APPROVED` — the racetime result is self-attributing); non-finishers score 0. **Refuses to record while any entrant is still racing.**
 
-`RaceRoomLifecycle` (in `race_room_service.py`) routes a finished/started/cancelled room to this service instead of the match path when `RacetimeRoom.match_id` is null and the room's slug resolves to a live race. Audits `AuditActions.ASYNC_QUALIFIER_LIVE_RACE_*` (create/open/cancel are audit-only; the captured finish also emits `EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED`). Collaborators: `AsyncQualifierLiveRaceRepository`, `AsyncQualifierRunRepository`, `RacetimeRoomRepository`, `RacetimeBotService`, `AsyncQualifierService`, `UserService`, `AuditService`. Admin UI: the **Live Races** sub-tab in `pages/admin_tabs/admin_qualifiers.py`. Plan: [pr-10-qualifier-live-races.md](../online-tournaments/implementation/pr-10-qualifier-live-races.md).
+`RaceRoomLifecycle` (in `race_room_service.py`) routes a finished/started/cancelled room to this service instead of the match path when `RacetimeRoom.match_id` is null and the room's slug resolves to a live race. Audits `AuditActions.ASYNC_QUALIFIER_LIVE_RACE_*` (create/open/cancel are audit-only; the captured finish also emits `EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED`). Collaborators: `AsyncQualifierLiveRaceRepository`, `AsyncQualifierRunRepository`, `RacetimeRoomRepository`, `RacetimeBotService`, `AsyncQualifierService`, `UserService`, `AuditService`. Admin UI: the **Live Races** sub-tab in `pages/admin_tabs/admin_qualifiers.py`. Design: [async-qualifiers.md](../online-tournaments/async-qualifiers.md).
 
 ## Utilities (`application/utils/`)
 
@@ -1061,9 +1063,31 @@ Pure Web Push protocol primitives — no I/O, no ORM ([web_push.py](../../applic
 | `public_key_b64url(private_key)` | `str` | Derived `applicationServerKey` browsers subscribe with. |
 | `b64url_encode(bytes)` / `b64url_decode(str)` | — | Padding-tolerant base64url helpers. |
 
+### Additional utilities
+
+Shared primitives and clients used across the service layer; each is a thin, focused helper rather than a full service.
+
+| Module | Purpose |
+|---|---|
+| `background_loop.py` | Reusable background-worker loop skeleton (the shared base for the cadence workers). |
+| `coroutine_queue.py` | `CoroutineQueue` — a serial coroutine worker queue (the primitive behind `discord_queue` and event dispatch). |
+| `config_validation.py` | `validate_config_blob(...)` — validate/normalize a JSON config blob against a Pydantic model. |
+| `hashing.py` | `stable_content_hash(obj)` — deterministic sha256 for cheap unchanged-since-last-run checks (used by the reconcilers). |
+| `hostname.py` | Hostname normalization + effective-request-host resolution for host-based tenant routing. |
+| `ssrf.py` | `ensure_public_host(...)` — SSRF guard for outbound requests (webhooks, seed-gen, identity links). |
+| `speedgaming_client.py` | `SpeedGamingClient` — SpeedGaming schedule-API transport (consumed by the SG ETL). |
+| `oauth_identity_client.py` | Shared OAuth identity-link transport (base for the Twitch/racetime clients + `IdentityLinkService`). |
+| `racetime_entrants.py` | Helpers to reconcile racetime entrants against local `User` records. |
+| `discord_embeds.py` | Discord embed builders (colour-by-category / match-state) for notification DMs. |
+| `mock_seedgen.py` | `is_mock_seedgen()` — detect the mock seed-generation layer (production-refused). |
+| `mock_discord_data.py` | Canned mock Discord data used by `DiscordService` under `MOCK_DISCORD`. |
+| `tenant_session.py` | Per-tenant namespacing of `app.storage.user` UI state (`tenant_session_get`/`set`). |
+| `tenant_urls.py` | Tenant-qualified URL building/validation + post-login return-path guards. |
+| `color_contrast.py` | WCAG contrast helpers (used by `TenantThemeService`). |
+
 ## Testing the service layer
 
-Service tests live in `tests/services/` — broadly one `test_<service>.py` module per service (covering audit, auth, challonge, crew, discord role-mapping/member-sync, equipment, feedback, match/match-schedule/match-watcher, reports, stream room, system config, tournament/tournament-notification, triforce text, user, and volunteer scheduling). Several modules — including `discord_queue`, `discord_service`, `seedgen_service`, the availability/suggestion services, `volunteer_reminder`, and the volunteer profile/position/availability/autoschedule services — have no dedicated suite. Key fixtures:
+Service tests live in `tests/services/` — broadly one `test_<service>.py` module per service, now covering the great majority of the layer (audit, auth, challonge, crew, discord queue/service/role-mapping/member-sync, equipment, feedback, match/match-schedule/match-watcher/suggestion, player availability, reports, seed generation, stream room, system config, tournament/tournament-notification, triforce text, user, the six volunteer services + reminder, plus the newer analytics, telemetry, webhook, service-health, SpeedGaming-ETL, racetime bot/room, async-qualifier, preset, match-source-guard, discord-event-reconciler, discord-link, tenant, and web-push suites). Coverage is not total — the live-infra paths (real Discord/racetime connections, the HTTP randomizer clients) are exercised only through their mocked seams; see [development.md](../development.md#coverage--known-gaps) for the intentional gaps. Key fixtures:
 
 - [`tests/conftest.py`](../../tests/conftest.py) provides a function-scoped `db` fixture: a fresh in-memory SQLite database per test via `Tortoise.init(db_url="sqlite://:memory:")` + `generate_schemas()`, torn down by closing connections — no state leaks between tests.
 - [`tests/services/conftest.py`](../../tests/services/conftest.py) adds an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture coroutines instead of running them, letting tests assert that notifications were enqueued while closing the coroutines to avoid "never awaited" warnings.

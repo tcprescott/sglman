@@ -127,7 +127,7 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 - **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`).
 
 ### Triforce texts (`/api/triforce-texts`)
-- `GET /mine` (own) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
+- `GET /mine?tournament_id=` (own; `tournament_id` required) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
 - `POST` (submit) · `POST /{id}/moderate` · `DELETE /{id}` (Staff/TA).
 
 ### Notifications (`/api/notifications`)
@@ -160,6 +160,8 @@ tenant-role-gated groups (presets, sync, qualifiers) use the coarse
 `require_api_actor`/`require_write_actor` HTTP dep and let the service enforce the
 finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a
 sub-STAFF token with the right role is accepted rather than 403'd.
+
+Several groups are also **feature-flag-gated**: when the caller's tenant has not enabled the flag, the whole router **404s** (as if the feature did not exist) rather than 403'ing. This applies to race-room profiles + race rooms (`RACETIME_ROOMS`), SpeedGaming (`SPEEDGAMING_ETL`), async qualifiers + live races (`ASYNC_QUALIFIERS`), and — in the core set — triforce texts (`TRIFORCE_TEXTS`) and volunteers (`VOLUNTEERS`); presets, seeds, racetime bots, discord events, and service health stay open. `POST /seeds` and `GET /seeds/randomizers` additionally filter/reject individual flag-gated randomizers (e.g. `dk64r`). See [features/feature-flags.md](../features/feature-flags.md).
 
 ### Presets (`/api/presets`)
 Tenant-authored seed presets (service gate `can_manage_presets`).
@@ -214,9 +216,6 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).
 - `GET /async-qualifiers/live-races?qualifier_id=` · `/{id}` · `/{id}/runs`.
 - `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `DELETE /{id}` (cancel). Inbound racetime capture (`mark_in_progress`, `record_finish`) is **not** exposed.
-
-_The full design rationale (exclusions, deps, serialization notes) lives in
-[online-tournaments/rest-api-coverage.md](../online-tournaments/rest-api-coverage.md)._
 
 ## Tests
 

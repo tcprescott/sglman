@@ -2,7 +2,7 @@
 
 Captures **how people actually use the tool** — page views, feature
 interactions, and a mirror of every domain event — so post-event analysis can
-go beyond the in-app [feedback](feedback.md) form. It answers "which pages and
+go beyond the in-app feedback form. It answers "which pages and
 reports did people use, how often, and who was active?" rather than "what
 deliberate admin action was taken" (that is [audit logging](audit-logging.md)).
 

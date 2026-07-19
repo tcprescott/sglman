@@ -1,8 +1,10 @@
-# Multitenancy Plan (proposal)
+# Multitenancy Plan (design record)
 
-> Status: **proposed, not implemented.** This is a design/implementation plan for
-> making Wizzrobe logically multitenant. No code in this plan has shipped. When work
-> begins, track progress in [current-state.md](current-state.md).
+> Status: **implemented.** This was the design/implementation plan for making
+> Wizzrobe logically multitenant; the system it describes has shipped. For the
+> **running** system — tenant context, addressing, query scoping, per-tenant roles,
+> one-bot-many-guilds — read [features/multitenancy.md](features/multitenancy.md).
+> This doc is retained as the design rationale and phased-migration record.
 >
 > _Revised 2026-07-11: realigned with the current codebase (36 models — event bus,
 > webhooks, telemetry, web push, equipment, feedback, and Challonge/Twitch identity

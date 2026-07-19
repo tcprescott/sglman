@@ -1,6 +1,6 @@
 # Feature 2: Seed rolling
 
-> Part of the [Online Tournaments plan](README.md) (proposed, not implemented).
+> Part of the [Online Tournaments design record](README.md) — **implemented**.
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
 
@@ -53,7 +53,7 @@ mirroring `MOCK_DISCORD`/`MOCK_CHALLONGE`.
 
 ### Coverage checklist
 
-Phase 1 (preset infrastructure) is **implemented** — see [PR 1](implementation/pr-1-presets.md). Only ALTTPR reads `preset.settings` today; the remaining backends stay hard-coded until the randomizer-coverage expansion PR, tracked below.
+Phase 1 (preset infrastructure) is **implemented**. Only ALTTPR reads `preset.settings` today; the remaining backends stay hard-coded until the randomizer-coverage expansion PR, tracked below.
 
 | Randomizer | In Wizzrobe today | Ported |
 |---|---|---|
@@ -68,7 +68,7 @@ Phase 1 (preset infrastructure) is **implemented** — see [PR 1](implementation
 | ff1r | ✅ | — |
 | z1r | ✅ | — |
 | smmap (Map Rando) | ✅ | — |
-| dk64r (DK64) | ✅ | ✅ ([plan](implementation/dk64-randomizer.md)) — flag-gated, needs `DK64R_API_KEY` |
+| dk64r (DK64) | ✅ | ✅ — flag-gated, needs `DK64R_API_KEY` |
 
 ## Data model
 

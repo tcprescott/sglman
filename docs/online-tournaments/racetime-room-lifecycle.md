@@ -1,6 +1,6 @@
 # Feature 5: Racetime race-room lifecycle
 
-> Part of the [Online Tournaments plan](README.md) (proposed, not implemented).
+> Part of the [Online Tournaments design record](README.md) — **implemented**.
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
 
