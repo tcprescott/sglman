@@ -37,6 +37,21 @@ async def test_randomizers_requires_auth(db, app):
         assert resp.status_code == 401
 
 
+async def test_flag_gated_randomizer_dropped_from_catalogue_when_off(db, app):
+    # A fresh tenant starts with every flag off, so the flag-gated dk64r
+    # randomizer is filtered out of the catalogue (mirrors the web selectors);
+    # ungated randomizers stay.
+    b = await Tenant.create(name='NoDK', slug='no-dk')
+    with tenant_scope(b.id):
+        _, token_b = await create_user_token(username='b-reader', roles=[Role.STAFF])
+    async with client_for(app, token_b) as c:
+        resp = await c.get('/api/seeds/randomizers')
+        assert resp.status_code == 200
+        names = {r['randomizer'] for r in resp.json()}
+        assert 'dk64r' not in names
+        assert 'alttpr' in names
+
+
 # --- POST /seeds ----------------------------------------------------------
 
 async def test_generate_seed_happy_path(db, app):
@@ -68,6 +83,18 @@ async def test_generate_seed_unsupported_randomizer_400(db, app):
     async with client_for(app, raw) as c:
         resp = await c.post('/api/seeds', json={'randomizer': 'nope'})
         assert resp.status_code == 400
+
+
+async def test_generate_seed_flag_gated_randomizer_404_when_off(db, app):
+    # dk64r is a valid randomizer but flag-gated; a tenant without the
+    # DK64_RANDOMIZER flag gets a 404 (hidden), the REST mirror of the web gate.
+    # The gate fires before generate_seed, so the MOCK_SEEDGEN fixture is moot.
+    b = await Tenant.create(name='NoDK2', slug='no-dk2')
+    with tenant_scope(b.id):
+        _, token_b = await create_user_token(username='b-roller', roles=[Role.STAFF])
+    async with client_for(app, token_b) as c:
+        resp = await c.post('/api/seeds', json={'randomizer': 'dk64r'})
+        assert resp.status_code == 404
 
 
 async def test_generate_seed_requires_auth(db, app):

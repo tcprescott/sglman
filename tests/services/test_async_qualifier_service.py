@@ -213,3 +213,32 @@ async def test_submit_and_review_publish_events(db):
     await service.review_run(staff, run.id, approved=True)
     assert EventType.ASYNC_QUALIFIER_RUN_SUBMITTED in seen
     assert EventType.ASYNC_QUALIFIER_RUN_REVIEWED in seen
+
+
+async def test_roll_permalinks_blocked_when_flag_gated_randomizer_off(db):
+    # A pool whose preset uses a flag-gated randomizer (dk64r) cannot roll when
+    # the community's DK64_RANDOMIZER flag is off: the whole batch is refused up
+    # front (no keyed calls, zero permalinks created). A fresh tenant starts with
+    # every flag off, unlike the db-fixture default tenant.
+    from application.tenant_context import tenant_scope
+    from models import Preset, Tenant
+
+    service = AsyncQualifierService()
+    b = await Tenant.create(name='NoDK', slug='no-dk-q')
+    with tenant_scope(b.id):
+        staff = await User.create(discord_id=900500, username='qstaff')
+        await UserRole.create(user=staff, role=Role.STAFF)
+        preset = await Preset.create(
+            name='DK', randomizer='dk64r', settings={'settings_string': 'x'},
+        )
+        now = datetime.now(timezone.utc)
+        q = await service.create_qualifier(
+            staff, name='Q', opens_at=now - timedelta(days=1),
+            closes_at=now + timedelta(days=1), runs_per_pool=1,
+        )
+        pool = await service.create_pool(staff, q.id, name='Pool A', preset_id=preset.id)
+
+        with pytest.raises(ValueError, match='not enabled'):
+            await service.roll_permalinks(staff, pool.id, count=2)
+
+        assert await AsyncQualifierPermalink.filter(pool_id=pool.id).count() == 0
