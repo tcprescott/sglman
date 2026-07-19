@@ -444,8 +444,12 @@ class MatchService:
                 await self.match_schedule_service.notify_match_scheduled(match, rescheduled=True)
             else:
                 # Only the player set changed: just re-request acknowledgments.
+                # Resolve the embed-footer community here (request context); the
+                # enqueued coroutine runs later in the scope-less queue worker.
+                from application.services.tenant_service import TenantService
+                community = await TenantService.current_community_name()
                 discord_queue.enqueue(self.match_schedule_service.notify_acknowledgment_request(
-                    match, rescheduled=False,
+                    match, rescheduled=False, community=community,
                 ))
 
         match_events.publish(match.id)

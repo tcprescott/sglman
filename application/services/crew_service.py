@@ -17,6 +17,8 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services import discord_queue
 from application.services.discord_service import DiscordService
+from application.services.tenant_service import TenantService
+from application.utils.discord_embeds import COLOR_CREW, notification_embed, time_field
 from application.utils.discord_messages import crew_assignment_dm
 from application.utils.timezone import format_eastern_display
 from models import Commentator, Tracker, User
@@ -289,15 +291,34 @@ class CrewService:
 
         match = crew_member.match
         players = await match.players.all().prefetch_related('user')
+        player_names = [p.user.preferred_name for p in players] if players else []
         message = crew_assignment_dm(
             crew_type=crew_type,
             match_title=match.title or None,
             scheduled_at_display=format_eastern_display(match.scheduled_at) if match.scheduled_at else '',
             stream_room_name=match.stream_room.name if match.stream_room else None,
-            player_names=[p.user.preferred_name for p in players] if players else None,
+            player_names=player_names or None,
         )
+
+        players_str = (
+            ' vs '.join(player_names) if len(player_names) == 2 else ', '.join(player_names)
+        )
+        fields = [('Match', match.title or players_str, False)]
+        if match.title and players_str:
+            fields.append(('Players', players_str, True))
+        fields.append(('Time', time_field(match.scheduled_at), False))
+        if match.stream_room:
+            fields.append(('Stage', match.stream_room.name, True))
+        embed = notification_embed(
+            title=f'🎙️ {crew_type.capitalize()} assignment',
+            color=COLOR_CREW,
+            community_name=await TenantService.current_community_name(),
+            description='Tap **Acknowledge** below to confirm you can cover this.',
+            fields=fields,
+        )
+
         discord_queue.enqueue(
             self.discord_service.send_dm_with_crew_acknowledgment_button(
-                int(discord_id), message, crew_type, crew_member.id,
+                int(discord_id), message, crew_type, crew_member.id, embed=embed,
             )
         )

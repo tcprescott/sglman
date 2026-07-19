@@ -361,6 +361,8 @@ class VolunteerScheduleService:
         self, assignment: VolunteerAssignment, shift: VolunteerShift, user: User,
     ) -> None:
         """Best-effort Discord DM asking the volunteer to confirm. Never raises."""
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import volunteer_embed
         from application.utils.discord_messages import volunteer_assignment_dm
 
         discord_id = getattr(user, 'discord_id', None)
@@ -373,8 +375,19 @@ class VolunteerScheduleService:
             starts_display=format_eastern_display(shift.starts_at),
             ends_display=format_eastern_display(shift.ends_at),
         )
+        description = 'Tap **Acknowledge** below to confirm you can cover this shift.'
+        if shift.label:
+            description = f'**{shift.label}**\n{description}'
+        embed = volunteer_embed(
+            title='🙋 Volunteer shift assigned',
+            position=position_name or 'Volunteer shift',
+            community_name=await TenantService.current_community_name(),
+            starts=shift.starts_at,
+            ends=shift.ends_at,
+            description=description,
+        )
         discord_queue.enqueue(
             self.discord_service.send_dm_with_volunteer_acknowledgment_button(
-                int(discord_id), message, assignment.id,
+                int(discord_id), message, assignment.id, embed=embed,
             )
         )

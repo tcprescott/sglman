@@ -225,7 +225,7 @@ class TestNotifyMatchCrew:
 
         await service.notify_match_crew(m, "hello crew")
 
-        service.discord_service.send_dm.assert_awaited_once_with(111, "hello crew")
+        service.discord_service.send_dm.assert_awaited_once_with(111, "hello crew", embed=None)
         service.discord_service.send_dm_with_unwatch_button.assert_not_awaited()
 
     async def test_approved_tracker_gets_plain_dm(self, service, db):
@@ -235,7 +235,7 @@ class TestNotifyMatchCrew:
 
         await service.notify_match_crew(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(112, "hi")
+        service.discord_service.send_dm.assert_awaited_once_with(112, "hi", embed=None)
 
     async def test_watcher_gets_unwatch_button_dm(self, service, db):
         t = await Tournament.create(name="T")
@@ -245,7 +245,7 @@ class TestNotifyMatchCrew:
         await service.notify_match_crew(m, "watch msg")
 
         service.discord_service.send_dm.assert_not_awaited()
-        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id)
+        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(222, "watch msg", m.id, embed=None)
 
     async def test_player_who_is_crew_is_excluded(self, service, db):
         t = await Tournament.create(name="T")
@@ -378,7 +378,7 @@ class TestNotifyMatchParticipantsBranches:
 
         await service.notify_match_participants(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(444, "hi")
+        service.discord_service.send_dm.assert_awaited_once_with(444, "hi", embed=None)
 
     async def test_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
@@ -411,7 +411,7 @@ class TestNotifySubscriberFailurePaths:
 
         await service.notify_tournament_subscribers_scheduled(m, "msg", [])
 
-        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(555, "msg", m.id)
+        service.discord_service.send_dm_with_crew_buttons.assert_awaited_once_with(555, "msg", m.id, embed=None)
 
     async def test_stream_candidate_subscriber_dm_failure_is_swallowed(self, service, db):
         t = await Tournament.create(name="T")
@@ -540,7 +540,7 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
 
         await service.notify_match_participants(m, "hi")
 
-        service.discord_service.send_dm.assert_awaited_once_with(211, "hi")
+        service.discord_service.send_dm.assert_awaited_once_with(211, "hi", embed=None)
 
     async def test_watcher_receives_unwatch_button(self, service, db):
         t = await Tournament.create(name="T")
@@ -550,7 +550,7 @@ class TestNotifyMatchParticipantsCommentatorAndWatcher:
         await service.notify_match_participants(m, "hi")
 
         service.discord_service.send_dm.assert_not_awaited()
-        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(212, "hi", m.id)
+        service.discord_service.send_dm_with_unwatch_button.assert_awaited_once_with(212, "hi", m.id, embed=None)
 
 
 class TestNotifyStreamCandidateSubscribersExtra:

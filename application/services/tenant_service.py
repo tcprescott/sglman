@@ -77,6 +77,32 @@ class TenantService:
         return await TenantRepository.get_by_id(tenant_id)
 
     @staticmethod
+    async def community_name(tenant_id: int) -> str:
+        """The community's display name for a tenant id, or '' if unknown.
+
+        Used to stamp a community footer on Discord notification embeds so a user
+        active in several communities can tell whose DM this is."""
+        tenant = await TenantRepository.get_by_id(tenant_id)
+        return tenant.name if tenant else ''
+
+    @staticmethod
+    async def current_community_name() -> str:
+        """The in-scope tenant's community name for embed footers, or '' if none.
+
+        Non-raising and best-effort: it reads the ambient tenant via
+        ``get_current_tenant_id`` (which returns None rather than raising) and
+        swallows any lookup failure to '' — the footer is cosmetic and must never
+        turn a best-effort notification DM into a hard failure."""
+        from application.tenant_context import get_current_tenant_id
+        tid = get_current_tenant_id()
+        if not tid:
+            return ''
+        try:
+            return await TenantService.community_name(tid)
+        except Exception:
+            return ''
+
+    @staticmethod
     async def get_by_slug(slug: str) -> Optional[Tenant]:
         key = (slug or '').lower()
         if key in _cache_by_slug:

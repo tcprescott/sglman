@@ -40,6 +40,8 @@ async def _tick() -> None:
     from application.services.discord_service import DiscordService
     from application.services.feature_flag_service import FeatureFlagService
     from application.services.system_config_service import SystemConfigService
+    from application.services.tenant_service import TenantService
+    from application.utils.discord_embeds import volunteer_embed
     from application.utils.discord_messages import volunteer_reminder_dm
     from application.utils.timezone import format_eastern_display
     from models import FeatureFlag
@@ -86,13 +88,24 @@ async def _tick() -> None:
             starts_display=format_eastern_display(shift.starts_at),
             ends_display=format_eastern_display(shift.ends_at),
         )
+        description = 'Your shift is coming up. Tap **Acknowledge** to confirm you are covering it.'
+        if shift.label:
+            description = f'**{shift.label}**\n{description}'
+        embed = volunteer_embed(
+            title='⏰ Volunteer shift reminder',
+            position=position_name or 'Volunteer shift',
+            community_name=await TenantService.current_community_name(),
+            starts=shift.starts_at,
+            ends=shift.ends_at,
+            description=description,
+        )
         # Close the DM over the tenant scope so its deep links / web-push
         # mirror resolve under the right tenant when the worker runs it.
         discord_queue.enqueue(
             _scoped_dm(
                 tenant_id,
                 discord_service.send_dm_with_volunteer_acknowledgment_button(
-                    int(discord_id), message, assignment.id,
+                    int(discord_id), message, assignment.id, embed=embed,
                 ),
             )
         )
