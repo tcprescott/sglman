@@ -9,6 +9,7 @@ any failure so it reaches logs + Sentry.
 import logging
 from collections.abc import Coroutine
 
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.coroutine_queue import CoroutineQueue, bind_module_state
 
 logger = logging.getLogger(__name__)
@@ -29,5 +30,28 @@ async def stop() -> None:
     await _q.stop()
 
 
+async def _run_in_tenant_scope(tenant_id: int, coro: Coroutine) -> None:
+    with tenant_scope(tenant_id):
+        await coro
+
+
 def enqueue(coro: Coroutine) -> None:
-    _q.enqueue(coro)
+    """Enqueue a Discord-send coroutine, re-binding the caller's tenant for the worker.
+
+    The lone worker task is created once at app startup with **no tenant in
+    scope**, and a coroutine handed to ``asyncio.Queue`` does not carry the
+    enqueuer's context — so any ``require_tenant_id()`` reached inside a notify
+    coroutine (recipient fan-out, acknowledgment queries, …) would raise in the
+    worker and be swallowed, dropping the DM. Capture the enqueuing request's
+    tenant *now* (request context) and re-establish it around the coroutine when
+    the worker awaits it. This is the ``volunteer_reminder._scoped_dm`` pattern
+    applied once, at the queue chokepoint every notification flows through.
+
+    Enqueued outside any tenant (rare — a genuinely tenant-agnostic send) the
+    coroutine is queued unwrapped, exactly as before.
+    """
+    tenant_id = get_current_tenant_id()
+    if tenant_id is not None:
+        _q.enqueue(_run_in_tenant_scope(tenant_id, coro))
+    else:
+        _q.enqueue(coro)

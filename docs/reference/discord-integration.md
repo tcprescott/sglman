@@ -18,7 +18,8 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, queue start/stop in the FastAPI lifespan |
 | [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py) | `is_mock_discord()` flag with production guard |
 | [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | Notification fan-out coroutines |
-| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | DM/embed text builders (public functions) + ephemeral confirmation strings |
+| [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | Plain-text DM builders (public functions) + ephemeral confirmation strings |
+| [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) | Embed-card builders (`match_embed`, `state_changed_embed`, `volunteer_embed`, `notification_embed`, `time_field`, `COLOR_*`) |
 | [`application/services/crew_service.py`](../../application/services/crew_service.py) | Crew approval → crew acknowledgment DM |
 
 ## Architecture overview
@@ -30,6 +31,8 @@ The bot is a **py-cord `commands.Bot`** that lives inside the single Uvicorn wor
 3. On shutdown, the reverse: `discord_queue.stop()` → `close_discord_bot()` (calls `bot.close()`; no-op under mock) → DB close.
 
 Degradation is graceful at every layer: when the bot is missing or not connected, every `DiscordService` send method returns a `(False, reason)` tuple instead of raising, and the fan-out methods that call them log the failure and move on.
+
+**Embeds vs. text.** Each notification is *sent* as a colour-coded `discord.Embed` card built in [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) (state colour, Tournament/Players/Time/Stage field grid, native `<t:unix:F>·<t:unix:R>` timestamps, community-name footer via `TenantService.current_community_name()`). `send_dm(..., embed=embed)` sends the embed as the Discord representation but **always mirrors the plain-text `message`** (from [`discord_messages.py`](../../application/utils/discord_messages.py)) to the recipient's web-push devices — so the embed layer is purely additive and the text builders remain the mirror/fallback copy. The embed is built in the request's tenant context (at enqueue time), not in the serial `discord_queue` worker.
 
 Under `MOCK_DISCORD=true` ([`application/utils/mock_discord.py`](../../application/utils/mock_discord.py)), the entire service is stubbed: the bottom of `discord_service.py` rebinds the module-level name at import time —
 
@@ -154,9 +157,11 @@ Button interactions are **not** testable in mock mode (no bot connection); see [
 |---|---|---|
 | `start` | `() -> None` (sync) | Creates the `_worker()` task on the running event loop. Called once from `main.py` lifespan startup. |
 | `stop` | `() -> None` (async) | If items are still queued, prints `[discord_queue] stopping with N item(s) still queued — they will not be sent`, then cancels the worker task and awaits it (swallowing `CancelledError`). Called from lifespan shutdown. |
-| `enqueue` | `(coro: Coroutine) -> None` (sync) | `put_nowait` onto the unbounded `asyncio.Queue`. Safe to call from sync or async code; never blocks. |
+| `enqueue` | `(coro: Coroutine) -> None` (sync) | Captures the caller's tenant, then `put_nowait` onto the unbounded `asyncio.Queue`. Safe to call from sync or async code; never blocks. |
 
 The worker loop (`_worker`) pulls one coroutine at a time, awaits it, catches **any** exception and prints `[discord_queue] worker error: <e>` (the queue never dies from a bad send), and marks `task_done()`. Sends are therefore strictly serialized in enqueue order.
+
+**Tenant scope across the queue boundary.** The worker task is created once at startup with **no tenant in scope**, and a coroutine handed to `asyncio.Queue` does not carry the enqueuer's context — so a `notify_*` coroutine reaching `require_tenant_id()` (recipient fan-out, acknowledgment queries) would raise in the worker and be swallowed, silently dropping the DM. `enqueue` therefore snapshots `get_current_tenant_id()` at call time (request context) and re-establishes it around the coroutine via `tenant_scope` when the worker awaits it. Enqueue **from a tenant-scoped context** (a request, or a worker path already inside `tenant_scope`); a genuinely tenant-agnostic send may enqueue unscoped and is queued as-is.
 
 ```python
 from application.services import discord_queue

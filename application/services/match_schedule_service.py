@@ -9,6 +9,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, Dict, Tuple, Optional
 
+import discord
+
 from application import match_events
 from application.events import Event, EventType, event_bus
 from application.tenant_context import require_tenant_id
@@ -18,6 +20,15 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
+from application.utils.discord_embeds import (
+    COLOR_CHECKED_IN,
+    COLOR_RESCHEDULED,
+    COLOR_SCHEDULED,
+    COLOR_SEED,
+    COLOR_STREAM,
+    match_embed,
+    state_changed_embed,
+)
 from application.utils.discord_messages import (
     acknowledgment_request_dm,
     checked_in_dm,
@@ -115,6 +126,55 @@ def _match_descriptor(match: Match) -> dict:
     }
 
 
+async def _community_name() -> str:
+    """The current tenant's community name for the embed footer, or '' if none.
+
+    Thin alias over ``TenantService.current_community_name`` (non-raising,
+    best-effort): a missing tenant or DB-less context just omits the footer
+    rather than breaking a best-effort DM. The functions that need a tenant for
+    their queries still enforce it with ``require_tenant_id`` as before.
+    """
+    from application.services.tenant_service import TenantService
+    return await TenantService.current_community_name()
+
+
+def _match_embed_kwargs(match: Match, community: str) -> dict:
+    """Shared embed kwargs from a match with tournament/players/stream_room loaded."""
+    return {
+        'tournament': match.tournament.name,
+        'community_name': community,
+        'player_names': [p.user.preferred_name for p in match.players],
+        'when': match.scheduled_at,
+        'stream_room_name': match.stream_room.name if match.stream_room else None,
+    }
+
+
+def _checked_in_notification(match: Match, community: str) -> tuple:
+    """(text, embed) for the check-in DM."""
+    return (
+        checked_in_dm(match.tournament.name, **_match_descriptor(match)),
+        match_embed(
+            title='✅ Match checked in', color=COLOR_CHECKED_IN,
+            description='The match is about to begin — good luck!',
+            **_match_embed_kwargs(match, community),
+        ),
+    )
+
+
+def _state_notification(match: Match, community: str, new_state: str) -> tuple:
+    """(text, embed) for a started/finished/confirmed transition DM."""
+    return (
+        state_changed_dm(match.tournament.name, new_state, **_match_descriptor(match)),
+        state_changed_embed(
+            match.tournament.name, new_state,
+            community_name=community,
+            player_names=[p.user.preferred_name for p in match.players],
+            when=match.scheduled_at,
+            stream_room_name=match.stream_room.name if match.stream_room else None,
+        ),
+    )
+
+
 class MatchScheduleService:
     """Service for match scheduling operations."""
 
@@ -138,12 +198,13 @@ class MatchScheduleService:
         timestamp_field: str,
         audit_action: str,
         event_type: str,
-        build_message: Callable[[Match], str],
+        build_message: Callable[[Match, str], tuple],
     ) -> None:
         """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
 
-        ``check`` raises ValueError on a precondition failure; ``build_message`` is
-        called after the tournament relation is fetched.
+        ``check`` raises ValueError on a precondition failure; ``build_message``
+        takes ``(match, community_name)`` and returns ``(text, embed)`` — both are
+        built after the relations are fetched, in this request's tenant context.
         """
         await AuthService.ensure(
             await AuthService.can_transition_match(actor, match),
@@ -157,7 +218,11 @@ class MatchScheduleService:
             actor, audit_action, {'match_id': match.id},
         )
         await match.fetch_related('tournament', 'players__user', 'stream_room')
-        discord_queue.enqueue(self.notify_match_participants(match, build_message(match)))
+        # Resolve the community name here (request context) rather than in the
+        # queue worker, and pass the pre-built embed down with the text.
+        community = await _community_name()
+        message, embed = build_message(match, community)
+        discord_queue.enqueue(self.notify_match_participants(match, message, embed))
         match_events.publish(match.id)
         event_bus.publish(Event.create(event_type, {
             'match_id': match.id,
@@ -183,7 +248,7 @@ class MatchScheduleService:
             timestamp_field="seated_at",
             audit_action=AuditActions.MATCH_SEATED,
             event_type=EventType.MATCH_SEATED,
-            build_message=lambda m: checked_in_dm(m.tournament.name, **_match_descriptor(m)),
+            build_message=lambda m, c: _checked_in_notification(m, c),
         )
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -199,7 +264,7 @@ class MatchScheduleService:
             timestamp_field="started_at",
             audit_action=AuditActions.MATCH_STARTED,
             event_type=EventType.MATCH_STARTED,
-            build_message=lambda m: state_changed_dm(m.tournament.name, "Started", **_match_descriptor(m)),
+            build_message=lambda m, c: _state_notification(m, c, "Started"),
         )
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -215,7 +280,7 @@ class MatchScheduleService:
             timestamp_field="finished_at",
             audit_action=AuditActions.MATCH_FINISHED,
             event_type=EventType.MATCH_FINISHED,
-            build_message=lambda m: state_changed_dm(m.tournament.name, "Finished", **_match_descriptor(m)),
+            build_message=lambda m, c: _state_notification(m, c, "Finished"),
         )
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -231,7 +296,7 @@ class MatchScheduleService:
             timestamp_field="confirmed_at",
             audit_action=AuditActions.MATCH_CONFIRMED,
             event_type=EventType.MATCH_CONFIRMED,
-            build_message=lambda m: state_changed_dm(m.tournament.name, "Confirmed", **_match_descriptor(m)),
+            build_message=lambda m, c: _state_notification(m, c, "Confirmed"),
         )
 
         # Push the confirmed result to Challonge when this match mirrors a
@@ -323,6 +388,15 @@ class MatchScheduleService:
 
                 # Send DMs to players in the background (respects dm_notifications opt-out)
                 descriptor = _match_descriptor(match)
+                community = await _community_name()
+                seed_embed = match_embed(
+                    title='🎲 Seed ready', color=COLOR_SEED,
+                    description=f'[Open your seed]({seed_url})',
+                    tournament=match.tournament.name, community_name=community,
+                    player_names=descriptor['player_names'], when=match.scheduled_at,
+                    stream_room_name=match.stream_room.name if match.stream_room else None,
+                    url=seed_url,
+                )
 
                 async def _send_seed_dms() -> None:
                     for player in match.players:
@@ -334,7 +408,7 @@ class MatchScheduleService:
                                 **descriptor,
                             )
                             success, err = await self.discord_service.send_dm(
-                                player.user.discord_id, dm_message
+                                player.user.discord_id, dm_message, embed=seed_embed,
                             )
                             if not success:
                                 logger.warning(
@@ -372,37 +446,48 @@ class MatchScheduleService:
                 logger.exception("Seed generation failed for match %s", match_id)
                 return False, "Seed generation failed. Please check the server logs.", None
 
-    async def notify_match_participants(self, match: Match, message: str) -> None:
+    async def notify_match_participants(
+        self, match: Match, message: str, embed: Optional[discord.Embed] = None,
+    ) -> None:
         """
         Send a DM to all opted-in players, approved crew, and watchers for a match.
 
         Each recipient gets exactly one DM. Anyone who is watching the match
         (whether or not they are also a player/crew) receives the DM with an
-        Unwatch button so they can opt out from Discord.
+        Unwatch button so they can opt out from Discord. ``embed`` is the
+        colour-coded card rendered on Discord; the ``message`` text still feeds
+        the web-push mirror.
 
         Never raises; partial DM failures are logged and swallowed so the
         calling lifecycle operation is never blocked.
         """
         try:
             recipients = await collect_match_recipients(match)
-            await self._send_dms(match, recipients, message, log_label='notify_match_participants')
+            await self._send_dms(
+                match, recipients, message, embed=embed, log_label='notify_match_participants',
+            )
         except Exception:
             logger.exception("notify_match_participants unexpected error for match %s", match.id)
 
-    async def notify_match_crew(self, match: Match, message: str) -> None:
+    async def notify_match_crew(
+        self, match: Match, message: str, embed: Optional[discord.Embed] = None,
+    ) -> None:
         """
         Send a DM to approved commentators, trackers, and watchers for a match.
 
         Players are excluded — they receive a separate acknowledgment DM via
         notify_acknowledgment_request. Watchers receive the message with an
         Unwatch button so they can opt out from Discord; everyone else gets a
-        plain DM. Never raises; per-DM failures are logged and swallowed.
+        plain DM. ``embed`` is the colour-coded Discord card. Never raises;
+        per-DM failures are logged and swallowed.
         """
         try:
             recipients = await collect_match_recipients(
                 match, include_players=False, exclude_players=True,
             )
-            await self._send_dms(match, recipients, message, log_label='notify_match_crew')
+            await self._send_dms(
+                match, recipients, message, embed=embed, log_label='notify_match_crew',
+            )
         except Exception:
             logger.exception("notify_match_crew unexpected error for match %s", match.id)
 
@@ -412,20 +497,25 @@ class MatchScheduleService:
         recipients: dict[int, bool],
         message: str,
         *,
+        embed: Optional[discord.Embed] = None,
         log_label: str,
     ) -> None:
         """Send ``message`` to each recipient; watchers get the unwatch-button DM.
 
         ``recipients`` maps discord_id -> is_watcher (see collect_match_recipients).
-        Per-DM failures are logged (prefixed with ``log_label``) and swallowed.
+        ``embed`` (when set) is the Discord card sent alongside; the text still
+        flows to the web-push mirror. Per-DM failures are logged (prefixed with
+        ``log_label``) and swallowed.
         """
         for discord_id, is_watcher in recipients.items():
             if is_watcher:
                 success, err = await self.discord_service.send_dm_with_unwatch_button(
-                    discord_id, message, match.id,
+                    discord_id, message, match.id, embed=embed,
                 )
             else:
-                success, err = await self.discord_service.send_dm(discord_id, message)
+                success, err = await self.discord_service.send_dm(
+                    discord_id, message, embed=embed,
+                )
             if not success:
                 logger.warning("%s DM failed for %s: %s", log_label, discord_id, err)
 
@@ -434,10 +524,16 @@ class MatchScheduleService:
         match: Match,
         *,
         rescheduled: bool,
+        community: str = '',
     ) -> None:
         """
         Send a DM with an Acknowledge button to every current match player
         whose acknowledgment is still pending and who opts in to DMs.
+
+        ``community`` is the embed-footer community name, resolved by the caller
+        in request context — this coroutine is awaited later by the scope-less
+        ``discord_queue`` worker, where the tenant is no longer in scope, so the
+        footer must be passed in rather than looked up here.
 
         Never raises; per-DM failures are logged and swallowed.
         """
@@ -452,6 +548,14 @@ class MatchScheduleService:
                 stream_room_name=match.stream_room.name if match.stream_room else '',
                 player_names=player_names,
             )
+            embed = match_embed(
+                title='🔄 Match rescheduled' if rescheduled else '📣 Match scheduled',
+                color=COLOR_RESCHEDULED if rescheduled else COLOR_SCHEDULED,
+                description='Tap **Acknowledge** below to confirm you have seen this.',
+                tournament=match.tournament.name, community_name=community,
+                player_names=player_names, when=match.scheduled_at,
+                stream_room_name=match.stream_room.name if match.stream_room else None,
+            )
 
             acks = await self.acknowledgment_repository.list_for_match(match)
             for ack in acks:
@@ -460,7 +564,7 @@ class MatchScheduleService:
                 if not ack.user.dm_notifications or not ack.user.discord_id:
                     continue
                 success, err = await self.discord_service.send_dm_with_acknowledgment_button(
-                    ack.user.discord_id, message, match.id,
+                    ack.user.discord_id, message, match.id, embed=embed,
                 )
                 if not success:
                     logger.warning(
@@ -474,11 +578,14 @@ class MatchScheduleService:
         match: Match,
         message: str,
         exclude_discord_ids: list,
+        embed: Optional[discord.Embed] = None,
     ) -> None:
         """
         Send match-scheduled DM with crew signup buttons to tournament subscribers.
 
-        Never raises; per-DM failures are logged and swallowed.
+        ``embed`` is the colour-coded Discord card; the ``message`` text still
+        feeds the web-push mirror. Never raises; per-DM failures are logged and
+        swallowed.
         """
         try:
             from application.repositories import TournamentNotificationRepository
@@ -489,7 +596,7 @@ class MatchScheduleService:
             for user in subscribers:
                 if user.discord_id not in exclude_discord_ids:
                     success, err = await self.discord_service.send_dm_with_crew_buttons(
-                        user.discord_id, message, match.id
+                        user.discord_id, message, match.id, embed=embed,
                     )
                     if not success:
                         logger.warning(
@@ -505,6 +612,7 @@ class MatchScheduleService:
         self,
         match: Match,
         exclude_discord_ids: list,
+        community: str = '',
     ) -> None:
         """
         Send stream-candidate alert with crew signup buttons to opted-in subscribers.
@@ -512,7 +620,10 @@ class MatchScheduleService:
         Skipped entirely when the match already has a stream room — those subscribers
         were already notified via notify_tournament_subscribers_scheduled.
 
-        Never raises; per-DM failures are logged and swallowed.
+        ``community`` is the embed-footer community name, resolved by the caller in
+        request context (this runs in the scope-less ``discord_queue`` worker where
+        the tenant is no longer in scope). Never raises; per-DM failures are logged
+        and swallowed.
         """
         if match.stream_room_id is not None:
             return
@@ -526,14 +637,21 @@ class MatchScheduleService:
             scheduled_display = ''
             if match.scheduled_at:
                 scheduled_display = format_eastern_display(match.scheduled_at)
+            player_names = [p.user.preferred_name for p in match.players]
             msg = stream_candidate_dm(
                 match.tournament.name, scheduled_display,
-                player_names=[p.user.preferred_name for p in match.players],
+                player_names=player_names,
+            )
+            embed = match_embed(
+                title='🎥 Stream candidate', color=COLOR_STREAM,
+                description='This match may be streamed — sign up to crew below.',
+                tournament=match.tournament.name, community_name=community,
+                player_names=player_names, when=match.scheduled_at,
             )
             for user in subscribers:
                 if user.discord_id not in exclude_discord_ids:
                     success, err = await self.discord_service.send_dm_with_crew_buttons(
-                        user.discord_id, msg, match.id
+                        user.discord_id, msg, match.id, embed=embed,
                     )
                     if not success:
                         logger.warning(
@@ -561,28 +679,40 @@ class MatchScheduleService:
         stream-candidate subscriber DMs. Shared by create/update/request flows.
         """
         await match.fetch_related('tournament', 'players__user', 'stream_room')
+        player_names = [p.user.preferred_name for p in match.players]
         build_message = rescheduled_dm if rescheduled else scheduled_dm
         msg = build_message(
             match.tournament.name,
             format_eastern_display(match.scheduled_at),
-            player_names=[p.user.preferred_name for p in match.players],
+            player_names=player_names,
             stream_room_name=match.stream_room.name if match.stream_room else '',
         )
-        discord_queue.enqueue(self.notify_acknowledgment_request(match, rescheduled=rescheduled))
-        discord_queue.enqueue(self.notify_match_crew(match, msg))
+        community = await _community_name()
+        embed = match_embed(
+            title='🔄 Match rescheduled' if rescheduled else '📣 Match scheduled',
+            color=COLOR_RESCHEDULED if rescheduled else COLOR_SCHEDULED,
+            tournament=match.tournament.name, community_name=community,
+            player_names=player_names, when=match.scheduled_at,
+            stream_room_name=match.stream_room.name if match.stream_room else None,
+        )
+        discord_queue.enqueue(self.notify_acknowledgment_request(match, rescheduled=rescheduled, community=community))
+        discord_queue.enqueue(self.notify_match_crew(match, msg, embed))
 
         # Collect IDs already notified to avoid duplicates in subscriber fan-out
         notified_ids = await self._collect_notified_discord_ids(match)
-        discord_queue.enqueue(self.notify_tournament_subscribers_scheduled(match, msg, notified_ids))
+        discord_queue.enqueue(self.notify_tournament_subscribers_scheduled(match, msg, notified_ids, embed))
         if is_stream_candidate:
-            discord_queue.enqueue(self.notify_stream_candidate_subscribers(match, notified_ids))
+            discord_queue.enqueue(self.notify_stream_candidate_subscribers(match, notified_ids, community))
 
     async def notify_stream_candidate(self, match: Match) -> None:
         """Enqueue stream-candidate subscriber DMs for a match just flagged as a
         stream candidate (used when toggling the flag outside the scheduling flow)."""
         await match.fetch_related('tournament')
         notified_ids = await self._collect_notified_discord_ids(match)
-        discord_queue.enqueue(self.notify_stream_candidate_subscribers(match, notified_ids))
+        # Resolve the embed-footer community here (request context); the enqueued
+        # coroutine runs later in the scope-less discord_queue worker.
+        community = await _community_name()
+        discord_queue.enqueue(self.notify_stream_candidate_subscribers(match, notified_ids, community))
 
     async def _collect_notified_discord_ids(self, match: Match) -> list:
         """

@@ -22,6 +22,41 @@ from models import FeatureFlag
 
 _bot_service = RacetimeBotService()
 
+# Shared active-column icon slot (check_circle / cancel), matching the styled
+# admin tables. Rows must carry an ``active_bool`` boolean.
+_ACTIVE_ICON_SLOT = '''
+    <q-td :props="props">
+        <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
+                :color="props.row.active_bool ? 'positive' : 'negative'" size="sm" />
+    </q-td>
+'''
+
+
+def _render_platform_chrome() -> None:
+    """Phoenix brand chrome for the standalone platform surface.
+
+    /platform runs on the bare host with no tenant, so it can't reuse the
+    tenant BaseLayout (whose drawer links into /admin, /volunteer). Instead we
+    apply the same stylesheet, palette, and a minimal branded header with a link
+    back to the community picker — so the super-admin surface reads as the same
+    product, not a default-Quasar scaffold.
+    """
+    dark_pref = app.storage.user.get('dark_mode')
+    ui.dark_mode(dark_pref)
+    ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+    ui.colors(
+        primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
+        positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',
+    )
+    with ui.header().classes('sgl-header items-center'):
+        ui.label('SGL On Site').classes('sgl-wordmark')
+        ui.label('· Platform').classes('sgl-wordmark text-caption').style('opacity:0.75')
+        ui.space()
+        with ui.link(target='/').classes('no-underline'):
+            with ui.row().classes('items-center no-wrap').style('color:#fff;gap:4px'):
+                ui.icon('arrow_back').props('size=sm')
+                ui.label('Communities')
+
 
 def create() -> None:
     @ui.page('/platform')
@@ -46,10 +81,11 @@ def create() -> None:
             return
 
         ui.page_title('Platform Administration')
+        _render_platform_chrome()
         with ui.column().classes('w-full max-w-5xl mx-auto p-6 gap-4'):
             with ui.row().classes('w-full items-center justify-between'):
-                ui.label('Platform Administration').classes('text-2xl font-bold')
-                ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table))
+                ui.label('Platform Administration').classes('page-title')
+                ui.button('New tenant', icon='add', on_click=lambda: _open_create_dialog(user, table)).props('color=primary')
 
             columns = [
                 {'name': 'id', 'label': 'ID', 'field': 'id', 'align': 'left'},
@@ -60,7 +96,8 @@ def create() -> None:
                 {'name': 'active', 'label': 'Active', 'field': 'active', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+            table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
@@ -86,8 +123,8 @@ def create() -> None:
             ui.separator().classes('q-my-lg')
 
             with ui.row().classes('w-full items-center justify-between'):
-                ui.label('Racetime Bots').classes('text-2xl font-bold')
-                ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table))
+                ui.label('Racetime Bots').classes('section-title')
+                ui.button('New bot', icon='add', on_click=lambda: _open_bot_create_dialog(user, bot_table)).props('color=primary')
             ui.label(
                 'Shared, platform-managed bots — one per racetime category. Grant a '
                 "bot to a tenant to let its sync admins select it on a tournament. "
@@ -103,7 +140,17 @@ def create() -> None:
                 {'name': 'status', 'label': 'Health', 'field': 'status', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
-            bot_table = ui.table(columns=bot_columns, rows=[], row_key='id').classes('w-full')
+            bot_table = ui.table(columns=bot_columns, rows=[], row_key='id').classes('w-full sgl-table')
+            bot_table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
+            bot_table.add_slot('body-cell-status', '''
+                <q-td :props="props">
+                    <span class="sgl-chip" :class="{
+                        'sgl-chip--ok': props.row.status_kind === 'connected',
+                        'sgl-chip--cancelled': props.row.status_kind === 'error' || props.row.status_kind === 'disconnected',
+                        'sgl-chip--neutral': props.row.status_kind === 'unknown'
+                    }">{{ props.row.status }}</span>
+                </q-td>
+            ''')
             bot_table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
@@ -133,8 +180,8 @@ def create() -> None:
             ui.separator().classes('q-my-lg')
 
             with ui.row().classes('w-full items-center justify-between'):
-                ui.label('Feature Groups').classes('text-2xl font-bold')
-                ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table))
+                ui.label('Feature Groups').classes('section-title')
+                ui.button('New group', icon='add', on_click=lambda: _open_group_create_dialog(user, group_table)).props('color=primary')
             ui.label(
                 'Named feature bundles (tiers). Assign a tenant to a group from its '
                 'Features button; ungrouped tenants fall back to the default group. '
@@ -148,7 +195,7 @@ def create() -> None:
                 {'name': 'tenants', 'label': 'Tenants', 'field': 'tenants', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
-            group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full')
+            group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full sgl-table')
             group_table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
@@ -172,7 +219,7 @@ def create() -> None:
             ui.separator().classes('q-my-lg')
 
             with ui.row().classes('w-full items-center justify-between'):
-                ui.label('Service Health').classes('text-2xl font-bold')
+                ui.label('Service Health').classes('section-title')
             ui.label(
                 'Live health of every external dependency. Probed on a cadence '
                 '(when the monitor worker is enabled) and on demand below; '
@@ -196,6 +243,7 @@ async def _refresh(table) -> None:
             'domain': t.domain or '—',
             'guild': str(t.discord_guild_id) if t.discord_guild_id else '—',
             'active': 'yes' if t.is_active else 'no',
+            'active_bool': t.is_active,
         }
         for t in tenants
     ]
@@ -439,7 +487,14 @@ async def _refresh_bots(table) -> None:
             'id': b.id, 'category': b.category, 'name': b.name,
             'client_id': b.client_id,
             'active': 'yes' if b.is_active else 'no',
-            'status': (f'{b.status} — {b.status_message}' if b.status_message else b.status),
+            'active_bool': b.is_active,
+            # Humanized status ('connected' -> 'Connected'), never the raw
+            # 'BotStatus.CONNECTED' repr; message appended when present.
+            'status': (
+                f'{b.status.value.title()} — {b.status_message}'
+                if b.status_message else b.status.value.title()
+            ),
+            'status_kind': b.status.value,
         }
         for b in bots
     ]

@@ -139,15 +139,26 @@ async def dashboard_page() -> None:
                 f'{total_matches}',
                 f'{in_progress} in flight • {finished} finished',
             )
+            # Three-tier so an ops-critical gap reads as a problem, not a mild
+            # amber: green >= 80%, amber 50-79%, red < 50% (and red when there are
+            # candidates but zero coverage).
+            if coverage_pct is None:
+                coverage_color = 'primary'
+            elif coverage_pct >= 80:
+                coverage_color = 'positive'
+            elif coverage_pct >= 50:
+                coverage_color = 'warning'
+            else:
+                coverage_color = 'negative'
             kpi_card(
                 'Stream candidate coverage',
                 f'{coverage_pct:.0f}%' if coverage_pct is not None else '—',
                 f'{covered}/{len(candidate_rows)} fully covered'
                 if candidate_rows else 'no stream candidates in window',
-                color='positive' if (coverage_pct or 0) >= 80 else 'warning',
+                color=coverage_color,
             )
 
-        ui.label('Reports').classes('text-h6 q-mt-lg')
+        ui.label('Reports').classes('section-title q-mt-lg')
         with ui.row().classes('full-width gap-3').style('flex-wrap: wrap;'):
             for card in REPORT_CARDS:
                 _report_card(card)

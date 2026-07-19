@@ -4,6 +4,7 @@ import json
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import (
     FeatureFlagService,
@@ -159,7 +160,7 @@ async def admin_presets_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
@@ -177,5 +178,5 @@ async def admin_presets_page() -> None:
             table.on('edit', lambda e: open_preset_dialog(e.args))
             table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Presets' else None)
+        wire_tab_refresh('Presets', refresh_table)
         background_tasks.create(refresh_table())

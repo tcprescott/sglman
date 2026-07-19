@@ -1,7 +1,7 @@
 """Admin Schedule Management Page"""
 
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import MatchScheduleService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
@@ -216,6 +216,8 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             extra_slots=extra_slots,
         )
 
+        # Route through the view's _bg so the tab-switch refresh rebinds the
+        # tenant (the selected_tab handler runs in a detached task that lost it).
         def on_tab_selected():
-            background_tasks.create(table_view.refresh())
+            table_view._bg(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Schedule' else None)

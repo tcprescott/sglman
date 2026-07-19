@@ -288,11 +288,15 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' :
     <div class="wrap">
         <div v-if="!__IA__" style="margin-bottom: 6px;">
             <q-btn v-if="props.value && props.value.some(item => item.discord_id == __DID__)"
-                   icon="undo" color="negative" size="sm"
-                   @click="$parent.$emit('undo___SING__', props.row)" style="margin-right: 6px;" />
+                   icon="undo" color="negative" size="sm" no-caps dense label="Withdraw"
+                   @click="$parent.$emit('undo___SING__', props.row)" style="margin-right: 6px;">
+                   <q-tooltip>Withdraw my __SING__ signup</q-tooltip>
+            </q-btn>
             <q-btn v-if="props.value && !props.value.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
-                   icon="assignment" color="primary" size="sm"
-                   @click="$parent.$emit('signup___SING__', props.row)" style="margin-right: 6px;" />
+                   icon="assignment_ind" color="primary" size="sm" no-caps dense label="Sign up"
+                   @click="$parent.$emit('signup___SING__', props.row)" style="margin-right: 6px;">
+                   <q-tooltip>Sign up as __SING__</q-tooltip>
+            </q-btn>
         </div>
         <template v-for="(item, idx) in props.value">
             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">

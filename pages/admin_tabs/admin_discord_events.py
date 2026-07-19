@@ -9,6 +9,7 @@ The mirror needs a **linked Discord server** — the page surfaces that up front
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import (
     DiscordEventSyncService,
@@ -52,7 +53,7 @@ async def admin_discord_events_page() -> None:
                     ).classes('text-caption')
 
         # --- Per-tournament opt-in ------------------------------------------
-        ui.label('Tournaments').classes('text-subtitle2 q-mt-md')
+        ui.label('Tournaments').classes('section-title q-mt-md')
         tournament_columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
             {'name': 'name', 'label': 'Tournament', 'field': 'name', 'sortable': True},
@@ -63,7 +64,7 @@ async def admin_discord_events_page() -> None:
         tournaments_container = ui.column().classes('w-full')
 
         # --- Mirrored events (observability) --------------------------------
-        ui.label('Mirrored events').classes('text-subtitle2 q-mt-md')
+        ui.label('Mirrored events').classes('section-title q-mt-md')
         event_columns = [
             {'name': 'title', 'label': 'Title', 'field': 'title', 'sortable': True},
             {'name': 'when', 'label': 'When', 'field': 'when'},
@@ -171,7 +172,13 @@ async def admin_discord_events_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_tables()),
                 ).props('flat color=primary').tooltip('Refresh')
 
-            tournament_table = ui.table(columns=tournament_columns, rows=[], row_key='id').classes('w-full')
+            tournament_table = ui.table(columns=tournament_columns, rows=[], row_key='id').classes('w-full sgl-table')
+            tournament_table.add_slot('body-cell-enabled', '''
+                <q-td :props="props">
+                    <q-icon :name="props.row.enabled_bool ? 'check_circle' : 'cancel'"
+                            :color="props.row.enabled_bool ? 'positive' : 'negative'" size="sm" />
+                </q-td>
+            ''')
             tournament_table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn flat round dense icon="edit" color="primary"
@@ -183,8 +190,8 @@ async def admin_discord_events_page() -> None:
             tournament_table.on('edit', lambda e: background_tasks.create(open_settings_dialog(e.args, context.client)))
 
         with events_container:
-            event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full')
+            event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full sgl-table')
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_tables()) if e.args == 'Discord Events' else None)
+        wire_tab_refresh('Discord Events', refresh_tables)
         background_tasks.create(refresh_link_banner())
         background_tasks.create(refresh_tables())

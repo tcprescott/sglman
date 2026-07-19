@@ -232,8 +232,8 @@ async def render_edit_info_tab():
                 for tournament in active_tournaments:
                     existing = prefs_by_tournament.get(tournament.id)
                     current_level = existing.match_notifications if existing else 'none'
-                    with ui.row().classes('items-center full-width q-my-xs'):
-                        ui.label(tournament.name).classes('col-grow')
+                    with ui.row().classes('items-center justify-between sgl-form-column q-my-xs'):
+                        ui.label(tournament.name)
                         pref_widgets[tournament.id] = ui.select(
                             options=level_options,
                             value=current_level,

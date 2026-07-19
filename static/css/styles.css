@@ -463,6 +463,18 @@ body.body--dark {
     color: var(--sgl-section-title);
 }
 
+/* Drawer section headers (grouped admin nav): small, uppercase, gold — a quiet
+   divider between destination clusters, not a clickable item. */
+.q-drawer .sgl-drawer-group {
+    padding: var(--space-3) var(--space-3) var(--space-1);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--sgl-section-title);
+    opacity: 0.85;
+}
+
 /* Layout & Container Styles */
 .page-container {
     width: 100%;
@@ -551,6 +563,27 @@ body.body--dark {
     background: var(--surface);
 }
 
+/* Community picker (bare-host landing) cards — clickable brand tiles. */
+.sgl-tenant-card {
+    padding: var(--space-3) var(--space-4);
+    transition: border-color var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out),
+                transform var(--dur-fast) var(--ease-out);
+}
+
+.sgl-tenant-card:hover {
+    border-color: color-mix(in srgb, var(--sgl-gold) 55%, transparent);
+    box-shadow: var(--shadow-2);
+    transform: translateY(-1px);
+}
+
+.sgl-tenant-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--sgl-section-title);
+}
+
 .card-padding {
     padding: 1.5em;
 }
@@ -597,6 +630,13 @@ body.body--dark {
 .form-grid {
     width: 100%;
     gap: 1em;
+}
+
+/* Stacked form column: full width up to a readable cap so a 10-char date field
+   doesn't stretch a third of the screen (System Configuration, Profile). */
+.sgl-form-column {
+    width: 100%;
+    max-width: 44rem;
 }
 
 /* Dialog Styles */
@@ -978,6 +1018,12 @@ body.body--dark {
     justify-content: center;
 }
 
+/* Muted icon atop the branded table no-data slot (theme/empty_state.no_data_slot). */
+.sgl-empty-icon {
+    color: var(--status-neutral);
+    opacity: 0.5;
+}
+
 /* User/Avatar Styles */
 /* Right-edge alignment of the header controls is handled by the flexible
    ui.space() spacer in the header, not margin-left:auto here — that survives
@@ -1076,10 +1122,15 @@ body.body--dark {
    set of rules serves both modes. Grid mode (Quasar.Screen.lt.md) renders
    item slots, not <table>, and is styled via the *-grid-card classes below.
 --------------------------------------------------------------------------- */
+/* .sgl-table is the opt-in class for every other admin/report table (the
+   hand-rolled ones that used to render as bare default Quasar tables); the four
+   named families keep their classes and are listed alongside it so one rule set
+   drives all of them. */
 .match-table,
 .user-table,
 .tournament-table,
-.equipment-table {
+.equipment-table,
+.sgl-table {
     border-collapse: collapse;
 }
 
@@ -1090,7 +1141,9 @@ body.body--dark {
 .tournament-table th,
 .tournament-table td,
 .equipment-table th,
-.equipment-table td {
+.equipment-table td,
+.sgl-table th,
+.sgl-table td {
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
 }
@@ -1098,7 +1151,8 @@ body.body--dark {
 .match-table td,
 .user-table td,
 .tournament-table td,
-.equipment-table td {
+.equipment-table td,
+.sgl-table td {
     text-align: left;
     font-variant-numeric: tabular-nums;
 }
@@ -1106,7 +1160,8 @@ body.body--dark {
 .match-table thead th,
 .user-table thead th,
 .tournament-table thead th,
-.equipment-table thead th {
+.equipment-table thead th,
+.sgl-table thead th {
     text-align: center;
     font-size: 0.72rem;
     font-weight: 700;
@@ -1121,10 +1176,12 @@ body.body--dark {
 .body--dark .user-table thead th,
 .body--dark .tournament-table thead th,
 .body--dark .equipment-table thead th,
+.body--dark .sgl-table thead th,
 .q-dark .match-table thead th,
 .q-dark .user-table thead th,
 .q-dark .tournament-table thead th,
-.q-dark .equipment-table thead th {
+.q-dark .equipment-table thead th,
+.q-dark .sgl-table thead th {
     color: var(--sgl-gold);
     background: #201a15;
     border-bottom-color: color-mix(in srgb, var(--sgl-gold) 40%, transparent);
@@ -1133,21 +1190,24 @@ body.body--dark {
 .match-table tbody tr:nth-child(even),
 .user-table tbody tr:nth-child(even),
 .tournament-table tbody tr:nth-child(even),
-.equipment-table tbody tr:nth-child(even) {
+.equipment-table tbody tr:nth-child(even),
+.sgl-table tbody tr:nth-child(even) {
     background-color: var(--surface-alt);
 }
 
 .match-table tbody tr:nth-child(odd),
 .user-table tbody tr:nth-child(odd),
 .tournament-table tbody tr:nth-child(odd),
-.equipment-table tbody tr:nth-child(odd) {
+.equipment-table tbody tr:nth-child(odd),
+.sgl-table tbody tr:nth-child(odd) {
     background-color: var(--surface);
 }
 
 .match-table tbody tr:hover,
 .user-table tbody tr:hover,
 .tournament-table tbody tr:hover,
-.equipment-table tbody tr:hover {
+.equipment-table tbody tr:hover,
+.sgl-table tbody tr:hover {
     background-color: color-mix(in srgb, var(--sgl-gold) 7%, transparent);
 }
 

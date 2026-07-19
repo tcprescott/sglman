@@ -10,6 +10,7 @@ import base64
 
 import pytest
 
+from application.utils import discord_embeds as de
 from application.utils import discord_messages as dm
 from application.utils import easter_eggs, environment, qrcode_util
 
@@ -294,6 +295,65 @@ class TestVolunteerDms:
     def test_ack_confirmation(self):
         assert dm.volunteer_ack_confirmation('Runner') == \
             'Thanks! Your **Runner** shift is acknowledged.'
+
+
+class TestDiscordEmbeds:
+    def test_time_field_is_a_discord_timestamp(self):
+        from datetime import datetime, timezone
+        # Discord <t:unix:F> · <t:unix:R> — renders in the viewer's own tz.
+        when = datetime(2026, 7, 19, 22, 41, tzinfo=timezone.utc)
+        ts = int(when.timestamp())
+        assert de.time_field(when) == f'<t:{ts}:F> · <t:{ts}:R>'
+        assert de.time_field(None) == ''
+
+    def test_players_value(self):
+        assert de._players_value(['A', 'B']) == 'A vs B'
+        assert de._players_value(['A', 'B', 'C']) == 'A, B, C'
+        assert de._players_value(None) == ''
+
+    def test_match_embed_fields_footer_color(self):
+        from datetime import datetime, timezone
+        emb = de.match_embed(
+            title='🗓️ Match scheduled', color=de.COLOR_SCHEDULED,
+            tournament='SGL Dev', community_name='Acme Community',
+            player_names=['A', 'B'], when=datetime(2026, 7, 19, 22, 41, tzinfo=timezone.utc),
+            stream_room_name='Stage 2', description='Good luck!',
+        )
+        assert emb.title == '🗓️ Match scheduled'
+        assert emb.colour.value == de.COLOR_SCHEDULED
+        assert emb.description == 'Good luck!'
+        assert emb.footer.text == 'Acme Community'  # community identity
+        names = {f.name: f.value for f in emb.fields}
+        assert names['Tournament'] == 'SGL Dev'
+        assert names['Players'] == 'A vs B'
+        assert names['Stage'] == 'Stage 2'
+        assert names['Time'].startswith('<t:') and ':R>' in names['Time']
+
+    def test_match_embed_suppresses_empty_fields(self):
+        emb = de.match_embed(title='t', color=0, tournament='SGL Dev')
+        labels = {f.name for f in emb.fields}
+        assert labels == {'Tournament'}  # no Players/Time/Stage
+        # no community footer when unset (unset footer is falsy in discord.py)
+        assert not emb.footer or not emb.footer.text
+
+    def test_state_changed_embed_colors(self):
+        assert de.state_changed_embed('T', 'Started').colour.value == de.COLOR_STARTED
+        assert de.state_changed_embed('T', 'Finished').colour.value == de.COLOR_FINISHED
+        assert de.state_changed_embed('T', 'Confirmed').colour.value == de.COLOR_CONFIRMED
+        assert 'started' in de.state_changed_embed('T', 'Started').title.lower()
+
+    def test_volunteer_embed(self):
+        from datetime import datetime, timezone
+        emb = de.volunteer_embed(
+            title='🙌 Volunteer shift', position='Race Proctor — Shift 1',
+            community_name='Acme', starts=datetime(2026, 7, 19, 12, tzinfo=timezone.utc),
+            ends=datetime(2026, 7, 19, 16, tzinfo=timezone.utc),
+        )
+        names = {f.name: f.value for f in emb.fields}
+        assert names['Position'] == 'Race Proctor — Shift 1'
+        assert names['Start'].startswith('<t:')
+        assert emb.colour.value == de.COLOR_VOLUNTEER
+        assert emb.footer.text == 'Acme'
 
 
 class TestEphemeralReplies:

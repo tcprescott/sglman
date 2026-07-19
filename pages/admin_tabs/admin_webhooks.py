@@ -4,6 +4,7 @@ import json
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
@@ -185,7 +186,7 @@ async def admin_webhooks_page() -> None:
                             ],
                             rows=rows,
                             row_key='when',
-                        ).classes('w-full')
+                        ).classes('w-full sgl-table')
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
@@ -257,7 +258,14 @@ async def admin_webhooks_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+
+            table.add_slot('body-cell-is_active', '''
+                <q-td :props="props">
+                    <q-icon :name="props.row.is_active_raw ? 'check_circle' : 'cancel'"
+                            :color="props.row.is_active_raw ? 'positive' : 'negative'" size="sm" />
+                </q-td>
+            ''')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
@@ -285,5 +293,5 @@ async def admin_webhooks_page() -> None:
             table.on('deliveries', lambda e: background_tasks.create(view_deliveries(e.args, context.client)))
             table.on('delete', lambda e: background_tasks.create(delete_webhook(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Webhooks' else None)
+        wire_tab_refresh('Webhooks', refresh_table)
         background_tasks.create(refresh_table())

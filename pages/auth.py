@@ -511,7 +511,16 @@ def _create_mock() -> None:
                 )
 
                 def format_roles(u: User) -> str:
-                    labels = [r.role.value.replace('_', ' ').title() for r in u.roles]
+                    # Dev impersonation picker: this is a global (pre-tenant) view,
+                    # so roles span every community — dedupe by label so the same
+                    # role held in several tenants shows once, not "Staff, Staff".
+                    seen = set()
+                    labels = []
+                    for r in u.roles:
+                        label = r.role.value.replace('_', ' ').title()
+                        if label not in seen:
+                            seen.add(label)
+                            labels.append(label)
                     if len(u.admin_tournaments):
                         labels.append(f'TA({len(u.admin_tournaments)})')
                     if len(u.crew_coordinated_tournaments):

@@ -7,6 +7,7 @@ per-tenant authorization) are platform-level and managed on ``/platform``.
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import RaceRoomProfileService, get_user_from_discord_id
 
@@ -63,8 +64,9 @@ async def admin_racetime_page() -> None:
                 {
                     'id': p.id,
                     'name': p.name,
-                    'goal': p.goal or '',
+                    'goal': p.goal or '—',
                     'auto_start': 'yes' if p.auto_start else 'no',
+                    'auto_start_bool': p.auto_start,
                 }
                 for p in profiles
             ]
@@ -142,7 +144,14 @@ async def admin_racetime_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+
+            table.add_slot('body-cell-auto_start', '''
+                <q-td :props="props">
+                    <q-icon :name="props.row.auto_start_bool ? 'check_circle' : 'cancel'"
+                            :color="props.row.auto_start_bool ? 'positive' : 'negative'" size="sm" />
+                </q-td>
+            ''')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
@@ -160,7 +169,7 @@ async def admin_racetime_page() -> None:
             table.on('edit', lambda e: background_tasks.create(edit_profile(e.args, context.client)))
             table.on('delete', lambda e: background_tasks.create(delete_profile(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Racetime' else None)
+        wire_tab_refresh('Racetime', refresh_table)
         background_tasks.create(refresh_table())
 
 

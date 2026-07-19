@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from application.repositories import VolunteerProfileRepository
 from application.services.audit_service import AuditActions, AuditService
+from application.tenant_context import require_tenant_id
 from models import Role, User, UserRole, VolunteerProfile
 
 
@@ -57,8 +58,15 @@ class VolunteerProfileService:
         return profile
 
     async def assignable_volunteers(self) -> List[User]:
-        """All users with the VOLUNTEER role, ordered by name."""
-        user_ids = await UserRole.filter(role=Role.VOLUNTEER).values_list('user_id', flat=True)
+        """All users with the VOLUNTEER role **in the current tenant**, by name.
+
+        Roles are per-tenant (``UserRole.tenant``), so scoping to the active
+        tenant keeps another community's volunteers out of this coordinator's
+        roster and auto-scheduler pool.
+        """
+        user_ids = await UserRole.filter(
+            role=Role.VOLUNTEER, tenant_id=require_tenant_id(),
+        ).values_list('user_id', flat=True)
         if not user_ids:
             return []
         users = await User.filter(id__in=list(user_ids))

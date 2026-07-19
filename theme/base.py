@@ -1,3 +1,4 @@
+import json
 import re
 
 from nicegui import app, ui
@@ -257,7 +258,14 @@ class BaseLayout:
             if self.tabs:
                 ui.separator()
                 with ui.list().props('padding'):
+                    current_group = None
                     for tab in self.tabs:
+                        # Section headers for grouped drawers (admin passes a
+                        # 'group' per tab); ungrouped pages render a flat list.
+                        group = tab.get('group')
+                        if group and group != current_group:
+                            current_group = group
+                            ui.item_label(group).props('header').classes('sgl-drawer-group')
                         with ui.item(
                             on_click=lambda t=tab['label']: self._switch_tab(t)
                         ).props('clickable v-ripple') as tab_item:
@@ -309,6 +317,12 @@ class BaseLayout:
             else:
                 item.props(remove='active')
         self._sync_bottom_nav(label)
+        # Notify the newly-shown tab so it can refresh its data. Tabs listen via
+        # ``ui.on('selected_tab', ...)`` (see theme/tables/admin_crud.wire_tab_refresh
+        # and the per-tab wiring in pages/admin_tabs/*); every listener filters on its
+        # own label, so a single broadcast reaches exactly the active tab. Emitted
+        # client-side via the global emitEvent so e.args is the plain label string.
+        ui.run_javascript(f"emitEvent('selected_tab', {json.dumps(label)})")
         # replace(), not push(): tab switches (incl. every swipe) update the URL for
         # deep-linking/sharing without stacking history entries that would turn the
         # Back button into a per-tab trap on mobile. The section is a path segment

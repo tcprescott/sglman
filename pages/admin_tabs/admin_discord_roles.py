@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import (
     AuthService,
@@ -243,7 +244,7 @@ async def admin_discord_roles_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
@@ -256,5 +257,5 @@ async def admin_discord_roles_page() -> None:
 
             table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Discord Roles' else None)
+        wire_tab_refresh('Discord Roles', refresh_table)
         background_tasks.create(refresh_table())

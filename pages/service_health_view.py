@@ -10,6 +10,7 @@ from typing import Callable, List, Optional
 from nicegui import background_tasks, context, ui
 
 from application.services import ProbeResult, ServiceStatus
+from application.utils.timezone import format_eastern_display
 
 _STATUS_COLOR = {
     ServiceStatus.HEALTHY: 'positive',
@@ -44,7 +45,8 @@ def _rows(results: List[ProbeResult]) -> List[dict]:
             'status': _STATUS_LABEL[r.status],
             'status_color': _STATUS_COLOR[r.status],
             'message': r.message,
-            'checked_at': r.checked_at.strftime('%H:%M:%S UTC'),
+            # App-wide convention: display US/Eastern, never raw UTC.
+            'checked_at': format_eastern_display(r.checked_at),
         }
         for r in results
     ]
@@ -55,7 +57,7 @@ def render_health_table(results: List[ProbeResult]) -> None:
     if not results:
         ui.label('No dependencies to report.').classes('text-caption text-grey')
         return
-    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes('w-full')
+    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes('w-full sgl-table')
     table.add_slot('body-cell-status', '''
         <q-td :props="props">
             <q-badge :color="props.row.status_color" :label="props.value" />

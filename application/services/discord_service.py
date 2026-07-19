@@ -168,17 +168,23 @@ class DiscordService:
         user_id: int,
         message: str,
         view_factory: Optional[Callable[[], discord.ui.View]] = None,
+        embed: Optional[discord.Embed] = None,
     ) -> Tuple[bool, str]:
         """
         Send a direct message to a Discord user, optionally with attached buttons.
 
         Args:
             user_id: Discord user ID
-            message: Message content to send
+            message: Plain-text message. Always mirrored to the recipient's
+                web-push devices, and sent as the Discord content **unless** an
+                ``embed`` is given (then the embed is the Discord representation
+                and ``message`` serves only as the web-push/fallback text).
             view_factory: Optional zero-arg callable returning the
                 ``discord.ui.View`` (buttons) to attach. Called just before the
                 message is sent, so it only runs once the bot is ready and the
                 user has been fetched.
+            embed: Optional rich embed. When present it is sent instead of the
+                plain content (Discord would otherwise show both).
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -188,7 +194,8 @@ class DiscordService:
         # Mirror before the bot-readiness checks so device notifications still
         # go out when the bot is down or the user blocks Discord DMs. Corollary:
         # a (False, ...) return means the *Discord* send failed — subscribed
-        # devices may already have been notified, so don't blindly re-send.
+        # devices may already have been notified, so don't blindly re-send. The
+        # mirror always uses the plain text, even when an embed carries the DM.
         _mirror_dm_to_web_push(user_id, message)
         try:
             if self._bot is None:
@@ -199,10 +206,15 @@ class DiscordService:
                 return False, "Discord bot is not connected. Please try again in a moment."
 
             user = await self._bot.fetch_user(user_id)
+            kwargs: dict = {}
             if view_factory is not None:
-                await user.send(message, view=view_factory())
+                kwargs['view'] = view_factory()
+            if embed is not None:
+                # Embed is the Discord representation; content omitted to avoid
+                # showing the plain text above the card.
+                await user.send(embed=embed, **kwargs)
             else:
-                await user.send(message)
+                await user.send(message, **kwargs)
             return True, "Message sent successfully."
         except discord.NotFound:
             return False, "User not found"
@@ -216,13 +228,13 @@ class DiscordService:
     # The five view-bearing senders below are thin wrappers over send_dm: each
     # resolves its registered view factory by kind (populated by the bot package
     # at startup — see the registries above) and defers to send_dm.
-    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
+    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None) -> Tuple[bool, str]:
         """Send a DM with the commentator/tracker crew signup buttons for a match."""
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_SIGNUP](match_id))
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_SIGNUP](match_id), embed=embed)
 
-    async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
+    async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None) -> Tuple[bool, str]:
         """Send a DM with a match Acknowledge button."""
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_MATCH_ACK](match_id))
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_MATCH_ACK](match_id), embed=embed)
 
     async def send_dm_with_crew_acknowledgment_button(
         self,
@@ -230,25 +242,27 @@ class DiscordService:
         message: str,
         crew_type: str,
         crew_id: int,
+        embed: Optional[discord.Embed] = None,
     ) -> Tuple[bool, str]:
         """Send a DM with a crew-assignment Acknowledge button.
 
         ``crew_type`` is 'commentator' or 'tracker'; ``crew_id`` is the crew row id.
         """
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_ACK](crew_type, crew_id))
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_CREW_ACK](crew_type, crew_id), embed=embed)
 
     async def send_dm_with_volunteer_acknowledgment_button(
         self,
         user_id: int,
         message: str,
         assignment_id: int,
+        embed: Optional[discord.Embed] = None,
     ) -> Tuple[bool, str]:
         """Send a DM with a volunteer shift Acknowledge button."""
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_VOLUNTEER_ACK](assignment_id))
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_VOLUNTEER_ACK](assignment_id), embed=embed)
 
-    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
+    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional[discord.Embed] = None) -> Tuple[bool, str]:
         """Send a DM with an Unwatch button for match watchers."""
-        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_UNWATCH](match_id))
+        return await self.send_dm(user_id, message, lambda: _view_factories[VIEW_UNWATCH](match_id), embed=embed)
 
     def get_bot(self) -> Optional[commands.Bot]:
         """Get the Discord bot instance."""
@@ -632,29 +646,31 @@ class MockDiscordService:
         user_id: int,
         message: str,
         view_factory: Optional[Callable[[], "discord.ui.View"]] = None,
+        embed: Optional["discord.Embed"] = None,
     ) -> Tuple[bool, str]:
         # Deliberately no web-push mirror: mock mode must have no external side
         # effects (a dev with a prod DB snapshot + prod VAPID keys would push
         # to real users' phones). Real delivery requires the real service.
-        print(f"[MOCK Discord DM] -> {user_id}: {message}")
+        suffix = f" [embed: {embed.title}]" if embed is not None else ""
+        print(f"[MOCK Discord DM] -> {user_id}: {message}{suffix}")
         return True, "Message sent (mock)"
 
     # Thin wrappers matching DiscordService's public surface; all defer to the
     # single send_dm stub above (the buttons are irrelevant in mock mode).
-    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message)
+    async def send_dm_with_crew_buttons(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed)
 
-    async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message)
+    async def send_dm_with_acknowledgment_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed)
 
-    async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message)
+    async def send_dm_with_crew_acknowledgment_button(self, user_id: int, message: str, crew_type: str, crew_id: int, embed: Optional["discord.Embed"] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed)
 
-    async def send_dm_with_volunteer_acknowledgment_button(self, user_id: int, message: str, assignment_id: int) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message)
+    async def send_dm_with_volunteer_acknowledgment_button(self, user_id: int, message: str, assignment_id: int, embed: Optional["discord.Embed"] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed)
 
-    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int) -> Tuple[bool, str]:
-        return await self.send_dm(user_id, message)
+    async def send_dm_with_unwatch_button(self, user_id: int, message: str, match_id: int, embed: Optional["discord.Embed"] = None) -> Tuple[bool, str]:
+        return await self.send_dm(user_id, message, embed=embed)
 
     def get_bot(self) -> None:
         return None

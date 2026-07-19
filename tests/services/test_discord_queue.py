@@ -9,6 +9,8 @@ import asyncio
 
 
 import application.services.discord_queue as dq
+from application.services.discord_queue import enqueue as real_enqueue
+from application.tenant_context import get_current_tenant_id, tenant_scope
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +142,52 @@ class TestWorker:
 # ---------------------------------------------------------------------------
 # start / stop
 # ---------------------------------------------------------------------------
+
+
+class TestEnqueueTenantScope:
+    """The worker task is scope-less; enqueue must re-bind the caller's tenant.
+
+    Regression guard: notify coroutines reach ``require_tenant_id()`` in the
+    worker, which would raise (and be swallowed, dropping the DM) unless enqueue
+    re-establishes the enqueuing request's tenant around the coroutine.
+    """
+
+    async def _drain_scopeless(self, queue):
+        # Await each queued coroutine with NO tenant in scope — tenant_scope(None)
+        # reproduces the long-lived worker task, whose context has no tenant even
+        # though the test harness binds a default one (autouse ``_tenant_context``).
+        with tenant_scope(None):
+            assert get_current_tenant_id() is None
+            while not queue.empty():
+                await queue.get_nowait()
+
+    async def test_enqueue_in_scope_rebinds_tenant_for_worker(self, monkeypatch):
+        local_queue: asyncio.Queue = asyncio.Queue()
+        monkeypatch.setattr(dq, '_queue', local_queue)
+        seen = {}
+
+        async def record(label):
+            seen[label] = get_current_tenant_id()
+
+        with tenant_scope(42):
+            real_enqueue(record('in_scope'))
+
+        await self._drain_scopeless(local_queue)
+        assert seen == {'in_scope': 42}  # None without the enqueue fix
+
+    async def test_enqueue_outside_scope_stays_unscoped(self, monkeypatch):
+        local_queue: asyncio.Queue = asyncio.Queue()
+        monkeypatch.setattr(dq, '_queue', local_queue)
+        seen = {}
+
+        async def record(label):
+            seen[label] = get_current_tenant_id()
+
+        with tenant_scope(None):  # genuinely no tenant at enqueue time
+            real_enqueue(record('out_scope'))
+
+        await self._drain_scopeless(local_queue)
+        assert seen == {'out_scope': None}
 
 
 class TestStartStop:

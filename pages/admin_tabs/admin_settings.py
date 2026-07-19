@@ -1,7 +1,7 @@
 """Admin Settings/Tournaments Management Page"""
 
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import AuthService, StreamRoomService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
@@ -21,7 +21,13 @@ async def admin_tournaments_page() -> None:
             ui.label('Tournament Management').classes('page-title')
 
         ui.separator().classes('separator-spacing')
-        
+
+        ui.label(
+            'The tournaments this community runs — players per match, durations, '
+            'and seed generator. Click a name to edit, or a player count to manage '
+            'entrants.'
+        ).classes('text-caption text-grey')
+
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
             {'name': 'name', 'label': 'Name', 'field': 'name'},
@@ -49,8 +55,10 @@ async def admin_tournaments_page() -> None:
             submit_tournament_callback=add_tournament if can_create else None,
         )
         
+        # Route through the view's _bg so the tab-switch refresh rebinds the
+        # tenant (the selected_tab handler runs in a detached task that lost it).
         def on_tab_selected():
-            background_tasks.create(table_view.refresh())
+            table_view._bg(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Tournaments' else None)
 
 
@@ -62,9 +70,14 @@ async def admin_stream_rooms_page() -> None:
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Stream Room Management').classes('page-title')
-        
+
         ui.separator().classes('separator-spacing')
-        
+
+        ui.label(
+            'The stages matches can be assigned to. Each maps to a stream URL used '
+            'across the schedule and On Air views.'
+        ).classes('text-caption text-grey')
+
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True, 'clickable': True},
             {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
@@ -99,14 +112,17 @@ async def admin_stream_rooms_page() -> None:
                 dialog = StreamRoomEditDialog(on_submit=after_submit)
                 await dialog.open()
 
-        async def edit_stream_room(row):
-            room = await StreamRoomService().get_stream_room_by_id(row['id'])
-            if not room:
-                ui.notify('Stream room not found.', color='warning')
-                return
-            async def after_submit(_):
-                await refresh_table()
-            with table_container:
+        async def edit_stream_room(row, client):
+            # Runs in a background task (table 'edit' event → background_tasks.create),
+            # where the slot stack is empty; restore the captured client so ui.notify
+            # and the dialog have a slot context.
+            with client:
+                room = await StreamRoomService().get_stream_room_by_id(row['id'])
+                if not room:
+                    ui.notify('Stream room not found.', color='warning')
+                    return
+                async def after_submit(_):
+                    await refresh_table()
                 dialog = StreamRoomEditDialog(stream_room=room, on_submit=after_submit)
                 await dialog.open()
 
@@ -121,7 +137,7 @@ async def admin_stream_rooms_page() -> None:
                 columns=columns,
                 rows=[],
                 row_key='id',
-            ).classes('w-full')
+            ).classes('w-full sgl-table')
             
             # Enable grid mode for mobile using Quasar's screen detection
             table.props(':grid="Quasar.Screen.lt.md"')
@@ -201,6 +217,6 @@ async def admin_stream_rooms_page() -> None:
                 </div>
             ''')
             
-            table.on('edit', lambda e: background_tasks.create(edit_stream_room(e.args)))
+            table.on('edit', lambda e: background_tasks.create(edit_stream_room(e.args, context.client)))
 
         background_tasks.create(refresh_table())

@@ -27,17 +27,39 @@ async def _render_platform_landing() -> None:
     ui.page_title('SpeedGaming Live')
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     tenants = [t for t in await TenantService.list_tenants() if t.is_active]
-    with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4'):
-        ui.label('SpeedGaming Live').classes('text-3xl font-bold')
-        ui.label('Choose a community').classes('text-lg text-gray-600')
+
+    # Phoenix brand chrome. The picker is the platform's front door (bare host,
+    # no tenant), so it can't reuse the tenant BaseLayout drawer; apply the same
+    # stylesheet + palette + header so first impression reads as the product.
+    ui.dark_mode(app.storage.user.get('dark_mode'))
+    ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+    ui.colors(
+        primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
+        positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',
+    )
+    with ui.header().classes('sgl-header items-center'):
+        ui.label('SGL On Site').classes('sgl-wordmark')
+
+    with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4 items-stretch'):
+        ui.label('Choose a community').classes('page-title')
+        ui.label('Pick the community you want to manage or take part in.') \
+            .classes('text-muted')
         if not tenants:
-            ui.label('No communities are available yet.').classes('text-gray-500')
-        with ui.column().classes('w-full gap-2'):
+            ui.label('No communities are available yet.').classes('text-muted')
+        with ui.column().classes('w-full gap-3'):
             for tenant in tenants:
-                ui.link(tenant.name, f'/t/{tenant.slug}/').classes('text-lg')
+                with ui.link(target=f'/t/{tenant.slug}/').classes('no-underline w-full'):
+                    with ui.card().classes('sgl-tenant-card w-full'):
+                        with ui.row().classes('items-center justify-between no-wrap w-full'):
+                            with ui.column().classes('gap-0'):
+                                ui.label(tenant.name).classes('sgl-tenant-name')
+                                ui.label(f'/t/{tenant.slug}').classes('text-caption text-muted')
+                            ui.icon('arrow_forward').classes('text-primary')
         if await AuthService.is_super_admin(user):
-            ui.separator()
-            ui.link('Platform administration', '/platform').classes('text-primary')
+            ui.separator().classes('separator-spacing')
+            ui.button('Platform administration', icon='admin_panel_settings',
+                      on_click=lambda: ui.navigate.to('/platform')) \
+                .props('outline color=primary')
 
 
 def create() -> None:
