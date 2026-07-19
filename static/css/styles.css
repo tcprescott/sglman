@@ -463,6 +463,18 @@ body.body--dark {
     color: var(--sgl-section-title);
 }
 
+/* Drawer section headers (grouped admin nav): small, uppercase, gold — a quiet
+   divider between destination clusters, not a clickable item. */
+.q-drawer .sgl-drawer-group {
+    padding: var(--space-3) var(--space-3) var(--space-1);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--sgl-section-title);
+    opacity: 0.85;
+}
+
 /* Layout & Container Styles */
 .page-container {
     width: 100%;

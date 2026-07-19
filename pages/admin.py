@@ -110,47 +110,53 @@ def create() -> None:
 
         can_crud = is_staff or is_ta_any
         tabs = []
+        # Each tab carries a drawer 'group'; the list is stable-sorted by
+        # _ADMIN_GROUP_ORDER below so the 21-item drawer reads as labeled sections
+        # instead of a flat scroll. Icons are unique per destination (no repeats).
         if is_staff or is_ta_any or is_cc_any:
-            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
+            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
         if is_staff:
-            tabs.append({'label': 'Users', 'icon': 'people', 'content': admin_users_page})
+            tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
         if is_staff or is_ta_any:
-            tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'content': admin_tournaments_page})
-        if is_staff or is_preset_manager:
-            tabs.append({'label': 'Presets', 'icon': 'tune', 'content': admin_presets_page})
-        if (is_staff or is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
-            tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'content': admin_qualifiers_page})
-        if (is_staff or is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
-            tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'content': admin_racetime_page})
-        if (is_staff or is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
-            tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'content': admin_speedgaming_page})
-        if is_staff or is_sync_admin:
-            tabs.append({'label': 'Discord Events', 'icon': 'event', 'content': admin_discord_events_page})
+            tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
         if is_staff or is_stream_manager:
-            tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'content': admin_stream_rooms_page})
-        if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
-            tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': admin_triforce_texts_page})
-        if (is_staff or is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
-            tabs.append({'label': 'Vol. Roster', 'icon': 'people', 'content': admin_volunteer_roster_page})
-            tabs.append({'label': 'Vol. Schedule', 'icon': 'volunteer_activism', 'content': admin_volunteers_page})
-        if is_staff or is_ta_any or is_cc_any:
-            tabs.append({'label': 'Reports', 'icon': 'analytics', 'content': (reports_page, (), reports_kwargs)})
+            tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'group': 'Operations', 'content': admin_stream_rooms_page})
+        if is_staff or is_preset_manager:
+            tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
+        if (is_staff or is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
+            tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'group': 'Online play', 'content': admin_qualifiers_page})
+        if (is_staff or is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
+            tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'group': 'Online play', 'content': admin_racetime_page})
+        if (is_staff or is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
+            tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'group': 'Online play', 'content': admin_speedgaming_page})
         if is_staff and FeatureFlag.CHALLONGE in live:
-            tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'content': admin_challonge_page})
-        if is_staff:
-            tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'content': admin_discord_roles_page})
-        if is_staff:
-            tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'content': admin_webhooks_page})
+            tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'group': 'Online play', 'content': admin_challonge_page})
+        if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
+            tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
+        if (is_staff or is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
+            tabs.append({'label': 'Vol. Roster', 'icon': 'groups', 'group': 'Community', 'content': admin_volunteer_roster_page})
+            tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': admin_volunteers_page})
         if (is_staff or is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
-            tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': admin_equipment_page})
+            tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
         if is_staff:
-            tabs.append({'label': 'Feedback', 'icon': 'feedback', 'content': admin_feedback_page})
+            tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
+        if is_staff or is_sync_admin:
+            tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})
         if is_staff:
-            tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'content': admin_service_health_page})
+            tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'group': 'Integrations', 'content': admin_discord_roles_page})
         if is_staff:
-            tabs.append({'label': 'Features', 'icon': 'toggle_on', 'content': admin_features_page})
+            tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'group': 'Integrations', 'content': admin_webhooks_page})
+        if is_staff or is_ta_any or is_cc_any:
+            tabs.append({'label': 'Reports', 'icon': 'analytics', 'group': 'System', 'content': (reports_page, (), reports_kwargs)})
         if is_staff:
-            tabs.append({'label': 'Settings', 'icon': 'settings', 'content': admin_system_config_page})
+            tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'group': 'System', 'content': admin_service_health_page})
+        if is_staff:
+            tabs.append({'label': 'Features', 'icon': 'toggle_on', 'group': 'System', 'content': admin_features_page})
+        if is_staff:
+            tabs.append({'label': 'Settings', 'icon': 'settings', 'group': 'System', 'content': admin_system_config_page})
+
+        _ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'Integrations', 'System']
+        tabs.sort(key=lambda t: _ADMIN_GROUP_ORDER.index(t['group']))
 
         base_path = f"{request.scope.get('root_path', '')}/admin" if request else '/admin'
         base_layout = BaseLayout(

@@ -258,7 +258,14 @@ class BaseLayout:
             if self.tabs:
                 ui.separator()
                 with ui.list().props('padding'):
+                    current_group = None
                     for tab in self.tabs:
+                        # Section headers for grouped drawers (admin passes a
+                        # 'group' per tab); ungrouped pages render a flat list.
+                        group = tab.get('group')
+                        if group and group != current_group:
+                            current_group = group
+                            ui.item_label(group).props('header').classes('sgl-drawer-group')
                         with ui.item(
                             on_click=lambda t=tab['label']: self._switch_tab(t)
                         ).props('clickable v-ripple') as tab_item:
