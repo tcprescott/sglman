@@ -4,6 +4,8 @@
 
 This page documents mechanics only — singletons, method signatures, custom_id wire formats, error paths. Behavior-level documentation lives in the feature docs: [discord-notifications](../features/discord-notifications.md), [match-acknowledgment](../features/match-acknowledgment.md), [match-watcher](../features/match-watcher.md), [crew-management](../features/crew-management.md), [tournament-notifications](../features/tournament-notifications.md), [mock-discord](../features/mock-discord.md).
 
+> **Sibling: the racetime bot.** The [`racetimebot/`](../../racetimebot/) package (connection, handler, manager, mock, transport) is the racetime.gg analogue of this Discord bot — a lifespan-managed connection running as a peer in the same single worker. Its runtime and health model are documented in [services.md § racetimebot](services.md) and the [racetime room-lifecycle design](../online-tournaments/racetime-room-lifecycle.md); the one-bot-many-guilds tenant routing both bots follow is in [multitenancy.md](../features/multitenancy.md#discord-one-bot-many-guilds).
+
 ## Key files
 
 | File | Contents |

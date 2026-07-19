@@ -1,20 +1,17 @@
-# Online Tournaments Plan (proposal)
+# Online Tournaments (design record)
 
-> Status: **proposed, not implemented.** This is the design/implementation plan for
-> adapting Wizzrobe — today an *on-site* tournament manager — to also support **online
+> Status: **implemented.** This is the design/rationale record for
+> adapting Wizzrobe — originally an *on-site* tournament manager — to also support **online
 > tournaments**, forward-porting a defined set of functionality from
-> [SahasrahBot](https://github.com/tcprescott/sahasrahbot). No code in this plan has
-> shipped. When work begins, track progress in
-> [current-state.md](../current-state.md) and split each phase into its own PR.
+> [SahasrahBot](https://github.com/tcprescott/sahasrahbot). All five features have shipped;
+> per-feature status lives in [current-state.md](../current-state.md), and the running
+> subsystems are documented in the [reference](../README.md#code-reference-docsreference)
+> docs. This hub is retained for the cross-cutting design rationale — decisions, scope,
+> and the succession story.
 
 This is the **overview / index**. Each of the five features has its own document;
 this hub holds the cross-cutting material — decisions, scope, roadmap, shared
-risks, and the succession story. A [gap analysis](gap-analysis.md) reviews the plan
-for unmade decisions and must-preserve behaviors before implementation.
-
-**Ready to build?** The [implementation plan](implementation/README.md) decomposes
-this design into **PR-sized kickoff briefs** (one per agent/PR) with file-level
-scope, dependencies, reference implementations, and acceptance criteria.
+risks, and the succession story.
 
 ## The five feature documents
 
@@ -43,7 +40,7 @@ scope, dependencies, reference implementations, and acceptance criteria.
 | 2026-07-13 | **SahasrahBot's non-racing community features survive on a thin bot.** Only SahasrahBot's tournament/racing role is retired into Wizzrobe; a stripped-down SahasrahBot keeps the community-management bits (reaction/voice roles, holy images, inquiries, `konot`). Wizzrobe does **not** absorb them — it stays a tournament manager. |
 | 2026-07-13 | **Racetime auto-open is opt-in per tournament.** No room is auto-created until a tournament explicitly enables auto-open and sets its lead time — nothing opens unexpectedly. |
 | 2026-07-13 | **Auto-open eligibility: all entrants have a linked racetime identity.** A room auto-opens only when every player in the match has linked racetime (clean result attribution); matches with an unlinked entrant are left to manual creation. |
-| 2026-07-14 | **Gap-analysis decisions.** The following resolve findings in the [gap analysis](gap-analysis.md); several are informed by [sahabot2](https://github.com/tcprescott/sahabot2), the maintainer's prior working port (now a reference in this session). |
+| 2026-07-14 | **Gap-analysis decisions.** The following resolved the pre-implementation gap analysis; several are informed by [sahabot2](https://github.com/tcprescott/sahabot2), the maintainer's prior working port (now a reference in this session). |
 | 2026-07-14 | **Autonomous actor = a reserved system `User`.** Workers/bots (racetime handlers, auto-open worker, SG materializer, qualifier scoring) act as one seeded system `User` (sentinel `discord_id`), with tenant from `tenant_scope`. Fits the "pass `actor: User` explicitly" audit convention. (sahabot2 used a `SYSTEM_USER_ID = -1` sentinel + null-actor audit; a real row suits wizzrobe's actor-snapshotting audit better.) |
 | 2026-07-14 | **Config storage = hybrid (typed columns + validated JSON).** Worker-queried knobs (qualifier `opens_at`/`closes_at`, `auto_open` bool, lead time, `require_racetime_link`, goal) are typed columns; templates, scoring params, and strategy choices live in a Pydantic-validated JSON config on `Tournament`/`AsyncQualifier`. Directly mirrors sahabot2's `Tournament` (typed racetime/SG columns + `settings_form_schema`/`preset_selection_rules` JSON). |
 | 2026-07-14 | **Racetime topology = shared bots, tenant-routed, DB-managed.** Refined from sahabot2: racetime bots/categories are first-class `RacetimeBot` rows (creds per category), shared across tenants, and a `Tournament` selects one via FK; rooms route back to their tenant. Not per-tenant credentials, not one hard-coded connection. |
@@ -238,14 +235,14 @@ Feature-specific risks live in each feature doc. These span multiple features:
 Online operation multiplies Wizzrobe's dependence on external services, several of
 them long-lived connections that fail silently. A **SUPER_ADMIN external-service
 health page on `/platform`** gives a single "is anything broken?" board, so an admin
-learns a dependency is down *before* it breaks a race day. This resolves the
-observability gap ([gap analysis](gap-analysis.md) §5) and generalizes the
+learns a dependency is down *before* it breaks a race day. This closed the
+observability gap and generalizes the
 [racetime bot health](racetime-room-lifecycle.md#bot-health-monitoring-decided).
 
 - **Probe registry.** Each dependency registers an async health probe
   (`check() → {status, message, checked_at}`). A background worker runs them on a
   cadence and the page can force an on-demand refresh.
-- **Dependencies covered** (current + planned): PostgreSQL; the Discord bot + OAuth;
+- **Dependencies covered:** PostgreSQL; the Discord bot + OAuth;
   **racetime.gg bots** (reads each `RacetimeBot.status` — no extra probe); the
   **SpeedGaming** API; **Challonge** (reachability **plus** service-account token
   validity/expiry); **Twitch** OAuth; the seed-generation upstreams (alttpr.com,
@@ -292,10 +289,10 @@ questions that surface as implementation begins go here.
 
 ## Related docs
 
-- [rest-api-coverage.md](rest-api-coverage.md) — **future enhancement:** REST API endpoints for these features (none shipped yet); a proposed full read+write parity design
+- [reference/rest-api.md](../reference/rest-api.md#online-tournament-features) — the shipped REST API for these features (full read + write parity)
 - [architecture.md](../architecture.md) — process model, single-worker constraint, bot-as-peer pattern
 - [reference/data-model.md](../reference/data-model.md) — `User` identity links, `Match`, `Tournament`
-- [reference/seed-generation.md](../reference/seed-generation.md) — current seedgen + preset gap
+- [reference/seed-generation.md](../reference/seed-generation.md) — seed generation and user-managed presets
 - [features/multitenancy.md](../features/multitenancy.md) — tenant context, `tenant_scope`, one-bot-many-guilds
 - [reference/discord-integration.md](../reference/discord-integration.md) — bot/queue patterns the new workers follow
 - [sahabot2](https://github.com/tcprescott/sahabot2) — the maintainer's prior working port (NiceGUI + FastAPI + Tortoise). Reference implementation for the SG ETL (placeholder users), `RacetimeRoom`/`RacetimeBot`/`RaceRoomProfile` models, and per-tournament config columns. Added to this session's scope.

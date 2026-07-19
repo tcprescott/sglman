@@ -4,6 +4,8 @@ _Mechanics of Discord OAuth login, session storage, route protection, and the `A
 
 This document covers **how** authentication and authorization work. For **who may do what** (the role/permission matrix), see [features/role-based-auth.md](../features/role-based-auth.md). For the mock-login developer workflow, see [features/mock-discord.md](../features/mock-discord.md).
 
+**Tenant scoping.** The app is multitenant, so authorization is evaluated **within the current tenant**: roles are per-tenant (`UserRole.tenant`), the one global `SUPER_ADMIN` (`tenant=NULL`) bypasses the per-tenant gate, and the OAuth callbacks run **tenant-less on the platform host** (identity is global; the tenant return path is carried in the session). The tenant-aware auth, session-namespacing, and OAuth-redirect mechanics are documented in [features/multitenancy.md § Auth, sessions, and OAuth](../features/multitenancy.md#auth-sessions-and-oauth); this doc describes the single-tenant OAuth/session flow those build on.
+
 Sources: [`pages/auth.py`](../../pages/auth.py) (the `/login`, `/logout`, `/oauth/callback` routes and their mock variant), [`middleware/auth.py`](../../middleware/auth.py) (`protected_page` + `AuthMiddleware`), [`application/services/auth_service.py`](../../application/services/auth_service.py), [`application/services/user_service.py`](../../application/services/user_service.py) (login-time `User` provisioning), [`application/utils/environment.py`](../../application/utils/environment.py), [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py), [`frontend.py`](../../frontend.py).
 
 ## Overview

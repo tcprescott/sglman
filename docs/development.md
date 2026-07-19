@@ -105,21 +105,13 @@ Details: [features/mock-discord.md](features/mock-discord.md). Auth internals: [
 poetry run python scripts/seed_dev.py
 ```
 
-The script loads `.env` itself and connects using the same Tortoise config as the app. It creates:
+The script loads `.env` itself and connects using the same Tortoise config as the app. Because the app is multitenant, it seeds **two tenants** so leak tests and manual dev checks have cross-tenant data from day one:
 
-- **Stream rooms** — Stage 1/2/3, active, with `twitch.tv/wizzrobe`, `wizzrobe2`, `wizzrobe3` URLs
-- **System configuration** — `event_start_date` (today, Eastern), `event_end_date` (today + 2 days), `max_concurrent_players=12`, `max_concurrent_stages=3`
-- **Seven users** with sequential fake Discord IDs (`100000000000000001`–`…07`):
+- **Tenant A** reuses the migration's `default` slug (on a fresh DB the additive backfill creates it empty and the script adopts it); **Tenant B** is a second community. Each gets a different feature tier (A → Full Access with one feature switched off; B → Online Tournaments with one force-granted exception) so the [feature-flag](features/feature-flags.md) states are visible.
+- **Global (tenant-agnostic):** users (people log in everywhere and hold per-tenant roles), the feature-flag groups (Default / Online Tournaments / Full Access), and the racetime bots.
+- **Per tenant (everything else is tenant-scoped):** stream rooms, system config, an on-site tournament with matches across every lifecycle state + crew, volunteers and shifts, player availability, equipment, an API token (the printed **dev bearer** the `api-validation` skill uses), feedback, triforce texts, Discord role mappings, webhooks, and seeded audit-log + telemetry rows — plus the online-tournament fixtures (presets, race rooms, async qualifiers, Challonge) from `seed_online.py` / `seed_challonge.py`.
 
-  | Username | Role |
-  |---|---|
-  | `staff_user` | `STAFF` |
-  | `proctor_user` | `PROCTOR` |
-  | `sm_user` | `STREAM_MANAGER` |
-  | `player_one` … `player_four` | (none) |
-
-- **One tournament** — "Wizzrobe Dev Tournament" (alttpr seed generator, 2 players per match, active), with `staff_user` as both admin and crew coordinator and the four players enrolled
-- **Four matches**, one per lifecycle state: "Scheduled Match" (+2 h), "Checked-In Match" (now, Stage 1), "In-Progress Match" (−1 h, Stage 2), and "Finished Match" (−3 h, Stage 1, with finish ranks and confirmation)
+Every scoped create threads `tenant` through an explicit `tenant_scope`, mirroring production.
 
 **Idempotency:** everything uses `get_or_create`, so the script is safe to re-run — existing records are left unchanged. That also means match timestamps are *not* refreshed on re-run (matches are matched by title + tournament); to regenerate the relative scheduled times, delete the fixture matches (or reset the database) first.
 
@@ -209,7 +201,7 @@ Container image publishing is handled separately by `.github/workflows/publish.y
 
 ## Conventions & adding a feature
 
-[../CLAUDE.md](../CLAUDE.md) is canonical for coding conventions — async-everywhere, the no-direct-ORM-writes-from-UI rule, `ValueError` for user-facing service errors, audit action naming (`verb.object` via `AuditActions`), and the NiceGUI rules (`background_tasks.create`, capturing `Client.current`, `@ui.refreshable`). [refactoring-guide.md](refactoring-guide.md) documents the three-layer architecture (presentation → service → repository) with code examples. Read both before writing code.
+[../CLAUDE.md](../CLAUDE.md) is canonical for coding conventions — async-everywhere, the no-direct-ORM-writes-from-UI rule, `ValueError` for user-facing service errors, audit action naming (`verb.object` via `AuditActions`), and the NiceGUI rules (`background_tasks.create`, capturing `context.client` — not the nonexistent `Client.current` — for background UI work, `@ui.refreshable`). [refactoring-guide.md](refactoring-guide.md) documents the three-layer architecture (presentation → service → repository) with code examples. Read both before writing code.
 
 Standard checklist for a new feature:
 
@@ -240,6 +232,5 @@ git update-index --chmod=+x .claude/hooks/doc-check.sh
 
 ## Repository hygiene notes
 
-- `profile.html` at the repo root is a ~5.7 MB profiling artifact, not source code — don't read, edit, or ship it.
 - `poetry.lock` is committed; keep it in sync with `pyproject.toml` when changing dependencies (the CI cache is keyed on its hash).
 - `.gitignore` covers `.env*` (with an exception for `.env.example`), so local secrets stay out of version control. It also ignores `.nicegui/`, `test_data/`, and the usual Python build/cache artifacts.

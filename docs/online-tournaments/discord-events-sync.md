@@ -1,6 +1,6 @@
 # Feature 3: Discord Events sync
 
-> Part of the [Online Tournaments plan](README.md).
+> Part of the [Online Tournaments design record](README.md) — **implemented**.
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
 >

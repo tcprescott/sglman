@@ -41,8 +41,8 @@ The FastAPI app is created with `docs_url="/api/docs"` and `redoc_url="/api/redo
 
 - `validate_security_config()` refuses to start with an insecure configuration (missing `STORAGE_SECRET`; missing DB credentials in production). Separately, `is_mock_discord()` raises at startup if `MOCK_DISCORD` is enabled while `ENVIRONMENT=production`.
 - The `static/` directory is mounted at `/static`; in development (`ENVIRONMENT=development`, the default) a `NoCacheStaticFiles` wrapper adds `no-cache` headers so CSS/JS edits show up on refresh.
-- `AuthMiddleware` (Discord OAuth session enforcement) is registered on the NiceGUI app at import time.
-- The auth routes and the four page modules (`pages/admin.py`, `pages/home.py`, `pages/volunteer.py`, `pages/equipment.py`) are registered, and `ui.run_with(fastapi_app, storage_secret=...)` mounts NiceGUI onto the FastAPI app at the root path.
+- Three middlewares are registered at import time (Starlette runs the last-added outermost, so the effective order is session → `TransportPrefixMiddleware` → `TenantMiddleware` → `AuthMiddleware`): `AuthMiddleware` (Discord OAuth session enforcement), `TenantMiddleware` (resolves the tenant from `/t/<slug>` or a custom `Host` and rewrites the ASGI scope — see [features/multitenancy.md](features/multitenancy.md)), and `TransportPrefixMiddleware` (un-prefixes NiceGUI/asset transport paths). The resolved `PLATFORM_HOST` is logged at startup.
+- The OAuth routes and the page modules (`auth`, `challonge_oauth`, `twitch_oauth`, `racetime_oauth`, `admin`, `home`, `volunteer`, `equipment`, `platform`, `qualifiers`) are registered, and `ui.run_with(fastapi_app, storage_secret=...)` mounts NiceGUI onto the FastAPI app at the root path.
 
 `main.py` is not run directly — `start.sh dev|prod` loads `.env` and launches Uvicorn (dev mode adds `--reload`).
 
@@ -109,7 +109,7 @@ Notes on the arrows:
 
 ## Authentication in one paragraph
 
-Users log in with Discord OAuth: `/login` redirects to Discord with a CSRF `state` token, `/oauth/callback` exchanges the code (via zenora), upserts the `User` row, and stores `discord_id` in NiceGUI's signed session storage. `AuthMiddleware` redirects unauthenticated requests to protected routes, and the `protected_page` decorator enforces login plus optional role requirements per page. Authorization is role-based (`staff`, `proctor`, `stream_manager` plus per-tournament admin/crew-coordinator membership) through `AuthService`. Full mechanics: [reference/authentication.md](reference/authentication.md); role semantics: [features/role-based-auth.md](features/role-based-auth.md). For local development without a Discord app, `MOCK_DISCORD=true` swaps in a user-picker login page and stubs all Discord calls ([features/mock-discord.md](features/mock-discord.md)).
+Users log in with Discord OAuth: `/login` redirects to Discord with a CSRF `state` token, `/oauth/callback` exchanges the code (via zenora), upserts the `User` row, and stores `discord_id` in NiceGUI's signed session storage. `AuthMiddleware` redirects unauthenticated requests to protected routes, and the `protected_page` decorator enforces login plus optional role (and feature-flag) requirements per page. Authorization is role-based through `AuthService`: eleven `Role` members — the seven per-tenant community roles (STAFF, PROCTOR, STREAM_MANAGER, TRIFORCE_SUBMITTER, VOLUNTEER_COORDINATOR, EQUIPMENT_MANAGER, VOLUNTEER), the three per-tenant online-tournament admin roles (PRESET_MANAGER, SYNC_ADMIN, QUALIFIER_ADMIN), and the one global SUPER_ADMIN — plus per-tournament admin/crew-coordinator membership. Roles are **per-tenant** (evaluated within the current tenant); SUPER_ADMIN is global and bypasses the per-tenant gate. Full mechanics: [reference/authentication.md](reference/authentication.md); role semantics: [features/role-based-auth.md](features/role-based-auth.md); tenant resolution: [features/multitenancy.md](features/multitenancy.md). For local development without a Discord app, `MOCK_DISCORD=true` swaps in a user-picker login page and stubs all Discord calls ([features/mock-discord.md](features/mock-discord.md)).
 
 ## Directory map
 
@@ -120,17 +120,18 @@ Every top-level entry in the repository, with the doc that covers it:
 | `main.py` | App entry point: lifespan, DB init, bot init, router mounting | this doc |
 | `frontend.py` | NiceGUI ↔ FastAPI integration, static files, page registration | [reference/frontend.md](reference/frontend.md) |
 | `api/` | Public REST API (routers, Pydantic schemas, token auth, rate limiting) | [reference/rest-api.md](reference/rest-api.md) |
-| `models/` | All Tortoise ORM models (52) and enums (16), split into per-domain submodules | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` | Business-logic layer (30 modules) | [reference/services.md](reference/services.md) |
-| `application/repositories/` | Data-access layer (25 repositories) | [reference/data-model.md](reference/data-model.md) |
-| `application/utils/` | Timezone, environment validation, CSV export, Challonge client, QR codes, Sentry, mock-Discord/Challonge flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
-| `middleware/` | `auth.py` (`protected_page` + `AuthMiddleware` route protection), `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md) |
+| `models/` | All Tortoise ORM models (54) and enums (17), split into per-domain submodules | [reference/data-model.md](reference/data-model.md) |
+| `application/services/` | Business-logic layer (69 modules, incl. `tournament_strategies/`) | [reference/services.md](reference/services.md) |
+| `application/repositories/` | Data-access layer (43 repositories) | [reference/data-model.md](reference/data-model.md) |
+| `application/tenant_context.py`, `application/feature_flags.py` | Request-time tenant context + the feature-flag registry | [features/multitenancy.md](features/multitenancy.md), [features/feature-flags.md](features/feature-flags.md) |
+| `application/utils/` | 30 helpers: timezone, environment validation, CSV export, Challonge/Twitch/racetime/SpeedGaming clients, QR codes, web push, Sentry, host/URL/session helpers, mock flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
+| `middleware/` | `auth.py` (`protected_page` + `AuthMiddleware`), `tenant.py` (`TenantMiddleware` + `TransportPrefixMiddleware`), `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md), [features/multitenancy.md](features/multitenancy.md) |
 | `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
 | `racetimebot/` | Racetime bot runtime (peer of `discordbot/`): lifespan-managed connection per active `RacetimeBot` category, first-class health tracking, tenant-routed room-event handlers; gated by `RACETIME_BOT_ENABLED`, mockable via `MOCK_RACETIME` | [reference/services.md](reference/services.md#racetimebot--the-racetime-bot-runtime-pr-4) |
-| `pages/` | NiceGUI pages: home (7 tabs), admin (role-gated tabs), volunteer, equipment, `auth.py` (Discord OAuth login + dev mock login), `challonge_oauth.py` (Challonge OAuth) | [reference/frontend.md](reference/frontend.md), [reference/authentication.md](reference/authentication.md) |
+| `pages/` | NiceGUI pages (12 modules): home, admin (role-gated tabs), volunteer, equipment, `platform.py` (super-admin), `qualifiers.py`, and the OAuth login pages (`auth.py` Discord + dev mock, `challonge_oauth.py`, `twitch_oauth.py`, `racetime_oauth.py`) | [reference/frontend.md](reference/frontend.md), [reference/authentication.md](reference/authentication.md) |
 | `theme/` | `base.py` layout shell, `dialog/` (dialogs), `tables/` (table views), `realtime.py` | [reference/frontend.md](reference/frontend.md) |
 | `static/` | CSS (and other static assets) served at `/static` | [reference/frontend.md](reference/frontend.md) |
-| `presets/` | Randomizer preset files (alttpr YAML, ootr/smmap JSON) | [reference/seed-generation.md](reference/seed-generation.md) |
+| `presets/` | Built-in randomizer preset files (alttpr/, dk64r/, ootr/, smmap/) | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | Tortoise connection config + Aerich migration files | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
 | `scripts/` | `seed_dev.py` — idempotent local dev fixtures | [development.md](development.md) |
 | `tests/` | pytest suite (API, utils, and `tests/services/`) | [development.md](development.md) |
@@ -140,14 +141,14 @@ Every top-level entry in the repository, with the doc that covers it:
 | `.github/workflows/` | CI (`test.yml`) and GHCR image publishing (`publish.yml`) | [development.md](development.md), [deployment.md](deployment.md) |
 | `pyproject.toml`, `poetry.lock` | Poetry dependencies, pytest and Aerich config | [development.md](development.md) |
 | `.env.example` | Annotated template for all environment variables | [deployment.md](deployment.md) |
-| `CLAUDE.md` | Conventions and AI-assistant development guide | — |
+| `CLAUDE.md`, `AGENTS.md` | Conventions and AI-assistant development guides | — |
 | `README.md` | Quick-start readme | — |
-| `profile.html` | Stray profiling artifact, not source code | noted in [development.md](development.md) |
 
 ## Key design decisions
 
 - **UTC in the database, US/Eastern in the UI.** All datetimes are stored UTC; every user-facing render goes through `application/utils/timezone.py`. See [timezone-handling.md](timezone-handling.md).
-- **Role-based access, no permission bits on `User`.** Global roles live in the `UserRole` junction table; tournament-scoped authority comes from `Tournament.admins` / `Tournament.crew_coordinators` M2M membership. See [features/role-based-auth.md](features/role-based-auth.md).
+- **Role-based access, no permission bits on `User`.** Roles live in the `UserRole` junction table and are **per-tenant** (nullable `tenant` FK; the one global `SUPER_ADMIN` uses `tenant=NULL`); tournament-scoped authority comes from `Tournament.admins` / `Tournament.crew_coordinators` M2M membership. See [features/role-based-auth.md](features/role-based-auth.md).
+- **Logically multitenant, no auto-scoping manager.** One process and DB serve many communities; a `tenant` FK on ~33 models is scoped explicitly through `application/repositories/_tenant.py`, and `require_tenant_id()` raising is the safety net. Users are global; almost everything a community owns is tenant-scoped. See [features/multitenancy.md](features/multitenancy.md).
 - **The bot and the web UI are peers.** Both call the same service layer, so a crew signup from a Discord button and one from the web page follow identical business rules and audit logging.
 - **Migrations apply on boot.** `init_db()` runs `aerich upgrade` every start; deploys are "pull new image, restart". The flip side: rollbacks need care, since an old image won't un-apply a new migration ([deployment.md](deployment.md)).
 - **Mockable Discord boundary.** Every Discord touchpoint (OAuth, DMs, bot) sits behind `MOCK_DISCORD` so the full app is developable with no Discord credentials ([features/mock-discord.md](features/mock-discord.md)).
