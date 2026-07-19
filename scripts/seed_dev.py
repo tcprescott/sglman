@@ -104,7 +104,8 @@ async def seed_feature_groups() -> dict:
     )
     online, _ = await FeatureFlagGroup.get_or_create(
         name='Online Tournaments',
-        defaults={'flags': ['async_qualifiers', 'racetime_rooms', 'speedgaming_etl']},
+        defaults={'flags': ['async_qualifiers', 'racetime_rooms', 'speedgaming_etl',
+                            'dk64_randomizer']},
     )
     full, _ = await FeatureFlagGroup.get_or_create(
         name='Full Access',

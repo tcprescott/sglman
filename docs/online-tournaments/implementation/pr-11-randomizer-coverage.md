@@ -16,6 +16,9 @@ tournament/qualifier game coverage.
   [seed-rolling.md](../seed-rolling.md). Known families to bring over: ALTTPR door
   rando, **mystery weightsets**, SM, SMZ3, SM VARIA/DASH, CT: Jets of Time, and the
   OoTR/Zelda/FF families (plus the longer tail — TWWR, SMB3R, Z2R, SMR, etc.).
+  DK64 (`dk64r`) is **implemented** as the first promoted backend — see its sub-plan
+  [dk64-randomizer.md](dk64-randomizer.md) (task-queue backend, `DK64R_API_KEY`,
+  gated by the `DK64_RANDOMIZER` feature flag).
 - **Per backend**: an `async def _generate_<name>` on `SeedGenerationService`
   following the existing pattern (async HTTP via `aiohttp`/`httpx`, env-var
   credentials, `ValueError` on missing config), registered in the dispatch map and

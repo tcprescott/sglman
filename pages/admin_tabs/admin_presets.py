@@ -5,11 +5,21 @@ import json
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 
-from application.services import PresetService, SeedGenerationService, get_user_from_discord_id
+from application.services import (
+    FeatureFlagService,
+    PresetService,
+    SeedGenerationService,
+    get_user_from_discord_id,
+)
 
 
 async def admin_presets_page() -> None:
     service = PresetService()
+    # Flag-gated randomizers the tenant isn't authorized for are dropped from the
+    # create/edit select (mirrors the tournament dialog); a stored preset on such
+    # a randomizer stays valid and editable (its value is re-added below).
+    live_flags = await FeatureFlagService().enabled_flags()
+    available_randomizers = SeedGenerationService.available_randomizers(live_flags)
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -81,8 +91,12 @@ async def admin_presets_page() -> None:
                     name_input = ui.input(
                         'Name', value=existing['name'] if is_edit else '',
                     ).classes('w-full')
+                    randomizer_choices = list(available_randomizers)
+                    # Never drop the row's current randomizer from its own editor.
+                    if is_edit and existing['randomizer'] not in randomizer_choices:
+                        randomizer_choices = randomizer_choices + [existing['randomizer']]
                     randomizer_input = ui.select(
-                        SeedGenerationService.AVAILABLE_RANDOMIZERS,
+                        randomizer_choices,
                         label='Randomizer',
                         value=existing['randomizer'] if is_edit else 'alttpr',
                     ).classes('w-full')

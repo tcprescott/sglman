@@ -137,6 +137,42 @@ class TestGenerateSeed:
         assert ok is False
         assert "not found" in message
 
+    async def test_flag_gated_randomizer_blocked_when_flag_off(self, service, db):
+        # A flag-gated randomizer (dk64r) is refused with a clean tuple — and no
+        # upstream call — when the community's DK64_RANDOMIZER flag is off. A
+        # fresh tenant starts with every flag off (unlike the db-fixture tenant).
+        from application.tenant_context import tenant_scope
+        from models import Tenant
+        b = await Tenant.create(name="NoDK64", slug="no-dk64")
+        with tenant_scope(b.id):
+            staff = await make_staff(discord_id=9100)
+            t = await Tournament.create(name="T", seed_generator="dk64r")
+            m = await Match.create(tournament=t)
+            service.seedgen_service.generate_seed = AsyncMock(return_value="url")
+
+            ok, message, url = await service.generate_seed(m.id, staff)
+
+        assert ok is False
+        assert url is None
+        assert "not enabled" in message
+        service.seedgen_service.generate_seed.assert_not_awaited()
+
+    async def test_flag_gated_randomizer_allowed_when_flag_on(self, service, db):
+        # The db-fixture tenant has every flag on, so the dk64r roll proceeds.
+        staff = await make_staff(discord_id=9200)
+        t = await Tournament.create(name="T", seed_generator="dk64r")
+        m = await Match.create(tournament=t)
+        await MatchPlayers.create(match=m, user=await make_user(21, name="p"))
+        service.seedgen_service.generate_seed = AsyncMock(
+            return_value="https://dk64randomizer.com/randomizer.html?seed_id=42"
+        )
+
+        ok, message, url = await service.generate_seed(m.id, staff)
+
+        assert ok is True
+        assert url.endswith("seed_id=42")
+        service.seedgen_service.generate_seed.assert_awaited_once()
+
     async def test_returns_in_progress_when_lock_held(self, service, db):
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
