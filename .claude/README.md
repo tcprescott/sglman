@@ -45,11 +45,22 @@ shown to Claude.
 ## The guardrails
 
 ### Architecture / layering — `scripts/enforce_architecture.py` (PreToolUse: Write|Edit)
-Enforces the three-layer import boundary (Presentation → Service → Repository):
+Enforces the three-layer boundary (Presentation → Service → Repository):
 
-- `pages/`, `theme/`, `frontend.py` **must not** import from `application.repositories`.
-- `application/repositories/` **must not** import from `application.services`, `pages`, or `theme`.
-- `application/services/` **must not** import `nicegui` — **except** files in `NICEGUI_ALLOWLIST` (currently `auth_service.py`, which legitimately needs `app.storage.user`).
+- Presentation (`pages/`, `theme/`, `frontend.py`, `api/`, `discordbot/`) **must not**
+  import from `application.repositories`, and **must not reach through** a service to
+  its repository — the content regex catches `service.repository.foo(...)` and
+  `self.x_repository.bar(...)` (the attribute must *end* in `repository`, so names
+  like `repository_url` never match). The reach-through form is exactly the
+  stream-room-dialog `AttributeError` shape from the 2026-07 audit §1.1.
+- `application/repositories/` **must not** import from `application.services`, any
+  presentation surface (`pages`, `theme`, `api`, `discordbot`, `frontend`), or `nicegui`.
+- `application/services/` **must not** import `nicegui` — **except** files in
+  `NICEGUI_ALLOWLIST` (currently `auth_service.py`, which legitimately needs
+  `app.storage.user`) — and **must not** import any presentation surface.
+
+Known accepted miss: the reach-through regex also matches inside comments/docstrings
+(same tradeoff `enforce_async_safety.py` documents).
 
 ### Event-loop safety — `scripts/enforce_async_safety.py` (PreToolUse: Write|Edit)
 All users share one asyncio loop, so a single blocking call freezes the app.
@@ -168,6 +179,30 @@ won't match a longer name (`MyClient.current`), and the class genuinely has no s
 attribute, so false positives are **0** (measured: 1 hit across 264 `.py` files — the live
 bug itself; `check_slot_context.py`'s doc literal is skipped by the `/.claude/` guard).
 
+### DRY regressions — `scripts/check_dry_regressions.py` (PreToolUse: Write|Edit)
+Blocks re-introduction of the copy-paste shapes the 2026-07 code-quality audit
+(`docs/reviews/2026-07-code-quality-audit.md`) removed, each message naming the
+shared primitive that replaced the shape:
+
+| Shape | Use instead | Audit |
+|---|---|---|
+| setattr update loop in a repository | `TenantScopedRepository.update` (`_base.py`) | §2A.2 |
+| `def _load_*_or_404` in `api/routers/` | service raises `NotFoundError` → 404 | §2B.1/2B.2 |
+| `raise ValueError('… not found')` in a service | `require_found(obj, label)` | §2A.6 |
+| literal truthy-env comparison | `env_flag(name)` (`environment.py`) | §3.2 |
+| `while True:` + `asyncio.sleep` in a service | `run_worker_loop` / `BackgroundLoop` | §2A.3 |
+| `raise NotImplementedError` in services/repos | `ValueError('… not yet implemented')` | §1.3 |
+| local `utc`/`make_user`/`app`/`two_tenants`/`stub_discord_queue`/`bypass_auth` in a test module | `tests/factories.py` / conftest | §2D.2–2D.6 |
+
+**Net-new counting** (the reusable idiom for guarding a pattern that still has
+legacy occurrences): the hook computes the *proposed* file content (Write's
+`content`, or the Edit's replacement applied to the on-disk file), counts regex
+matches in old vs new, and blocks only when the count **increases**. Replaying or
+editing a legacy file never blocks; adding one more occurrence anywhere always
+does — so a rule can ship the day the extraction lands instead of waiting for a
+zero baseline. Fails open on malformed payloads, unreadable files, or an Edit
+whose `old_string` doesn't match (that Edit fails anyway).
+
 ### Syntax validity — `scripts/check_syntax.py` (PostToolUse: Write|Edit)
 `ast.parse` on the resulting `.py` file; rejects an edit that leaves it
 unparseable. This runs first among the AST hooks conceptually — the other AST
@@ -183,10 +218,19 @@ splitting modules along the three-layer pattern. Skips `migrations/`
 CLAUDE.md "Adding a new feature" step 4 requires exporting new services/repos from
 each package's `__init__.py`; forgetting it means `from application.services import
 FooService` fails at import. AST-based, scoped to `application/services/*_service.py`
-and `application/repositories/*_repository.py`. Collects top-level public classes
-ending in `Service` / `Repository` and confirms each is both imported **and** listed
-in `__all__` in the sibling `__init__.py`. Skips the `__init__.py` files themselves;
-fails open on read/parse errors.
+and `application/repositories/*_repository.py`. Two branches:
+
+- **Class module**: the filename-derived PascalCase class (`discord_service` →
+  `DiscordService`) must be imported **and** in `__all__` of the sibling `__init__.py`.
+- **Functional module** (no `*Service`/`*Repository` class, ≥1 public top-level
+  function — the `discord_queue` shape): the module **stem** must be imported
+  (`from . import stem`) and listed in `__all__`. This closes the gap that let
+  `oauth_handoff_service.py` go unexported for weeks of session-start DOC/EXPORT
+  GAP noise.
+
+Skips the `__init__.py` files themselves; fails open on read/parse errors. Known
+deliberate miss: acronym-cased primaries (`SpeedGamingETLService` vs the derived
+`SpeedgamingEtlService`) are invisible to both branches.
 
 ### Hardcoded secrets — `scripts/check_secret_leak.py` (PostToolUse: Write|Edit)
 Secrets must come from `os.environ` / `os.getenv`, never be committed as literals.
@@ -226,36 +270,78 @@ shape changes beyond what it parses. Skips `tests/`, `/.claude/`.
 ### Migration drift — `scripts/check_migration_drift.py` (Stop)
 The mirror of `enforce_migration_safety.py`: that blocks hand-editing generated
 migrations; this catches editing the `models/` package and forgetting to generate
-one. At Stop, if `git diff`/untracked shows `models.py` or a `models/*.py` file
-changed but no file under `migrations/models/` was added or modified, it blocks the
-turn and points to `poetry run aerich migrate && poetry run aerich upgrade`. Drains
-stdin (Stop hooks hang otherwise); fails open if git is unavailable.
+one. **Schema-token matching**, not file-touch heuristics: tokens are the names of
+newly added `class Foo(Model)` definitions plus any field on an added/removed
+`name = fields.…` line in the models diff; evidence is the added diff lines under
+`migrations/models/` plus untracked files there. Every token must appear
+(case-insensitive substring — aerich migrations name the tables/columns they touch)
+or the turn blocks with the missing names and
+`poetry run aerich migrate && poetry run aerich upgrade`.
+
+Consequences of token matching: an enum-member/docstring-only model edit produces
+zero tokens and passes (the old version demanded a migration aerich would never
+generate), and an *unrelated* migration file no longer satisfies the check (the old
+version accepted any touched migration). The one residual false positive — moving a
+field between model files with no schema change — is exempted with a
+`# schema-unchanged` comment on an added line in that model file. Drains stdin
+(Stop hooks hang otherwise); fails open if git is unavailable.
 
 ### Seed coverage — `scripts/check_seed_coverage.py` (Stop)
 The seed-side mirror of `check_migration_drift.py`, enforcing CLAUDE.md
 "Adding a new feature" step 6: at Stop, if the working tree adds a **new
 Tortoise `Model` class** under `models/` (added `+class Foo(Model)` diff lines
 or untracked model files; requires the bare word `Model` in the base list so
-enums/dataclasses/pydantic `BaseModel` never match) but `scripts/seed_dev.py`
-was not touched, it blocks the turn — a model the seed never creates is
-invisible to `/ui-validation` and every dev environment. Field edits to an
+enums/dataclasses/pydantic `BaseModel` never match) whose name is not found
+(word-bounded) in the concatenated content of the `scripts/seed_*.py` files,
+it blocks the turn — a model the seed never creates is invisible to
+`/ui-validation` and every dev environment. Merely *touching* the seed file no
+longer satisfies it; the model must be named. A genuinely unseedable model is
+exempted with a `# seed-exempt: Foo — reason` comment in a seed script (the
+name search hits it). The runtime backstop is `tests/test_seed_coverage.py`,
+which runs the real seed and asserts the row actually lands. Field edits to an
 existing model deliberately do **not** trigger it (noise). Drains stdin; fails
-open if git is unavailable.
+open if git or the seed scripts are unavailable.
 
 ### Related tests on edit — `scripts/run_related_tests.py` (PostToolUse: Write|Edit)
 Runs just the pytest file matching an edited module so regressions surface in-loop
 (CI runs the whole suite separately). Maps `application/services/foo_service.py` →
-`tests/services/test_foo_service.py` (and analogous repo/api/test mappings), runs
-only test files that exist with `MOCK_DISCORD=true poetry run pytest -q <file>`, and
-exits 2 with the captured output on failure. Fails open (exit 0) if no matching test
-exists, on timeout (50s margin under the 60s hook timeout), or if poetry is missing.
+`tests/services/test_foo_service.py` (and analogous repo/api/test mappings), plus
+`scripts/seed_*.py` → `tests/test_seed_coverage.py` and `models/*.py` → the
+leak-test ratchet (`tests/test_leak_test_coverage.py` — the fast static check;
+the full-seed runtime check stays Stop/CI-gated). Runs only test files that exist
+with `MOCK_DISCORD=true poetry run pytest -q <file>`, and exits 2 with the captured
+output on failure. A **timeout is exit 2**, not a pass — the message says the
+result is UNKNOWN and gives the command to run by hand (110s margin under the 120s
+hook timeout). Fails open only when no matching test exists or poetry is missing
+(environment conditions, not test results).
 
 ### Full suite at turn end — `scripts/run_full_tests.py` (Stop)
 Runs `poetry run pytest -q` at Stop, but **gated** like `doc-check.sh`: only when
 `git diff`/untracked shows a changed non-test `.py` under `application/`, `api/`,
 `pages/`, `theme/`, `discordbot/`, `models/`, or `frontend.py`. Blocks the turn
-with the captured output on failure. Drains stdin; fails open on timeout (110s) or
-missing poetry so a slow/absent toolchain never wedges the turn.
+with the captured output on failure. A **timeout is exit 2**, not a pass: the
+suite runs ~140s against a 270s budget (300s hook timeout), so expiry genuinely
+signals a hang and the message says the Stop gate did NOT verify the changes —
+the old version silently exited 0 on timeout, which by mid-2026 meant it was
+silently verifying nothing (the suite had outgrown its 110s budget). Fails open
+only on missing poetry. Drains stdin.
+
+### Tests as guardrails (pytest, ride the Stop gate AND CI)
+Some invariants are enforced as ordinary tests rather than hook scripts — they run
+in `run_full_tests.py` at Stop *and* in CI, so they also bind human contributors:
+
+- **`tests/test_seed_coverage.py`** — runs the real `scripts/seed_dev.py`
+  `seed_all()` against the in-memory harness and asserts every tenant-FK model has
+  a row for the default tenant (plus an idempotency re-run). The claim "the seed
+  covers every model" is an invariant, not prose.
+- **`tests/test_leak_test_coverage.py`** — ratchet: every tenant-FK model must
+  appear in a `tests/*isolation*` file or carry a justified `BACKLOG` entry; a
+  companion test forces stale entries out, so the backlog only shrinks.
+- **`tests/test_feature_flags.py`** — registry parity: every `FeatureFlag` member
+  has a `FeatureFlagSpec` (why there is no separate hook for it).
+- **conftest `_no_external_network`** — autouse socket guard: any non-loopback
+  `connect` raises, so a test reaching a real host fails by name instead of
+  passing online and flaking offline.
 
 ### Re-running the bug-history audit — `commands/guardrail-audit.md`
 The guardrails above were derived by mining the project's bug history for recurring
@@ -265,7 +351,9 @@ The guardrails above were derived by mining the project's bug history for recurr
 which capture in-session fixes that never became a commit — a strictly larger sample
 than git), builds a taxonomy, cross-references the existing hooks, and adds guardrails
 for any uncovered, mechanically-detectable class. Run it **locally** (the transcripts
-don't exist in a fresh CI/web container).
+don't exist in a fresh CI/web container). Its sibling `/code-quality-audit` (see
+Skills & agents below) mines the *codebase* rather than the session history; the two
+feed the same hook pipeline.
 
 ### Pre-existing doc automation — `hooks/*.sh`
 Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
@@ -277,21 +365,42 @@ coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
 ## Skills & agents
 
 Beyond the hooks (which *block* mistakes), `skills/` and `agents/` give Claude
-procedural knowledge (how to do a thing right the first time):
+procedural knowledge (how to do a thing right the first time). Together they
+cover the feature lifecycle end to end — plan → implement → test → review:
 
-- **`skills/add-feature/`** — the end-to-end checklist for a new feature:
-  model → migration → repository (tenant scoping) → service (audit + events) →
-  exports → UI/API → dev seed → tests (incl. leak test) → `/ui-validation` →
-  docs. Sequenced to match the hooks, so following it never trips one.
+- **`skills/plan-feature/`** — step **-1**: turn a feature request into a
+  reviewed design brief (flag decision, model + tenant impact, layer
+  touchpoints naming the shared primitives, test plan incl. leak tests, seed
+  and docs touchpoints, open questions) and stop for user sign-off before any
+  code.
+- **`skills/add-feature/`** — the end-to-end implementation checklist:
+  model → migration → repository (tenant scoping, `TenantScopedRepository`) →
+  service (audit + events, `require_found`) → exports → UI/API (shared
+  admin-CRUD/dialog helpers, no router preloads) → dev seed → tests (incl.
+  leak-test ratchet) → `/ui-validation` + `/api-validation` → docs. Sequenced
+  to match the hooks, so following it never trips one.
 - **`skills/ui-validation/`** — headless-browser validation loop for
   presentation changes (Postgres + seed + MOCK_DISCORD login + Playwright);
   the only way to exercise client-side Vue/Quasar slot templates.
+- **`skills/api-validation/`** — the API counterpart: boots the real server,
+  seeds, and drives endpoints with the deterministic seeded bearer tokens —
+  401/403/404 matrix, response shape, and the cross-tenant-404 live leak
+  probe that in-process ASGITransport tests can't exercise end to end.
 - **`agents/architecture-reviewer.md`** — a read-only review subagent for the
   **judgment** calls the mechanical hooks can't make: business logic at the
   wrong layer altitude, tenant-scoping *semantics* (missing `tenant_scope` in
-  workers, unjustified cross-tenant reads), audit/event coverage gaps, error
-  contract, NiceGUI shared-state pitfalls, missing leak tests/seed rows. Use
-  after a cross-layer feature or before committing; it reports, never edits.
+  workers, unjustified cross-tenant reads), audit/event coverage gaps,
+  shared-primitive drift (admin tabs off `admin_crud.py`, workers off
+  `run_worker_loop` or missing their feature-flag skip, cloned OAuth
+  providers), error contract incl. the toast convention, NiceGUI shared-state
+  pitfalls, missing leak tests/seed rows. Use after a cross-layer feature or
+  before committing; it reports, never edits.
+- **`commands/code-quality-audit.md`** — `/code-quality-audit` re-runs the
+  whole-codebase DRY & engineering-practices audit that produced
+  `docs/reviews/2026-07-code-quality-audit.md`: fan-out per-section reviewers,
+  adversarial reconciliation, a report in `docs/reviews/`, leverage-ordered
+  remediation waves, and recurring mechanical classes fed back into hooks
+  (`check_dry_regressions.py` is that loop's output).
 
 ---
 
