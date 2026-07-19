@@ -29,7 +29,7 @@ _STATUS_LABELS = {
 def create() -> None:
     @protected_page('/equipment/{asset_id}', feature=FeatureFlag.EQUIPMENT)
     async def equipment_detail(asset_id: int) -> None:
-        ui.page_title('Speedgaming Live Onsite - Equipment')
+        ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Equipment')
         # get_user_from_discord_id enforces is_active so a deactivated user
         # cannot keep reading asset owner labels / manager-only private notes.
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))

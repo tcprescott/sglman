@@ -257,7 +257,7 @@ class WebPushService:
                 return
             await self._send_to_subscriptions(
                 subscriptions,
-                title='SGL On Site',
+                title='Wizzrobe',
                 body=self._plain_text(message),
             )
         except Exception:

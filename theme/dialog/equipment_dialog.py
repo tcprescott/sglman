@@ -8,7 +8,7 @@ from application.services import EquipmentService, UserService
 from models import Equipment, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
-_SGL_OWNER = ''  # empty owner value ⇒ owned by SpeedGaming Live
+_WIZ_OWNER = ''  # empty owner value ⇒ owned by Wizzrobe
 
 
 class EquipmentDialog:
@@ -31,12 +31,12 @@ class EquipmentDialog:
         is_edit = self.equipment is not None
 
         users = await UserService().get_all_users()
-        owner_options = {_SGL_OWNER: 'SpeedGaming Live'}
+        owner_options = {_WIZ_OWNER: 'Wizzrobe'}
         owner_options.update({str(u.id): u.preferred_name for u in users})
         current_owner = (
             str(self.equipment.owner_user_id)
             if is_edit and self.equipment.owner_user_id
-            else _SGL_OWNER
+            else _WIZ_OWNER
         )
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):

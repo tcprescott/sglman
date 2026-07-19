@@ -30,25 +30,25 @@ def _fill(template: str, *, admin_controls: bool, can_crud: bool,
 
 # --- Static pass-through slots (flash-aware) -------------------------------
 
-ID_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+ID_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
 </q-td>'''
 
 # Plain id for viewers without an edit callback (e.g. proctors) — a link that
 # emits an unhandled event reads as broken.
-ID_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+ID_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <span class="cell-id">{{ props.value }}</span>
 </q-td>'''
 
-TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     {{ props.value }}
 </q-td>'''
 
-SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <span class="cell-time">{{ props.value }}</span>
 </q-td>'''
 
-WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <q-btn :icon="props.row._watching ? 'notifications' : 'notifications_none'"
            :color="props.row._watching ? 'primary' : 'grey'"
            size="sm" flat round
@@ -57,7 +57,7 @@ WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' 
     </q-btn>
 </q-td>'''
 
-SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <q-btn v-if="props.row.tournament_seed_generator && !props.value"
            :loading="props.row._generating_seed"
            :disabled="props.row._generating_seed"
@@ -67,7 +67,7 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' :
     </q-btn>
     <span v-if="props.value">
         <template v-if="/^https?:\\/\\//.test(props.value)">
-            <a :href="props.value" target="_blank" style="color: var(--sgl-link); text-decoration: underline;" :title="props.value">
+            <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">
                 {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
             </a>
         </template>
@@ -75,7 +75,7 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' :
     </span>
 </q-td>'''
 
-STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <!-- Scheduled state: show Check In button (on-site only; racetime rooms
          drive the lifecycle, so racetime matches show a note instead) -->
     <div v-if="props.value === 'Scheduled'" style="display: flex; justify-content: center;">
@@ -138,15 +138,15 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' 
     <span v-else>{{ props.value }}</span>
 </q-td>'''
 
-STREAM_ROOM_ADMIN_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+STREAM_ROOM_ADMIN_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <q-btn v-if="!props.value && !props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
            icon="movie" color="primary" size="sm">
         Assign
     </q-btn>
     <template v-else>
-        <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.value }}</a>
+        <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
         <span v-else-if="props.value">{{ props.value }}</span>
-        <span v-if="props.row.is_stream_candidate && !props.value" class="sgl-chip sgl-chip--candidate q-ml-xs">candidate</span>
+        <span v-if="props.row.is_stream_candidate && !props.value" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
         <q-btn v-if="!props.value && props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
                icon="movie" color="primary" size="sm" class="q-ml-xs">
             Assign
@@ -154,8 +154,8 @@ STREAM_ROOM_ADMIN_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl
     </template>
 </q-td>'''
 
-STREAM_ROOM_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
-    <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.value }}</a>
+STREAM_ROOM_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
     <span v-else-if="props.value">{{ props.value }}</span>
     <span v-else>-</span>
 </q-td>'''
@@ -164,10 +164,10 @@ STREAM_ROOM_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? '
 # Read-only seed cell (no Generate button) — the variant the home schedule /
 # player dashboards embed via ``extra_slots``. Identical to ``SEED_SLOT`` minus
 # the roll button, so a viewer without a roll callback sees the value only.
-SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <span v-if="props.value">
         <template v-if="/^https?:\\/\\//.test(props.value)">
-            <a :href="props.value" target="_blank" style="color: var(--sgl-link); text-decoration: underline;" :title="props.value">
+            <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">
                 {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
             </a>
         </template>
@@ -182,7 +182,7 @@ SEED_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row
 # renders an icon + timestamp (``scheduled_detailed=True``); the player board
 # renders a plain label (``scheduled_detailed=False``). Everything else matches
 # byte-for-byte so pages can drop their inline templates.
-_STATE_READONLY_HEAD = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+_STATE_READONLY_HEAD = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
                 <!-- Confirmed state -->
                 <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
@@ -248,7 +248,7 @@ def state_readonly_slot(*, scheduled_detailed: bool = True) -> str:
 
 # Players: station shown only for admins; the self-acknowledge button and the
 # Assign-Stations button are mutually exclusive across the variants.
-PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div style="display: flex; align-items: center; gap: 8px;">
         <div>
             <template v-for="(player, idx) in props.value">
@@ -284,7 +284,7 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash
 
 # Crew (commentators/trackers): admins get a clickable approval link (only when
 # can_crud), everyone else a plain name; non-admins get signup/undo + self-ack.
-CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div class="wrap">
         <div v-if="!__IA__" style="margin-bottom: 6px;">
             <q-btn v-if="props.value && props.value.some(item => item.discord_id == __DID__)"

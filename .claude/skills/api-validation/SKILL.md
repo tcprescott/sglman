@@ -32,8 +32,8 @@ The seed creates two bearer tokens **per tenant** (slugs `default` and
 
 | Token | Access |
 |---|---|
-| `sglman_pat_devseed_<slug>_local_only_do_not_use` | staff, read-write |
-| `sglman_pat_devseedro_<slug>_local_only_do_not` | read-only |
+| `wizzrobe_pat_devseed_<slug>_local_only_do_not_use` | staff, read-write |
+| `wizzrobe_pat_devseedro_<slug>_local_only_do_not` | read-only |
 
 Base URL is `http://127.0.0.1:8000/api` — **no `/t/<slug>` prefix**: the API
 is excluded from `TenantMiddleware` and derives its tenant from the token
@@ -41,9 +41,9 @@ is excluded from `TenantMiddleware` and derives its tenant from the token
 tokens are how you probe tenant behavior.
 
 ```bash
-RW="Authorization: Bearer sglman_pat_devseed_default_local_only_do_not_use"
-RO="Authorization: Bearer sglman_pat_devseedro_default_local_only_do_not"
-B="Authorization: Bearer sglman_pat_devseed_second_local_only_do_not_use"
+RW="Authorization: Bearer wizzrobe_pat_devseed_default_local_only_do_not_use"
+RO="Authorization: Bearer wizzrobe_pat_devseedro_default_local_only_do_not"
+B="Authorization: Bearer wizzrobe_pat_devseed_second_local_only_do_not_use"
 
 curl -s -H "$RW" http://127.0.0.1:8000/api/matches | python3 -m json.tool
 ```

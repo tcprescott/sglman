@@ -60,7 +60,7 @@ room→tenant routing.
   `record_connection_failure`, auth-vs-transient handling, capped exponential
   backoff, reauthorize task; note it explicitly disables auto-`refresh_races` and
   joins rooms only on demand — do the same).
-- **sglman**: `main.py` (`init_discord_bot` lifespan task pattern, done-callback
+- **wizzrobe**: `main.py` (`init_discord_bot` lifespan task pattern, done-callback
   error surfacing), `application/tenant_context.py` (`tenant_scope`),
   `application/events/`.
 

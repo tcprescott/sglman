@@ -24,9 +24,9 @@ class Match(Model):
     )
     # Source marker for the SpeedGaming ETL (PR 7). Non-null = this Match was
     # materialized from an SG episode, which makes the ETL-owned fields
-    # (``scheduled_at``, players, ``tournament``) read-only in SGLMan — the guard
+    # (``scheduled_at``, players, ``tournament``) read-only in Wizzrobe — the guard
     # lives in ``MatchService.update_match``. SET_NULL so purging a synced episode
-    # soft-detaches the Match (everything SGLMan added on top survives) rather
+    # soft-detaches the Match (everything Wizzrobe added on top survives) rather
     # than cascade-deleting it. OneToOne: an episode maps to exactly one Match.
     speedgaming_episode = fields.OneToOneField(
         'models.SpeedGamingEpisode', related_name='match', null=True, on_delete=fields.SET_NULL

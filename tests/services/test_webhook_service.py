@@ -156,10 +156,10 @@ class TestDelivery:
         assert len(fake.calls) == 1
         call = fake.calls[0]
         body = call['content']
-        ts = call['headers']['X-SGL-Timestamp']
+        ts = call['headers']['X-Wizzrobe-Timestamp']
         expected = hmac.new(b'shhh', f'{ts}.{body}'.encode(), hashlib.sha256).hexdigest()
-        assert call['headers']['X-SGL-Signature'] == f'sha256={expected}'
-        assert call['headers']['X-SGL-Event'] == EventType.MATCH_CREATED
+        assert call['headers']['X-Wizzrobe-Signature'] == f'sha256={expected}'
+        assert call['headers']['X-Wizzrobe-Event'] == EventType.MATCH_CREATED
         assert json.loads(body)['data'] == {'match_id': 5}
 
         delivery = await WebhookDelivery.get(webhook=webhook)
@@ -242,4 +242,4 @@ class TestFormatReference:
         for header in WebhookService.format_reference()['headers']:
             assert header['name'] in sent
         assert sent['Content-Type'] == 'application/json'
-        assert sent['User-Agent'] == 'sglman-webhook'
+        assert sent['User-Agent'] == 'wizzrobe-webhook'

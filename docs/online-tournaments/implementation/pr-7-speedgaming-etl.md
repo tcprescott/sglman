@@ -3,7 +3,7 @@
 > Feature 4. Roadmap phase 5. Independent of the racetime track — parallelizable.
 > sahabot2 has a **working implementation of this**; port it faithfully.
 
-**Goal:** synchronize SG episodes into SGLMan `Match` rows one-way, resolving players
+**Goal:** synchronize SG episodes into Wizzrobe `Match` rows one-way, resolving players
 via placeholder users, with the hybrid read-only contract.
 
 **Depends on:** PR 0. **Unblocks:** PR 8 (Discord events consume SG-imported matches).
@@ -47,7 +47,7 @@ One-way sync; placeholder users; hybrid read-only; system-user actor; `SYNC_ADMI
   skip), `speedgaming_service.py` (SG API client, windowed fetch, `content_type`
   override), `models/user.py` (placeholder pattern + CHECK constraint),
   `models/match_schedule.py` (`Match.speedgaming_episode_id`).
-- **sglman**: `application/services/match_service.py` (update_match guard point),
+- **wizzrobe**: `application/services/match_service.py` (update_match guard point),
   `application/repositories/_tenant.py`.
 
 ## Acceptance criteria

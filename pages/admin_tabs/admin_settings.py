@@ -137,7 +137,7 @@ async def admin_stream_rooms_page() -> None:
                 columns=columns,
                 rows=[],
                 row_key='id',
-            ).classes('w-full sgl-table')
+            ).classes('w-full wiz-table')
             
             # Enable grid mode for mobile using Quasar's screen detection
             table.props(':grid="Quasar.Screen.lt.md"')
@@ -163,7 +163,7 @@ async def admin_stream_rooms_page() -> None:
                     <q-td v-for="col in props.cols" :key="col.name" :props="props">
                         <template v-if="col.name === 'id'">
                             <a href="javascript:void(0)" @click="$parent.$emit('edit', props.row)" 
-                               style="color: var(--sgl-link); text-decoration: underline; cursor: pointer;">
+                               style="color: var(--wiz-link); text-decoration: underline; cursor: pointer;">
                                 {{ col.value }}
                             </a>
                         </template>
@@ -206,7 +206,7 @@ async def admin_stream_rooms_page() -> None:
                         <q-card-section class="q-pa-sm" v-if="props.row.stream_url">
                             <div class="text-caption text-grey-7">Stream URL:</div>
                             <a :href="props.row.stream_url" target="_blank"
-                               style="color: var(--sgl-link); text-decoration: underline; word-break: break-all;">
+                               style="color: var(--wiz-link); text-decoration: underline; word-break: break-all;">
                                 {{ props.row.stream_url }}
                             </a>
                         </q-card-section>

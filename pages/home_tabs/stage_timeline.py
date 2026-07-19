@@ -113,7 +113,7 @@ async def stage_timeline_tab():
             """Render a single match card in the timeline."""
             # Determine match status
             status_text = 'Finished' if match.is_finished else 'In Progress' if match.is_seated else 'Scheduled'
-            chip_class = 'sgl-chip--ok' if match.is_finished else 'sgl-chip--live' if match.is_seated else 'sgl-chip--neutral'
+            chip_class = 'wiz-chip--ok' if match.is_finished else 'wiz-chip--live' if match.is_seated else 'wiz-chip--neutral'
 
             # Determine border class
             border_class = 'border-left-green' if match.is_finished else 'border-left-blue' if match.is_seated else 'border-left-gray'
@@ -125,7 +125,7 @@ async def stage_timeline_tab():
                     ui.label(time_str).classes('match-time')
 
                     # Status badge
-                    ui.label(status_text).classes(f'match-badge sgl-chip {chip_class}')
+                    ui.label(status_text).classes(f'match-badge wiz-chip {chip_class}')
 
                     # Tournament name
                     if match.tournament:

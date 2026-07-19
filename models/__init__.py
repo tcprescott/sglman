@@ -1,4 +1,4 @@
-"""Tortoise ORM models for SGL On Site.
+"""Tortoise ORM models for Wizzrobe.
 
 Historically a single ``models.py``; split into cohesive per-domain submodules
 once it outgrew the file-length budget. Every model and enum is re-exported here

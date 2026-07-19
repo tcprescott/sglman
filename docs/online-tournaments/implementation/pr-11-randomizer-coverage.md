@@ -38,7 +38,7 @@ tournament using it is pure config.
 
 - **SahasrahBot** `alttprbot/services/seedgen/` (the authoritative backend set +
   mystery weightset logic); **sahabot2** `randomizer` handling per game.
-- **sglman**: `application/services/seedgen_service.py` (existing
+- **wizzrobe**: `application/services/seedgen_service.py` (existing
   `_generate_alttpr`/`_generate_ootr`/`_generate_smmap` as the pattern to copy).
 
 ## Acceptance criteria

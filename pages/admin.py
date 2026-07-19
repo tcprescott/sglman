@@ -4,7 +4,7 @@ from fastapi import Request
 from nicegui import app, ui
 from middleware.auth import protected_tab_page
 
-from application.services import AuthService, FeatureFlagService, get_user_from_discord_id
+from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
 from models import FeatureFlag, Role
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
@@ -48,7 +48,7 @@ def create() -> None:
         category: str = None,
         page: int = None,
     ) -> None:
-        ui.page_title('Speedgaming Live Onsite - Admin Dashboard')
+        ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.row():

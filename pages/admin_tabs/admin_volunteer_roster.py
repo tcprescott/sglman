@@ -58,7 +58,7 @@ async def admin_volunteer_roster_page() -> None:
             columns=_COLUMNS,
             rows=[],
             row_key='id',
-        ).classes('full-width sgl-table').props(':grid="Quasar.Screen.lt.md"')
+        ).classes('full-width wiz-table').props(':grid="Quasar.Screen.lt.md"')
 
         # --- Desktop cell slots ---
 

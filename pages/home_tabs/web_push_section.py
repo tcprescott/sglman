@@ -85,7 +85,7 @@ async def render_web_push_section(user: User) -> None:
         error = args.get('error')
         if error == 'ios_needs_install':
             ui.notify(
-                'On iPhone/iPad, first add SGL On Site to your Home Screen '
+                'On iPhone/iPad, first add Wizzrobe to your Home Screen '
                 '(Share → Add to Home Screen), then enable notifications from the installed app.',
                 color='warning', multi_line=True,
             )
@@ -134,8 +134,8 @@ async def render_web_push_section(user: User) -> None:
         if removed:
             device_list.refresh()
 
-    ui.on('sgl_web_push_subscribed', on_subscribed)
-    ui.on('sgl_web_push_unsubscribed', on_unsubscribed)
+    ui.on('wiz_web_push_subscribed', on_subscribed)
+    ui.on('wiz_web_push_unsubscribed', on_unsubscribed)
 
     public_key = service.get_public_key()
 
@@ -151,8 +151,8 @@ async def render_web_push_section(user: User) -> None:
                 'click',
                 js_handler=(
                     'async () => {'
-                    f'const result = await window.sglWebPush.subscribe({json.dumps(public_key)});'
-                    "emitEvent('sgl_web_push_subscribed', result);"
+                    f'const result = await window.wizWebPush.subscribe({json.dumps(public_key)});'
+                    "emitEvent('wiz_web_push_subscribed', result);"
                     '}'
                 ),
             )
@@ -160,8 +160,8 @@ async def render_web_push_section(user: User) -> None:
                 'click',
                 js_handler=(
                     'async () => {'
-                    'const result = await window.sglWebPush.unsubscribe();'
-                    "emitEvent('sgl_web_push_unsubscribed', result);"
+                    'const result = await window.wizWebPush.unsubscribe();'
+                    "emitEvent('wiz_web_push_unsubscribed', result);"
                     '}'
                 ),
             )

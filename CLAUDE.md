@@ -1,6 +1,6 @@
-# SGL On Site - Claude Development Guide
+# Wizzrobe - Claude Development Guide
 
-SGL On Site is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for speedgaming live events. It uses Tortoise ORM with PostgreSQL, integrates with Discord for auth and notifications, and runs as a single Docker container.
+Wizzrobe is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for Wizzrobe events. It uses Tortoise ORM with PostgreSQL, integrates with Discord for auth and notifications, and runs as a single Docker container.
 
 This file is the lean, always-loaded guide: the behavioral rules to follow on every task. For anything expository (tech stack, full directory map, models, env vars, routes, workflows), read the docs below rather than guessing.
 
@@ -154,4 +154,4 @@ Fetch the authoritative API surface from `nicegui/llms.md` inside the installed 
 - **Never block the event loop** — all users share one loop. Use `async with httpx.AsyncClient()` (not `requests`) and `await asyncio.sleep()` (not `time.sleep()`).
 - **Use `@ui.refreshable`** for dynamic sections; call `.refresh()` after data changes instead of rebuilding the page.
 - **Module-level variables are shared across all users** — never store per-user state at module level; use `app.storage.user` or locals inside the `@ui.page` function.
-- **Every `ui.table` needs a mobile card view** — a bare table overflows a phone and hides its row-action buttons off-screen. Call `enable_mobile_grid(table, columns, actions=…, field_slots=…)` (`from theme.tables.mobile_grid import enable_mobile_grid`) right after building the table; it adds `:grid="Quasar.Screen.lt.md"` + a `.sgl-grid-card` `item` slot. The four family tables (match/user/tournament/equipment) keep bespoke `item` slots; a table that must stay a table opts out with a `# mobile-grid: exempt` comment. The `check_table_grid` hook enforces this. Detail: [docs/reference/frontend.md](docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
+- **Every `ui.table` needs a mobile card view** — a bare table overflows a phone and hides its row-action buttons off-screen. Call `enable_mobile_grid(table, columns, actions=…, field_slots=…)` (`from theme.tables.mobile_grid import enable_mobile_grid`) right after building the table; it adds `:grid="Quasar.Screen.lt.md"` + a `.wiz-grid-card` `item` slot. The four family tables (match/user/tournament/equipment) keep bespoke `item` slots; a table that must stay a table opts out with a `# mobile-grid: exempt` comment. The `check_table_grid` hook enforces this. Detail: [docs/reference/frontend.md](docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).

@@ -55,7 +55,7 @@ tenant; `RacetimeRoom` as its own model; secrets stay platform-level.
   + `BotStatus`), `models/racetime_room.py`, `models/race_room_profile.py`,
   `application/services/racetime/racetime_bot_service.py` (CRUD, assign/unassign,
   `restart_bot`), `.../race_room_profile_service.py`.
-- **sglman**: `pages/platform.py` (super-admin surface),
+- **wizzrobe**: `pages/platform.py` (super-admin surface),
   `application/services/discord_link_service.py` (verified-authorization pattern),
   `application/services/challonge_service.py` (secret handling — never log/return).
 

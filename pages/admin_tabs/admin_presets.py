@@ -172,7 +172,7 @@ async def admin_presets_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS)

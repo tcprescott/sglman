@@ -1,6 +1,6 @@
-"""SpeedGaming ETL service (PR 7) — one-way SG → SGLMan schedule sync.
+"""SpeedGaming ETL service (PR 7) — one-way SG → Wizzrobe schedule sync.
 
-Ported from sahabot2's ``speedgaming_etl_service``, adapted to SGLMan's
+Ported from sahabot2's ``speedgaming_etl_service``, adapted to Wizzrobe's
 three-layer + multitenant shape. The pipeline is:
 
 - **extract** — the sync worker polls the SG schedule API per active event link
@@ -83,7 +83,7 @@ class SyncResult:
 
 
 class SpeedGamingETLService:
-    """Extract/transform/load SpeedGaming episodes into SGLMan ``Match`` rows."""
+    """Extract/transform/load SpeedGaming episodes into Wizzrobe ``Match`` rows."""
 
     def __init__(self, client: Optional[SpeedGamingClient] = None) -> None:
         self.client = client or get_speedgaming_client()
@@ -367,7 +367,7 @@ class SpeedGamingETLService:
         """Soft-detach episodes that vanished upstream since the last sync.
 
         A previously-synced episode absent from the current window is marked
-        CANCELLED — its ``Match`` and everything SGLMan added survive; only the
+        CANCELLED — its ``Match`` and everything Wizzrobe added survive; only the
         staging row's status changes (the ETL-owned fields freeze at last value).
         """
         cancelled = 0
@@ -425,7 +425,7 @@ class SpeedGamingETLService:
         """Flatten SG ``match1``/``match2`` player lists into one list.
 
         SG models a head-to-head as ``match1``/``match2`` (each a side that may be
-        a team); the SGLMan bracket match is the union of their players.
+        a team); the Wizzrobe bracket match is the union of their players.
         """
         players: List[Dict[str, Any]] = []
         for side_key in ('match1', 'match2'):

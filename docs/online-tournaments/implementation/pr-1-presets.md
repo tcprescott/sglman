@@ -45,7 +45,7 @@ User-managed presets (DB rows, UI-authored); hybrid config; `PRESET_MANAGER` rol
 - **sahabot2**: `models/*` `RandomizerPreset` + `Tournament.randomizer_preset` FK +
   `preset_selection_rules` JSON (per-match conditional preset choice — a later
   extension, not required now).
-- **sglman**: `application/services/seedgen_service.py` (dispatch + per-randomizer
+- **wizzrobe**: `application/services/seedgen_service.py` (dispatch + per-randomizer
   generators), `theme/dialog/tournament_edit_dialog.py` (seed-generator select),
   `application/services/match_schedule_service.py:generate_seed`.
 

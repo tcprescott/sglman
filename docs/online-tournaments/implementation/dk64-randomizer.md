@@ -7,7 +7,7 @@
 > are built and tested; reference behavior lives in
 > [seed-generation.md](../../reference/seed-generation.md#dk64r). Two data
 > prerequisites remain before it can go live in production — the issued
-> `DK64R_API_KEY` and the real SGL settings string to replace the placeholder in
+> `DK64R_API_KEY` and the real Wizzrobe settings string to replace the placeholder in
 > `presets/dk64r/sgl.json` (the two [open questions](#open-questions)).
 
 **Goal:** promote the registered `dk64r` stub
@@ -32,7 +32,7 @@ which requires **either** a `Referer` on the allowlist
 (`https://dk64randomizer.com/`, `https://dev.dk64randomizer.com/`) **or** a
 valid **`X-API-Key`** header (keys provisioned server-side in
 `api_keys.cfg`). The browser client passes silently via its referer; a
-server-to-server caller like SGLMan must send an API key issued by the DK64R
+server-to-server caller like Wizzrobe must send an API key issued by the DK64R
 team. Never spoof the referer — request a key (see open questions).
 
 | Endpoint | Used by us | Contract (verified) |
@@ -41,7 +41,7 @@ team. Never spoof the referer — request a key (see open questions).
 | `POST /submit-task` | yes | Body `{"settings_data": "<settings JSON, as a string>"}` → `{task_id, status: "queued", priority}`. Priority is keyed on caller IP: first submission, or >300 s since the last, goes to the **High** queue; anything sooner goes to **Low**. `400` = missing `settings_data`/wrong content type. |
 | `GET /task-status/{task_id}` | yes | Statuses: `queued` (with integer `position`), `started`, `finished`. On `finished`, `result` is an **object** (the swagger's `type: string` is wrong): `{"patch": <base64 zip>, "hash": <in-game visual hash>, "seed_number": <int>, "password"?: ...}` from the worker's `generate_seed`. A crashed task returns **HTTP 500** with the exception text; the web client also defends against a `failed` status inside a 200, so handle both. `404` = unknown task. The client polls every 5 s. |
 | `GET /get_seed?hash=` | no | Serves `generated_seeds/<hash>.lanky` — the `hash` parameter is matched against the **filename**, and the worker stores files by **`seed_number`**. So the "hash"/"seed id" in URLs is `result["seed_number"]`, not `result["hash"]` (the visual in-game hash). We never fetch the file; the permalink below makes the site do it. |
-| `GET /get_spoiler_log?hash=` | no (v1) | Spoiler log JSON, gated by an `Unlock Time` field the worker writes into the stored log: `425` until it passes. Out of scope — SGLMan stores no spoiler for any backend. |
+| `GET /get_spoiler_log?hash=` | no (v1) | Spoiler log JSON, gated by an `Unlock Time` field the worker writes into the stored log: `425` until it passes. Out of scope — Wizzrobe stores no spoiler for any backend. |
 | `GET /current_total` | probe only | Total-seeds counter. **The only undecorated endpoint** — the health-probe target that works without a credential. |
 | `GET /get_version`, `GET /get_presets`, `GET /get_selector_info` | no | Version / site preset list (each entry: `name`, `description`, `settings_string`) / settings-UI metadata. All key-gated. Notable: the site's own presets travel as **settings strings**, confirming that format as the portable one. |
 
@@ -109,7 +109,7 @@ user-surfaceable failures):
    (A `dev`-branch preset returns the `dev.dk64randomizer.com` host to match.)
 
 Spoiler behavior is left to the preset payload (**trust the preset** —
-consistent with every other backend); SGLMan does not rewrite
+consistent with every other backend); Wizzrobe does not rewrite
 `generate_spoilerlog` / `delayed_spoilerlog_release`.
 
 The inline await is deliberate: `MatchScheduleService.generate_seed` already
@@ -154,8 +154,8 @@ the worker turns it into the stored log's `Unlock Time`:
 - false + no delay → locked ~5 years (effectively never).
 
 Race-safety therefore lives in the **preset payload**, authored by the tenant
-— consistent with every other backend, where SGLMan trusts the preset rather
-than rewriting settings. Whether SGLMan should nonetheless force-override the
+— consistent with every other backend, where Wizzrobe trusts the preset rather
+than rewriting settings. Whether Wizzrobe should nonetheless force-override the
 spoiler keys on every roll is an open question.
 
 ## Design brief (per /plan-feature)
@@ -243,7 +243,7 @@ must land together.
 - **Env/config** — `DK64R_API_KEY` documented in
   [deployment.md](../../deployment.md) + `.env.example` and added to the
   deployment environment once issued.
-- **Built-in preset** — `presets/dk64r/<name>.json` with the SGL community
+- **Built-in preset** — `presets/dk64r/<name>.json` with the Wizzrobe community
   settings (payload pending). `PresetService.import_builtins` discovers it
   automatically (`dk64r` is already in `AVAILABLE_RANDOMIZERS`).
 - **Repository / bot** — none.
@@ -313,7 +313,7 @@ and the server source (`controller/app.py`, `worker/tasks.py`):
   files by `seed_number` (`result["hash"]` is the in-game visual hash, not
   the identifier).
 - **Authentication** — required for everything except `/current_total`:
-  allowlisted `Referer` (browser) or `X-API-Key` (server-to-server). SGLMan
+  allowlisted `Referer` (browser) or `X-API-Key` (server-to-server). Wizzrobe
   needs an issued key → `DK64R_API_KEY`.
 - **Priority queue** — IP-keyed 300 s cooldown: first/spaced submissions go
   High, rapid ones go Low. Matters for bulk qualifier rolls.
@@ -328,23 +328,23 @@ and the server source (`controller/app.py`, `worker/tasks.py`):
 
 - **Feature flag: yes** — `DK64_RANDOMIZER`, per the API-key principle in §1
   (also gates the roll, not just selection).
-- **Spoiler policy: trust the preset** — no SGLMan override.
+- **Spoiler policy: trust the preset** — no Wizzrobe override.
 - **Branch: per-preset `_branch` override** — default `stable`, opt into `dev`.
-- **API key: SGL will obtain one** — `DK64R_API_KEY`; hard prerequisite to
+- **API key: Wizzrobe will obtain one** — `DK64R_API_KEY`; hard prerequisite to
   go live.
 
 ## Open questions
 
-1. **API key provisioning.** SGL is obtaining an `X-API-Key` from the DK64R
+1. **API key provisioning.** Wizzrobe is obtaining an `X-API-Key` from the DK64R
    team (server-side `api_keys.cfg`). Two things to confirm while requesting
    it: (a) any usage policy that should be reflected in the flag's
    description/agreement copy, and (b) whether key-holders bypass the IP
    cooldown — otherwise a bulk qualifier "roll N" puts every seed after the
-   first in the Low-priority queue from SGL's single server IP.
+   first in the Low-priority queue from Wizzrobe's single server IP.
 2. **Built-in preset payload.** `presets/dk64r/sgl.json` is committed with a
-   **placeholder** `settings_string` (`REPLACE_WITH_SGL_DK64_SETTINGS_STRING`);
+   **placeholder** `settings_string` (`REPLACE_WITH_WIZZROBE_DK64_SETTINGS_STRING`);
    the dev seed's `DK64 Community` preset carries the same placeholder. Dev rolls
-   go through `MOCK_SEEDGEN` and never send it. Replace it with the real SGL
+   go through `MOCK_SEEDGEN` and never send it. Replace it with the real Wizzrobe
    community settings string (copy-pasted from dk64randomizer.com) before
    enabling the flag in production.
 

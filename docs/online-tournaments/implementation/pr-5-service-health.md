@@ -49,7 +49,7 @@ subset; alert on down/auth-fail.
 
 ## Reference implementations
 
-- **sglman**: the existing `/health` endpoint (DB round-trip) as the Postgres probe
+- **wizzrobe**: the existing `/health` endpoint (DB round-trip) as the Postgres probe
   seed; `application/services/challonge_service.py` (token expiry); Sentry util;
   `pages/platform.py`; `application/events/` for alert publishing.
 - **sahabot2**: `RacetimeBot.status` / `is_healthy()` as the racetime probe input.

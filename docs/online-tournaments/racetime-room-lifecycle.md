@@ -4,7 +4,7 @@
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
 
-**SGLMan owns the full lifecycle of a racetime.gg race room** for a scheduled
+**Wizzrobe owns the full lifecycle of a racetime.gg race room** for a scheduled
 match — from creation through the race finishing or being cancelled — rather than
 delegating any of it to SahasrahBot or to staff clicking through racetime.gg by
 hand. This is the piece that makes an online scheduled bracket actually run, and it
@@ -115,7 +115,7 @@ one-off regardless of the toggle.
 `RaceRoomService` (in `application/services/`) is the business layer the handlers
 and the auto-open worker both call. The room's lifecycle, mapped onto the `Match`:
 
-| Room event | SGLMan action |
+| Room event | Wizzrobe action |
 |---|---|
 | **Create** (worker, on schedule) | open the racetime room from tournament config; store its slug + state on the `Match`; invite/announce to enrolled players |
 | **Open → entrants join** | track readiness; surface room status on the match's web/admin views |

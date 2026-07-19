@@ -292,7 +292,7 @@ class TestDelivery:
         assert payload['web_push'] == 8030
         # Template bold is stripped, but literal __ in names must survive.
         assert payload['notification']['body'] == 'Match scheduled today for player__one!'
-        assert payload['notification']['title'] == 'SGL On Site'
+        assert payload['notification']['title'] == 'Wizzrobe'
         assert payload['notification']['navigate']
 
         stored = await WebPushSubscription.get(endpoint=ENDPOINT)

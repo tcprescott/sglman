@@ -18,7 +18,7 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 
 MSG_NO_ACCOUNT = (
-    'You do not have an SGL On Site account. Please log in at the website first.'
+    'You do not have an Wizzrobe account. Please log in at the website first.'
 )
 MSG_UNEXPECTED_ERROR_MATCH = (
     'An unexpected error occurred. Please try again or use the website to acknowledge.'

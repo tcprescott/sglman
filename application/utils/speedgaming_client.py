@@ -2,7 +2,7 @@
 
 A thin async wrapper over the one SG endpoint the ETL needs: the public schedule
 feed at ``https://speedgaming.org/api/schedule``. It returns the **raw** episode
-dicts SG serves; normalization into SGLMan's shape happens in the ETL service, so
+dicts SG serves; normalization into Wizzrobe's shape happens in the ETL service, so
 this layer stays a pure transport.
 
 ``MOCK_SPEEDGAMING`` swaps in :class:`MockSpeedGamingClient`, a deterministic

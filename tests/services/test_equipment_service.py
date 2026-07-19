@@ -136,7 +136,7 @@ class TestOwnerLabel:
         owner = await _user(2, 'owner', Role.VOLUNTEER)
 
         house = await service.create_asset(manager, name='House asset')
-        assert house.owner_label == 'SpeedGaming Live'
+        assert house.owner_label == 'Wizzrobe'
 
         owned = await service.create_asset(manager, name='Owned asset', owner_user_id=owner.id)
         fetched = await service.get_asset(owned.id)

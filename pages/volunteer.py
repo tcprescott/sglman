@@ -4,7 +4,7 @@ from fastapi import Request
 from nicegui import app, ui
 from middleware.auth import protected_tab_page
 
-from application.services import AuthService, get_user_from_discord_id
+from application.services import AuthService, TenantService, get_user_from_discord_id
 from models import FeatureFlag, Role
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.volunteer_tabs.availability import availability_tab
@@ -16,7 +16,7 @@ def create() -> None:
     @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
                         feature=FeatureFlag.VOLUNTEERS)
     async def volunteer_page(section: str = None, request: Request = None) -> None:
-        ui.page_title('Speedgaming Live Onsite - Volunteer')
+        ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Volunteer')
         discord_id = app.storage.user.get('discord_id', None)
         user = await get_user_from_discord_id(discord_id)
 

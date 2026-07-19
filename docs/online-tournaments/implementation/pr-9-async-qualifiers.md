@@ -66,7 +66,7 @@ threads); reviewers = admins M2M + self-review blocked; `QUALIFIER_ADMIN`; carry
 - **sahabot2**: `modules/async_qualifier/models/async_qualifier.py`,
   `models/async_tournament.py`, `application/services/async_qualifiers/*` (scoring,
   draw, review), the async web blueprint (visibility gating while active).
-- **sglman**: the Tournaments admin tab/dialog + `Tournament.admins` M2M as the
+- **wizzrobe**: the Tournaments admin tab/dialog + `Tournament.admins` M2M as the
   create/administer template; `AuthService` for review authz.
 
 ## Acceptance criteria

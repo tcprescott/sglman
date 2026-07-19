@@ -53,7 +53,7 @@ Live races reuse the racetime subsystem; run statuses shared with the async mode
 - **sahabot2**: `application/services/async_qualifiers/async_live_race_service.py`,
   `models/async_tournament.py` (`AsyncTournamentLiveRace`),
   `components/dialogs/async_qualifiers/create_live_race_dialog.py`.
-- **sglman (this plan)**: PR 4 `racetimebot/`, PR 6 `RaceRoomService` (the same
+- **wizzrobe (this plan)**: PR 4 `racetimebot/`, PR 6 `RaceRoomService` (the same
   finish-capture machinery, targeting runs instead of `MatchPlayers`).
 
 ## Acceptance criteria

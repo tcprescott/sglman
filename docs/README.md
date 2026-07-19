@@ -1,6 +1,6 @@
-# SGLMan Documentation
+# Wizzrobe Documentation
 
-SGLMan (Speedgaming Live Manager) is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for Speedgaming Live events, with Discord OAuth login, an in-process Discord bot for notifications and signups, randomizer seed generation, and PostgreSQL storage.
+Wizzrobe is a FastAPI + NiceGUI application for managing tournament schedules, matches, users, and crew for tournament events, with Discord OAuth login, an in-process Discord bot for notifications and signups, randomizer seed generation, and PostgreSQL storage.
 
 For a quick start (install, run, Docker) see the [root README](../README.md). This page is the index for all developer documentation.
 
@@ -75,9 +75,9 @@ Point-in-time codebase audits — each report names the audited commit, labels f
 
 ## Proposals (not yet implemented)
 
-- [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (dual path-based `/t/<slug>` + custom-domain tenant addressing, platform super-admin surface, one-bot-many-guilds Discord). Design only; no code shipped.
+- [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make Wizzrobe logically multitenant (dual path-based `/t/<slug>` + custom-domain tenant addressing, platform super-admin surface, one-bot-many-guilds Discord). Design only; no code shipped.
 - [host-based-routing-plan.md](host-based-routing-plan.md) — resolving a tenant from its custom `Host` (not just `/t/<slug>`), and how login survives per-host session cookies (the host-local-OAuth vs signed-handoff fork). **Phase 1 (Design A) is implemented** — see [features/multitenancy.md](features/multitenancy.md); the doc is retained as the design record, with Phase 2 (scale-out) still a proposal.
-- [online-tournaments/](online-tournaments/README.md) — phased plan for SGLMan to **succeed [SahasrahBot](https://github.com/tcprescott/sahasrahbot)** as the online tournament platform. An [overview](online-tournaments/README.md) hub (scope, decisions log, roadmap, succession) plus one doc per forward-ported feature: [Async Qualifiers](online-tournaments/async-qualifiers.md), [seed rolling](online-tournaments/seed-rolling.md), [Discord Events sync](online-tournaments/discord-events-sync.md), [SpeedGaming ETL](online-tournaments/speedgaming-etl.md), and [racetime race-room lifecycle](online-tournaments/racetime-room-lifecycle.md). Core principle: tournament logic is **user-definable**, not code-per-tournament. Design only; no code shipped.
+- [online-tournaments/](online-tournaments/README.md) — phased plan for Wizzrobe to **succeed [SahasrahBot](https://github.com/tcprescott/sahasrahbot)** as the online tournament platform. An [overview](online-tournaments/README.md) hub (scope, decisions log, roadmap, succession) plus one doc per forward-ported feature: [Async Qualifiers](online-tournaments/async-qualifiers.md), [seed rolling](online-tournaments/seed-rolling.md), [Discord Events sync](online-tournaments/discord-events-sync.md), [SpeedGaming ETL](online-tournaments/speedgaming-etl.md), and [racetime race-room lifecycle](online-tournaments/racetime-room-lifecycle.md). Core principle: tournament logic is **user-definable**, not code-per-tournament. Design only; no code shipped.
 
 ## Coverage map
 

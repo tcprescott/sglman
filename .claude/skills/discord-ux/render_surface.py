@@ -26,10 +26,10 @@ from application.utils import discord_embeds as e  # noqa: E402
 
 # Representative sample data (two players → "A vs B"; a stage; an Eastern time).
 P = ["Player One", "Player Two"]
-T = "SGL Dev Tournament"
+T = "Wizzrobe Dev Tournament"
 WHEN = "2026-07-19 22:41 EDT"
 STAGE = "Stage 2"
-COMMUNITY = "SGL Dev Community"  # the per-embed footer (which community sent this)
+COMMUNITY = "Wizzrobe Dev Community"  # the per-embed footer (which community sent this)
 # Raw UTC drives the embeds' native <t:unix:F>/<t:unix:R> timestamps (the plain
 # text builders take the pre-formatted Eastern string above instead).
 WHEN_UTC = datetime(2026, 7, 20, 2, 41, tzinfo=timezone.utc)

@@ -20,9 +20,9 @@ To enrich the mock: add guilds to :data:`MOCK_GUILDS`, add roles to a guild's
 from typing import Dict, List, Set
 
 # --- Guild ids (match seed_dev.TENANT_SPECS) --------------------------------
-GUILD_SGL_DEFAULT = 1000000000000000001
+GUILD_WIZ_DEFAULT = 1000000000000000001
 GUILD_SECOND = 1000000000000000002
-DEFAULT_GUILD_ID = GUILD_SGL_DEFAULT
+DEFAULT_GUILD_ID = GUILD_WIZ_DEFAULT
 
 # --- Role ids ---------------------------------------------------------------
 # Mapped to app roles by seed_dev.role_mapping_specs — keep these ids/names.
@@ -38,7 +38,7 @@ ROLE_RESTREAMER = 2000000000000000013
 
 _STANDARD_ROLES: List[Dict[str, object]] = [
     {"id": ROLE_ADMIN, "name": "Admin"},
-    {"id": ROLE_STAFF, "name": "SGL Staff"},
+    {"id": ROLE_STAFF, "name": "Wizzrobe Staff"},
     {"id": ROLE_PROCTOR, "name": "Proctors"},
     {"id": ROLE_STREAM_MANAGER, "name": "Stream Managers"},
     {"id": ROLE_VOLUNTEER, "name": "Volunteers"},
@@ -50,8 +50,8 @@ _STANDARD_ROLES: List[Dict[str, object]] = [
 # owner_id 1 matches the dev seed's first user; member_can_manage_guild treats
 # the owner (and Admin/Manage-Server holders) as able to manage the server.
 MOCK_GUILDS: Dict[int, dict] = {
-    GUILD_SGL_DEFAULT: {
-        "name": "SGL Default",
+    GUILD_WIZ_DEFAULT: {
+        "name": "Wizzrobe Default",
         "owner_id": 1,
         "roles": [dict(r) for r in _STANDARD_ROLES],
     },

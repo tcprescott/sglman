@@ -74,10 +74,10 @@ class TestMockDiscordService:
         # role sync actually grants/revokes. Everyone is at least a Volunteer.
         from application.utils import mock_discord_data as mdd
 
-        ok, data = await mock_svc.get_member_role_ids(guild_id=mdd.GUILD_SGL_DEFAULT, user_id=2)
+        ok, data = await mock_svc.get_member_role_ids(guild_id=mdd.GUILD_WIZ_DEFAULT, user_id=2)
         assert ok is True
         assert isinstance(data, set)
-        assert data <= {r['id'] for r in mdd.roles_for(mdd.GUILD_SGL_DEFAULT)}
+        assert data <= {r['id'] for r in mdd.roles_for(mdd.GUILD_WIZ_DEFAULT)}
         assert mdd.ROLE_VOLUNTEER in data
 
     def test_get_bot_returns_none(self, mock_svc):

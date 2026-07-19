@@ -1,4 +1,4 @@
-# Timezone Handling in SGLMan
+# Timezone Handling in Wizzrobe
 
 ## Overview
 

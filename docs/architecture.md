@@ -1,6 +1,6 @@
-# SGLMan System Architecture
+# Wizzrobe System Architecture
 
-SGLMan (Speedgaming Live Manager) is a web application for running Speedgaming Live tournament events: scheduling matches, enrolling players, coordinating commentators and trackers, assigning stream stages, generating randomizer seeds, and notifying everyone over Discord. It is a single Python process that serves a NiceGUI web UI, a small public REST API, and an in-process Discord bot, backed by PostgreSQL.
+Wizzrobe is a web application for running tournament events: scheduling matches, enrolling players, coordinating commentators and trackers, assigning stream stages, generating randomizer seeds, and notifying everyone over Discord. It is a single Python process that serves a NiceGUI web UI, a small public REST API, and an in-process Discord bot, backed by PostgreSQL.
 
 This document is the starting point for understanding the system. Each section links to a deeper reference doc; see the [documentation index](README.md) for the full catalog.
 
@@ -71,7 +71,7 @@ flowchart LR
     subgraph Browser
         UI[NiceGUI web UI]
     end
-    subgraph "SGLMan process (uvicorn, 1 worker)"
+    subgraph "Wizzrobe process (uvicorn, 1 worker)"
         FE["pages/ + theme/<br/>(presentation)"]
         SVC["application/services/<br/>(business logic)"]
         REPO["application/repositories/<br/>(data access)"]

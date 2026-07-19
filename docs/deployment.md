@@ -1,8 +1,8 @@
 # Deployment & Operations Guide
 
-_The operations reference for deploying and running SGLMan: container topology, the authoritative environment-variable table, startup behavior, and runbook. Part of the [documentation index](README.md)._
+_The operations reference for deploying and running Wizzrobe: container topology, the authoritative environment-variable table, startup behavior, and runbook. Part of the [documentation index](README.md)._
 
-SGLMan ships as a single application container plus PostgreSQL, orchestrated by [`docker-compose.yml`](../docker-compose.yml). This page documents the current setup and operations.
+Wizzrobe ships as a single application container plus PostgreSQL, orchestrated by [`docker-compose.yml`](../docker-compose.yml). This page documents the current setup and operations.
 
 ## Topology
 
@@ -12,7 +12,7 @@ SGLMan ships as a single application container plus PostgreSQL, orchestrated by 
                         host :8000
                             │
 ┌───────────────────────────▼───────────────────────────────┐
-│ sglman      build: . → image sglman:latest                │
+│ wizzrobe      build: . → image wizzrobe:latest                │
 │             ./start.sh prod → uvicorn main:app --workers 1│
 │             FastAPI + NiceGUI + Discord bot + DM queue    │
 └───────────────────────────┬───────────────────────────────┘
@@ -28,18 +28,18 @@ SGLMan ships as a single application container plus PostgreSQL, orchestrated by 
 | Setting | Value |
 |---|---|
 | Image | `postgres:16-alpine` |
-| Database | `POSTGRES_DB=${DB_NAME:-sglman}` |
+| Database | `POSTGRES_DB=${DB_NAME:-wizzrobe}` |
 | Credentials | `POSTGRES_USER`/`POSTGRES_PASSWORD` from `DB_USERNAME`/`DB_PASSWORD`; compose fails fast (`:?` interpolation) if either is missing from `.env` |
 | Ports | none published — reachable only as `postgres:5432` on the compose network |
 | Volume | `postgres_data`, mounted at `/var/lib/postgresql/data` |
-| Healthcheck | `pg_isready -U ${DB_USERNAME} -d ${DB_NAME:-sglman}` — interval 5s, timeout 5s, retries 10 |
+| Healthcheck | `pg_isready -U ${DB_USERNAME} -d ${DB_NAME:-wizzrobe}` — interval 5s, timeout 5s, retries 10 |
 | Restart | `unless-stopped` |
 
-### `sglman` service
+### `wizzrobe` service
 
 | Setting | Value |
 |---|---|
-| Image | built from [`Dockerfile`](../Dockerfile) (`build: .`), tagged `sglman:latest` |
+| Image | built from [`Dockerfile`](../Dockerfile) (`build: .`), tagged `wizzrobe:latest` |
 | Environment | everything in `.env` via `env_file`, plus `DB_HOST=postgres` and `DB_PORT=5432` injected by compose |
 | Ports | `8000:8000` |
 | Startup order | `depends_on: postgres: condition: service_healthy` — the app only starts after the DB healthcheck passes |
@@ -63,7 +63,7 @@ Note: `poetry install` runs with `--only main`, so dev-group dependencies (pytes
 [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) builds and pushes the image to GitHub Container Registry:
 
 - **Triggers:** every push to `main`, and tags matching `v*`.
-- **Image:** `ghcr.io/tcprescott/sglman` (registry `ghcr.io`, name taken from `github.repository`).
+- **Image:** `ghcr.io/tcprescott/wizzrobe` (registry `ghcr.io`, name taken from `github.repository`).
 - **Tag scheme** (`docker/metadata-action`):
 
 | Event | Resulting tags |
@@ -73,7 +73,7 @@ Note: `poetry install` runs with `--only main`, so dev-group dependencies (pytes
 
 - Authenticates with the workflow `GITHUB_TOKEN` (`packages: write`); uses the GitHub Actions build cache (`cache-from`/`cache-to: type=gha`). No `platforms` are specified, so the image is built for the runner's platform (linux/amd64).
 
-The compose file builds locally. To deploy a published image instead, replace `build: .` / `image: sglman:latest` in the `sglman` service with `image: ghcr.io/tcprescott/sglman:<tag>`.
+The compose file builds locally. To deploy a published image instead, replace `build: .` / `image: wizzrobe:latest` in the `wizzrobe` service with `image: ghcr.io/tcprescott/wizzrobe:<tag>`.
 
 ## Environment variables
 
@@ -89,7 +89,7 @@ Every variable the application reads:
 |---|---|---|---|---|
 | `DB_HOST` | yes | — | `migrations/tortoise_config.py` | Set to `postgres` by compose. Missing → `ValueError` at import; the process never starts. |
 | `DB_PORT` | yes | — | `migrations/tortoise_config.py` | Set to `5432` by compose. Same import-time check. |
-| `DB_NAME` | yes | — | `migrations/tortoise_config.py`, `docker-compose.yml` | Compose defaults the server-side `POSTGRES_DB` to `sglman`, but the app itself fails without `DB_NAME` in `.env`. |
+| `DB_NAME` | yes | — | `migrations/tortoise_config.py`, `docker-compose.yml` | Compose defaults the server-side `POSTGRES_DB` to `wizzrobe`, but the app itself fails without `DB_NAME` in `.env`. |
 | `DB_USERNAME` | production: yes | `''` | `migrations/tortoise_config.py`, `application/utils/environment.py`, `docker-compose.yml` | Compose refuses to start when unset (`:?`). With `ENVIRONMENT=production`, blank value aborts startup (see enforcement below). |
 | `DB_PASSWORD` | production: yes | `''` | same as `DB_USERNAME` | Same enforcement. URL-encoded into the DSN, so special characters are safe. |
 | `ENVIRONMENT` | no | `development` | `application/utils/environment.py`, `frontend.py`, `migrations/tortoise_config.py` | `production` (case-insensitive, after strip) enables the strict checks below. Static assets get no-cache headers only when the value is exactly `development`. |
@@ -183,24 +183,24 @@ First deploy:
 ```bash
 cp .env.example .env            # fill in credentials (see table above)
 docker compose up -d
-docker compose logs -f sglman   # watch migrations apply and uvicorn start
+docker compose logs -f wizzrobe   # watch migrations apply and uvicorn start
 ```
 
-- **Logs:** `docker compose logs -f sglman` (uvicorn, bot, and queue output) and `docker compose logs -f postgres`.
-- **Restart app only:** `docker compose restart sglman` — the database keeps running.
+- **Logs:** `docker compose logs -f wizzrobe` (uvicorn, bot, and queue output) and `docker compose logs -f postgres`.
+- **Restart app only:** `docker compose restart wizzrobe` — the database keeps running.
 - **Upgrade:**
 
   ```bash
   git pull
-  docker compose build sglman     # or: docker compose pull sglman, if deploying a GHCR image
-  docker compose up -d sglman     # recreates the container; pending migrations apply on boot
+  docker compose build wizzrobe     # or: docker compose pull wizzrobe, if deploying a GHCR image
+  docker compose up -d wizzrobe     # recreates the container; pending migrations apply on boot
   ```
 
-- **psql access:** the DB is not published to the host; use `docker compose exec postgres psql -U sglman -d sglman` (names from your `.env`).
+- **psql access:** the DB is not published to the host; use `docker compose exec postgres psql -U wizzrobe -d wizzrobe` (names from your `.env`).
 - **Manual migration commands** (rarely needed — boot does this automatically):
 
   ```bash
-  docker compose exec sglman poetry run aerich upgrade
+  docker compose exec wizzrobe poetry run aerich upgrade
   ```
 
   Schema and migration details: [reference/data-model.md](reference/data-model.md).
@@ -211,15 +211,15 @@ The additive [multitenancy migration](reference/data-model.md#migrations) backfi
 
 ```bash
 # Grant yourself the global SUPER_ADMIN role (manages tenants at /platform):
-docker compose exec sglman poetry run python scripts/grant_super_admin.py <discord_id>
+docker compose exec wizzrobe poetry run python scripts/grant_super_admin.py <discord_id>
 
 # Create additional communities going forward (also bootstraps their first admin):
-docker compose exec sglman poetry run python scripts/seed_tenant.py \
-    --name "SGL Live" --slug sgl [--guild-id <discord_guild_id>] \
+docker compose exec wizzrobe poetry run python scripts/seed_tenant.py \
+    --name "Wizzrobe Live" --slug wizzrobe [--guild-id <discord_guild_id>] \
     [--operator-discord-id <discord_id>]
 
 # Grant STAFF within a specific tenant (defaults to the `default` tenant):
-docker compose exec sglman poetry run python scripts/grant_staff.py <discord_id> [tenant_slug]
+docker compose exec wizzrobe poetry run python scripts/grant_staff.py <discord_id> [tenant_slug]
 ```
 
 `scripts/seed_dev.py` seeds two tenants of fixtures for local dev. See [features/multitenancy.md](features/multitenancy.md) for the addressing model and how a request resolves to a tenant.
@@ -231,14 +231,14 @@ Logical dumps are the recommended backup. `POSTGRES_USER`/`POSTGRES_DB` are alre
 ```bash
 # Backup (custom format)
 docker compose exec -T postgres sh -c \
-  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -F c' > sglman-$(date +%F).dump
+  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -F c' > wizzrobe-$(date +%F).dump
 
 # Restore
 docker compose exec -T postgres sh -c \
-  'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < sglman-YYYY-MM-DD.dump
+  'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < wizzrobe-YYYY-MM-DD.dump
 ```
 
-A filesystem-level alternative is archiving the `postgres_data` volume (named `<project>_postgres_data`, e.g. `sglman_postgres_data`) — only with the stack stopped (`docker compose stop`), never while postgres is running.
+A filesystem-level alternative is archiving the `postgres_data` volume (named `<project>_postgres_data`, e.g. `wizzrobe_postgres_data`) — only with the stack stopped (`docker compose stop`), never while postgres is running.
 
 ### Rollback caveat
 

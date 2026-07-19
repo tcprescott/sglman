@@ -22,7 +22,7 @@ from models import ApiToken, User
 
 logger = logging.getLogger(__name__)
 
-TOKEN_PREFIX = 'sglman_pat_'
+TOKEN_PREFIX = 'wizzrobe_pat_'
 
 
 def _hash_token(raw_token: str) -> str:

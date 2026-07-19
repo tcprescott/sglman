@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-If you discover a security vulnerability in SGLMan, please report it privately
+If you discover a security vulnerability in Wizzrobe, please report it privately
 rather than opening a public issue.
 
 - Use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)
@@ -15,7 +15,7 @@ disclosure once a fix is available.
 
 ## Supported configuration
 
-SGLMan is designed to run as a single Uvicorn worker behind a TLS-terminating
+Wizzrobe is designed to run as a single Uvicorn worker behind a TLS-terminating
 reverse proxy. Security-relevant configuration is validated at startup
 (`application/utils/environment.py`):
 

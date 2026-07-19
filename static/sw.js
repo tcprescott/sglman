@@ -1,4 +1,4 @@
-// Minimal service worker for SGL On Site.
+// Minimal service worker for Wizzrobe.
 //
 // Two jobs, deliberately nothing more:
 //
@@ -37,7 +37,7 @@ self.addEventListener('push', (event) => {
     data = { notification: { body: event.data ? event.data.text() : '' } };
   }
   const n = data.notification || {};
-  event.waitUntil(self.registration.showNotification(n.title || 'SGL On Site', {
+  event.waitUntil(self.registration.showNotification(n.title || 'Wizzrobe', {
     body: n.body || '',
     icon: '/static/icons/icon-192.png',
     badge: '/static/icons/icon-192.png',

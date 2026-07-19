@@ -19,7 +19,7 @@ async def super_admin(db):
 
 
 async def test_slugify_makes_url_safe():
-    assert slugify('SGL Live!') == 'sgl-live'
+    assert slugify('Wizzrobe Live!') == 'wizzrobe-live'
     assert slugify('  Multiple   spaces  ') == 'multiple-spaces'
     assert slugify('') == 'tenant'
 

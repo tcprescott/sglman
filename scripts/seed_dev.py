@@ -60,7 +60,7 @@ from scripts.seed_online import (
 # resolve ``*.localhost`` to 127.0.0.1, so http://second.localhost:8000/ serves
 # the second community with no /etc/hosts edit.
 TENANT_SPECS = [
-    ("default", "SGL Default", 1000000000000000001, "a", None),
+    ("default", "Wizzrobe Default", 1000000000000000001, "a", None),
     ("second", "Second Community", 1000000000000000002, "b", "second.localhost:8000"),
 ]
 
@@ -177,9 +177,9 @@ async def seed_for_tenant(
 
         # Stream rooms
         for name, url in [
-            ("Stage 1", "https://twitch.tv/sglive"),
-            ("Stage 2", "https://twitch.tv/sglive2"),
-            ("Stage 3", "https://twitch.tv/sglive3"),
+            ("Stage 1", "https://twitch.tv/wizzrobe"),
+            ("Stage 2", "https://twitch.tv/wizzrobe2"),
+            ("Stage 3", "https://twitch.tv/wizzrobe3"),
         ]:
             await StreamRoom.get_or_create(
                 name=name, tenant=tenant,
@@ -203,7 +203,7 @@ async def seed_for_tenant(
         # Tournament
         staff = users["staff_user"]
         tournament, _ = await Tournament.get_or_create(
-            name="SGL Dev Tournament", tenant=tenant,
+            name="Wizzrobe Dev Tournament", tenant=tenant,
             defaults={
                 "description": "Fixture tournament for local dev",
                 "seed_generator": "alttpr",
@@ -366,7 +366,7 @@ async def seed_for_tenant(
         # the check-in and station-assignment controls that the racetime-enabled
         # tournament above now hides.
         onsite, _ = await Tournament.get_or_create(
-            name="SGL On-Site Cup", tenant=tenant,
+            name="Wizzrobe Cup", tenant=tenant,
             defaults={
                 "description": "On-site fixture — no racetime.gg integration.",
                 "seed_generator": "alttpr",
@@ -605,14 +605,14 @@ async def seed_for_tenant(
         # Deterministic dev bearer strings, one pair per tenant, so REST
         # endpoints resolve to the right tenant. Non-secret fixtures; only the
         # SHA-256 hash is stored, exactly like production.
-        dev_bearer = f"sglman_pat_devseed_{tenant.slug}_local_only_do_not_use"
+        dev_bearer = f"wizzrobe_pat_devseed_{tenant.slug}_local_only_do_not_use"
         if not await ApiToken.filter(user=staff, name="Dev Seed Token", tenant=tenant).exists():
             await ApiToken.create(
                 user=staff, name="Dev Seed Token", tenant=tenant,
                 token_hash=hashlib.sha256(dev_bearer.encode()).hexdigest(),
                 token_prefix=dev_bearer[:17], read_only=False,
             )
-        ro_bearer = f"sglman_pat_devseedro_{tenant.slug}_local_only_do_not"
+        ro_bearer = f"wizzrobe_pat_devseedro_{tenant.slug}_local_only_do_not"
         if not await ApiToken.filter(user=staff, name="Dev Read-Only Token", tenant=tenant).exists():
             await ApiToken.create(
                 user=staff, name="Dev Read-Only Token", tenant=tenant,
@@ -661,7 +661,7 @@ async def seed_for_tenant(
         # Each tenant maps its own guild's roles onto app roles.
         guild_id = tenant.discord_guild_id
         role_mapping_specs = [
-            (2000000000000000001, "SGL Staff", Role.STAFF),
+            (2000000000000000001, "Wizzrobe Staff", Role.STAFF),
             (2000000000000000002, "Proctors", Role.PROCTOR),
             (2000000000000000003, "Stream Managers", Role.STREAM_MANAGER),
             (2000000000000000004, "Volunteers", Role.VOLUNTEER),

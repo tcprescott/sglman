@@ -2,7 +2,7 @@
 name: discord-ux
 description: >-
   Reconstruct and assess the Discord bot's user-facing surface — the colour-coded
-  embed cards, DMs, and interactive buttons SGL On Site sends (match lifecycle,
+  embed cards, DMs, and interactive buttons Wizzrobe sends (match lifecycle,
   crew, seeds, volunteer shifts). Discord cannot be driven headlessly and
   MOCK_DISCORD never connects a bot, so the surface is inspected by rendering the
   real embed + message builders and reproducing Discord's DM chrome, not by
@@ -107,9 +107,9 @@ almost everyone — a single dark treatment for the panels is the honest default
 Read each rendered card + DM against these (the recurring issues on this surface):
 
 - **Tenant safety** — no hardcoded community/org name (the app is multi-tenant;
-  a fixed "SGLive"/"SpeedGaming" is wrong for every other community). `grep -niE
-  'sglive|speedgaming|sgl on site' application/utils/discord_messages.py`. The
-  *"SGL On Site account"* login line is fine — identity is global.
+  a fixed "Wizzrobe"/"SpeedGaming" is wrong for every other community). `grep -niE
+  'wizzrobe|speedgaming' application/utils/discord_messages.py`. The
+  *"Wizzrobe account"* login line is fine — identity is global.
 - **Community footer present** — every embed should carry the community-name
   footer (`TenantService.current_community_name()`, best-effort → '' when no
   tenant). A card with an empty footer in a real tenant context is the bug to

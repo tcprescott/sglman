@@ -24,7 +24,7 @@ async def _render_platform_landing() -> None:
 
     Runs with no tenant context: lists active tenants (each linking to its
     path-mode home) and, for a super-admin, a link to the /platform surface."""
-    ui.page_title('SpeedGaming Live')
+    ui.page_title('Wizzrobe')
     user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     tenants = [t for t in await TenantService.list_tenants() if t.is_active]
 
@@ -37,8 +37,8 @@ async def _render_platform_landing() -> None:
         primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
         positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',
     )
-    with ui.header().classes('sgl-header items-center'):
-        ui.label('SGL On Site').classes('sgl-wordmark')
+    with ui.header().classes('wiz-header items-center'):
+        ui.label('Wizzrobe').classes('wiz-wordmark')
 
     with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4 items-stretch'):
         ui.label('Choose a community').classes('page-title')
@@ -49,10 +49,10 @@ async def _render_platform_landing() -> None:
         with ui.column().classes('w-full gap-3'):
             for tenant in tenants:
                 with ui.link(target=f'/t/{tenant.slug}/').classes('no-underline w-full'):
-                    with ui.card().classes('sgl-tenant-card w-full'):
+                    with ui.card().classes('wiz-tenant-card w-full'):
                         with ui.row().classes('items-center justify-between no-wrap w-full'):
                             with ui.column().classes('gap-0'):
-                                ui.label(tenant.name).classes('sgl-tenant-name')
+                                ui.label(tenant.name).classes('wiz-tenant-name')
                                 ui.label(f'/t/{tenant.slug}').classes('text-caption text-muted')
                             ui.icon('arrow_forward').classes('text-primary')
         if await AuthService.is_super_admin(user):
@@ -74,7 +74,7 @@ def create() -> None:
         # Carry host mode too, so link-section buttons can hide on a custom domain.
         stash_client_host_mode(is_host_mode())
 
-        ui.page_title('Speedgaming Live Onsite')
+        ui.page_title(await TenantService.current_community_name() or 'Wizzrobe')
         discord_id = app.storage.user.get('discord_id', None)
         # get_user_from_discord_id enforces is_active, so a deactivated account
         # is treated as logged-out here too (uniform with /admin, /equipment,

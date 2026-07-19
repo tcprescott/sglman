@@ -1,5 +1,5 @@
 /*
- * Reusable browser-validation harness for SGL On Site (MOCK_DISCORD mode).
+ * Reusable browser-validation harness for Wizzrobe (MOCK_DISCORD mode).
  *
  * Drives the running app with Playwright: logs in via the mock user picker,
  * visits each target page (optionally clicking a Quasar tab), screenshots it,
@@ -86,11 +86,11 @@ async function clickTab(page, name) {
   page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE.ERROR: ' + m.text().slice(0, 200)); });
 
   // Mock login: click "Log in as" in the row for `loginAs`. The picker renders
-  // as a <table> on desktop and as `.sgl-grid-card` cards on a narrow (mobile)
+  // as a <table> on desktop and as `.wiz-grid-card` cards on a narrow (mobile)
   // viewport (enable_mobile_grid), so match either container.
   await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
-  const row = page.locator('tr, .sgl-grid-card', { hasText: loginAs }).first();
+  const row = page.locator('tr, .wiz-grid-card', { hasText: loginAs }).first();
   await row.getByRole('button', { name: 'Log in as' }).click();
   await page.waitForTimeout(1500);
   console.log(`logged in as ${loginAs} -> ${page.url()}`);

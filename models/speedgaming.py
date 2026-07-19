@@ -45,7 +45,7 @@ class SpeedGamingEpisode(Model):
 
     Tenant-scoped, unique ``(tenant, sg_episode_id)``. Holds the raw upstream
     payload snapshot plus a ``content_hash`` so an unchanged re-sync is a cheap
-    no-op. The materialized SGLMan ``Match`` is reachable via the reverse of
+    no-op. The materialized Wizzrobe ``Match`` is reachable via the reverse of
     ``Match.speedgaming_episode`` (that FK is the canonical source marker; there
     is no second column here).
     """

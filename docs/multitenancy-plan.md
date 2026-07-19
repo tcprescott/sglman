@@ -1,7 +1,7 @@
 # Multitenancy Plan (proposal)
 
 > Status: **proposed, not implemented.** This is a design/implementation plan for
-> making SGLMan logically multitenant. No code in this plan has shipped. When work
+> making Wizzrobe logically multitenant. No code in this plan has shipped. When work
 > begins, track progress in [current-state.md](current-state.md).
 >
 > _Revised 2026-07-11: realigned with the current codebase (36 models — event bus,
@@ -13,7 +13,7 @@
 
 ## Context
 
-SGLMan is currently a single-tenant FastAPI + NiceGUI + Tortoise/PostgreSQL app
+Wizzrobe is currently a single-tenant FastAPI + NiceGUI + Tortoise/PostgreSQL app
 (single Docker container, single uvicorn worker). The goal is to host **multiple
 independent tournament communities** from one deployment, each addressable **by
 path on a shared platform host and/or by its own custom domain**, with a

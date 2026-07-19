@@ -185,7 +185,7 @@ async def admin_discord_events_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_tables()),
                 ).props('flat color=primary').tooltip('Refresh')
 
-            tournament_table = ui.table(columns=tournament_columns, rows=[], row_key='id').classes('w-full sgl-table')
+            tournament_table = ui.table(columns=tournament_columns, rows=[], row_key='id').classes('w-full wiz-table')
             tournament_table.add_slot('body-cell-enabled', f'<q-td :props="props">{_ENABLED_ICON}</q-td>')
             tournament_table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             tournament_table.on('edit', lambda e: background_tasks.create(open_settings_dialog(e.args, context.client)))
@@ -193,7 +193,7 @@ async def admin_discord_events_page() -> None:
                                field_slots={'enabled': _ENABLED_ICON})
 
         with events_container:
-            event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full sgl-table')
+            event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full wiz-table')
             enable_mobile_grid(event_table, event_columns)
 
         wire_tab_refresh('Discord Events', refresh_tables)

@@ -2,7 +2,7 @@
 
 The unit tests exercise the pure helper; the end-to-end test drives
 ``MatchService.update_match`` on a sourced match to prove the guard rejects an
-ETL-owned edit while leaving SGLMan-owned fields (comment) editable.
+ETL-owned edit while leaving Wizzrobe-owned fields (comment) editable.
 """
 
 from datetime import datetime, timezone
@@ -86,6 +86,6 @@ async def test_update_match_rejects_etl_field_but_allows_comment(db):
             match_id=match.id, scheduled_date='2026-08-01', scheduled_time='12:00',
             actor=staff,
         )
-    # A SGLMan-owned field (comment) still updates.
+    # A Wizzrobe-owned field (comment) still updates.
     updated = await service.update_match(match_id=match.id, comment='caster note', actor=staff)
     assert updated.comment == 'caster note'

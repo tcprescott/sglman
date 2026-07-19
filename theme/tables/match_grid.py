@@ -36,15 +36,15 @@ depend on — do not change):
 
 _STATE_CHIP = '''
         <span class="mgc-state">
-            <span v-if="props.row.state === 'Confirmed'" class="sgl-chip sgl-chip--ok">
+            <span v-if="props.row.state === 'Confirmed'" class="wiz-chip wiz-chip--ok">
                 <q-icon name="verified" size="14px" />Confirmed</span>
-            <span v-else-if="props.row.state === 'Finished'" class="sgl-chip sgl-chip--pending">
+            <span v-else-if="props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
                 <q-icon name="flag" size="14px" />Finished</span>
-            <span v-else-if="props.row.state === 'Started'" class="sgl-chip sgl-chip--live">
+            <span v-else-if="props.row.state === 'Started'" class="wiz-chip wiz-chip--live">
                 <q-icon name="play_arrow" size="14px" />Started</span>
-            <span v-else-if="props.row.state === 'Checked In'" class="sgl-chip sgl-chip--neutral">
+            <span v-else-if="props.row.state === 'Checked In'" class="wiz-chip wiz-chip--neutral">
                 <q-icon name="check" size="14px" />Checked In</span>
-            <span v-else class="sgl-chip sgl-chip--neutral">
+            <span v-else class="wiz-chip wiz-chip--neutral">
                 <q-icon name="schedule" size="14px" />{{ props.row.state || 'Scheduled' }}</span>
             <span v-if="props.row.state_time" class="cell-timestamp">{{ props.row.state_time }}</span>
         </span>'''
@@ -128,9 +128,9 @@ _STREAM_DETAIL = '''
         <div class="mgc-detail" v-if="props.row.stream_room || props.row.is_stream_candidate || (__IA__ && __CC__)">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <a v-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
+                <a v-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
                 <span v-else-if="props.row.stream_room">{{ props.row.stream_room }}</span>
-                <span v-if="props.row.is_stream_candidate && !props.row.stream_room" class="sgl-chip sgl-chip--candidate q-ml-xs">candidate</span>
+                <span v-if="props.row.is_stream_candidate && !props.row.stream_room" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
                 <q-btn v-if="__IA__ && __CC__ && !props.row.stream_room"
                        icon="movie" color="primary" size="sm" dense outline class="q-ml-xs"
                        @click="$parent.$emit('edit-stream-room', { key: props.row.id })">
@@ -154,7 +154,7 @@ _SEED_DETAIL = '''
                 </q-btn>
                 <template v-if="props.row.generated_seed">
                     <a v-if="props.row.generated_seed.startsWith('https://') || props.row.generated_seed.startsWith('http://')"
-                       :href="props.row.generated_seed" target="_blank" style="color: var(--sgl-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>
+                       :href="props.row.generated_seed" target="_blank" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>
                     <span v-else>{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</span>
                 </template>
             </span>
@@ -193,7 +193,7 @@ _ACTIONS = '''
         </div>'''
 
 
-_CARD_OPEN = '''<div class="match-grid-card q-pa-md q-mb-sm" :class="props.row._flash ? 'sgl-row-flash' : ''" style="width: 100%; box-sizing: border-box;">'''
+_CARD_OPEN = '''<div class="match-grid-card q-pa-md q-mb-sm" :class="props.row._flash ? 'wiz-row-flash' : ''" style="width: 100%; box-sizing: border-box;">'''
 _CARD_CLOSE = '''
     </div>'''
 

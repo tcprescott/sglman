@@ -16,14 +16,14 @@
 
 SahasrahBot maps SG episodes to Discord **Scheduled Events** 1:1
 (`ScheduledEvents`: `scheduled_event_id` PK, unique `episode_id`, `event_slug`).
-SGLMan generalizes this into automatic sync of the tenant guild's scheduled events
-from SGLMan schedule data.
+Wizzrobe generalizes this into automatic sync of the tenant guild's scheduled events
+from Wizzrobe schedule data.
 
 Source: `ScheduledEvents` model (`episode_id` ↔ `scheduled_event_id`).
 
 ## Approach
 
-- **Source of truth is SGLMan's schedule** — native `Match` rows (including
+- **Source of truth is Wizzrobe's schedule** — native `Match` rows (including
   SG-imported ones, [Feature 4](speedgaming-etl.md)) and
   [Async Qualifier](async-qualifiers.md) windows/live races.
 - A `DiscordScheduledEvent` link model (tenant-scoped): `guild_id`,

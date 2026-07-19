@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the branded PWA / home-screen icons for SGL On Site.
+"""Generate the branded PWA / home-screen icons for Wizzrobe.
 
 This is a one-off developer tool. The PNGs it writes are committed to the repo
 under ``static/icons/`` and are served as static assets at runtime — the running

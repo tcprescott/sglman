@@ -195,7 +195,7 @@ Complete `custom_id` grammar (each module exposes its prefix as a `CUSTOM_ID_PRE
 | `volunteer_ack:acknowledged` | `make_acknowledged_view(CUSTOM_ID_PREFIX)` (volunteer ack) | None — disabled placeholder after acknowledgment |
 | `match_watch:unwatch:<match_id>` | `make_unwatch_view(match_id)` | Remove watcher |
 
-Common to all four modules: views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s with static `custom_id`s and no callbacks (routing happens in `on_interaction`, above). Handlers parse the `custom_id`, resolve the SGLMan user with `UserRepository().get_by_discord_id(str(interaction.user.id))`, call a service method, and reply **ephemerally**. A malformed `custom_id` yields `Invalid interaction.`; a non-integer id yields `Invalid match ID.` / `Invalid crew ID.`; a Discord user with no SGLMan account gets `You do not have an SGLMan account. Please log in at the website first.`; service `ValueError`s are relayed verbatim as the reply.
+Common to all four modules: views are `discord.ui.View(timeout=None)` holding plain `discord.ui.Button`s with static `custom_id`s and no callbacks (routing happens in `on_interaction`, above). Handlers parse the `custom_id`, resolve the Wizzrobe user with `UserRepository().get_by_discord_id(str(interaction.user.id))`, call a service method, and reply **ephemerally**. A malformed `custom_id` yields `Invalid interaction.`; a non-integer id yields `Invalid match ID.` / `Invalid crew ID.`; a Discord user with no Wizzrobe account gets `You do not have an Wizzrobe account. Please log in at the website first.`; service `ValueError`s are relayed verbatim as the reply.
 
 ### crew_signup.py
 

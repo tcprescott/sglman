@@ -1,6 +1,6 @@
 {
-  "name": "SGL On Site",
-  "short_name": "SGL On Site",
+  "name": "Wizzrobe",
+  "short_name": "Wizzrobe",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -5,7 +5,7 @@ from .enums import ChallongeMatchState
 
 
 class ChallongeConnection(Model):
-    """Single shared SGL service-account OAuth connection to Challonge.
+    """Single shared Wizzrobe service-account OAuth connection to Challonge.
 
     Only one connection is meaningful at a time; the most recently saved row is
     authoritative. Tokens are privileged secrets — surfaced only to STAFF and
@@ -30,11 +30,11 @@ class ChallongeConnection(Model):
 
 
 class ChallongeParticipant(Model):
-    """A Challonge participant in a linked tournament, mirrored into sglman.
+    """A Challonge participant in a linked tournament, mirrored into wizzrobe.
 
     ``user`` is resolved by matching ``challonge_user_id`` to a player who has
     linked their Challonge identity; it stays null for participants we can't map
-    to an sglman user.
+    to an wizzrobe user.
     """
 
     id = fields.IntField(pk=True)
@@ -50,13 +50,13 @@ class ChallongeParticipant(Model):
     class Meta:
         table = 'challongeparticipant'
         unique_together = (('tournament', 'challonge_participant_id'),)
-        indexes = (('user',),)  # resolve participants for a linked sglman user
+        indexes = (('user',),)  # resolve participants for a linked wizzrobe user
 
 
 class ChallongeMatch(Model):
-    """A Challonge bracket match mirrored into sglman.
+    """A Challonge bracket match mirrored into wizzrobe.
 
-    ``match`` links to the scheduled sglman :class:`Match` once a player has
+    ``match`` links to the scheduled wizzrobe :class:`Match` once a player has
     scheduled it; it is null while the matchup is still unscheduled.
     """
 

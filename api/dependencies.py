@@ -1,7 +1,7 @@
 """Shared FastAPI dependencies and error handling for the REST API.
 
 Authentication is via a personal bearer token (``Authorization: Bearer
-sglman_pat_...``) generated on the user's profile page. A token resolves to
+wizzrobe_pat_...``) generated on the user's profile page. A token resolves to
 its owning :class:`User` and the request then runs the *same* service-layer
 permission checks as the web UI. A token flagged ``read_only`` may only call
 read (GET) endpoints.

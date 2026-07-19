@@ -72,7 +72,7 @@ async def admin_feedback_page() -> None:
                 for fb in submissions
             ]
 
-            table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full sgl-table')
+            table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full wiz-table')
             table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS,

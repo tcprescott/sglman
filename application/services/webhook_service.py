@@ -66,11 +66,11 @@ class WebhookService:
         """
         return {
             'Content-Type': 'application/json',
-            'User-Agent': 'sglman-webhook',
-            'X-SGL-Event': event_type,
-            'X-SGL-Delivery': delivery_id,
-            'X-SGL-Timestamp': timestamp,
-            'X-SGL-Signature': f'sha256={signature}',
+            'User-Agent': 'wizzrobe-webhook',
+            'X-Wizzrobe-Event': event_type,
+            'X-Wizzrobe-Delivery': delivery_id,
+            'X-Wizzrobe-Timestamp': timestamp,
+            'X-Wizzrobe-Signature': f'sha256={signature}',
         }
 
     @staticmethod
@@ -88,10 +88,10 @@ class WebhookService:
         descriptions = {
             'Content-Type': 'Always application/json.',
             'User-Agent': 'Identifies the sender.',
-            'X-SGL-Event': 'The event name (e.g. match.created).',
-            'X-SGL-Delivery': 'Unique id for this delivery attempt.',
-            'X-SGL-Timestamp': 'Unix seconds; part of the signed string (replay defense).',
-            'X-SGL-Signature': 'sha256=<hex>: HMAC-SHA256 of "{timestamp}.{body}" using the secret.',
+            'X-Wizzrobe-Event': 'The event name (e.g. match.created).',
+            'X-Wizzrobe-Delivery': 'Unique id for this delivery attempt.',
+            'X-Wizzrobe-Timestamp': 'Unix seconds; part of the signed string (replay defense).',
+            'X-Wizzrobe-Signature': 'sha256=<hex>: HMAC-SHA256 of "{timestamp}.{body}" using the secret.',
         }
         sample = WebhookService.build_delivery_headers(
             event_type='match.created', delivery_id='<uuid>',

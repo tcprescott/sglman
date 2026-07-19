@@ -1,6 +1,6 @@
 customizer: true
 goal_name: sglive2024
-description: "SpeedGaming Live 2024 Settings"
+description: "Wizzrobe 2024 Settings"
 settings:
   accessibility: items
   allow_quickswap: true
@@ -315,9 +315,9 @@ settings:
   l: {}
   lang: en
   mode: open
-  name: SGLive2024
+  name: Wizzrobe2024
   notes: |-
-    SG Live 2024 settings. Open world state w/ starting boots. See notes in SGL 2024 Onsite Rules Document
+    Wizzrobe 2024 settings. Open world state w/ starting boots. See notes in Wizzrobe 2024 Onsite Rules Document
   spoilers: 'off'
   tournament: true
   weapons: randomized

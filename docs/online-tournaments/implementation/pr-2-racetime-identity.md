@@ -45,8 +45,8 @@ verified-linking discipline from `DiscordLinkService`.
 ## Reference implementations
 
 - **sahabot2**: `models/user.py` (`racetime_id` / `racetime_name` + OAuth token
-  fields — note sglman does **not** persist the token).
-- **sglman**: `pages/challonge_oauth.py`, the Twitch linking flow + `User.twitch_*`
+  fields — note wizzrobe does **not** persist the token).
+- **wizzrobe**: `pages/challonge_oauth.py`, the Twitch linking flow + `User.twitch_*`
   fields, `application/utils/` mock flags (`MockTwitchClient`).
 
 ## Acceptance criteria

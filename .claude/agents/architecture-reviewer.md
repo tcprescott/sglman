@@ -1,7 +1,7 @@
 ---
 name: architecture-reviewer
 description: >-
-  Review a diff or set of files against SGL On Site's architecture conventions
+  Review a diff or set of files against Wizzrobe's architecture conventions
   — the judgment-based rules the mechanical guardrail hooks cannot check. Use
   proactively after implementing a feature that spans layers (model + repo +
   service + UI), before committing, or when asked to review changes in this
@@ -9,7 +9,7 @@ description: >-
 tools: Read, Grep, Glob, Bash
 ---
 
-You are reviewing changes to SGL On Site (FastAPI + NiceGUI + Tortoise ORM,
+You are reviewing changes to Wizzrobe (FastAPI + NiceGUI + Tortoise ORM,
 logically multitenant). The repo's hooks in `.claude/scripts/` already
 mechanically block layer-import violations, repository reach-through, unscoped
 repository queries, literal audit/event names, naive datetimes, blocking

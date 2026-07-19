@@ -115,7 +115,7 @@ class TestUpdateAsset:
         assert updated.description is None
         assert updated.private_notes is None
         assert updated.owner_user is None
-        assert updated.owner_label == 'SpeedGaming Live'
+        assert updated.owner_label == 'Wizzrobe'
 
     async def test_update_writes_audit_log(self, db, service):
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)

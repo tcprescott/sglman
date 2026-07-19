@@ -114,7 +114,7 @@ async def seed_online_for_tenant(
         name="DK64 Community", tenant=tenant,
         defaults={
             "randomizer": "dk64r",
-            "settings": {"settings_string": "REPLACE_WITH_SGL_DK64_SETTINGS_STRING"},
+            "settings": {"settings_string": "REPLACE_WITH_WIZZROBE_DK64_SETTINGS_STRING"},
             "description": "DK64 Randomizer settings (settings-string form).",
         },
     )
@@ -189,7 +189,7 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
         name="Dev Async Qualifier", tenant=tenant,
         defaults={
             "description": "Self-paced qualifier fixture for local dev.",
-            "event_name": "SGL Dev Season",
+            "event_name": "Wizzrobe Dev Season",
             "opens_at": now - timedelta(days=1),
             "closes_at": now + timedelta(days=7),
             "runs_per_pool": 2,
@@ -294,7 +294,7 @@ async def _seed_speedgaming(
     now = datetime.now(timezone.utc)
 
     link, _ = await SpeedGamingEventLink.get_or_create(
-        tournament=tournament, event_slug=f"sgl-{tenant.slug}", tenant=tenant,
+        tournament=tournament, event_slug=f"wiz-{tenant.slug}", tenant=tenant,
         defaults={
             "content_type": None,
             "active": True,

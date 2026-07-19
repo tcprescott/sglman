@@ -1,6 +1,6 @@
 # PR 8 — Discord Events sync
 
-> Feature 3. Roadmap phase 6. Reconciles SGLMan schedule data into Discord Scheduled
+> Feature 3. Roadmap phase 6. Reconciles Wizzrobe schedule data into Discord Scheduled
 > Events. **Shared-guild safety is the sharp edge** (post PR #85/#86 on `main`).
 
 **Goal:** each tenant's schedule is mirrored to Discord Scheduled Events in its
@@ -40,7 +40,7 @@ never-cancel-siblings; verified `Tenant.discord_guild_id`.
   `discord_event_filter` (`DiscordEventFilter` enum) / `event_duration_minutes` +
   `discord_event_guilds` M2M in `models/match_schedule.py`; its scheduled-events
   service.
-- **sglman**: `application/services/discord_link_service.py` +
+- **wizzrobe**: `application/services/discord_link_service.py` +
   [multitenancy.md](../../features/multitenancy.md) "Discord: one bot, many guilds"
   (fan-out + `DiscordRoleMapping.tenant` isolation — mirror that isolation here),
   `discordbot/` handlers, the volunteer-reminder loop as a worker precedent.

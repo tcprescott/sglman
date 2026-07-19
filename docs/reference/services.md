@@ -63,7 +63,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `RaceRoomProfileService` | [race_room_profile_service.py](../../application/services/race_room_profile_service.py) | SYNC_ADMIN CRUD for reusable racetime room settings | — |
 | `RacetimeRoomService` | [racetime_room_service.py](../../application/services/racetime_room_service.py) | Race-room record lookup (unscoped by-slug routing) + status writes | — |
 | `RaceRoomService` | [race_room_service.py](../../application/services/race_room_service.py) | Racetime room lifecycle mapped onto a `Match` (create/open/seed/finish/cancel + result capture) | — |
-| `SpeedGamingETLService` | [speedgaming_etl_service.py](../../application/services/speedgaming_etl_service.py) | One-way SpeedGaming→SGLMan schedule ETL (extract/transform/load into `Match`) | — |
+| `SpeedGamingETLService` | [speedgaming_etl_service.py](../../application/services/speedgaming_etl_service.py) | One-way SpeedGaming→Wizzrobe schedule ETL (extract/transform/load into `Match`) | — |
 | `SpeedGamingSyncService` | [speedgaming_sync_service.py](../../application/services/speedgaming_sync_service.py) | Tenant-facing SpeedGaming event-link CRUD + on-demand "sync now" | — |
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
@@ -78,7 +78,7 @@ All classes and `get_user_from_discord_id` are re-exported from [`application/se
 
 ### api_token_service.py — ApiTokenService
 
-Issues, lists, revokes, and authenticates personal API access tokens. Only the SHA-256 hash of a token is persisted; the plaintext (prefixed `sglman_pat_`) is returned exactly once, at creation. A token authenticates as its owning `User` and inherits that user's permissions; a `read_only` token is restricted to read (GET) endpoints by the API auth layer. Used by the REST API; see [rest-api.md](rest-api.md).
+Issues, lists, revokes, and authenticates personal API access tokens. Only the SHA-256 hash of a token is persisted; the plaintext (prefixed `wizzrobe_pat_`) is returned exactly once, at creation. A token authenticates as its owning `User` and inherits that user's permissions; a `read_only` token is restricted to read (GET) endpoints by the API auth layer. Used by the REST API; see [rest-api.md](rest-api.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -157,7 +157,7 @@ Consumers: `pages/auth.py` (platform-host OAuth callback → mint; `/session/cla
 
 ### challonge_service.py — ChallongeService
 
-Coordinates the Challonge integration: one shared SGL service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock_challongepy).
+Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock_challongepy).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -256,7 +256,7 @@ Consumers: `MatchScheduleService` and `CrewService` (notification fan-out), `the
 
 ### discord_event_reconciler_service.py — DiscordEventReconcilerService (PR 8)
 
-Mirrors the SGLMan schedule into a tenant guild's **Discord Scheduled Events** as idempotent reconciliation. `reconcile_tenant(tenant, *, actor, now=None)` reads the tenant's opted-in tournaments' scheduled matches in a forward window, then per match creates / updates (content-hash change) / leaves unchanged its `DiscordScheduledEvent` link, and cancels links whose source match finished or vanished. **Shared-guild safety**: the working set is only the tenant's own link rows (the repository is tenant-scoped), so a sibling tenant's event in a shared guild is never enumerated or cancelled; the target guild is the verified `Tenant.discord_guild_id`. Renders title/description from `{tournament}`/`{match}`/`{players}` templates. Audits + emits `discord_event.created`/`updated`/`cancelled` (the per-run summary is audit-only). Collaborators: `DiscordScheduledEventRepository`, `MatchRepository`, `DiscordService`, `AuditService`, event bus.
+Mirrors the Wizzrobe schedule into a tenant guild's **Discord Scheduled Events** as idempotent reconciliation. `reconcile_tenant(tenant, *, actor, now=None)` reads the tenant's opted-in tournaments' scheduled matches in a forward window, then per match creates / updates (content-hash change) / leaves unchanged its `DiscordScheduledEvent` link, and cancels links whose source match finished or vanished. **Shared-guild safety**: the working set is only the tenant's own link rows (the repository is tenant-scoped), so a sibling tenant's event in a shared guild is never enumerated or cancelled; the target guild is the verified `Tenant.discord_guild_id`. Renders title/description from `{tournament}`/`{match}`/`{players}` templates. Audits + emits `discord_event.created`/`updated`/`cancelled` (the per-run summary is audit-only). Collaborators: `DiscordScheduledEventRepository`, `MatchRepository`, `DiscordService`, `AuditService`, event bus.
 
 **discord_event_worker.py** — the reconcile background loop (peer of `speedgaming_sync_worker`). Every 5 min it scans (cross-tenant, unscoped) every tenant with a linked guild, then reconciles each inside `tenant_scope` as the system user. Idempotent, so an unchanged schedule is a cheap no-op. Started from the lifespan only when `DISCORD_EVENTS_SYNC_ENABLED` is on.
 
@@ -270,7 +270,7 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 
 | Method | Returns | Description |
 |---|---|---|
-| `create_asset(actor, name, description=None, private_notes=None, owner_user_id=None)` | `Equipment` | Manager-only; auto-assigns the next asset number; non-empty name required; `owner_user_id=None` means SpeedGaming Live. Audits `equipment.created`. |
+| `create_asset(actor, name, description=None, private_notes=None, owner_user_id=None)` | `Equipment` | Manager-only; auto-assigns the next asset number; non-empty name required; `owner_user_id=None` means Wizzrobe. Audits `equipment.created`. |
 | `bulk_create_assets(actor, name, count, description=None, private_notes=None, owner_user_id=None)` | `list[Equipment]` | Manager-only; create `count` (1–200) consecutively numbered assets. |
 | `update_asset(actor, equipment_id, name, description, private_notes, owner_user_id, status=None)` | `Equipment` | Manager-only edit; refuses to set/clear `CHECKED_OUT` status directly (use checkout/check-in). Audits `equipment.updated`. |
 | `delete_asset(actor, equipment_id)` | `None` | Manager-only; refuses an asset with an open loan. Audits `equipment.deleted`. |
@@ -686,7 +686,7 @@ Probes: PostgreSQL (DB round-trip), Discord bot (gateway readiness / mock), Disc
 
 ### speedgaming_etl_service.py — SpeedGamingETLService (PR 7)
 
-One-way SpeedGaming → SGLMan schedule ETL, ported from sahabot2 and adapted to the three-layer + multitenant shape. Per active `SpeedGamingEventLink` the sync worker (never a UI caller) drives the pipeline: **extract** a forward schedule window from the SG API (`SpeedGamingClient`), **transform** each episode to UTC and resolve every player to a `User` via the placeholder pattern, **load** by upserting a `SpeedGamingEpisode` staging row and materializing/refreshing its `Match` + `MatchPlayers`. Runs as the reserved **system `User`** (audit/event actor), always inside the worker's `tenant_scope`. Two race-day guards uphold the hybrid read-only contract: a re-sync **skips** a match that is finished / manually progressed / racetime-linked, and **auto-finishes** SG-sourced matches more than 4h past their scheduled time (unless a room is linked). The per-field read-only lock on a sourced match lives in [`match_source_guard.py`](#match_servicepy--matchservice) / `MatchService.update_match`; this service owns the sync side. Audited under `sg_sync.*`; module constant `BACKFILL_GRACE_HOURS = 1`.
+One-way SpeedGaming → Wizzrobe schedule ETL, ported from sahabot2 and adapted to the three-layer + multitenant shape. Per active `SpeedGamingEventLink` the sync worker (never a UI caller) drives the pipeline: **extract** a forward schedule window from the SG API (`SpeedGamingClient`), **transform** each episode to UTC and resolve every player to a `User` via the placeholder pattern, **load** by upserting a `SpeedGamingEpisode` staging row and materializing/refreshing its `Match` + `MatchPlayers`. Runs as the reserved **system `User`** (audit/event actor), always inside the worker's `tenant_scope`. Two race-day guards uphold the hybrid read-only contract: a re-sync **skips** a match that is finished / manually progressed / racetime-linked, and **auto-finishes** SG-sourced matches more than 4h past their scheduled time (unless a room is linked). The per-field read-only lock on a sourced match lives in [`match_source_guard.py`](#match_servicepy--matchservice) / `MatchService.update_match`; this service owns the sync side. Audited under `sg_sync.*`; module constant `BACKFILL_GRACE_HOURS = 1`.
 
 | Method | Returns | Description |
 |---|---|---|

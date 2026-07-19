@@ -1,4 +1,4 @@
-"""Frontend initialization for the SGL On Site FastAPI application.
+"""Frontend initialization for the Wizzrobe FastAPI application.
 
 Sets up NiceGUI pages and integrates them with the FastAPI app.
 """
@@ -28,7 +28,7 @@ from pages import (
     volunteer,
 )
 
-_ui_logger = logging.getLogger('sglman.ui')
+_ui_logger = logging.getLogger('wizzrobe.ui')
 
 # Order matters: Starlette runs the last-added middleware outermost, and
 # ui.run_with() adds NiceGUI's session middleware afterwards (outermost of all).
@@ -95,7 +95,7 @@ def init(fastapi_app: FastAPI) -> None:
     # Log the resolved platform host so a proxy that isn't forwarding Host (which
     # would make every configured custom domain silently render the platform
     # surface) is diagnosable from startup logs.
-    logging.getLogger('sglman').info(
+    logging.getLogger('wizzrobe').info(
         'Tenant routing: PLATFORM_HOST=%s (path mode /t/<slug> + host mode for custom domains)',
         get_platform_host(),
     )
@@ -130,7 +130,7 @@ def init(fastapi_app: FastAPI) -> None:
     ui.run_with(
         fastapi_app,
         # mount_path='/gui',  # NOTE this can be omitted if you want the paths passed to @ui.page to be at the root
-        title='SGL On Site',
+        title='Wizzrobe',
         # viewport-fit=cover lets the header/footer bleed into the iOS safe-area
         # insets so the app reads edge-to-edge when installed to the home screen.
         viewport='width=device-width, initial-scale=1, viewport-fit=cover',

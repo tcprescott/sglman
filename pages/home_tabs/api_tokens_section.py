@@ -100,7 +100,7 @@ async def render_api_tokens_section(user: User) -> None:
             ui.label('API Tokens').classes('section-title')
             ui.button('Generate token', icon='add', on_click=open_generate_dialog).props('color=primary dense')
         ui.label(
-            'Personal tokens for the SGL On Site REST API. Each token acts with your '
+            'Personal tokens for the Wizzrobe REST API. Each token acts with your '
             'permissions; mark a token read-only to limit it to read endpoints.'
         ).classes('text-muted text-caption')
         ui.link('API documentation', '/api/docs', new_tab=True).classes('text-caption')

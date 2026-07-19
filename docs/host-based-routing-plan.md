@@ -242,7 +242,7 @@ browser to `https://foo.gg/session/claim?token=…` → `foo.gg` validates the t
   values to prevent open-redirect / token-exfiltration. More surface, more tests.
 
 **Recommendation:** ship **Design A** first (host-local Discord login only),
-because SGL realistically has a handful of communities and at most a few custom
+because Wizzrobe realistically has a handful of communities and at most a few custom
 domains, so the Discord-registration ceiling is not yet binding, and A adds no
 new security-sensitive machinery. Document B as the migration path if/when the
 domain count approaches the provider limit. **This recommendation is the single
@@ -483,7 +483,7 @@ Extend `tests/test_tenant_middleware.py` and add auth tests:
 Each of the original open questions now has a decision from the adversarial
 review (§12); the sections above are updated to match.
 
-1. **A vs B →** ship **A** (host-local OAuth) for Phase 1 — SGL's domain count is
+1. **A vs B →** ship **A** (host-local OAuth) for Phase 1 — Wizzrobe's domain count is
    small and B's URL-borne bearer token is real added surface. **But** fix the
    `redirect_uri` builder first (§4.3 / §12 must-fix 1); the real Discord slot
    budget is **~8** (2 already used), so migrate to B when

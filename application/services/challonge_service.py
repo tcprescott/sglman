@@ -1,12 +1,12 @@
 """
 Challonge Service - Business Logic Layer
 
-Coordinates the Challonge integration: the SGL service-account OAuth
+Coordinates the Challonge integration: the Wizzrobe service-account OAuth
 connection, per-player identity linking, pulling a tournament's bracket into
-sglman, scheduling bracket matchups (via the existing match-request flow), and
+wizzrobe, scheduling bracket matchups (via the existing match-request flow), and
 pushing results back to Challonge.
 
-Credential model: one shared SGL service account writes brackets. Players link
+Credential model: one shared Wizzrobe service account writes brackets. Players link
 their own Challonge identity (scope ``me``) only so we can map them to bracket
 participants; their tokens are not retained.
 """
@@ -132,7 +132,7 @@ class ChallongeService:
         """Return a live service access token, refreshing if expired/forced."""
         connection = await self.repository.get_connection()
         if connection is None:
-            raise ValueError("Challonge is not connected. A staff member must connect the SGL account.")
+            raise ValueError("Challonge is not connected. A staff member must connect the Wizzrobe account.")
 
         if not force_refresh and not self._token_expiring(connection):
             return connection.access_token
@@ -173,7 +173,7 @@ class ChallongeService:
     async def save_service_connection(self, token_payload: Dict[str, Any], actor: User) -> ChallongeConnection:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
-            "Only staff can connect the SGL Challonge account",
+            "Only staff can connect the Wizzrobe Challonge account",
         )
         access, refresh, expires_at = self._unpack_token(token_payload)
         scopes = token_payload.get('scope') or _service_scopes()
@@ -198,7 +198,7 @@ class ChallongeService:
     async def disconnect(self, actor: User) -> None:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
-            "Only staff can disconnect the SGL Challonge account",
+            "Only staff can disconnect the Wizzrobe Challonge account",
         )
         await self.repository.clear_connection()
         await self.audit_service.write_log(actor, AuditActions.CHALLONGE_DISCONNECTED, {})
@@ -427,7 +427,7 @@ class ChallongeService:
         remote_matches: List[Dict[str, Any]],
         actor: User,
     ) -> Dict[str, int]:
-        # Participants -> resolve to linked sglman users by Challonge account id.
+        # Participants -> resolve to linked wizzrobe users by Challonge account id.
         # Resolve every linked user in one query rather than per participant.
         users_by_cuid = await self.repository.resolve_users_by_challonge_ids(
             [rp.get('challonge_user_id') for rp in remote_participants]

@@ -46,10 +46,10 @@ roles. All in the [decisions log](../README.md#decisions-log).
 ## Reference implementations
 
 - **sahabot2**: `models/user.py` (`SYSTEM_USER_ID = -1` + `is_system_user_id()` —
-  the sentinel idea, though sglman prefers a real row for audit snapshotting);
+  the sentinel idea, though wizzrobe prefers a real row for audit snapshotting);
   `modules/tournament/models/match_schedule.py` (`Tournament.settings_form_schema` /
   `preset_selection_rules` JSON — the hybrid-config precedent).
-- **sglman**: `models.py` `Role` enum + `application/services/auth_service.py`
+- **wizzrobe**: `models.py` `Role` enum + `application/services/auth_service.py`
   `can_*` methods; `application/services/audit_service.py` (actor snapshotting);
   `Tenant.config` JSONField as the existing JSON-column precedent.
 
