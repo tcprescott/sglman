@@ -85,10 +85,12 @@ async function clickTab(page, name) {
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE.ERROR: ' + m.text().slice(0, 200)); });
 
-  // Mock login: click "Log in as" in the row for `loginAs`.
+  // Mock login: click "Log in as" in the row for `loginAs`. The picker renders
+  // as a <table> on desktop and as `.sgl-grid-card` cards on a narrow (mobile)
+  // viewport (enable_mobile_grid), so match either container.
   await page.goto(`${baseUrl}${withTenant('/login')}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
-  const row = page.locator('tr', { hasText: loginAs }).first();
+  const row = page.locator('tr, .sgl-grid-card', { hasText: loginAs }).first();
   await row.getByRole('button', { name: 'Log in as' }).click();
   await page.waitForTimeout(1500);
   console.log(`logged in as ${loginAs} -> ${page.url()}`);

@@ -8,8 +8,24 @@ per-tenant authorization) are platform-level and managed on ``/platform``.
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import RaceRoomProfileService, get_user_from_discord_id
+
+_ROW_ACTIONS = '''
+    <q-btn flat round dense icon="edit" color="primary"
+           @click="$parent.$emit('edit', props.row)">
+        <q-tooltip>Edit</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="delete" color="negative"
+           @click="$parent.$emit('delete', props.row)">
+        <q-tooltip>Delete</q-tooltip>
+    </q-btn>
+'''
+_AUTO_START_ICON = '''
+    <q-icon :name="props.row.auto_start_bool ? 'check_circle' : 'cancel'"
+            :color="props.row.auto_start_bool ? 'positive' : 'negative'" size="sm" />
+'''
 
 # (widget-attr, label) for the boolean room-setting switches.
 _BOOL_FIELDS = (
@@ -146,25 +162,10 @@ async def admin_racetime_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
-            table.add_slot('body-cell-auto_start', '''
-                <q-td :props="props">
-                    <q-icon :name="props.row.auto_start_bool ? 'check_circle' : 'cancel'"
-                            :color="props.row.auto_start_bool ? 'positive' : 'negative'" size="sm" />
-                </q-td>
-            ''')
-
-            table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn flat round dense icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)">
-                        <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="delete" color="negative"
-                           @click="$parent.$emit('delete', props.row)">
-                        <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                </q-td>
-            ''')
+            table.add_slot('body-cell-auto_start', f'<q-td :props="props">{_AUTO_START_ICON}</q-td>')
+            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               field_slots={'auto_start': _AUTO_START_ICON})
 
             table.on('edit', lambda e: background_tasks.create(edit_profile(e.args, context.client)))
             table.on('delete', lambda e: background_tasks.create(delete_profile(e.args, context.client)))

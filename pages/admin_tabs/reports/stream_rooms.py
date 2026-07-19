@@ -10,6 +10,7 @@ from nicegui import ui
 
 from application.services import ReportsService
 from application.utils.timezone import format_eastern_display
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     CHART_GOLD,
     CHART_NEUTRAL,
@@ -129,6 +130,7 @@ async def stream_rooms_page(
                 row_key='stream_room_id',
             ).classes('full-width')
             summary_table.on('row-click', _row_clicked)
+            enable_mobile_grid(summary_table, summary_columns, row_click_event='row-click')
             if stream_room_id_int is None:
                 ui.label('Click a row to drill into a single stream room.').classes('italic-note')
 
@@ -152,12 +154,13 @@ async def stream_rooms_page(
                     {'name': 'start', 'label': 'Window start', 'field': 'start', 'sortable': True},
                     {'name': 'end', 'label': 'Window end', 'field': 'end', 'sortable': True},
                 ]
-                ui.table(
+                match_table = ui.table(
                     columns=match_columns,
                     rows=match_rows,
                     pagination=25,
                     row_key='match_id',
                 ).classes('full-width')
+                enable_mobile_grid(match_table, match_columns)
 
 
 def _render_utilization_chart(rooms) -> None:

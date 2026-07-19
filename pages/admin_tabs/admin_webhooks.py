@@ -5,6 +5,7 @@ import json
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
@@ -21,6 +22,30 @@ signed = f"{request.headers['X-SGL-Timestamp']}.{raw_body}".encode()
 expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
 assert hmac.compare_digest(expected, request.headers["X-SGL-Signature"])'''
 
+_IS_ACTIVE_ICON = '''
+    <q-icon :name="props.row.is_active_raw ? 'check_circle' : 'cancel'"
+            :color="props.row.is_active_raw ? 'positive' : 'negative'" size="sm" />
+'''
+
+_ROW_ACTIONS = '''
+    <q-btn flat round dense icon="edit" color="primary"
+           @click="$parent.$emit('edit', props.row)">
+        <q-tooltip>Edit</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="vpn_key" color="primary"
+           @click="$parent.$emit('regenerate', props.row)">
+        <q-tooltip>Regenerate secret</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="history" color="primary"
+           @click="$parent.$emit('deliveries', props.row)">
+        <q-tooltip>Recent deliveries</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="delete" color="negative"
+           @click="$parent.$emit('delete', props.row)">
+        <q-tooltip>Delete</q-tooltip>
+    </q-btn>
+'''
+
 
 def _render_format_reference() -> None:
     """A collapsed, code-derived reference for what the app POSTs to a receiver."""
@@ -33,6 +58,7 @@ def _render_format_reference() -> None:
         ui.code(json.dumps(ref['example_payload'], indent=2), language='json').classes('w-full')
 
         ui.label('Headers').classes('text-subtitle2 q-mt-md')
+        # mobile-grid: exempt — static 2-column reference reads fine on mobile
         ui.table(
             columns=[
                 {'name': 'name', 'label': 'Header', 'field': 'name', 'align': 'left'},
@@ -175,18 +201,20 @@ async def admin_webhooks_page() -> None:
                             }
                             for d in deliveries
                         ]
-                        ui.table(
-                            columns=[
-                                {'name': 'when', 'label': 'When', 'field': 'when'},
-                                {'name': 'event', 'label': 'Event', 'field': 'event'},
-                                {'name': 'status', 'label': 'OK', 'field': 'status'},
-                                {'name': 'code', 'label': 'HTTP', 'field': 'code'},
-                                {'name': 'attempts', 'label': 'Tries', 'field': 'attempts'},
-                                {'name': 'error', 'label': 'Error', 'field': 'error'},
-                            ],
+                        delivery_columns = [
+                            {'name': 'when', 'label': 'When', 'field': 'when'},
+                            {'name': 'event', 'label': 'Event', 'field': 'event'},
+                            {'name': 'status', 'label': 'OK', 'field': 'status'},
+                            {'name': 'code', 'label': 'HTTP', 'field': 'code'},
+                            {'name': 'attempts', 'label': 'Tries', 'field': 'attempts'},
+                            {'name': 'error', 'label': 'Error', 'field': 'error'},
+                        ]
+                        delivery_table = ui.table(
+                            columns=delivery_columns,
                             rows=rows,
                             row_key='when',
                         ).classes('w-full sgl-table')
+                        enable_mobile_grid(delivery_table, delivery_columns)
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
@@ -260,38 +288,16 @@ async def admin_webhooks_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
-            table.add_slot('body-cell-is_active', '''
-                <q-td :props="props">
-                    <q-icon :name="props.row.is_active_raw ? 'check_circle' : 'cancel'"
-                            :color="props.row.is_active_raw ? 'positive' : 'negative'" size="sm" />
-                </q-td>
-            ''')
-
-            table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn flat round dense icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)">
-                        <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="vpn_key" color="primary"
-                           @click="$parent.$emit('regenerate', props.row)">
-                        <q-tooltip>Regenerate secret</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="history" color="primary"
-                           @click="$parent.$emit('deliveries', props.row)">
-                        <q-tooltip>Recent deliveries</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="delete" color="negative"
-                           @click="$parent.$emit('delete', props.row)">
-                        <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                </q-td>
-            ''')
+            table.add_slot('body-cell-is_active', f'<q-td :props="props">{_IS_ACTIVE_ICON}</q-td>')
+            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
 
             table.on('edit', lambda e: open_webhook_dialog(e.args))
             table.on('regenerate', lambda e: background_tasks.create(regenerate_secret(e.args, context.client)))
             table.on('deliveries', lambda e: background_tasks.create(view_deliveries(e.args, context.client)))
             table.on('delete', lambda e: background_tasks.create(delete_webhook(e.args, context.client)))
+
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               field_slots={'is_active': _IS_ACTIVE_ICON})
 
         wire_tab_refresh('Webhooks', refresh_table)
         background_tasks.create(refresh_table())

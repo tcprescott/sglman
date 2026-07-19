@@ -5,6 +5,7 @@ import json
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     FeatureFlagService,
@@ -12,6 +13,17 @@ from application.services import (
     SeedGenerationService,
     get_user_from_discord_id,
 )
+
+_ROW_ACTIONS = '''
+    <q-btn flat round dense icon="edit" color="primary"
+           @click="$parent.$emit('edit', props.row)">
+        <q-tooltip>Edit</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="delete" color="negative"
+           @click="$parent.$emit('delete', props.row)">
+        <q-tooltip>Delete</q-tooltip>
+    </q-btn>
+'''
 
 
 async def admin_presets_page() -> None:
@@ -162,18 +174,8 @@ async def admin_presets_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
-            table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn flat round dense icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)">
-                        <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="delete" color="negative"
-                           @click="$parent.$emit('delete', props.row)">
-                        <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                </q-td>
-            ''')
+            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS)
 
             table.on('edit', lambda e: open_preset_dialog(e.args))
             table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))

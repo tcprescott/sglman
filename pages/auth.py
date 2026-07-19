@@ -36,10 +36,16 @@ from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mock_discord import is_mock_discord
 from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
 from models import Role, Tenant, User
+from theme.tables.mobile_grid import enable_mobile_grid
 
 logger = logging.getLogger(__name__)
 
 _client_id = os.getenv("DISCORD_CLIENT_ID")
+
+_LOGIN_ACTION = '''
+    <q-btn color="primary" dense label="Log in as"
+           @click="$parent.$emit('login_as', props.row)" />
+'''
 
 config = {
     "DISCORD_TOKEN": os.getenv("DISCORD_TOKEN"),
@@ -548,12 +554,8 @@ def _create_mock() -> None:
                 ]
 
                 table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full')
-                table.add_slot('body-cell-actions', '''
-                    <q-td :props="props">
-                        <q-btn color="primary" dense label="Log in as"
-                               @click="$parent.$emit('login_as', props.row)" />
-                    </q-td>
-                ''')
+                table.add_slot('body-cell-actions', f'<q-td :props="props">{_LOGIN_ACTION}</q-td>')
+                enable_mobile_grid(table, columns, actions=_LOGIN_ACTION)
 
                 def on_login_as(e):
                     user_id = e.args.get('id')

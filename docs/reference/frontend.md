@@ -593,6 +593,27 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 - `refresh()` orders by username and prefetches `roles`, `admin_tournaments`, `crew_coordinated_tournaments`; `_format_user_row` title-cases role names and appends `TA(n)` / `CC(n)` markers for tournament-scoped roles. Timestamps format through `format_eastern_display`.
 - `render_grid_slot()` generates the mobile card from the column list; `update_row_by_id` refreshes a single row.
 
+### Responsive tables — the mobile grid rule
+
+**Every `ui.table` must have a mobile card view.** A bare HTML `<table>` overflows a phone: its columns and (worse) its row-action buttons scroll off the right edge. Quasar's *grid mode* fixes this — below a breakpoint the table renders an `item` slot per row instead of `<tr>`s. The mechanical guardrail [`check_table_grid.py`](../../.claude/scripts/check_table_grid.py) (PostToolUse) flags any presentation-layer `ui.table` that lacks it.
+
+Two sanctioned ways to comply:
+
+1. **`enable_mobile_grid(table, columns, …)`** ([`theme/tables/mobile_grid.py`](../../theme/tables/mobile_grid.py)) — the default for every admin / report / player table. It's column-driven: it adds `:grid="Quasar.Screen.lt.md"` and generates a `.sgl-grid-card` `item` slot from the same `columns` the desktop table uses (skipping `hidden` columns and the `actions` column). Pass `actions=` the **same** row-action button HTML used in the `body-cell-actions` slot (hoist it into one constant — don't duplicate), `field_slots={'status': '<q-badge …>'}` for any badge/chip/icon column (the snippet reads `props.row.<field>`, not the desktop cell's `props.value`), and `row_click_event='row-click'` to keep a whole-row drill-down tappable on mobile.
+
+   ```python
+   from theme.tables.mobile_grid import enable_mobile_grid
+
+   table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full sgl-table')
+   table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
+   table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+   enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS, field_slots={'status': _STATUS_BADGE})
+   ```
+
+2. **A bespoke `item` slot** with an inline `:grid="Quasar.Screen.lt.md"` prop — reserved for the four purpose-built family tables (match / user / tournament / equipment), whose cards are too custom for the generic helper (see `match_grid.render_grid_slot`).
+
+A table that legitimately must stay a table on mobile (a narrow 2-column reference) opts out with a `# mobile-grid: exempt` comment on the `ui.table` line. The generic card styling is `.sgl-grid-card` (the card counterpart of `.sgl-table`), which carries its surface from a wrapping `<q-card bordered flat>`.
+
 ## Static assets & styling (`static/`)
 
 `static/` is served at `/static` (uncached in development — see [NiceGUI integration](#nicegui-integration-frontendpy)). Beyond the stylesheet it holds the PWA assets ([`manifest.webmanifest`](../../static/manifest.webmanifest), `icons/`, `fonts/`), [`sw.js`](../../static/sw.js) (served from the site root `/sw.js`; a no-cache pass-through worker that satisfies Chrome's installability requirement and renders Web Push messages on browsers without Declarative Web Push — see [../features/web-push.md](../features/web-push.md)), and [`js/web-push.js`](../../static/js/web-push.js) (client-side subscribe/unsubscribe helpers for the Profile tab's Device Notifications card).

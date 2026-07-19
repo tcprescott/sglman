@@ -10,6 +10,7 @@ from nicegui import ui
 
 from application.services import ReportsService, SystemConfigService
 from application.utils.timezone import format_eastern_display
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     CHART_GOLD,
     CHART_GOLD_AREA,
@@ -210,7 +211,8 @@ async def capacity_page(
                         {'name': 'stream_room', 'label': 'Stream Room', 'field': 'stream_room'},
                         {'name': 'state', 'label': 'State', 'field': 'state'},
                     ]
-                    ui.table(columns=columns, rows=rows, row_key='match_id', pagination=25).classes('full-width')
+                    focus_table = ui.table(columns=columns, rows=rows, row_key='match_id', pagination=25).classes('full-width')
+                    enable_mobile_grid(focus_table, columns)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between'):
@@ -235,7 +237,8 @@ async def capacity_page(
                     lambda: columns,
                     lambda: rows,
                 )
-            ui.table(columns=columns, rows=rows, pagination=25, row_key='time').classes('full-width')
+            forecast_table = ui.table(columns=columns, rows=rows, pagination=25, row_key='time').classes('full-width')
+            enable_mobile_grid(forecast_table, columns)
 
 
 def _parse_focus(value: Optional[str]) -> Optional[datetime]:

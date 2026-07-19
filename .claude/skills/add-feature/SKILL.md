@@ -125,6 +125,13 @@ module — `enforce_architecture.py` blocks both directions).
   `ServiceTableView`, `actions_slot`) and dialogs on
   `theme/dialog/_helpers.py` (header/actions/mobile-sheet/Enter-to-submit) —
   don't clone a sibling tab.
+- **Every `ui.table` needs a mobile card view** — call
+  `enable_mobile_grid(table, columns, actions=…, field_slots=…)`
+  (`from theme.tables.mobile_grid import enable_mobile_grid`) after building it,
+  passing the same row-action button HTML you put in `body-cell-actions` and a
+  `field_slots` snippet for each badge/chip/icon column. `check_table_grid`
+  blocks a table without it (opt out with `# mobile-grid: exempt`). Detail:
+  [frontend.md](../../docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
 - API routers: **never add a `_load_*_or_404` preload** (DRY hook blocks new
   ones) — the service raises `NotFoundError` and `ServiceErrorRoute` 404s.
 - Datetimes: store UTC, display Eastern — use `application/utils/timezone.py`

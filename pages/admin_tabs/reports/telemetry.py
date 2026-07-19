@@ -14,6 +14,7 @@ from nicegui import app, ui
 from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
 from application.utils.timezone import format_eastern_display
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     date_range_filter,
     default_date_range,
@@ -238,3 +239,4 @@ def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:
                 if uid is not None:
                     on_row_click(uid)
             table.on('lb-click', _handle)
+        enable_mobile_grid(table, columns, row_click_event='lb-click' if on_row_click is not None else None)

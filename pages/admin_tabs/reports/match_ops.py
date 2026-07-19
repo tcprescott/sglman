@@ -10,6 +10,7 @@ from nicegui import ui
 
 from application.services import ReportsService
 from application.utils.timezone import format_eastern_display
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     csv_export_button,
     date_range_filter,
@@ -93,11 +94,12 @@ async def match_ops_page(
                     {'name': 'expected_avg_min', 'label': 'Expected (min)', 'field': 'expected_avg_min', 'sortable': True},
                     {'name': 'on_time_pct', 'label': 'On-time %', 'field': 'on_time_pct', 'sortable': True},
                 ]
-                ui.table(
+                agg_table = ui.table(
                     columns=agg_columns,
                     rows=ops['aggregates'],
                     row_key='tournament_id',
                 ).classes('full-width')
+                enable_mobile_grid(agg_table, agg_columns)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
@@ -125,9 +127,10 @@ async def match_ops_page(
                     lambda: detail_columns,
                     lambda: detail_rows,
                 )
-            ui.table(
+            detail_table = ui.table(
                 columns=detail_columns,
                 rows=detail_rows,
                 pagination=25,
                 row_key='match_id',
             ).classes('full-width')
+            enable_mobile_grid(detail_table, detail_columns)
