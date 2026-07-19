@@ -2,8 +2,8 @@
 Seed Generation Service - Business Logic Layer
 
 Handles random seed generation for various randomizers.
-Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, and Test.
-Registers not-yet-implemented stubs: MMR, SMDASH, DK64R, WWR.
+Supports: ALTTPR, FF1R, Z1R, SMMAP, OOTR, DK64R, and Test.
+Registers not-yet-implemented stubs: MMR, SMDASH, WWR.
 """
 
 import asyncio
@@ -11,8 +11,9 @@ import json
 import os
 import random
 import secrets
+import time
 import urllib.parse
-from typing import Optional
+from typing import List, Optional, Set
 
 import aiohttp
 import yaml
@@ -20,7 +21,16 @@ from pyz3r import ALTTPR
 
 from application.tenant_context import require_tenant_id
 from application.utils.mock_seedgen import is_mock_seedgen
-from models import Preset
+from models import FeatureFlag, Preset
+
+# DK64 Randomizer (api.dk64rando.com) — a task-queue backend: submit → poll →
+# result. See docs/online-tournaments/implementation/dk64-randomizer.md.
+DK64R_API_BASE = 'https://api.dk64rando.com/api'
+DK64R_BRANCHES = {'stable', 'dev'}
+# The player-facing site host per branch (the permalink the roll returns).
+DK64R_SITE_HOSTS = {'stable': 'dk64randomizer.com', 'dev': 'dev.dk64randomizer.com'}
+DK64R_POLL_INTERVAL = 5.0        # seconds — matches the reference web client's cadence
+DK64R_GENERATION_TIMEOUT = 600.0  # seconds (10 min) worst-case queue + generation budget
 
 
 class SeedGenerationService:
@@ -41,8 +51,19 @@ class SeedGenerationService:
     ]
 
     # Randomizers registered for selection but whose generator is not yet
-    # wired to an upstream API — rolling one raises ``NotImplementedError``.
-    STUB_RANDOMIZERS = {'mmr', 'smdash', 'dk64r', 'wwr'}
+    # wired to an upstream API — rolling one raises ``ValueError``.
+    STUB_RANDOMIZERS = {'mmr', 'smdash', 'wwr'}
+
+    # Randomizers whose generator resolves a ``Preset`` (its settings feed the
+    # roll). Anything else ignores the preset and rolls hard-coded settings.
+    PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r'}
+
+    # Randomizers gated behind a per-tenant feature flag: they reach an upstream
+    # that requires an API key whose owner attaches usage restrictions the
+    # community must be authorized (and have agreed) to use. Availability of the
+    # flag is how a super-admin records that authorization. The mapping is used
+    # to filter selector surfaces and to gate every roll boundary.
+    FLAG_GATED_RANDOMIZERS = {'dk64r': FeatureFlag.DK64_RANDOMIZER}
 
     # Randomizers whose generator can embed community triforce texts.
     TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}
@@ -51,6 +72,29 @@ class SeedGenerationService:
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
         return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
 
+    @classmethod
+    def gating_flag(cls, randomizer: Optional[str]) -> Optional[FeatureFlag]:
+        """The feature flag gating ``randomizer``, or ``None`` when it is ungated.
+
+        Every roll boundary (match schedule, REST roll, qualifier pool roll)
+        consults this to enforce the usage agreement at call time.
+        """
+        return cls.FLAG_GATED_RANDOMIZERS.get(randomizer)
+
+    @classmethod
+    def available_randomizers(cls, live_flags: Set[FeatureFlag]) -> List[str]:
+        """The randomizers a tenant may *select*, given its live feature flags.
+
+        Drops any flag-gated randomizer whose flag is not live. Validity is not
+        availability: ``AVAILABLE_RANDOMIZERS`` stays the whole set (a stored
+        ``dk64r`` preset is a valid row even where the flag is off), while the
+        two selector surfaces offer only what the tenant is authorized to use.
+        """
+        return [
+            r for r in cls.AVAILABLE_RANDOMIZERS
+            if r not in cls.FLAG_GATED_RANDOMIZERS or cls.FLAG_GATED_RANDOMIZERS[r] in live_flags
+        ]
+
     async def generate_seed(self, randomizer: str, preset: Optional[Preset] = None) -> str:
         """
         Generate a seed for the specified randomizer.
@@ -58,9 +102,10 @@ class SeedGenerationService:
         Args:
             randomizer: Name of the randomizer (alttpr, ff1r, z1r, smmap, ootr, test)
             preset: Optional resolved ``Preset`` supplying the randomizer settings.
-                ALTTPR uses ``preset.settings`` when given; without a preset it
-                falls back to the built-in ``casualboots`` settings. Other
-                backends are still hard-coded until PR 11 and ignore the preset.
+                Preset-aware backends (``PRESET_AWARE_RANDOMIZERS``: ALTTPR, DK64R)
+                use ``preset.settings`` when given and fall back to a committed
+                default without one. Other backends are still hard-coded and
+                ignore the preset.
 
         Returns:
             URL or string representing the generated seed
@@ -87,8 +132,8 @@ class SeedGenerationService:
         if is_mock_seedgen():
             return self._mock_seed_url(randomizer)
 
-        if randomizer == 'alttpr':
-            return await self._generate_alttpr(preset)
+        if randomizer in self.PRESET_AWARE_RANDOMIZERS:
+            return await generator_map[randomizer](preset)
         return await generator_map[randomizer]()
 
     @staticmethod
@@ -245,9 +290,126 @@ class SeedGenerationService:
         """Generate a Super Metroid: DASH seed. Not yet implemented."""
         raise ValueError("Super Metroid: DASH seed generation is not yet implemented.")
 
-    async def _generate_dk64r(self) -> str:
-        """Generate a Donkey Kong 64 Randomizer seed. Not yet implemented."""
-        raise ValueError("Donkey Kong 64 Randomizer seed generation is not yet implemented.")
+    async def _generate_dk64r(self, preset: Optional[Preset] = None) -> str:
+        """Generate a Donkey Kong 64 Randomizer seed via the api.dk64rando.com queue.
+
+        The upstream is a task queue: convert settings (if needed), submit the
+        task, poll until it finishes, and return a shareable dk64randomizer.com
+        permalink. The API is key-gated (``DK64R_API_KEY``, sent as ``X-API-Key``)
+        — which is why the ``dk64r`` randomizer is flag-gated at every roll
+        boundary. See docs/online-tournaments/implementation/dk64-randomizer.md.
+        """
+        api_key = os.environ.get('DK64R_API_KEY')
+        if not api_key:
+            raise ValueError('DK64R_API_KEY is not configured.')
+
+        # Resolve settings: the preset when given, else the committed default.
+        if preset is not None:
+            settings = dict(preset.settings or {})
+        else:
+            with open("presets/dk64r/sgl.json", "r", encoding="utf-8") as f:
+                settings = json.load(f)
+
+        # Optional per-preset branch override, stripped before anything is sent.
+        branch = str(settings.pop('_branch', 'stable'))
+        if branch not in DK64R_BRANCHES:
+            raise ValueError(
+                f"Unknown DK64R branch '{branch}' (expected 'stable' or 'dev')."
+            )
+
+        # A settings string is the site's own portable preset format; expand it
+        # to the full settings dict. A full-JSON preset is submitted as-is
+        # (converting a dict would yield a string — the opposite direction).
+        settings_string = settings.get('settings_string')
+
+        params = {'branch': branch}
+        headers = {'X-API-Key': api_key}
+        async with aiohttp.ClientSession(headers=headers) as session:
+            if settings_string is not None:
+                settings_dict = await self._dk64r_convert(session, settings_string, params)
+            else:
+                settings_dict = settings
+            task_id = await self._dk64r_submit(session, settings_dict, params)
+            result = await self._dk64r_poll(session, task_id, params)
+
+        seed_number = result.get('seed_number')
+        if seed_number is None:
+            raise ValueError('DK64 Randomizer returned no seed identifier.')
+        return f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}"
+
+    async def _dk64r_convert(self, session, settings_string: str, params: dict) -> dict:
+        """Expand a DK64R settings string into the full settings JSON object."""
+        async with session.post(
+            f"{DK64R_API_BASE}/convert_settings",
+            json={'settings': settings_string}, params=params,
+        ) as resp:
+            if resp.status != 200:
+                raise ValueError(await self._dk64r_error(resp, 'convert settings'))
+            data = await resp.json()
+        if not isinstance(data, dict):
+            raise ValueError('DK64 Randomizer returned an unexpected settings payload.')
+        return data
+
+    async def _dk64r_submit(self, session, settings_dict: dict, params: dict) -> str:
+        """Submit a generation task; return its task id."""
+        async with session.post(
+            f"{DK64R_API_BASE}/submit-task",
+            json={'settings_data': json.dumps(settings_dict)}, params=params,
+        ) as resp:
+            if resp.status != 200:
+                raise ValueError(await self._dk64r_error(resp, 'submit the seed'))
+            data = await resp.json()
+        task_id = (data or {}).get('task_id')
+        if not task_id:
+            raise ValueError('DK64 Randomizer did not return a task id.')
+        return task_id
+
+    async def _dk64r_poll(self, session, task_id: str, params: dict) -> dict:
+        """Poll a task until it finishes; return its ``result`` object.
+
+        Bounded by ``DK64R_GENERATION_TIMEOUT``. A crashed task surfaces as HTTP
+        500; the reference client also defends against a ``failed`` status inside
+        a 200, so both are handled.
+        """
+        deadline = time.monotonic() + DK64R_GENERATION_TIMEOUT
+        while True:
+            async with session.get(
+                f"{DK64R_API_BASE}/task-status/{task_id}", params=params,
+            ) as resp:
+                if resp.status != 200:
+                    raise ValueError(await self._dk64r_error(resp, 'generate the seed'))
+                data = await resp.json()
+            status = (data or {}).get('status')
+            if status == 'finished':
+                result = data.get('result')
+                if not isinstance(result, dict):
+                    raise ValueError('DK64 Randomizer finished without a seed result.')
+                return result
+            if status == 'failed':
+                raise ValueError('DK64 Randomizer failed to generate the seed.')
+            if status not in ('queued', 'started'):
+                raise ValueError(
+                    f"DK64 Randomizer returned an unexpected status '{status}'."
+                )
+            if time.monotonic() >= deadline:
+                raise ValueError('DK64 Randomizer seed generation timed out.')
+            await asyncio.sleep(DK64R_POLL_INTERVAL)
+
+    @staticmethod
+    async def _dk64r_error(resp, action: str) -> str:
+        """Best-effort upstream error text for a failed DK64R call."""
+        detail = ''
+        try:
+            body = await resp.json()
+            if isinstance(body, dict):
+                detail = body.get('error') or body.get('message') or ''
+        except Exception:
+            try:
+                detail = (await resp.text())[:200]
+            except Exception:
+                detail = ''
+        suffix = f': {detail}' if detail else ''
+        return f"DK64 Randomizer failed to {action} (HTTP {resp.status}){suffix}"
 
     async def _generate_wwr(self) -> str:
         """Generate a Wind Waker Randomizer seed. Not yet implemented."""

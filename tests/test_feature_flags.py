@@ -45,7 +45,7 @@ async def _flag(tenant_id: int, flag: FeatureFlag, *, available: bool, enabled: 
 # --- registry ---------------------------------------------------------------
 
 def test_registry_covers_every_flag():
-    assert len(FEATURE_FLAG_REGISTRY) == 7
+    assert len(FEATURE_FLAG_REGISTRY) == 8
     assert set(FEATURE_FLAG_REGISTRY) == set(FeatureFlag)
 
 
@@ -57,6 +57,9 @@ def test_established_flags_are_the_in_use_features():
     # New/unreleased features ship dark (not established).
     assert FeatureFlag.ASYNC_QUALIFIERS not in established_flags()
     assert FeatureFlag.RACETIME_ROOMS not in established_flags()
+    # DK64R ships dark: it needs an API key + a super-admin availability grant
+    # recording the community agreed to the key owner's usage terms.
+    assert FeatureFlag.DK64_RANDOMIZER not in established_flags()
 
 
 # --- effective state: available AND enabled ---------------------------------

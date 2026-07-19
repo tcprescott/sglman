@@ -297,6 +297,19 @@ class MatchScheduleService:
                 if randomizer not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
                     return False, f"Seed generator '{randomizer}' not found", None
 
+                # Roll-boundary feature-flag gate. A flag-gated randomizer reaches
+                # a keyed upstream whose usage terms the community must be
+                # authorized for; enforce that here (an authz-style gate at the
+                # roll boundary, which already ran the permission check) rather
+                # than trusting the config was created while the flag was on. This
+                # fires ahead of the seedgen MOCK short-circuit, so an off flag
+                # blocks the roll in dev too.
+                gate_flag = self.seedgen_service.gating_flag(randomizer)
+                if gate_flag is not None:
+                    from application.services.feature_flag_service import FeatureFlagService
+                    if not await FeatureFlagService().is_enabled(gate_flag):
+                        return False, "This seed generator is not enabled for this community", None
+
                 # Generate the seed
                 seed_url = await self.seedgen_service.generate_seed(randomizer, preset)
 

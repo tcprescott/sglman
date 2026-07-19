@@ -49,9 +49,20 @@ service transaction — so a service method never does a feature-flag DB read.
 | Home tabs | `pages/home.py` gates the Triforce Texts and Equipment tabs (My Availability stays ungated — it feeds crew signup too). |
 | REST API | `api/__init__.py` attaches `require_feature(FeatureFlag.X)` to each gated router's `include_router`; a disabled feature 404s. |
 | Auto workers | The racetime auto-open and SpeedGaming sync workers skip a tenant whose flag is off (a clean `is_enabled` check inside `tenant_scope`). |
+| A value within a shared control | When the gated thing is one *option* in a shared select rather than a whole page/router (e.g. the `dk64r` seed generator), the gate is a **per-value filter at each selection surface** plus an **explicit flag check at each action boundary**. `dk64r` filters via `SeedGenerationService.available_randomizers(live_flags)` and re-checks at every roll (see [seed-generation.md](../reference/seed-generation.md#flag-gated-randomizers)). The roll check is the sanctioned service-layer flag read — it sits at the roll's authorization boundary, not inside a low-level transaction. |
 
 The admin **Features** tab itself is only role-gated (STAFF), never flag-gated —
 it is the control panel.
+
+### API-key randomizers are always flag-gated
+
+A convention worth stating explicitly: **any seed randomizer whose upstream
+requires an API key to generate is gated behind a per-tenant feature flag.** The
+key's owner attaches usage restrictions the community must agree to, and a
+super-admin's availability grant is how the platform records that a given tenant
+is authorized (and has agreed) to use it — an authorization gate, not a beta
+toggle. `dk64_randomizer` (api.dk64rando.com, `DK64R_API_KEY`) is the first; new
+keyed backends follow the same rule rather than each being decided ad hoc.
 
 ## The current flags
 
@@ -60,6 +71,7 @@ it is the control panel.
 | `async_qualifiers` | Online tournaments | no (ships dark) | `/qualifiers`, admin Qualifiers tab, `/async-qualifiers*` API |
 | `racetime_rooms` | Online tournaments | no | admin Racetime tab, race-room + profile API, auto-open worker |
 | `speedgaming_etl` | Online tournaments | no | admin SpeedGaming tab, `/speedgaming` API, sync worker |
+| `dk64_randomizer` | Online tournaments | no | the `dk64r` seed generator: selector filter (tournament dialog, Presets tab, `/seeds/randomizers`) + every roll boundary (match roll, `POST /seeds`, qualifier pool roll) |
 | `challonge` | Community | **yes** | admin Challonge tab |
 | `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs |
 | `volunteers` | Community | **yes** | `/volunteer`, admin Vol. Roster/Schedule, `/volunteers` API |
@@ -68,7 +80,7 @@ it is the control panel.
 `established=True` marks a feature that was **already in live use** when its flag
 was added. [Migration 30](../../migrations/models/30_20260715000000_feature_flags.py)
 pinned those flags `available+enabled` for every existing tenant so gating them
-didn't make them vanish; new/unreleased features (the three online ones) ship
+didn't make them vanish; new/unreleased features (the four online ones) ship
 dark.
 
 ## Groups (tiers)

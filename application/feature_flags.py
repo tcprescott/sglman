@@ -63,6 +63,15 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Online tournaments',
         ),
         FeatureFlagSpec(
+            FeatureFlag.DK64_RANDOMIZER,
+            'DK64 Randomizer',
+            'Roll Donkey Kong 64 Randomizer seeds via the api.dk64rando.com '
+            'service. Requires an API key issued by the DK64 Randomizer team; '
+            'availability records that this community is authorized to use it '
+            'under that key\'s usage terms.',
+            'Online tournaments',
+        ),
+        FeatureFlagSpec(
             FeatureFlag.CHALLONGE,
             'Challonge Integration',
             'Connect a Challonge account to mirror brackets, schedule from '

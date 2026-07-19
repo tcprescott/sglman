@@ -3,6 +3,7 @@ from nicegui import app, ui
 from application.services import (
     AuthService,
     ChallongeService,
+    FeatureFlagService,
     PresetService,
     RaceRoomProfileService,
     RacetimeBotService,
@@ -52,8 +53,14 @@ class TournamentDialog:
                     'Description',
                     value=self.tournament.description if self.tournament and self.tournament.description else '',
                 ).classes('input-full-width')
-                randomizer_choices = ['None'] + SeedGenerationService.AVAILABLE_RANDOMIZERS
                 default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
+                live_flags = await FeatureFlagService().enabled_flags()
+                seed_choices = SeedGenerationService.available_randomizers(live_flags)
+                # Keep a previously-chosen (now flag-gated) generator selectable so
+                # editing an existing tournament never silently drops its value.
+                if default_seed and default_seed not in seed_choices:
+                    seed_choices = seed_choices + [default_seed]
+                randomizer_choices = ['None'] + seed_choices
                 seed_generator_input = ui.select(
                     randomizer_choices, label='Seed Generator', value=default_seed,
                 ).classes('input-full-width')

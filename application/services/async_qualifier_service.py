@@ -347,6 +347,16 @@ class AsyncQualifierService:
             raise ValueError("Pool has no preset to roll from")
         if count < 1 or count > 25:
             raise ValueError("Roll count must be between 1 and 25")
+        # Roll-boundary feature-flag gate: a flag-gated randomizer reaches a keyed
+        # upstream the community must be authorized for. Block the whole batch up
+        # front rather than making N unauthorized calls.
+        gate_flag = SeedGenerationService.gating_flag(pool.preset.randomizer)
+        if gate_flag is not None:
+            from application.services.feature_flag_service import FeatureFlagService
+            if not await FeatureFlagService().is_enabled(gate_flag):
+                raise ValueError(
+                    "This seed generator is not enabled for this community"
+                )
         seedgen = SeedGenerationService()
         created: List[AsyncQualifierPermalink] = []
         for _ in range(count):

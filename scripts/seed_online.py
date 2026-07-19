@@ -106,6 +106,18 @@ async def seed_online_for_tenant(
             "description": "Standard open-mode ALTTPR settings.",
         },
     )
+    # A DK64 Randomizer preset in the canonical settings-string shape (the site's
+    # own portable preset format). The value is a placeholder — dev rolls go
+    # through MOCK_SEEDGEN and never send it upstream; swap in a real string from
+    # dk64randomizer.com before enabling the DK64_RANDOMIZER flag in production.
+    await Preset.get_or_create(
+        name="DK64 Community", tenant=tenant,
+        defaults={
+            "randomizer": "dk64r",
+            "settings": {"settings_string": "REPLACE_WITH_SGL_DK64_SETTINGS_STRING"},
+            "description": "DK64 Randomizer settings (settings-string form).",
+        },
+    )
     alttpr_bot = bots["alttpr"]
     # Authorize the tenant to use the bot so live-race room opening (PR 10),
     # which resolves an authorized bot, has one to pick.

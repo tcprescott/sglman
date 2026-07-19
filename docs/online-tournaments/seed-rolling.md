@@ -68,7 +68,7 @@ Phase 1 (preset infrastructure) is **implemented** — see [PR 1](implementation
 | ff1r | ✅ | — |
 | z1r | ✅ | — |
 | smmap (Map Rando) | ✅ | — |
-| dk64r (DK64) | stub | ☐ ([plan](implementation/dk64-randomizer.md)) |
+| dk64r (DK64) | ✅ | ✅ ([plan](implementation/dk64-randomizer.md)) — flag-gated, needs `DK64R_API_KEY` |
 
 ## Data model
 

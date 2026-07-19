@@ -1,10 +1,14 @@
 # DK64 Randomizer backend (`dk64r`) — implementation plan
 
 > Sub-plan of [PR 11 — randomizer coverage expansion](pr-11-randomizer-coverage.md)
-> ("several small PRs, one per randomizer family"). Status: **design settled**
-> (see [Decisions](#decisions-from-planning-review)) — ready to implement once
-> the `DK64R_API_KEY` is issued and the built-in preset payload is supplied
-> (the two remaining [open questions](#open-questions)).
+> ("several small PRs, one per randomizer family"). Status: **implemented** (see
+> [Decisions](#decisions-from-planning-review)). The backend, the
+> `DK64_RANDOMIZER` flag, the selector filters, and all three roll-boundary gates
+> are built and tested; reference behavior lives in
+> [seed-generation.md](../../reference/seed-generation.md#dk64r). Two data
+> prerequisites remain before it can go live in production — the issued
+> `DK64R_API_KEY` and the real SGL settings string to replace the placeholder in
+> `presets/dk64r/sgl.json` (the two [open questions](#open-questions)).
 
 **Goal:** promote the registered `dk64r` stub
 ([seed-generation.md](../../reference/seed-generation.md#stub-randomizers)) to a
@@ -337,9 +341,12 @@ and the server source (`controller/app.py`, `worker/tasks.py`):
    description/agreement copy, and (b) whether key-holders bypass the IP
    cooldown — otherwise a bulk qualifier "roll N" puts every seed after the
    first in the Low-priority queue from SGL's single server IP.
-2. **Built-in preset payload.** Please provide the SGL community settings
-   string to commit as `presets/dk64r/<name>.json` (a copy-pasted settings
-   string from dk64randomizer.com is the ideal form).
+2. **Built-in preset payload.** `presets/dk64r/sgl.json` is committed with a
+   **placeholder** `settings_string` (`REPLACE_WITH_SGL_DK64_SETTINGS_STRING`);
+   the dev seed's `DK64 Community` preset carries the same placeholder. Dev rolls
+   go through `MOCK_SEEDGEN` and never send it. Replace it with the real SGL
+   community settings string (copy-pasted from dk64randomizer.com) before
+   enabling the flag in production.
 
 Everything else (task-status contract, player permalink, auth mechanism,
 priority behavior, poll cadence, spoiler mechanics, preset format) is resolved
