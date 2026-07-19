@@ -3,6 +3,7 @@ from nicegui import app, background_tasks, context, ui
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
+from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
@@ -217,6 +218,7 @@ class MatchTableView(MatchTableHandlersMixin):
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('match-table match-table-container').props(f':grid="Quasar.Screen.{self.grid_breakpoint}"')
+            self.table.add_slot('no-data', no_data_slot('No matches to show yet.'))
             self.table.on('update:pagination', self._on_page_change)
 
         # Resolve current user's discord_id once for slot templates and event wiring.

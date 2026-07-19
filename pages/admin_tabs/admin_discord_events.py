@@ -52,7 +52,7 @@ async def admin_discord_events_page() -> None:
                     ).classes('text-caption')
 
         # --- Per-tournament opt-in ------------------------------------------
-        ui.label('Tournaments').classes('text-subtitle2 q-mt-md')
+        ui.label('Tournaments').classes('section-title q-mt-md')
         tournament_columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
             {'name': 'name', 'label': 'Tournament', 'field': 'name', 'sortable': True},
@@ -63,7 +63,7 @@ async def admin_discord_events_page() -> None:
         tournaments_container = ui.column().classes('w-full')
 
         # --- Mirrored events (observability) --------------------------------
-        ui.label('Mirrored events').classes('text-subtitle2 q-mt-md')
+        ui.label('Mirrored events').classes('section-title q-mt-md')
         event_columns = [
             {'name': 'title', 'label': 'Title', 'field': 'title', 'sortable': True},
             {'name': 'when', 'label': 'When', 'field': 'when'},

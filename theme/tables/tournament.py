@@ -4,6 +4,7 @@ from tortoise.functions import Count
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
+from theme.empty_state import no_data_slot
 
 
 class TournamentTableView:
@@ -43,6 +44,7 @@ class TournamentTableView:
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('tournament-table tournament-table-container').props(':grid="Quasar.Screen.lt.md"')
+        self.table.add_slot('no-data', no_data_slot('No tournaments yet.'))
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable tournament name
         self.table.add_slot('body-cell-name', '''<q-td :props="props">

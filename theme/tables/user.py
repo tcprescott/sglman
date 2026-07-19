@@ -2,6 +2,7 @@ from nicegui import background_tasks, ui
 
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.timezone import format_eastern_display
+from theme.empty_state import no_data_slot
 
 
 class UserTableView:
@@ -43,6 +44,7 @@ class UserTableView:
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('user-table user-table-container').props(':grid="Quasar.Screen.lt.md"')
+        self.table.add_slot('no-data', no_data_slot('No users match this filter.'))
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">

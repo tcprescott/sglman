@@ -1011,6 +1011,12 @@ body.body--dark {
     justify-content: center;
 }
 
+/* Muted icon atop the branded table no-data slot (theme/empty_state.no_data_slot). */
+.sgl-empty-icon {
+    color: var(--status-neutral);
+    opacity: 0.5;
+}
+
 /* User/Avatar Styles */
 /* Right-edge alignment of the header controls is handled by the flexible
    ui.space() spacer in the header, not margin-left:auto here — that survives

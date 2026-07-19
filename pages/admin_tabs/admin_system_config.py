@@ -81,7 +81,7 @@ async def admin_system_config_page() -> None:
         from datetime import timedelta
 
         ui.separator().classes('separator-spacing')
-        ui.label('Tournament Hours').classes('text-subtitle1 text-bold')
+        ui.label('Tournament Hours').classes('section-title q-mt-md')
         ui.label(
             'Set the window during which matches may start each day. '
             'Matches cannot be scheduled outside these hours. Leave a day blank to allow any time.'
@@ -102,7 +102,7 @@ async def admin_system_config_page() -> None:
 
         # --- Discord role sync ---
         ui.separator().classes('separator-spacing')
-        ui.label('Discord Role Sync').classes('text-subtitle1 text-bold')
+        ui.label('Discord Role Sync').classes('section-title q-mt-md')
         ui.label(
             'Connect a Discord server and configure role mappings on the '
             'Discord Roles tab. Connecting verifies you manage that server.'
