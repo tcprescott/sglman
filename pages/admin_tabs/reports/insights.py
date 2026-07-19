@@ -13,6 +13,7 @@ from nicegui import ui
 
 from application.services import AnalyticsService
 from application.utils.timezone import now_eastern
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     CHART_GOLD,
     CHART_NEUTRAL,
@@ -197,7 +198,8 @@ def _crew_section(crew: dict, start_d: date, end_d: date) -> None:
         if not rows:
             ui.label('No crew contributors in this window.').classes('italic-note')
         else:
-            ui.table(columns=columns, rows=rows, pagination=15, row_key='name').classes('full-width')
+            table = ui.table(columns=columns, rows=rows, pagination=15, row_key='name').classes('full-width')
+            enable_mobile_grid(table, columns)
 
 
 # --- Volunteer hours ------------------------------------------------------
@@ -258,7 +260,8 @@ def _volunteer_section(hours: dict, start_d: date, end_d: date, scoped: bool = F
         if not rows:
             ui.label('No volunteer assignments in this window.').classes('italic-note')
         else:
-            ui.table(columns=columns, rows=rows, pagination=15, row_key='name').classes('full-width')
+            table = ui.table(columns=columns, rows=rows, pagination=15, row_key='name').classes('full-width')
+            enable_mobile_grid(table, columns)
 
 
 # --- Tournament health ----------------------------------------------------
@@ -339,8 +342,9 @@ def _health_section(health: dict, start_d: date, end_d: date) -> None:
         if not rows:
             ui.label('No tournaments with matches in this window.').classes('italic-note')
         else:
-            ui.table(columns=columns, rows=display_rows, pagination=25, row_key='tournament_name') \
+            table = ui.table(columns=columns, rows=display_rows, pagination=25, row_key='tournament_name') \
                 .classes('full-width')
+            enable_mobile_grid(table, columns)
 
 
 # --- Admin activity -------------------------------------------------------

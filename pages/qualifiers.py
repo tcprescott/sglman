@@ -17,6 +17,7 @@ from application.services import AsyncQualifierService, AuthService, get_user_fr
 from application.utils.timezone import format_eastern_display
 from models import FeatureFlag
 from theme.base import BaseLayout
+from theme.tables.mobile_grid import enable_mobile_grid
 
 
 def _fmt(dt) -> str:
@@ -224,7 +225,8 @@ def create() -> None:
                     'time': _fmt_hms(r.elapsed_seconds),
                     'score': '' if r.score is None else round(r.score, 1),
                 })
-            ui.table(columns=columns, rows=rows, row_key='pool').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=rows, row_key='pool').classes('w-full sgl-table')
+            enable_mobile_grid(table, columns)
 
         async def _render_leaderboard(current, is_public) -> None:
             ui.label('Leaderboard').classes('text-subtitle1')
@@ -246,7 +248,8 @@ def create() -> None:
                 {'rank': i + 1, 'user': e.username, 'actual': e.actual, 'estimate': e.estimate}
                 for i, e in enumerate(entries)
             ]
-            ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full sgl-table')
+            enable_mobile_grid(table, columns)
 
         await render()
 

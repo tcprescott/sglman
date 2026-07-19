@@ -2,6 +2,7 @@
 
 from nicegui import app, background_tasks, ui
 from theme.notify import notify_error
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
@@ -22,6 +23,18 @@ _COLUMNS = [
     {'name': 'status', 'label': 'Status', 'field': 'status', 'align': 'left'},
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
+
+_STATUS_BADGE = '''
+    <q-badge :color="props.row.status === 'reviewed' ? 'positive' : 'warning'">
+        {{ props.row.status }}
+    </q-badge>
+'''
+
+_ROW_ACTIONS = '''
+    <q-btn v-if="props.row.status !== 'reviewed'" dense flat color="primary"
+           label="Mark reviewed"
+           @click="$parent.$emit('mark_reviewed', props.row)" />
+'''
 
 
 async def admin_feedback_page() -> None:
@@ -60,16 +73,10 @@ async def admin_feedback_page() -> None:
             ]
 
             table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full sgl-table')
-            table.add_slot('body-cell-status', '''<q-td :props="props">
-                <q-badge :color="props.value === 'reviewed' ? 'positive' : 'warning'">
-                    {{ props.value }}
-                </q-badge>
-            </q-td>''')
-            table.add_slot('body-cell-actions', '''<q-td :props="props">
-                <q-btn v-if="props.row.status !== 'reviewed'" dense flat color="primary"
-                       label="Mark reviewed"
-                       @click="$parent.$emit('mark_reviewed', props.row)" />
-            </q-td>''')
+            table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
+            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+            enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS,
+                               field_slots={'status': _STATUS_BADGE})
 
             async def handle_mark_reviewed(event):
                 row = event.args

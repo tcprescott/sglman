@@ -9,12 +9,39 @@ as the system user; this surface is the human-driven half.
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     SpeedGamingSyncService,
     TournamentService,
     get_user_from_discord_id,
 )
+
+_ROW_ACTIONS = '''
+    <q-btn flat round dense icon="sync" color="primary"
+           @click="$parent.$emit('sync_now', props.row)">
+        <q-tooltip>Sync now</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="edit" color="primary"
+           @click="$parent.$emit('edit', props.row)">
+        <q-tooltip>Edit</q-tooltip>
+    </q-btn>
+    <q-btn flat round dense icon="delete" color="negative"
+           @click="$parent.$emit('delete', props.row)">
+        <q-tooltip>Delete</q-tooltip>
+    </q-btn>
+'''
+_ACTIVE_ICON = '''
+    <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
+            :color="props.row.active_bool ? 'positive' : 'negative'" size="sm" />
+'''
+_LAST_STATUS_CHIP = '''
+    <span v-if="!props.row.last_status || props.row.last_status === '—'" class="text-grey-7">—</span>
+    <span v-else class="sgl-chip"
+          :class="props.row.last_status === 'ok' ? 'sgl-chip--ok' : 'sgl-chip--cancelled'">
+        {{ props.row.last_status }}
+    </span>
+'''
 
 
 async def admin_speedgaming_page() -> None:
@@ -191,39 +218,11 @@ async def admin_speedgaming_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
-            table.add_slot('body-cell-active', '''
-                <q-td :props="props">
-                    <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
-                            :color="props.row.active_bool ? 'positive' : 'negative'" size="sm" />
-                </q-td>
-            ''')
-
-            table.add_slot('body-cell-last_status', '''
-                <q-td :props="props">
-                    <span v-if="!props.row.last_status || props.row.last_status === '—'" class="text-grey-7">—</span>
-                    <span v-else class="sgl-chip"
-                          :class="props.row.last_status === 'ok' ? 'sgl-chip--ok' : 'sgl-chip--cancelled'">
-                        {{ props.row.last_status }}
-                    </span>
-                </q-td>
-            ''')
-
-            table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn flat round dense icon="sync" color="primary"
-                           @click="$parent.$emit('sync_now', props.row)">
-                        <q-tooltip>Sync now</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)">
-                        <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn flat round dense icon="delete" color="negative"
-                           @click="$parent.$emit('delete', props.row)">
-                        <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                </q-td>
-            ''')
+            table.add_slot('body-cell-active', f'<q-td :props="props">{_ACTIVE_ICON}</q-td>')
+            table.add_slot('body-cell-last_status', f'<q-td :props="props">{_LAST_STATUS_CHIP}</q-td>')
+            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
+                               field_slots={'active': _ACTIVE_ICON, 'last_status': _LAST_STATUS_CHIP})
 
             table.on('edit', lambda e: background_tasks.create(open_link_dialog(e.args)))
             table.on('delete', lambda e: background_tasks.create(delete_link(e.args, context.client)))

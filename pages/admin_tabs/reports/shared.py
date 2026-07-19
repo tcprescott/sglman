@@ -15,6 +15,7 @@ from nicegui import ui
 from application.services import SystemConfigService, TournamentService
 from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
 from application.utils.timezone import EASTERN_TZ
+from theme.tables.mobile_grid import enable_mobile_grid
 
 
 REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stream_rooms', 'audit')
@@ -323,6 +324,7 @@ def paginated_event_log(
         table.add_slot('body', _EVENT_LOG_BODY_ROWCLICK if on_row_click else _EVENT_LOG_BODY_PLAIN)
         if on_row_click is not None:
             table.on('row-click', lambda e: on_row_click(clicked_row(e)))
+        enable_mobile_grid(table, columns, row_click_event='row-click' if on_row_click else None)
         ui.label(note).classes('italic-note')
 
         total_pages = max(1, (total + page_size - 1) // page_size)

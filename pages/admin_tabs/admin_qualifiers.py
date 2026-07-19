@@ -15,6 +15,7 @@ without a background task.
 from nicegui import app, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     AsyncQualifierLiveRaceService,
@@ -474,7 +475,8 @@ async def admin_qualifiers_page() -> None:
              'estimate': e.estimate, 'slots': f'{e.slots_filled}/{e.slots_total}'}
             for i, e in enumerate(entries)
         ]
-        ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full sgl-table')
+        table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full sgl-table')
+        enable_mobile_grid(table, columns)
 
     # ------------------------------------------------------------------ shell
 

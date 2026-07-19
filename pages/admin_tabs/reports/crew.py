@@ -9,6 +9,7 @@ from nicegui import ui
 
 from application.services import ReportsService
 from application.utils.timezone import format_eastern_display
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     clicked_row,
     csv_export_button,
@@ -138,12 +139,13 @@ async def crew_page(
                     lambda: cov_columns,
                     lambda: cov_rows_display,
                 )
-            ui.table(
+            cov_table = ui.table(
                 columns=cov_columns,
                 rows=cov_rows_display,
                 pagination=25,
                 row_key='match_id',
             ).classes('full-width')
+            enable_mobile_grid(cov_table, cov_columns)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
@@ -190,6 +192,7 @@ async def crew_page(
                 row_key='user_id',
             ).classes('full-width')
             contrib_table.on('row-click', _row_clicked)
+            enable_mobile_grid(contrib_table, contrib_columns, row_click_event='row-click')
             if user_id_int is None:
                 ui.label('Click a row to filter both tables to that person.').classes('italic-note')
 

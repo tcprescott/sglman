@@ -104,6 +104,11 @@
           },
           {
             "type": "command",
+            "command": "python3 .claude/scripts/check_table_grid.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "python3 .claude/scripts/check_markdown_xss.py",
             "timeout": 10
           },

@@ -10,11 +10,24 @@ The mirror needs a **linked Discord server** — the page surfaces that up front
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     DiscordEventSyncService,
     get_user_from_discord_id,
 )
+
+_ENABLED_ICON = '''
+    <q-icon :name="props.row.enabled_bool ? 'check_circle' : 'cancel'"
+            :color="props.row.enabled_bool ? 'positive' : 'negative'" size="sm" />
+'''
+
+_ROW_ACTIONS = '''
+    <q-btn flat round dense icon="edit" color="primary"
+           @click="$parent.$emit('edit', props.row)">
+        <q-tooltip>Edit</q-tooltip>
+    </q-btn>
+'''
 
 
 async def admin_discord_events_page() -> None:
@@ -173,24 +186,15 @@ async def admin_discord_events_page() -> None:
                 ).props('flat color=primary').tooltip('Refresh')
 
             tournament_table = ui.table(columns=tournament_columns, rows=[], row_key='id').classes('w-full sgl-table')
-            tournament_table.add_slot('body-cell-enabled', '''
-                <q-td :props="props">
-                    <q-icon :name="props.row.enabled_bool ? 'check_circle' : 'cancel'"
-                            :color="props.row.enabled_bool ? 'positive' : 'negative'" size="sm" />
-                </q-td>
-            ''')
-            tournament_table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn flat round dense icon="edit" color="primary"
-                           @click="$parent.$emit('edit', props.row)">
-                        <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                </q-td>
-            ''')
+            tournament_table.add_slot('body-cell-enabled', f'<q-td :props="props">{_ENABLED_ICON}</q-td>')
+            tournament_table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
             tournament_table.on('edit', lambda e: background_tasks.create(open_settings_dialog(e.args, context.client)))
+            enable_mobile_grid(tournament_table, tournament_columns, actions=_ROW_ACTIONS,
+                               field_slots={'enabled': _ENABLED_ICON})
 
         with events_container:
             event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full sgl-table')
+            enable_mobile_grid(event_table, event_columns)
 
         wire_tab_refresh('Discord Events', refresh_tables)
         background_tasks.create(refresh_link_banner())

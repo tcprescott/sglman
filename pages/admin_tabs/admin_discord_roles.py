@@ -6,6 +6,7 @@ from urllib.parse import quote
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     AuthService,
@@ -22,6 +23,13 @@ from models import Role
 
 
 _ROLE_OPTIONS = {r.value: r.value.replace('_', ' ').title() for r in Role}
+
+_ROW_ACTIONS = '''
+    <q-btn flat round dense icon="delete" color="negative"
+           @click="$parent.$emit('delete', props.row)">
+        <q-tooltip>Remove mapping</q-tooltip>
+    </q-btn>
+'''
 
 
 async def admin_discord_roles_page() -> None:
@@ -246,16 +254,11 @@ async def admin_discord_roles_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
-            table.add_slot('body-cell-actions', '''
-                <q-td :props="props">
-                    <q-btn flat round dense icon="delete" color="negative"
-                           @click="$parent.$emit('delete', props.row)">
-                        <q-tooltip>Remove mapping</q-tooltip>
-                    </q-btn>
-                </q-td>
-            ''')
+            table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
 
             table.on('delete', lambda e: background_tasks.create(delete_mapping(e.args, context.client)))
+
+            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS)
 
         wire_tab_refresh('Discord Roles', refresh_table)
         background_tasks.create(refresh_table())

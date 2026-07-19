@@ -10,6 +10,7 @@ from nicegui import ui
 
 from application.services.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_eastern_display
+from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     csv_export_button,
     date_range_filter,
@@ -75,5 +76,6 @@ async def volunteers_page(
                     lambda: columns,
                     lambda: rows,
                 )
-            ui.table(columns=columns, rows=rows, pagination=25, row_key='starts_at') \
+            table = ui.table(columns=columns, rows=rows, pagination=25, row_key='starts_at') \
                 .classes('full-width')
+            enable_mobile_grid(table, columns)
