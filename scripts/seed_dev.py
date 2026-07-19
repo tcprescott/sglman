@@ -27,7 +27,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from migrations.tortoise_config import TORTOISE_ORM
 from tortoise import Tortoise
 from tortoise.functions import Max
 from models import (
@@ -40,9 +39,8 @@ from models import (
     StreamRoom, SystemConfiguration,
     ApiToken, Feedback, FeedbackCategory, FeedbackStatus,
     Equipment, EquipmentLoan, EquipmentStatus,
-    AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
-    ChallongeConnection, ChallongeParticipant, ChallongeMatch, ChallongeMatchState,
-    ChallongeApiUsage,
+    AuditLog, TelemetryEvent, DiscordRoleMapping, TriforceText, PlayerAvailability,
+    Webhook, WebhookDelivery,
     VolunteerPosition, VolunteerProfile, VolunteerShift,
     VolunteerAssignment, VolunteerQualification,
     VolunteerAvailability, VolunteerAvailabilityStatus,
@@ -50,6 +48,7 @@ from models import (
 )
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_eastern, parse_eastern_datetime
+from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_online import (
     link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
 )
@@ -676,79 +675,31 @@ async def seed_for_tenant(
             )
         print(f"    [{tenant.slug}] discord role mappings ok")
 
-        # --- Challonge mirror ------------------------------------------------
-        # Player identity is global (one-time capture); the connection/bracket
-        # mirror is per tenant.
-        for uname, challonge_uid, challonge_name in [
-            ("player_one", "cu_1001", "playerone"),
-            ("player_two", "cu_1002", "playertwo"),
-        ]:
-            u = users[uname]
-            if u.challonge_user_id is None:
-                u.challonge_user_id = challonge_uid
-                u.challonge_username = challonge_name
-                u.challonge_linked_at = now_utc
-                await u.save()
+        # --- Challonge mirror (scripts/seed_challonge.py) --------------------
+        await seed_challonge_for_tenant(
+            tenant, users, tournament, staff, finished_match, now_utc, today,
+        )
 
-        if not tournament.challonge_tournament_id:
-            tournament.challonge_tournament_id = f"cht_dev_{tenant.slug}"
-            tournament.challonge_tournament_url = f"https://challonge.com/sgl_{tenant.slug}"
-            tournament.challonge_last_synced_at = now_utc
-            await tournament.save()
-
-        # A near-expiry token so the service-health board / tenant subset (PR 5)
-        # has a live credential-warning to render. Heal older rows that predate the
-        # expiry column too, so a re-seed against an existing dev DB still shows it.
-        challonge_expiry = now_utc + timedelta(days=2)
-        conn, _ = await ChallongeConnection.get_or_create(
-            challonge_username="sgl_service", tenant=tenant,
+        # --- Webhooks ---------------------------------------------------------
+        # Inactive so a dev session never attempts outbound deliveries; the one
+        # seeded delivery row makes the admin delivery log render regardless.
+        webhook, _ = await Webhook.get_or_create(
+            name="Dev Webhook (inactive)", tenant=tenant,
             defaults={
-                "access_token": "dev-access-token-not-real",
-                "refresh_token": "dev-refresh-token-not-real",
-                "scopes": "me tournaments:read tournaments:write",
-                "token_expires_at": challonge_expiry,
-                "connected_by": staff,
+                "url": "http://127.0.0.1:9/dev-webhook",
+                "secret": "dev-webhook-secret-not-real",
+                "event_types": ["*"],
+                "is_active": False,
             },
         )
-        if conn.token_expires_at is None:
-            conn.token_expires_at = challonge_expiry
-            await conn.save()
-
-        participants: dict[str, ChallongeParticipant] = {}
-        participant_specs = [
-            ("cp_1", "Player One", "cu_1001", users["player_one"]),
-            ("cp_2", "Player Two", "cu_1002", users["player_two"]),
-            ("cp_3", "Player Three", None, users["player_three"]),
-            ("cp_4", "Player Four", None, users["player_four"]),
-        ]
-        for cp_id, name, challonge_uid, user in participant_specs:
-            part, _ = await ChallongeParticipant.get_or_create(
-                tournament=tournament, challonge_participant_id=cp_id, tenant=tenant,
-                defaults={"name": name, "challonge_user_id": challonge_uid, "user": user},
+        if not await WebhookDelivery.filter(webhook=webhook, tenant=tenant).exists():
+            await WebhookDelivery.create(
+                tenant=tenant, webhook=webhook, event_type="match.created",
+                payload=json.dumps({"match_id": finished_match.id}, sort_keys=True),
+                response_status=200, attempt_count=1, success=True,
+                delivered_at=now_utc,
             )
-            participants[cp_id] = part
-
-        await ChallongeMatch.get_or_create(
-            tournament=tournament, challonge_match_id="cm_1", tenant=tenant,
-            defaults={
-                "round": 1, "state": ChallongeMatchState.COMPLETE,
-                "participant1": participants["cp_1"], "participant2": participants["cp_3"],
-                "winner_participant": participants["cp_1"], "match": matches["finished"],
-            },
-        )
-        await ChallongeMatch.get_or_create(
-            tournament=tournament, challonge_match_id="cm_2", tenant=tenant,
-            defaults={
-                "round": 1, "state": ChallongeMatchState.OPEN,
-                "participant1": participants["cp_2"], "participant2": participants["cp_4"],
-            },
-        )
-
-        usage_period = today.strftime("%Y-%m")
-        await ChallongeApiUsage.get_or_create(
-            period=usage_period, tenant=tenant, defaults={"request_count": 42},
-        )
-        print(f"    [{tenant.slug}] challonge ok")
+        print(f"    [{tenant.slug}] webhooks ok")
 
         # --- Audit log -------------------------------------------------------
         audit_specs = [
@@ -765,34 +716,65 @@ async def seed_for_tenant(
                 )
         print(f"    [{tenant.slug}] audit log ok")
 
+        # --- Telemetry -------------------------------------------------------
+        # One row per category (page / interaction / domain) so the admin
+        # telemetry report renders each section.
+        telemetry_specs = [
+            ("page", "page.view", f"/t/{tenant.slug}/", "sess-dev-1"),
+            ("interaction", "report.exported", f"/t/{tenant.slug}/admin", "sess-dev-1"),
+            ("domain", "match.created", None, None),
+        ]
+        if await TelemetryEvent.filter(tenant=tenant).count() == 0:
+            for category, event_type, path, session_id in telemetry_specs:
+                await TelemetryEvent.create(
+                    tenant=tenant, user=staff, category=category,
+                    event_type=event_type, path=path, session_id=session_id,
+                    details=json.dumps({"seed": True}),
+                )
+        print(f"    [{tenant.slug}] telemetry ok")
+
+
+async def seed_all() -> None:
+    """Seed everything into the already-initialized ORM connection.
+
+    Split from ``seed()`` so the pytest suite can run the full seed against its
+    own in-memory connection — see tests/test_seed_coverage.py.
+    """
+    users = await seed_users()
+    bots = await seed_racetime_bots()
+    groups = await seed_feature_groups()
+    for slug, name, guild_id, _label, domain in TENANT_SPECS:
+        tenant, created = await Tenant.get_or_create(
+            slug=slug,
+            defaults={"name": name, "discord_guild_id": guild_id, "domain": domain},
+        )
+        # The migration backfills the ``default`` tenant with the guild id
+        # from config (NULL on a fresh dev DB); give it a dev guild so the
+        # role-mapping fixtures below have a non-null guild to attach to.
+        if tenant.discord_guild_id is None:
+            tenant.discord_guild_id = guild_id
+            await tenant.save()
+        # Idempotently adopt the custom domain (e.g. on a pre-existing dev DB).
+        if domain and tenant.domain != domain:
+            tenant.domain = domain
+            await tenant.save()
+        print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
+        await seed_for_tenant(tenant, users, bots)
+        await assign_feature_group(tenant, groups)
+
 
 async def seed() -> None:
+    # Lazy: building TORTOISE_ORM requires DB_* env vars, and importing this
+    # module must stay env-free so tests can import seed_all.
+    from migrations.tortoise_config import TORTOISE_ORM
+
     await Tortoise.init(config=TORTOISE_ORM)
     try:
-        users = await seed_users()
-        bots = await seed_racetime_bots()
-        groups = await seed_feature_groups()
-        for slug, name, guild_id, _label, domain in TENANT_SPECS:
-            tenant, created = await Tenant.get_or_create(
-                slug=slug,
-                defaults={"name": name, "discord_guild_id": guild_id, "domain": domain},
-            )
-            # The migration backfills the ``default`` tenant with the guild id
-            # from config (NULL on a fresh dev DB); give it a dev guild so the
-            # role-mapping fixtures below have a non-null guild to attach to.
-            if tenant.discord_guild_id is None:
-                tenant.discord_guild_id = guild_id
-                await tenant.save()
-            # Idempotently adopt the custom domain (e.g. on a pre-existing dev DB).
-            if domain and tenant.domain != domain:
-                tenant.domain = domain
-                await tenant.save()
-            print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
-            await seed_for_tenant(tenant, users, bots)
-            await assign_feature_group(tenant, groups)
+        await seed_all()
     finally:
         await Tortoise.close_connections()
     print("Seeding complete.")
 
 
-asyncio.run(seed())
+if __name__ == "__main__":
+    asyncio.run(seed())

@@ -23,7 +23,7 @@ from models import (
     DiscordScheduledEvent, DiscordEventSource,
     BotStatus, RaceRoomStatus,
     AsyncQualifier, AsyncQualifierPool, AsyncQualifierPermalink, AsyncQualifierRun,
-    AsyncQualifierRunStatus, AsyncQualifierReviewStatus,
+    AsyncQualifierRunStatus, AsyncQualifierReviewStatus, AsyncQualifierReviewNote,
     AsyncQualifierLiveRace, AsyncQualifierLiveRaceStatus,
 )
 from application.utils.timezone import now_eastern
@@ -235,12 +235,20 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
             qualifier=qualifier, user=runner_b, permalink=p1
         ).first()
         if run_b is None:
-            await AsyncQualifierRun.create(
+            run_b = await AsyncQualifierRun.create(
                 tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p1,
                 status=AsyncQualifierRunStatus.FINISHED,
                 review_status=AsyncQualifierReviewStatus.PENDING,
                 started_at=now - timedelta(hours=2), finished_at=now - timedelta(minutes=20),
                 elapsed_seconds=6000, runner_vod_url="https://twitch.tv/videos/dev-b",
+            )
+        # A reviewer note on the pending run so the review surface renders notes.
+        if staff is not None and not await AsyncQualifierReviewNote.filter(
+            run=run_b, tenant=tenant
+        ).exists():
+            await AsyncQualifierReviewNote.create(
+                tenant=tenant, run=run_b, author=staff,
+                note="VOD checked through the halfway split; finish looks clean.",
             )
 
     # A live-race pool (PR 10): a live-flagged permalink + a scheduled live race,
