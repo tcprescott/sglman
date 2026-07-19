@@ -13,13 +13,12 @@ the other mock flags it refuses to run under ``ENVIRONMENT=production``.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from application.utils.environment import is_production
+from application.utils.environment import env_flag, is_production
 
 SPEEDGAMING_BASE = 'https://speedgaming.org'
 SCHEDULE_URL = f'{SPEEDGAMING_BASE}/api/schedule'
@@ -34,7 +33,7 @@ class SpeedGamingAPIError(Exception):
 
 def is_mock_speedgaming() -> bool:
     """Return True when MOCK_SPEEDGAMING is enabled (and not in production)."""
-    enabled = os.environ.get('MOCK_SPEEDGAMING', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    enabled = env_flag('MOCK_SPEEDGAMING')
     if enabled and is_production():
         raise RuntimeError(
             'MOCK_SPEEDGAMING must not be enabled in production: it fakes the '

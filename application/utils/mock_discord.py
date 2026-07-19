@@ -1,8 +1,6 @@
 """Helper for detecting whether the mock Discord layer is enabled."""
 
-import os
-
-from application.utils.environment import is_production
+from application.utils.environment import env_flag, is_production
 
 
 def is_mock_discord() -> bool:
@@ -14,7 +12,7 @@ def is_mock_discord() -> bool:
     in production: if MOCK_DISCORD is set truthy while ENVIRONMENT=production we
     refuse to start rather than silently expose the bypass.
     """
-    enabled = os.environ.get('MOCK_DISCORD', '').lower() in ('1', 'true', 'yes')
+    enabled = env_flag('MOCK_DISCORD')
     if enabled and is_production():
         raise RuntimeError(
             'MOCK_DISCORD must not be enabled in production: it bypasses Discord '

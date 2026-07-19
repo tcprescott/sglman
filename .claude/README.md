@@ -114,10 +114,13 @@ CLAUDE.md > NiceGUI patterns: a coroutine run via `background_tasks.create(...)`
 has an empty slot stack, so a `ui.*` call inside it raises *"The current slot
 cannot be determined…"*. AST-based, scoped to presentation files. Resolves each
 `background_tasks.create(fn(...))` to its locally-defined async `fn`, then flags
-any `ui.*(...)` call in `fn` that is **not** wrapped in an `async with <name>:`
-block (the fix pattern — capture `Client.current` at the call site and restore it
-with `async with client:`). An httpx-style `async with httpx.AsyncClient() as c:`
-is a `Call`, not a bare `Name`, so it does not mask a missing slot guard.
+any `ui.*(...)` call in `fn` that is **not** wrapped in a **sync** `with <name>:`
+block (the fix pattern — capture `context.client` at the call site, pass it into
+the coroutine, and restore it with `with client:`). `Client` is sync-only —
+`async with client:` raises `TypeError`, and `Client.current` does not exist in
+NiceGUI 3.x (see the `enforce_nicegui_client_api.py` hook below). An httpx-style
+`async with httpx.AsyncClient() as c:` is a `Call`, not a bare `Name`, so it does
+not mask a missing slot guard.
 **Deliberately misses** (precision over recall): coroutines imported from another
 module (body not visible) and UI calls reached indirectly through a helper.
 
@@ -142,8 +145,9 @@ its own imports, `__all__`, and submodule files for packages).
 
 ### Stored-XSS via markdown/html sinks — `scripts/check_markdown_xss.py` (PostToolUse: Write|Edit)
 NiceGUI's `ui.markdown()` / `ui.html()` pass raw HTML through unsanitized, so rendering a stored,
-user-writable value through them is a stored-XSS sink (the tournament `triforce_access_message`
-finding, `docs/security-audit.md` #1). AST-based, scoped to presentation files. Flags a
+user-writable value through them is a stored-XSS sink — the original finding was the stored
+tournament `triforce_access_message` being rendered through `ui.markdown()`, letting any staff
+member inject script into every viewer's page. AST-based, scoped to presentation files. Flags a
 `ui.markdown(arg)` / `ui.html(arg)` whose first positional arg is **not** a pure literal — a
 `Constant`, or an f-string / `+`-concat composed only of literals, is allowed; a `Name`/
 `Attribute`/`Call` (a variable or model field) is flagged. Reserve the sinks for static literals;

@@ -10,14 +10,12 @@ real seed is required for an actual race; as with ``MOCK_DISCORD`` and
 ``MOCK_CHALLONGE`` we refuse to start in that case.
 """
 
-import os
-
-from application.utils.environment import is_production
+from application.utils.environment import env_flag, is_production
 
 
 def is_mock_seedgen() -> bool:
     """Return True when MOCK_SEEDGEN is enabled (and not in production)."""
-    enabled = os.environ.get('MOCK_SEEDGEN', '').lower() in ('1', 'true', 'yes')
+    enabled = env_flag('MOCK_SEEDGEN')
     if enabled and is_production():
         raise RuntimeError(
             'MOCK_SEEDGEN must not be enabled in production: it returns fake seed '
