@@ -17,7 +17,7 @@ import sys
 
 # Run pytest with a margin under the hook's configured timeout so a clean message
 # is produced instead of the harness killing the process.
-PYTEST_TIMEOUT = 50
+PYTEST_TIMEOUT = 110
 
 
 def candidate_tests(norm: str) -> list[str]:
@@ -38,6 +38,12 @@ def candidate_tests(norm: str) -> list[str]:
         candidates += [f"tests/services/test_{stem}.py", f"tests/test_{stem}.py"]
     elif norm.startswith("api/") or "/api/" in norm:
         candidates += [f"tests/test_api_{stem}.py", f"tests/test_{stem}.py"]
+    elif "scripts/seed_" in norm:
+        # Seed edits are exercised by the seed-coverage runtime test.
+        candidates.append("tests/test_seed_coverage.py")
+    elif norm.startswith("models/") or "/models/" in norm or norm.endswith("models.py"):
+        # Fast static ratchet only; the full-seed runtime check is Stop/CI-gated.
+        candidates += [f"tests/test_{stem}.py", "tests/test_leak_test_coverage.py"]
     else:
         candidates.append(f"tests/test_{stem}.py")
 
@@ -78,9 +84,18 @@ def main() -> None:
             timeout=PYTEST_TIMEOUT,
             env=env,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        # Slow run or pytest/poetry unavailable: don't block productivity.
+    except FileNotFoundError:
+        # poetry unavailable: an environment condition, not a test result.
         sys.exit(0)
+    except subprocess.TimeoutExpired:
+        print(
+            f"RELATED TESTS TIMED OUT after {PYTEST_TIMEOUT}s for {', '.join(tests)} "
+            f"(after editing {file_path}) — result UNKNOWN; this is not a pass.\n"
+            f"A hung test or deadlock is likely. Run it yourself:\n"
+            f"  MOCK_DISCORD=true poetry run pytest -q {' '.join(tests)}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if result.returncode != 0:
         output = (result.stdout + result.stderr).strip()
