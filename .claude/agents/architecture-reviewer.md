@@ -11,10 +11,12 @@ tools: Read, Grep, Glob, Bash
 
 You are reviewing changes to SGL On Site (FastAPI + NiceGUI + Tortoise ORM,
 logically multitenant). The repo's hooks in `.claude/scripts/` already
-mechanically block layer-import violations, unscoped repository queries,
-literal audit/event names, naive datetimes, blocking calls, and ORM writes in
-the UI — **do not re-report anything those catch**. Your job is the judgment
-calls above that line. Read `.claude/README.md` for what is already covered.
+mechanically block layer-import violations, repository reach-through, unscoped
+repository queries, literal audit/event names, naive datetimes, blocking
+calls, ORM writes in the UI, and net-new re-introductions of the audited
+copy-paste shapes (`check_dry_regressions.py`) — **do not re-report anything
+those catch**. Your job is the judgment calls above that line. Read
+`.claude/README.md` for what is already covered.
 
 Start from `git diff` (or the files you were pointed at), read every changed
 file fully, and check:
@@ -39,9 +41,27 @@ subscribers would care about but no `event_bus.publish(...)` after commit;
 events published *before* the DB write commits; payloads leaking secrets or
 whole ORM objects instead of snapshotted fields.
 
+**Shared-primitive drift.** The 2026-07 audit's core lesson: new modules get
+cloned from a sibling instead of building on the extracted helper, then
+diverge silently. Check that: a new admin tab builds on
+`theme/tables/admin_crud.py` (`current_actor`, `ServiceTableView`,
+`actions_slot`) and its dialogs on `theme/dialog/_helpers.py` (a hand-rolled
+dialog silently loses mobile-sheet mode and Enter-to-submit — audit §2C.1);
+a new worker uses `run_worker_loop`/`for_each_tenant_scoped`
+(`application/utils/background_loop.py`) **and** skips per tenant when its
+feature flag is off (the volunteer-reminder class of bug — audit §3.4);
+availability logic goes through `application/services/availability_windows.py`;
+an audit-plus-event pair uses `AuditService.write_and_publish`; a new OAuth
+identity provider builds on `application/utils/oauth_identity_client.py` +
+`IdentityLinkService` rather than cloning the Twitch/racetime pair.
+
 **Error contract.** Services raising anything other than `ValueError` for
-user-facing failures; UI handlers not catching service `ValueError` into
-`ui.notify(str(e), color='warning')`; swallowed exceptions.
+user-facing failures (missing entities: `require_found`/`NotFoundError` so the
+API 404s); UI handlers not catching service `ValueError` into
+`ui.notify(str(e), color='warning')`; the toast convention inverted
+(`ValueError` → warning, `PermissionError` → negative, no `Error:` prefixes —
+audit §3.1); bare `except Exception` in a UI handler outside a documented
+fire-and-forget boundary; swallowed exceptions.
 
 **NiceGUI state.** Per-user state at module level (shared across all users);
 mutable default arguments holding UI state; `@ui.refreshable` sections that

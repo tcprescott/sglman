@@ -17,6 +17,13 @@ hooks block the turn if a model changed without a migration or a seed row).
 Skip steps that don't apply (a service-only feature has no model/migration; a
 UI-only change starts at step 5).
 
+## -1. Plan first
+
+For any non-trivial feature, run **/plan-feature** and get the user's sign-off
+on the design brief before writing code. The brief pre-answers every decision
+the steps below need (flag, tenant impact, leak tests, seed rows, docs), so
+the build never stalls mid-layer.
+
 ## 0. Feature flag? (always ask)
 
 Before building, **ask the user whether this feature warrants a per-tenant
@@ -58,7 +65,10 @@ model without generating a migration.
 
 Pure data access — no business logic, audit, or notifications.
 
-- New file `foo_repository.py`, class `FooRepository` with static async methods.
+- New file `foo_repository.py`, class `FooRepository`. Default shape: subclass
+  `TenantScopedRepository` (`application/repositories/_base.py`) for the CRUD
+  quartet instead of hand-rolling it — the `check_dry_regressions.py` hook
+  blocks a new setattr update loop.
 - **Tenant scoping is explicit** (no auto-scoping manager). Use
   `application/repositories/_tenant.py`:
   ```python
@@ -76,9 +86,13 @@ Pure data access — no business logic, audit, or notifications.
 
 ## 4. Service (`application/services/`)
 
-Rules, validation, coordination. Must not import NiceGUI.
+Rules, validation, coordination. Must not import NiceGUI (nor any presentation
+module — `enforce_architecture.py` blocks both directions).
 
-- Raise `ValueError` for user-facing errors (UI catches → `ui.notify`).
+- Raise `ValueError` for user-facing errors (UI catches → `ui.notify`). For a
+  missing entity use `require_found(obj, 'Foo')` / `NotFoundError`
+  (`application/errors.py`) — the API maps it to 404, and the DRY hook blocks
+  a new inline `raise ValueError('… not found')`.
 - **Audit** every create/update/delete: add a constant to `AuditActions`
   (`verb.object`, e.g. `foo.created`) and call
   `await AuditService().write_log(actor, AuditActions.FOO_CREATED, {...})`.
@@ -95,6 +109,7 @@ Rules, validation, coordination. Must not import NiceGUI.
   `check_event_types.py` hook enforces registry consistency and rejects
   string-literal event names). Tenant-internal config changes usually stay
   audit-only — see the commentary in `event_types.py` for the dividing line.
+  An audit+event pair is one call: `AuditService.write_and_publish(...)`.
 - Export from `application/services/__init__.py` (import + `__all__`).
 
 ## 5. UI (`pages/`, `theme/`) or API (`api/`) or bot (`discordbot/`)
@@ -106,6 +121,12 @@ Rules, validation, coordination. Must not import NiceGUI.
 - Catch service errors: `except ValueError as e: ui.notify(str(e), color='warning')`.
 - No ORM **writes** in presentation (hook-enforced).
 - Protect pages with `@protected_page('/path', roles=[Role.STAFF])`.
+- Admin tables build on `theme/tables/admin_crud.py` (`current_actor`,
+  `ServiceTableView`, `actions_slot`) and dialogs on
+  `theme/dialog/_helpers.py` (header/actions/mobile-sheet/Enter-to-submit) —
+  don't clone a sibling tab.
+- API routers: **never add a `_load_*_or_404` preload** (DRY hook blocks new
+  ones) — the service raises `NotFoundError` and `ServiceErrorRoute` 404s.
 - Datetimes: store UTC, display Eastern — use `application/utils/timezone.py`
   helpers only (hook-enforced).
 - NiceGUI: `background_tasks.create(...)` not `asyncio.create_task`; capture
@@ -118,10 +139,14 @@ Rules, validation, coordination. Must not import NiceGUI.
 ## 6. Dev seed (`scripts/seed_dev.py`)
 
 Add at least one representative row per new model (and each meaningful state),
-idempotent (`get_or_create`) and seeded **per tenant** like the existing rows.
-The `check_seed_coverage.py` Stop hook blocks the turn if a new model class
-lands without touching the seed — the seed is what `/ui-validation` and every
-dev environment run against.
+idempotent (`get_or_create`) and seeded **per tenant** like the existing rows
+(domain blocks split into `seed_online.py`/`seed_challonge.py`). The
+`check_seed_coverage.py` Stop hook blocks the turn until the new model's
+**name appears** in a `scripts/seed_*.py` (`# seed-exempt: Foo — reason` is
+the escape for a genuinely unseedable model), and
+`tests/test_seed_coverage.py` runs the real seed to verify the row actually
+lands — the seed is what `/ui-validation` and every dev environment run
+against.
 
 ## 7. Tests (`tests/`)
 
@@ -131,14 +156,22 @@ dev environment run against.
   same data under each via `with tenant_scope(a.id): ...`, assert reads under
   tenant B never see tenant A's rows. Canonical examples:
   `tests/test_tenant_isolation.py`, `tests/test_tenant_read_isolation.py`.
+  Enforced: `tests/test_leak_test_coverage.py` fails a tenant-FK model that
+  appears in no `tests/*isolation*` file, and its BACKLOG may only shrink.
+- Use `tests/factories.py` (`make_user`, `utc`) and the hoisted conftest
+  fixtures (`app`, `two_tenants`, `two_tenant_api`, `stub_discord_queue`) —
+  the DRY hook blocks local re-definitions. No test may touch the network
+  (conftest socket guard raises on non-loopback connects).
 - Run locally with `MOCK_DISCORD=true poetry run pytest -q` (the full suite
   also runs at Stop when app code changed).
 
-## 8. Verify in the browser
+## 8. Verify in the browser / against the API
 
 For any presentation change, run the **/ui-validation** skill — the pytest
 suite cannot see client-side Vue/Quasar slot templates; only the headless
-browser loop can.
+browser loop can. For REST changes, run the **/api-validation** skill — it
+drives the live server with the seeded bearer tokens, including the
+cross-tenant-404 leak probe.
 
 ## 9. Docs
 
