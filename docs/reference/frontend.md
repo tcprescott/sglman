@@ -68,6 +68,17 @@ fixed so notifications read consistently across communities.
 - **Scope:** custom colours apply only inside a tenant. The platform surfaces
   (community picker at `/`, `/platform`) keep the default palette, as does the
   synchronous error page.
+- **Presets:** a *Start from a preset* select offers curated palettes
+  (`TenantThemeService.list_presets()`), each **verified** to meet WCAG AA
+  contrast by `tests/test_color_contrast.py`. Selecting one fills the four fields
+  for further tuning before save.
+- **Contrast warnings:** each field shows a live WCAG-AA warning
+  (`TenantThemeService.contrast_report(...)`, a pure check backed by
+  [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py))
+  when a colour would be hard to read where it is used — primary/secondary
+  against the light surface, accent against the dark surface, the header bar
+  against its white text. Warnings are **advisory**: saving still succeeds (with a
+  warning-coloured toast), matching the app's "trust STAFF" stance.
 
 ## Error pages (`middleware/error_handlers.py`)
 

@@ -23,6 +23,7 @@ from application.repositories.tenant_repository import TenantRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import get_current_tenant_id, require_tenant_id
+from application.utils.color_contrast import contrast_ratio
 from models import User
 
 # The overridable brand colours and their shipped Phoenix defaults. Keep these in
@@ -42,6 +43,40 @@ THEME_KEYS: tuple[str, ...] = tuple(DEFAULT_THEME.keys())
 CONFIG_KEY = 'theme'
 
 _HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+# --- Contrast (WCAG AA) ----------------------------------------------------
+# Each brand colour is checked against the surface it actually paints on, so a
+# warning means "hard to read where this is used", not an abstract score.
+# primary/secondary sit as text and white-labelled button fills on the light
+# surface; accent is the dark-mode link/title colour on the dark page; the
+# header bar carries white text. The bar is AA normal-text (4.5:1) — the shipped
+# defaults clear it (~4.6:1), so presets and custom colours are held to the same
+# line the app already meets.
+_LIGHT_SURFACE = '#ffffff'   # white cards/tables/page
+_DARK_SURFACE = '#1c1714'    # --sgl-dark-bg (dark-mode page body)
+_WHITE_TEXT = '#ffffff'
+_AA_CONTRAST = 4.5
+
+# key → (colour it is contrasted with, phrase describing where it is used)
+_CONTRAST_AGAINST: dict[str, tuple[str, str]] = {
+    'primary': (_LIGHT_SURFACE, 'links and button labels on a light background'),
+    'secondary': (_LIGHT_SURFACE, 'secondary text and button labels on a light background'),
+    'accent': (_DARK_SURFACE, 'links and titles in dark mode'),
+    'header': (_WHITE_TEXT, 'the white header text'),
+}
+
+# Curated palettes, each **verified** to meet the contrast thresholds above —
+# tests/test_color_contrast.py asserts every field of every preset passes, so a
+# future edit that breaks a preset fails CI. 'Phoenix (default)' is the shipped
+# palette; it is listed first and equals DEFAULT_THEME.
+THEME_PRESETS: dict[str, dict[str, str]] = {
+    'Phoenix (default)': dict(DEFAULT_THEME),
+    'Ocean': {'primary': '#0e7470', 'secondary': '#1d4ed8', 'accent': '#38bdf8', 'header': '#0e7470'},
+    'Forest': {'primary': '#15803d', 'secondary': '#b45309', 'accent': '#4ade80', 'header': '#166534'},
+    'Grape': {'primary': '#6d28d9', 'secondary': '#be185d', 'accent': '#c084fc', 'header': '#5b21b6'},
+    'Rose': {'primary': '#be123c', 'secondary': '#9f1239', 'accent': '#fb7185', 'header': '#9f1239'},
+    'Slate': {'primary': '#334155', 'secondary': '#0f766e', 'accent': '#94a3b8', 'header': '#1e293b'},
+}
 
 
 class TenantThemeService:
@@ -86,6 +121,46 @@ class TenantThemeService:
     def is_customized(colors: dict[str, str]) -> bool:
         """Whether a resolved palette differs from the shipped defaults."""
         return any(colors.get(key) != value for key, value in DEFAULT_THEME.items())
+
+    @staticmethod
+    def list_presets() -> dict[str, dict[str, str]]:
+        """Named, contrast-verified palettes offered by the theme editor."""
+        return {name: dict(colors) for name, colors in THEME_PRESETS.items()}
+
+    @staticmethod
+    def contrast_report(colors: dict) -> dict[str, dict]:
+        """Per-colour WCAG contrast against the surface each colour is used on.
+
+        Returns ``{key: {'ratio', 'ok', 'threshold', 'against'}}`` for every
+        valid hex value supplied; blank/invalid values are skipped so a
+        half-typed field never errors. Pure — the editor uses it for live
+        warnings and the preset test uses it for verification.
+        """
+        report: dict[str, dict] = {}
+        for key, (other, where) in _CONTRAST_AGAINST.items():
+            value = colors.get(key)
+            if not (isinstance(value, str) and _HEX_RE.match(value)):
+                continue
+            ratio = contrast_ratio(value, other)
+            report[key] = {
+                'ratio': round(ratio, 2),
+                'ok': ratio >= _AA_CONTRAST,
+                'threshold': _AA_CONTRAST,
+                'against': where,
+            }
+        return report
+
+    @staticmethod
+    def contrast_warnings(colors: dict) -> list[str]:
+        """Human-readable warnings for colours below the AA contrast target."""
+        warnings: list[str] = []
+        for key, result in TenantThemeService.contrast_report(colors).items():
+            if not result['ok']:
+                warnings.append(
+                    f"{key.title()} contrast is {result['ratio']}:1 against "
+                    f"{result['against']} — below the {result['threshold']}:1 AA target."
+                )
+        return warnings
 
     @staticmethod
     async def set_theme(actor: User, colors: dict) -> dict[str, str]:

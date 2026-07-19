@@ -62,6 +62,35 @@ class TestIsCustomized:
         assert TenantThemeService.is_customized(colors) is True
 
 
+class TestContrast:
+    def test_defaults_have_no_warnings(self):
+        assert TenantThemeService.contrast_warnings(dict(DEFAULT_THEME)) == []
+
+    def test_near_white_header_warns(self):
+        warnings = TenantThemeService.contrast_warnings({'header': '#fefefe'})
+        assert any('Header' in w for w in warnings)
+
+    def test_dark_accent_warns_against_dark_surface(self):
+        # A near-black accent has almost no contrast on the dark page.
+        warnings = TenantThemeService.contrast_warnings({'accent': '#101010'})
+        assert any('Accent' in w for w in warnings)
+
+    def test_report_skips_invalid_and_blank(self):
+        assert TenantThemeService.contrast_report({'primary': 'nope', 'accent': ''}) == {}
+
+    def test_report_shape(self):
+        report = TenantThemeService.contrast_report({'primary': '#9c6b12'})
+        assert set(report['primary']) == {'ratio', 'ok', 'threshold', 'against'}
+        assert report['primary']['ok'] is True
+
+    def test_list_presets_includes_verified_default(self):
+        presets = TenantThemeService.list_presets()
+        assert presets['Phoenix (default)'] == DEFAULT_THEME
+        # Returned dicts are copies — mutating one must not corrupt the registry.
+        presets['Phoenix (default)']['primary'] = '#000000'
+        assert TenantThemeService.list_presets()['Phoenix (default)'] == DEFAULT_THEME
+
+
 # ---------------------------------------------------------------------------
 # get_theme / set_theme — persistence, reset, gate, isolation
 # ---------------------------------------------------------------------------

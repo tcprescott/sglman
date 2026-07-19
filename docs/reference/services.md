@@ -530,8 +530,11 @@ The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/
 | `get_current_theme()` | `dict[str, str]` | Best-effort palette for the in-scope tenant; the shipped defaults when there is no tenant (platform surface / error page). Non-raising. |
 | `set_theme(actor, colors)` | `dict[str, str]` | STAFF-gated; validates hex, persists to `Tenant.config['theme']`, audits. A blank value clears that key; clearing all keys resets to defaults. |
 | `is_customized(colors)` | `bool` | Whether a resolved palette differs from the shipped defaults. |
+| `list_presets()` | `dict[str, dict]` | Curated, contrast-verified palettes (`THEME_PRESETS`) for the editor's preset picker. |
+| `contrast_report(colors)` | `dict[str, dict]` | Per-colour WCAG-AA contrast (`{ratio, ok, threshold, against}`) of each colour against the surface it's used on — pure, skips invalid/blank values. |
+| `contrast_warnings(colors)` | `list[str]` | Human-readable warnings for colours below the 4.5:1 AA target. |
 
-Collaborators: `TenantRepository`, `AuthService`, `AuditService`. Consumers: `theme/base.py` (`BaseLayout` chrome), `pages/admin_tabs/admin_theme.py` (the Appearance editor).
+Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset field passes, so a preset can never ship failing AA. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`. Consumers: `theme/base.py` (`BaseLayout` chrome), `pages/admin_tabs/admin_theme.py` (the Appearance editor, presets + live warnings).
 
 ### tournament_notification_service.py — TournamentNotificationService
 

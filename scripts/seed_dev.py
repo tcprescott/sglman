@@ -756,11 +756,12 @@ async def seed_all() -> None:
         if domain and tenant.domain != domain:
             tenant.domain = domain
             await tenant.save()
-        # Give the "second" community custom brand colours so /ui-validation and
-        # dev environments exercise the per-tenant theme path (a teal/violet
-        # palette that reads clearly against the default gold/ember).
+        # Give the "second" community a custom brand palette so /ui-validation
+        # and dev environments exercise the per-tenant theme path — the Ocean
+        # preset, which reads clearly against the default gold/ember.
         if slug == 'second':
-            theme = {'primary': '#0e7470', 'secondary': '#7c3aed', 'accent': '#22d3ee', 'header': '#0e7470'}
+            from application.services.tenant_theme_service import THEME_PRESETS
+            theme = dict(THEME_PRESETS['Ocean'])
             if (tenant.config or {}).get('theme') != theme:
                 config = dict(tenant.config or {})
                 config['theme'] = theme
