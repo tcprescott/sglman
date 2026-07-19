@@ -33,7 +33,9 @@ tenant-scoped.**
   nullable — reserved for host-based addressing, not yet resolved),
   `discord_guild_id` (nullable, **non-unique** — bot routing key; a guild may be
   shared by several tenants and the bot fans out over all of them), `is_active`,
-  `config` (JSON).
+  `config` (JSON — per-tenant knobs without dedicated columns; currently a
+  `theme` key holds the STAFF-set brand palette, see
+  [`TenantThemeService`](services.md#tenant_theme_servicepy--tenantthemeservice)).
 - **`TenantMembership`** (`tenantmembership`) — `(user, tenant)`, `unique_together`.
   Ties a global `User` to the tenants they belong to; queried across tenants, so
   it is never auto-scoped.

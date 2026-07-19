@@ -94,6 +94,7 @@ class AuditActions:
 
     # System
     SYSTEM_CONFIG_UPDATED = 'system_config.updated'
+    THEME_UPDATED = 'theme.updated'
 
     # Triforce texts
     TRIFORCE_TEXT_SUBMITTED = 'triforce_text.submitted'

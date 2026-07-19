@@ -33,17 +33,52 @@ Constructor: `BaseLayout(copyright_text=..., section=None, base_path=None, tabs=
 - `show_volunteer=True` adds a "Volunteer" entry (→ `/volunteer`) to the drawer's top menu; every page passes it as `user is not None` so any logged-in user sees the link.
 - Callers also pass `page_name=...`; `BaseLayout` absorbs it via `**_kwargs` and does not use it.
 
-`async render()` calls the synchronous `render_chrome()` (palette, header, drawer, footer) and then, if `tabs` were supplied, `await`s `_render_tab_panels()`. The split exists so non-async callers — notably the `on_page_exception` 50x error path, which NiceGUI invokes synchronously — can render the full themed shell via `render_chrome()` without awaiting. The page builds in order:
+`async render()` first `await`s `_load_theme_colors()` (resolving the in-scope tenant's brand palette via `TenantThemeService.get_current_theme()`), then calls the synchronous `render_chrome()` (palette, header, drawer, footer) and, if `tabs` were supplied, `await`s `_render_tab_panels()`. The split exists so non-async callers — notably the `on_page_exception` 50x error path, which NiceGUI invokes synchronously — can render the full themed shell via `render_chrome()` without awaiting; that sync path skips the async load and `render_chrome()` falls back to the shipped default palette. The page builds in order:
 
 | Step | Method | Behavior |
 |---|---|---|
 | Dark mode | `render_chrome()` | Reads `app.storage.user['dark_mode']` into `ui.dark_mode()`, then injects `<link rel="stylesheet" href="/static/css/styles.css">` |
+| Palette | `render_chrome()` | Resolves `colors = self._theme_colors or DEFAULT_THEME` (the tenant's brand palette, loaded in `render()`), passes it to `ui.colors(primary/secondary/accent=…)` (status colours stay fixed), and injects a `<style>` re-pointing the `--wiz-*` brand vars (`--wiz-gold-deep`, `--wiz-gold`, `--wiz-ember*`, `--wiz-header-bg`) + the light-mode PWA `theme-color` meta. Loaded after `styles.css`, so it wins; the dark-mode `--wiz-header-bg` override in `styles.css` keeps the header charcoal in dark mode. See [Per-tenant theme colours](#per-tenant-theme-colours) |
 | Header | `_render_header()` | Burger button toggling the drawer; a `ui.space()` flexible spacer pushes the user/login controls to the right edge (so alignment matches desktop even when the name is hidden on phones); when `user` is set: `preferred_name` label (hidden <600px), Discord avatar (from `app.storage.user['avatar']`) or an `account_circle` placeholder glyph when there is no avatar URL (mock-login sessions / Discord default avatars), logout button; otherwise a "Login with Discord" button whose text label is a child element hidden <600px (icon-only on phones — the full-text button still lives in the page body — with a tooltip for accessibility); finally a dark-mode toggle that persists to `app.storage.user['dark_mode']` and swaps its own icon |
 | Drawer | `_render_drawer()` | `ui.left_drawer(value=False)` with `breakpoint=1023 show-if-above bordered` (auto-visible ≥1024px, behind the burger below it); contents live in a full-height flex column — top menu items (Home / Admin / Volunteer), one item per tab (active tab carries the Quasar `active` prop), a **Feedback** item for logged-in users, and the copyright caption (`.wiz-drawer-copyright`) pinned to the foot via `ui.space()` |
 | Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.wiz-bottom-nav`), and only when there are tabs: the first four tabs plus a **More** button that opens the drawer; hidden ≥1024px, so desktop and tab-less pages render no footer. The wrapping `ui.footer()` (`.footer-dark-override`) supplies the surface + top border. Copyright and Feedback live in the drawer |
 | Tabs | `_render_tab_panels()` | A `ui.tab_panels` whose value is switched programmatically; every tab's content renders eagerly at page load |
 
 **Tab deep-linking.** Sections are addressed by **path segment** (`/admin/reports`), not a query param, so URLs read like app routes. Tab switching does not reload the page: `_switch_tab(label)` moves the `active` prop in the drawer, sets the tab-panels value, and — via `_handle_tab_change` — replaces the URL with `{base_path}/{slug}` through `ui.navigate.history.replace` (`replace`, not `push`, so per-tab switches don't stack a Back-button trap). The reverse direction works because each hub is registered under both `/base` and `/base/{section}` (via `protected_tab_page`, or three `ui.page()` calls for the public home page): the page function declares a `section: str = None` parameter — NiceGUI maps the path param onto it — and passes it to `BaseLayout`, which resolves the slug to the active tab. So `/admin/reports` opens directly on the Reports tab. The home hub lives at `/` (default section) with sections at `/home/<slug>`. Report filters (`report`, `start`, `end`, …) remain query params on top of the path (`/admin/reports?report=capacity`).
+
+### Per-tenant theme colours
+
+The shipped "Phoenix" palette (gold/ember) is **overridable per tenant**. A
+community's STAFF sets brand colours on **Admin → Appearance**
+([`pages/admin_tabs/admin_theme.py`](../../pages/admin_tabs/admin_theme.py), a
+staff-gated `ui.color_input` form in the drawer's *System* group), which calls
+[`TenantThemeService`](services.md#tenant_theme_servicepy--tenantthemeservice).
+Four brand colours are editable — **primary**, **secondary**, **accent**, and the
+**header bar**; semantic status colours (positive/negative/warning/info) stay
+fixed so notifications read consistently across communities.
+
+- **Storage:** `Tenant.config['theme']` (a dict of hex strings; no dedicated
+  columns). Unset ⇒ the shipped defaults (`TenantThemeService.DEFAULT_THEME`).
+- **Application:** `BaseLayout.render()` loads the palette and `render_chrome()`
+  applies it in two places — `ui.colors(...)` for Quasar's palette, and an
+  injected `<style>` re-pointing the `--wiz-*` brand variables that `styles.css`
+  uses for the header bar, links, and section titles (`ui.colors` alone does not
+  reach those). Reads are fresh each page load (`get_by_id` is uncached), so a
+  save shows on the next navigation; the Appearance form reloads the page on save.
+- **Scope:** custom colours apply only inside a tenant. The platform surfaces
+  (community picker at `/`, `/platform`) keep the default palette, as does the
+  synchronous error page.
+- **Presets:** a *Start from a preset* select offers curated palettes
+  (`TenantThemeService.list_presets()`), each **verified** to meet WCAG AA
+  contrast by `tests/test_color_contrast.py`. Selecting one fills the four fields
+  for further tuning before save.
+- **Contrast warnings:** each field shows a live WCAG-AA warning
+  (`TenantThemeService.contrast_report(...)`, a pure check backed by
+  [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py))
+  when a colour would be hard to read where it is used — primary/secondary
+  against the light surface, accent against the dark surface, the header bar
+  against its white text. Warnings are **advisory**: saving still succeeds (with a
+  warning-coloured toast), matching the app's "trust STAFF" stance.
 
 ## Error pages (`middleware/error_handlers.py`)
 
