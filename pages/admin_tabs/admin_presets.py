@@ -4,6 +4,7 @@ import json
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import PresetService, SeedGenerationService, get_user_from_discord_id
 
@@ -163,5 +164,5 @@ async def admin_presets_page() -> None:
             table.on('edit', lambda e: open_preset_dialog(e.args))
             table.on('delete', lambda e: background_tasks.create(delete_preset(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Presets' else None)
+        wire_tab_refresh('Presets', refresh_table)
         background_tasks.create(refresh_table())

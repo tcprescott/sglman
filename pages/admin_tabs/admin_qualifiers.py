@@ -12,8 +12,9 @@ run directly from ``on_click`` (event context has a slot) so ``ui.notify`` is sa
 without a background task.
 """
 
-from nicegui import app, background_tasks, context, ui
+from nicegui import app, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import (
     AsyncQualifierLiveRaceService,
@@ -490,5 +491,4 @@ async def admin_qualifiers_page() -> None:
         detail_view()
 
     await load_list()
-    ui.on('selected_tab',
-          lambda e: background_tasks.create(load_list()) if e.args == 'Qualifiers' else None)
+    wire_tab_refresh('Qualifiers', load_list)

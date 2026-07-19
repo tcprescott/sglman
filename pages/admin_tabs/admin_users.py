@@ -80,6 +80,9 @@ def admin_users_page() -> None:
 
         role_select.on('update:model-value', lambda *_: background_tasks.create(table_view.refresh()))
 
+        # Route through the view's _bg so refresh rebinds the tenant captured at
+        # build — the selected_tab handler runs detached, and _format_user_row
+        # relies on that tenant to keep the roles column scoped.
         def on_tab_selected():
-            background_tasks.create(table_view.refresh())
+            table_view._bg(table_view.refresh())
         ui.on('selected_tab', lambda e: on_tab_selected() if e.args == 'Users' else None)

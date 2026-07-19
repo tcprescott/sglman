@@ -138,8 +138,11 @@ class UserTableView:
         all_users = await user_query.order_by('username').prefetch_related(
             'roles', 'admin_tournaments', 'crew_coordinated_tournaments'
         )
-        tid = get_current_tenant_id()
-        rows = [self._format_user_row(u, tid) for u in all_users]
+        # Use the tenant captured at build, NOT a live get_current_tenant_id():
+        # refresh() is also driven by the filter/toolbar/tab-switch handlers as
+        # bare background tasks that have lost the tenant, where a live resolve
+        # returns None and would re-leak cross-tenant role grants.
+        rows = [self._format_user_row(u, self._tenant_id) for u in all_users]
         self.table.rows = rows
         self.table.update()
 
@@ -197,5 +200,5 @@ class UserTableView:
         ).first()
         if not u:
             return  # User not found
-        self.table.rows[idx] = self._format_user_row(u, get_current_tenant_id())
+        self.table.rows[idx] = self._format_user_row(u, self._tenant_id)
         self.table.update()

@@ -8,6 +8,7 @@ as the system user; this surface is the human-driven half.
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import (
     SpeedGamingSyncService,
@@ -228,5 +229,5 @@ async def admin_speedgaming_page() -> None:
             table.on('delete', lambda e: background_tasks.create(delete_link(e.args, context.client)))
             table.on('sync_now', lambda e: background_tasks.create(sync_now(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'SpeedGaming' else None)
+        wire_tab_refresh('SpeedGaming', refresh_table)
         background_tasks.create(refresh_table())

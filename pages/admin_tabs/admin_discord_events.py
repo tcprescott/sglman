@@ -9,6 +9,7 @@ The mirror needs a **linked Discord server** — the page surfaces that up front
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import (
     DiscordEventSyncService,
@@ -191,6 +192,6 @@ async def admin_discord_events_page() -> None:
         with events_container:
             event_table = ui.table(columns=event_columns, rows=[], row_key='discord_event_id').classes('w-full sgl-table')
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_tables()) if e.args == 'Discord Events' else None)
+        wire_tab_refresh('Discord Events', refresh_tables)
         background_tasks.create(refresh_link_banner())
         background_tasks.create(refresh_tables())

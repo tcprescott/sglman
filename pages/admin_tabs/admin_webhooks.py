@@ -4,6 +4,7 @@ import json
 
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
@@ -292,5 +293,5 @@ async def admin_webhooks_page() -> None:
             table.on('deliveries', lambda e: background_tasks.create(view_deliveries(e.args, context.client)))
             table.on('delete', lambda e: background_tasks.create(delete_webhook(e.args, context.client)))
 
-        ui.on('selected_tab', lambda e: background_tasks.create(refresh_table()) if e.args == 'Webhooks' else None)
+        wire_tab_refresh('Webhooks', refresh_table)
         background_tasks.create(refresh_table())
