@@ -157,9 +157,11 @@ Button interactions are **not** testable in mock mode (no bot connection); see [
 |---|---|---|
 | `start` | `() -> None` (sync) | Creates the `_worker()` task on the running event loop. Called once from `main.py` lifespan startup. |
 | `stop` | `() -> None` (async) | If items are still queued, prints `[discord_queue] stopping with N item(s) still queued — they will not be sent`, then cancels the worker task and awaits it (swallowing `CancelledError`). Called from lifespan shutdown. |
-| `enqueue` | `(coro: Coroutine) -> None` (sync) | `put_nowait` onto the unbounded `asyncio.Queue`. Safe to call from sync or async code; never blocks. |
+| `enqueue` | `(coro: Coroutine) -> None` (sync) | Captures the caller's tenant, then `put_nowait` onto the unbounded `asyncio.Queue`. Safe to call from sync or async code; never blocks. |
 
 The worker loop (`_worker`) pulls one coroutine at a time, awaits it, catches **any** exception and prints `[discord_queue] worker error: <e>` (the queue never dies from a bad send), and marks `task_done()`. Sends are therefore strictly serialized in enqueue order.
+
+**Tenant scope across the queue boundary.** The worker task is created once at startup with **no tenant in scope**, and a coroutine handed to `asyncio.Queue` does not carry the enqueuer's context — so a `notify_*` coroutine reaching `require_tenant_id()` (recipient fan-out, acknowledgment queries) would raise in the worker and be swallowed, silently dropping the DM. `enqueue` therefore snapshots `get_current_tenant_id()` at call time (request context) and re-establishes it around the coroutine via `tenant_scope` when the worker awaits it. Enqueue **from a tenant-scoped context** (a request, or a worker path already inside `tenant_scope`); a genuinely tenant-agnostic send may enqueue unscoped and is queued as-is.
 
 ```python
 from application.services import discord_queue
