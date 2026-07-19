@@ -273,7 +273,7 @@ async def seed_for_tenant(
             "Stage 3 Rematch", 3, seated=True, p1=players[1], p2=players[3], room=stage3,
             comment="Requested a rematch after a disconnect last round.",
         )
-        offstream_match = await make_match(
+        await make_match(
             "Off-Stream Match", 4, p1=players[2], p2=players[0], stream_candidate=False,
         )
         future_match = await make_match(
@@ -285,20 +285,9 @@ async def seed_for_tenant(
             p1=players[1], p2=players[2], room=stage2,
             comment="Result under review — desync reported by both players.",
         )
-        unscheduled_match = await make_match(
+        await make_match(
             "TBD Match", None, p1=players[3], p2=players[0], stream_candidate=False,
         )
-        matches = {
-            "scheduled": scheduled_match,
-            "checked_in": checked_in_match,
-            "in_progress": in_progress_match,
-            "finished": finished_match,
-            "stage3": stage3_match,
-            "offstream": offstream_match,
-            "future": future_match,
-            "disputed": disputed_match,
-            "unscheduled": unscheduled_match,
-        }
         print(f"    [{tenant.slug}] matches ok")
 
         # Generated seeds, attached to matches that have already been rolled.
