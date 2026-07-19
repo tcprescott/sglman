@@ -35,6 +35,10 @@ class BaseLayout:
         self.tabs = tabs
         self.user = user
         self.dark_mode = None
+        # Resolved per-tenant brand palette, loaded in render() before chrome is
+        # drawn. None on the synchronous error path (render_chrome without
+        # render), where render_chrome falls back to the shipped defaults.
+        self._theme_colors: dict[str, str] | None = None
 
         self._drawer = None
         self._tab_panels = None
@@ -68,9 +72,20 @@ class BaseLayout:
 
     async def render(self) -> None:
         """Render the complete layout with header, drawer, footer, and optional tabbed content."""
+        await self._load_theme_colors()
         self.render_chrome()
         if self.tabs:
             await self._render_tab_panels()
+
+    async def _load_theme_colors(self) -> None:
+        """Resolve the in-scope tenant's brand palette before drawing chrome.
+
+        Best-effort and non-raising (the platform surface has no tenant); the
+        service returns the shipped defaults when there is no tenant or no
+        override. Imported lazily to keep this presentation module import-light.
+        """
+        from application.services import TenantThemeService
+        self._theme_colors = await TenantThemeService.get_current_theme()
 
     def render_chrome(self) -> None:
         """Render the synchronous page frame (palette, header, drawer, footer).
@@ -80,6 +95,11 @@ class BaseLayout:
         themed chrome. Tab panels (the only async part) are rendered by
         :meth:`render`.
         """
+        # Per-tenant brand palette (loaded in render(); shipped defaults on the
+        # synchronous error path or the tenant-less platform surface).
+        from application.services.tenant_theme_service import DEFAULT_THEME
+        colors = self._theme_colors or DEFAULT_THEME
+
         dark_pref = app.storage.user.get('dark_mode')  # None ⇒ auto: match the client's system theme
         self.dark_mode = ui.dark_mode(dark_pref)
         # Preload only the above-the-fold fonts; the remaining weights load on demand.
@@ -99,8 +119,10 @@ class BaseLayout:
         # iOS home-screen icon. The service worker is registered from the site root
         # (/sw.js, served in frontend.py) so its scope covers start_url '/'.
         ui.add_head_html('<link rel="manifest" href="/static/manifest.webmanifest">')
+        # Light-mode browser/status-bar tint follows the tenant's header colour;
+        # dark mode keeps the charcoal bar (the header stays charcoal in dark).
         ui.add_head_html(
-            '<meta name="theme-color" content="#9C6B12" media="(prefers-color-scheme: light)">'
+            f'<meta name="theme-color" content="{colors["header"]}" media="(prefers-color-scheme: light)">'
         )
         ui.add_head_html(
             '<meta name="theme-color" content="#17120D" media="(prefers-color-scheme: dark)">'
@@ -142,18 +164,40 @@ class BaseLayout:
             '</script>'
         )
         ui.on('sgl_konami', lambda _: self._open_cat_fact())
-        # Phoenix brand palette: gold primary, ember secondary; semantic colors
-        # warm-tuned to match the --status-* tokens in styles.css so notify
-        # toasts and negative buttons sit with the palette instead of stock
-        # Material green/red.
+        # Phoenix brand palette: gold primary, ember secondary — overridable per
+        # tenant (theme/base loads TenantThemeService.get_current_theme). Semantic
+        # colors stay fixed, warm-tuned to match the --status-* tokens in
+        # styles.css so notify toasts and negative buttons sit with the palette
+        # instead of stock Material green/red.
         ui.colors(
-            primary='#9C6B12',
-            secondary='#C24E12',
-            accent='#E0A82E',
+            primary=colors['primary'],
+            secondary=colors['secondary'],
+            accent=colors['accent'],
             positive='#557A1F',
             negative='#B3362B',
             warning='#B45309',
             info='#0E7470',
+        )
+        # ui.colors only recolors Quasar's palette; the header bar, links, and
+        # section titles read the --sgl-* brand vars from styles.css. Re-point
+        # those to the tenant palette here (loaded after the stylesheet, so this
+        # wins). --sgl-header-bg is set on :root for the light bar; the dark
+        # rule in styles.css re-points it to charcoal on <body>, which stays
+        # authoritative in dark mode. The two dark text-tint rules mirror the
+        # !important defaults in styles.css so primary/secondary text follows the
+        # tenant accent/secondary in dark mode too.
+        ui.add_head_html(
+            '<style>'
+            ':root{'
+            f'--sgl-gold-deep:{colors["primary"]};'
+            f'--sgl-gold:{colors["accent"]};'
+            f'--sgl-ember-deep:{colors["secondary"]};'
+            f'--sgl-ember:{colors["secondary"]};'
+            f'--sgl-header-bg:{colors["header"]};'
+            '}'
+            '.body--dark .text-primary,.q-dark .text-primary{color:var(--sgl-gold)!important;}'
+            '.body--dark .text-secondary,.q-dark .text-secondary{color:var(--sgl-ember)!important;}'
+            '</style>'
         )
         self._render_header()
         self._render_drawer()

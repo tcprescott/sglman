@@ -63,6 +63,7 @@ from . import speedgaming_sync_worker
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
 from .tenant_service import TenantService
+from .tenant_theme_service import TenantThemeService
 from .telemetry_service import TelemetryService
 from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
@@ -143,6 +144,7 @@ __all__ = [
     'StreamRoomService',
     'SystemConfigService',
     'TenantService',
+    'TenantThemeService',
     'TelemetryService',
     'TournamentNotificationService',
     'TournamentService',
