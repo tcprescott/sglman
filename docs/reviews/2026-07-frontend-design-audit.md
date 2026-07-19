@@ -1,5 +1,7 @@
 # Frontend Design Audit — July 2026 (round 2)
 
+> **Status: P0 + P1 + most of P2 implemented and browser-verified (see [Implementation results](#implementation-results) at the end).** The findings below are the original audit; the roadmap items marked done have since been built, screenshot-verified in light + dark, and ship with the full suite green (2062 passed).
+
 **Goal:** assess the web UI as a *product design system* — visual consistency, information architecture, component discipline, brand coverage, and the places where the phoenix design language stops applying. The [July mobile UX audit](2026-07-mobile-ux-audit.md) covered phones and shipped its P0–P2; this round is the desktop/system counterpart.
 
 **Method:** the running app (dev boot + `scripts/seed_dev.py` fixtures) was driven with Playwright at 1500×1100 in **light and dark** (`colorScheme` emulation → the app's auto mode), as four personas (anonymous, `player_one`, `staff_user`, and `staff_user`-as-super-admin for `/platform`). All 7 home tabs, all 21 admin tabs, all 7 report pages, the volunteer hub, equipment detail, dialogs (admin match, feedback, request match), login, community picker, 403 and 404 were screenshotted full-page — 63 captures — and suspicious findings were re-verified live (scrolled dark-mode pages, drawer-click tab switching, direct DB queries).
@@ -111,3 +113,30 @@ Everything below has file references; the roadmap at the end is ordered by lever
 ---
 
 *Artifacts: 63 full-page screenshots (4 personas × light/dark) plus live-verification captures, generated via the `ui-validation` harness pattern; the sweep script drives `/t/default` plus platform-scoped targets and opens the admin match, feedback, and request-match dialogs. Verified facts in this report (empty tables, dead event, DB contents, dark-mode scroll) were each confirmed by a second method beyond the screenshot.*
+
+---
+
+## Implementation results
+
+Everything in P0 and P1, and most of P2, shipped across a set of file-scoped commits; each surface was re-screenshotted in light **and** dark, `ruff` is clean, and the full pytest suite is green (**2062 passed**).
+
+**P0 — broken windows (all fixed, browser-verified):**
+- **`selected_tab` re-emitted** from `theme/base.py:_handle_tab_change`, so the eleven admin tabs that listen for it refresh on tab switch again. Verified by drawer-clicking Users → Tournaments and watching the table populate.
+- **Every table loads at build.** `theme/tables/{tournament,user}.py` now do an initial `refresh()` through a tenant-rebinding `_bg` helper (mirroring `MatchTableView`) — the captured request context is re-bound with `tenant_scope`, since a bare `background_tasks.create` runs detached from the client slot and would raise `require_tenant_id()`. Admin → Tournaments now shows its rows.
+- **Users roles column scoped + deduped** (`theme/tables/user.py`), plus the dev mock-login picker (`pages/auth.py`): `staff_user` now reads `Staff · Volunteer Coordinator · Equipment Manager · TA(2) · CC(1)` — no `Staff, Staff`, no leaked `SUPER_ADMIN`/other-tenant grants. `assignable_volunteers` tenant-scoped in the service (`volunteer_profile_service.py`).
+- **Seed grants VOLUNTEER** to the opted-in/qualified users, so Vol. Roster and the auto-scheduler have a visible pool.
+- The stray `0_20240101000000_init.py` migration was already removed on this branch.
+
+**P1 — one design language:**
+- **`.sgl-table`** opt-in added to the styled-table rule set and applied to every hand-rolled admin/report table; booleans render as check/cancel icons and sync/health statuses as `.sgl-chip`s (SpeedGaming, Discord Events, Webhooks, Racetime). Also fixed a latent slot-context bug the guardrail flagged (stream-room edit handler `ui.notify` in a background task).
+- **`/platform`, the community picker, and the permission-denied page** are branded: phoenix chrome (stylesheet + palette + header/back-link), gold serif titles, styled tables, humanized bot health (`Connected`, never `BotStatus.CONNECTED`) as chips, and a themed 403 error card.
+- **Branded table empty state** (`theme/empty_state.no_data_slot`) wired into the Match/User/Tournament views; in-tab section headings normalized to `.section-title`.
+- **Admin drawer grouped** into Operations / Online play / Community / Integrations / System with unique per-destination icons (`pages/admin.py` + `theme/base.py`).
+
+**P2 — polish (shipped):**
+- Service Health shows **Eastern time** (was UTC); dashboard **coverage KPI is three-tier** (red <50% / amber / green ≥80%); **Challonge copy** no longer leaks env-var names; **form controls width-capped** (`.sgl-form-column`) on System Configuration + Profile; **equipment detail wrapped in a surface panel**; **Feedback toolbar folded** into the header row; **intro sentences** added to Users / Tournaments / Stream Rooms / Vol. Roster / Vol. Schedule / Feedback; **crew signup/withdraw buttons labeled** ("Sign up" / "Withdraw") on the schedule.
+
+**P2 — left as-is (with rationale):**
+- **ECharts dark theme (F2):** already handled — `reports/shared.py` uses a documented mode-neutral axis/text color (`CHART_TEXT`/`CHART_GRID`) sitting at ~4:1 on both surfaces. Truly per-mode colors need the client's effective theme, which is unknowable server-side under auto mode; not worth the regression risk.
+- **Dialog action row (C8):** the match dialog footer already separates destructive (Delete, left) from primary (Cancel/Save, right) via `ui.space()`.
+- **Schedule column budget (D3):** Quasar tables scroll horizontally internally, so the Watch column is reachable, not hard-clipped; folding/removing columns risks the crew-signup and watch flows — deferred to a dedicated pass rather than reworked here.
