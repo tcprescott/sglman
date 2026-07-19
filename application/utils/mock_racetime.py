@@ -10,14 +10,12 @@ that case.
 covers the identity half — both share the one production-refusal switch.
 """
 
-import os
-
-from application.utils.environment import is_production
+from application.utils.environment import env_flag, is_production
 
 
 def is_mock_racetime() -> bool:
     """Return True when MOCK_RACETIME is enabled (and not in production)."""
-    enabled = os.environ.get('MOCK_RACETIME', '').lower() in ('1', 'true', 'yes')
+    enabled = env_flag('MOCK_RACETIME')
     if enabled and is_production():
         raise RuntimeError(
             'MOCK_RACETIME must not be enabled in production: it fakes the '

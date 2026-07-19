@@ -69,6 +69,34 @@ def stub_discord_queue(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_external_network(monkeypatch):
+    """Fail loudly when a test touches the real network.
+
+    The suite must behave identically offline and in CI (a service-health test
+    once POSTed to five third-party production hosts on every CI run). Loopback
+    stays allowed so tests may drive a locally-bound server; httpx's
+    ASGITransport and the in-memory DB never open sockets at all.
+    """
+    import socket
+
+    real_connect = socket.socket.connect
+    loopback = ('127.0.0.1', '::1', 'localhost', '0.0.0.0')
+
+    def guarded_connect(self, address):
+        host = address[0] if isinstance(address, tuple) else address
+        if isinstance(host, (bytes, bytearray)):
+            host = host.decode(errors='replace')
+        if self.family == socket.AF_UNIX or host in loopback:
+            return real_connect(self, address)
+        raise RuntimeError(
+            f'External network access blocked in tests: connect to {address!r}. '
+            f'Mock the client (MOCK_* helpers) or stub the transport instead.'
+        )
+
+    monkeypatch.setattr(socket.socket, 'connect', guarded_connect)
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """Isolate the process-global API rate-limiter counters per test.
 

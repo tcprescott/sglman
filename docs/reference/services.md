@@ -143,6 +143,18 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 
 Consumers: `middleware/auth.py` (`protected_page` role enforcement), nearly every page and dialog (`pages/home.py`, `pages/admin.py`, `pages/admin_tabs/*`, `theme/dialog/*`, `theme/tables/*`), and all mutating services via `ensure`.
 
+### oauth_handoff_service.py — module functions
+
+Design B cross-host login handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`): Discord OAuth always completes on the platform host, which **mints** a short-lived (30s TTL), single-use, host-bound token and redirects to the target domain's `/session/claim`, which **claims** it and writes the host-local session. Only the nonce + host travel in the URL; identity (`discord_id`/username/avatar) stays server-side in a bounded in-process store (single-worker deployment precondition, like the tenant caches). Signed with `STORAGE_SECRET` via `itsdangerous`.
+
+| Function | Returns | Description |
+|---|---|---|
+| `mint(*, discord_id, username, avatar, target_host, next_path, bind_commit=None)` | `str \| None` | Mint a handoff token bound to `target_host` (must already be a validated active tenant domain); `None` if the host won't normalize. `bind_commit` ties the token to the initiating browser (login-CSRF guard). |
+| `claim(token, request_host)` | `dict \| None` | Validate + consume the token on `request_host`; returns the stored payload or `None` for invalid/expired/wrong-host/replayed tokens. Single-use — the nonce is popped regardless of outcome. |
+| `reset()` | `None` | Clear the pending store (test isolation). |
+
+Consumers: `pages/auth.py` (platform-host OAuth callback → mint; `/session/claim` route → claim). Detail: `docs/host-based-routing-plan.md`.
+
 ### challonge_service.py — ChallongeService
 
 Coordinates the Challonge integration: one shared SGL service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock_challongepy).

@@ -67,6 +67,12 @@ Some newer subsystems do not yet have a dedicated feature doc; they are covered 
 - **Challonge integration** (service-account OAuth, bracket mirroring, scheduling, per-player identity linking) — same four reference docs.
 - **API tokens** and **in-app feedback** — see [reference/rest-api.md](reference/rest-api.md), [reference/services.md](reference/services.md), and [reference/data-model.md](reference/data-model.md).
 
+## Reviews (`docs/reviews/`)
+
+Point-in-time codebase audits — each report names the audited commit, labels findings [new]/[pre-existing] with `file:line` citations, and records an adversarial reconciliation pass. Remediation is delegated to follow-up work; recurring mechanical bug classes feed the `.claude/` guardrail hooks.
+
+- [reviews/2026-07-code-quality-audit.md](reviews/2026-07-code-quality-audit.md) — DRY & engineering-practices audit (whole codebase); remediated in waves, extractions listed in §4.
+
 ## Proposals (not yet implemented)
 
 - [multitenancy-plan.md](multitenancy-plan.md) — phased plan to make SGLMan logically multitenant (dual path-based `/t/<slug>` + custom-domain tenant addressing, platform super-admin surface, one-bot-many-guilds Discord). Design only; no code shipped.

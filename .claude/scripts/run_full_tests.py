@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 
-PYTEST_TIMEOUT = 110
+PYTEST_TIMEOUT = 270
 
 SOURCE_PREFIXES = (
     "application/",
@@ -70,8 +70,18 @@ def main() -> None:
             timeout=PYTEST_TIMEOUT,
             env=env,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except FileNotFoundError:
+        # poetry unavailable: an environment condition, not a test result.
         sys.exit(0)
+    except subprocess.TimeoutExpired:
+        print(
+            f"FULL TEST SUITE TIMED OUT after {PYTEST_TIMEOUT}s — the Stop gate did NOT\n"
+            f"verify your changes; this is not a pass. The suite normally finishes well\n"
+            f"inside this budget, so a hung test is likely. Run it yourself:\n"
+            f"  MOCK_DISCORD=true poetry run pytest -q",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     if result.returncode != 0:
         output = (result.stdout + result.stderr).strip()

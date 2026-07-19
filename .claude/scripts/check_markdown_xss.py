@@ -97,7 +97,8 @@ def main() -> None:
                 f"  stored, user-writable value becomes a stored-XSS sink shown to every viewer.\n"
                 f"  Fix: render dynamic text with ui.label(...).style('white-space: pre-wrap'),\n"
                 f"  or sanitize before rendering. Reserve ui.markdown/ui.html for static literals.\n"
-                f"  See docs/security-audit.md #1.",
+                f"  (Original finding: the stored tournament triforce_access_message rendered\n"
+                f"  via ui.markdown let staff inject script into every viewer's page.)",
                 file=sys.stderr,
             )
         sys.exit(2)

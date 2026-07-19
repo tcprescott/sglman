@@ -7,14 +7,12 @@ in production: the connect/link pages would grant a fake authenticated
 connection. As with ``MOCK_DISCORD`` we refuse to start in that case.
 """
 
-import os
-
-from application.utils.environment import is_production
+from application.utils.environment import env_flag, is_production
 
 
 def is_mock_challonge() -> bool:
     """Return True when MOCK_CHALLONGE is enabled (and not in production)."""
-    enabled = os.environ.get('MOCK_CHALLONGE', '').lower() in ('1', 'true', 'yes')
+    enabled = env_flag('MOCK_CHALLONGE')
     if enabled and is_production():
         raise RuntimeError(
             'MOCK_CHALLONGE must not be enabled in production: it fakes the '
