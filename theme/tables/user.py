@@ -1,5 +1,6 @@
 from nicegui import background_tasks, ui
 
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from application.utils.timezone import format_eastern_display
 
 
@@ -13,7 +14,18 @@ class UserTableView:
         self.submit_user_callback = submit_user_callback
         self.show_toolbar = show_toolbar
         self.table = None
+        # Capture the tenant while the request context is live; background tasks
+        # (initial load, pagination refresh) run detached from the client slot, so
+        # scoped reads would otherwise raise require_tenant_id(). _bg rebinds it.
+        self._tenant_id = get_current_tenant_id()
         self._setup_ui()
+
+    def _bg(self, coro) -> None:
+        """Schedule ``coro`` as a background task with this view's tenant bound."""
+        async def _run():
+            with tenant_scope(self._tenant_id):
+                await coro
+        background_tasks.create(_run())
 
     def _setup_ui(self):
         # Toolbar with actions (skipped when caller renders it externally)
@@ -75,6 +87,10 @@ class UserTableView:
             dialog = AdminUserDialog(u)
             await dialog.open()
         self.table.on('edit_user', handle_edit_user)
+        # Initial load at build: correctness must not depend on the selected_tab
+        # broadcast (which only fires on a *subsequent* tab switch) or on Quasar's
+        # incidental pagination event.
+        self._bg(self.refresh())
 
     def render_grid_slot(self):
         # Dynamically generate grid slot fields from self.columns
@@ -120,15 +136,30 @@ class UserTableView:
         all_users = await user_query.order_by('username').prefetch_related(
             'roles', 'admin_tournaments', 'crew_coordinated_tournaments'
         )
-        rows = [self._format_user_row(u) for u in all_users]
+        tid = get_current_tenant_id()
+        rows = [self._format_user_row(u, tid) for u in all_users]
         self.table.rows = rows
         self.table.update()
 
     @staticmethod
-    def _format_user_row(u):
-        role_labels = [r.role.value.replace('_', ' ').title() for r in u.roles]
-        ta_count = len(u.admin_tournaments)
-        cc_count = len(u.crew_coordinated_tournaments)
+    def _format_user_row(u, tid=None):
+        # Show only this tenant's role grants. UserRole rows are per-tenant (the
+        # same identity may hold STAFF in several communities and SUPER_ADMIN with
+        # tenant=NULL), so an unscoped render both duplicates chips and leaks other
+        # communities' grants into this admin — the display counterpart of the
+        # scoping AuthService.get_roles already applies. Dedupe within the tenant.
+        seen = set()
+        role_labels = []
+        for r in u.roles:
+            if tid is not None and r.tenant_id != tid:
+                continue
+            label = r.role.value.replace('_', ' ').title()
+            if label not in seen:
+                seen.add(label)
+                role_labels.append(label)
+        # Tournaments are tenant-scoped too; count only those in this tenant.
+        ta_count = sum(1 for t in u.admin_tournaments if tid is None or t.tenant_id == tid)
+        cc_count = sum(1 for t in u.crew_coordinated_tournaments if tid is None or t.tenant_id == tid)
         if ta_count:
             role_labels.append(f'TA({ta_count})')
         if cc_count:
@@ -148,7 +179,7 @@ class UserTableView:
         }
 
     def _on_page_change(self, _event):
-        background_tasks.create(self.refresh())
+        self._bg(self.refresh())
 
     async def update_row_by_id(self, user_id):
         """
@@ -164,5 +195,5 @@ class UserTableView:
         ).first()
         if not u:
             return  # User not found
-        self.table.rows[idx] = self._format_user_row(u)
+        self.table.rows[idx] = self._format_user_row(u, get_current_tenant_id())
         self.table.update()

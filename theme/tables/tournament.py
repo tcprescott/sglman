@@ -1,6 +1,7 @@
 from nicegui import background_tasks, ui
 from tortoise.functions import Count
 
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 
@@ -13,7 +14,19 @@ class TournamentTableView:
         self.extra_slots = extra_slots
         self.submit_tournament_callback = submit_tournament_callback
         self.table = None
+        # Capture the tenant while the request context is live; background tasks
+        # (the initial load, pagination refreshes) run detached from the client
+        # slot where the tenant stash lives, so scoped reads would otherwise raise
+        # require_tenant_id(). _bg rebinds it — same pattern as MatchTableView.
+        self._tenant_id = get_current_tenant_id()
         self._setup_ui()
+
+    def _bg(self, coro) -> None:
+        """Schedule ``coro`` as a background task with this view's tenant bound."""
+        async def _run():
+            with tenant_scope(self._tenant_id):
+                await coro
+        background_tasks.create(_run())
 
     def _setup_ui(self):
         # Toolbar with actions
@@ -102,6 +115,10 @@ class TournamentTableView:
         # Register edit_tournament event handler immediately after table creation
         self.table.on('edit_tournament', self.handle_edit_tournament)
         self.table.on('show_players', self.handle_show_players)
+        # Initial load at build: correctness must not depend on the selected_tab
+        # broadcast (which only fires on a *subsequent* tab switch) or on Quasar's
+        # incidental pagination event.
+        self._bg(self.refresh())
 
     async def refresh(self, *_, **__):
         # Count enrolled players in SQL rather than hydrating every enrollment
@@ -128,7 +145,7 @@ class TournamentTableView:
         self.table.update()
 
     def _on_page_change(self, _event):
-        background_tasks.create(self.refresh())
+        self._bg(self.refresh())
 
     async def update_row_by_id(self, tournament_id):
         """

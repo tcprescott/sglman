@@ -154,12 +154,20 @@ async def seed_for_tenant(
         for u in users.values():
             await TenantMembership.get_or_create(user=u, tenant=tenant)
 
-        # Roles (per tenant)
+        # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +
+        # qualified + available pool seeded further down so the Vol. Roster tab and
+        # the auto-scheduler actually have an assignable pool to show
+        # (VolunteerProfileService.assignable_volunteers filters on Role.VOLUNTEER).
         role_grants = [
             ("staff_user", Role.STAFF),
             ("proctor_user", Role.PROCTOR),
             ("sm_user", Role.STREAM_MANAGER),
             ("player_one", Role.TRIFORCE_SUBMITTER),
+            ("proctor_user", Role.VOLUNTEER),
+            ("sm_user", Role.VOLUNTEER),
+            ("player_one", Role.VOLUNTEER),
+            ("player_two", Role.VOLUNTEER),
+            ("player_three", Role.VOLUNTEER),
         ]
         for uname, role in role_grants:
             await UserRole.get_or_create(
