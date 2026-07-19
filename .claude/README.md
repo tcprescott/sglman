@@ -386,6 +386,12 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   seeds, and drives endpoints with the deterministic seeded bearer tokens —
   401/403/404 matrix, response shape, and the cross-tenant-404 live leak
   probe that in-process ASGITransport tests can't exercise end to end.
+- **`skills/discord-ux/`** — the Discord counterpart: the bot's DM/button
+  surface can't be driven headlessly (and `MOCK_DISCORD` never connects), so
+  this reconstructs it by rendering the real message builders
+  (`render_surface.py`) and reproducing Discord's DM chrome, with a tenant-safety
+  / duplicate-field / spacing / embeds UX checklist. Use to review what the bot
+  sends.
 - **`agents/architecture-reviewer.md`** — a read-only review subagent for the
   **judgment** calls the mechanical hooks can't make: business logic at the
   wrong layer altitude, tenant-scoping *semantics* (missing `tenant_scope` in
