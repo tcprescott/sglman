@@ -53,6 +53,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
+| `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [tournament-notifications.md](../features/tournament-notifications.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -518,6 +519,19 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
 Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`. Consumers: `middleware/tenant.py` (slug→tenant resolution), `pages/platform.py` (tenant CRUD UI), `pages/home.py` (community picker), `application/services/discord_service.py` + `discord_role_mapping_service.py` (guild→tenant routing).
+
+### tenant_theme_service.py — TenantThemeService
+
+The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/ember); a community's STAFF may override four brand colours — `primary`, `secondary`, `accent`, and the header bar — stored under `Tenant.config['theme']` (no dedicated columns). Semantic status colours (positive/negative/warning/info) are intentionally not editable. Reads merge stored overrides onto the defaults so callers always get a full palette; writes are STAFF-gated (`AuthService.ensure(is_staff, …)`), validated to 6-digit hex, and audited (`theme.updated`, tenant-scoped). `Tenant` is the tenancy discriminator (never tenant-scoped), so this service reads/writes through the cross-tenant `TenantRepository`. Applied by `BaseLayout` — see [frontend.md § Per-tenant theme colours](../reference/frontend.md#per-tenant-theme-colours).
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_theme(tenant_id)` | `dict[str, str]` | Full palette for a tenant (overrides merged onto `DEFAULT_THEME`). Fresh read (`get_by_id` is uncached). |
+| `get_current_theme()` | `dict[str, str]` | Best-effort palette for the in-scope tenant; the shipped defaults when there is no tenant (platform surface / error page). Non-raising. |
+| `set_theme(actor, colors)` | `dict[str, str]` | STAFF-gated; validates hex, persists to `Tenant.config['theme']`, audits. A blank value clears that key; clearing all keys resets to defaults. |
+| `is_customized(colors)` | `bool` | Whether a resolved palette differs from the shipped defaults. |
+
+Collaborators: `TenantRepository`, `AuthService`, `AuditService`. Consumers: `theme/base.py` (`BaseLayout` chrome), `pages/admin_tabs/admin_theme.py` (the Appearance editor).
 
 ### tournament_notification_service.py — TournamentNotificationService
 

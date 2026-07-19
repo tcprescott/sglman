@@ -756,6 +756,16 @@ async def seed_all() -> None:
         if domain and tenant.domain != domain:
             tenant.domain = domain
             await tenant.save()
+        # Give the "second" community custom brand colours so /ui-validation and
+        # dev environments exercise the per-tenant theme path (a teal/violet
+        # palette that reads clearly against the default gold/ember).
+        if slug == 'second':
+            theme = {'primary': '#0e7470', 'secondary': '#7c3aed', 'accent': '#22d3ee', 'header': '#0e7470'}
+            if (tenant.config or {}).get('theme') != theme:
+                config = dict(tenant.config or {})
+                config['theme'] = theme
+                tenant.config = config
+                await tenant.save()
         print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
         await seed_for_tenant(tenant, users, bots)
         await assign_feature_group(tenant, groups)

@@ -71,6 +71,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ROLE_DISCORD_SYNC_BULK,
     # System configuration.
     AuditActions.SYSTEM_CONFIG_UPDATED,
+    # Per-tenant brand palette — tenant-internal appearance setting, no external
+    # subscriber interest.
+    AuditActions.THEME_UPDATED,
     AuditActions.TRIFORCE_TEXT_DELETED,
     # Seed-preset catalog CRUD — tenant-internal settings authoring, no external
     # subscriber interest (the seed roll itself already emits MATCH_SEED_ROLLED).
