@@ -57,11 +57,27 @@ def render_health_table(results: List[ProbeResult]) -> None:
     if not results:
         ui.label('No dependencies to report.').classes('text-caption text-grey')
         return
-    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes('w-full sgl-table')
+    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes(
+        'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
     table.add_slot('body-cell-status', '''
         <q-td :props="props">
             <q-badge :color="props.row.status_color" :label="props.value" />
         </q-td>
+    ''')
+    # Mobile card (below Quasar's lt.md breakpoint) — the desktop columns overflow
+    # a phone viewport, so each dependency renders as a stacked card instead.
+    table.add_slot('item', '''
+        <div class="q-pa-xs col-xs-12 col-sm-6">
+            <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                <div class="row items-center justify-between no-wrap q-mb-xs">
+                    <div class="text-weight-bold">{{ props.row.label }}</div>
+                    <q-badge :color="props.row.status_color" :label="props.row.status" />
+                </div>
+                <div class="text-caption text-grey-7 q-mb-xs">{{ props.row.category }}</div>
+                <div v-if="props.row.message" class="q-mb-xs" style="overflow-wrap:anywhere">{{ props.row.message }}</div>
+                <div class="text-caption text-grey-7">Checked {{ props.row.checked_at }}</div>
+            </q-card>
+        </div>
     ''')
 
 

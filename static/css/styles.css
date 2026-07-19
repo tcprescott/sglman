@@ -1269,12 +1269,15 @@ body.body--dark {
     box-shadow: var(--shadow-1);
 }
 
-/* Field labels in the user/tournament/equipment grid cards use Quasar's
-   text-grey-7, a fixed cool gray that goes murky on the dark surface; re-point
-   it at the mode-aware muted token (!important to match Quasar's own). */
+/* Field labels in the grid cards use Quasar's text-grey-7, a fixed cool gray
+   that goes murky on the dark surface; re-point it at the mode-aware muted token
+   (!important to match Quasar's own). ``.sgl-grid-card`` is the generic class for
+   the hand-rolled admin cards (platform tables, service health) — the card
+   counterpart of ``.sgl-table``. */
 .user-grid-card .text-grey-7,
 .tournament-grid-card .text-grey-7,
-.equipment-grid-card .text-grey-7 {
+.equipment-grid-card .text-grey-7,
+.sgl-grid-card .text-grey-7 {
     color: var(--status-neutral) !important;
 }
 

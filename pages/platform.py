@@ -31,6 +31,16 @@ _ACTIVE_ICON_SLOT = '''
     </q-td>
 '''
 
+# Colored bot-health chip, shared by the desktop status cell and the mobile card
+# so the two never drift. Rows must carry ``status`` (text) and ``status_kind``.
+_BOT_STATUS_CHIP = '''
+    <span class="sgl-chip" :class="{
+        'sgl-chip--ok': props.row.status_kind === 'connected',
+        'sgl-chip--cancelled': props.row.status_kind === 'error' || props.row.status_kind === 'disconnected',
+        'sgl-chip--neutral': props.row.status_kind === 'unknown'
+    }">{{ props.row.status }}</span>
+'''
+
 
 def _render_platform_chrome() -> None:
     """Phoenix brand chrome for the standalone platform surface.
@@ -96,7 +106,8 @@ def create() -> None:
                 {'name': 'active', 'label': 'Active', 'field': 'active', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes(
+                'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
             table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
@@ -105,6 +116,34 @@ def create() -> None:
                     <q-btn dense flat color="secondary" label="Features"
                            @click="$parent.$emit('features', props.row)" />
                 </q-td>
+            ''')
+            table.add_slot('item', '''
+                <div class="q-pa-xs col-xs-12 col-sm-6">
+                    <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                        <div class="row items-center justify-between no-wrap q-mb-xs">
+                            <div class="text-weight-bold">{{ props.row.name }}</div>
+                            <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
+                                    :color="props.row.active_bool ? 'positive' : 'negative'" size="sm">
+                                <q-tooltip>{{ props.row.active_bool ? 'Active' : 'Inactive' }}</q-tooltip>
+                            </q-icon>
+                        </div>
+                        <div class="text-caption text-grey-7 q-mb-xs">#{{ props.row.id }} · /t/{{ props.row.slug }}</div>
+                        <div class="row q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Domain</div>
+                            <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.domain }}</div>
+                        </div>
+                        <div class="row q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Guild</div>
+                            <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.guild }}</div>
+                        </div>
+                        <div class="row justify-end q-gutter-x-sm q-mt-xs">
+                            <q-btn dense flat color="primary" label="Edit"
+                                   @click="$parent.$emit('edit', props.row)" />
+                            <q-btn dense flat color="secondary" label="Features"
+                                   @click="$parent.$emit('features', props.row)" />
+                        </div>
+                    </q-card>
+                </div>
             ''')
 
             async def _on_edit(e) -> None:
@@ -140,17 +179,10 @@ def create() -> None:
                 {'name': 'status', 'label': 'Health', 'field': 'status', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
-            bot_table = ui.table(columns=bot_columns, rows=[], row_key='id').classes('w-full sgl-table')
+            bot_table = ui.table(columns=bot_columns, rows=[], row_key='id').classes(
+                'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
             bot_table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
-            bot_table.add_slot('body-cell-status', '''
-                <q-td :props="props">
-                    <span class="sgl-chip" :class="{
-                        'sgl-chip--ok': props.row.status_kind === 'connected',
-                        'sgl-chip--cancelled': props.row.status_kind === 'error' || props.row.status_kind === 'disconnected',
-                        'sgl-chip--neutral': props.row.status_kind === 'unknown'
-                    }">{{ props.row.status }}</span>
-                </q-td>
-            ''')
+            bot_table.add_slot('body-cell-status', f'<q-td :props="props">{_BOT_STATUS_CHIP}</q-td>')
             bot_table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
@@ -160,6 +192,36 @@ def create() -> None:
                     <q-btn dense flat color="orange" label="Restart"
                            @click="$parent.$emit('restart_bot', props.row)" />
                 </q-td>
+            ''')
+            bot_table.add_slot('item', '''
+                <div class="q-pa-xs col-xs-12 col-sm-6">
+                    <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                        <div class="row items-center justify-between no-wrap q-mb-xs">
+                            <div class="text-weight-bold">{{ props.row.category }}</div>
+                            <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
+                                    :color="props.row.active_bool ? 'positive' : 'negative'" size="sm">
+                                <q-tooltip>{{ props.row.active_bool ? 'Active' : 'Inactive' }}</q-tooltip>
+                            </q-icon>
+                        </div>
+                        <div class="text-caption text-grey-7 q-mb-xs">#{{ props.row.id }} · {{ props.row.name }}</div>
+                        <div class="row q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Client ID</div>
+                            <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.client_id }}</div>
+                        </div>
+                        <div class="row items-center q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Health</div>
+                            <div class="col-8">''' + _BOT_STATUS_CHIP + '''</div>
+                        </div>
+                        <div class="row justify-end q-gutter-x-sm q-mt-xs">
+                            <q-btn dense flat color="primary" label="Edit"
+                                   @click="$parent.$emit('edit_bot', props.row)" />
+                            <q-btn dense flat color="secondary" label="Tenants"
+                                   @click="$parent.$emit('grant_bot', props.row)" />
+                            <q-btn dense flat color="orange" label="Restart"
+                                   @click="$parent.$emit('restart_bot', props.row)" />
+                        </div>
+                    </q-card>
+                </div>
             ''')
 
             async def _on_edit_bot(e) -> None:
@@ -195,7 +257,8 @@ def create() -> None:
                 {'name': 'tenants', 'label': 'Tenants', 'field': 'tenants', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
-            group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes('w-full sgl-table')
+            group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes(
+                'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
             group_table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
@@ -203,6 +266,30 @@ def create() -> None:
                     <q-btn dense flat color="negative" label="Delete"
                            @click="$parent.$emit('delete_group', props.row)" />
                 </q-td>
+            ''')
+            group_table.add_slot('item', '''
+                <div class="q-pa-xs col-xs-12 col-sm-6">
+                    <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                        <div class="row items-center justify-between no-wrap q-mb-xs">
+                            <div class="text-weight-bold">{{ props.row.name }}</div>
+                            <q-badge v-if="props.row.default" color="primary" label="Default" />
+                        </div>
+                        <div class="row q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Features</div>
+                            <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.flags }}</div>
+                        </div>
+                        <div class="row q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Tenants</div>
+                            <div class="col-8">{{ props.row.tenants }}</div>
+                        </div>
+                        <div class="row justify-end q-gutter-x-sm q-mt-xs">
+                            <q-btn dense flat color="primary" label="Edit"
+                                   @click="$parent.$emit('edit_group', props.row)" />
+                            <q-btn dense flat color="negative" label="Delete"
+                                   @click="$parent.$emit('delete_group', props.row)" />
+                        </div>
+                    </q-card>
+                </div>
             ''')
 
             async def _on_edit_group(e) -> None:
