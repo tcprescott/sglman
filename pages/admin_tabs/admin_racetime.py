@@ -63,8 +63,9 @@ async def admin_racetime_page() -> None:
                 {
                     'id': p.id,
                     'name': p.name,
-                    'goal': p.goal or '',
+                    'goal': p.goal or '—',
                     'auto_start': 'yes' if p.auto_start else 'no',
+                    'auto_start_bool': p.auto_start,
                 }
                 for p in profiles
             ]
@@ -142,7 +143,14 @@ async def admin_racetime_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+
+            table.add_slot('body-cell-auto_start', '''
+                <q-td :props="props">
+                    <q-icon :name="props.row.auto_start_bool ? 'check_circle' : 'cancel'"
+                            :color="props.row.auto_start_bool ? 'positive' : 'negative'" size="sm" />
+                </q-td>
+            ''')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">

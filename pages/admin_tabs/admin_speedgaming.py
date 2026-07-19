@@ -188,7 +188,24 @@ async def admin_speedgaming_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+
+            table.add_slot('body-cell-active', '''
+                <q-td :props="props">
+                    <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
+                            :color="props.row.active_bool ? 'positive' : 'negative'" size="sm" />
+                </q-td>
+            ''')
+
+            table.add_slot('body-cell-last_status', '''
+                <q-td :props="props">
+                    <span v-if="!props.row.last_status || props.row.last_status === '—'" class="text-grey-7">—</span>
+                    <span v-else class="sgl-chip"
+                          :class="props.row.last_status === 'ok' ? 'sgl-chip--ok' : 'sgl-chip--cancelled'">
+                        {{ props.row.last_status }}
+                    </span>
+                </q-td>
+            ''')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">

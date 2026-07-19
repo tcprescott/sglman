@@ -56,7 +56,7 @@ async def admin_feedback_page() -> None:
                 for fb in submissions
             ]
 
-            table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full')
+            table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full sgl-table')
             table.add_slot('body-cell-status', '''<q-td :props="props">
                 <q-badge :color="props.value === 'reviewed' ? 'positive' : 'warning'">
                     {{ props.value }}

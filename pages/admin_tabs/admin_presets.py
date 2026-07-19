@@ -145,7 +145,7 @@ async def admin_presets_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">

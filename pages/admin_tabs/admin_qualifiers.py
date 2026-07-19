@@ -473,7 +473,7 @@ async def admin_qualifiers_page() -> None:
              'estimate': e.estimate, 'slots': f'{e.slots_filled}/{e.slots_total}'}
             for i, e in enumerate(entries)
         ]
-        ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full')
+        ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full sgl-table')
 
     # ------------------------------------------------------------------ shell
 

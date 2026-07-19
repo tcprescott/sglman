@@ -185,7 +185,7 @@ async def admin_webhooks_page() -> None:
                             ],
                             rows=rows,
                             row_key='when',
-                        ).classes('w-full')
+                        ).classes('w-full sgl-table')
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
@@ -257,7 +257,14 @@ async def admin_webhooks_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+
+            table.add_slot('body-cell-is_active', '''
+                <q-td :props="props">
+                    <q-icon :name="props.row.is_active_raw ? 'check_circle' : 'cancel'"
+                            :color="props.row.is_active_raw ? 'positive' : 'negative'" size="sm" />
+                </q-td>
+            ''')
 
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">

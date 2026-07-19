@@ -55,7 +55,7 @@ def render_health_table(results: List[ProbeResult]) -> None:
     if not results:
         ui.label('No dependencies to report.').classes('text-caption text-grey')
         return
-    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes('w-full')
+    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes('w-full sgl-table')
     table.add_slot('body-cell-status', '''
         <q-td :props="props">
             <q-badge :color="props.row.status_color" :label="props.value" />
