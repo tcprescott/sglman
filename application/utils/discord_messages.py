@@ -229,19 +229,27 @@ def crew_assignment_dm(
     """DM with crew-acknowledgment button sent when a crew member is approved.
 
     Pass None or '' for optional fields to suppress them from the message.
+    Blank lines separate the intro, the detail block, and the call to action —
+    matching the match-notification rhythm elsewhere in this module.
     """
-    lines = [f"You've been approved as {crew_type}."]
-    if match_title:
-        lines.append(f"**Match:** {match_title}")
     players = _players_label(player_names)
+    details: list[str] = []
+    # Only show the title when it adds information beyond the roster line — some
+    # schedule feeds set the match title to the matchup itself, which would
+    # otherwise print the same value twice ("Match: A vs B" / "Players: A vs B").
+    if match_title and match_title != players:
+        details.append(f"**Match:** {match_title}")
     if players:
-        lines.append(f"**Players:** {players}")
+        details.append(f"**Players:** {players}")
     if scheduled_at_display:
-        lines.append(f"**Scheduled:** {scheduled_at_display}")
+        details.append(f"**Scheduled:** {scheduled_at_display}")
     if stream_room_name:
-        lines.append(f"**Stage:** {stream_room_name}")
-    lines.append("Please click below to acknowledge your assignment.")
-    return "\n".join(lines)
+        details.append(f"**Stage:** {stream_room_name}")
+    blocks = [f"You've been approved as {crew_type}."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Please click below to acknowledge your assignment.")
+    return "\n\n".join(blocks)
 
 
 # ---------------------------------------------------------------------------
@@ -271,11 +279,18 @@ def volunteer_assignment_dm(
     starts_display: str,
     ends_display: str,
 ) -> str:
-    """DM sent when a volunteer is assigned to a shift."""
-    lines = ["You've been scheduled for a volunteer shift at SGLive."]
-    lines += _volunteer_shift_lines(position_name, label, starts_display, ends_display)
-    lines.append("Please click below to acknowledge your shift.")
-    return "\n".join(lines)
+    """DM sent when a volunteer is assigned to a shift.
+
+    No community name is hardcoded — the app is multi-tenant, so a fixed org
+    label would be wrong for every community but one. Blank lines separate the
+    intro, the shift block, and the call to action.
+    """
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["You've been scheduled for a volunteer shift."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Please click below to acknowledge your shift.")
+    return "\n\n".join(blocks)
 
 
 def volunteer_reminder_dm(
@@ -285,10 +300,12 @@ def volunteer_reminder_dm(
     ends_display: str,
 ) -> str:
     """Reminder DM sent ahead of a volunteer shift."""
-    lines = ["⏰ Reminder: you have an upcoming volunteer shift."]
-    lines += _volunteer_shift_lines(position_name, label, starts_display, ends_display)
-    lines.append("Please click below to acknowledge your shift.")
-    return "\n".join(lines)
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["⏰ Reminder: you have an upcoming volunteer shift."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Please click below to acknowledge your shift.")
+    return "\n\n".join(blocks)
 
 
 def volunteer_ack_confirmation(position_name: str) -> str:
