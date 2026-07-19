@@ -84,9 +84,12 @@ def create() -> None:
         if not (is_staff or is_stream_manager or is_equipment_manager
                 or is_volunteer_coordinator or is_preset_manager or is_sync_admin
                 or is_qualifier_admin or is_qa_any or is_ta_any or is_cc_any):
-            await BaseLayout(page_name='admin2', user=user, show_admin=False).render()
-            with ui.row():
-                ui.label('You do not have permission to view this page.').classes('text-error')
+            from theme.error_page import render_error_page
+            render_error_page(
+                status_code=403, headline='Forbidden',
+                message="You don't have permission to view the admin area.",
+                user=user,
+            )
             return
 
         reports_kwargs = {
