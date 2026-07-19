@@ -28,17 +28,20 @@ async def admin_feedback_page() -> None:
     service = FeedbackService()
 
     with ui.column().classes('page-container-narrow w-full'):
-        with ui.row().classes('header-row'):
+        with ui.row().classes('header-row items-center full-width no-wrap'):
             ui.label('Feedback').classes('page-title')
-
-        ui.separator().classes('separator-spacing')
-
-        with ui.row().classes('full-width'):
             ui.space()
             ui.button(
                 icon='refresh',
                 on_click=lambda: background_tasks.create(_render_table.refresh()),
             ).props('flat color=primary').tooltip('Refresh')
+
+        ui.separator().classes('separator-spacing')
+
+        ui.label(
+            'User-submitted feedback from across the app. Review each item and mark '
+            'it reviewed once handled.'
+        ).classes('text-caption text-grey')
 
         @ui.refreshable
         async def _render_table() -> None:

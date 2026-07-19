@@ -19,6 +19,11 @@ def admin_users_page() -> None:
 
         ui.separator().classes('separator-spacing')
 
+        ui.label(
+            'Everyone in this community and the roles they hold. Click a username '
+            'to edit it; filter by role to narrow the list.'
+        ).classes('text-caption text-grey')
+
         selected = {'value': []}
 
         columns = [

@@ -49,6 +49,11 @@ async def admin_volunteer_roster_page() -> None:
                 .props('flat color=primary').tooltip('Refresh')
         ui.separator().classes('separator-spacing')
 
+        ui.label(
+            'The pool of opted-in volunteers, their qualifications, and declared '
+            'availability. Manage a volunteer to edit which positions they can fill.'
+        ).classes('text-caption text-grey')
+
         table = ui.table(
             columns=_COLUMNS,
             rows=[],

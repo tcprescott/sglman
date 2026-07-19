@@ -68,7 +68,7 @@ def create() -> None:
                 if tenant is not None else f'{get_base_url()}/equipment/{asset.id}'
             )
 
-            with ui.column().classes('page-container-narrow w-full'):
+            with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('header-row items-center'):
                     ui.label(f'#{asset.asset_number} · {asset.name}').classes('page-title')
                     ui.badge(
@@ -115,7 +115,7 @@ def create() -> None:
                 # --- History ---
                 if history:
                     ui.separator().classes('separator-spacing')
-                    ui.label('Loan history').classes('text-subtitle1')
+                    ui.label('Loan history').classes('section-title q-mt-md')
                     with ui.column().classes('gap-1 w-full'):
                         for loan in history:
                             out = format_eastern_display(loan.checked_out_at)

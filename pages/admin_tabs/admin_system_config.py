@@ -45,7 +45,7 @@ async def admin_system_config_page() -> None:
 
         ui.separator().classes('separator-spacing')
 
-        with ui.column().classes('w-full gap-4'):
+        with ui.column().classes('sgl-form-column gap-4'):
             start_input = _date_field('Event Start Date', start_date.isoformat() if start_date else '')
             end_input = _date_field('Event End Date', end_date.isoformat() if end_date else '')
             ui.label('Leave blank to derive the event window from scheduled match times.').classes('text-caption text-grey')

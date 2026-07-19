@@ -30,8 +30,9 @@ async def admin_challonge_page() -> None:
                 if not status.get('configured'):
                     ui.label('Challonge is not configured.').classes('text-error')
                     ui.label(
-                        'Set CHALLONGE_CLIENT_ID and CHALLONGE_CLIENT_SECRET (or MOCK_CHALLONGE for '
-                        'local dev) to enable the integration.'
+                        'The Challonge integration hasn’t been set up for this '
+                        'deployment yet. Contact your platform administrator to '
+                        'enable it.'
                     ).classes('text-muted')
                     return
 

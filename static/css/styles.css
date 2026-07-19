@@ -632,6 +632,13 @@ body.body--dark {
     gap: 1em;
 }
 
+/* Stacked form column: full width up to a readable cap so a 10-char date field
+   doesn't stretch a third of the screen (System Configuration, Profile). */
+.sgl-form-column {
+    width: 100%;
+    max-width: 44rem;
+}
+
 /* Dialog Styles */
 .dialog-card {
     width: min(700px, 90vw);

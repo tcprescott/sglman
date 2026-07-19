@@ -61,6 +61,11 @@ async def admin_volunteers_page() -> None:
             ui.label('Volunteer Scheduling').classes('page-title')
         ui.separator().classes('separator-spacing')
 
+        ui.label(
+            'Build the volunteer shift grid: create positions and shifts, auto-fill '
+            'from availability, and assign volunteers per shift.'
+        ).classes('text-caption text-grey')
+
         # --- Controls ----------------------------------------------------
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center gap-3'):

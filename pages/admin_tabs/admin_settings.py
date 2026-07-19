@@ -21,7 +21,13 @@ async def admin_tournaments_page() -> None:
             ui.label('Tournament Management').classes('page-title')
 
         ui.separator().classes('separator-spacing')
-        
+
+        ui.label(
+            'The tournaments this community runs — players per match, durations, '
+            'and seed generator. Click a name to edit, or a player count to manage '
+            'entrants.'
+        ).classes('text-caption text-grey')
+
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
             {'name': 'name', 'label': 'Name', 'field': 'name'},
@@ -62,9 +68,14 @@ async def admin_stream_rooms_page() -> None:
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Stream Room Management').classes('page-title')
-        
+
         ui.separator().classes('separator-spacing')
-        
+
+        ui.label(
+            'The stages matches can be assigned to. Each maps to a stream URL used '
+            'across the schedule and On Air views.'
+        ).classes('text-caption text-grey')
+
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True, 'clickable': True},
             {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
