@@ -97,12 +97,12 @@ class MatchTableView(MatchTableHandlersMixin):
         self._bg(self.refresh())
 
     def _toggle_filters(self):
-        """Show/hide the filter card on mobile; CSS gates ``sgl-filters-open`` to <1024px."""
+        """Show/hide the filter card on mobile; CSS gates ``wiz-filters-open`` to <1024px."""
         self._filters_open = not self._filters_open
         if self._filters_open:
-            self.filters_card.classes(add='sgl-filters-open')
+            self.filters_card.classes(add='wiz-filters-open')
         else:
-            self.filters_card.classes(remove='sgl-filters-open')
+            self.filters_card.classes(remove='wiz-filters-open')
 
     def _active_filter_count(self) -> int:
         """Number of the three filters set away from their default (state's default is Scheduled/Checked In/Started)."""
@@ -157,7 +157,7 @@ class MatchTableView(MatchTableHandlersMixin):
 
         # Mobile-only filter toggle (CSS hides this row >=1024px, where the card is
         # shown inline; below 1024px the card is collapsed until toggled open).
-        with ui.row().classes('sgl-filter-toggle full-width items-center'):
+        with ui.row().classes('wiz-filter-toggle full-width items-center'):
             ui.button('Filters', icon='filter_list', on_click=self._toggle_filters).props('flat color=primary')
             self.filter_badge = ui.badge('0').props('color=primary')
             self.filter_badge.set_visibility(False)

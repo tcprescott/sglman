@@ -315,7 +315,7 @@ class TestDiscordEmbeds:
         from datetime import datetime, timezone
         emb = de.match_embed(
             title='🗓️ Match scheduled', color=de.COLOR_SCHEDULED,
-            tournament='SGL Dev', community_name='Acme Community',
+            tournament='Wizzrobe Dev', community_name='Acme Community',
             player_names=['A', 'B'], when=datetime(2026, 7, 19, 22, 41, tzinfo=timezone.utc),
             stream_room_name='Stage 2', description='Good luck!',
         )
@@ -324,13 +324,13 @@ class TestDiscordEmbeds:
         assert emb.description == 'Good luck!'
         assert emb.footer.text == 'Acme Community'  # community identity
         names = {f.name: f.value for f in emb.fields}
-        assert names['Tournament'] == 'SGL Dev'
+        assert names['Tournament'] == 'Wizzrobe Dev'
         assert names['Players'] == 'A vs B'
         assert names['Stage'] == 'Stage 2'
         assert names['Time'].startswith('<t:') and ':R>' in names['Time']
 
     def test_match_embed_suppresses_empty_fields(self):
-        emb = de.match_embed(title='t', color=0, tournament='SGL Dev')
+        emb = de.match_embed(title='t', color=0, tournament='Wizzrobe Dev')
         labels = {f.name for f in emb.fields}
         assert labels == {'Tournament'}  # no Players/Time/Stage
         # no community footer when unset (unset footer is falsy in discord.py)

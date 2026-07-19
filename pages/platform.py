@@ -34,10 +34,10 @@ _ACTIVE_ICON_SLOT = '''
 # Colored bot-health chip, shared by the desktop status cell and the mobile card
 # so the two never drift. Rows must carry ``status`` (text) and ``status_kind``.
 _BOT_STATUS_CHIP = '''
-    <span class="sgl-chip" :class="{
-        'sgl-chip--ok': props.row.status_kind === 'connected',
-        'sgl-chip--cancelled': props.row.status_kind === 'error' || props.row.status_kind === 'disconnected',
-        'sgl-chip--neutral': props.row.status_kind === 'unknown'
+    <span class="wiz-chip" :class="{
+        'wiz-chip--ok': props.row.status_kind === 'connected',
+        'wiz-chip--cancelled': props.row.status_kind === 'error' || props.row.status_kind === 'disconnected',
+        'wiz-chip--neutral': props.row.status_kind === 'unknown'
     }">{{ props.row.status }}</span>
 '''
 
@@ -58,9 +58,9 @@ def _render_platform_chrome() -> None:
         primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
         positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',
     )
-    with ui.header().classes('sgl-header items-center'):
-        ui.label('SGL On Site').classes('sgl-wordmark')
-        ui.label('· Platform').classes('sgl-wordmark text-caption').style('opacity:0.75')
+    with ui.header().classes('wiz-header items-center'):
+        ui.label('Wizzrobe').classes('wiz-wordmark')
+        ui.label('· Platform').classes('wiz-wordmark text-caption').style('opacity:0.75')
         ui.space()
         with ui.link(target='/').classes('no-underline'):
             with ui.row().classes('items-center no-wrap').style('color:#fff;gap:4px'):
@@ -107,7 +107,7 @@ def create() -> None:
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
             table = ui.table(columns=columns, rows=[], row_key='id').classes(
-                'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
+                'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
             table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
@@ -119,7 +119,7 @@ def create() -> None:
             ''')
             table.add_slot('item', '''
                 <div class="q-pa-xs col-xs-12 col-sm-6">
-                    <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                    <q-card bordered flat class="q-pa-sm wiz-grid-card">
                         <div class="row items-center justify-between no-wrap q-mb-xs">
                             <div class="text-weight-bold">{{ props.row.name }}</div>
                             <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
@@ -180,7 +180,7 @@ def create() -> None:
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
             bot_table = ui.table(columns=bot_columns, rows=[], row_key='id').classes(
-                'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
+                'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
             bot_table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
             bot_table.add_slot('body-cell-status', f'<q-td :props="props">{_BOT_STATUS_CHIP}</q-td>')
             bot_table.add_slot('body-cell-actions', '''
@@ -195,7 +195,7 @@ def create() -> None:
             ''')
             bot_table.add_slot('item', '''
                 <div class="q-pa-xs col-xs-12 col-sm-6">
-                    <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                    <q-card bordered flat class="q-pa-sm wiz-grid-card">
                         <div class="row items-center justify-between no-wrap q-mb-xs">
                             <div class="text-weight-bold">{{ props.row.category }}</div>
                             <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
@@ -258,7 +258,7 @@ def create() -> None:
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
             group_table = ui.table(columns=group_columns, rows=[], row_key='id').classes(
-                'w-full sgl-table').props(':grid="Quasar.Screen.lt.md"')
+                'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
             group_table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
                     <q-btn dense flat color="primary" label="Edit"
@@ -269,7 +269,7 @@ def create() -> None:
             ''')
             group_table.add_slot('item', '''
                 <div class="q-pa-xs col-xs-12 col-sm-6">
-                    <q-card bordered flat class="q-pa-sm sgl-grid-card">
+                    <q-card bordered flat class="q-pa-sm wiz-grid-card">
                         <div class="row items-center justify-between no-wrap q-mb-xs">
                             <div class="text-weight-bold">{{ props.row.name }}</div>
                             <q-badge v-if="props.row.default" color="primary" label="Default" />

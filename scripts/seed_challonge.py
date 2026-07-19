@@ -36,7 +36,7 @@ async def seed_challonge_for_tenant(
 
     if not tournament.challonge_tournament_id:
         tournament.challonge_tournament_id = f"cht_dev_{tenant.slug}"
-        tournament.challonge_tournament_url = f"https://challonge.com/sgl_{tenant.slug}"
+        tournament.challonge_tournament_url = f"https://challonge.com/wizzrobe_{tenant.slug}"
         tournament.challonge_last_synced_at = now_utc
         await tournament.save()
 
@@ -45,7 +45,7 @@ async def seed_challonge_for_tenant(
     # expiry column too, so a re-seed against an existing dev DB still shows it.
     challonge_expiry = now_utc + timedelta(days=2)
     conn, _ = await ChallongeConnection.get_or_create(
-        challonge_username="sgl_service", tenant=tenant,
+        challonge_username="wizzrobe_service", tenant=tenant,
         defaults={
             "access_token": "dev-access-token-not-real",
             "refresh_token": "dev-refresh-token-not-real",

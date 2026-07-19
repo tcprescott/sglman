@@ -4,7 +4,7 @@
 > below is a self-contained kickoff for one agent/one PR: scope, dependencies, the
 > decisions that bind it, reference implementations to port from
 > ([sahabot2](https://github.com/tcprescott/sahabot2), in this session's scope, and
-> existing sglman code), acceptance criteria, and what to leave for later.
+> existing wizzrobe code), acceptance criteria, and what to leave for later.
 >
 > The **design** is reconciled and decision-complete (see the
 > [decisions log](../README.md#decisions-log) and [gap analysis](../gap-analysis.md)).

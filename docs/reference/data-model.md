@@ -716,10 +716,10 @@ A physical asset available for lending at live events. Each asset gets an auto-a
 | `name` | `CharField(255)` | not null | |
 | `description` | `TextField` | null | |
 | `private_notes` | `TextField` | null | Staff-only notes |
-| `owner_user` | FK → `User` | null, `SET_NULL` | `related_name='owned_equipment'`; null = owned by SpeedGaming Live |
+| `owner_user` | FK → `User` | null, `SET_NULL` | `related_name='owned_equipment'`; null = owned by Wizzrobe |
 | `status` | `CharEnumField(EquipmentStatus)` | default `AVAILABLE` | `max_length=20`; service-maintained |
 
-Relationships: reverse accessor `loans`. Property: `owner_label` returns the owner's `preferred_name`, or `'SpeedGaming Live'` when `owner_user` is null. Constraints: `Meta.table = 'equipment'`.
+Relationships: reverse accessor `loans`. Property: `owner_label` returns the owner's `preferred_name`, or `'Wizzrobe'` when `owner_user` is null. Constraints: `Meta.table = 'equipment'`.
 
 #### `EquipmentLoan`
 
@@ -843,11 +843,11 @@ Constraints: `Meta.table = 'playeravailability'`.
 
 ### Challonge integration
 
-Mirrors a linked Challonge bracket into sglman so matchups can be scheduled through the normal match flow. Writes to Challonge use a single shared service-account OAuth connection; per-player linking is identity-only. Coordinated by `ChallongeService` and the [`challonge_client`](services.md); managed on the admin **Challonge** tab.
+Mirrors a linked Challonge bracket into wizzrobe so matchups can be scheduled through the normal match flow. Writes to Challonge use a single shared service-account OAuth connection; per-player linking is identity-only. Coordinated by `ChallongeService` and the [`challonge_client`](services.md); managed on the admin **Challonge** tab.
 
 #### `ChallongeConnection`
 
-Single shared SGL service-account OAuth connection to Challonge. Only one connection is meaningful at a time; the most recently saved row is authoritative. Tokens are privileged secrets — surfaced only to Staff and never logged.
+Single shared Wizzrobe service-account OAuth connection to Challonge. Only one connection is meaningful at a time; the most recently saved row is authoritative. Tokens are privileged secrets — surfaced only to Staff and never logged.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -862,7 +862,7 @@ Constraints: `Meta.table = 'challongeconnection'`.
 
 #### `ChallongeParticipant`
 
-A Challonge participant in a linked tournament, mirrored into sglman. `user` is resolved by matching `challonge_user_id` to a player who has linked their Challonge identity; it stays null for participants we can't map.
+A Challonge participant in a linked tournament, mirrored into wizzrobe. `user` is resolved by matching `challonge_user_id` to a player who has linked their Challonge identity; it stays null for participants we can't map.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -876,7 +876,7 @@ Constraints: `unique_together (('tournament', 'challonge_participant_id'),)`; `M
 
 #### `ChallongeMatch`
 
-A Challonge bracket match mirrored into sglman. `match` links to the scheduled sglman `Match` once a player schedules it; null while the matchup is unscheduled.
+A Challonge bracket match mirrored into wizzrobe. `match` links to the scheduled wizzrobe `Match` once a player schedules it; null while the matchup is unscheduled.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -887,7 +887,7 @@ A Challonge bracket match mirrored into sglman. `match` links to the scheduled s
 | `participant1` | FK → `ChallongeParticipant` | null, `SET_NULL` | `related_name='matches_as_p1'` |
 | `participant2` | FK → `ChallongeParticipant` | null, `SET_NULL` | `related_name='matches_as_p2'` |
 | `winner_participant` | FK → `ChallongeParticipant` | null, `SET_NULL` | `related_name='matches_as_winner'` |
-| `match` | FK → `Match` | null, `SET_NULL` | `related_name='challonge_match'`; the scheduled sglman match |
+| `match` | FK → `Match` | null, `SET_NULL` | `related_name='challonge_match'`; the scheduled wizzrobe match |
 
 Constraints: `unique_together (('tournament', 'challonge_match_id'),)`; `Meta.table = 'challongematch'`.
 
@@ -1002,7 +1002,7 @@ placeholder across syncs and to **upgrade it in place** once a `discord_id` appe
 **`Match.speedgaming_episode`** — O2O → `SpeedGamingEpisode` (null, `SET_NULL`). The
 single canonical **source marker**: non-null = this match was materialized by the
 ETL, which makes its ETL-owned fields (`scheduled_at`, players, `tournament`)
-read-only in SGLMan (guard in `MatchService.update_match`). SET_NULL soft-detaches
+read-only in Wizzrobe (guard in `MatchService.update_match`). SET_NULL soft-detaches
 the match if its episode is purged.
 
 #### `SpeedGamingEventLink`
@@ -1043,7 +1043,7 @@ Constraints: `Meta.table = 'speedgamingepisode'`; unique `(tenant, sg_episode_id
 
 ### Discord Events mirror (PR 8)
 
-Mirrors the SGLMan schedule into each tenant guild's **Discord Scheduled Events**.
+Mirrors the Wizzrobe schedule into each tenant guild's **Discord Scheduled Events**.
 `Tournament` gains per-tournament opt-in columns: **`discord_events_enabled`**
 (`BOOL`, default `False`), **`discord_event_duration_minutes`** (`INT`, default
 60), and nullable **`discord_event_title_template`** / **`discord_event_description_template`**
@@ -1052,7 +1052,7 @@ when unset). The reconciler runs against the **verified** `Tenant.discord_guild_
 
 #### `DiscordEventSource` (enum)
 
-`(str, Enum)` — what SGLMan schedule row a mirrored Discord event came from. Today
+`(str, Enum)` — what Wizzrobe schedule row a mirrored Discord event came from. Today
 only **`MATCH`** (`'match'`); the link is polymorphic so qualifier windows / live
 races join later without a schema change.
 

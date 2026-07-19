@@ -1,4 +1,4 @@
-"""SGL On Site REST API package.
+"""Wizzrobe REST API package.
 
 Exposes a single ``router`` (aggregating every domain sub-router) that
 ``main.py`` mounts under ``/api``. Every endpoint is authenticated with a

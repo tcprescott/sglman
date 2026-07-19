@@ -40,7 +40,7 @@ from application.utils.hostname import normalize_hostname
 
 logger = logging.getLogger(__name__)
 
-_SALT = 'sglman-oauth-handoff'
+_SALT = 'wizzrobe-oauth-handoff'
 # Tight window: mint → browser redirect → claim is sub-second; 30s absorbs a slow
 # client without leaving a leaked URL replayable for long.
 _TTL_SECONDS = 30

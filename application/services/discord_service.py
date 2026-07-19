@@ -516,7 +516,7 @@ class DiscordService:
             return False, f"Failed to check permissions: {str(e)}"
 
     # --- Scheduled events (PR 8) --------------------------------------------
-    # The Discord Events reconciler mirrors SGLMan's schedule into the tenant
+    # The Discord Events reconciler mirrors Wizzrobe's schedule into the tenant
     # guild's Scheduled Events. These are thin, fail-closed wrappers over the
     # discord.py scheduled-event API; the reconciler owns idempotency (it tracks
     # which events it created via ``DiscordScheduledEvent`` rows).

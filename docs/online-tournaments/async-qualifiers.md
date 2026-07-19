@@ -4,10 +4,10 @@
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
 
-**Rename:** SahasrahBot calls this *Async Tournament*. In SGLMan it is
+**Rename:** SahasrahBot calls this *Async Tournament*. In Wizzrobe it is
 **Async Qualifier** (`AsyncQualifier*` models, `AsyncQualifierService`) — the
 workflow (self-paced runs against a permalink pool inside a window) is nothing
-like a `Tournament`'s, and the old name would collide with SGLMan's existing
+like a `Tournament`'s, and the old name would collide with Wizzrobe's existing
 `Tournament` aggregate.
 
 Source: `alttprbot/models/async_tournament.py`, `services/async_tournament_*`.
@@ -57,7 +57,7 @@ Source: `alttprbot/models/async_tournament.py`, `services/async_tournament_*`.
 ## Workflow surface: web-first, decided
 
 SahasrahBot's async flow is Discord-thread-driven (slash command → private thread
-→ buttons). SGLMan drops that entirely: players start runs, submit times/VoDs, and
+→ buttons). Wizzrobe drops that entirely: players start runs, submit times/VoDs, and
 view leaderboards on tenant web pages; Discord is notification-only (existing DM
 queue — "window open," "run reviewed," etc.), not an execution surface. This isn't
 just a port shortcut — a web run page can show live elapsed time, inline VoD
@@ -68,12 +68,12 @@ Discord entry point (e.g. "start my run" deep-linking into the web page) proves
 worth adding later, it goes through `discordbot/` calling the same
 `AsyncQualifierService` — but it is not part of this plan.
 
-## Model mapping (SahasrahBot → SGLMan)
+## Model mapping (SahasrahBot → Wizzrobe)
 
 All new models are tenant-scoped (`tenant` FK NOT NULL, CASCADE, scoped repos,
 leak test) per [multitenancy.md](../features/multitenancy.md).
 
-| SahasrahBot | SGLMan | Adaptation |
+| SahasrahBot | Wizzrobe | Adaptation |
 |---|---|---|
 | `AsyncTournament` (guild/channel ids, owner, `allowed_reattempts`, `runs_per_pool`, `customization`) | `AsyncQualifier` | Discord channel wiring → tenant + web UI; `customization` → schema-validated config per the [design principle](README.md#design-principle-user-definable-tournament-logic); standalone peer of `Tournament` (no structural FK — at most an informational label for the event it feeds) |
 | `AsyncTournamentPermalinkPool` (name, preset) | `AsyncQualifierPool` | `preset` becomes FK → the new `Preset` model ([Feature 2](seed-rolling.md)) |
@@ -82,7 +82,7 @@ leak test) per [multitenancy.md](../features/multitenancy.md).
 | `AsyncTournamentLiveRace` (`racetime_slug`, `episode_id`, status) | `AsyncQualifierLiveRace` | `episode_id` → FK to the SG-imported episode/match ([Feature 4](speedgaming-etl.md)) where applicable |
 | `AsyncTournamentReviewNotes` | `AsyncQualifierReviewNote` | as-is |
 | `AsyncTournamentWhitelist` / `AsyncTournamentPermissions` | eligibility + reviewer config on `AsyncQualifier` | **decided:** management gated by the new `QUALIFIER_ADMIN` role (or STAFF) + a per-qualifier `admins` M2M (like `Tournament.admins`); **reviewers = that `admins` M2M, with self-review blocked** (a reviewer cannot approve/reject their own run) |
-| `AsyncTournamentAuditLog` | **not ported** | SGLMan's `AuditService` + new `AuditActions`/`EventType` members (`async_qualifier.run_submitted`, `.run_reviewed`, …) |
+| `AsyncTournamentAuditLog` | **not ported** | Wizzrobe's `AuditService` + new `AuditActions`/`EventType` members (`async_qualifier.run_submitted`, `.run_reviewed`, …) |
 
 ## Data model
 

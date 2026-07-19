@@ -1,6 +1,6 @@
 # Multitenancy
 
-SGL On Site is **logically multitenant**: one process and one database serve many
+Wizzrobe is **logically multitenant**: one process and one database serve many
 independent tournament communities ("tenants"). Every request resolves to a
 tenant, and the data layer scopes reads and stamps writes to that tenant so
 communities never see each other's data. This doc describes the *implemented*

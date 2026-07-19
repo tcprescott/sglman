@@ -27,9 +27,9 @@ service worker involvement:
 {
   "web_push": 8030,
   "notification": {
-    "title": "SGL On Site",
+    "title": "Wizzrobe",
     "body": "Your match has been scheduled for 2026-07-04 18:00 EST",
-    "navigate": "https://sgl.example.com/"
+    "navigate": "https://wizzrobe.example.com/"
   }
 }
 ```

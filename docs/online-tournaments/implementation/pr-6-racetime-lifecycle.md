@@ -62,7 +62,7 @@ config; system-user actor. Honor gap §3.1/§3.3/§3.4.
   `racetime/client.py` (in-room seed roll guards: one-seed lock, re-roll, roll
   authorization), the room-open lead-time = `stream_delay + room_open_time` and
   countdown-vs-restream time handling ([gap rt-stream-delay](../gap-analysis.md)).
-- **sglman**: `application/services/match_schedule_service.py` (transition ordering,
+- **wizzrobe**: `application/services/match_schedule_service.py` (transition ordering,
   seed attach, DM fan-out — note the ordering guards seat→start→finish),
   `match_service.py:record_match_result`, `challonge_service.py:push_match_result`.
 

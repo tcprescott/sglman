@@ -2,7 +2,7 @@
 Challonge Repository - Data Access Layer
 
 Pure data access for the Challonge service-account connection, the bracket
-mirror (participants + matches), and their links to sglman users/matches.
+mirror (participants + matches), and their links to wizzrobe users/matches.
 No business logic.
 """
 
@@ -130,7 +130,7 @@ class ChallongeRepository:
     async def resolve_users_by_challonge_ids(challonge_user_ids: List[str]) -> dict:
         """Map ``challonge_user_id -> User`` for the linked ids, in one query.
 
-        Lets bracket sync resolve every participant's sglman user up-front
+        Lets bracket sync resolve every participant's wizzrobe user up-front
         instead of a ``User.get_or_none`` round-trip per participant.
         """
         ids = [c for c in challonge_user_ids if c]
@@ -238,7 +238,7 @@ class ChallongeRepository:
 
     @staticmethod
     async def unscheduled_open_matches_for_user(user: User) -> List[ChallongeMatch]:
-        """Open bracket matches the user is in that aren't yet scheduled in sglman."""
+        """Open bracket matches the user is in that aren't yet scheduled in wizzrobe."""
         return await scoped(ChallongeMatch.filter(
             Q(participant1__user=user) | Q(participant2__user=user),
             state=ChallongeMatchState.OPEN,

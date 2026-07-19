@@ -26,7 +26,7 @@ bash scripts/setup_env.sh
 
 Installs/starts PostgreSQL 16, ensures `tzdata` **and the `US/Eastern` alias**
 (the app calls `ZoneInfo('US/Eastern')`, which throws on minimal tzdata images),
-creates the `sglman` DB, runs `poetry install`, and writes a dev `.env`
+creates the `wizzrobe` DB, runs `poetry install`, and writes a dev `.env`
 (`MOCK_DISCORD=true`, generated `STORAGE_SECRET`). Idempotent. This is also the
 script to paste into the "Setup script" field of a Claude Code cloud environment.
 

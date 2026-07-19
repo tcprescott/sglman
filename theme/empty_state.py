@@ -27,7 +27,7 @@ def no_data_slot(message: str = 'Nothing here yet.', icon: str = 'inbox') -> str
     return (
         '<div class="full-width row flex-center empty-state q-py-lg">'
         '<div class="column items-center text-center">'
-        f'<q-icon name="{safe_icon}" size="md" class="q-mb-sm sgl-empty-icon"></q-icon>'
+        f'<q-icon name="{safe_icon}" size="md" class="q-mb-sm wiz-empty-icon"></q-icon>'
         f'<div>{safe_message}</div>'
         '<div class="empty-state-fact row items-center q-mt-sm">'
         '<q-icon name="pets" size="xs" class="q-mr-xs"></q-icon>'

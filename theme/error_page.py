@@ -41,7 +41,7 @@ def render_error_page(
             production so internals are never exposed.
         user: Logged-in user (when known), used for the header/footer.
     """
-    ui.page_title(f'{status_code} — SGL On Site')
+    ui.page_title(f'{status_code} — Wizzrobe')
 
     # Never let layout chrome throw from inside an error handler.
     try:

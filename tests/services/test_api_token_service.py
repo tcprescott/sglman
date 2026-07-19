@@ -31,7 +31,7 @@ def make_token(**overrides):
         user_id=42,
         name='My Token',
         token_hash='abc123',
-        token_prefix='sglman_pat_12345',
+        token_prefix='wizzrobe_pat_12345',
         read_only=False,
         revoked_at=None,
         expires_at=None,
@@ -95,7 +95,7 @@ class TestCreateToken:
         actor = SimpleNamespace(id=1)
         service.repository.create = AsyncMock(return_value=make_token())
         _, raw = await service.create_token(actor, name='Test')
-        assert raw.startswith('sglman_pat_')
+        assert raw.startswith('wizzrobe_pat_')
 
     async def test_audits_on_creation(self, service):
         actor = SimpleNamespace(id=1)
@@ -161,19 +161,19 @@ class TestAuthenticate:
 
     async def test_returns_none_when_hash_not_found(self, service):
         service.repository.get_by_hash = AsyncMock(return_value=None)
-        result = await service.authenticate('sglman_pat_sometoken')
+        result = await service.authenticate('wizzrobe_pat_sometoken')
         assert result is None
 
     async def test_returns_none_when_revoked(self, service):
         token = make_token(revoked_at=datetime.now(UTC))
         service.repository.get_by_hash = AsyncMock(return_value=token)
-        result = await service.authenticate('sglman_pat_sometoken')
+        result = await service.authenticate('wizzrobe_pat_sometoken')
         assert result is None
 
     async def test_returns_none_when_expired(self, service):
         token = make_token(expires_at=datetime.now(UTC) - timedelta(hours=1))
         service.repository.get_by_hash = AsyncMock(return_value=token)
-        result = await service.authenticate('sglman_pat_sometoken')
+        result = await service.authenticate('wizzrobe_pat_sometoken')
         assert result is None
 
     async def test_returns_user_and_token_on_success(self, service):
@@ -181,7 +181,7 @@ class TestAuthenticate:
         token = make_token(revoked_at=None, expires_at=None, user=user)
         service.repository.get_by_hash = AsyncMock(return_value=token)
         service.repository.touch_last_used = AsyncMock()
-        result = await service.authenticate('sglman_pat_sometoken')
+        result = await service.authenticate('wizzrobe_pat_sometoken')
         assert result is not None
         got_user, got_token = result
         assert got_user is user
@@ -193,5 +193,5 @@ class TestAuthenticate:
         token = make_token(revoked_at=None, expires_at=None, user=user)
         service.repository.get_by_hash = AsyncMock(return_value=token)
         service.repository.touch_last_used = AsyncMock()
-        await service.authenticate('sglman_pat_valid')
+        await service.authenticate('wizzrobe_pat_valid')
         service.repository.touch_last_used.assert_awaited_once()

@@ -18,9 +18,9 @@ _EVENT_OPTIONS.update({name: name for name in sorted(EventType.ALL)})
 # Receiver-side verification snippet shown in the payload-format reference.
 _SIGNATURE_SNIPPET = '''import hmac, hashlib
 
-signed = f"{request.headers['X-SGL-Timestamp']}.{raw_body}".encode()
+signed = f"{request.headers['X-Wizzrobe-Timestamp']}.{raw_body}".encode()
 expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
-assert hmac.compare_digest(expected, request.headers["X-SGL-Signature"])'''
+assert hmac.compare_digest(expected, request.headers["X-Wizzrobe-Signature"])'''
 
 _IS_ACTIVE_ICON = '''
     <q-icon :name="props.row.is_active_raw ? 'check_circle' : 'cancel'"
@@ -114,7 +114,7 @@ async def admin_webhooks_page() -> None:
 
         ui.label(
             'Send a signed JSON POST to an external URL when the selected events occur. '
-            'Each request carries an X-SGL-Signature (HMAC-SHA256 of the body using the '
+            'Each request carries an X-Wizzrobe-Signature (HMAC-SHA256 of the body using the '
             "webhook's secret). The secret is shown only once, when created or rotated."
         ).classes('text-caption text-grey')
 
@@ -213,7 +213,7 @@ async def admin_webhooks_page() -> None:
                             columns=delivery_columns,
                             rows=rows,
                             row_key='when',
-                        ).classes('w-full sgl-table')
+                        ).classes('w-full wiz-table')
                         enable_mobile_grid(delivery_table, delivery_columns)
                     with ui.row().classes('justify-end w-full'):
                         ui.button('Close', on_click=dialog.close).props('flat')
@@ -286,7 +286,7 @@ async def admin_webhooks_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-is_active', f'<q-td :props="props">{_IS_ACTIVE_ICON}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')

@@ -160,7 +160,7 @@ async def admin_racetime_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-auto_start', f'<q-td :props="props">{_AUTO_START_ICON}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')

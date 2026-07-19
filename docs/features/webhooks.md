@@ -43,11 +43,11 @@ truth the in-app reference also renders):
 | Header | Meaning |
 |---|---|
 | `Content-Type` | Always `application/json` |
-| `User-Agent` | Identifies the sender (`sglman-webhook`) |
-| `X-SGL-Event` | The event name |
-| `X-SGL-Delivery` | Unique delivery UUID |
-| `X-SGL-Timestamp` | Unix seconds; part of the signed string (replay defense) |
-| `X-SGL-Signature` | `sha256=<hex>` — HMAC-SHA256 of `"{timestamp}.{body}"` using the webhook secret |
+| `User-Agent` | Identifies the sender (`wizzrobe-webhook`) |
+| `X-Wizzrobe-Event` | The event name |
+| `X-Wizzrobe-Delivery` | Unique delivery UUID |
+| `X-Wizzrobe-Timestamp` | Unix seconds; part of the signed string (replay defense) |
+| `X-Wizzrobe-Signature` | `sha256=<hex>` — HMAC-SHA256 of `"{timestamp}.{body}"` using the webhook secret |
 
 > Staff can view this format live in the app: **Admin → Webhooks → "Webhook payload
 > & event reference"**, generated from the delivery code so it never drifts.
@@ -56,9 +56,9 @@ truth the in-app reference also renders):
 
 ```python
 import hmac, hashlib
-signed = f"{request.headers['X-SGL-Timestamp']}.{raw_body}".encode()
+signed = f"{request.headers['X-Wizzrobe-Timestamp']}.{raw_body}".encode()
 expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
-assert hmac.compare_digest(expected, request.headers['X-SGL-Signature'])
+assert hmac.compare_digest(expected, request.headers['X-Wizzrobe-Signature'])
 ```
 
 Sign the **raw body bytes** exactly as received — the app signs the exact bytes it

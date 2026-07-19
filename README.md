@@ -1,6 +1,6 @@
-# SGLMan — Speedgaming Live Manager
+# Wizzrobe
 
-A web application for managing tournament schedules, matches, players, and crew for Speedgaming Live onsite events. Built with FastAPI + NiceGUI, backed by PostgreSQL, and integrated with Discord for authentication and notifications.
+A web application for managing tournament schedules, matches, players, and crew for Wizzrobe onsite events. Built with FastAPI + NiceGUI, backed by PostgreSQL, and integrated with Discord for authentication and notifications.
 
 ## Features
 

@@ -89,7 +89,7 @@ async def render_player_dashboard():
         ]
 
         extra_slots = {
-            'body-cell-state': '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+            'body-cell-state': '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
                 <!-- Confirmed state -->
                 <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 4px;">
@@ -125,10 +125,10 @@ async def render_player_dashboard():
                 <!-- Scheduled state -->
                 <span v-else>{{ props.value || 'Scheduled' }}</span>
             </q-td>''',
-            'body-cell-generated_seed': '''<q-td :props="props" :class="props.row._flash ? 'sgl-row-flash' : ''">
+            'body-cell-generated_seed': '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
                 <span v-if="props.value">
                     <template v-if="/^https?:\\/\\//.test(props.value)">
-                        <a :href="props.value" target="_blank" style="color: var(--sgl-link); text-decoration: underline;" :title="props.value">
+                        <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">
                             {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
                         </a>
                     </template>

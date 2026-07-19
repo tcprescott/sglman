@@ -29,12 +29,17 @@ class BaseLayout:
         user: User = None,
         show_admin: bool = False,
         show_volunteer: bool = False,
+        wordmark: str | None = None,
         **_kwargs
     ):
         self._copyright = copyright_text if copyright_text is not None else "© 2026 Thomas Prescott"
         self.tabs = tabs
         self.user = user
         self.dark_mode = None
+        # Header wordmark: the in-scope community's own name on a tenant surface,
+        # 'Wizzrobe' on the platform. Resolved from the ambient tenant in render()
+        # when a caller does not pass one explicitly.
+        self._wordmark = wordmark
         # Resolved per-tenant brand palette, loaded in render() before chrome is
         # drawn. None on the synchronous error path (render_chrome without
         # render), where render_chrome falls back to the shipped defaults.
@@ -72,6 +77,9 @@ class BaseLayout:
 
     async def render(self) -> None:
         """Render the complete layout with header, drawer, footer, and optional tabbed content."""
+        if self._wordmark is None:
+            from application.services import TenantService
+            self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'
         await self._load_theme_colors()
         self.render_chrome()
         if self.tabs:
@@ -138,7 +146,7 @@ class BaseLayout:
         ui.add_head_html(
             '<script>'
             'console.log('
-            '"%c\U0001f3a2 SGL On Site%c — did you know? '
+            '"%c\U0001f3a2 Wizzrobe%c — did you know? '
             'Cats have been known to ride roller coasters purely for the airtime.",'
             '"color:#E0A82E;font-weight:bold;font-size:14px",'
             '"color:#9C6B12"'
@@ -149,21 +157,21 @@ class BaseLayout:
         # the window listener from being installed more than once across renders.
         ui.add_body_html(
             '<script>'
-            'if(!window.__sglman_konami_installed){'
-            'window.__sglman_konami_installed=true;'
+            'if(!window.__wizzrobe_konami_installed){'
+            'window.__wizzrobe_konami_installed=true;'
             "const seq=['ArrowUp','ArrowUp','ArrowDown','ArrowDown',"
             "'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];"
             'let pos=0;'
             "window.addEventListener('keydown',function(e){"
             'const key=e.key.length===1?e.key.toLowerCase():e.key;'
             'if(key===seq[pos]){pos++;'
-            "if(pos===seq.length){pos=0;emitEvent('sgl_konami',{});}}"
+            "if(pos===seq.length){pos=0;emitEvent('wiz_konami',{});}}"
             'else{pos=(key===seq[0])?1:0;}'
             '});'
             '}'
             '</script>'
         )
-        ui.on('sgl_konami', lambda _: self._open_cat_fact())
+        ui.on('wiz_konami', lambda _: self._open_cat_fact())
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme). Semantic
         # colors stay fixed, warm-tuned to match the --status-* tokens in
@@ -179,9 +187,9 @@ class BaseLayout:
             info='#0E7470',
         )
         # ui.colors only recolors Quasar's palette; the header bar, links, and
-        # section titles read the --sgl-* brand vars from styles.css. Re-point
+        # section titles read the --wiz-* brand vars from styles.css. Re-point
         # those to the tenant palette here (loaded after the stylesheet, so this
-        # wins). --sgl-header-bg is set on :root for the light bar; the dark
+        # wins). --wiz-header-bg is set on :root for the light bar; the dark
         # rule in styles.css re-points it to charcoal on <body>, which stays
         # authoritative in dark mode. The two dark text-tint rules mirror the
         # !important defaults in styles.css so primary/secondary text follows the
@@ -189,14 +197,14 @@ class BaseLayout:
         ui.add_head_html(
             '<style>'
             ':root{'
-            f'--sgl-gold-deep:{colors["primary"]};'
-            f'--sgl-gold:{colors["accent"]};'
-            f'--sgl-ember-deep:{colors["secondary"]};'
-            f'--sgl-ember:{colors["secondary"]};'
-            f'--sgl-header-bg:{colors["header"]};'
+            f'--wiz-gold-deep:{colors["primary"]};'
+            f'--wiz-gold:{colors["accent"]};'
+            f'--wiz-ember-deep:{colors["secondary"]};'
+            f'--wiz-ember:{colors["secondary"]};'
+            f'--wiz-header-bg:{colors["header"]};'
             '}'
-            '.body--dark .text-primary,.q-dark .text-primary{color:var(--sgl-gold)!important;}'
-            '.body--dark .text-secondary,.q-dark .text-secondary{color:var(--sgl-ember)!important;}'
+            '.body--dark .text-primary,.q-dark .text-primary{color:var(--wiz-gold)!important;}'
+            '.body--dark .text-secondary,.q-dark .text-secondary{color:var(--wiz-ember)!important;}'
             '</style>'
         )
         self._render_header()
@@ -220,11 +228,11 @@ class BaseLayout:
                 dark_btn_ref['btn'].props(f"icon={icon}")
                 dark_btn_ref['btn'].update()
 
-        with ui.header().classes(replace='row items-center no-wrap sgl-header'):
+        with ui.header().classes(replace='row items-center no-wrap wiz-header'):
             ui.button(
                 icon='menu',
                 on_click=lambda: self._drawer.toggle()
-            ).props('flat color=white').classes('sgl-burger')
+            ).props('flat color=white').classes('wiz-burger')
 
             wordmark_taps = {'n': 0}
 
@@ -235,7 +243,7 @@ class BaseLayout:
                     wordmark_taps['n'] = 0
                     CatFactDialog().open()
 
-            ui.label('SGL On Site').classes('sgl-wordmark').on('click', on_wordmark_tap)
+            ui.label(self._wordmark or 'Wizzrobe').classes('wiz-wordmark').on('click', on_wordmark_tap)
 
             # Flexible spacer that pushes the user/login controls to the right
             # edge. It must be a real element rather than margin-left:auto on the
@@ -309,7 +317,7 @@ class BaseLayout:
                         group = tab.get('group')
                         if group and group != current_group:
                             current_group = group
-                            ui.item_label(group).props('header').classes('sgl-drawer-group')
+                            ui.item_label(group).props('header').classes('wiz-drawer-group')
                         with ui.item(
                             on_click=lambda t=tab['label']: self._switch_tab(t)
                         ).props('clickable v-ripple') as tab_item:
@@ -337,10 +345,10 @@ class BaseLayout:
             # footer meta row).
             ui.space()
             with ui.row().classes('items-center q-px-md q-pb-xs no-wrap'):
-                ui.icon('code').props('size=xs').classes('sgl-drawer-github-link')
-                ui.link('GitHub', 'https://github.com/tcprescott/sglman', new_tab=True) \
-                    .classes('text-caption sgl-drawer-github-link')
-            ui.label(self._copyright).classes('text-caption q-px-md q-pb-md sgl-drawer-copyright')
+                ui.icon('code').props('size=xs').classes('wiz-drawer-github-link')
+                ui.link('GitHub', 'https://github.com/tcprescott/wizzrobe', new_tab=True) \
+                    .classes('text-caption wiz-drawer-github-link')
+            ui.label(self._copyright).classes('text-caption q-px-md q-pb-md wiz-drawer-copyright')
 
     def _switch_tab(self, label: str) -> None:
         # Only move the panel; the drawer highlight and the /base/<slug> history
@@ -408,7 +416,7 @@ class BaseLayout:
         The footer is *only* the bottom nav: the first four tabs as a native tab
         row plus a More button that opens the drawer for the remaining tabs. On
         desktop the drawer carries navigation so the bar collapses away (via
-        .sgl-bottom-nav). Copyright and Feedback live in the drawer, not here, so
+        .wiz-bottom-nav). Copyright and Feedback live in the drawer, not here, so
         a tab-less page renders no footer at all rather than an empty strip.
         """
         if not self.tabs:
@@ -421,7 +429,7 @@ class BaseLayout:
             # matching child (which Quasar warns about and leaves unhighlighted).
             initial = self._default_tab if self._default_tab in self._bottom_tab_labels else None
             with ui.tabs(value=initial).props('dense no-caps').classes(
-                'sgl-bottom-nav'
+                'wiz-bottom-nav'
             ) as self._bottom_tabs:
                 for tab in self.tabs[:4]:
                     ui.tab(tab['label'], icon=tab.get('icon', 'circle'))

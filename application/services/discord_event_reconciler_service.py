@@ -1,4 +1,4 @@
-"""Discord Events reconciler (PR 8) — mirror SGLMan's schedule into Discord.
+"""Discord Events reconciler (PR 8) — mirror Wizzrobe's schedule into Discord.
 
 Keeps each tenant guild's **Discord Scheduled Events** in sync with the tenant's
 schedule. This is *idempotent reconciliation*, not fire-and-forget creation: for

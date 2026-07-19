@@ -5,7 +5,7 @@ from .enums import DiscordEventSource
 
 
 class DiscordScheduledEvent(Model):
-    """A Discord Scheduled Event mirrored from an SGLMan schedule row (PR 8).
+    """A Discord Scheduled Event mirrored from an Wizzrobe schedule row (PR 8).
 
     Tenant-scoped reconciliation link. The reconciler keeps the tenant guild's
     Scheduled Events in sync with its schedule: ``content_hash`` drives

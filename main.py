@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main entry point for the SGL On Site FastAPI application.
+"""Main entry point for the Wizzrobe FastAPI application.
 
 Initializes the database, sets up API and frontend routes, and manages application lifespan.
 """
@@ -39,7 +39,7 @@ logging.basicConfig(
     level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
     format='%(asctime)s %(levelname)s %(name)s: %(message)s',
 )
-logger = logging.getLogger('sglman.main')
+logger = logging.getLogger('wizzrobe.main')
 
 # Reference to the Discord bot's background task, kept so it is not garbage
 # collected and so shutdown can cancel it cleanly.
@@ -177,7 +177,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # Create FastAPI app with metadata for API documentation
 API_DESCRIPTION = """
 REST API for managing tournaments, matches, players, crew, and event
-operations for SGL On Site.
+operations for Wizzrobe.
 
 ## Authentication
 
@@ -185,7 +185,7 @@ Every endpoint requires a **personal API token**. Generate one on your
 profile page (Edit Your Information -> API Tokens), then send it as a bearer
 token:
 
-    Authorization: Bearer sglman_pat_xxxxxxxx...
+    Authorization: Bearer wizzrobe_pat_xxxxxxxx...
 
 A token acts with the exact permissions and scope of the user who created it --
 the same role checks that gate the web UI apply here. A token marked
@@ -199,7 +199,7 @@ Click **Authorize** and paste your token to try the endpoints below.
 init_sentry()
 
 app: FastAPI = FastAPI(
-    title="SGL On Site API",
+    title="Wizzrobe API",
     description=API_DESCRIPTION,
     version="1.0.0",
     lifespan=lifespan,

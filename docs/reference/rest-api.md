@@ -1,12 +1,12 @@
 # REST API Reference
 
-_Reference for SGLMan's REST API: the router package in [`api/`](../../api/) and the FastAPI app metadata in [`main.py`](../../main.py). Part of the [documentation index](../README.md)._
+_Reference for Wizzrobe's REST API: the router package in [`api/`](../../api/) and the FastAPI app metadata in [`main.py`](../../main.py). Part of the [documentation index](../README.md)._
 
 ## Overview
 
 | | |
 |---|---|
-| Title | SGL On Site API |
+| Title | Wizzrobe API |
 | Version | 1.0.0 |
 | Base path | `/api` |
 | Swagger UI | `/api/docs` |
@@ -22,7 +22,7 @@ The API is served by the same Uvicorn process as the NiceGUI frontend. The inter
 Generate a token on your profile page (**Edit Your Information → API Tokens**), then send it on each request:
 
 ```
-Authorization: Bearer sglman_pat_xxxxxxxx...
+Authorization: Bearer wizzrobe_pat_xxxxxxxx...
 ```
 
 - A token **acts as its owning user** and inherits that user's exact permissions and scope — the same `AuthService` role checks that gate the web UI apply. A non-staff token gets `403` from staff-only routes; a Tournament Admin token can edit only its own tournaments; a self-action (acknowledge, sign up, edit own profile) only ever affects the token's user.

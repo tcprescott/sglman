@@ -2,7 +2,7 @@
 
 > **Status: P0 + P1 implemented and verified (see [Implementation results](#implementation-results-p0--p1) at the end).** The findings below are the original audit; the roadmap items marked P0/P1 have since been built and browser-verified.
 
-**Goal:** make SGL On Site feel like a first-class SaaS product on phones — closer to a native app than a shrunk-down website. Target devices: iOS Safari and Android Chrome.
+**Goal:** make Wizzrobe feel like a first-class SaaS product on phones — closer to a native app than a shrunk-down website. Target devices: iOS Safari and Android Chrome.
 
 **Method:** the running app (dev boot + `scripts/seed_dev.py` fixtures) was driven with Playwright at real phone viewports — 390×844 (iPhone 14/15), 360×800 (small Android) — with `isMobile`, touch, and mobile user agents, as three personas (anonymous, `player_one`, `staff_user`). Every page/tab was screenshotted full-page, and each page was programmatically measured for horizontal overflow, tap targets below 44×44 px, and inputs below 16 px font size. Dialogs (match edit, match request, feedback), the drawer, and error pages were exercised by tap.
 
@@ -37,10 +37,10 @@ All findings below are grouped by theme with evidence and file references, follo
 |---|---|---|
 | A1 | **No PWA manifest, no app icons, no `theme-color`, no `apple-touch-icon`, no service worker.** The app cannot be installed as a standalone app; the browser toolbar is always present; the task-switcher card and home-screen icon are generic. | No matches for `manifest`/`theme-color`/`touch-icon` anywhere in the repo; `theme/base.py:render_chrome()` injects only fonts + CSS. |
 | A2 | **Viewport meta is the bare NiceGUI default** (`width=device-width, initial-scale=1`). No `viewport-fit=cover`, so in standalone mode or landscape on notched iPhones the brand header does not extend into the safe area. | Measured on every page. |
-| A3 | **No safe-area handling.** `.sgl-header` (`static/css/styles.css:319`) and the fixed footer use no `env(safe-area-inset-*)` padding — content will collide with the home indicator / notch once A1/A2 land. | `static/css/styles.css:319`, `:1105`. |
+| A3 | **No safe-area handling.** `.wiz-header` (`static/css/styles.css:319`) and the fixed footer use no `env(safe-area-inset-*)` padding — content will collide with the home indicator / notch once A1/A2 land. | `static/css/styles.css:319`, `:1105`. |
 | A4 | `background-attachment: fixed` on the body radial gradient (`styles.css:202-210`) is ignored or janky on iOS Safari — the "lit canvas" effect silently degrades. | `static/css/styles.css:202`. |
 
-**Recommendation:** ship a `static/manifest.webmanifest` (name, icons 192/512 + maskable, `display: standalone`, `theme_color` = `--sgl-gold-deep` / `background_color` = `--page-bg`), add `<link rel="manifest">`, `<meta name="theme-color">` (one per light/dark via `media`), `apple-touch-icon`, and extend the viewport meta with `viewport-fit=cover` + `env()` padding on header/footer. A minimal service worker (even network-only) is what makes Android show "Install app" instead of "Add to Home screen". This is a day of work and transforms the perceived product.
+**Recommendation:** ship a `static/manifest.webmanifest` (name, icons 192/512 + maskable, `display: standalone`, `theme_color` = `--wiz-gold-deep` / `background_color` = `--page-bg`), add `<link rel="manifest">`, `<meta name="theme-color">` (one per light/dark via `media`), `apple-touch-icon`, and extend the viewport meta with `viewport-fit=cover` + `env()` padding on header/footer. A minimal service worker (even network-only) is what makes Android show "Install app" instead of "Add to Home screen". This is a day of work and transforms the perceived product.
 
 ## B. Global touch ergonomics
 

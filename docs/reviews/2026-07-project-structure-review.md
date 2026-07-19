@@ -1,4 +1,4 @@
-# SGL On Site — Project Structure, Best-Practices & Scalability Review
+# Wizzrobe — Project Structure, Best-Practices & Scalability Review
 
 **Date:** 2026-07-02  **Scope:** whole repository (~270 Python files, ~37.6k LOC)
 **Method:** 10-dimension parallel review with adversarial verification (see [Methodology](#methodology)).
@@ -7,7 +7,7 @@
 
 ## 1. Executive summary
 
-SGL On Site is a **well-architected codebase for its size and stage.** The three-layer
+Wizzrobe is a **well-architected codebase for its size and stage.** The three-layer
 pattern (presentation → service → repository → models) is not just documented — it is
 *mechanically enforced* by a suite of `.claude/` PreToolUse hooks, and the enforcement
 holds: zero ORM writes and zero repository imports leaked into `pages/`/`theme/`, no

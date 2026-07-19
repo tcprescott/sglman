@@ -34,7 +34,7 @@ from typing import Iterator, Optional
 # None means "no tenant" — the platform surface (landing page, /platform) and
 # any code that legitimately runs tenant-agnostically. require_tenant_id() is
 # what turns a forgotten scope into a loud error rather than a silent leak.
-_tenant_id_var: ContextVar[Optional[int]] = ContextVar('sglman_tenant_id', default=None)
+_tenant_id_var: ContextVar[Optional[int]] = ContextVar('wizzrobe_tenant_id', default=None)
 
 
 def set_tenant_id(tenant_id: Optional[int]) -> Token:
@@ -53,7 +53,7 @@ def reset_tenant_id(token: Token) -> None:
 # builder and the secondary-provider link flows, which cannot complete on a
 # host whose session cookie the platform-host callback can't see. Default False
 # means path mode / platform surface, exactly as before host routing existed.
-_host_mode_var: ContextVar[bool] = ContextVar('sglman_host_mode', default=False)
+_host_mode_var: ContextVar[bool] = ContextVar('wizzrobe_host_mode', default=False)
 
 
 def set_host_mode(value: bool) -> Token:

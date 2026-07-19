@@ -1,4 +1,4 @@
-/* SGL On Site Custom Styles */
+/* Wizzrobe Custom Styles */
 
 /* ---------------------------------------------------------------------------
    Self-hosted fonts (SIL OFL, served from /static/fonts)
@@ -76,31 +76,31 @@
         U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Brand palette — "SpeedGaming Live 2026: The New Age" phoenix theme.
+/* Brand palette — "Wizzrobe 2026: The New Age" phoenix theme.
    Mode-aware aliases default to light-mode-safe (deep) values and switch to
    bright gold under .body--dark / .q-dark. Inline styles may reference these
    var()s directly so links adapt to the active mode. */
 :root {
-    --sgl-gold: #E0A82E;        /* brand gold — dark-mode links/titles, accents */
-    --sgl-gold-deep: #9C6B12;   /* light-mode links/titles (contrast on white) */
-    --sgl-ember: #E8631A;       /* secondary / ember-orange accent */
-    --sgl-ember-deep: #C24E12;  /* ember for light-mode text/borders */
-    --sgl-charcoal: #17120D;    /* warm near-black for header/footer surfaces */
+    --wiz-gold: #E0A82E;        /* brand gold — dark-mode links/titles, accents */
+    --wiz-gold-deep: #9C6B12;   /* light-mode links/titles (contrast on white) */
+    --wiz-ember: #E8631A;       /* secondary / ember-orange accent */
+    --wiz-ember-deep: #C24E12;  /* ember for light-mode text/borders */
+    --wiz-charcoal: #17120D;    /* warm near-black for header/footer surfaces */
 
-    --sgl-link: var(--sgl-gold-deep);
-    --sgl-section-title: var(--sgl-gold-deep);
-    --sgl-room-header-bg: var(--sgl-charcoal);
-    --sgl-room-header-text: var(--sgl-gold);
-    --sgl-header-bg: var(--sgl-gold-deep);  /* light mode: amber bar (white header text stays AA-legible) */
+    --wiz-link: var(--wiz-gold-deep);
+    --wiz-section-title: var(--wiz-gold-deep);
+    --wiz-room-header-bg: var(--wiz-charcoal);
+    --wiz-room-header-text: var(--wiz-gold);
+    --wiz-header-bg: var(--wiz-gold-deep);  /* light mode: amber bar (white header text stays AA-legible) */
 
     /* Warm phoenix-tinted dark-mode surface scale — one coherent elevation ramp
        so dark mode reads as deliberate steps, not blotchy mismatched grays.
-       --sgl-charcoal (#17120D) is the darkest "bookend" (header/footer). */
-    --sgl-dark-bg:        #1c1714;  /* page body — warm near-black */
-    --sgl-dark-surface:   #241e19;  /* cards, filter cards, grid cards, odd rows */
-    --sgl-dark-surface-2: #2c2520;  /* even rows — subtle warm zebra */
-    --sgl-dark-border:    #3a322b;  /* borders */
-    --sgl-dark-muted:     #b0a59a;  /* muted text — legible on dark */
+       --wiz-charcoal (#17120D) is the darkest "bookend" (header/footer). */
+    --wiz-dark-bg:        #1c1714;  /* page body — warm near-black */
+    --wiz-dark-surface:   #241e19;  /* cards, filter cards, grid cards, odd rows */
+    --wiz-dark-surface-2: #2c2520;  /* even rows — subtle warm zebra */
+    --wiz-dark-border:    #3a322b;  /* borders */
+    --wiz-dark-muted:     #b0a59a;  /* muted text — legible on dark */
 
     /* Typography */
     --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -139,10 +139,10 @@
     --radius-lg: 14px;
     --radius-pill: 999px;
 
-    /* Height reserved for the mobile bottom nav (.sgl-bottom-nav) — the fixed
+    /* Height reserved for the mobile bottom nav (.wiz-bottom-nav) — the fixed
        refresh FAB and the reconnect overlay clear it by this amount. Single
        source so tuning the nav does not silently desync those offsets. */
-    --sgl-bottom-nav-h: 72px;
+    --wiz-bottom-nav-h: 72px;
 
     /* Warm umber-tinted shadows (never pure black on the light theme) */
     --shadow-1: 0 1px 2px rgba(46, 32, 12, 0.07), 0 1px 4px rgba(46, 32, 12, 0.05);
@@ -157,28 +157,28 @@
 
 .body--dark,
 .q-dark {
-    --sgl-link: var(--sgl-gold);
-    --sgl-section-title: var(--sgl-gold);
-    --sgl-header-bg: var(--sgl-charcoal);  /* dark mode: keep the charcoal bar */
+    --wiz-link: var(--wiz-gold);
+    --wiz-section-title: var(--wiz-gold);
+    --wiz-header-bg: var(--wiz-charcoal);  /* dark mode: keep the charcoal bar */
 
     /* Override Quasar's own dark tokens so every default-styled surface (cards,
        dialogs, drawer, tab panels, menus) inherits the warm scale in one place
        instead of being patched element-by-element. */
-    --q-dark-page: var(--sgl-dark-bg);
-    --q-dark:      var(--sgl-dark-surface);
+    --q-dark-page: var(--wiz-dark-bg);
+    --q-dark:      var(--wiz-dark-surface);
 
     /* Lifted status variants for dark surfaces */
     --status-ok:        #A8C46B;
     --status-pending:   #F0A848;
     --status-live:      #52B8AE;
-    --status-neutral:   var(--sgl-dark-muted);
+    --status-neutral:   var(--wiz-dark-muted);
     --status-cancelled: #E06650;
 
-    --surface: var(--sgl-dark-surface);
-    --surface-alt: var(--sgl-dark-surface-2);
-    --page-bg: var(--sgl-dark-bg);
+    --surface: var(--wiz-dark-surface);
+    --surface-alt: var(--wiz-dark-surface-2);
+    --page-bg: var(--wiz-dark-bg);
 
-    --border-subtle: var(--sgl-dark-border);
+    --border-subtle: var(--wiz-dark-border);
     --border-strong: #4A4036;
 
     --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.35);
@@ -211,7 +211,7 @@ body {
 
 body.body--dark {
     background: radial-gradient(1100px 520px at 50% -180px,
-        #251d14 0%, var(--sgl-dark-bg) 65%) fixed;
+        #251d14 0%, var(--wiz-dark-bg) 65%) fixed;
 }
 
 /* Touch devices can't cheaply repaint a `fixed` background while scrolling (and
@@ -226,7 +226,7 @@ body.body--dark {
 
 /* Brand focus ring and selection */
 :focus-visible {
-    outline: 2px solid var(--sgl-gold);
+    outline: 2px solid var(--wiz-gold);
     outline-offset: 2px;
     border-radius: 2px;
 }
@@ -273,7 +273,7 @@ body.body--dark {
 .q-dark .text-muted,
 .q-dark .text-italic,
 .q-dark .cell-timestamp {
-    color: var(--sgl-dark-muted);
+    color: var(--wiz-dark-muted);
 }
 
 /* Status utility classes — consumed by Vue slot templates and .classes() */
@@ -285,7 +285,7 @@ body.body--dark {
 .st-cancelled { color: var(--status-cancelled); }
 
 /* Status chips — tinted pill replacing raw q-badge colors */
-.sgl-chip {
+.wiz-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -300,16 +300,16 @@ body.body--dark {
     border: 1px solid color-mix(in srgb, var(--chip-c) 35%, transparent);
 }
 
-.sgl-chip--ok        { --chip-c: var(--status-ok); }
-.sgl-chip--pending   { --chip-c: var(--status-pending); }
-.sgl-chip--live      { --chip-c: var(--status-live); }
-.sgl-chip--neutral   { --chip-c: var(--status-neutral); }
-.sgl-chip--cancelled { --chip-c: var(--status-cancelled); }
-.sgl-chip--candidate { --chip-c: var(--sgl-gold-deep); }
+.wiz-chip--ok        { --chip-c: var(--status-ok); }
+.wiz-chip--pending   { --chip-c: var(--status-pending); }
+.wiz-chip--live      { --chip-c: var(--status-live); }
+.wiz-chip--neutral   { --chip-c: var(--status-neutral); }
+.wiz-chip--cancelled { --chip-c: var(--status-cancelled); }
+.wiz-chip--candidate { --chip-c: var(--wiz-gold-deep); }
 
-.body--dark .sgl-chip--candidate,
-.q-dark .sgl-chip--candidate {
-    --chip-c: var(--sgl-gold);
+.body--dark .wiz-chip--candidate,
+.q-dark .wiz-chip--candidate {
+    --chip-c: var(--wiz-gold);
 }
 
 /* Availability heatmap (My Availability editor, player + volunteer) — status
@@ -323,7 +323,7 @@ body.body--dark {
 
 .body--dark,
 .q-dark {
-    --avail-none: var(--sgl-dark-surface-2);
+    --avail-none: var(--wiz-dark-surface-2);
 }
 
 .avail-swatch {
@@ -371,8 +371,8 @@ body.body--dark {
    strip along the bottom is the signature accent. */
 /* No position override here: Quasar pins the header via its own fixed-top
    positioning, which the ::after strip also anchors to. */
-.sgl-header {
-    background-color: var(--sgl-header-bg);
+.wiz-header {
+    background-color: var(--wiz-header-bg);
     min-height: 56px;
     padding: 0 var(--space-3);
     /* Clear the status-bar / notch area when installed as a standalone PWA. */
@@ -380,17 +380,17 @@ body.body--dark {
     box-shadow: var(--shadow-1);
 }
 
-.sgl-header::after {
+.wiz-header::after {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
     height: 2px;
-    background: linear-gradient(90deg, var(--sgl-ember) 0%, var(--sgl-gold) 45%, var(--sgl-gold) 100%);
+    background: linear-gradient(90deg, var(--wiz-ember) 0%, var(--wiz-gold) 45%, var(--wiz-gold) 100%);
 }
 
-.sgl-wordmark {
+.wiz-wordmark {
     font-family: var(--font-display);
     font-weight: 700;
     font-size: 1.15rem;
@@ -399,22 +399,22 @@ body.body--dark {
     margin-left: var(--space-2);
 }
 
-.body--dark .sgl-wordmark,
-.q-dark .sgl-wordmark {
-    color: var(--sgl-gold);
+.body--dark .wiz-wordmark,
+.q-dark .wiz-wordmark {
+    color: var(--wiz-gold);
 }
 
-.sgl-burger .q-icon {
+.wiz-burger .q-icon {
     font-size: 1.6rem;
 }
 
 @media (max-width: 600px) {
-    .sgl-header {
+    .wiz-header {
         padding: 0 var(--space-2);
         padding-top: env(safe-area-inset-top);
     }
 
-    .sgl-header .user-name {
+    .wiz-header .user-name {
         display: none;
     }
 
@@ -424,7 +424,7 @@ body.body--dark {
         display: none;
     }
 
-    .sgl-wordmark {
+    .wiz-wordmark {
         font-size: 1rem;
         margin-left: var(--space-1);
     }
@@ -443,35 +443,35 @@ body.body--dark {
 }
 
 .q-drawer .q-item:hover {
-    background: color-mix(in srgb, var(--sgl-gold) 8%, transparent);
+    background: color-mix(in srgb, var(--wiz-gold) 8%, transparent);
 }
 
 .q-drawer .q-item--active {
-    background: color-mix(in srgb, var(--sgl-gold) 14%, transparent);
-    box-shadow: inset 3px 0 0 var(--sgl-gold-deep);
-    color: var(--sgl-section-title);
+    background: color-mix(in srgb, var(--wiz-gold) 14%, transparent);
+    box-shadow: inset 3px 0 0 var(--wiz-gold-deep);
+    color: var(--wiz-section-title);
     font-weight: 700;
 }
 
 .body--dark .q-drawer .q-item--active,
 .q-dark .q-drawer .q-item--active {
-    box-shadow: inset 3px 0 0 var(--sgl-gold);
+    box-shadow: inset 3px 0 0 var(--wiz-gold);
 }
 
 .q-drawer .text-h6 {
     font-family: var(--font-display);
-    color: var(--sgl-section-title);
+    color: var(--wiz-section-title);
 }
 
 /* Drawer section headers (grouped admin nav): small, uppercase, gold — a quiet
    divider between destination clusters, not a clickable item. */
-.q-drawer .sgl-drawer-group {
+.q-drawer .wiz-drawer-group {
     padding: var(--space-3) var(--space-3) var(--space-1);
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.09em;
-    color: var(--sgl-section-title);
+    color: var(--wiz-section-title);
     opacity: 0.85;
 }
 
@@ -530,7 +530,7 @@ body.body--dark {
     font-size: 1.5em;
     letter-spacing: 0.01em;
     margin-bottom: 1em;
-    color: var(--sgl-section-title);
+    color: var(--wiz-section-title);
 }
 
 .subsection-title {
@@ -564,24 +564,24 @@ body.body--dark {
 }
 
 /* Community picker (bare-host landing) cards — clickable brand tiles. */
-.sgl-tenant-card {
+.wiz-tenant-card {
     padding: var(--space-3) var(--space-4);
     transition: border-color var(--dur-fast) var(--ease-out),
                 box-shadow var(--dur-fast) var(--ease-out),
                 transform var(--dur-fast) var(--ease-out);
 }
 
-.sgl-tenant-card:hover {
-    border-color: color-mix(in srgb, var(--sgl-gold) 55%, transparent);
+.wiz-tenant-card:hover {
+    border-color: color-mix(in srgb, var(--wiz-gold) 55%, transparent);
     box-shadow: var(--shadow-2);
     transform: translateY(-1px);
 }
 
-.sgl-tenant-name {
+.wiz-tenant-name {
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 1.25rem;
-    color: var(--sgl-section-title);
+    color: var(--wiz-section-title);
 }
 
 .card-padding {
@@ -634,7 +634,7 @@ body.body--dark {
 
 /* Stacked form column: full width up to a readable cap so a 10-char date field
    doesn't stretch a third of the screen (System Configuration, Profile). */
-.sgl-form-column {
+.wiz-form-column {
     width: 100%;
     max-width: 44rem;
 }
@@ -660,7 +660,7 @@ body.body--dark {
 
 .q-dialog .q-card {
     border-radius: var(--radius-lg);
-    border-top: 3px solid var(--sgl-gold);
+    border-top: 3px solid var(--wiz-gold);
     box-shadow: var(--shadow-3);
 }
 
@@ -858,7 +858,7 @@ body.body--dark {
 }
 
 .icon-primary {
-    color: var(--sgl-link);
+    color: var(--wiz-link);
     margin-right: 0.5em;
 }
 
@@ -897,19 +897,19 @@ body.body--dark {
 }
 
 .text-link {
-    color: var(--sgl-link);
+    color: var(--wiz-link);
     text-decoration: underline;
 }
 
 .table-link {
-    color: var(--sgl-link);
+    color: var(--wiz-link);
     text-decoration: underline;
     cursor: pointer;
 }
 
 /* NiceGUI ui.link() defaults to blue — adopt the brand link color */
 .nicegui-link {
-    color: var(--sgl-link);
+    color: var(--wiz-link);
 }
 
 .italic-note {
@@ -936,8 +936,8 @@ body.body--dark {
 .room-header {
     width: 100%;
     align-items: center;
-    background-color: var(--sgl-room-header-bg);
-    color: var(--sgl-room-header-text);
+    background-color: var(--wiz-room-header-bg);
+    color: var(--wiz-room-header-text);
     padding: 0.5em;
     border-radius: var(--radius-sm);
 }
@@ -1019,7 +1019,7 @@ body.body--dark {
 }
 
 /* Muted icon atop the branded table no-data slot (theme/empty_state.no_data_slot). */
-.sgl-empty-icon {
+.wiz-empty-icon {
     color: var(--status-neutral);
     opacity: 0.5;
 }
@@ -1027,7 +1027,7 @@ body.body--dark {
 /* User/Avatar Styles */
 /* Right-edge alignment of the header controls is handled by the flexible
    ui.space() spacer in the header, not margin-left:auto here — that survives
-   .user-name being display:none on phones (see .sgl-header rules). */
+   .user-name being display:none on phones (see .wiz-header rules). */
 .user-avatar {
     margin-left: 8px;
     margin-right: 8px;
@@ -1122,7 +1122,7 @@ body.body--dark {
    set of rules serves both modes. Grid mode (Quasar.Screen.lt.md) renders
    item slots, not <table>, and is styled via the *-grid-card classes below.
 --------------------------------------------------------------------------- */
-/* .sgl-table is the opt-in class for every other admin/report table (the
+/* .wiz-table is the opt-in class for every other admin/report table (the
    hand-rolled ones that used to render as bare default Quasar tables); the four
    named families keep their classes and are listed alongside it so one rule set
    drives all of them. */
@@ -1130,7 +1130,7 @@ body.body--dark {
 .user-table,
 .tournament-table,
 .equipment-table,
-.sgl-table {
+.wiz-table {
     border-collapse: collapse;
 }
 
@@ -1142,8 +1142,8 @@ body.body--dark {
 .tournament-table td,
 .equipment-table th,
 .equipment-table td,
-.sgl-table th,
-.sgl-table td {
+.wiz-table th,
+.wiz-table td {
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
 }
@@ -1152,7 +1152,7 @@ body.body--dark {
 .user-table td,
 .tournament-table td,
 .equipment-table td,
-.sgl-table td {
+.wiz-table td {
     text-align: left;
     font-variant-numeric: tabular-nums;
 }
@@ -1161,37 +1161,37 @@ body.body--dark {
 .user-table thead th,
 .tournament-table thead th,
 .equipment-table thead th,
-.sgl-table thead th {
+.wiz-table thead th {
     text-align: center;
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--sgl-gold-deep);
+    color: var(--wiz-gold-deep);
     background: var(--surface-alt);
-    border-bottom: 2px solid color-mix(in srgb, var(--sgl-gold-deep) 45%, transparent);
+    border-bottom: 2px solid color-mix(in srgb, var(--wiz-gold-deep) 45%, transparent);
 }
 
 .body--dark .match-table thead th,
 .body--dark .user-table thead th,
 .body--dark .tournament-table thead th,
 .body--dark .equipment-table thead th,
-.body--dark .sgl-table thead th,
+.body--dark .wiz-table thead th,
 .q-dark .match-table thead th,
 .q-dark .user-table thead th,
 .q-dark .tournament-table thead th,
 .q-dark .equipment-table thead th,
-.q-dark .sgl-table thead th {
-    color: var(--sgl-gold);
+.q-dark .wiz-table thead th {
+    color: var(--wiz-gold);
     background: #201a15;
-    border-bottom-color: color-mix(in srgb, var(--sgl-gold) 40%, transparent);
+    border-bottom-color: color-mix(in srgb, var(--wiz-gold) 40%, transparent);
 }
 
 .match-table tbody tr:nth-child(even),
 .user-table tbody tr:nth-child(even),
 .tournament-table tbody tr:nth-child(even),
 .equipment-table tbody tr:nth-child(even),
-.sgl-table tbody tr:nth-child(even) {
+.wiz-table tbody tr:nth-child(even) {
     background-color: var(--surface-alt);
 }
 
@@ -1199,7 +1199,7 @@ body.body--dark {
 .user-table tbody tr:nth-child(odd),
 .tournament-table tbody tr:nth-child(odd),
 .equipment-table tbody tr:nth-child(odd),
-.sgl-table tbody tr:nth-child(odd) {
+.wiz-table tbody tr:nth-child(odd) {
     background-color: var(--surface);
 }
 
@@ -1207,8 +1207,8 @@ body.body--dark {
 .user-table tbody tr:hover,
 .tournament-table tbody tr:hover,
 .equipment-table tbody tr:hover,
-.sgl-table tbody tr:hover {
-    background-color: color-mix(in srgb, var(--sgl-gold) 7%, transparent);
+.wiz-table tbody tr:hover {
+    background-color: color-mix(in srgb, var(--wiz-gold) 7%, transparent);
 }
 
 /* Allow wrapping for long strings — target the inner wrapper element placed
@@ -1248,13 +1248,13 @@ body.body--dark {
 }
 
 /* Transient highlight for rows/cards updated live by another user's action. */
-@keyframes sglRowFlash {
+@keyframes wizRowFlash {
     from { background-color: rgba(224, 168, 46, 0.35); }
     to   { background-color: transparent; }
 }
 
-.sgl-row-flash {
-    animation: sglRowFlash 1.6s ease-out;
+.wiz-row-flash {
+    animation: wizRowFlash 1.6s ease-out;
 }
 
 /* Mobile grid cards — token-driven surface; the vars switch per mode on
@@ -1271,13 +1271,13 @@ body.body--dark {
 
 /* Field labels in the grid cards use Quasar's text-grey-7, a fixed cool gray
    that goes murky on the dark surface; re-point it at the mode-aware muted token
-   (!important to match Quasar's own). ``.sgl-grid-card`` is the generic class for
+   (!important to match Quasar's own). ``.wiz-grid-card`` is the generic class for
    the hand-rolled admin cards (platform tables, service health) — the card
-   counterpart of ``.sgl-table``. */
+   counterpart of ``.wiz-table``. */
 .user-grid-card .text-grey-7,
 .tournament-grid-card .text-grey-7,
 .equipment-grid-card .text-grey-7,
-.sgl-grid-card .text-grey-7 {
+.wiz-grid-card .text-grey-7 {
     color: var(--status-neutral) !important;
 }
 
@@ -1340,7 +1340,7 @@ body.body--dark {
 }
 
 .mgc-id-link {
-    color: var(--sgl-link);
+    color: var(--wiz-link);
     text-decoration: underline;
 }
 
@@ -1391,21 +1391,21 @@ body.body--dark {
 }
 
 /* Collapsible filters on mobile. The filter card is always visible on desktop
-   (≥1024px); below that it collapses behind the .sgl-filter-toggle button and
-   only shows when the server adds .sgl-filters-open. */
+   (≥1024px); below that it collapses behind the .wiz-filter-toggle button and
+   only shows when the server adds .wiz-filters-open. */
 @media (max-width: 1023.98px) {
     .match-filters-card {
         display: none;
     }
 
-    .match-filters-card.sgl-filters-open {
+    .match-filters-card.wiz-filters-open {
         display: block;
     }
 }
 
 /* The Filters toggle button/badge row — mobile only; the filter card is pinned
    open on desktop so the toggle is redundant there. */
-.sgl-filter-toggle {
+.wiz-filter-toggle {
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -1414,7 +1414,7 @@ body.body--dark {
 }
 
 @media (min-width: 1024px) {
-    .sgl-filter-toggle {
+    .wiz-filter-toggle {
         display: none;
     }
 }
@@ -1473,11 +1473,11 @@ body.body--dark {
 
 .body--dark .footer-dark-override,
 .q-dark .footer-dark-override {
-    background-color: var(--sgl-charcoal) !important;
-    color: var(--sgl-dark-muted) !important;
+    background-color: var(--wiz-charcoal) !important;
+    color: var(--wiz-dark-muted) !important;
 }
 
-.sgl-bottom-nav {
+.wiz-bottom-nav {
     width: 100%;
     padding-bottom: env(safe-area-inset-bottom);
 }
@@ -1493,34 +1493,34 @@ body.body--dark {
 
 /* Copyright caption pinned to the foot of the drawer (replaces the old
    desktop-only footer meta row); muted to match the surrounding chrome. */
-.sgl-drawer-copyright {
+.wiz-drawer-copyright {
     color: var(--status-neutral);
 }
 
-.body--dark .sgl-drawer-copyright,
-.q-dark .sgl-drawer-copyright {
-    color: var(--sgl-dark-muted);
+.body--dark .wiz-drawer-copyright,
+.q-dark .wiz-drawer-copyright {
+    color: var(--wiz-dark-muted);
 }
 
-.sgl-drawer-github-link {
+.wiz-drawer-github-link {
     color: var(--status-neutral);
     text-decoration: none;
 }
 
-.sgl-drawer-github-link:hover {
+.wiz-drawer-github-link:hover {
     text-decoration: underline;
 }
 
-.body--dark .sgl-drawer-github-link,
-.q-dark .sgl-drawer-github-link {
-    color: var(--sgl-dark-muted);
+.body--dark .wiz-drawer-github-link,
+.q-dark .wiz-drawer-github-link {
+    color: var(--wiz-dark-muted);
 }
 
 @media (max-width: 1023.98px) {
     /* The fixed refresh FAB would otherwise sit under the bottom nav bar; lift it
        above the nav (and the safe-area inset) so it stays tappable. */
     .refresh-button {
-        bottom: calc(var(--sgl-bottom-nav-h) + env(safe-area-inset-bottom));
+        bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
     }
 }
 
@@ -1587,14 +1587,14 @@ body.body--dark {
    framework's [aria-hidden] show/hide transitions still drive visibility.
 --------------------------------------------------------------------------- */
 .nicegui-error-popup {
-    background: var(--sgl-charcoal) !important;
-    color: var(--sgl-gold) !important;
-    border: 1px solid color-mix(in srgb, var(--sgl-gold) 45%, transparent);
+    background: var(--wiz-charcoal) !important;
+    color: var(--wiz-gold) !important;
+    border: 1px solid color-mix(in srgb, var(--wiz-gold) 45%, transparent);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-3);
     font-family: var(--font-body);
     /* Clear the mobile bottom nav / home indicator when pinned to the bottom. */
-    margin-bottom: calc(var(--sgl-bottom-nav-h) + env(safe-area-inset-bottom));
+    margin-bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
 }
 
 .nicegui-error-popup > span:first-child {

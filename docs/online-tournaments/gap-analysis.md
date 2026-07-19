@@ -1,9 +1,9 @@
 # Online Tournaments Plan — Gap Analysis
 
 > Companion to the [Online Tournaments plan](README.md). Findings from an
-> adversarial review (six lenses — SahasrahBot parity, SGLMan integration reality,
+> adversarial review (six lenses — SahasrahBot parity, Wizzrobe integration reality,
 > data model, internal consistency, operations, product/UX/authz — grounded in the
-> actual SahasrahBot source and the SGLMan codebase). This is input for tightening
+> actual SahasrahBot source and the Wizzrobe codebase). This is input for tightening
 > the plan, not a verdict that it is broken.
 
 ## Executive summary
@@ -99,10 +99,10 @@ columns, which are not optional.
 Two conflations. **(a)** racetime bots are one **per game category** (each with its
 own client-id/secret, websocket, and racetime-side registration/approval), not "one
 connection per process" — the env surface and `MOCK_RACETIME` must model a
-category→credentials map. **(b)** Multitenancy: is there one shared SGLMan bot
+category→credentials map. **(b)** Multitenancy: is there one shared Wizzrobe bot
 identity for all tenants (routing rooms→tenant like "one bot, many guilds"), or
 per-tenant categories/credentials? The succession story says SahasrahBot's category
-"transfers to SGLMan" (singular), implying global — but communities historically own
+"transfers to Wizzrobe" (singular), implying global — but communities historically own
 their own categories. **Decide** and record; it drives the env design, the
 room→tenant routing, and the cutover identity transfer.
 
@@ -119,7 +119,7 @@ on `MatchPlayers`; participant rows on `SpeedGamingEpisode`) and record it.
 Every feature adds an admin surface (presets, qualifiers, SG links, racetime
 auto-open config), but the `Role` enum is fixed and has no preset-manager /
 qualifier-admin / sync-admin, and `AuthService` has no check for them. The plan says
-qualifier permissions "map onto SGLMan roles" but never picks the mapping. **Decide**
+qualifier permissions "map onto Wizzrobe roles" but never picks the mapping. **Decide**
 the authz for each surface (reuse `STAFF` + per-entity admin M2M is the cheapest) and
 record it — especially the **Async Qualifier reviewer set** (§2.1), which is central
 to integrity and doesn't inherit cleanly because a qualifier is a `Tournament` peer,
@@ -217,7 +217,7 @@ downstream step (which is already how `push_result_if_linked` behaves).
 |---|---|---|---|
 | 4.1 | `Match`↔`SpeedGamingEpisode` is described as **two opposite FKs** (circular) with no authoritative direction | med | Make `Match → SpeedGamingEpisode` the single canonical FK; the reverse is a relation, not a second column. Fix wording in `speedgaming-etl.md`. |
 | 4.2 | `Match.racetime_room_slug` needs **global uniqueness + index**, and the room→tenant lookup must use an **explicitly-unscoped** query (inbound events carry no tenant) | med-high | Record: `unique=True, index=True`; route the reverse lookup through an unscoped repo method (mirrors the `ApiToken`→tenant pattern). This is the mechanism behind the stated tenant-routing risk. |
-| 4.3 | SG-owned (read-only) `MatchPlayers` rows vs. F5 writing **finish time/place onto the same rows** | med | Add the racetime finish columns to the *SGLMan-owned* side of the F4 ownership table explicitly, or the read-only guard blocks result capture on SG-sourced matches. |
+| 4.3 | SG-owned (read-only) `MatchPlayers` rows vs. F5 writing **finish time/place onto the same rows** | med | Add the racetime finish columns to the *Wizzrobe-owned* side of the F4 ownership table explicitly, or the read-only guard blocks result capture on SG-sourced matches. |
 | 4.4 | `MatchPlayers.finish_rank` already exists (it is "place"); only a finish **time** is new, and its type is unspecified | low-med | Record: reuse `finish_rank`, add one finish-elapsed-time column (decide type — interval vs. seconds vs. the `HH:MM:SS` racetime returns) + nullable raw handle. |
 | 4.5 | Async Qualifier **reviewer designation** has no model/field after collapsing `AsyncTournamentPermissions` onto global roles | med | Decide: reviewers = the qualifier's admins M2M, or a sibling reviewer M2M. |
 | 4.6 | `AsyncQualifierRun` mapping omits **structural FKs** (→qualifier, →user, →permalink, nullable →live_race) and metric fields (`run_igt`, review attribution) | med | Enumerate the FKs; the nullable `live_race` FK is what ties Phase 8 back to runs. |
@@ -234,7 +234,7 @@ downstream step (which is already how `push_result_if_linked` behaves).
 
 | # | Finding | Sev | Action |
 |---|---|---|---|
-| 5.1 | The **SahasrahBot→SGLMan migration** is asserted "feasible" with zero mechanics: PK/FK remapping (SahasrahBot `User` PKs → SGLMan global `discord_id`), `guild_id`→tenant derivation, preset-namespace flattening, in-flight handling, downtime | med-high | The succession story's biggest hand-wave. Commit to a migration-runbook doc before the first cutover (schema-map + PK/FK translation via `discord_id` joins + dry-run). |
+| 5.1 | The **SahasrahBot→Wizzrobe migration** is asserted "feasible" with zero mechanics: PK/FK remapping (SahasrahBot `User` PKs → Wizzrobe global `discord_id`), `guild_id`→tenant derivation, preset-namespace flattening, in-flight handling, downtime | med-high | The succession story's biggest hand-wave. Commit to a migration-runbook doc before the first cutover (schema-map + PK/FK translation via `discord_id` joins + dry-run). |
 | 5.2 | **Restart orphans live rooms**: every push to `main` recreates the container and kills all handler tasks; "reconnect/resume" is named but has no mechanism | med-high | Record a boot-time reconciliation step: query Matches with open/in-progress room state and re-spawn handlers under `tenant_scope`. |
 | 5.3 | **No test strategy** for the new worker/websocket/ETL surface — exactly the category the SQLite suite already can't reach (per `development.md`) | med | Plan a Postgres CI job (ETL upserts, read-only guard) + stub-driven `RaceRoomService` transition tests independent of a live websocket. |
 | 5.4 | **`MOCK_RACETIME` depth**: it is a *result-capture bypass* that can fabricate finishes → must refuse under `ENVIRONMENT=production` like the other mock flags; and "exercise the full lifecycle end to end" needs a *scripted event-emitting fake*, not a no-op skip like `MOCK_DISCORD` | med | Record both: production-refusal parity, and that the mock is an active fake driving inbound room transitions. |
@@ -263,12 +263,12 @@ reveal→ready grace/extend-timeout mechanics (dropped with the web-first decisi
 (`TournamentGames`) and SahasrahBot's dormant `Schedule*` models (superseded by the
 SG ETL). The create-time write paths (`create_match`/`submit_match_request`) are
 *not* a read-only-enforcement leak — they mint fresh, non-sourced, fully-editable
-matches, which is exactly the SGLMan-owned side of the contract.
+matches, which is exactly the Wizzrobe-owned side of the contract.
 
 ## Methodology
 
 Six independent finder lenses produced 91 candidate gaps, each grounded in the
-SahasrahBot source and the SGLMan codebase; each was then adversarially verified.
+SahasrahBot source and the Wizzrobe codebase; each was then adversarially verified.
 **The verify stage was miscalibrated** — it was instructed to default to "not a gap"
 and to treat anything deferred to a build phase as covered, so it refuted all 80
 verified candidates. That bar is wrong for a gap analysis (a design doc that omits a

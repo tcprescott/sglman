@@ -37,8 +37,8 @@ _ACTIVE_ICON = '''
 '''
 _LAST_STATUS_CHIP = '''
     <span v-if="!props.row.last_status || props.row.last_status === '—'" class="text-grey-7">—</span>
-    <span v-else class="sgl-chip"
-          :class="props.row.last_status === 'ok' ? 'sgl-chip--ok' : 'sgl-chip--cancelled'">
+    <span v-else class="wiz-chip"
+          :class="props.row.last_status === 'ok' ? 'wiz-chip--ok' : 'wiz-chip--cancelled'">
         {{ props.row.last_status }}
     </span>
 '''
@@ -216,7 +216,7 @@ async def admin_speedgaming_page() -> None:
                     icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
                 ).props('flat color=primary').tooltip('Refresh table')
 
-            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-active', f'<q-td :props="props">{_ACTIVE_ICON}</q-td>')
             table.add_slot('body-cell-last_status', f'<q-td :props="props">{_LAST_STATUS_CHIP}</q-td>')

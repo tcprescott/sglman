@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Create a new Tenant and (optionally) bootstrap its first STAFF + a SUPER_ADMIN.
 
-    poetry run python scripts/seed_tenant.py --name "SGL Live" --slug sgl \
-        [--domain sgl.example.com] [--guild-id 123456789] [--operator-discord-id 456]
+    poetry run python scripts/seed_tenant.py --name "Wizzrobe Live" --slug wizzrobe \
+        [--domain wizzrobe.example.com] [--guild-id 123456789] [--operator-discord-id 456]
 
 Creates the :class:`~models.Tenant` (idempotent on ``slug``). When
 ``--operator-discord-id`` is given and that user exists, grants them the global

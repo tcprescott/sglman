@@ -80,7 +80,7 @@ async def admin_theme_page() -> None:
 
         preset_select.on_value_change(apply_preset)
 
-        with ui.column().classes('sgl-form-column gap-4'):
+        with ui.column().classes('wiz-form-column gap-4'):
             for label, key, caption in _FIELDS:
                 inputs[key] = ui.color_input(
                     label=f'{label} ({DEFAULT_THEME[key]} default)',

@@ -8,12 +8,12 @@ Sources: [`pages/auth.py`](../../pages/auth.py) (the `/login`, `/logout`, `/oaut
 
 ## Overview
 
-SGLMan authenticates users with Discord OAuth (`identify` scope only) and keeps their identity in NiceGUI's signed per-browser session store (`app.storage.user`). The flow is split across two files: [`pages/auth.py`](../../pages/auth.py) (presentation layer) registers the `/login`, `/logout`, and `/oauth/callback` routes, while [`middleware/auth.py`](../../middleware/auth.py) provides the `protected_page` decorator that marks pages as login-required and installs `AuthMiddleware`, which redirects unauthenticated requests to `/login`. Authorization is a separate, stateless layer: [`AuthService`](../../application/services/auth_service.py) answers role and capability questions against the database on every check — nothing about roles is cached in the session. When `MOCK_DISCORD=true`, the three auth routes are replaced by a local user-picker (registered by `pages/auth.py` itself) and no Discord credentials are needed.
+Wizzrobe authenticates users with Discord OAuth (`identify` scope only) and keeps their identity in NiceGUI's signed per-browser session store (`app.storage.user`). The flow is split across two files: [`pages/auth.py`](../../pages/auth.py) (presentation layer) registers the `/login`, `/logout`, and `/oauth/callback` routes, while [`middleware/auth.py`](../../middleware/auth.py) provides the `protected_page` decorator that marks pages as login-required and installs `AuthMiddleware`, which redirects unauthenticated requests to `/login`. Authorization is a separate, stateless layer: [`AuthService`](../../application/services/auth_service.py) answers role and capability questions against the database on every check — nothing about roles is cached in the session. When `MOCK_DISCORD=true`, the three auth routes are replaced by a local user-picker (registered by `pages/auth.py` itself) and no Discord credentials are needed.
 
 ```mermaid
 sequenceDiagram
     participant B as Browser
-    participant S as SGLMan
+    participant S as Wizzrobe
     participant D as Discord
 
     B->>S: GET /admin (no session)

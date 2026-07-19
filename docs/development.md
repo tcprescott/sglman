@@ -14,8 +14,8 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
 1. Clone the repository and install dependencies:
 
    ```bash
-   git clone <repo-url> sglman
-   cd sglman
+   git clone <repo-url> wizzrobe
+   cd wizzrobe
    poetry install
    ```
 
@@ -29,7 +29,7 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
 
    | Variable | Local dev | Notes |
    |---|---|---|
-   | `DB_NAME` | required | Database name (template ships `sglman`; compose also defaults to `sglman`). |
+   | `DB_NAME` | required | Database name (template ships `wizzrobe`; compose also defaults to `wizzrobe`). |
    | `DB_USERNAME` | required | docker-compose refuses to start without it. The app itself only enforces credentials when `ENVIRONMENT=production`. |
    | `DB_PASSWORD` | required | Same enforcement as `DB_USERNAME`. |
    | `DB_HOST`, `DB_PORT` | required for a host-run app | Not in `.env.example`. Auto-set by compose for the **app container** (`postgres` / `5432`). When running the app on your host, add them to `.env` yourself (e.g. `DB_HOST=localhost`, `DB_PORT=5432`) — [`migrations/tortoise_config.py`](../migrations/tortoise_config.py) raises at startup if they are unset. |
@@ -43,7 +43,7 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
    | `OOTR_API_KEY` | optional | Only for OOTR seed generation. |
    | `SMMAP_SPOILER_TOKEN` | optional | Overrides the built-in Super Metroid Map Rando spoiler token. |
 
-3. Start PostgreSQL. Two options, both driven by [`docker-compose.yml`](../docker-compose.yml) (service names: `postgres`, `sglman`):
+3. Start PostgreSQL. Two options, both driven by [`docker-compose.yml`](../docker-compose.yml) (service names: `postgres`, `wizzrobe`):
 
    **Database only** — app runs on your host (the usual dev loop):
 
@@ -107,7 +107,7 @@ poetry run python scripts/seed_dev.py
 
 The script loads `.env` itself and connects using the same Tortoise config as the app. It creates:
 
-- **Stream rooms** — Stage 1/2/3, active, with `twitch.tv/sglive`, `sglive2`, `sglive3` URLs
+- **Stream rooms** — Stage 1/2/3, active, with `twitch.tv/wizzrobe`, `wizzrobe2`, `wizzrobe3` URLs
 - **System configuration** — `event_start_date` (today, Eastern), `event_end_date` (today + 2 days), `max_concurrent_players=12`, `max_concurrent_stages=3`
 - **Seven users** with sequential fake Discord IDs (`100000000000000001`–`…07`):
 
@@ -118,7 +118,7 @@ The script loads `.env` itself and connects using the same Tortoise config as th
   | `sm_user` | `STREAM_MANAGER` |
   | `player_one` … `player_four` | (none) |
 
-- **One tournament** — "SGL Dev Tournament" (alttpr seed generator, 2 players per match, active), with `staff_user` as both admin and crew coordinator and the four players enrolled
+- **One tournament** — "Wizzrobe Dev Tournament" (alttpr seed generator, 2 players per match, active), with `staff_user` as both admin and crew coordinator and the four players enrolled
 - **Four matches**, one per lifecycle state: "Scheduled Match" (+2 h), "Checked-In Match" (now, Stage 1), "In-Progress Match" (−1 h, Stage 2), and "Finished Match" (−3 h, Stage 1, with finish ranks and confirmation)
 
 **Idempotency:** everything uses `get_or_create`, so the script is safe to re-run — existing records are left unchanged. That also means match timestamps are *not* refreshed on re-run (matches are matched by title + tournament); to regenerate the relative scheduled times, delete the fixture matches (or reset the database) first.

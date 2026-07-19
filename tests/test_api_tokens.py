@@ -40,7 +40,7 @@ class TestApiTokenService:
     async def test_create_returns_plaintext_and_stores_only_hash(self, db):
         user = await _user()
         token, raw = await ApiTokenService().create_token(user, name='cli')
-        assert raw.startswith('sglman_pat_')
+        assert raw.startswith('wizzrobe_pat_')
         # Only the hash is persisted; the plaintext never is.
         stored = await ApiToken.get(id=token.id)
         assert stored.token_hash == _hash_token(raw)
@@ -57,7 +57,7 @@ class TestApiTokenService:
         assert token.last_used_at is not None
 
     async def test_authenticate_rejects_unknown_token(self, db):
-        assert await ApiTokenService().authenticate('sglman_pat_nope') is None
+        assert await ApiTokenService().authenticate('wizzrobe_pat_nope') is None
 
     async def test_authenticate_rejects_revoked_token(self, db):
         user = await _user()
@@ -69,7 +69,7 @@ class TestApiTokenService:
         user = await _user()
         past = datetime.now(timezone.utc) - timedelta(days=1)
         # Create directly with a past expiry (service forbids past expiry on create).
-        raw = 'sglman_pat_expired'
+        raw = 'wizzrobe_pat_expired'
         await ApiToken.create(
             user=user, name='old', token_hash=_hash_token(raw),
             token_prefix=raw[:17], expires_at=past,
@@ -104,7 +104,7 @@ class TestTokenEndpoints:
             created = await c.post('/api/tokens', json={'name': 'second'})
             assert created.status_code == 201
             body = created.json()
-            assert body['token'].startswith('sglman_pat_')
+            assert body['token'].startswith('wizzrobe_pat_')
             assert body['name'] == 'second'
 
             listed = await c.get('/api/tokens')

@@ -8,7 +8,7 @@
 // window and needs no service worker; everywhere else the PushManager hangs
 // off the service worker registration that theme/base.py installs on every
 // page. On iOS the APIs only exist once the app is added to the Home Screen.
-window.sglWebPush = {
+window.wizWebPush = {
   async _manager() {
     if (window.pushManager) return window.pushManager;
     if ('serviceWorker' in navigator) {

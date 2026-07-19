@@ -13,7 +13,7 @@ new table has one.
 ``enable_mobile_grid`` is column-driven (the same technique
 ``match_grid.render_grid_slot`` uses): it walks the ``columns`` list the desktop
 table already uses, skips ``hidden`` and the ``actions`` column, and emits a
-``.sgl-grid-card`` with a ``label / value`` row per remaining column plus an
+``.wiz-grid-card`` with a ``label / value`` row per remaining column plus an
 optional right-aligned actions footer. A field that renders as a badge / chip /
 icon on the desktop (via a ``body-cell-<field>`` slot) can pass a matching card
 snippet through ``field_slots`` — Vue that reads ``props.row.<field>`` (note:
@@ -107,11 +107,11 @@ def enable_mobile_grid(
 
     if row_click_event:
         card_open = (
-            '<q-card bordered flat class="q-pa-sm sgl-grid-card cursor-pointer" '
+            '<q-card bordered flat class="q-pa-sm wiz-grid-card cursor-pointer" '
             f'@click="$parent.$emit(\'{row_click_event}\', props.row)">'
         )
     else:
-        card_open = '<q-card bordered flat class="q-pa-sm sgl-grid-card">'
+        card_open = '<q-card bordered flat class="q-pa-sm wiz-grid-card">'
 
     table.add_slot(
         'item',

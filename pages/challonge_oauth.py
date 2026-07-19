@@ -3,7 +3,7 @@
 Two flows share one registered OAuth app:
 
 * **Service account** (``/challonge/connect``): a STAFF member authorizes the
-  shared SGL Challonge account once. Tokens are stored centrally in
+  shared Wizzrobe Challonge account once. Tokens are stored centrally in
   :class:`ChallongeConnection`.
 * **Player identity** (``/challonge/link``): a player authorizes with scope
   ``me`` so we can record their verified Challonge account id/username. The

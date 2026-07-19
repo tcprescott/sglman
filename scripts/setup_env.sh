@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# One-shot environment setup for SGL On Site.
+# One-shot environment setup for Wizzrobe.
 #
 # Paste this into the "Setup script" field of a Claude Code cloud environment
 # (it runs once before Claude Code launches), or run it locally:  bash scripts/setup_env.sh
@@ -8,7 +8,7 @@
 # Prepares everything the app + the browser-validation loop need:
 #   * PostgreSQL 16 + full tzdata (the app formats times in US/Eastern, a legacy
 #     alias that minimal tzdata images omit -> ZoneInfoNotFoundError at runtime)
-#   * the `sglman` dev database and a `postgres`/`devpass` login
+#   * the `wizzrobe` dev database and a `postgres`/`devpass` login
 #   * Python deps via Poetry
 #   * a dev `.env` (MOCK_DISCORD, MOCK_SEEDGEN + a generated STORAGE_SECRET) if
 #     one is absent
@@ -65,10 +65,10 @@ for _ in $(seq 1 20); do
 done
 
 # 3. Dev role + database (idempotent) ------------------------------------------
-say "Ensuring role/password and sglman database"
+say "Ensuring role/password and wizzrobe database"
 as_postgres "psql -v ON_ERROR_STOP=0" >/dev/null <<'SQL'
 ALTER USER postgres PASSWORD 'devpass';
-SELECT 'CREATE DATABASE sglman' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sglman')\gexec
+SELECT 'CREATE DATABASE wizzrobe' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'wizzrobe')\gexec
 SQL
 
 # 4. Python dependencies -------------------------------------------------------
@@ -80,7 +80,7 @@ if [ ! -f .env ]; then
   say "Writing dev .env (MOCK_DISCORD, MOCK_SEEDGEN, generated STORAGE_SECRET)"
   SECRET="$(poetry run python -c 'import secrets; print(secrets.token_urlsafe(32))')"
   cat > .env <<ENV
-DB_NAME=sglman
+DB_NAME=wizzrobe
 DB_USERNAME=postgres
 DB_PASSWORD=devpass
 DB_HOST=localhost

@@ -13,7 +13,7 @@ breakpoint and render each row as a stacked card::
 
     from theme.tables.mobile_grid import enable_mobile_grid
 
-    table = ui.table(columns=COLUMNS, rows=[], row_key='id').classes('w-full sgl-table')
+    table = ui.table(columns=COLUMNS, rows=[], row_key='id').classes('w-full wiz-table')
     table.add_slot('body-cell-actions', ACTIONS)          # desktop cell
     enable_mobile_grid(table, COLUMNS, actions=ACTION_BUTTONS)
 
@@ -163,7 +163,7 @@ def check(source: str, file_path: str) -> list[str]:
             f"columns and row-action\n"
             f"  buttons scroll off-screen. Add the app's responsive card:\n"
             f"    from theme.tables.mobile_grid import enable_mobile_grid\n"
-            f"    table = ui.table(columns=COLUMNS, rows=[], row_key='id').classes('w-full sgl-table')\n"
+            f"    table = ui.table(columns=COLUMNS, rows=[], row_key='id').classes('w-full wiz-table')\n"
             f"    # ...body-cell-* slots, event handlers...\n"
             f"    enable_mobile_grid(table, COLUMNS, actions=ACTION_BUTTONS_HTML)\n"
             f"  (pass field_slots={{'status': '<q-badge...>'}} for badge/chip columns).\n"

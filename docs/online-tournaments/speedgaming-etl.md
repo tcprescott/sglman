@@ -16,7 +16,7 @@
 SahasrahBot treats speedgaming.org as a live dependency — every relevant
 interaction queries the SG API and joins on `episode_id` (`TournamentGames`,
 `TournamentResults`, `ScheduledEvents` all key on it; there is no local episode
-store). **SGLMan inverts this: an ETL process synchronizes SG data into SGLMan's
+store). **Wizzrobe inverts this: an ETL process synchronizes SG data into Wizzrobe's
 own tables**, making SG an upstream feed rather than a runtime dependency.
 
 Source: SahasrahBot's direct SG API queries keyed on `episode_id` throughout.
@@ -25,8 +25,8 @@ Source: SahasrahBot's direct SG API queries keyed on `episode_id` throughout.
 
 - **Extract** — poll the SG schedule API per configured event slug on a cadence
   (background worker, `tenant_scope`, honoring SG rate limits).
-- **Transform** — normalize episodes to SGLMan's shape: UTC datetimes,
-  crew/channel metadata mapped to SGLMan concepts, and players resolved to `User`
+- **Transform** — normalize episodes to Wizzrobe's shape: UTC datetimes,
+  crew/channel metadata mapped to Wizzrobe concepts, and players resolved to `User`
   by the **placeholder-user pattern (decided, from sahabot2)**:
   - Resolution order: existing `User` by `discord_id` → by `discord_username`
     (from SG `discord_tag`) → existing placeholder by `speedgaming_id` → **create a
@@ -46,13 +46,13 @@ Source: SahasrahBot's direct SG API queries keyed on `episode_id` throughout.
 
 ## Reconciliation contract — decided, not just directional
 
-Sync is strictly **one-way, SG → SGLMan**; nothing SGLMan does ever writes back to
+Sync is strictly **one-way, SG → Wizzrobe**; nothing Wizzrobe does ever writes back to
 SpeedGaming. For a `Match` created by the ETL, **the fields the ETL populates are
-read-only in SGLMan** — staff cannot hand-edit them; the next sync is the only
-thing that can change them. Everything SGLMan adds on top stays fully staff-editable
+read-only in Wizzrobe** — staff cannot hand-edit them; the next sync is the only
+thing that can change them. Everything Wizzrobe adds on top stays fully staff-editable
 and is never touched by sync:
 
-| ETL-owned (read-only in SGLMan) | SGLMan-owned (editable, sync never touches) |
+| ETL-owned (read-only in Wizzrobe) | Wizzrobe-owned (editable, sync never touches) |
 |---|---|
 | `scheduled_at`, enrolled players (`MatchPlayers` rows sourced from SG), `title`, tournament linkage | `generated_seed`, `stream_room`, `Commentator`/`Tracker` crew, `MatchAcknowledgment`, `MatchWatcher`, station assignments, `seated_at`/`started_at`/`finished_at`/`confirmed_at`, `comment`, Discord event links |
 
@@ -71,7 +71,7 @@ locking with sahabot2's proven lifecycle guards:
    room is linked). This protects race-day work even on fields the ETL nominally owns.
 
 A cancelled upstream episode **soft-detaches** — the `Match` row and everything
-SGLMan added survive; the ETL-owned fields freeze at their last synced value.
+Wizzrobe added survive; the ETL-owned fields freeze at their last synced value.
 
 A `SpeedGamingEventLink` (tournament ↔ SG event slug + sync settings) configures
 which SG events feed which tenant tournaments.

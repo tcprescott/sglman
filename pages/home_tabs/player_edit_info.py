@@ -25,11 +25,11 @@ async def render_edit_info_tab():
     # Install a beforeunload guard so unsaved edits prompt before navigation.
     ui.add_head_html("""
     <script>
-      if (!window.__sglman_dirty_guard_installed) {
-        window.__sglman_dirty_guard_installed = true;
-        window.sglman_dirty = false;
+      if (!window.__wizzrobe_dirty_guard_installed) {
+        window.__wizzrobe_dirty_guard_installed = true;
+        window.wizzrobe_dirty = false;
         window.addEventListener('beforeunload', (e) => {
-          if (window.sglman_dirty) {
+          if (window.wizzrobe_dirty) {
             e.preventDefault();
             e.returnValue = '';
           }
@@ -39,10 +39,10 @@ async def render_edit_info_tab():
     """)
 
     def mark_dirty():
-        ui.run_javascript('window.sglman_dirty = true;')
+        ui.run_javascript('window.wizzrobe_dirty = true;')
 
     def mark_clean():
-        ui.run_javascript('window.sglman_dirty = false;')
+        ui.run_javascript('window.wizzrobe_dirty = false;')
 
     # Subtle auto-save status indicator (elements created near the end of the form).
     status_icon = None
@@ -232,7 +232,7 @@ async def render_edit_info_tab():
                 for tournament in active_tournaments:
                     existing = prefs_by_tournament.get(tournament.id)
                     current_level = existing.match_notifications if existing else 'none'
-                    with ui.row().classes('items-center justify-between sgl-form-column q-my-xs'):
+                    with ui.row().classes('items-center justify-between wiz-form-column q-my-xs'):
                         ui.label(tournament.name)
                         pref_widgets[tournament.id] = ui.select(
                             options=level_options,

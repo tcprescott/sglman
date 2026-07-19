@@ -1,6 +1,6 @@
 """Admin Challonge integration page (STAFF).
 
-Manages the shared SGL Challonge service-account connection and lists the
+Manages the shared Wizzrobe Challonge service-account connection and lists the
 tournaments linked to a Challonge bracket with a per-tournament Sync action.
 """
 
@@ -56,7 +56,7 @@ async def admin_challonge_page() -> None:
                     if is_staff:
                         ui.button('Disconnect', icon='link_off', on_click=disconnect).props('flat color=negative')
                 else:
-                    ui.label('The SGL Challonge account is not connected.').classes('text-muted')
+                    ui.label('The Wizzrobe Challonge account is not connected.').classes('text-muted')
                     if is_staff:
                         ui.button(
                             'Connect Challonge', icon='link',

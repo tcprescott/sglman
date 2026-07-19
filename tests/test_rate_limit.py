@@ -34,7 +34,7 @@ async def test_request_over_limit_429(monkeypatch):
 
 def _bearer(suffix: str) -> dict:
     # A well-formed personal access token: real prefix + enough length.
-    return {'authorization': f'Bearer sglman_pat_{suffix}'}
+    return {'authorization': f'Bearer wizzrobe_pat_{suffix}'}
 
 
 async def test_distinct_wellformed_tokens_isolated_across_ips(monkeypatch):

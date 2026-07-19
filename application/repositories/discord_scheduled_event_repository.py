@@ -1,6 +1,6 @@
 """Discord Scheduled Event Repository — data access for :class:`DiscordScheduledEvent`.
 
-Tenant-scoped reconciliation links between an SGLMan schedule row and a Discord
+Tenant-scoped reconciliation links between an Wizzrobe schedule row and a Discord
 Scheduled Event. Reads/writes go through the ``_tenant`` helpers, so the working
 set is always **this tenant's own rows** — the shared-guild safety guarantee is
 enforced here at the data layer, not just in the reconciler: a query never sees a

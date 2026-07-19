@@ -9,7 +9,7 @@ class Equipment(Model):
 
     Each asset gets an auto-assigned, unique ``asset_number`` (a scannable QR
     code on its page encodes the asset's URL). ``owner_user`` records who owns
-    the asset; a ``null`` owner means it belongs to SpeedGaming Live. ``status``
+    the asset; a ``null`` owner means it belongs to Wizzrobe. ``status``
     is kept in sync with open loans by the service layer (the single writer).
     """
 
@@ -31,7 +31,7 @@ class Equipment(Model):
 
     @property
     def owner_label(self) -> str:
-        return self.owner_user.preferred_name if self.owner_user else 'SpeedGaming Live'
+        return self.owner_user.preferred_name if self.owner_user else 'Wizzrobe'
 
     class Meta:
         table = 'equipment'

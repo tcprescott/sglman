@@ -1,7 +1,7 @@
 ---
 name: add-feature
 description: >-
-  End-to-end checklist for adding a feature to SGL On Site: new model →
+  End-to-end checklist for adding a feature to Wizzrobe: new model →
   migration → repository → service → exports → UI → dev seed → tests. Use
   whenever a task adds a model, a service capability, or a new admin/user
   surface — it sequences the three-layer work so nothing (tenant scoping,

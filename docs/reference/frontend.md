@@ -38,10 +38,10 @@ Constructor: `BaseLayout(copyright_text=..., section=None, base_path=None, tabs=
 | Step | Method | Behavior |
 |---|---|---|
 | Dark mode | `render_chrome()` | Reads `app.storage.user['dark_mode']` into `ui.dark_mode()`, then injects `<link rel="stylesheet" href="/static/css/styles.css">` |
-| Palette | `render_chrome()` | Resolves `colors = self._theme_colors or DEFAULT_THEME` (the tenant's brand palette, loaded in `render()`), passes it to `ui.colors(primary/secondary/accent=…)` (status colours stay fixed), and injects a `<style>` re-pointing the `--sgl-*` brand vars (`--sgl-gold-deep`, `--sgl-gold`, `--sgl-ember*`, `--sgl-header-bg`) + the light-mode PWA `theme-color` meta. Loaded after `styles.css`, so it wins; the dark-mode `--sgl-header-bg` override in `styles.css` keeps the header charcoal in dark mode. See [Per-tenant theme colours](#per-tenant-theme-colours) |
+| Palette | `render_chrome()` | Resolves `colors = self._theme_colors or DEFAULT_THEME` (the tenant's brand palette, loaded in `render()`), passes it to `ui.colors(primary/secondary/accent=…)` (status colours stay fixed), and injects a `<style>` re-pointing the `--wiz-*` brand vars (`--wiz-gold-deep`, `--wiz-gold`, `--wiz-ember*`, `--wiz-header-bg`) + the light-mode PWA `theme-color` meta. Loaded after `styles.css`, so it wins; the dark-mode `--wiz-header-bg` override in `styles.css` keeps the header charcoal in dark mode. See [Per-tenant theme colours](#per-tenant-theme-colours) |
 | Header | `_render_header()` | Burger button toggling the drawer; a `ui.space()` flexible spacer pushes the user/login controls to the right edge (so alignment matches desktop even when the name is hidden on phones); when `user` is set: `preferred_name` label (hidden <600px), Discord avatar (from `app.storage.user['avatar']`) or an `account_circle` placeholder glyph when there is no avatar URL (mock-login sessions / Discord default avatars), logout button; otherwise a "Login with Discord" button whose text label is a child element hidden <600px (icon-only on phones — the full-text button still lives in the page body — with a tooltip for accessibility); finally a dark-mode toggle that persists to `app.storage.user['dark_mode']` and swaps its own icon |
-| Drawer | `_render_drawer()` | `ui.left_drawer(value=False)` with `breakpoint=1023 show-if-above bordered` (auto-visible ≥1024px, behind the burger below it); contents live in a full-height flex column — top menu items (Home / Admin / Volunteer), one item per tab (active tab carries the Quasar `active` prop), a **Feedback** item for logged-in users, and the copyright caption (`.sgl-drawer-copyright`) pinned to the foot via `ui.space()` |
-| Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.sgl-bottom-nav`), and only when there are tabs: the first four tabs plus a **More** button that opens the drawer; hidden ≥1024px, so desktop and tab-less pages render no footer. The wrapping `ui.footer()` (`.footer-dark-override`) supplies the surface + top border. Copyright and Feedback live in the drawer |
+| Drawer | `_render_drawer()` | `ui.left_drawer(value=False)` with `breakpoint=1023 show-if-above bordered` (auto-visible ≥1024px, behind the burger below it); contents live in a full-height flex column — top menu items (Home / Admin / Volunteer), one item per tab (active tab carries the Quasar `active` prop), a **Feedback** item for logged-in users, and the copyright caption (`.wiz-drawer-copyright`) pinned to the foot via `ui.space()` |
+| Footer | `_render_footer()` | **Only** the mobile app-shell bottom nav (`.wiz-bottom-nav`), and only when there are tabs: the first four tabs plus a **More** button that opens the drawer; hidden ≥1024px, so desktop and tab-less pages render no footer. The wrapping `ui.footer()` (`.footer-dark-override`) supplies the surface + top border. Copyright and Feedback live in the drawer |
 | Tabs | `_render_tab_panels()` | A `ui.tab_panels` whose value is switched programmatically; every tab's content renders eagerly at page load |
 
 **Tab deep-linking.** Sections are addressed by **path segment** (`/admin/reports`), not a query param, so URLs read like app routes. Tab switching does not reload the page: `_switch_tab(label)` moves the `active` prop in the drawer, sets the tab-panels value, and — via `_handle_tab_change` — replaces the URL with `{base_path}/{slug}` through `ui.navigate.history.replace` (`replace`, not `push`, so per-tab switches don't stack a Back-button trap). The reverse direction works because each hub is registered under both `/base` and `/base/{section}` (via `protected_tab_page`, or three `ui.page()` calls for the public home page): the page function declares a `section: str = None` parameter — NiceGUI maps the path param onto it — and passes it to `BaseLayout`, which resolves the slug to the active tab. So `/admin/reports` opens directly on the Reports tab. The home hub lives at `/` (default section) with sections at `/home/<slug>`. Report filters (`report`, `start`, `end`, …) remain query params on top of the path (`/admin/reports?report=capacity`).
@@ -61,7 +61,7 @@ fixed so notifications read consistently across communities.
   columns). Unset ⇒ the shipped defaults (`TenantThemeService.DEFAULT_THEME`).
 - **Application:** `BaseLayout.render()` loads the palette and `render_chrome()`
   applies it in two places — `ui.colors(...)` for Quasar's palette, and an
-  injected `<style>` re-pointing the `--sgl-*` brand variables that `styles.css`
+  injected `<style>` re-pointing the `--wiz-*` brand variables that `styles.css`
   uses for the header bar, links, and section titles (`ui.colors` alone does not
   reach those). Reads are fresh each page load (`get_by_id` is uncached), so a
   save shows on the next navigation; the Appearance form reloads the page on save.
@@ -348,7 +348,7 @@ Two tab functions live in this module.
 
 ### Admin Challonge (`pages/admin_tabs/admin_challonge.py`)
 
-`admin_challonge_page()` (Staff-only by tab visibility) — manages the shared SGL Challonge service-account connection.
+`admin_challonge_page()` (Staff-only by tab visibility) — manages the shared Wizzrobe Challonge service-account connection.
 
 - A `@ui.refreshable` connection card from `ChallongeService.get_connection_status` (configured / connected state, username, scopes, token expiry, monthly request quota usage) with **Connect** (→ `/challonge/connect`) / **Disconnect** for staff.
 - A `@ui.refreshable` "Linked tournaments" list (`Tournament.filter(challonge_tournament_id__isnull=False)`) with last-synced timestamps and a per-tournament **Sync** button (`ChallongeService.sync_bracket(..., force=True)`).
@@ -520,7 +520,7 @@ The simpler dialogs in brief:
 - **`VolunteerPositionDialog(position=None, on_submit)`** — Name, Description, Display Order, Active, and optional shift-length / stagger-interval minutes; calls `VolunteerPositionService.create` / `update`.
 - **`VolunteerShiftDialog(shift=None, position=None, default_day=None, on_submit)`** — Position select, start/end date+time (end date auto-tracks the start until edited), Label, Slots needed, Notes; calls `VolunteerScheduleService.create_shift` / `update_shift`.
 - **`CheckoutDialog(actor, equipment_id, on_done)`** — a borrower select (defaulting to the actor) for managers/staff to check an asset out on someone's behalf via `EquipmentService.checkout`. The `open_checkout(actor, equipment_id, can_manage, on_done)` helper shows this dialog when `can_manage`, otherwise self-checks-out immediately; `quick_checkin(...)` checks an asset back in.
-- **`EquipmentDialog(actor, equipment=None, on_saved)`** — Name (required), Description, manager-only Private notes, and Owner (SpeedGaming Live or a user); create mode adds a Quantity field for bulk creation. Calls `EquipmentService.create_asset` / `bulk_create_assets` / `update_asset`.
+- **`EquipmentDialog(actor, equipment=None, on_saved)`** — Name (required), Description, manager-only Private notes, and Owner (Wizzrobe or a user); create mode adds a Quantity field for bulk creation. Calls `EquipmentService.create_asset` / `bulk_create_assets` / `update_asset`.
 - **`FeedbackDialog(user)`** — a Category select and required Message textarea; on submit it reads `window.location` via `ui.run_javascript` and records the feedback through `FeedbackService.submit`.
 
 ### Match dialogs (`theme/dialog/match_dialog.py`)
@@ -634,12 +634,12 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 
 Two sanctioned ways to comply:
 
-1. **`enable_mobile_grid(table, columns, …)`** ([`theme/tables/mobile_grid.py`](../../theme/tables/mobile_grid.py)) — the default for every admin / report / player table. It's column-driven: it adds `:grid="Quasar.Screen.lt.md"` and generates a `.sgl-grid-card` `item` slot from the same `columns` the desktop table uses (skipping `hidden` columns and the `actions` column). Pass `actions=` the **same** row-action button HTML used in the `body-cell-actions` slot (hoist it into one constant — don't duplicate), `field_slots={'status': '<q-badge …>'}` for any badge/chip/icon column (the snippet reads `props.row.<field>`, not the desktop cell's `props.value`), and `row_click_event='row-click'` to keep a whole-row drill-down tappable on mobile.
+1. **`enable_mobile_grid(table, columns, …)`** ([`theme/tables/mobile_grid.py`](../../theme/tables/mobile_grid.py)) — the default for every admin / report / player table. It's column-driven: it adds `:grid="Quasar.Screen.lt.md"` and generates a `.wiz-grid-card` `item` slot from the same `columns` the desktop table uses (skipping `hidden` columns and the `actions` column). Pass `actions=` the **same** row-action button HTML used in the `body-cell-actions` slot (hoist it into one constant — don't duplicate), `field_slots={'status': '<q-badge …>'}` for any badge/chip/icon column (the snippet reads `props.row.<field>`, not the desktop cell's `props.value`), and `row_click_event='row-click'` to keep a whole-row drill-down tappable on mobile.
 
    ```python
    from theme.tables.mobile_grid import enable_mobile_grid
 
-   table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full sgl-table')
+   table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full wiz-table')
    table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
    table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
    enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS, field_slots={'status': _STATUS_BADGE})
@@ -647,7 +647,7 @@ Two sanctioned ways to comply:
 
 2. **A bespoke `item` slot** with an inline `:grid="Quasar.Screen.lt.md"` prop — reserved for the four purpose-built family tables (match / user / tournament / equipment), whose cards are too custom for the generic helper (see `match_grid.render_grid_slot`).
 
-A table that legitimately must stay a table on mobile (a narrow 2-column reference) opts out with a `# mobile-grid: exempt` comment on the `ui.table` line. The generic card styling is `.sgl-grid-card` (the card counterpart of `.sgl-table`), which carries its surface from a wrapping `<q-card bordered flat>`.
+A table that legitimately must stay a table on mobile (a narrow 2-column reference) opts out with a `# mobile-grid: exempt` comment on the `ui.table` line. The generic card styling is `.wiz-grid-card` (the card counterpart of `.wiz-table`), which carries its surface from a wrapping `<q-card bordered flat>`.
 
 ## Static assets & styling (`static/`)
 

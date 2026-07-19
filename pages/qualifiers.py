@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from nicegui import app, ui
 from middleware.auth import protected_page
 
-from application.services import AsyncQualifierService, AuthService, get_user_from_discord_id
+from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
 from models import FeatureFlag
 from theme.base import BaseLayout
@@ -58,7 +58,7 @@ def create() -> None:
 
     @protected_page('/qualifiers', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifiers_list() -> None:
-        ui.page_title('SGL - Async Qualifiers')
+        ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifiers')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(user=user, show_admin=show_admin, show_volunteer=user is not None).render()
@@ -85,7 +85,7 @@ def create() -> None:
 
     @protected_page('/qualifiers/{qualifier_id}', feature=FeatureFlag.ASYNC_QUALIFIERS)
     async def qualifier_detail(qualifier_id: int) -> None:
-        ui.page_title('SGL - Async Qualifier')
+        ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifier')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(user=user, show_admin=show_admin, show_volunteer=user is not None).render()
@@ -225,7 +225,7 @@ def create() -> None:
                     'time': _fmt_hms(r.elapsed_seconds),
                     'score': '' if r.score is None else round(r.score, 1),
                 })
-            table = ui.table(columns=columns, rows=rows, row_key='pool').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=rows, row_key='pool').classes('w-full wiz-table')
             enable_mobile_grid(table, columns)
 
         async def _render_leaderboard(current, is_public) -> None:
@@ -248,7 +248,7 @@ def create() -> None:
                 {'rank': i + 1, 'user': e.username, 'actual': e.actual, 'estimate': e.estimate}
                 for i, e in enumerate(entries)
             ]
-            table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full sgl-table')
+            table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
             enable_mobile_grid(table, columns)
 
         await render()

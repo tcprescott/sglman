@@ -4,9 +4,9 @@
 > Cross-cutting decisions, roadmap, and shared risks live in the
 > [overview](README.md).
 
-SGLMan already rolls `alttpr`, `ootr`, `smmap`, `ff1r`, `z1r`
+Wizzrobe already rolls `alttpr`, `ootr`, `smmap`, `ff1r`, `z1r`
 ([seed-generation.md](../reference/seed-generation.md)). The target: **every
-randomizer SahasrahBot supports is eventually supported in SGLMan.**
+randomizer SahasrahBot supports is eventually supported in Wizzrobe.**
 
 Source: `alttprbot/services/seedgen/`, `models/presets.py`.
 
@@ -28,7 +28,7 @@ presets are **data a tenant admin authors in the UI**, not files in the repo:
 
 Confirmed SahasrahBot randomizer families to bring over include ALTTPR (+ door
 rando + **mystery weightsets**), SM, SMZ3, SM VARIA/DASH, CT: Jets of Time, and
-the OoTR/Zelda/FF families SGLMan already partially covers. First implementation
+the OoTR/Zelda/FF families Wizzrobe already partially covers. First implementation
 task of that phase: enumerate the authoritative list from
 `alttprbot/services/seedgen/` and track coverage as a checklist here. Each backend
 follows the existing pattern (async HTTP, env-var credentials, `ValueError` on
@@ -55,7 +55,7 @@ mirroring `MOCK_DISCORD`/`MOCK_CHALLONGE`.
 
 Phase 1 (preset infrastructure) is **implemented** — see [PR 1](implementation/pr-1-presets.md). Only ALTTPR reads `preset.settings` today; the remaining backends stay hard-coded until the randomizer-coverage expansion PR, tracked below.
 
-| Randomizer | In SGLMan today | Ported |
+| Randomizer | In Wizzrobe today | Ported |
 |---|---|---|
 | alttpr | ✅ | — |
 | alttpr door rando | — | ☐ |

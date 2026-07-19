@@ -1,4 +1,4 @@
-# Contributing to SGL On Site
+# Contributing to Wizzrobe
 
 ## Licensing of contributions
 

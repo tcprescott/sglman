@@ -4,7 +4,7 @@ The app ships a fixed "Phoenix" palette (gold/ember) defined in ``theme/base.py`
 and ``static/css/styles.css``. A community's STAFF may override a small set of
 **brand** colours — primary, secondary, accent, and the header bar — which the
 layout applies on top of the shipped defaults (Quasar colours + a handful of
-``--sgl-*`` CSS variables). Semantic status colours (positive/negative/warning/
+``--wiz-*`` CSS variables). Semantic status colours (positive/negative/warning/
 info) stay fixed so notifications and error states read consistently everywhere.
 
 Storage is ``Tenant.config['theme']`` — no dedicated columns (see
@@ -28,9 +28,9 @@ from models import User
 
 # The overridable brand colours and their shipped Phoenix defaults. Keep these in
 # sync with the ``:root`` seed values in static/css/styles.css and the fallback
-# used by theme/base.py — ``primary`` mirrors --sgl-gold-deep, ``accent``
-# --sgl-gold, ``secondary`` --sgl-ember-deep, ``header`` the light-mode
-# --sgl-header-bg.
+# used by theme/base.py — ``primary`` mirrors --wiz-gold-deep, ``accent``
+# --wiz-gold, ``secondary`` --wiz-ember-deep, ``header`` the light-mode
+# --wiz-header-bg.
 DEFAULT_THEME: dict[str, str] = {
     'primary': '#9C6B12',
     'secondary': '#C24E12',
@@ -53,7 +53,7 @@ _HEX_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 # defaults clear it (~4.6:1), so presets and custom colours are held to the same
 # line the app already meets.
 _LIGHT_SURFACE = '#ffffff'   # white cards/tables/page
-_DARK_SURFACE = '#1c1714'    # --sgl-dark-bg (dark-mode page body)
+_DARK_SURFACE = '#1c1714'    # --wiz-dark-bg (dark-mode page body)
 _WHITE_TEXT = '#ffffff'
 _AA_CONTRAST = 4.5
 

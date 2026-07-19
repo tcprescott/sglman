@@ -67,13 +67,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: sgluser
-          POSTGRES_PASSWORD: sglpass
-          POSTGRES_DB: sglman
+          POSTGRES_USER: wizzrobe
+          POSTGRES_PASSWORD: wizzrobe
+          POSTGRES_DB: wizzrobe
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U sgluser"
+          --health-cmd "pg_isready -U wizzrobe"
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
@@ -91,10 +91,10 @@ jobs:
 
       - name: Apply full migration chain to a fresh database
         env:
-          DB_USERNAME: sgluser
-          DB_PASSWORD: sglpass
+          DB_USERNAME: wizzrobe
+          DB_PASSWORD: wizzrobe
           DB_HOST: localhost
           DB_PORT: 5432
-          DB_NAME: sglman
+          DB_NAME: wizzrobe
           ENVIRONMENT: development
         run: poetry run aerich upgrade

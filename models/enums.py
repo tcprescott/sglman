@@ -139,10 +139,10 @@ class SyncStatus(str, Enum):
 
 
 class DiscordEventSource(str, Enum):
-    """What SGLMan schedule row a mirrored Discord event came from (PR 8).
+    """What Wizzrobe schedule row a mirrored Discord event came from (PR 8).
 
     The ``DiscordScheduledEvent`` link is polymorphic: ``(source_type, source_id)``
-    identifies the SGLMan row a Discord Scheduled Event mirrors. Today only
+    identifies the Wizzrobe row a Discord Scheduled Event mirrors. Today only
     ``MATCH`` is materialized (native + SG-imported matches both live in ``Match``);
     qualifier windows / live races join later without a schema change.
 

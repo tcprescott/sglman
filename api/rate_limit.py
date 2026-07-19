@@ -99,7 +99,7 @@ async def rate_limit(request: Request) -> None:
 
     The client IP is always enforced as a ceiling. This runs as a router-level
     dependency *before* authentication, so it fires for unauthenticated requests
-    too — and the token prefix (``sglman_pat_``) is public, so bucketing solely
+    too — and the token prefix (``wizzrobe_pat_``) is public, so bucketing solely
     by a presented bearer value would let an attacker mint a fresh, always-empty
     bucket per request by rotating the suffix and never trip the limit (and grow
     ``_hits`` without bound). Keying by IP as well caps that flood at the source.

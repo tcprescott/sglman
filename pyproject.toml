@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "sgliveadmin"
+name = "wizzrobe"
 version = "0.1.0"
 description = ""
 authors = ["Thomas Prescott <tcprescott@gmail.com>"]
