@@ -16,6 +16,7 @@ from nicegui import ui
 from application.services import WebPushService
 from application.utils.timezone import format_eastern_date
 from models import User
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
 def _device_label(user_agent: str | None) -> str:
@@ -72,13 +73,21 @@ async def render_web_push_section(user: User) -> None:
                     ui.button(icon='delete', on_click=lambda _, sid=sub.id: remove(sid)) \
                         .props('flat dense color=negative')
 
-    async def remove(subscription_id: int) -> None:
-        try:
-            await service.remove_subscription(user, subscription_id)
-            ui.notify('Device removed.', color='positive', icon='check_circle')
-        except ValueError as e:
-            ui.notify(str(e), color='warning')
-        device_list.refresh()
+    def remove(subscription_id: int) -> None:
+        async def do_remove() -> None:
+            confirm.dialog.close()
+            try:
+                await service.remove_subscription(user, subscription_id)
+                ui.notify('Device removed.', color='positive', icon='check_circle')
+            except ValueError as e:
+                ui.notify(str(e), color='warning')
+            device_list.refresh()
+
+        confirm = ConfirmationDialog(
+            message='Remove this device? It will stop receiving push notifications.',
+            on_confirm=do_remove, confirm_text='Remove',
+        )
+        confirm.open()
 
     async def on_subscribed(e) -> None:
         args = e.args or {}
@@ -139,14 +148,16 @@ async def render_web_push_section(user: User) -> None:
 
     public_key = service.get_public_key()
 
-    with ui.card().classes('card-full-width'):
-        ui.label('Device Notifications').classes('section-title')
+    # Rendered inline as a subsection of the unified Notifications card (no card
+    # of its own); self-hides above when VAPID keys aren't configured.
+    with ui.column().classes('w-full gap-2'):
+        ui.label('On this device').classes('subsection-title')
         ui.label(
             'Get match and crew notifications directly on this device — no Discord app '
             'needed. Works on iPhone/iPad (iOS 16.4+, added to the Home Screen), Android, '
             'and desktop browsers. Notifications mirror the Discord DMs you already receive.'
         ).classes('text-muted text-caption')
-        with ui.row().classes('button-row'):
+        with ui.row().classes('items-center gap-2 q-mt-sm'):
             ui.button('Enable on this device', icon='notifications_active').props('color=primary dense').on(
                 'click',
                 js_handler=(

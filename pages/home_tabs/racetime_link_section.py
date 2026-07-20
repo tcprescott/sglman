@@ -1,15 +1,17 @@
-"""Self-contained 'Link racetime.gg' section for the player profile tab.
+"""racetime.gg provider config for the profile 'Connected accounts' section.
 
 Lets a user verify-link their racetime.gg identity via a one-time OAuth login.
-The section hides itself entirely when the racetime integration isn't configured.
+Rendered (alongside the other providers) by
+:func:`render_connected_accounts_section`, which hides any provider whose
+integration isn't configured.
 """
 
 from application.services import RacetimeService
-from models import User
-from pages.home_tabs._link_section import LinkSectionConfig, render_link_section
+from pages.home_tabs._link_section import LinkSectionConfig
 
-_CONFIG = LinkSectionConfig(
+CONFIG = LinkSectionConfig(
     title='racetime.gg',
+    icon='timer',
     description=(
         'Link your racetime.gg account so we can attribute your race results and '
         'check auto-open eligibility.'
@@ -21,7 +23,3 @@ _CONFIG = LinkSectionConfig(
     username_attr='racetime_username',
     service_factory=RacetimeService,
 )
-
-
-async def render_racetime_link_section(user: User) -> None:
-    await render_link_section(user, _CONFIG)

@@ -12,6 +12,7 @@ from nicegui import ui
 
 from application.services import ApiTokenService
 from models import User
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
 async def render_api_tokens_section(user: User) -> None:
@@ -38,13 +39,21 @@ async def render_api_tokens_section(user: User) -> None:
                     ui.button(icon='delete', on_click=lambda _, tid=t.id: revoke(tid)) \
                         .props('flat dense color=negative')
 
-    async def revoke(token_id: int) -> None:
-        try:
-            await service.revoke_token(user, token_id)
-            ui.notify('Token revoked.', color='positive', icon='check_circle')
-        except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
-        token_list.refresh()
+    def revoke(token_id: int) -> None:
+        async def do_revoke() -> None:
+            confirm.dialog.close()
+            try:
+                await service.revoke_token(user, token_id)
+                ui.notify('Token revoked.', color='positive', icon='check_circle')
+            except (ValueError, PermissionError) as e:
+                ui.notify(str(e), color='warning')
+            token_list.refresh()
+
+        confirm = ConfirmationDialog(
+            message='Revoke this token? Any integration using it will stop working immediately.',
+            on_confirm=do_revoke, confirm_text='Revoke',
+        )
+        confirm.open()
 
     async def generate(name: str, read_only: bool, expires_str: str, dialog) -> None:
         expires_at = None
@@ -95,13 +104,17 @@ async def render_api_tokens_section(user: User) -> None:
         ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(raw_token)})')
         ui.notify('Token copied to clipboard.', color='positive', icon='content_copy')
 
+    # Developer-only surface — collapsed by default so it doesn't dominate the
+    # profile for the majority of users who never touch the REST API.
     with ui.card().classes('card-full-width'):
-        with ui.row().classes('row-centered').style('justify-content: space-between; width: 100%;'):
-            ui.label('API Tokens').classes('section-title')
-            ui.button('Generate token', icon='add', on_click=open_generate_dialog).props('color=primary dense')
-        ui.label(
-            'Personal tokens for the Wizzrobe REST API. Each token acts with your '
-            'permissions; mark a token read-only to limit it to read endpoints.'
-        ).classes('text-muted text-caption')
-        ui.link('API documentation', '/api/docs', new_tab=True).classes('text-caption')
-        await token_list()
+        with ui.expansion('API tokens', icon='vpn_key').classes('w-full') \
+                .props('header-class=text-weight-bold'):
+            ui.label(
+                'Personal tokens for the Wizzrobe REST API. Each token acts with your '
+                'permissions; mark a token read-only to limit it to read endpoints.'
+            ).classes('text-muted text-caption')
+            ui.link('API documentation', '/api/docs', new_tab=True).classes('text-caption')
+            with ui.row().classes('q-mt-sm'):
+                ui.button('Generate token', icon='add', on_click=open_generate_dialog) \
+                    .props('color=primary dense')
+            await token_list()

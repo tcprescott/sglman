@@ -1,15 +1,17 @@
-"""Self-contained 'Link Twitch' section for the player profile tab.
+"""Twitch provider config for the profile 'Connected accounts' section.
 
-Lets a user verify-link their Twitch identity via a one-time OAuth login. The
-section hides itself entirely when the Twitch integration isn't configured.
+Lets a user verify-link their Twitch identity via a one-time OAuth login.
+Rendered (alongside the other providers) by
+:func:`render_connected_accounts_section`, which hides any provider whose
+integration isn't configured.
 """
 
 from application.services import TwitchService
-from models import User
-from pages.home_tabs._link_section import LinkSectionConfig, render_link_section
+from pages.home_tabs._link_section import LinkSectionConfig
 
-_CONFIG = LinkSectionConfig(
+CONFIG = LinkSectionConfig(
     title='Twitch',
+    icon='live_tv',
     description=(
         'Link your Twitch account so we can associate your verified Twitch identity '
         'with your profile.'
@@ -21,7 +23,3 @@ _CONFIG = LinkSectionConfig(
     username_attr='twitch_username',
     service_factory=TwitchService,
 )
-
-
-async def render_twitch_link_section(user: User) -> None:
-    await render_link_section(user, _CONFIG)
