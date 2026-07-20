@@ -26,7 +26,7 @@ class EquipmentService:
 
     @staticmethod
     async def _resolve_owner(owner_user_id: Optional[int]) -> Optional[User]:
-        """Resolve an owner id to a User; ``None`` means Wizzrobe."""
+        """Resolve an owner id to a User; ``None`` means the community owns it."""
         if not owner_user_id:
             return None
         owner = await User.get_or_none(id=owner_user_id)

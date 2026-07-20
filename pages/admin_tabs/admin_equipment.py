@@ -3,7 +3,7 @@
 from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 
-from application.services import EquipmentService, get_user_from_discord_id
+from application.services import EquipmentService, TenantService, get_user_from_discord_id
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 
 _STATUS_LABELS = {
@@ -52,12 +52,13 @@ async def admin_equipment_page() -> None:
         async def _render_table() -> None:
             assets = await service.list_assets()
             open_loans = await service.open_loans_by_equipment_id()
+            community = await TenantService.current_community_name()
             rows = [
                 {
                     'id': a.id,
                     'asset_number': a.asset_number,
                     'name': a.name,
-                    'owner': a.owner_label,
+                    'owner': a.owner_label(community),
                     'status': _STATUS_LABELS.get(a.status.value, a.status.value),
                     'status_value': a.status.value,
                     'holder': (

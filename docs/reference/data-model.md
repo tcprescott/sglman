@@ -716,10 +716,10 @@ A physical asset available for lending at live events. Each asset gets an auto-a
 | `name` | `CharField(255)` | not null | |
 | `description` | `TextField` | null | |
 | `private_notes` | `TextField` | null | Staff-only notes |
-| `owner_user` | FK → `User` | null, `SET_NULL` | `related_name='owned_equipment'`; null = owned by Wizzrobe |
+| `owner_user` | FK → `User` | null, `SET_NULL` | `related_name='owned_equipment'`; null = owned by the community (its `tenant`) |
 | `status` | `CharEnumField(EquipmentStatus)` | default `AVAILABLE` | `max_length=20`; service-maintained |
 
-Relationships: reverse accessor `loans`. Property: `owner_label` returns the owner's `preferred_name`, or `'Wizzrobe'` when `owner_user` is null. Constraints: `Meta.table = 'equipment'`.
+Relationships: reverse accessor `loans`. Method: `owner_label(community_name)` returns the owner's `preferred_name`, or the passed `community_name` (the owning community's display name, from `TenantService.current_community_name()`) when `owner_user` is null. Constraints: `Meta.table = 'equipment'`.
 
 #### `EquipmentLoan`
 

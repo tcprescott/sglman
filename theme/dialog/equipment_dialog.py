@@ -4,11 +4,11 @@ from typing import Awaitable, Callable, Optional
 
 from nicegui import ui
 
-from application.services import EquipmentService, UserService
+from application.services import EquipmentService, TenantService, UserService
 from models import Equipment, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
-_WIZ_OWNER = ''  # empty owner value ⇒ owned by Wizzrobe
+_WIZ_OWNER = ''  # empty owner value ⇒ owned by the community (its tenant)
 
 
 class EquipmentDialog:
@@ -31,7 +31,8 @@ class EquipmentDialog:
         is_edit = self.equipment is not None
 
         users = await UserService().get_all_users()
-        owner_options = {_WIZ_OWNER: 'Wizzrobe'}
+        community = await TenantService.current_community_name()
+        owner_options = {_WIZ_OWNER: community}
         owner_options.update({str(u.id): u.preferred_name for u in users})
         current_owner = (
             str(self.equipment.owner_user_id)

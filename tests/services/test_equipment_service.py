@@ -171,8 +171,9 @@ class TestOwnerLabel:
         owner = await _user(2, 'owner', Role.VOLUNTEER)
 
         house = await service.create_asset(manager, name='House asset')
-        assert house.owner_label == 'Wizzrobe'
+        # An un-owned asset falls back to the owning community's name.
+        assert house.owner_label('Acme Community') == 'Acme Community'
 
         owned = await service.create_asset(manager, name='Owned asset', owner_user_id=owner.id)
         fetched = await service.get_asset(owned.id)
-        assert fetched.owner_label == owner.preferred_name
+        assert fetched.owner_label('Acme Community') == owner.preferred_name

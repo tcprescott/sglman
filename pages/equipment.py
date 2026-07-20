@@ -82,7 +82,8 @@ def create() -> None:
                     with ui.column().classes('gap-1'):
                         if asset.description:
                             ui.label(asset.description)
-                        ui.label(f'Owner: {asset.owner_label}').classes('italic-note')
+                        community = await TenantService.current_community_name()
+                        ui.label(f'Owner: {asset.owner_label(community)}').classes('italic-note')
                         if open_loan is not None:
                             ui.label(
                                 f'Checked out to {open_loan.borrower.preferred_name} '

@@ -13,13 +13,13 @@ from typing import Optional
 
 from nicegui import ui
 
-from application.services import EquipmentService
+from application.services import EquipmentService, TenantService
 from models import EquipmentStatus, User
 from pages.equipment_labels import TEMPLATE_CHOICES
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 _ANY = 'any'
-_WIZ = 'wiz'  # owner-is-None (Wizzrobe-owned) sentinel, distinct from "any owner"
+_WIZ = 'wiz'  # owner-is-None (community-owned) sentinel, distinct from "any owner"
 
 
 def filtered_ids(
@@ -33,7 +33,7 @@ def filtered_ids(
     """Ids of ``rows`` matching the quick-select filters (pure, unit-tested).
 
     ``rows`` are ``{id, num, available, owner_key}`` dicts. ``owner_key=None``
-    means "any owner"; ``''`` matches Wizzrobe-owned. An unset bound is open.
+    means "any owner"; ``''`` matches community-owned. An unset bound is open.
     """
     lo = num_from if num_from is not None else float('-inf')
     hi = num_to if num_to is not None else float('inf')
@@ -65,13 +65,14 @@ class QrLabelDialog:
 
     async def open(self) -> None:
         assets = await self.service.list_assets()
+        community = await TenantService.current_community_name()
         rows = [
             {
                 'id': a.id,
                 'num': a.asset_number,
                 'available': a.status == EquipmentStatus.AVAILABLE,
                 'owner_key': str(a.owner_user_id) if a.owner_user_id else '',
-                'owner_label': a.owner_label,
+                'owner_label': a.owner_label(community),
             }
             for a in assets
         ]

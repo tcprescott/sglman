@@ -161,7 +161,7 @@ def create() -> None:
             {
                 'num': f'#{asset.asset_number}',
                 'name': asset.name or '',
-                'owner': asset.owner_label if 'owner' in shown else None,
+                'owner': asset.owner_label(community) if 'owner' in shown else None,
                 'desc': (asset.description or '') if 'desc' in shown else None,
                 'uri': asset_qr_data_uri(asset_link(asset)),
             }

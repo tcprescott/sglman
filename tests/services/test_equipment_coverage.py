@@ -97,7 +97,7 @@ class TestUpdateAsset:
 
         refreshed = await service.get_asset(asset.id)
         assert refreshed.name == 'Renamed console'
-        assert refreshed.owner_label == owner.preferred_name
+        assert refreshed.owner_label('Acme Community') == owner.preferred_name
 
     async def test_update_clears_optional_fields_to_none(self, db, service):
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
@@ -115,7 +115,8 @@ class TestUpdateAsset:
         assert updated.description is None
         assert updated.private_notes is None
         assert updated.owner_user is None
-        assert updated.owner_label == 'Wizzrobe'
+        # Clearing the owner falls back to the owning community's name.
+        assert updated.owner_label('Acme Community') == 'Acme Community'
 
     async def test_update_writes_audit_log(self, db, service):
         manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
