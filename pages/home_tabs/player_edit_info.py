@@ -116,14 +116,17 @@ async def render_edit_info_tab():
         }
         pref_widgets = {}
 
+        # Personal-info autosave. The free-text fields debounce to coalesce
+        # keystrokes; ``personal_dirty`` tracks whether that debounced write is
+        # still pending so a blur flush (or the discrete DM toggle) can commit it
+        # immediately — otherwise tabbing or navigating away inside the 0.8s
+        # window silently drops the last edit (the beforeunload guard only warns,
+        # and never fires at all for an in-app tab switch).
         personal_token = {'n': 0}
+        personal_dirty = {'v': False}
 
-        async def on_personal_change():
-            mark_dirty()
-            personal_token['n'] += 1
-            mine = personal_token['n']
-            await asyncio.sleep(0.8)
-            if mine != personal_token['n']:
+        async def save_personal():
+            if not personal_dirty['v']:
                 return
             show_saving()
             try:
@@ -138,8 +141,33 @@ async def render_edit_info_tab():
                 show_error(str(e))
                 ui.notify(str(e), color='warning')
                 return
+            personal_dirty['v'] = False
             show_saved()
             mark_clean()
+
+        async def on_personal_typing():
+            mark_dirty()
+            personal_dirty['v'] = True
+            personal_token['n'] += 1
+            mine = personal_token['n']
+            await asyncio.sleep(0.8)
+            if mine != personal_token['n']:
+                return
+            await save_personal()
+
+        async def flush_personal():
+            # Bump the token so an in-flight debounce coroutine bails instead of
+            # firing a duplicate save after this immediate one.
+            personal_token['n'] += 1
+            await save_personal()
+
+        async def on_dm_change():
+            # A checkbox toggle is a discrete commit — save at once rather than
+            # leaving it in the debounce window where a quick nav could lose it.
+            mark_dirty()
+            personal_dirty['v'] = True
+            personal_token['n'] += 1
+            await save_personal()
 
         async def on_tournament_change():
             mark_dirty()
@@ -213,8 +241,9 @@ async def render_edit_info_tab():
                         '',
                         value=user.display_name or '',
                         placeholder=display_name_hint,
-                        on_change=on_personal_change,
+                        on_change=on_personal_typing,
                     ).classes('input-full-width').props('outlined dense')
+                    display_name_input.on('blur', flush_personal)
 
                 with ui.column().classes('gap-1'):
                     ui.label('Pronouns').classes('input-label')
@@ -222,8 +251,9 @@ async def render_edit_info_tab():
                         '',
                         value=user.pronouns or '',
                         placeholder='e.g. they/them',
-                        on_change=on_personal_change,
+                        on_change=on_personal_typing,
                     ).classes('input-full-width').props('outlined dense')
+                    pronouns_input.on('blur', flush_personal)
 
         # Notifications — all channels together (Discord DM, this device) plus
         # per-tournament granularity, so "how do I get notified" lives in one place.
@@ -236,7 +266,7 @@ async def render_edit_info_tab():
             dm_checkbox = ui.checkbox(
                 'Receive Discord DM notifications for match updates',
                 value=user.dm_notifications,
-                on_change=on_personal_change,
+                on_change=on_dm_change,
             )
 
             # Device notifications (web push) render inline here as a second
