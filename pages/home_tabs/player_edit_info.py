@@ -1,4 +1,4 @@
-"""Player Edit Info Tab - Allows players to edit their personal information and tournament registrations."""
+"""Profile tab - a player's personal info, notifications, enrollment, and links."""
 
 import asyncio
 
@@ -10,15 +10,16 @@ from application.services import (
     UserService,
     get_user_from_discord_id,
 )
+from pages.home_tabs._link_section import render_connected_accounts_section
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
-from pages.home_tabs.challonge_link_section import render_challonge_link_section
-from pages.home_tabs.racetime_link_section import render_racetime_link_section
-from pages.home_tabs.twitch_link_section import render_twitch_link_section
+from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
+from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
+from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_web_push_section
 
 
 async def render_edit_info_tab():
-    """Render the edit info tab for players to update their information."""
+    """Render the profile tab for players to update their information."""
     # Initialize service
     user_service = UserService()
 
@@ -44,7 +45,7 @@ async def render_edit_info_tab():
     def mark_clean():
         ui.run_javascript('window.wizzrobe_dirty = false;')
 
-    # Subtle auto-save status indicator (elements created near the end of the form).
+    # Subtle auto-save status indicator (elements created just below the header).
     status_icon = None
     status_label = None
 
@@ -54,22 +55,19 @@ async def render_edit_info_tab():
         status_label.classes(replace='text-muted')
 
     def show_saved():
-        status_icon.props('name=check').classes(replace='text-muted')
+        status_icon.props('name=check_circle').classes(replace='text-positive')
         status_label.set_text('Saved')
         status_label.classes(replace='text-muted')
+        # A toast so the confirmation is visible even when the top-of-form
+        # indicator has scrolled out of view (the common case on a phone).
+        ui.notify('Saved', color='positive', position='bottom', timeout=1200)
 
     def show_error(message):
         status_icon.props('name=error').classes(replace='text-warning')
         status_label.set_text(message)
         status_label.classes(replace='text-warning')
 
-    with ui.column().classes('page-container-narrow'):
-        # Header
-        with ui.row().classes('header-row'):
-            ui.label('Edit Your Information').classes('page-title')
-        
-        ui.separator().classes('separator-spacing')
-        
+    with ui.column().classes('page-container-form gap-4'):
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.card().classes('card-centered'):
@@ -77,7 +75,7 @@ async def render_edit_info_tab():
                 ui.label('You must be logged in to view this page.').classes('text-muted')
                 ui.button('Login with Discord', icon='login', on_click=lambda: ui.navigate.to('/login')).props('color=primary size=lg')
             return
-        
+
         user = await get_user_from_discord_id(discord_id)
         if user is None:
             with ui.card().classes('card-centered'):
@@ -88,10 +86,8 @@ async def render_edit_info_tab():
         # Get tournaments and user registrations from service
         tournament_data = await user_service.get_active_tournaments_categorized()
         user_tournaments = await user_service.get_user_tournament_registrations(user)
-        
+
         tournaments = tournament_data['all_tournaments']
-        staff_tournaments = tournament_data['staff_tournaments']
-        player_tournaments = tournament_data['player_tournaments']
         selected_tournament_ids = [tp.tournament_id for tp in user_tournaments]
 
         # Challonge-linked tournaments handle participation automatically via the
@@ -182,18 +178,36 @@ async def render_edit_info_tab():
             show_saved()
             mark_clean()
 
+        # Identity header — who you are, so the page reads as a profile rather
+        # than jumping straight into an unlabeled edit form.
+        with ui.row().classes('items-center gap-4 w-full no-wrap'):
+            avatar_url = app.storage.user.get('avatar')
+            if avatar_url:
+                ui.image(avatar_url).props('width=64px height=64px fit=cover round') \
+                    .classes('shrink-0')
+            else:
+                ui.icon('account_circle', size='64px').classes('text-primary shrink-0')
+            with ui.column().classes('gap-0 col'):
+                ui.label(user.preferred_name).classes('page-title')
+                with ui.row().classes('items-center gap-2'):
+                    ui.label(f'@{user.username}').classes('text-muted text-caption')
+                    if user.pronouns:
+                        ui.badge(user.pronouns).props('outline color=grey')
+
         # Auto-save status indicator (updated by the on_change handlers above).
-        with ui.row().classes('row-centered'):
-            status_icon = ui.icon('check', size='xs').classes('text-muted')
-            status_label = ui.label('All changes are saved automatically').classes('text-muted')
+        with ui.row().classes('items-center gap-1'):
+            status_icon = ui.icon('check_circle', size='xs').classes('text-muted')
+            status_label = ui.label('Changes save automatically').classes('text-muted text-caption')
 
         # Personal Information Section
         with ui.card().classes('card-full-width'):
-            ui.label('Personal Information').classes('section-title')
-            
+            ui.label('Personal information').classes('section-title')
+
+            # Two-up on desktop; the .form-grid media query collapses it to a
+            # single column below 600px so neither field is squeezed on a phone.
             with ui.grid(columns=2).classes('form-grid'):
                 display_name_hint = f"Default: {user.username}" if not user.display_name else ""
-                with ui.column():
+                with ui.column().classes('gap-1'):
                     ui.label('Display Name').classes('input-label')
                     display_name_input = ui.input(
                         '',
@@ -202,7 +216,7 @@ async def render_edit_info_tab():
                         on_change=on_personal_change,
                     ).classes('input-full-width').props('outlined dense')
 
-                with ui.column():
+                with ui.column().classes('gap-1'):
                     ui.label('Pronouns').classes('input-label')
                     pronouns_input = ui.input(
                         '',
@@ -211,67 +225,51 @@ async def render_edit_info_tab():
                         on_change=on_personal_change,
                     ).classes('input-full-width').props('outlined dense')
 
+        # Notifications — all channels together (Discord DM, this device) plus
+        # per-tournament granularity, so "how do I get notified" lives in one place.
         with ui.card().classes('card-full-width'):
             ui.label('Notifications').classes('section-title')
+            ui.label('Choose how Wizzrobe reaches you about matches, crew, and shifts.') \
+                .classes('text-muted text-caption')
+
+            ui.label('Discord').classes('subsection-title q-mt-sm')
             dm_checkbox = ui.checkbox(
                 'Receive Discord DM notifications for match updates',
                 value=user.dm_notifications,
                 on_change=on_personal_change,
             )
 
-            ui.separator().classes('separator-spacing')
-            ui.label('Match Notification Preferences').classes('input-label')
-            ui.label(
-                'Choose when to receive Discord DMs about scheduled matches. '
-                '"Streamed & Candidates" also alerts you when a match may be streamed.'
-            ).classes('text-caption text-grey-7')
+            # Device notifications (web push) render inline here as a second
+            # channel; the section self-hides when VAPID keys aren't configured.
+            await render_web_push_section(user)
 
-            if not active_tournaments:
-                ui.label('No active tournaments.').classes('text-muted')
-            else:
-                for tournament in active_tournaments:
-                    existing = prefs_by_tournament.get(tournament.id)
-                    current_level = existing.match_notifications if existing else 'none'
-                    with ui.row().classes('items-center justify-between wiz-form-column q-my-xs'):
-                        ui.label(tournament.name)
-                        pref_widgets[tournament.id] = ui.select(
-                            options=level_options,
-                            value=current_level,
-                            on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
-                        ).classes('col-auto').style('min-width: 200px')
+            # Per-tournament match alerts can be a long list, so tuck them behind
+            # an expansion; the Discord toggle above is the master switch.
+            with ui.expansion('Per-tournament match alerts', icon='tune').classes('w-full q-mt-sm') \
+                    .props('header-class=text-weight-bold'):
+                ui.label(
+                    'Fine-tune which matches trigger a DM, per tournament. '
+                    '"Streamed & Candidates" also alerts you when a match may be streamed.'
+                ).classes('text-caption text-grey-7')
+                if not active_tournaments:
+                    ui.label('No active tournaments.').classes('text-muted')
+                else:
+                    for tournament in active_tournaments:
+                        existing = prefs_by_tournament.get(tournament.id)
+                        current_level = existing.match_notifications if existing else 'none'
+                        with ui.row().classes('items-center justify-between w-full q-my-xs gap-2'):
+                            ui.label(tournament.name).classes('col')
+                            pref_widgets[tournament.id] = ui.select(
+                                options=level_options,
+                                value=current_level,
+                                on_change=lambda _, tid=tournament.id: on_notification_pref_change(tid),
+                            ).props('outlined dense').style('min-width: 170px')
 
-        # Device notifications (web push; self-contained, hidden without VAPID keys)
-        await render_web_push_section(user)
-
+        # Tournament enrollment — manual opt-in lists, one checkbox per row so it
+        # stays tappable on mobile.
         tournament_checkboxes = {}
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
-
-        def render_tournament_grid(tournament_list, label, icon, columns=4):
-            if not tournament_list:
-                return
-                
-            with ui.card().classes('card-full-width'):
-                with ui.row().classes('row-centered'):
-                    ui.icon(icon, size='sm').classes('icon-primary')
-                    ui.label(label).classes('section-title')
-                
-                rows = [tournament_list[i:i+columns] for i in range(0, len(tournament_list), columns)]
-                for row in rows:
-                    with ui.row().classes('row-spacing'):
-                        for t in row:
-                            with ui.column().classes('flex-1'):
-                                if t.challonge_tournament_id:
-                                    render_challonge_tournament(t)
-                                else:
-                                    tournament_checkboxes[t.id] = ui.checkbox(
-                                        t.name,
-                                        value=t.id in selected_tournament_ids,
-                                        on_change=on_tournament_change,
-                                    ).classes('input-full-width')
-                        # Fill empty cells if less than columns
-                        for _ in range(columns - len(row)):
-                            ui.column().classes('flex-1')
 
         def render_challonge_tournament(t):
             """Read-only opt-in for a Challonge-linked tournament.
@@ -299,18 +297,38 @@ async def render_edit_info_tab():
                     on_click=lambda: ui.navigate.to('/challonge/link'),
                 ).props('flat dense color=primary size=sm')
 
-        # Tournament Sections
-        render_tournament_grid(staff_tournaments, 'Staff Administered Tournaments', 'emoji_events', columns=1)
-        render_tournament_grid(player_tournaments, 'Community Tournaments', 'groups', columns=1)
+        def render_tournament_group(tournament_list, label, icon):
+            if not tournament_list:
+                return
+            with ui.row().classes('items-center gap-2 q-mt-sm'):
+                ui.icon(icon, size='sm').classes('icon-primary')
+                ui.label(label).classes('subsection-title')
+            for t in tournament_list:
+                if t.challonge_tournament_id:
+                    render_challonge_tournament(t)
+                else:
+                    tournament_checkboxes[t.id] = ui.checkbox(
+                        t.name,
+                        value=t.id in selected_tournament_ids,
+                        on_change=on_tournament_change,
+                    ).classes('input-full-width')
 
-        # Challonge account linking (self-contained)
-        await render_challonge_link_section(user)
+        with ui.card().classes('card-full-width'):
+            ui.label('Tournament enrollment').classes('section-title')
+            ui.label(
+                'Join a tournament to appear in its player pool and get scheduled. '
+                'Challonge-linked tournaments enroll you automatically from the bracket.'
+            ).classes('text-muted text-caption')
+            if not staff_tournaments and not player_tournaments:
+                ui.label('No tournaments are open for enrollment right now.').classes('text-muted')
+            render_tournament_group(staff_tournaments, 'Staff-administered', 'emoji_events')
+            render_tournament_group(player_tournaments, 'Community', 'groups')
 
-        # Twitch account linking (self-contained)
-        await render_twitch_link_section(user)
+        # Connected accounts (Challonge / Twitch / racetime) — one compact card
+        # of rows instead of three near-identical cards.
+        await render_connected_accounts_section(
+            user, [CHALLONGE_CONFIG, TWITCH_CONFIG, RACETIME_CONFIG]
+        )
 
-        # racetime.gg account linking (self-contained)
-        await render_racetime_link_section(user)
-
-        # API token management (self-contained; saves independently of the form above)
+        # API token management (self-contained; collapsed developer surface).
         await render_api_tokens_section(user)

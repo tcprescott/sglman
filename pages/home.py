@@ -92,7 +92,7 @@ def create() -> None:
             # {'label': 'Home', 'icon': 'home', 'content': announcements_page},
             {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
             {'label': 'On Air', 'icon': 'live_tv', 'content': stage_timeline_tab},
-            {'label': 'Profile', 'icon': 'people', 'content': render_edit_info_tab},
+            {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
         ]
         if user is not None:

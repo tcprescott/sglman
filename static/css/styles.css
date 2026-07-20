@@ -488,6 +488,15 @@ body.body--dark {
     margin: 0 auto;
 }
 
+/* Settings-style forms (Profile). Capped far below page-container-narrow so a
+   single-column form of labels/inputs reads at a comfortable line length on
+   desktop instead of stretching ~1200px wide. */
+.page-container-form {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+}
+
 .page-container-wide {
     width: 100%;
     max-width: 1600px;
@@ -630,6 +639,16 @@ body.body--dark {
 .form-grid {
     width: 100%;
     gap: 1em;
+}
+
+/* NiceGUI's ui.grid(columns=N) writes grid-template-columns inline, so it
+   otherwise keeps its multi-column layout even on a phone — cramming two text
+   inputs into a ~150px-wide column each. Collapse to a single column on narrow
+   screens (!important is required to beat the inline style). */
+@media (max-width: 600px) {
+    .form-grid {
+        grid-template-columns: 1fr !important;
+    }
 }
 
 /* Stacked form column: full width up to a readable cap so a 10-char date field
