@@ -48,14 +48,16 @@ class EquipmentRepository:
 
     @staticmethod
     async def list_by_ids(ids: List[int]) -> List[Equipment]:
-        """Assets whose ids are in ``ids``, lowest asset number first.
+        """Assets whose ids are in ``ids``, lowest asset number first, owner prefetched.
 
         Tenant-scoped, so ids belonging to another community are silently
         dropped rather than fetched. Empty ``ids`` short-circuits to no query.
         """
         if not ids:
             return []
-        return await scoped(Equipment.filter(id__in=ids)).order_by('asset_number')
+        return await scoped(
+            Equipment.filter(id__in=ids)
+        ).order_by('asset_number').prefetch_related('owner_user')
 
     @staticmethod
     async def next_asset_number() -> int:

@@ -100,7 +100,14 @@ def create() -> None:
                         def download_qr():
                             ui.download(asset_qr_png_bytes(asset_link), f'asset-{asset.asset_number}-qr.png')
 
-                        ui.button('Download QR', icon='download', on_click=download_qr).props('flat dense')
+                        with ui.row().classes('gap-1'):
+                            ui.button('Download QR', icon='download', on_click=download_qr).props('flat dense')
+                            if can_manage:
+                                ui.button(
+                                    'Print label', icon='print',
+                                    on_click=lambda aid=asset.id: ui.navigate.to(
+                                        f'/equipment/qr-labels?ids={aid}', new_tab=True),
+                                ).props('flat dense').tooltip('Open a printable label for this asset')
 
                 # --- Actions ---
                 with ui.row().classes('q-mt-md gap-2'):
