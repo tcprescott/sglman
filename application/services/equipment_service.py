@@ -232,6 +232,15 @@ class EquipmentService:
     async def list_assets(self) -> List[Equipment]:
         return await self.repository.list_all()
 
+    async def get_assets_by_ids(self, ids: List[int]) -> List[Equipment]:
+        """Fetch the given assets (tenant-scoped) for bulk QR-label printing.
+
+        A pure read ordered by asset number. The tenant-scoped query silently
+        drops any id that is unknown or belongs to another community, so a
+        crafted id list can never surface another tenant's assets.
+        """
+        return await self.repository.list_by_ids(ids)
+
     async def get_asset(self, equipment_id: int) -> Optional[Equipment]:
         return await self.repository.get_by_id(equipment_id)
 

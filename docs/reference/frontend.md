@@ -103,6 +103,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/`, `/home/{section}` | [`pages/home.py`](../../pages/home.py) | Public; some tabs degrade to a login prompt. `/` = default section |
 | `/admin`, `/admin/{section}` | [`pages/admin.py`](../../pages/admin.py) | Login required (`@protected_tab_page`); content gated by role |
 | `/volunteer`, `/volunteer/{section}` | [`pages/volunteer.py`](../../pages/volunteer.py) | Login required (`@protected_tab_page`); volunteer self-service hub |
+| `/equipment/qr-labels` | [`pages/equipment_labels.py`](../../pages/equipment_labels.py) | Staff / Equipment Manager (`EQUIPMENT` flag); printable QR-label sheet (`?ids=…&template=…&cols=…&paper=…&show=…`). `template` is `plain` (free grid, Letter/A4) or an Avery preset (`avery5160`/`5163`/`5162`) laid out on exact die-cut inches; `show` opts in owner/community/description lines. Registered **before** `/equipment/{asset_id}` so the static path wins. |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
 | `/qualifiers`, `/qualifiers/{id}` | [`pages/qualifiers.py`](../../pages/qualifiers.py) | Login required; player async-qualifier pages (draw, timer, submit, leaderboard) — gated by the `ASYNC_QUALIFIERS` feature flag |
 | `/platform` | [`pages/platform.py`](../../pages/platform.py) | Super-admin only, **no tenant context**; tenant + racetime-bot CRUD (see [multitenancy.md](../features/multitenancy.md)) |
@@ -376,6 +377,7 @@ Two tab functions live in this module.
 
 - A `@ui.refreshable` `ui.table` of all assets (`EquipmentService.list_assets` + `open_loans_by_equipment_id`): #, Name, Owner, Status badge, current holder, with grid-card mode on small screens.
 - Per-row buttons: **Check out** / **Check in** (`open_checkout` with `can_manage=True` / `quick_checkin`), **Open asset page** (→ `/equipment/{id}`), **Edit** (`EquipmentDialog`), and **Delete** (guarded by `ConfirmationDialog` → `EquipmentService.delete_asset`). **Add Asset** opens `EquipmentDialog` in create mode.
+- **Print QR labels** opens `QrLabelDialog` — a checklist of assets (all pre-selected), quick-select filters (All / Select none / Available only / by Owner / asset-number range → **Apply**), a template picker (plain grid with Letter/A4 + column count, or an Avery peel-off preset), and "Also show" toggles (owner / community / description). It opens [`/equipment/qr-labels`](../../pages/equipment_labels.py) in a new tab (a bare path, so `ui.navigate.to` re-adds the tenant `root_path`) with the chosen `ids`/`template`/`show`. The single-asset page ([`pages/equipment.py`](../../pages/equipment.py)) also has a manager-only **Print label** button that opens the same sheet for one asset.
 
 ### Admin feedback (`pages/admin_tabs/admin_feedback.py`)
 
@@ -493,7 +495,7 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 
 ## Dialog catalog (`theme/dialog/`)
 
-All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row with a close button, a body, and an action row; most submit on Enter via a `keydown` handler and report errors with `ui.notify` (`PermissionError` → negative, `ValueError` → warning/negative). [`theme/dialog/__init__.py`](../../theme/dialog/__init__.py) re-exports `ApproveCrewDialog`, `CheckoutDialog` (plus the `open_checkout` / `quick_checkin` helpers), `ConfirmationDialog`, `EquipmentDialog`, `FeedbackDialog`, `MatchResultDialog`, `SendMessageDialog`, `StationAssignmentDialog`, `TournamentDialog`, `UserDialog`, and `AdminUserDialog`; the rest are imported by module path.
+All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row with a close button, a body, and an action row; most submit on Enter via a `keydown` handler and report errors with `ui.notify` (`PermissionError` → negative, `ValueError` → warning/negative). [`theme/dialog/__init__.py`](../../theme/dialog/__init__.py) re-exports `ApproveCrewDialog`, `CheckoutDialog` (plus the `open_checkout` / `quick_checkin` helpers), `ConfirmationDialog`, `EquipmentDialog`, `FeedbackDialog`, `MatchResultDialog`, `QrLabelDialog`, `SendMessageDialog`, `StationAssignmentDialog`, `TournamentDialog`, `UserDialog`, and `AdminUserDialog`; the rest are imported by module path.
 
 | File | Class(es) | Purpose | Opened from |
 |---|---|---|---|
@@ -513,6 +515,7 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | [`volunteer_shift_dialog.py`](../../theme/dialog/volunteer_shift_dialog.py) | `VolunteerShiftDialog` | Create/edit a `VolunteerShift` | Admin Volunteers Add/Edit shift |
 | [`checkout_dialog.py`](../../theme/dialog/checkout_dialog.py) | `CheckoutDialog` (+ `open_checkout` / `quick_checkin` helpers) | Check an asset out (borrower picker for managers) | Equipment tab, admin Equipment tab, asset detail page |
 | [`equipment_dialog.py`](../../theme/dialog/equipment_dialog.py) | `EquipmentDialog` | Create (optionally bulk) / edit a lending asset | Admin Equipment tab; asset detail Edit |
+| [`qr_label_dialog.py`](../../theme/dialog/qr_label_dialog.py) | `QrLabelDialog` | Pick/filter assets, choose a template (plain or Avery) + content, then open the printable QR-label sheet in a new tab | Admin Equipment tab "Print QR labels" |
 | [`feedback_dialog.py`](../../theme/dialog/feedback_dialog.py) | `FeedbackDialog` | Submit feedback, capturing the current page URL | Footer "Feedback" button (any page, logged in) |
 
 The simpler dialogs in brief:

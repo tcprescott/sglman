@@ -1,6 +1,7 @@
 import pytest
 
 from application.services.equipment_service import EquipmentService
+from application.tenant_context import tenant_scope
 from models import Equipment, EquipmentLoan, EquipmentStatus, Role, User, UserRole
 
 
@@ -128,6 +129,40 @@ class TestDelete:
 
         await service.delete_asset(manager, asset.id)
         assert await Equipment.all().count() == 0
+
+
+class TestGetAssetsByIds:
+    async def test_returns_selected_ordered_by_number(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        a = await service.create_asset(manager, name='A')  # number 1
+        b = await service.create_asset(manager, name='B')  # number 2
+        c = await service.create_asset(manager, name='C')  # number 3
+
+        got = await service.get_assets_by_ids([c.id, a.id])
+        # Selection honored, and ordered by asset_number regardless of input order.
+        assert [x.asset_number for x in got] == [a.asset_number, c.asset_number]
+        assert b.id not in {x.id for x in got}
+
+    async def test_empty_and_unknown_ids(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        asset = await service.create_asset(manager, name='A')
+        assert await service.get_assets_by_ids([]) == []
+        # Unknown ids are silently dropped; known ones still come back.
+        got = await service.get_assets_by_ids([asset.id, 999_999])
+        assert [x.id for x in got] == [asset.id]
+
+    async def test_does_not_leak_across_tenants(self, service, two_tenants):
+        tenant_a, tenant_b = two_tenants
+        # Create assets directly per tenant (asset_number is unique per tenant,
+        # so both can be #1) — this exercises the repo's tenant scoping, not the
+        # per-tenant role gate.
+        a_asset = await Equipment.create(tenant_id=tenant_a.id, asset_number=1, name='A-asset')
+        b_asset = await Equipment.create(tenant_id=tenant_b.id, asset_number=1, name='B-asset')
+
+        # Asking for both ids from within tenant A returns only tenant A's asset.
+        with tenant_scope(tenant_a.id):
+            got = await service.get_assets_by_ids([a_asset.id, b_asset.id])
+        assert [x.id for x in got] == [a_asset.id]
 
 
 class TestOwnerLabel:

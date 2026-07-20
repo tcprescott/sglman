@@ -20,6 +20,7 @@ from pages import (
     auth,
     challonge_oauth,
     equipment,
+    equipment_labels,
     home,
     platform,
     qualifiers,
@@ -124,6 +125,9 @@ def init(fastapi_app: FastAPI) -> None:
     admin.create()
     home.create()
     volunteer.create()
+    # Register the static /equipment/qr-labels route before equipment.create()'s
+    # dynamic /equipment/{asset_id} so Starlette matches the labels sheet first.
+    equipment_labels.create()
     equipment.create()
     platform.create()
     qualifiers.create()

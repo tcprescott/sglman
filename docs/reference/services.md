@@ -280,6 +280,7 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 | `checkout(actor, equipment_id, borrower_id=None)` | `EquipmentLoan` | Open a loan; managers may set a `borrower_id`, otherwise the borrower is `actor`. Rejects retired/already-checked-out assets; flips status to `CHECKED_OUT`. Audits `equipment.checked_out`. |
 | `checkin(actor, equipment_id)` | `Equipment` | Close the open loan and flip status to `AVAILABLE`; `ValueError` when not checked out. Audits `equipment.checked_in`. |
 | `list_assets()` | `list[Equipment]` | All assets. |
+| `get_assets_by_ids(ids)` | `list[Equipment]` | Tenant-scoped fetch of the given assets (ordered by asset number) for the bulk QR-label sheet; unknown/foreign ids are silently dropped. |
 | `get_asset(equipment_id)` | `Equipment \| None` | Lookup by id. |
 | `current_loan(equipment)` | `EquipmentLoan \| None` | The open loan for an asset, if any. |
 | `open_loans_by_equipment_id()` | `dict[int, EquipmentLoan]` | All open loans keyed by equipment id (table batch-load). |
