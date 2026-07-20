@@ -47,6 +47,17 @@ class EquipmentRepository:
         return await scoped(Equipment.all()).order_by('asset_number').prefetch_related('owner_user')
 
     @staticmethod
+    async def list_by_ids(ids: List[int]) -> List[Equipment]:
+        """Assets whose ids are in ``ids``, lowest asset number first.
+
+        Tenant-scoped, so ids belonging to another community are silently
+        dropped rather than fetched. Empty ``ids`` short-circuits to no query.
+        """
+        if not ids:
+            return []
+        return await scoped(Equipment.filter(id__in=ids)).order_by('asset_number')
+
+    @staticmethod
     async def next_asset_number() -> int:
         row = await scoped(Equipment.annotate(m=Max('asset_number'))).values('m')
         current = row[0]['m'] if row else None

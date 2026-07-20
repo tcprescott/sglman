@@ -4,7 +4,7 @@ from nicegui import app, background_tasks, context, ui
 from theme.notify import notify_error
 
 from application.services import EquipmentService, get_user_from_discord_id
-from theme.dialog import ConfirmationDialog, EquipmentDialog, open_checkout, quick_checkin
+from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -36,7 +36,12 @@ async def admin_equipment_page() -> None:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await EquipmentDialog(actor, on_saved=_render_table.refresh).open()
 
+            async def print_labels():
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                await QrLabelDialog(actor).open()
+
             ui.button('Add Asset', icon='add', on_click=add_asset).props('color=primary')
+            ui.button('Print QR labels', icon='qr_code_2', on_click=print_labels).props('flat color=primary')
             ui.space()
             ui.button(
                 icon='refresh',
