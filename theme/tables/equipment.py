@@ -145,10 +145,12 @@ def grid_card(field_rows: Iterable[str], *buttons: str,
 
 # --- Row shaping ------------------------------------------------------------
 
-def equipment_rows(assets, open_loans: Mapping, *, include_owner: bool = False) -> list[dict]:
+def equipment_rows(assets, open_loans: Mapping, *, include_owner: bool = False,
+                   community_name: str = '') -> list[dict]:
     """Build table row dicts from equipment assets + a
     ``{equipment_id: Loan}`` open-loan map. ``include_owner`` adds the owner
-    column (admin table only)."""
+    column (admin table only); ``community_name`` is the owning community's name
+    shown for un-owned assets (``TenantService.current_community_name()``)."""
     rows = []
     for a in assets:
         row = {
@@ -163,7 +165,7 @@ def equipment_rows(assets, open_loans: Mapping, *, include_owner: bool = False) 
             ),
         }
         if include_owner:
-            row['owner'] = a.owner_label
+            row['owner'] = a.owner_label(community_name)
         rows.append(row)
     return rows
 

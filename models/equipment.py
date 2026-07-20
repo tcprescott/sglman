@@ -9,8 +9,9 @@ class Equipment(Model):
 
     Each asset gets an auto-assigned, unique ``asset_number`` (a scannable QR
     code on its page encodes the asset's URL). ``owner_user`` records who owns
-    the asset; a ``null`` owner means it belongs to Wizzrobe. ``status``
-    is kept in sync with open loans by the service layer (the single writer).
+    the asset; a ``null`` owner means it belongs to the community that owns it
+    (its ``tenant``). ``status`` is kept in sync with open loans by the service
+    layer (the single writer).
     """
 
     id = fields.IntField(pk=True)
@@ -29,9 +30,14 @@ class Equipment(Model):
 
     loans = fields.ReverseRelation["EquipmentLoan"]
 
-    @property
-    def owner_label(self) -> str:
-        return self.owner_user.preferred_name if self.owner_user else 'Wizzrobe'
+    def owner_label(self, community_name: str) -> str:
+        """Display owner: the owner's ``preferred_name``, or the owning community.
+
+        An asset with no ``owner_user`` belongs to the community that owns it
+        (its ``tenant``); callers pass that community's display name, resolved
+        from the request scope via ``TenantService.current_community_name()``.
+        """
+        return self.owner_user.preferred_name if self.owner_user else community_name
 
     class Meta:
         table = 'equipment'
