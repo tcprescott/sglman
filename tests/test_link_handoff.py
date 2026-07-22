@@ -114,6 +114,29 @@ def test_register_link_handoff_provider(link):
     assert link._HANDOFF_PROVIDERS['demo'] is provider
 
 
+# --- browser-binding guard (link-CSRF / forced-link) --------------------------
+
+def test_bind_matches_accepts_the_committing_browser(link):
+    secret = 'a-browser-secret'
+    assert link._bind_matches(link._bind_commit(secret), secret) is True
+
+
+def test_bind_matches_rejects_a_different_browser(link):
+    # A token minted for one browser (committed to secret A) claimed by another
+    # browser (holding secret B) is rejected.
+    assert link._bind_matches(link._bind_commit('secret-A'), 'secret-B') is False
+
+
+@pytest.mark.parametrize('expected_commit,browser_secret', [
+    (None, 'anything'),         # token carried no commitment
+    ('', 'anything'),           # blank commitment
+    ('deadbeef' * 8, None),     # browser presents no secret
+    ('deadbeef' * 8, 123),      # non-string secret
+])
+def test_bind_matches_fails_closed(link, expected_commit, browser_secret):
+    assert link._bind_matches(expected_commit, browser_secret) is False
+
+
 # --- shared open-redirect guard -----------------------------------------------
 
 @pytest.mark.parametrize('raw,expected', [

@@ -204,6 +204,31 @@ async def maybe_start_link_handoff(
     )
 
 
+def _pop_link_handoff_keys() -> dict:
+    """Consume the platform-host handoff markers ``/oauth/link/start`` stored."""
+    return {
+        'provider': app.storage.user.pop('oauth_link_provider', None),
+        'state': app.storage.user.pop('oauth_link_state', None),
+        'host': app.storage.user.pop('oauth_link_host', None),
+        'next': app.storage.user.pop('oauth_link_next', None),
+        'bind_commit': app.storage.user.pop('oauth_link_bind_commit', None),
+    }
+
+
+def _bind_matches(expected_commit: Optional[str], browser_secret) -> bool:
+    """Whether ``browser_secret`` proves the committed hash the token carries.
+
+    The link-CSRF / forced-link guard: the initiating browser stashed the raw
+    secret in this domain's session and published only its ``sha256`` through the
+    platform hop. Fails closed — a token minted with no/blank commitment, or
+    presented by a browser without the matching secret, is rejected.
+    """
+    return bool(
+        expected_commit and isinstance(browser_secret, str)
+        and hmac.compare_digest(expected_commit, _bind_commit(browser_secret))
+    )
+
+
 async def handle_link_handoff_callback(url: str) -> bool:
     """Complete a custom-domain link on the platform host, then hand it back.
 
@@ -214,17 +239,24 @@ async def handle_link_handoff_callback(url: str) -> bool:
     session lives. Returns ``True`` when it handled the callback (the caller must
     return), ``False`` for a normal in-place (path-mode / Design A) callback.
     """
-    provider_key = app.storage.user.pop('oauth_link_provider', None)
+    provider_key = app.storage.user.get('oauth_link_provider')
     if not provider_key:
         return False
-    expected_state = app.storage.user.pop('oauth_link_state', None)
-    host = app.storage.user.pop('oauth_link_host', None)
-    bind_commit = app.storage.user.pop('oauth_link_bind_commit', None)
+    expected_state = app.storage.user.get('oauth_link_state')
+    # Own this callback as a handoff leg only when the returned state matches the
+    # one /oauth/link/start stored. A genuine provider redirect — success *or*
+    # error (a denial still carries the state back) — matches; a mismatch means
+    # these are stale markers from a handoff abandoned at the consent screen, so
+    # drop them (they must not hijack a later in-place link on this host) and let
+    # the normal callback path run.
+    if not expected_state or returned_state(url) != expected_state:
+        _pop_link_handoff_keys()
+        return False
+    keys = _pop_link_handoff_keys()
+    host = keys['host']
+    bind_commit = keys['bind_commit']
     provider = _HANDOFF_PROVIDERS.get(provider_key)
-    next_path = safe_next(
-        app.storage.user.pop('oauth_link_next', None)
-        or (provider.profile_return if provider else '/')
-    )
+    next_path = safe_next(keys['next'] or (provider.profile_return if provider else '/'))
     if provider is None or not host:
         # Nothing to hand back to; return the user somewhere sane.
         ui.navigate.to(_cross_host_url(host, next_path) if host else next_path)
@@ -306,9 +338,7 @@ def register_link_handoff_pages() -> None:
         # Link-CSRF guard: the token must have been minted for a link *this* browser
         # initiated — the secret behind the committed hash must be in this domain's
         # session. A token delivered to another browser (which lacks it) is rejected.
-        expected = payload.get('bind_commit')
-        if not (expected and isinstance(bind, str)
-                and hmac.compare_digest(expected, _bind_commit(bind))):
+        if not _bind_matches(payload.get('bind_commit'), bind):
             logger.warning('OAuth link handoff browser-binding mismatch on %r', request_host)
             ui.notify('Link is not valid for this browser. Please try again.', color='warning')
             ui.navigate.to('/home/profile')
