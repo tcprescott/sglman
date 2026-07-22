@@ -31,7 +31,7 @@ from application.services import DiscordLinkService, TenantService, UserService,
 from application.services import oauth_handoff_service as handoff_service
 from application.services.discord_role_mapping_service import DiscordRoleMappingService
 from application.tenant_context import get_current_tenant_id, is_host_mode, tenant_scope
-from application.utils.environment import get_base_url, get_platform_host, host_oauth_handoff_enabled
+from application.utils.environment import get_platform_host, host_oauth_handoff_enabled
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mock_discord import is_mock_discord
 from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
@@ -62,10 +62,21 @@ discordClient = (
 def _platform_redirect_uri() -> str:
     """Discord OAuth callback on the platform host (path mode + platform surface).
 
-    Read lazily so a per-deploy override or ``BASE_URL`` change applies without
-    reimporting (the old module-level build captured stale values at import).
+    Built from the **platform host** — the host that actually serves this callback
+    — never from ``BASE_URL``. The two can diverge (``PLATFORM_HOST`` set
+    independently, or a legacy single-tenant domain still lingering in
+    ``BASE_URL``); deriving from ``BASE_URL`` then points the callback at the wrong
+    host, so Discord round-trips a platform-host login back to that stale host.
+    ``https`` is forced for a real host; only a ``*.localhost`` dev host keeps
+    ``http`` (via :func:`scheme_for_host`). ``REDIRECT_URL`` stays an explicit
+    escape hatch for non-standard setups. Read lazily so a per-deploy
+    ``REDIRECT_URL`` / ``PLATFORM_HOST`` change applies without reimporting.
     """
-    return os.getenv("REDIRECT_URL") or f"{get_base_url()}/oauth/callback"
+    explicit = os.getenv("REDIRECT_URL")
+    if explicit:
+        return explicit
+    host = get_platform_host()
+    return f'{scheme_for_host(host)}://{host}/oauth/callback'
 
 
 def _redirect_uri_for_tenant(tenant: Optional[Tenant]) -> str:
