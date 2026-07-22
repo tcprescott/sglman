@@ -14,6 +14,7 @@ from typing import Callable, Optional, Sequence
 from nicegui import ui
 
 from application.tenant_context import is_host_mode
+from application.utils.environment import host_oauth_handoff_enabled
 from models import User
 
 __all__ = ['LinkSectionConfig', 'render_connected_accounts_section']
@@ -54,9 +55,11 @@ def _render_provider_row(user: User, config: LinkSectionConfig) -> None:
             if user_id:
                 ui.button('Unlink', icon='link_off', on_click=unlink) \
                     .props('flat dense color=negative')
-            elif is_host_mode():
-                # The link flow's callback lives on the platform host and can't
-                # see this custom domain's cookie; do it from the main site.
+            elif is_host_mode() and not host_oauth_handoff_enabled():
+                # Design A: the link callback lives on the platform host and can't
+                # see this custom domain's cookie; do it from the main site. With
+                # HOST_OAUTH_MODE=handoff the link route runs the cross-host handoff
+                # and works in place, so the button shows normally (below).
                 ui.label('Main site only').classes('text-caption text-grey') \
                     .tooltip('Account linking is available on the main site.')
             else:

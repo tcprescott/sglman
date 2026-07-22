@@ -28,17 +28,52 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
 from application.utils.mock_challonge import is_mock_challonge
-from pages._oauth_link import platform_link_redirect, read_callback_code, returned_state
+from pages._oauth_link import (
+    LinkHandoffProvider,
+    handle_link_handoff_callback,
+    maybe_start_link_handoff,
+    platform_link_redirect,
+    read_callback_code,
+    register_link_handoff_provider,
+    returned_state,
+)
 
 logger = logging.getLogger(__name__)
 
 _PROVIDER_LABEL = 'Challonge'
+_PROVIDER_KEY = 'challonge'
 
 _ADMIN_RETURN = '/admin/challonge'
 _PROFILE_RETURN = '/home/profile'
 
 
+async def _player_handoff_exchange(code: str) -> dict:
+    """Exchange a player's code for the public Challonge identity to hand across."""
+    service = ChallongeService()
+    me = await service.exchange_player_code(code)
+    return {'user_id': me['user_id'], 'name': me.get('username')}
+
+
+async def _player_handoff_record(user, data: dict) -> None:
+    await ChallongeService().record_player_link(
+        user, data['user_id'], data.get('name'), actor=user,
+    )
+
+
 def create() -> None:
+    # Only the player-identity link uses the cross-host handoff (it carries the
+    # public Challonge id/name, like racetime/Twitch). The STAFF service-connect
+    # keeps the platform-host detour: it writes a tenant-scoped connection holding
+    # real OAuth tokens, so it stays on the main site rather than crossing hosts.
+    register_link_handoff_provider(LinkHandoffProvider(
+        key=_PROVIDER_KEY,
+        label=_PROVIDER_LABEL,
+        profile_return=_PROFILE_RETURN,
+        authorize_url=ChallongeService.player_authorize_url,
+        exchange=_player_handoff_exchange,
+        record=_player_handoff_record,
+    ))
+
     @ui.page('/challonge/connect')
     async def challonge_connect(request: Request) -> RedirectResponse:
         # Custom domain: the shared callback is on the platform host, so bounce
@@ -67,12 +102,16 @@ def create() -> None:
     @ui.page('/challonge/oauth/callback')
     async def challonge_callback(client: Client) -> None:
         await client.connected()
+        url = await ui.run_javascript('window.location.href')
+        # Cross-host player-link handoff leg (platform host): exchange + mint +
+        # hand the verified identity back to the custom domain's /oauth/link/claim.
+        if await handle_link_handoff_callback(url):
+            return
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         service_state = app.storage.user.pop('challonge_service_state', None)
         player_state = app.storage.user.pop('challonge_player_state', None)
         service_return = app.storage.user.pop('challonge_service_return', None) or _ADMIN_RETURN
         player_return = app.storage.user.pop('challonge_player_return', None) or _PROFILE_RETURN
-        url = await ui.run_javascript('window.location.href')
         if user is None:
             # Not authenticated: bounce to the originating tenant's login rather
             # than the platform host (the returns carry the /t/<slug> prefix).
@@ -91,9 +130,6 @@ def create() -> None:
 
     @ui.page('/challonge/link')
     async def challonge_link(request: Request) -> RedirectResponse:
-        detour = await platform_link_redirect(_PROFILE_RETURN)
-        if detour:
-            return RedirectResponse(detour)
         root_path = request.scope.get('root_path', '') or ''
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
@@ -103,6 +139,16 @@ def create() -> None:
             me = await service.exchange_player_code('mock')
             await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
             return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
+        # Custom domain + handoff: run the player OAuth on the platform host and
+        # hand the verified identity back here (where the session/tenant live).
+        handoff = await maybe_start_link_handoff(_PROVIDER_KEY, f'{root_path}{_PROFILE_RETURN}')
+        if handoff is not None:
+            return handoff
+        # Custom domain + Design A (handoff off): bounce to the platform-host
+        # path-mode surface. No-op in path mode / platform surface.
+        detour = await platform_link_redirect(_PROFILE_RETURN)
+        if detour:
+            return RedirectResponse(detour)
         state = secrets.token_urlsafe(32)
         app.storage.user['challonge_player_state'] = state
         app.storage.user['challonge_player_return'] = f'{root_path}{_PROFILE_RETURN}'

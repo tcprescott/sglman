@@ -28,6 +28,7 @@ from pages import (
     twitch_oauth,
     volunteer,
 )
+from pages._oauth_link import register_link_handoff_pages
 
 _ui_logger = logging.getLogger('wizzrobe.ui')
 
@@ -122,6 +123,11 @@ def init(fastapi_app: FastAPI) -> None:
     challonge_oauth.create()
     twitch_oauth.create()
     racetime_oauth.create()
+    # Shared cross-host link handoff routes (/oauth/link/start on the platform
+    # host, /oauth/link/claim on custom domains). Registered after the providers
+    # so their handoff configs are in the registry; the routes are provider-
+    # agnostic and consulted at request time.
+    register_link_handoff_pages()
     admin.create()
     home.create()
     volunteer.create()

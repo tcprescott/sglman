@@ -547,8 +547,22 @@ must-fixes land before the mechanism that depends on them:
   domain). Flag: `HOST_OAUTH_MODE=handoff`.
 - **`tenant_base_url()` deep-link helper — DONE.** `application/utils/tenant_urls.py`;
   wired into the equipment QR link (points at the tenant's domain when set).
-- **Host-native secondary providers — deferred.** Reuse the handoff primitive
-  when built; the Phase-1 detour handles them today.
+- **Host-native secondary providers — DONE (identity links).** The profile
+  identity-link providers (racetime, Twitch, Challonge player-link) now reuse the
+  handoff primitive: on a custom domain with `HOST_OAUTH_MODE=handoff`,
+  `/<provider>/link` redirects to the platform-host `/oauth/link/start`, the
+  provider OAuth completes on the platform host, and the callback mints a
+  generic `oauth_handoff_service.mint_data` token carrying **only the public
+  provider identity** (`{key, user_id, name}`) — the provider access token is
+  exchanged and discarded there, never handed across. `/oauth/link/claim` on the
+  custom domain re-derives the browser-binding, resolves the logged-in user, and
+  records the link (its audit row correctly stamped with the host-resolved
+  tenant). Shared scaffolding in `pages/_oauth_link.py`; the profile
+  "Connected accounts" card shows a working **Link** button (not "Main site
+  only") when the flag is on. The **Challonge STAFF service-connect** and the
+  **Discord server-connect** stay on the Phase-1 detour: they write tenant-scoped
+  records holding real OAuth tokens, so they remain main-site-only rather than
+  crossing hosts.
 - **Per-tenant canonical-domain 301 — deferred** (re-auth-across-hosts cost; see
   status note at the top).
 

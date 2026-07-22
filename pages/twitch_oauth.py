@@ -17,6 +17,7 @@ from pages._oauth_link import IdentityLinkFlow, register_identity_link_pages
 _PROFILE_RETURN = '/home/profile'
 
 _FLOW = IdentityLinkFlow(
+    provider_key='twitch',
     provider_label='Twitch',
     link_route='/twitch/link',
     callback_route='/twitch/oauth/callback',

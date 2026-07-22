@@ -34,7 +34,7 @@ from application.tenant_context import get_current_tenant_id, is_host_mode, tena
 from application.utils.environment import get_platform_host, host_oauth_handoff_enabled
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mock_discord import is_mock_discord
-from application.utils.tenant_urls import AUTH_ROUTES, sanitize_return_path, tenant_home
+from application.utils.tenant_urls import AUTH_ROUTES, safe_next, sanitize_return_path, tenant_home
 from models import Role, Tenant, User
 from theme.tables.mobile_grid import enable_mobile_grid
 
@@ -118,22 +118,8 @@ async def _callback_tenant(url: str) -> Optional[Tenant]:
 
 
 def _safe_next(path) -> str:
-    """A safe in-app return path, or ``/``.
-
-    Rejects anything that isn't a plain same-host absolute path so a ``next``
-    carried across the handoff can never become an open redirect when fed to
-    ``ui.navigate.to``: protocol-relative ``//evil.com``, a backslash form
-    ``/\\evil.com`` (browsers normalize ``\\`` to ``/`` per the WHATWG URL spec),
-    any control/whitespace char that could smuggle a second target, and auth
-    routes (which would loop).
-    """
-    if not isinstance(path, str) or not path.startswith('/') or path.startswith('//'):
-        return '/'
-    if '\\' in path or any(c in path for c in '\r\n\t '):
-        return '/'
-    if path.split('?', 1)[0] in AUTH_ROUTES:
-        return '/'
-    return path
+    """A safe in-app return path, or ``/`` — see :func:`tenant_urls.safe_next`."""
+    return safe_next(path)
 
 
 def _bind_commit(secret: str) -> str:

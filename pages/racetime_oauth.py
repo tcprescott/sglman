@@ -17,6 +17,7 @@ from pages._oauth_link import IdentityLinkFlow, register_identity_link_pages
 _PROFILE_RETURN = '/home/profile'
 
 _FLOW = IdentityLinkFlow(
+    provider_key='racetime',
     provider_label='racetime',
     link_route='/racetime/link',
     callback_route='/racetime/oauth/callback',
