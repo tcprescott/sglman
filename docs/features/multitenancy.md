@@ -173,7 +173,10 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
 
 - **`/` (community picker)** — [`pages/home.py`](../../pages/home.py) lists active
   tenants (each linking to its `/t/<slug>/` home) plus, for a super-admin, a link
-  to `/platform`.
+  to `/platform`. Its header carries the same login/logout control as the tenant
+  `BaseLayout`: a "Login with Discord" button when signed out, or the user's
+  name/avatar + logout when signed in — so identity (which is global) can be
+  established here before picking a community.
 - **`/platform`** — [`pages/platform.py`](../../pages/platform.py), gated on
   *no tenant context* **and** `is_super_admin`. Tenant CRUD (name, slug, domain,
   guild id, active) **and Racetime Bot CRUD + per-tenant authorization grants**

@@ -37,8 +37,30 @@ async def _render_platform_landing() -> None:
         primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
         positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',
     )
-    with ui.header().classes('wiz-header items-center'):
+    with ui.header().classes('wiz-header items-center no-wrap'):
         ui.label('Wizzrobe').classes('wiz-wordmark')
+        # Flexible spacer pushes the login/user controls to the right edge (see
+        # BaseLayout._render_header for the same pattern on tenant surfaces).
+        ui.space()
+        if user is not None:
+            ui.label(user.preferred_name).classes('text-lg user-name')
+            avatar_url = app.storage.user.get('avatar')
+            if avatar_url:
+                ui.image(avatar_url).props('width=32 height=32 fit=cover round').classes('user-avatar')
+            else:
+                # No avatar URL (mock-login sessions, or Discord users on the
+                # default avatar): show a placeholder glyph rather than a broken image.
+                ui.icon('account_circle').classes('user-avatar user-avatar-placeholder')
+            ui.button(on_click=lambda: ui.navigate.to('/logout'), icon='logout') \
+                .props('flat color=white').tooltip('Log out')
+        else:
+            login_btn = ui.button(
+                on_click=lambda: ui.navigate.to('/login'),
+                icon='login',
+            ).props('flat color=white').classes('login-button')
+            with login_btn:
+                ui.label('Login with Discord').classes('login-button-text')
+            login_btn.tooltip('Login with Discord')
 
     with ui.column().classes('w-full max-w-2xl mx-auto p-6 gap-4 items-stretch'):
         ui.label('Choose a community').classes('page-title')
