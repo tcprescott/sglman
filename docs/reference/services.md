@@ -148,15 +148,16 @@ Consumers: `middleware/auth.py` (`protected_page` role enforcement), nearly ever
 
 ### oauth_handoff_service.py — module functions
 
-Design B cross-host login handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`): Discord OAuth always completes on the platform host, which **mints** a short-lived (30s TTL), single-use, host-bound token and redirects to the target domain's `/session/claim`, which **claims** it and writes the host-local session. Only the nonce + host travel in the URL; identity (`discord_id`/username/avatar) stays server-side in a bounded in-process store (single-worker deployment precondition, like the tenant caches). Signed with `STORAGE_SECRET` via `itsdangerous`.
+Design B cross-host handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`): the OAuth always completes on the platform host, which **mints** a short-lived (30s TTL), single-use, host-bound token and redirects to the target domain's claim route, which **claims** it and completes the flow where the host-only session cookie lives. Only the nonce + host travel in the URL; the payload stays server-side in a bounded in-process store (single-worker deployment precondition, like the tenant caches). Signed with `STORAGE_SECRET` via `itsdangerous`. Two payload shapes share the same store: **login** (`mint` — Discord `discord_id`/username/avatar) and **secondary-provider identity links** (`mint_data` — a generic `data` dict carrying the public provider identity).
 
 | Function | Returns | Description |
 |---|---|---|
-| `mint(*, discord_id, username, avatar, target_host, next_path, bind_commit=None)` | `str \| None` | Mint a handoff token bound to `target_host` (must already be a validated active tenant domain); `None` if the host won't normalize. `bind_commit` ties the token to the initiating browser (login-CSRF guard). |
+| `mint(*, discord_id, username, avatar, target_host, next_path, bind_commit=None)` | `str \| None` | Mint a **login** handoff token bound to `target_host` (must already be a validated active tenant domain); `None` if the host won't normalize. `bind_commit` ties the token to the initiating browser (login-CSRF guard). Claim returns the identity top-level (`payload['discord_id']`). |
+| `mint_data(*, data, target_host, next_path, bind_commit=None)` | `str \| None` | Mint a **generic** handoff token carrying an arbitrary `data` dict (same TTL / single-use / host + browser binding). Used by the secondary-provider link handoff to carry `{key, user_id, name}`; claim returns it under `payload['data']`. |
 | `claim(token, request_host)` | `dict \| None` | Validate + consume the token on `request_host`; returns the stored payload or `None` for invalid/expired/wrong-host/replayed tokens. Single-use — the nonce is popped regardless of outcome. |
 | `reset()` | `None` | Clear the pending store (test isolation). |
 
-Consumers: `pages/auth.py` (platform-host OAuth callback → mint; `/session/claim` route → claim). Detail: `docs/host-based-routing-plan.md`.
+Consumers: `pages/auth.py` (platform-host OAuth callback → `mint`; `/session/claim` → claim) and `pages/_oauth_link.py` (platform-host provider callback → `mint_data`; `/oauth/link/claim` → claim, for racetime / Twitch / Challonge player-link). Detail: `docs/host-based-routing-plan.md`.
 
 ### challonge_service.py — ChallongeService
 

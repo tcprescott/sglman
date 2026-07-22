@@ -52,12 +52,18 @@ custom domain: a stray `/t/<other>` there stays literal and 404s, so one domain
 serves exactly one tenant; path mode stays authoritative on `PLATFORM_HOST`.
 Discord login runs entirely on the custom domain (the `redirect_uri` is built
 from the tenant's stored `domain`, https-forced), so the host-only session cookie
-lands on the right host. The secondary OAuth link flows (Challonge / Twitch /
-racetime / Discord-connect) still complete on the platform host, so their buttons
-are hidden on a custom domain and their initiation routes bounce to the
-path-mode surface. `X-Forwarded-Host` is honored only behind
-`TRUST_FORWARDED_HOST` (last value). Full design + rationale (incl. the deferred
-Phase 2 scale-out): [host-based-routing-plan.md](../host-based-routing-plan.md).
+lands on the right host. The secondary OAuth link flows all complete their
+callback on the platform host. With `HOST_OAUTH_MODE=handoff`, the **profile
+identity links** (Challonge player-link / Twitch / racetime) use the same signed
+handoff as login: `/<provider>/link` → platform-host `/oauth/link/start` → the
+provider OAuth → the callback mints a token carrying only the public provider
+identity → custom-domain `/oauth/link/claim` records the link where the session
+and tenant live (`pages/_oauth_link.py`). The **privileged** flows (Challonge
+STAFF service-connect, Discord-connect) hold real per-tenant OAuth tokens, so they
+stay main-site-only: their buttons are hidden on a custom domain and their
+initiation routes bounce to the path-mode surface. `X-Forwarded-Host` is honored
+only behind `TRUST_FORWARDED_HOST` (last value). Full design + rationale:
+[host-based-routing-plan.md](../host-based-routing-plan.md).
 
 ## Tenant context
 

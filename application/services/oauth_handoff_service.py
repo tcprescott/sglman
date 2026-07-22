@@ -71,18 +71,13 @@ def reset() -> None:
     _pending.clear()
 
 
-def mint(*, discord_id, username: Optional[str], avatar: Optional[str],
-         target_host: str, next_path: str, bind_commit: Optional[str] = None) -> Optional[str]:
-    """Mint a handoff token for ``discord_id`` bound to ``target_host``.
+def _mint(fields: dict, target_host: str, next_path: str,
+          bind_commit: Optional[str]) -> Optional[str]:
+    """Store ``fields`` under a fresh nonce bound to ``target_host``; return the token.
 
     ``target_host`` must already be validated as a known active tenant domain by
     the caller; it is normalized here so the claim's host comparison is apples to
     apples. Returns ``None`` if the host is not normalizable.
-
-    ``bind_commit`` is a hash the *initiating* browser committed to at ``/login``
-    (the raw secret stays in that browser's custom-domain session). The claim
-    route re-derives it from the browser's cookie and compares, so a token minted
-    in one browser can't be delivered to another (login-CSRF / forced login).
     """
     host = normalize_hostname(target_host)
     if host is None:
@@ -93,15 +88,42 @@ def mint(*, discord_id, username: Optional[str], avatar: Optional[str],
     if nonce not in _pending and len(_pending) >= _STORE_MAX:
         _pending.pop(next(iter(_pending)), None)
     _pending[nonce] = {
-        'discord_id': discord_id,
-        'username': username,
-        'avatar': avatar,
+        **fields,
         'host': host,
         'next': next_path,
         'bind_commit': bind_commit,
         'expiry': now + _TTL_SECONDS,
     }
     return _serializer().dumps({'n': nonce, 'h': host})
+
+
+def mint(*, discord_id, username: Optional[str], avatar: Optional[str],
+         target_host: str, next_path: str, bind_commit: Optional[str] = None) -> Optional[str]:
+    """Mint a Discord-login handoff token for ``discord_id`` bound to ``target_host``.
+
+    ``bind_commit`` is a hash the *initiating* browser committed to at ``/login``
+    (the raw secret stays in that browser's custom-domain session). The claim
+    route re-derives it from the browser's cookie and compares, so a token minted
+    in one browser can't be delivered to another (login-CSRF / forced login).
+    """
+    return _mint(
+        {'discord_id': discord_id, 'username': username, 'avatar': avatar},
+        target_host, next_path, bind_commit,
+    )
+
+
+def mint_data(*, data: dict, target_host: str, next_path: str,
+              bind_commit: Optional[str] = None) -> Optional[str]:
+    """Mint a generic handoff token carrying an arbitrary ``data`` payload.
+
+    Used by the secondary-provider link handoff (``pages/_oauth_link.py``): the
+    platform host runs the provider OAuth, then hands the **verified public
+    identity** (``{'key', 'user_id', 'name'}``) back to the custom domain where
+    the user's session lives. Same single-use / TTL / host-binding / browser-
+    binding guarantees as :func:`mint`; only the payload shape differs — the
+    claim returns it under ``payload['data']``.
+    """
+    return _mint({'data': data}, target_host, next_path, bind_commit)
 
 
 def claim(token: str, request_host: str) -> Optional[dict]:

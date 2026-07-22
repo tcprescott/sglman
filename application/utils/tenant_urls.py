@@ -18,6 +18,27 @@ from application.utils.hostname import scheme_for_host
 AUTH_ROUTES: tuple[str, ...] = ('/login', '/logout', '/oauth/callback')
 
 
+def safe_next(path: Any) -> str:
+    """A safe same-host absolute return path for a cross-host handoff, or ``/``.
+
+    Rejects anything that isn't a plain same-host absolute path so a ``next``
+    carried across a handoff can never become an open redirect when fed to
+    ``ui.navigate.to``: a non-string, a relative path, a protocol-relative
+    ``//evil.com``, a backslash form ``/\\evil.com`` (browsers normalize ``\\`` to
+    ``/`` per the WHATWG URL spec), any control/whitespace char that could smuggle
+    a second target, and auth routes (which would loop). Shared by the Discord
+    login handoff (``pages/auth.py``) and the secondary-provider link handoff
+    (``pages/_oauth_link.py``).
+    """
+    if not isinstance(path, str) or not path.startswith('/') or path.startswith('//'):
+        return '/'
+    if '\\' in path or any(c in path for c in '\r\n\t '):
+        return '/'
+    if path.split('?', 1)[0] in AUTH_ROUTES:
+        return '/'
+    return path
+
+
 def tenant_base_url(tenant: Any) -> str:
     """The tenant's canonical absolute base URL (no trailing slash).
 
