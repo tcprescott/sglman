@@ -50,9 +50,38 @@ def test_redirect_uri_forces_https_even_behind_http_base_url(auth, monkeypatch):
 
 
 def test_redirect_uri_platform_when_no_tenant(auth, monkeypatch):
+    # PLATFORM_HOST unset -> platform host derives from BASE_URL's netloc, so the
+    # common single-host deployment builds the callback on that host as before.
     monkeypatch.setenv('BASE_URL', 'https://main.gg')
+    monkeypatch.delenv('PLATFORM_HOST', raising=False)
     monkeypatch.delenv('REDIRECT_URL', raising=False)
     assert auth._redirect_uri_for_tenant(None) == 'https://main.gg/oauth/callback'
+
+
+def test_redirect_uri_platform_uses_platform_host_not_base_url(auth, monkeypatch):
+    # Regression: PLATFORM_HOST set independently of BASE_URL (e.g. a legacy
+    # single-tenant domain still lingering in BASE_URL). The platform callback
+    # must land on the host that actually serves it — the platform host — not on
+    # BASE_URL's stale host, or Discord round-trips a platform login to the wrong
+    # host.
+    monkeypatch.setenv('BASE_URL', 'https://onsite.legacy.example')
+    monkeypatch.setenv('PLATFORM_HOST', 'platform.example')
+    monkeypatch.delenv('REDIRECT_URL', raising=False)
+    assert auth._redirect_uri_for_tenant(None) == 'https://platform.example/oauth/callback'
+
+
+def test_redirect_uri_platform_redirect_url_override_wins(auth, monkeypatch):
+    # REDIRECT_URL stays an explicit escape hatch, ahead of the platform host.
+    monkeypatch.setenv('PLATFORM_HOST', 'platform.example')
+    monkeypatch.setenv('REDIRECT_URL', 'https://custom.example/oauth/callback')
+    assert auth._redirect_uri_for_tenant(None) == 'https://custom.example/oauth/callback'
+
+
+def test_redirect_uri_platform_http_only_for_localhost_dev(auth, monkeypatch):
+    # A *.localhost / localhost dev platform host keeps http (no TLS locally).
+    monkeypatch.setenv('PLATFORM_HOST', 'localhost:8000')
+    monkeypatch.delenv('REDIRECT_URL', raising=False)
+    assert auth._redirect_uri_for_tenant(None) == 'http://localhost:8000/oauth/callback'
 
 
 def test_both_legs_match_by_construction(auth):

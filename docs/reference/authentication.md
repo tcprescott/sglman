@@ -97,7 +97,7 @@ All values are read from the environment **once, at import of `pages/auth.py`**.
 | `DISCORD_CLIENT_SECRET` | yes (real OAuth) | zenora client secret for the code exchange |
 | `DISCORD_TOKEN` | yes (real OAuth) | Bot token for the module-level zenora client |
 | `BASE_URL` | no | `http://localhost:8000` (trailing `/` stripped) |
-| `REDIRECT_URL` | no | `{BASE_URL}/oauth/callback` |
+| `REDIRECT_URL` | no | `{scheme}://{PLATFORM_HOST}/oauth/callback` (platform host, `https` forced off `localhost`; **not** `BASE_URL`) |
 | `OAUTH_URL` | no | `https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={REDIRECT_URL, URL-encoded}&response_type=code&scope=identify` |
 
 `REDIRECT_URL` and `OAUTH_URL` env vars are overrides for non-standard setups; normally only `BASE_URL` and the Discord credentials are set. The `state` parameter is appended per request, not baked into `OAUTH_URL`.
