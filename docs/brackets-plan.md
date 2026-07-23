@@ -30,6 +30,9 @@ advance).
 
 - Formats: **single elimination, double elimination, Swiss, round robin /
   groups** — all four in v1 (decided; no phased fast-follow).
+- **Multi-stage tournaments** (group stage → single-elimination playoff,
+  Swiss → top cut, …): stages chain within one tournament with rank-based
+  advancement between them.
 - **1v1 now; team tournaments must remain possible later** without remodeling.
 - **Full web UI** (admin management + public bracket view) and **automatic
   bracket management** (results advance the bracket without staff bookkeeping).
@@ -44,6 +47,7 @@ advance).
 | 2026-07-23 | **Engine composition**: port the MIT `double_elimination`/`single_elimination` (smwa) code in-house for elimination; **`swisspair`** as a dependency for Swiss pairing; round robin written in-house (circle method); all behind one strategy interface |
 | 2026-07-23 | **`FeatureFlag.BRACKETS`** gates the subsystem per tenant (parallel to `CHALLONGE`, which it is expected to eventually obsolete) |
 | 2026-07-23 | **All four formats ship in v1** |
+| 2026-07-23 | **Multi-stage tournaments are in scope** (group → SE, Swiss → top cut): `Bracket` is the *stage* aggregate; a tournament-level entrant roster with per-stage entries carries identity across stages; advancement is rank-based via each completed stage's `final_rank`; the next stage is staff-triggered |
 | 2026-07-23 | **Placeholder entrants supported** (nullable `user` FK + `display_name`, linkable later) — same pattern as `ChallongeParticipant` / SpeedGaming placeholders |
 | 2026-07-23 | **Automation depth = Challonge parity**: confirm auto-advances the bracket and opens next matchups; humans schedule open matchups into `Match` rows (auto-created matches / full auto-scheduling deferred) |
 | 2026-07-23 | **One bracket source per tournament**: a tournament uses a native `Bracket` or a Challonge link, never both; the two features coexist per tenant |
@@ -105,24 +109,53 @@ semantics).
 
 ### Models (all tenant-scoped)
 
-- **`Bracket`** — FK `tournament`; `format` enum (`SINGLE_ELIM`, `DOUBLE_ELIM`,
-  `SWISS`, `ROUND_ROBIN`); `state` (`DRAFT` → `ACTIVE` → `COMPLETE`);
-  `stage_order` (int, default 0 — lets groups→playoff two-stage chains land
-  later without remodeling); `config` JSON validated at the service boundary
-  (grand-final reset on/off, Swiss round count, points, tiebreaker order).
-- **`BracketEntrant`** — FK `bracket`; `seed`; `display_name`; nullable FK
-  `user` (**placeholder entrants**: seed now, link later); `status`
-  (`ACTIVE`/`DROPPED` — Swiss withdrawals). Team support later = the entrant
-  pointing at a team instead of a user; this indirection is the future-proofing.
+- **`Bracket`** — one *stage* of a tournament. FK `tournament`; `format` enum
+  (`SINGLE_ELIM`, `DOUBLE_ELIM`, `SWISS`, `ROUND_ROBIN`); `state`
+  (`DRAFT` → `ACTIVE` → `COMPLETE`); `stage_order` (0-based position in the
+  chain; a single-stage tournament has one row at 0); `config` JSON validated
+  at the service boundary (grand-final reset on/off, Swiss round count, group
+  count + points, tiebreaker order, and — on non-first stages — the
+  **advancement rule**: how many advance from the previous stage, overall or
+  per group, plus the seeding policy).
+- **`BracketEntrant`** — the tournament-level roster row carrying identity
+  across stages. FK `tournament`; `display_name`; nullable FK `user`
+  (**placeholder entrants**: seed now, link later — one link fixes every
+  stage); `status` (`ACTIVE`/`DROPPED`). Team support later = the entrant
+  pointing at a team instead of a user; this indirection is the
+  future-proofing.
+- **`BracketEntry`** — an entrant's participation in one stage. FK `bracket`;
+  FK `entrant`; `seed` (per-stage — stage 2's seeds derive from stage 1's
+  ranks); nullable `group_number` (group-stage formats only; "Group A" is
+  derived display, not a model); `final_rank` (written when the stage
+  completes, after tiebreakers — this is what advancement consumes); `status`
+  (`ACTIVE`/`DROPPED`/`ELIMINATED`).
 - **`BracketMatch`** — FK `bracket`; `round` (negative = losers bracket);
-  `position`; nullable `entrant1`/`entrant2`/`winner`; `state`
-  (`PENDING`/`OPEN`/`COMPLETE`); self-FKs `winner_to`/`loser_to` + slot; and a
-  nullable FK → `Match` (SET_NULL) — the **same seam `ChallongeMatch.match`
-  uses today**, which is what keeps the rest of the platform untouched.
+  `position`; nullable `group_number`; nullable `entry1`/`entry2`/`winner`
+  (→ `BracketEntry`); `state` (`PENDING`/`OPEN`/`COMPLETE`); self-FKs
+  `winner_to`/`loser_to` + slot; and a nullable FK → `Match` (SET_NULL) — the
+  **same seam `ChallongeMatch.match` uses today**, which is what keeps the
+  rest of the platform untouched.
 
-Consequences: one aerich migration; **a leak test per model** (three); seed rows
+Consequences: one aerich migration; **a leak test per model** (four); seed rows
 per format in meaningful mid-states (`scripts/seed_brackets.py`, idempotent,
 tenant-threaded like `seed_challonge.py`).
+
+### Multi-stage chaining & groups
+
+A tournament's stages are `Bracket` rows ordered by `stage_order`; groups are
+partitions *within* a round-robin stage (`group_number` on entries and matches
+— the RR scheduler runs once per group; standings are computed per group).
+Chaining is **format-agnostic by construction**: every format's completion
+writes `final_rank` onto its entries (points + configured tiebreakers, with a
+staff override for genuinely unresolvable ties), and a later stage's
+generation consumes the previous stage's ranked entries through its
+advancement config ("top 2 per group", "top 8 overall"). Group → SE and
+Swiss → top cut are therefore the same mechanism, and any format can feed any
+other. Cross-group playoff seeding uses standard snake seeding with best-effort
+same-group avoidance in the earliest rounds (verified in tests). Consistent
+with the Challonge-parity automation depth, the next stage is
+**staff-triggered**: when a stage completes, staff review the standings (and
+any tie decisions) and press "start next stage" — nothing advances silently.
 
 ### The scheduling seam (deliberately identical to Challonge's)
 
@@ -147,19 +180,21 @@ have a bracket — no separate worker in v1 (Challonge-parity automation only).
 
 - **Repository** — `BracketRepository` subclassing `TenantScopedRepository`
   (scoped reads, stamped writes), exported from `__init__.py`.
-- **Service** — `BracketService`: lifecycle (create → enroll/seed → start
-  (generate) → report/override result → advance → complete + standings);
+- **Service** — `BracketService`: lifecycle (create stages → enroll/seed →
+  start stage (generate) → report/override result → advance → complete stage
+  + standings → advance entrants into the next stage, staff-triggered);
   `require_found` for lookups; new `AuditActions` + matching `EventType`
   members (+ `ALL`): `bracket.created`, `bracket.started`,
   `bracket.match_completed`, `bracket.advanced`, `bracket.completed`,
-  `bracket.entrant_added`, `bracket.entrant_dropped`;
+  `bracket.stage_advanced`, `bracket.entrant_added`, `bracket.entrant_dropped`;
   `AuditService.write_and_publish` for the pairs. Engines in
   `bracket_engines/` are pure (no ORM) — the service owns persistence.
 - **UI** — admin **Brackets** tab (bracket CRUD on `admin_crud.py`
   infrastructure, enroll/seed/start, result override) + public bracket page
   (custom rendering: Toornament's positioned-divs+SVG-connectors technique or
   Leaguepedia's CSS-grid approach; Swiss/RR render as native standings + round
-  tables, as Lichess does). Every table gets the mobile grid treatment.
+  tables, as Lichess does; a multi-stage tournament renders one section/tab per
+  stage with per-group standings). Every table gets the mobile grid treatment.
 - **API** — CRUD + standings + open-matchups routers under `api/`, thin over
   the service (`NotFoundError` → 404 via `ServiceErrorRoute`, no router
   preloads), `require_feature(FeatureFlag.BRACKETS)`.
@@ -180,6 +215,10 @@ proven, not assumed:
 - **Swiss cross-validation**: our `swisspair`-driven pairings checked against
   `bbpPairings` (TRF in/out) across generated tournaments in CI.
 - **Determinism**: same entrants + seeds + results ⇒ identical persisted graph.
+- **Multi-stage invariants**: exactly the configured number of entrants
+  advance, and they are the correct ones given final ranks; snake seeding
+  places them correctly; same-group opponents do not meet in playoff round 1
+  when avoidable; a stage cannot start before its predecessor completes.
 
 Plus the standard matrix: service behavior tests; three tenant-isolation files;
 API tests covering 401 / 403-role / 403-read-only / 404 + cross-tenant 404 —
@@ -189,7 +228,8 @@ factories and hoisted conftest fixtures throughout, no network.
 
 - `scripts/seed_brackets.py` wired into `seed_dev.py`: one bracket per format
   in a meaningful mid-state (e.g. DE with an open losers-bracket round; Swiss
-  mid-round with a dropped entrant), placeholder + linked entrants both
+  mid-round with a dropped entrant), plus one **two-stage tournament**
+  (groups feeding an SE playoff) mid-chain; placeholder + linked entrants both
   represented.
 - Docs: new `docs/features/brackets.md`; updates to
   [data-model.md](reference/data-model.md), [services.md](reference/services.md),
@@ -200,8 +240,6 @@ factories and hoisted conftest fixtures throughout, no network.
 
 - **Auto-created `Match` rows / full auto-scheduling** of bracket rounds.
 - **Team entrants** (the `BracketEntrant` indirection is the prepared hook).
-- **Two-stage tournaments** (groups → playoff) — `stage_order` reserves the
-  shape; the chaining service logic is future work.
 - **Ladders / rating-based formats** (`openskill` noted as the candidate if
   wanted).
 - **Challonge retirement**: the integration stays; migration off it is its own
