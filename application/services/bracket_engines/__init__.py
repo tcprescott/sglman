@@ -25,9 +25,16 @@ from .base import (
     standard_seeding,
 )
 
-# Importing each engine module runs its ``@register_strategy('bracket_format', …)``
-# side effect. Keep these imports even though the names are unused here.
-from . import single_elimination  # noqa: F401
+# Each engine module self-registers via ``@register_strategy('bracket_format', …)``
+# at import time. Auto-import every sibling module so dropping a new engine file
+# needs no edit here (and parallel engine units never contend on this file).
+import importlib as _importlib
+import pkgutil as _pkgutil
+
+for _mod in _pkgutil.iter_modules(__path__):
+    if _mod.name != 'base' and not _mod.name.startswith('_'):
+        _importlib.import_module(f'{__name__}.{_mod.name}')
+del _importlib, _pkgutil, _mod
 
 _STRATEGY_KIND = 'bracket_format'
 
