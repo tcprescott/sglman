@@ -236,6 +236,94 @@ factories and hoisted conftest fixtures throughout, no network.
   [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md),
   [current-state.md](current-state.md), and the feature-flag docs.
 
+## Implementation breakdown
+
+One PR per unit (adjacent small units may merge when a reviewer would prefer
+it). Ordering follows dependencies; units marked ∥ can proceed in parallel once
+their dependency lands. Sizes: S (&lt; ~300 lines), M, L. Every model-touching
+unit runs the standard gauntlet: aerich migration + drift hook, leak-test
+coverage, seed coverage, doc-reminder hooks.
+
+### Phase A — substrate
+
+- **B0 — Flag, enums, models, migration (M).** `FeatureFlag.BRACKETS` enum
+  member + `FeatureFlagSpec` registry entry (ships dark — nothing consumes it
+  yet); `BracketFormat` / `BracketState` / `BracketMatchState` / entry-status
+  enums; the four models (`Bracket`, `BracketEntrant`, `BracketEntry`,
+  `BracketMatch`); one migration; **four leak tests**; minimal
+  `scripts/seed_brackets.py` rows (one per model — the seed-coverage test
+  demands them from day one). No service, no UI.
+
+### Phase B — engines (pure functions, no ORM; ∥ with each other after B1)
+
+- **B1 — Engine interface + single elimination (M).**
+  `application/services/bracket_engines/` package: the engine protocol
+  (`generate(entries, config) → match-graph description` with rounds,
+  positions, BYEs, `winner_to`/`loser_to` pointers), strategy registration
+  (`register_strategy('bracket_format', …)`), and the ported MIT
+  single-elimination engine (license notice retained). Invariant-harness
+  scaffold (`tests/services/test_bracket_engine_invariants.py`): SE invariants
+  + determinism, entrant counts 2–64.
+- **B2 — Double elimination (M, ∥).** Ported DE engine: losers-bracket
+  routing, negative-round convention, conditional grand-final reset. DE
+  invariants (exactly-two-losses, no self-pairing, reset fires iff LB winner
+  wins GF1).
+- **B3 — Round robin + standings/tiebreakers (M, ∥).** Circle-method
+  scheduler with `group_number` partitioning; the shared standings module
+  (points config, Buchholz, opponent-win-% with floor, head-to-head) used by
+  both RR and Swiss `final_rank` computation. RR invariants (each pair exactly
+  once per group).
+- **B4 — Swiss via `swisspair` (M, ∥).** Dependency + adapter (standings →
+  `Player` inputs: points/rank/no-rematch sets/bye eligibility/drops);
+  Swiss invariants (no rematch while legal, byes to eligible lowest).
+- **B5 — Swiss cross-validation CI (S).** TRF serialization + `bbpPairings`
+  binary in the CI job only; generated-tournament pairing comparison. Separate
+  unit because it is CI plumbing, not runtime code.
+
+### Phase C — service layer
+
+- **B6 — Repository + lifecycle core (L).** `BracketRepository`
+  (TenantScopedRepository); `BracketService` part 1: stage/entrant/entry CRUD,
+  config validation, enroll/seed (incl. placeholders), `start` =
+  generate-then-persist through an engine. Audit + events for the covered
+  actions. Service tests.
+- **B7 — Results, advancement, completion (M).** `BracketService` part 2:
+  report/override result, pointer-following elimination advancement,
+  Swiss/RR next-round pairing, stage completion + `final_rank` write (with
+  staff tie override). Remaining audit/events.
+- **B8 — Multi-stage chaining (M).** Advancement-rule config validation,
+  predecessor-complete gate, rank-based entrant advancement, snake seeding
+  with same-group avoidance, staff-triggered `advance_stage`. Multi-stage
+  invariants.
+- **B9 — Scheduling seam + Challonge exclusivity (M).** Open-matchups-for-user
+  query, `schedule_bracket_match` → `MatchService`, `advance_if_linked` wired
+  into the match-confirm flow (peer of `push_result_if_linked`), and the
+  one-bracket-source-per-tournament guard (native bracket ⊕ Challonge link).
+  Tests cover the confirm path both ways.
+
+### Phase D — surfaces (∥ with each other after B7/B9)
+
+- **B10 — Admin Brackets tab (L).** `admin_crud.py`-based stage management:
+  CRUD, enroll/seed, start stage, report/override, tie resolution, start next
+  stage; flag-gated tab. `/ui-validation` pass.
+- **B11 — Public bracket page (L).** Flag-gated page: custom SE/DE rendering
+  (the budgeted large-bracket/mobile spike lives here), Swiss/RR standings +
+  rounds tables, stage sections, per-group standings. `/ui-validation` pass.
+- **B12 — REST API (M).** Routers + schemas under `api/` with
+  `require_feature(FeatureFlag.BRACKETS)`; `tests/test_api_brackets.py`
+  covering 401 / 403-role / 403-read-only / 404 + cross-tenant 404;
+  `/api-validation` pass.
+
+### Phase E — finish
+
+- **B13 — Rich seed + docs (S).** `seed_brackets.py` grown to the meaningful
+  mid-states (per format + two-stage chain); `docs/features/brackets.md`;
+  reference-doc and [current-state.md](current-state.md) updates.
+
+Critical path: B0 → B1 → B6 → B7 → B9; everything else hangs off it in
+parallel. The engines (B1–B5) have no ORM dependency and can be built and
+validated against the harness before any service code exists.
+
 ## Deferred (explicitly out of v1)
 
 - **Auto-created `Match` rows / full auto-scheduling** of bracket rounds.
