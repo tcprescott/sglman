@@ -48,6 +48,7 @@ from models import (
 )
 from application.tenant_context import tenant_scope
 from application.utils.timezone import now_eastern, parse_eastern_datetime
+from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_online import (
     link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
@@ -677,6 +678,9 @@ async def seed_for_tenant(
         await seed_challonge_for_tenant(
             tenant, users, tournament, staff, finished_match, now_utc, today,
         )
+
+        # --- Native brackets (scripts/seed_brackets.py) ----------------------
+        await seed_brackets_for_tenant(tenant, tournament, users)
 
         # --- Webhooks ---------------------------------------------------------
         # Inactive so a dev session never attempts outbound deliveries; the one

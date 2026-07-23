@@ -91,7 +91,7 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
-| `models/` package — 54 models, 17 enums (per-domain submodules; re-exported from `models/__init__.py`) | [reference/data-model.md](reference/data-model.md) |
+| `models/` package — 58 models, 22 enums (per-domain submodules; re-exported from `models/__init__.py`) | [reference/data-model.md](reference/data-model.md) |
 | `application/services/` — 69 modules (incl. `tournament_strategies/`) | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seed_generation_service), [reference/authentication.md](reference/authentication.md) (auth_service), [features/telemetry.md](features/telemetry.md) (telemetry_service) |
 | `application/events/` — event bus (`bus.py`, `event.py`, `event_types.py`, `dispatch_queue.py`) | [features/event-system.md](features/event-system.md) |
 | `application/repositories/` — 43 repositories | [reference/data-model.md](reference/data-model.md) |
