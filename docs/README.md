@@ -44,6 +44,7 @@ Implementation notes for each shipped feature.
 |---|---|
 | [features/admin-reports.md](features/admin-reports.md) | Admin reports: crew hours, match export, audit log viewer |
 | [features/audit-logging.md](features/audit-logging.md) | Audit trail for admin actions (`AuditService`, action conventions) |
+| [features/brackets.md](features/brackets.md) | Native tournament brackets: four formats + multi-stage chains, generate-then-persist engine architecture, scheduling seam, `BRACKETS` flag |
 | [features/crew-management.md](features/crew-management.md) | Commentator/tracker signup, approval, acknowledgment |
 | [features/discord-notifications.md](features/discord-notifications.md) | Match lifecycle DM notifications and fan-out |
 | [features/event-system.md](features/event-system.md) | In-process event bus: publish/subscribe, sync vs async subscribers, `EventType` registry |
@@ -79,7 +80,7 @@ These capture the design rationale behind now-shipped subsystems. The features t
 
 - [online-tournaments/](online-tournaments/README.md) — the design for Wizzrobe **succeeding [SahasrahBot](https://github.com/tcprescott/sahasrahbot)** as the online-tournament platform, **now implemented**. An [overview](online-tournaments/README.md) hub (scope, decisions log, succession) plus one doc per feature: [Async Qualifiers](online-tournaments/async-qualifiers.md), [seed rolling](online-tournaments/seed-rolling.md), [Discord Events sync](online-tournaments/discord-events-sync.md), [SpeedGaming ETL](online-tournaments/speedgaming-etl.md), and [racetime race-room lifecycle](online-tournaments/racetime-room-lifecycle.md). Core principle: tournament logic is **user-definable**, not code-per-tournament.
 - [multitenancy-plan.md](multitenancy-plan.md) — the original design for making Wizzrobe logically multitenant (`/t/<slug>` + custom-domain addressing, platform super-admin surface, one-bot-many-guilds Discord). **Implemented** — see [features/multitenancy.md](features/multitenancy.md) for the shipped system; this is the design record.
-- [brackets-plan.md](brackets-plan.md) — native tournament bracket management (single/double elimination, Swiss, round robin, multi-stage chains e.g. groups → playoff) replacing Challonge-mirrored brackets: engine composition (ported MIT smwa elimination code + `swisspair` + in-house RR behind one strategy interface), generate-then-persist architecture, correctness harness, and the 2026-07 library research record. **Approved design — not yet implemented.**
+- [brackets-plan.md](brackets-plan.md) — native tournament bracket management (single/double elimination, Swiss, round robin, multi-stage chains e.g. groups → playoff) replacing Challonge-mirrored brackets: engine composition (ported MIT smwa elimination code + `swisspair` + in-house RR behind one strategy interface), generate-then-persist architecture, correctness harness, and the 2026-07 library research record. **Implemented** — see [features/brackets.md](features/brackets.md) for the shipped system; this is retained as the design record.
 - [host-based-routing-plan.md](host-based-routing-plan.md) — custom-`Host` tenant resolution and how login survives per-host session cookies (the host-local-OAuth vs signed-handoff fork). **Phase 1 and Phase 2 are implemented** (see [features/multitenancy.md](features/multitenancy.md)), including host-native secondary-provider identity-link OAuth via the same signed handoff; retained as the design record. Only the privileged token-holding flows (Challonge STAFF service-connect, Discord server-connect) remain main-site-only.
 
 ## Coverage map
@@ -92,9 +93,9 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
 | `models/` package — 58 models, 22 enums (per-domain submodules; re-exported from `models/__init__.py`) | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` — 69 modules (incl. `tournament_strategies/`) | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seed_generation_service), [reference/authentication.md](reference/authentication.md) (auth_service), [features/telemetry.md](features/telemetry.md) (telemetry_service) |
+| `application/services/` — 71 modules (incl. `bracket_engines/`, `tournament_strategies/`) | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seed_generation_service), [reference/authentication.md](reference/authentication.md) (auth_service), [features/telemetry.md](features/telemetry.md) (telemetry_service) |
 | `application/events/` — event bus (`bus.py`, `event.py`, `event_types.py`, `dispatch_queue.py`) | [features/event-system.md](features/event-system.md) |
-| `application/repositories/` — 43 repositories | [reference/data-model.md](reference/data-model.md) |
+| `application/repositories/` — 44 repositories | [reference/data-model.md](reference/data-model.md) |
 | `application/utils/` — 30 modules | [reference/services.md](reference/services.md); timezone.py → [timezone-handling.md](timezone-handling.md) |
 | `application/tenant_context.py`, `application/feature_flags.py` | [features/multitenancy.md](features/multitenancy.md), [features/feature-flags.md](features/feature-flags.md) |
 | `middleware/` — auth.py (`protected_page` + `AuthMiddleware`, page-view telemetry), tenant.py (`TenantMiddleware` + `TransportPrefixMiddleware`) | [reference/authentication.md](reference/authentication.md), [features/multitenancy.md](features/multitenancy.md), [features/telemetry.md](features/telemetry.md) |
@@ -103,7 +104,7 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `middleware/error_handlers.py` | [reference/rest-api.md](reference/rest-api.md) |
 | `discordbot/` — 7 modules (crew signup/acknowledgment, match & volunteer acknowledgment, watch buttons, shared ack/tenant helpers) | [reference/discord-integration.md](reference/discord-integration.md) |
 | `racetimebot/` — racetime bot runtime (connection, handler, manager, mock, transport) | [reference/discord-integration.md](reference/discord-integration.md), [reference/services.md](reference/services.md) |
-| `pages/` — 12 page modules (incl. `platform.py`, `qualifiers.py`), home_tabs/, volunteer_tabs/, admin_tabs/ (incl. reports/) | [reference/frontend.md](reference/frontend.md) |
+| `pages/` — 13 page modules (incl. `platform.py`, `qualifiers.py`, `brackets.py`), home_tabs/, volunteer_tabs/, admin_tabs/ (incl. reports/) | [reference/frontend.md](reference/frontend.md) |
 | `theme/` — base.py, dialogs, table views, realtime.py | [reference/frontend.md](reference/frontend.md) |
 | `static/` | [reference/frontend.md](reference/frontend.md) |
 | `presets/` — alttpr/, dk64r/, ootr/, smmap/ | [reference/seed-generation.md](reference/seed-generation.md) |

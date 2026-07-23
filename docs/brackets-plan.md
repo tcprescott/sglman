@@ -1,11 +1,13 @@
 # Native Tournament Brackets Plan (design record)
 
-> Status: **approved design — not yet implemented.** This is the agreed plan for
-> Wizzrobe managing tournament brackets natively (generation, progression,
-> standings) instead of mirroring them from the Challonge API. It was produced
-> and signed off 2026-07-23; implementation follows the `/add-feature` flow.
-> Once shipped, this doc is retained as the design rationale and the library
-> research record.
+> Status: **implemented.** This is the agreed plan for Wizzrobe managing
+> tournament brackets natively (generation, progression, standings) instead of
+> mirroring them from the Challonge API. It was produced and signed off
+> 2026-07-23 and has since shipped; this doc is retained as the design rationale
+> and the library research record. For the shipped system see
+> [features/brackets.md](features/brackets.md) and the reference docs
+> ([data-model](reference/data-model.md), [services](reference/services.md),
+> [rest-api](reference/rest-api.md), [frontend](reference/frontend.md)).
 
 ## Context
 

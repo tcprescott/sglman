@@ -83,6 +83,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 | Seeds | [`api/routers/seeds.py`](../../api/routers/seeds.py) |
 | Async qualifiers | [`api/routers/async_qualifiers.py`](../../api/routers/async_qualifiers.py) |
 | Async qualifier live races | [`api/routers/async_qualifier_live_races.py`](../../api/routers/async_qualifier_live_races.py) |
+| Brackets | [`api/routers/brackets.py`](../../api/routers/brackets.py) |
 
 ### Health (`/api/health`)
 - `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
@@ -161,7 +162,7 @@ tenant-role-gated groups (presets, sync, qualifiers) use the coarse
 finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a
 sub-STAFF token with the right role is accepted rather than 403'd.
 
-Several groups are also **feature-flag-gated**: when the caller's tenant has not enabled the flag, the whole router **404s** (as if the feature did not exist) rather than 403'ing. This applies to race-room profiles + race rooms (`RACETIME_ROOMS`), SpeedGaming (`SPEEDGAMING_ETL`), async qualifiers + live races (`ASYNC_QUALIFIERS`), and — in the core set — triforce texts (`TRIFORCE_TEXTS`) and volunteers (`VOLUNTEERS`); presets, seeds, racetime bots, discord events, and service health stay open. `POST /seeds` and `GET /seeds/randomizers` additionally filter/reject individual flag-gated randomizers (e.g. `dk64r`). See [features/feature-flags.md](../features/feature-flags.md).
+Several groups are also **feature-flag-gated**: when the caller's tenant has not enabled the flag, the whole router **404s** (as if the feature did not exist) rather than 403'ing. This applies to race-room profiles + race rooms (`RACETIME_ROOMS`), SpeedGaming (`SPEEDGAMING_ETL`), async qualifiers + live races (`ASYNC_QUALIFIERS`), brackets (`BRACKETS`), and — in the core set — triforce texts (`TRIFORCE_TEXTS`) and volunteers (`VOLUNTEERS`); presets, seeds, racetime bots, discord events, and service health stay open. `POST /seeds` and `GET /seeds/randomizers` additionally filter/reject individual flag-gated randomizers (e.g. `dk64r`). See [features/feature-flags.md](../features/feature-flags.md).
 
 ### Presets (`/api/presets`)
 Tenant-authored seed presets (service gate `can_manage_presets`).
@@ -216,6 +217,12 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).
 - `GET /async-qualifiers/live-races?qualifier_id=` · `/{id}` · `/{id}/runs`.
 - `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `DELETE /{id}` (cancel). Inbound racetime capture (`mark_in_progress`, `record_finish`) is **not** exposed.
+
+### Brackets (`/api/brackets`)
+Native tournament brackets ([brackets.md](../features/brackets.md)). Feature-gated by `BRACKETS` (whole router 404s when the tenant hasn't enabled it). Reads take any token and are tenant-scoped in-service; writes reject read-only tokens at the HTTP layer and re-gate on **Staff** in `BracketService`. Thin wrappers over the service — schemas in [`api/schemas/brackets.py`](../../api/schemas/brackets.py).
+- **Reads:** `GET /brackets?tournament_id=` (stages of a tournament) · `GET /brackets/entrants?tournament_id=` (roster) · `GET /brackets/{id}` · `GET /brackets/{id}/matches` · `GET /brackets/{id}/open-matches` · `GET /brackets/{id}/entries`.
+- **Authoring / roster:** `POST /brackets` (create a stage) · `POST /brackets/entrants` (add entrant) · `POST /brackets/{id}/entries` (enroll).
+- **Lifecycle:** `POST /brackets/{id}/start` (generate the match graph) · `POST /brackets/matches/{match_id}/result` (`{winner_entry_id}`) · `POST /brackets/{id}/complete` (finalize the stage) · `POST /brackets/advance-stage?tournament_id=` (`{from_stage_order}` — seed the next stage from the prior stage's ranks).
 
 ## Tests
 
