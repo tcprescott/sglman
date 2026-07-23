@@ -194,6 +194,8 @@ Collaborators: `ChallongeRepository`, `TournamentRepository`, `MatchService`, `A
 
 Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): authoring a stage while DRAFT, the tournament-level roster (entrants) and per-stage participation (entries), the generate-then-persist `start` that turns a seeded field into a persisted `BracketMatch` graph via the pure engines, result recording with pointer-following advancement, stage completion + ranking, and multi-stage advancement. Every write is Staff-gated (`AuthService.is_staff`), audits an `AuditActions.BRACKET_*` action, and publishes the mirror `EventType.BRACKET_*`. Native brackets and a Challonge link are mutually exclusive (`_ensure_no_challonge_link`). The engine runs only at `start` and per Swiss round; at all other times the persisted rows are the source of truth.
 
+`BracketService` is one public class composed from per-concern mixins in the internal `application/services/_bracket/` subpackage (`generation.py`, `advancement.py`, `completion.py`, `multistage.py`, `scheduling.py`) so no single file exceeds the length budget; `bracket_service.py` keeps `__init__`, the shared helpers, and the roster/enrollment CRUD, and composes the mixins. The split is an implementation detail — importers still use `from application.services import BracketService`.
+
 | Method | Returns | Description |
 |---|---|---|
 | `create_bracket(actor, tournament_id, name, format, stage_order=0, config=None)` | `Bracket` | Create a DRAFT stage; rejects a Challonge-linked tournament, a duplicate `stage_order`, and (via `validate_bracket_config`) a bad config. Audits/events `BRACKET_CREATED`. |
