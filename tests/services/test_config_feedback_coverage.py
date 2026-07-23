@@ -7,6 +7,7 @@ in-memory SQLite ``db`` fixture so the real ORM contract is verified.
 
 import json
 from datetime import date, datetime, time, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -312,6 +313,82 @@ class TestGetTournamentWindowForDate:
 
 
 # ---------------------------------------------------------------------------
+# Per-tournament "tournament days" override (falls back to tenant setting)
+# ---------------------------------------------------------------------------
+
+
+def _tournament(*, hours=None, start=None, end=None):
+    """A stub carrying only the attributes the resolver reads."""
+    return SimpleNamespace(
+        tournament_hours=hours, event_start_date=start, event_end_date=end,
+    )
+
+
+class TestTournamentHoursOverride:
+    async def test_tournament_hours_override_replaces_tenant(self, db):
+        # Tenant configures one window; the tournament configures another.
+        await set_config(KEY_TOURNAMENT_HOURS, json.dumps({
+            '2025-10-20': {'open': '09:00', 'close': '17:00'},
+        }))
+        tournament = _tournament(hours={'2025-10-20': {'open': '12:00', 'close': '20:00'}})
+        hours = await SystemConfigService.get_tournament_hours(tournament)
+        assert hours == {date(2025, 10, 20): (time(12, 0), time(20, 0))}
+
+    async def test_falls_back_to_tenant_when_tournament_hours_none(self, db):
+        await set_config(KEY_TOURNAMENT_HOURS, json.dumps({
+            '2025-10-20': {'open': '09:00', 'close': '17:00'},
+        }))
+        tournament = _tournament(hours=None)
+        hours = await SystemConfigService.get_tournament_hours(tournament)
+        assert hours == {date(2025, 10, 20): (time(9, 0), time(17, 0))}
+
+    async def test_window_for_date_uses_tournament_override(self, db):
+        await set_config(KEY_TOURNAMENT_HOURS, json.dumps({
+            '2025-10-20': {'open': '09:00', 'close': '17:00'},
+        }))
+        tournament = _tournament(hours={'2025-10-20': {'open': '12:00', 'close': '20:00'}})
+        window = await SystemConfigService.get_tournament_window_for_date(
+            date(2025, 10, 20), tournament=tournament,
+        )
+        assert window == (time(12, 0), time(20, 0))
+
+    async def test_absent_day_in_tournament_override_is_unrestricted(self, db):
+        # The tournament defines its own schedule; a date it omits is unrestricted
+        # even though the tenant restricts it.
+        await set_config(KEY_TOURNAMENT_HOURS, json.dumps({
+            '2025-10-21': {'open': '09:00', 'close': '17:00'},
+        }))
+        tournament = _tournament(hours={'2025-10-20': {'open': '12:00', 'close': '20:00'}})
+        window = await SystemConfigService.get_tournament_window_for_date(
+            date(2025, 10, 21), tournament=tournament,
+        )
+        assert window is None
+
+
+class TestEventWindowOverride:
+    async def test_tournament_dates_win_over_tenant(self, db):
+        await set_config(KEY_EVENT_START_DATE, '2025-10-20')
+        await set_config(KEY_EVENT_END_DATE, '2025-10-23')
+        tournament = _tournament(start=date(2025, 11, 1), end=date(2025, 11, 3))
+        start, end = await SystemConfigService.get_event_window(tournament)
+        assert (start, end) == (date(2025, 11, 1), date(2025, 11, 3))
+
+    async def test_missing_bound_falls_back_to_tenant(self, db):
+        await set_config(KEY_EVENT_START_DATE, '2025-10-20')
+        await set_config(KEY_EVENT_END_DATE, '2025-10-23')
+        # Only the start is overridden; the end inherits the tenant setting.
+        tournament = _tournament(start=date(2025, 10, 22), end=None)
+        start, end = await SystemConfigService.get_event_window(tournament)
+        assert (start, end) == (date(2025, 10, 22), date(2025, 10, 23))
+
+    async def test_none_tournament_matches_tenant(self, db):
+        await set_config(KEY_EVENT_START_DATE, '2025-10-20')
+        await set_config(KEY_EVENT_END_DATE, '2025-10-23')
+        start, end = await SystemConfigService.get_event_window(None)
+        assert (start, end) == (date(2025, 10, 20), date(2025, 10, 23))
+
+
+# ---------------------------------------------------------------------------
 # set_tournament_hours — persistence + validation
 # ---------------------------------------------------------------------------
 
@@ -372,6 +449,45 @@ class TestSetTournamentHours:
                 {date(2025, 10, 20): ('09:00', '17:00')}, plain,
             )
         assert await SystemConfigService.get_raw(KEY_TOURNAMENT_HOURS) is None
+
+
+# ---------------------------------------------------------------------------
+# Match scheduling honors a tournament's own hours (falls back to tenant)
+# ---------------------------------------------------------------------------
+
+
+class TestMatchSchedulingHonorsTournamentHours:
+    async def test_tournament_override_bounds_scheduling(self, db):
+        from application.services.match_service import MatchService
+        from application.utils.timezone import parse_eastern_datetime
+
+        # Tenant has no hours; the tournament restricts 12:00–20:00 on this date.
+        tournament = await Tournament.create(
+            name='Cup',
+            tournament_hours={'2025-10-20': {'open': '12:00', 'close': '20:00'}},
+        )
+        svc = object.__new__(MatchService)
+
+        outside = parse_eastern_datetime('2025-10-20', '10:00')
+        with pytest.raises(ValueError, match='can only start between'):
+            await svc._assert_within_tournament_hours(outside, tournament.id)
+
+        inside = parse_eastern_datetime('2025-10-20', '13:00')
+        await svc._assert_within_tournament_hours(inside, tournament.id)  # no raise
+
+    async def test_falls_back_to_tenant_hours_when_tournament_unset(self, db):
+        from application.services.match_service import MatchService
+        from application.utils.timezone import parse_eastern_datetime
+
+        await set_config(KEY_TOURNAMENT_HOURS, json.dumps({
+            '2025-10-20': {'open': '12:00', 'close': '20:00'},
+        }))
+        tournament = await Tournament.create(name='NoOverride')  # tournament_hours is None
+        svc = object.__new__(MatchService)
+
+        outside = parse_eastern_datetime('2025-10-20', '10:00')
+        with pytest.raises(ValueError, match='can only start between'):
+            await svc._assert_within_tournament_hours(outside, tournament.id)
 
 
 # ---------------------------------------------------------------------------

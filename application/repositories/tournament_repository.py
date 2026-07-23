@@ -4,6 +4,7 @@ Tournament Repository - Data Access Layer
 Handles database operations for tournaments.
 """
 
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from application.repositories._base import TenantScopedRepository
@@ -129,6 +130,9 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         room_open_minutes_before: int = 30,
         require_racetime_link: bool = False,
         racetime_default_goal: Optional[str] = None,
+        event_start_date: Optional[date] = None,
+        event_end_date: Optional[date] = None,
+        tournament_hours: Optional[Dict[str, Any]] = None,
     ) -> Tournament:
         """
         Create a new tournament.
@@ -173,6 +177,9 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             room_open_minutes_before=room_open_minutes_before,
             require_racetime_link=require_racetime_link,
             racetime_default_goal=racetime_default_goal,
+            event_start_date=event_start_date,
+            event_end_date=event_end_date,
+            tournament_hours=tournament_hours,
         )
 
     @staticmethod

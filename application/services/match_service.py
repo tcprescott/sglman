@@ -9,7 +9,7 @@ import re
 from datetime import datetime, date
 from typing import List, Optional, Dict, Any, Tuple
 
-from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, User, StreamRoom
+from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, Tournament, User, StreamRoom
 from application import match_events
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
@@ -29,6 +29,7 @@ from application.services import discord_queue
 from application.services.match_participants import MatchParticipants
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
     parse_eastern_datetime,
     to_eastern,
@@ -220,7 +221,7 @@ class MatchService:
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
-        await self._assert_within_tournament_hours(scheduled_at)
+        await self._assert_within_tournament_hours(scheduled_at, tournament_id)
 
         # Resolve every referenced user up-front (one query per role list) so a
         # missing ID doesn't leave an orphan Match row behind.
@@ -380,7 +381,10 @@ class MatchService:
         if scheduled_date and scheduled_time:
             # Parse datetime - input is in Eastern, convert to UTC for storage
             scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
-            await self._assert_within_tournament_hours(scheduled_at)
+            # Validate against the target tournament (new one on reassignment).
+            await self._assert_within_tournament_hours(
+                scheduled_at, tournament_id if tournament_id is not None else match.tournament_id,
+            )
             update_fields['scheduled_at'] = scheduled_at
 
         if comment is not None:
@@ -490,7 +494,7 @@ class MatchService:
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
-        await self._assert_within_tournament_hours(scheduled_at)
+        await self._assert_within_tournament_hours(scheduled_at, tournament_id)
 
         # Resolve every player before touching the match row so a missing user
         # doesn't leave an orphan Match behind.
@@ -773,11 +777,18 @@ class MatchService:
     ) -> None:
         await self.participants.seed_acknowledgments(match, player_ids, actor)
 
-    async def _assert_within_tournament_hours(self, scheduled_at: datetime) -> None:
-        """Raise ValueError if scheduled_at (UTC) falls outside the configured window for its date."""
+    async def _assert_within_tournament_hours(
+        self, scheduled_at: datetime, tournament_id: Optional[int],
+    ) -> None:
+        """Reject scheduled_at (UTC) outside the window for its date.
+
+        Resolved for ``tournament_id``: the tournament's own per-day hours win
+        when set, otherwise the tenant-wide setting applies.
+        """
+        tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id()) if tournament_id is not None else None
         eastern_dt = to_eastern(scheduled_at)
         d = eastern_dt.date()
-        window = await SystemConfigService.get_tournament_window_for_date(d)
+        window = await SystemConfigService.get_tournament_window_for_date(d, tournament=tournament)
         if window is None:
             return
         open_t, close_t = window
