@@ -5,6 +5,7 @@ Permission gating, field stripping, audit logging, and role management
 m2m manager methods are mocked.
 """
 
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -117,6 +118,92 @@ class TestCreateTournament:
 
         with pytest.raises(PermissionError):
             await service.create_tournament(name='X', actor=make_user())
+
+
+# ---------------------------------------------------------------------------
+# tournament days (per-tournament override of the tenant setting)
+# ---------------------------------------------------------------------------
+
+
+class TestTournamentDays:
+    async def test_create_passes_dates_and_hours_blob(self, service):
+        service.repository.create = AsyncMock(return_value=make_tournament())
+        await service.create_tournament(
+            name='X',
+            event_start_date='2025-10-20',
+            event_end_date='2025-10-22',
+            tournament_hours={date(2025, 10, 20): ('09:00', '17:00')},
+            actor=make_user(),
+        )
+        kw = service.repository.create.await_args.kwargs
+        assert kw['event_start_date'] == date(2025, 10, 20)
+        assert kw['event_end_date'] == date(2025, 10, 22)
+        assert kw['tournament_hours'] == {'2025-10-20': {'open': '09:00', 'close': '17:00'}}
+
+    async def test_create_end_before_start_raises(self, service):
+        with pytest.raises(ValueError, match='end date cannot be before'):
+            await service.create_tournament(
+                name='X', event_start_date='2025-10-22', event_end_date='2025-10-20',
+                actor=make_user(),
+            )
+
+    async def test_create_bad_date_raises(self, service):
+        with pytest.raises(ValueError, match='YYYY-MM-DD'):
+            await service.create_tournament(
+                name='X', event_start_date='10/20/2025', actor=make_user(),
+            )
+
+    async def test_create_empty_hours_becomes_none(self, service):
+        service.repository.create = AsyncMock(return_value=make_tournament())
+        await service.create_tournament(name='X', tournament_hours={}, actor=make_user())
+        assert service.repository.create.await_args.kwargs['tournament_hours'] is None
+
+    async def test_create_bad_hours_raises(self, service):
+        with pytest.raises(ValueError, match='after open time'):
+            await service.create_tournament(
+                name='X',
+                tournament_hours={date(2025, 10, 20): ('17:00', '09:00')},
+                actor=make_user(),
+            )
+
+    async def test_update_sets_dates_and_hours(self, service):
+        t = make_tournament(event_start_date=None, event_end_date=None)
+        await service.update_tournament(
+            t,
+            event_start_date='2025-10-20',
+            event_end_date='2025-10-22',
+            tournament_hours={date(2025, 10, 20): ('09:00', '17:00')},
+            actor=make_user(),
+        )
+        kw = service.repository.update.await_args.kwargs
+        assert kw['event_start_date'] == date(2025, 10, 20)
+        assert kw['event_end_date'] == date(2025, 10, 22)
+        assert kw['tournament_hours'] == {'2025-10-20': {'open': '09:00', 'close': '17:00'}}
+
+    async def test_update_clear_dates_and_hours(self, service):
+        t = make_tournament(event_start_date=date(2025, 10, 20), event_end_date=date(2025, 10, 22))
+        await service.update_tournament(
+            t, event_start_date=None, event_end_date=None, tournament_hours=None,
+            actor=make_user(),
+        )
+        kw = service.repository.update.await_args.kwargs
+        assert kw['event_start_date'] is None
+        assert kw['event_end_date'] is None
+        assert kw['tournament_hours'] is None
+
+    async def test_update_partial_validates_against_stored_bound(self, service):
+        # end left untouched (uses stored 10-05); new start 10-10 is after it.
+        t = make_tournament(event_start_date=date(2025, 10, 1), event_end_date=date(2025, 10, 5))
+        with pytest.raises(ValueError, match='end date cannot be before'):
+            await service.update_tournament(t, event_start_date='2025-10-10', actor=make_user())
+
+    async def test_update_omitting_days_leaves_them_unchanged(self, service):
+        t = make_tournament()
+        await service.update_tournament(t, name='Renamed', actor=make_user())
+        kw = service.repository.update.await_args.kwargs
+        assert 'event_start_date' not in kw
+        assert 'event_end_date' not in kw
+        assert 'tournament_hours' not in kw
 
 
 # ---------------------------------------------------------------------------

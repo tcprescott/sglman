@@ -5,7 +5,8 @@ Handles tournament-related operations including creation, updates, validation,
 and admin/crew-coordinator membership.
 """
 
-from typing import Any, Dict, Optional
+from datetime import date
+from typing import Any, Dict, Optional, Tuple
 
 from application.repositories import (
     PresetRepository,
@@ -15,6 +16,7 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.system_config_service import SystemConfigService
 from application.services.tournament_config import validate_tournament_config
 from application.tenant_context import require_tenant_id
 from models import Tournament, User
@@ -71,6 +73,43 @@ class TournamentService:
             raise ValueError("Race room profile not found")
         return profile.id
 
+    @staticmethod
+    def _coerce_day(value: Any, label: str) -> Optional[date]:
+        """Coerce a date/ISO-string/blank into a ``date`` (or ``None`` to inherit)."""
+        if value is None or value == '':
+            return None
+        if isinstance(value, date):
+            return value
+        try:
+            return date.fromisoformat(str(value))
+        except ValueError:
+            raise ValueError(f"{label} must be in YYYY-MM-DD format.")
+
+    def _normalize_event_dates(
+        self, event_start_date: Any, event_end_date: Any,
+    ) -> Tuple[Optional[date], Optional[date]]:
+        """Validate the per-tournament event-window override (each bound optional)."""
+        start = self._coerce_day(event_start_date, "Event start date")
+        end = self._coerce_day(event_end_date, "Event end date")
+        if start is not None and end is not None and end < start:
+            raise ValueError("Event end date cannot be before the event start date.")
+        return start, end
+
+    @staticmethod
+    def _normalize_tournament_hours(
+        tournament_hours: Optional[Dict[date, Tuple[str, str]]],
+    ) -> Optional[Dict[str, Dict[str, str]]]:
+        """Validate a {date: (open, close)} override into a storable blob.
+
+        Returns ``None`` when the mapping is empty/absent so an unset override
+        inherits the tenant hours; otherwise the validated
+        ``{date_iso: {'open', 'close'}}`` blob. Reuses the tenant validator so
+        both surfaces enforce identical HH:MM / close>open rules.
+        """
+        if not tournament_hours:
+            return None
+        return SystemConfigService.validate_hours_mapping(tournament_hours) or None
+
     async def create_tournament(
         self,
         name: str,
@@ -94,6 +133,9 @@ class TournamentService:
         room_open_minutes_before: int = 30,
         require_racetime_link: bool = False,
         racetime_default_goal: Optional[str] = None,
+        event_start_date: Any = None,
+        event_end_date: Any = None,
+        tournament_hours: Optional[Dict[date, Tuple[str, str]]] = None,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -108,6 +150,10 @@ class TournamentService:
             seed_generator = None
 
         config = validate_tournament_config(config)
+        event_start_date, event_end_date = self._normalize_event_dates(
+            event_start_date, event_end_date,
+        )
+        tournament_hours = self._normalize_tournament_hours(tournament_hours)
         preset_id = await self._resolve_preset_id(preset_id)
         racetime_bot_id = await self._resolve_racetime_bot_id(racetime_bot_id)
         race_room_profile_id = await self._resolve_race_room_profile_id(race_room_profile_id)
@@ -134,6 +180,9 @@ class TournamentService:
             room_open_minutes_before=room_open_minutes_before,
             require_racetime_link=require_racetime_link,
             racetime_default_goal=(racetime_default_goal.strip() if racetime_default_goal else None),
+            event_start_date=event_start_date,
+            event_end_date=event_end_date,
+            tournament_hours=tournament_hours,
         )
 
         await self.audit_service.write_log(
@@ -168,6 +217,9 @@ class TournamentService:
         room_open_minutes_before: Optional[int] = None,
         require_racetime_link: Optional[bool] = None,
         racetime_default_goal: Any = _UNSET,
+        event_start_date: Any = _UNSET,
+        event_end_date: Any = _UNSET,
+        tournament_hours: Any = _UNSET,
         actor: Optional[User] = None,
     ) -> Tournament:
         await AuthService.ensure(
@@ -228,6 +280,18 @@ class TournamentService:
             update_data['racetime_default_goal'] = (
                 racetime_default_goal.strip() if racetime_default_goal else None
             )
+        if event_start_date is not _UNSET or event_end_date is not _UNSET:
+            # Validate the window as a pair, using the current stored value for
+            # whichever bound the caller left untouched.
+            raw_start = event_start_date if event_start_date is not _UNSET else tournament.event_start_date
+            raw_end = event_end_date if event_end_date is not _UNSET else tournament.event_end_date
+            norm_start, norm_end = self._normalize_event_dates(raw_start, raw_end)
+            if event_start_date is not _UNSET:
+                update_data['event_start_date'] = norm_start
+            if event_end_date is not _UNSET:
+                update_data['event_end_date'] = norm_end
+        if tournament_hours is not _UNSET:
+            update_data['tournament_hours'] = self._normalize_tournament_hours(tournament_hours)
 
         result = await self.repository.update(tournament, **update_data)
 

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture(autouse=True)
 def _no_tournament_window(monkeypatch):
     """Match tests don't set up tournament hours; suppress the scheduling window."""
-    from application.services import system_config_service
+    from application.services import match_service, system_config_service
 
     async def no_window(*_args, **_kwargs):
         return None
@@ -21,6 +21,11 @@ def _no_tournament_window(monkeypatch):
     monkeypatch.setattr(
         system_config_service.SystemConfigService,
         'get_tournament_window_for_date', no_window,
+    )
+    # The scheduling check loads the tournament (for its per-tournament hours
+    # override) before consulting the window; these no-DB unit tests stub it out.
+    monkeypatch.setattr(
+        match_service.Tournament, 'get_or_none', AsyncMock(return_value=None),
     )
 
 

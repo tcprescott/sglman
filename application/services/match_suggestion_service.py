@@ -45,8 +45,8 @@ class MatchSuggestionService:
         duration_min = (tournament.average_match_duration or 90) if tournament else 90
         duration = timedelta(minutes=duration_min)
 
-        hours_map = await SystemConfigService.get_tournament_hours()
-        event_start, event_end = await SystemConfigService.get_event_window()
+        hours_map = await SystemConfigService.get_tournament_hours(tournament)
+        event_start, event_end = await SystemConfigService.get_event_window(tournament)
 
         now = now_eastern()
 

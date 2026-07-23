@@ -68,6 +68,42 @@ class TestTournamentWrites:
         async with client_for(app, raw) as c:
             assert (await c.post('/api/tournaments', json={'name': 'X'})).status_code == 403
 
+    async def test_create_and_clear_tournament_days(self, db, app):
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            created = await c.post('/api/tournaments', json={
+                'name': 'Days Cup',
+                'event_start_date': '2025-10-20',
+                'event_end_date': '2025-10-22',
+                'tournament_hours': {'2025-10-20': ['09:00', '17:00']},
+            })
+            assert created.status_code == 201
+            body = created.json()
+            tid = body['id']
+            assert body['event_start_date'] == '2025-10-20'
+            assert body['event_end_date'] == '2025-10-22'
+            assert body['tournament_hours'] == {'2025-10-20': {'open': '09:00', 'close': '17:00'}}
+
+            # Explicit null clears an override back to inheriting the tenant setting.
+            cleared = await c.patch(f'/api/tournaments/{tid}', json={
+                'event_start_date': None, 'tournament_hours': None,
+            })
+            assert cleared.status_code == 200
+            assert cleared.json()['event_start_date'] is None
+            assert cleared.json()['tournament_hours'] is None
+            # An untouched field is preserved (only start/hours were sent).
+            assert cleared.json()['event_end_date'] == '2025-10-22'
+
+    async def test_create_tournament_days_rejects_bad_window(self, db, app):
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        async with client_for(app, raw) as c:
+            resp = await c.post('/api/tournaments', json={
+                'name': 'Bad Cup',
+                'event_start_date': '2025-10-22',
+                'event_end_date': '2025-10-20',
+            })
+            assert resp.status_code == 400
+
     async def test_tournament_admin_token_scope(self, db, app):
         """A token inherits its user's Tournament Admin scope: the TA can edit
         their tournament; an unrelated user cannot."""

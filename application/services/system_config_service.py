@@ -12,7 +12,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import EASTERN_TZ, to_eastern
-from models import Match, StationFormat, StreamRoom, SystemConfiguration, User
+from models import Match, StationFormat, StreamRoom, SystemConfiguration, Tournament, User
 
 
 KEY_EVENT_START_DATE = 'event_start_date'
@@ -82,15 +82,28 @@ class SystemConfigService:
             return default
 
     @staticmethod
-    async def get_event_window() -> tuple[date, date]:
+    async def get_event_window(
+        tournament: Optional[Tournament] = None,
+    ) -> tuple[date, date]:
         """Return (start_date, end_date) for the event.
+
+        When ``tournament`` sets its own ``event_start_date`` / ``event_end_date``
+        those win (each bound independently); any bound the tournament leaves
+        unset falls back to the tenant-wide setting. Passing no tournament (the
+        default) preserves the tenant-only behavior every tenant-wide caller
+        relies on.
 
         Falls back to the min/max Match.scheduled_at across all matches
         when SystemConfiguration values are missing. If there are no
-        scheduled matches either, falls back to today and today+3 days.
+        scheduled matches either, falls back to today.
         """
-        start = await SystemConfigService.get_date(KEY_EVENT_START_DATE)
-        end = await SystemConfigService.get_date(KEY_EVENT_END_DATE)
+        start = tournament.event_start_date if tournament else None
+        end = tournament.event_end_date if tournament else None
+
+        if start is None:
+            start = await SystemConfigService.get_date(KEY_EVENT_START_DATE)
+        if end is None:
+            end = await SystemConfigService.get_date(KEY_EVENT_END_DATE)
 
         if start is None or end is None:
             first = await Match.filter(tenant_id=require_tenant_id()).order_by('scheduled_at').first()
@@ -132,8 +145,39 @@ class SystemConfigService:
         return value if value is not None and value > 0 else default
 
     @staticmethod
-    async def get_tournament_hours() -> Dict[date, Tuple[time, time]]:
-        """Return {date: (open_time, close_time)} for all configured days."""
+    def _parse_hours_blob(data: Dict) -> Dict[date, Tuple[time, time]]:
+        """Parse a ``{date_iso: {'open', 'close'}}`` blob into typed windows.
+
+        Malformed entries are skipped rather than raising — the same forgiving
+        parse the tenant blob has always used, shared now with the per-tournament
+        override which stores the identical shape.
+        """
+        result: Dict[date, Tuple[time, time]] = {}
+        if not isinstance(data, dict):
+            return result
+        for date_str, window in data.items():
+            try:
+                d = date.fromisoformat(date_str)
+                open_t = time.fromisoformat(window['open'])
+                close_t = time.fromisoformat(window['close'])
+                result[d] = (open_t, close_t)
+            except (KeyError, ValueError, TypeError):
+                continue
+        return result
+
+    @staticmethod
+    async def get_tournament_hours(
+        tournament: Optional[Tournament] = None,
+    ) -> Dict[date, Tuple[time, time]]:
+        """Return {date: (open_time, close_time)} for all configured days.
+
+        When ``tournament`` carries its own ``tournament_hours`` blob it fully
+        replaces the tenant schedule (a date absent means "unrestricted", the
+        same semantics the tenant blob has); otherwise the tenant-wide setting is
+        used. Passing no tournament preserves the tenant-only behavior.
+        """
+        if tournament is not None and tournament.tournament_hours is not None:
+            return SystemConfigService._parse_hours_blob(tournament.tournament_hours)
         raw = await SystemConfigService.get_raw(KEY_TOURNAMENT_HOURS)
         if not raw:
             return {}
@@ -141,21 +185,14 @@ class SystemConfigService:
             data = json.loads(raw)
         except (ValueError, TypeError):
             return {}
-        result: Dict[date, Tuple[time, time]] = {}
-        for date_str, window in data.items():
-            try:
-                d = date.fromisoformat(date_str)
-                open_t = time.fromisoformat(window['open'])
-                close_t = time.fromisoformat(window['close'])
-                result[d] = (open_t, close_t)
-            except (KeyError, ValueError):
-                continue
-        return result
+        return SystemConfigService._parse_hours_blob(data)
 
     @staticmethod
-    async def get_tournament_window_for_date(d: date) -> Optional[Tuple[time, time]]:
+    async def get_tournament_window_for_date(
+        d: date, tournament: Optional[Tournament] = None,
+    ) -> Optional[Tuple[time, time]]:
         """Return (open_time, close_time) for the given date, or None if not configured."""
-        hours = await SystemConfigService.get_tournament_hours()
+        hours = await SystemConfigService.get_tournament_hours(tournament)
         return hours.get(d)
 
     @staticmethod
@@ -169,10 +206,15 @@ class SystemConfigService:
             return default
 
     @staticmethod
-    async def set_tournament_hours(
-        mapping: Dict[date, Tuple[str, str]], actor: User,
-    ) -> None:
-        """Persist per-day tournament hours. mapping is {date: (open_HH_MM, close_HH_MM)}."""
+    def validate_hours_mapping(
+        mapping: Dict[date, Tuple[str, str]],
+    ) -> Dict[str, Dict[str, str]]:
+        """Validate {date: (open_HH_MM, close_HH_MM)} into a storable blob.
+
+        Blank days are dropped; a bad time or a non-increasing window raises a
+        user-facing ``ValueError``. Shared by the tenant-wide setter and the
+        per-tournament override so both enforce the identical rules.
+        """
         data: Dict[str, Dict[str, str]] = {}
         for d, (open_str, close_str) in mapping.items():
             open_str = open_str.strip()
@@ -187,4 +229,12 @@ class SystemConfigService:
             if close_t <= open_t:
                 raise ValueError(f"Close time must be after open time for {d}.")
             data[d.isoformat()] = {'open': open_str, 'close': close_str}
+        return data
+
+    @staticmethod
+    async def set_tournament_hours(
+        mapping: Dict[date, Tuple[str, str]], actor: User,
+    ) -> None:
+        """Persist per-day tournament hours. mapping is {date: (open_HH_MM, close_HH_MM)}."""
+        data = SystemConfigService.validate_hours_mapping(mapping)
         await SystemConfigService.set_raw(KEY_TOURNAMENT_HOURS, json.dumps(data), actor)

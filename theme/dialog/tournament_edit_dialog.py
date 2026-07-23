@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from nicegui import app, ui
 
 from application.services import (
@@ -12,7 +14,14 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.tenant_context import require_tenant_id
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.dialog._helpers import (
+    dialog_actions,
+    dialog_header,
+    mobile_sheet,
+    native_date_input,
+    native_time_input,
+    submit_on_enter,
+)
 from theme.notify import notify_error
 
 
@@ -125,6 +134,71 @@ class TournamentDialog:
                         value=self.tournament.is_active if self.tournament else True,
                     )
 
+                # --- Tournament Days (per-tournament override of the tenant setting) ---
+                ui.separator()
+                ui.label('Tournament Days').classes('text-bold')
+                ui.label(
+                    'Override the community event window and per-day match hours for '
+                    'this tournament. Leave blank to use the community default.'
+                ).classes('text-caption text-grey')
+
+                t = self.tournament
+                event_start_input = native_date_input(
+                    'Event Start Date',
+                    t.event_start_date.isoformat() if t and t.event_start_date else '',
+                    clearable=True,
+                )
+                event_end_input = native_date_input(
+                    'Event End Date',
+                    t.event_end_date.isoformat() if t and t.event_end_date else '',
+                    clearable=True,
+                )
+
+                # Stored blob seeds the grid; snapshotted on every refresh so
+                # typed-but-unsaved values survive a date-window change.
+                hours_state: dict = dict(t.tournament_hours) if t and t.tournament_hours else {}
+                hours_inputs: dict[str, dict] = {}
+
+                @ui.refreshable
+                def render_hours() -> None:
+                    for d_iso, row in hours_inputs.items():
+                        hours_state[d_iso] = {
+                            'open': (row['open'].value or ''),
+                            'close': (row['close'].value or ''),
+                        }
+                    hours_inputs.clear()
+                    start_raw = (event_start_input.value or '').strip()
+                    end_raw = (event_end_input.value or '').strip()
+                    try:
+                        start_d = date.fromisoformat(start_raw)
+                        end_d = date.fromisoformat(end_raw)
+                    except ValueError:
+                        ui.label(
+                            'Set start and end dates to configure per-day hours.'
+                        ).classes('text-caption text-grey')
+                        return
+                    if end_d < start_d:
+                        ui.label('End date is before start date.').classes('text-caption text-warning')
+                        return
+                    ui.label('Per-day match hours (blank = any time):').classes('text-caption q-mt-sm')
+                    current = start_d
+                    rendered = 0
+                    while current <= end_d and rendered < 60:
+                        window = hours_state.get(current.isoformat())
+                        open_val = window.get('open', '') if isinstance(window, dict) else ''
+                        close_val = window.get('close', '') if isinstance(window, dict) else ''
+                        with ui.row().classes('items-center gap-3'):
+                            ui.label(current.isoformat()).classes('w-28 text-mono')
+                            open_i = native_time_input('Open', open_val)
+                            close_i = native_time_input('Close', close_val)
+                            hours_inputs[current.isoformat()] = {'open': open_i, 'close': close_i}
+                        current += timedelta(days=1)
+                        rendered += 1
+
+                render_hours()
+                event_start_input.on('update:model-value', lambda: render_hours.refresh())
+                event_end_input.on('update:model-value', lambda: render_hours.refresh())
+
                 if self.tournament and self.challonge_service.is_configured():
                     ui.separator()
                     ui.label('Challonge').classes('text-bold')
@@ -207,6 +281,22 @@ class TournamentDialog:
                     with self.dialog:
                         ui.notify('Please fill required field(s): Tournament Name.', color='warning')
                     return
+                # Per-tournament days override: blank dates inherit the tenant
+                # setting; only fully-filled day rows become hour windows.
+                event_start_value = (event_start_input.value or '').strip() or None
+                event_end_value = (event_end_input.value or '').strip() or None
+                hours_mapping: dict[date, tuple[str, str]] = {}
+                for d_iso, row in hours_inputs.items():
+                    open_str = (row['open'].value or '').strip()
+                    close_str = (row['close'].value or '').strip()
+                    if open_str and close_str:
+                        hours_mapping[date.fromisoformat(d_iso)] = (open_str, close_str)
+                days_kwargs = dict(
+                    event_start_date=event_start_value,
+                    event_end_date=event_end_value,
+                    tournament_hours=hours_mapping or None,
+                )
+
                 rt_kwargs = {}
                 if can_sync:
                     rt_kwargs = dict(
@@ -238,6 +328,7 @@ class TournamentDialog:
                                 staff_administered=staff_administered_checkbox.value,
                                 preset_id=(preset_input.value or None),
                                 actor=actor,
+                                **days_kwargs,
                                 **rt_kwargs,
                             )
                             ui.notify('Tournament updated.', color='positive')
@@ -261,6 +352,7 @@ class TournamentDialog:
                             staff_administered=staff_administered_checkbox.value,
                             preset_id=(preset_input.value or None),
                             actor=actor,
+                            **days_kwargs,
                             **rt_kwargs,
                         )
                         with self.dialog:
