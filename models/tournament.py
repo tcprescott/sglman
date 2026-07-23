@@ -61,6 +61,17 @@ class Tournament(Model):
     discord_event_duration_minutes = fields.IntField(default=60)
     discord_event_title_template = fields.CharField(max_length=255, null=True)
     discord_event_description_template = fields.TextField(null=True)
+    # Per-tournament "tournament days" override (see docs/timezone-handling and
+    # SystemConfigService). Each is nullable and falls back to the tenant-wide
+    # setting when unset: ``event_start_date`` / ``event_end_date`` override the
+    # event date window, and ``tournament_hours`` overrides the per-date open/close
+    # windows — same JSON shape as the tenant's ``tournament_hours_by_date`` blob,
+    # ``{"YYYY-MM-DD": {"open": "HH:MM", "close": "HH:MM"}}``. Resolved at the
+    # scheduling/suggestion use-sites via ``SystemConfigService`` (tenant default
+    # takes over whenever the tournament leaves a field unset).
+    event_start_date = fields.DateField(null=True)
+    event_end_date = fields.DateField(null=True)
+    tournament_hours = fields.JSONField(null=True)
     admins = fields.ManyToManyField('models.User', related_name='admin_tournaments', through='TournamentAdmins')
     crew_coordinators = fields.ManyToManyField(
         'models.User',

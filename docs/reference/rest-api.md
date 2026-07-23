@@ -103,7 +103,7 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 
 ### Tournaments (`/api/tournaments`)
 - `GET /tournaments?active_only=` (`active_only` returns only active tournaments, default `false`) · `GET /tournaments/{id}`.
-- `POST` · `PATCH /{id}` · `DELETE /{id}`.
+- `POST` · `PATCH /{id}` · `DELETE /{id}`. `POST`/`PATCH` accept an optional per-tournament **tournament-days** override — `event_start_date`, `event_end_date` (`YYYY-MM-DD`), and `tournament_hours` (`{"YYYY-MM-DD": ["HH:MM open", "HH:MM close"]}`); each is nullable and falls back to the community setting when omitted (on `PATCH`, sending `null` clears an override back to inherit). An end before start, or a close not after open, returns `400`.
 - `POST/DELETE /{id}/admins` and `/{id}/crew-coordinators` (Staff).
 - `GET /tournaments/{id}/match-suggestion?player_ids=` — suggested UTC start time for the given players (400 if no slot fits).
 

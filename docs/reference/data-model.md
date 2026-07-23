@@ -442,6 +442,9 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `room_open_minutes_before` | `IntField` | default `30` | Lead time before `scheduled_at` to open the room |
 | `require_racetime_link` | `BooleanField` | default `False` | Require players to have a linked racetime identity |
 | `racetime_default_goal` | `CharField(255)` | null | Default racetime goal for opened rooms |
+| `event_start_date` | `DateField` | null | Per-tournament override of the tenant event-window start; falls back to `SystemConfigService.get_event_window()` when null |
+| `event_end_date` | `DateField` | null | Per-tournament override of the tenant event-window end; falls back to the tenant setting when null |
+| `tournament_hours` | `JSONField` | null | Per-tournament override of per-date open/close windows, same shape as the tenant `tournament_hours_by_date` blob (`{"YYYY-MM-DD": {"open": "HH:MM", "close": "HH:MM"}}`); falls back to `SystemConfigService.get_tournament_hours()` when null. Honored by match scheduling validation and match suggestions |
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |

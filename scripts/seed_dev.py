@@ -374,6 +374,14 @@ async def seed_for_tenant(
                 "is_active": True,
                 "players_per_match": 2,
                 "staff_administered": False,
+                # Per-tournament "tournament days" override: its own event window
+                # and per-day hours, distinct from the tenant default above.
+                "event_start_date": today,
+                "event_end_date": today + timedelta(days=3),
+                "tournament_hours": {
+                    today.isoformat(): {"open": "09:00", "close": "23:59"},
+                    (today + timedelta(days=1)).isoformat(): {"open": "12:00", "close": "23:59"},
+                },
             },
         )
         await onsite.admins.add(staff)
