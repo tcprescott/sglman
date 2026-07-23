@@ -14,9 +14,42 @@ implementing it now.
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from application.utils.config_validation import validate_config_blob
+
+
+class AdvancementConfig(BaseModel):
+    """How a stage draws its field from the prior stage's ``final_rank``.
+
+    Only meaningful on a stage with ``stage_order > 0``; the service reads it
+    when staff trigger :meth:`BracketService.advance_stage`. ``count`` entrants
+    advance — ``count`` per source ``group_number`` when ``per_group``, else the
+    ``count`` best overall. ``seeding`` chooses how the advancers seed into this
+    stage: ``'snake'`` (default) spreads group winners and keeps two entrants
+    from the same source group apart in the opening playoff round; ``'preserve'``
+    seeds strictly in advancement (rank) order.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    count: int
+    per_group: bool = False
+    seeding: str = 'snake'
+
+    @field_validator('count')
+    @classmethod
+    def _count_positive(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("advancement count must be at least 1")
+        return v
+
+    @field_validator('seeding')
+    @classmethod
+    def _seeding_known(cls, v: str) -> str:
+        if v not in ('snake', 'preserve'):
+            raise ValueError("advancement seeding must be 'snake' or 'preserve'")
+        return v
 
 
 class BracketConfig(BaseModel):
@@ -46,6 +79,9 @@ class BracketConfig(BaseModel):
     tiebreakers: Optional[List[str]] = None
     # Opponents'-match-win floor for OMW% tiebreakers (standard 1/3).
     omw_floor: float = 1 / 3
+    # Multi-stage chaining: how a non-first stage draws its field from the prior
+    # stage's final ranks (None on a single-stage or first stage).
+    advancement: Optional[AdvancementConfig] = None
 
 
 def validate_bracket_config(
