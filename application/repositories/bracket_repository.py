@@ -88,3 +88,36 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id, round=round, position=position)
         ).first()
+
+    async def list_matches_in_round(
+        self, bracket_id: int, round: int
+    ) -> List[BracketMatch]:
+        return await scoped(
+            BracketMatch.filter(bracket_id=bracket_id, round=round)
+        ).order_by('position')
+
+    async def list_open_matches(self, bracket_id: int) -> List[BracketMatch]:
+        from models import BracketMatchState
+        return await scoped(
+            BracketMatch.filter(bracket_id=bracket_id, state=BracketMatchState.OPEN)
+        ).order_by('round', 'position')
+
+    async def max_round(self, bracket_id: int) -> Optional[int]:
+        row = await scoped(
+            BracketMatch.filter(bracket_id=bracket_id)
+        ).order_by('-round').first()
+        return row.round if row is not None else None
+
+    async def winner_feeders(self, match_id: int, slot: int) -> List[BracketMatch]:
+        """Not-yet-COMPLETE matches whose ``winner`` feeds ``slot`` of ``match_id``."""
+        from models import BracketMatchState
+        return await scoped(
+            BracketMatch.filter(winner_to_id=match_id, winner_to_slot=slot)
+        ).exclude(state=BracketMatchState.COMPLETE)
+
+    async def loser_feeders(self, match_id: int, slot: int) -> List[BracketMatch]:
+        """Not-yet-COMPLETE matches whose ``loser`` feeds ``slot`` of ``match_id``."""
+        from models import BracketMatchState
+        return await scoped(
+            BracketMatch.filter(loser_to_id=match_id, loser_to_slot=slot)
+        ).exclude(state=BracketMatchState.COMPLETE)
