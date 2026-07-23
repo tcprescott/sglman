@@ -9,6 +9,8 @@ through the ``_tenant`` helper; custom creates stamp the ambient tenant.
 
 from typing import List, Optional
 
+from tortoise.expressions import Q
+
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Bracket, BracketEntrant, BracketEntry, BracketMatch
@@ -121,3 +123,44 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         return await scoped(
             BracketMatch.filter(loser_to_id=match_id, loser_to_slot=slot)
         ).exclude(state=BracketMatchState.COMPLETE)
+
+    # --- scheduling seam (mirrors ChallongeRepository) -------------------
+    async def get_match_with_entrants(self, bracket_match_id: int) -> Optional[BracketMatch]:
+        """A bracket match with both entry slots resolved to their linked users.
+
+        Used by the scheduler, which needs ``entry.entrant.user`` on both sides.
+        """
+        return await scoped(
+            BracketMatch.filter(id=bracket_match_id)
+        ).prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+        ).first()
+
+    async def get_bracket_match_for_match(self, match_id: int) -> Optional[BracketMatch]:
+        """The bracket match linked to a scheduled ``Match`` (the ``match`` seam)."""
+        return await scoped(
+            BracketMatch.filter(match_id=match_id)
+        ).prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+        ).first()
+
+    async def open_matches_for_user(
+        self, user_id: int, tournament_id: Optional[int] = None
+    ) -> List[BracketMatch]:
+        """OPEN bracket matches where ``user_id`` is one of the two entrants.
+
+        Joins entry → entrant → user on either slot. Optionally narrowed to one
+        tournament. Not-yet-linked matches only (``match_id`` still null), since a
+        linked one is already scheduled.
+        """
+        from models import BracketMatchState
+        qs = scoped(BracketMatch.filter(
+            Q(entry1__entrant__user_id=user_id) | Q(entry2__entrant__user_id=user_id),
+            state=BracketMatchState.OPEN,
+            match_id__isnull=True,
+        ))
+        if tournament_id is not None:
+            qs = qs.filter(bracket__tournament_id=tournament_id)
+        return await qs.prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+        ).distinct().order_by('round', 'position')
