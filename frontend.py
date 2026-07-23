@@ -18,6 +18,7 @@ from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware
 from pages import (
     admin,
     auth,
+    brackets,
     challonge_oauth,
     equipment,
     equipment_labels,
@@ -135,6 +136,7 @@ def init(fastapi_app: FastAPI) -> None:
     # dynamic /equipment/{asset_id} so Starlette matches the labels sheet first.
     equipment_labels.create()
     equipment.create()
+    brackets.create()
     platform.create()
     qualifiers.create()
     ui.run_with(
