@@ -88,11 +88,12 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         return await scoped(BracketMatch.filter(id=match_id)).first()
 
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
-        # ``games`` is prefetched so a whole round can render its series state
-        # without an N+1 across the bracket view.
+        # ``games__match`` is prefetched so a whole round can render its series
+        # state — including each game's scheduled time — without an N+1 across
+        # the bracket view.
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id)
-        ).prefetch_related('games').order_by('round', 'position')
+        ).prefetch_related('games__match').order_by('round', 'position')
 
     async def get_match_at(
         self, bracket_id: int, round: int, position: int
@@ -123,7 +124,7 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         """
         return await scoped(
             BracketMatch.filter(id=match_id)
-        ).prefetch_related('games').first()
+        ).prefetch_related('games__match').first()
 
     async def max_round(self, bracket_id: int) -> Optional[int]:
         row = await scoped(
