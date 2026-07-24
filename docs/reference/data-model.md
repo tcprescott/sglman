@@ -1,6 +1,6 @@
 # Data Model & Persistence Reference
 
-*Method-level reference for the [`models/`](../../models/) package (all 58 models and its 22 enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
+*Method-level reference for the [`models/`](../../models/) package (all 59 models and its 23 enums), the repository layer in [`application/repositories/`](../../application/repositories/), and the migration setup in [`migrations/`](../../migrations/). Part of the [documentation index](../README.md). The service layer that sits on top of these repositories is documented in [services.md](services.md).*
 
 > **Package layout.** Models were split out of the former single `models.py` into per-domain submodules under `models/` (`tenant`, `user`, `tournament`, `match`, `equipment`, `feedback`, `volunteer`, `audit`, `system`, `webhook`, `challonge`, `racetime`, `speedgaming`, `discord_events`, `async_qualifier`), with the shared enums in `models/enums.py`. Every model and enum is re-exported from `models/__init__.py`, so `from models import X` and Tortoise's single `"models"` app registration are unchanged. Cross-model foreign keys use string references (`'models.User'`), so the submodules carry no import-order dependencies.*
 
@@ -13,7 +13,7 @@ Conventions shared by all models:
 - **Surrogate primary key** — every model has `id = fields.IntField(pk=True)` (`SERIAL` in PostgreSQL). The per-model field tables below omit `id`.
 - **Timestamps** — every model has `created_at` (`auto_now_add=True`, except `EquipmentLoan`, which uses `checked_out_at`); all except `AuditLog`, `TelemetryEvent`, `UserRole`, `ApiToken`, and `EquipmentLoan` also have `updated_at` (`auto_now=True`). The field tables omit these unless a model deviates. All datetime columns are `TIMESTAMPTZ` and store UTC; display is US/Eastern — see [timezone-handling.md](../timezone-handling.md).
 - **Table names** — Tortoise defaults to the lowercased class name (`matchplayers`, `generatedseeds`, …). Most multi-word models also pin that same lowercased name explicitly via `Meta.table` (`matchplayers`, `tournamentplayers`, `commentator`, `tracker`, `matchacknowledgment`, `tournamentnotificationpreference`, `matchwatcher`, `auditlog`, `telemetryevent`, `userrole`, `triforcetext`, `apitoken`, `feedback`, `equipment`, `equipmentloan`, `volunteerprofile`, `volunteerposition`, `volunteershift`, `volunteerassignment`, `volunteerqualification`, `volunteeravailability`, `playeravailability`, `challongeconnection`, `challongeparticipant`, `challongematch`, `challongeapiusage`, `webpushsubscription`). The two many-to-many through tables keep their declared CamelCase names (`"TournamentAdmins"`, `"TournamentCrewCoordinators"`).
-- **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `TelemetryEvent.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`, `BracketEntrant.user`, `BracketMatch.entry1` / `entry2` / `winner` / `winner_to` / `loser_to` / `match`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id` and `User.twitch_user_id`.
+- **Delete behavior** — Tortoise's default `ON DELETE CASCADE` applies to genuine parent/child FKs (deleting a match removes its players, acknowledgments, and crew). Detachment and attribution FKs declare `on_delete=fields.SET_NULL` so the record survives the referenced row's deletion: `Match.stream_room` / `Match.generated_seed`, `AuditLog.user`, `TelemetryEvent.user`, `UserRole.granted_by`, `Commentator.approved_by`, `Tracker.approved_by`, `TriforceText.user` / `TriforceText.approved_by`, `Equipment.owner_user`, `EquipmentLoan.checked_in_by`, `VolunteerAssignment.assigned_by` / `checked_in_by`, `ChallongeConnection.connected_by`, `ChallongeParticipant.user`, `ChallongeMatch.participant1` / `participant2` / `winner_participant` / `match`, `BracketEntrant.user`, `BracketMatch.entry1` / `entry2` / `winner` / `winner_to` / `loser_to`, `BracketMatchGame.match` / `winner_entry`. Equipment lending history uses `on_delete=fields.RESTRICT` (`EquipmentLoan.borrower` / `checked_out_by`) so a user with loan history cannot be hard-deleted — retire them via `User.is_active` instead. Natural-key uniqueness is enforced by DB constraints on the junctions (`MatchPlayers`, `TournamentPlayers`, `Commentator`, `Tracker` on their `(match|tournament, user)` pair) and on `User.challonge_user_id` and `User.twitch_user_id`.
 
 Coding conventions for the layers above (async everywhere, no ORM writes from the UI, audit-log action naming) are canonical in [CLAUDE.md](../../CLAUDE.md) and [refactoring-guide.md](../refactoring-guide.md) — not restated here.
 
@@ -60,7 +60,7 @@ tenant-scoped.**
   `PlayerAvailability`, `ChallongeConnection`, `ChallongeParticipant`,
   `ChallongeMatch`, `ChallongeApiUsage`, `RacetimeBotTenant`, `RaceRoomProfile`,
   `RacetimeRoom`, `TenantFeatureFlag`, `Bracket`, `BracketEntrant`,
-  `BracketEntry`, `BracketMatch`.
+  `BracketEntry`, `BracketMatch`, `BracketMatchGame`.
 - **`TenantFeatureFlag`** (`tenantfeatureflag`) — per-tenant **override** of one
   feature flag: `flag` (a `FeatureFlag` key) + **tri-state** `available`/`enabled`
   (NULL = inherit from the tenant's `FeatureFlagGroup`, else the default group;
@@ -157,7 +157,9 @@ erDiagram
     Bracket ||--o{ BracketMatch : "bracket"
     BracketEntry |o--o{ BracketMatch : "entry1 / entry2 / winner"
     BracketMatch |o--o{ BracketMatch : "winner_to / loser_to"
-    Match |o--o{ BracketMatch : "match"
+    BracketMatch ||--o{ BracketMatchGame : "bracket_match"
+    Match |o--o| BracketMatchGame : "match"
+    BracketEntry |o--o{ BracketMatchGame : "winner_entry"
 
     SystemConfiguration {
         string name "unique key"
@@ -365,6 +367,18 @@ Deliberately parallels `ChallongeMatchState`.
 | `PENDING` = `'pending'` | One or both entries not yet determined |
 | `OPEN` = `'open'` | Both entries known; playable / schedulable into a `Match` |
 | `COMPLETE` = `'complete'` | Winner recorded |
+
+### `BracketMatchGameState`
+
+State of one game within a best-of-N series (`BracketMatchGame.state`,
+`max_length=16`). There is deliberately **no `PENDING`**: a game row is created
+only when the game is scheduled into a `Match`, so it enters at `SCHEDULED`.
+
+| Value | Meaning |
+|---|---|
+| `SCHEDULED` = `'scheduled'` | Linked to a `Match`, not yet decided |
+| `COMPLETE` = `'complete'` | Winner recorded |
+| `CANCELLED` = `'cancelled'` | Never played — the series clinched, or staff overrode the result |
 
 ### `BracketEntrantStatus` / `BracketEntryStatus`
 
@@ -1264,8 +1278,9 @@ index on `bracket`.
 
 One slot in a stage's persisted match graph. Carries the `winner_to` / `loser_to`
 progression pointers, so elimination advancement is plain pointer-following once
-the graph is generated, plus a nullable `match` FK — the scheduling seam
-`ChallongeMatch.match` uses.
+the graph is generated. The scheduling seam lives one level down, on
+[`BracketMatchGame`](#bracketmatchgame) — a slot spans `best_of` games and each
+game is its own scheduled `Match`.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
@@ -1281,9 +1296,32 @@ the graph is generated, plus a nullable `match` FK — the scheduling seam
 | `state` | `CharEnumField(BracketMatchState)` | default `PENDING` | |
 | `winner_to` / `loser_to` | Self-FK → `BracketMatch` | null, `SET_NULL` | Where this match's winner/loser flow (`feeder_winners` / `feeder_losers`) |
 | `winner_to_slot` / `loser_to_slot` | `IntField` | null | Which slot (1 or 2) the propagated entry fills |
-| `match` | FK → `Match` | null, `SET_NULL` | The scheduled real `Match` (`related_name='bracket_match'`); null until scheduled |
+| `best_of` | `IntField` | null | Per-matchup override of the round's `Bracket.config['rounds'][N]['best_of']`; null → round value → 1 |
 
-Unique `(bracket, round, position)`; indexes on `bracket`, `match`.
+Unique `(bracket, round, position)`; index on `bracket`.
+
+#### `BracketMatchGame`
+
+One game of a bracket match's best-of-N series, and **the scheduling seam**:
+every game is its own scheduled `Match`, and a `Match` never backs more than one
+game. A best-of-1 is a series with a single game, so there is one code path
+rather than a special case. Rows are created **lazily, at schedule time** —
+"game 3 of 3, not yet scheduled" is arithmetic from `best_of` minus the existing
+rows, so changing `best_of` mid-series never orphans anything. `game_number` is
+assigned by the service, never by a caller.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='bracket_match_games'` |
+| `bracket_match` | FK → `BracketMatch` | not null, `CASCADE` | `related_name='games'` |
+| `game_number` | `IntField` | not null | 1-based; `(bracket_match, game_number)` unique |
+| `match` | **OneToOne** → `Match` | null, `SET_NULL` | The scheduled real `Match` (`related_name='bracket_match_game'`); SET_NULL so deleting it preserves the recorded result |
+| `winner_entry` | FK → `BracketEntry` | null, `SET_NULL` | `related_name='games_won'` |
+| `forfeit` | `BooleanField` | default `False` | A DQ / walkover / no-show in **this game** |
+| `state` | `CharEnumField(BracketMatchGameState)` | default `SCHEDULED` | |
+| `cancelled_reason` | `CharField(255)` | null | Why a game was never played, e.g. `'series clinched 2-0'` |
+
+Unique `(bracket_match, game_number)`; indexes on `bracket_match`, `match`.
 
 ## Match lifecycle
 
@@ -1567,7 +1605,7 @@ The equipment, volunteering, availability, Challonge, API-token, feedback, and w
 | `SpeedGamingEventLinkRepository` | [`speedgaming_event_link_repository.py`](../../application/repositories/speedgaming_event_link_repository.py) | `SpeedGamingEventLink` | Scoped CRUD `list_all`, `get_by_id`, `get_by_natural_key`, `create`, `update`, `delete`; **unscoped** `list_active_all` (cross-tenant due-for-sync worker scan) |
 | `SpeedGamingEpisodeRepository` | [`speedgaming_episode_repository.py`](../../application/repositories/speedgaming_episode_repository.py) | `SpeedGamingEpisode` | Tenant-scoped ETL staging. `get_by_sg_id`, `get_by_id`, `list_for_link`, `list_all`, `create`, `update` (upsert keyed on unique `(tenant, sg_episode_id)`) |
 | `DiscordScheduledEventRepository` | [`discord_scheduled_event_repository.py`](../../application/repositories/discord_scheduled_event_repository.py) | `DiscordScheduledEvent` | Tenant-scoped reconciliation links — shared-guild safety enforced here (a query never sees a sibling tenant's mirrored event). `list_all`, `get_by_id`, `get_by_source`, `list_for_source_type`, `create`, `update`, `delete` (upsert key `(tenant, source_type, source_id)`) |
-| `BracketRepository` | [`bracket_repository.py`](../../application/repositories/bracket_repository.py) | `Bracket`, `BracketEntrant`, `BracketEntry`, `BracketMatch` | One tenant-scoped repo spanning the whole aggregate the lifecycle drives together. brackets `get_bracket`, `list_for_tournament`, `get_stage`; entrants `create_entrant`, `get_entrant`, `list_entrants`; entries `create_entry`, `get_entry`, `list_entries`, `list_active_entries`, `get_entry_for_entrant`; matches `create_match`, `get_match`, `list_matches`, `get_match_at`, `list_matches_in_round`, `list_open_matches`, `max_round`, `winner_feeders`/`loser_feeders` (still-fillable feeder scan); scheduling seam (mirrors `ChallongeRepository`) `get_match_with_entrants`, `get_bracket_match_for_match`, `open_matches_for_user` |
+| `BracketRepository` | [`bracket_repository.py`](../../application/repositories/bracket_repository.py) | `Bracket`, `BracketEntrant`, `BracketEntry`, `BracketMatch`, `BracketMatchGame` | One tenant-scoped repo spanning the whole aggregate the lifecycle drives together. brackets `get_bracket`, `list_for_tournament`, `get_stage`; entrants `create_entrant`, `get_entrant`, `list_entrants`; entries `create_entry`, `get_entry`, `list_entries`, `list_active_entries`, `get_entry_for_entrant`; matches `create_match`, `get_match`, `list_matches`, `get_match_at`, `list_matches_in_round`, `list_open_matches`, `max_round`, `winner_feeders`/`loser_feeders` (still-fillable feeder scan); scheduling seam `get_match_with_entrants`, `get_game_for_match`, `get_bracket_match_for_match`, `open_matches_for_user`; series games `create_game`, `get_game`, `list_games`, `games_for_matches`, `games_for_series`, `settle_game` (compare-and-swap) |
 
 ## Migrations
 

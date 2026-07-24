@@ -406,6 +406,7 @@ async def admin_brackets_page() -> None:
                                 entry_seed = {e.id: e.seed for e in entries}
                                 build_match_dialog(
                                     m, names, entry_seed, records, number,
+                                    best_of=service.resolve_best_of(bracket, m),
                                     is_staff=True, actor=actor, tenant_id=tenant_id,
                                     service=service, on_saved=_after_write,
                                 )

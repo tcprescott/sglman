@@ -23,7 +23,7 @@ an interactive permission (STAFF / ``SYNC_ADMIN``); the rest are system paths.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from application.errors import require_found
@@ -101,6 +101,51 @@ class RaceRoomService:
         match = require_found(await self._load_match(match_id), 'Match')
         return await self.create_room_for_match(match, actor=actor)
 
+    async def auto_open_if_eligible(
+        self, match: Match, *, now: datetime, actor: Optional[User] = None,
+    ) -> Optional[RacetimeRoom]:
+        """Open ``match``'s room iff every automatic-open condition holds.
+
+        The eligibility rules the auto-open worker applies, as one callable so
+        every automatic trigger shares them: the 60s poll
+        (``race_room_worker._tick``) and the push that fires the moment a
+        best-of-N series' previous game ends. Returns the room when it opened one,
+        ``None`` when the match simply isn't eligible yet — not eligible is the
+        normal case, not an error, and the caller retries on its next trigger.
+
+        Deliberately **not** folded into :meth:`create_room_for_match`, which
+        ``manual_create_room`` also reaches: staff overriding these rules by hand
+        is the escape hatch when an automatic path is holding a room back.
+
+        Callers must already be inside the match's ``tenant_scope`` — the feature
+        flag resolves against the ambient tenant.
+        """
+        from application.services.feature_flag_service import FeatureFlagService
+        from models import FeatureFlag
+
+        if not await FeatureFlagService().is_enabled(FeatureFlag.RACETIME_ROOMS):
+            return None  # tenant has racetime rooms disabled
+        lead = match.tournament.room_open_minutes_before or 30
+        if match.scheduled_at is None or match.scheduled_at > now + timedelta(minutes=lead):
+            return None  # not yet within this tournament's lead window
+        if await self.room_repository.get_by_match(match) is not None:
+            return None  # idempotent: a room already exists
+        bot = await match.tournament.racetime_bot
+        if bot is None:
+            return None  # no authorized bot to host the room
+        players = list(match.players)
+        if not players or not all(
+            getattr(p.user, 'racetime_user_id', None) for p in players
+        ):
+            # Eligibility gate: every entrant must have linked racetime.
+            logger.info(
+                'auto-open skipped for match %s: not all entrants have '
+                'linked racetime', match.id,
+            )
+            return None
+        actor = actor or await self._system_actor()
+        return await self.create_room_for_match(match, actor=actor)
+
     # ---- transitions -----------------------------------------------------
 
     async def mark_in_progress(self, room: RacetimeRoom, *, actor: Optional[User] = None) -> None:
@@ -176,6 +221,7 @@ class RaceRoomService:
         if match is not None:
             self._publish_match_result(match, results, actor)
             await self._push_challonge(match, actor)
+            await self._settle_bracket(match, actor)
 
     # ---- result mapping --------------------------------------------------
 
@@ -244,6 +290,26 @@ class RaceRoomService:
             'ranks': ranks,
             'source': 'racetime',
         }, actor))
+
+    async def _settle_bracket(self, match: Match, actor: User) -> None:
+        """Record this race as its bracket series game, if it backs one.
+
+        Peer of :meth:`_push_challonge`, and necessary for the same reason it
+        exists: a racetime finish stamps ``finished_at`` but never *confirms* the
+        match, and ``advance_if_linked`` hangs off ``confirm_match``, whose only
+        callers are human. Without this a best-of series on an auto-room
+        tournament would sit un-clinched — and its unneeded games un-cancelled —
+        until someone clicked Confirm on every game.
+
+        Settling is a compare-and-swap on the game row, so a later human confirm
+        is a no-op rather than a double count.
+        """
+        try:
+            from application.services.bracket_service import BracketService
+
+            await BracketService().settle_game_if_linked(match, actor)
+        except Exception:  # noqa: BLE001 - brackets are an optional downstream step
+            logger.exception('bracket settle failed for match %s', match.id)
 
     async def _push_challonge(self, match: Match, actor: User) -> None:
         try:

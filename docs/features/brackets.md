@@ -41,13 +41,13 @@ field tables in [data-model.md](../reference/data-model.md#native-brackets)):
 - **`BracketEntry`** — an entrant's participation within one stage (its `seed`,
   `group_number`, and — once the stage completes — `final_rank`).
 - **`BracketMatch`** — one slot in a stage's persisted match graph, carrying the
-  `winner_to` / `loser_to` progression pointers, a nullable `match` FK (the
-  scheduling seam), and optional reported **set scores** (`entry1_score` /
+  `winner_to` / `loser_to` progression pointers, a nullable `best_of` override,
+  and optional reported **set scores** (`entry1_score` /
   `entry2_score`, nullable) plus a **`forfeit`** flag. `report_result` /
   `override_result` accept the scores and forfeit flag; the reported winner must
   carry the strictly-higher score **unless** `forfeit` marks a DQ / walkover
   (win-only reporting, with null scores, stays valid). Per-round display chrome
-  (best-of, scheduled time) lives in `Bracket.config['rounds']` keyed by round
+  (scheduled time, and the default `best_of`) lives in `Bracket.config['rounds']` keyed by round
   number, not on the match.
 
 ## Formats and multi-stage chaining
@@ -121,15 +121,62 @@ no-rematch matching is unique and reproducible.
 
 ## Scheduling seam and Challonge exclusivity
 
-`BracketMatch.match` is the same nullable FK seam `ChallongeMatch.match` uses, so a
-native bracket match schedules into a real `Match` exactly like a Challonge one.
-`BracketService` mirrors the Challonge integration method-for-method:
+A bracket match spans `best_of` games, and **every game is its own scheduled
+`Match`** — that link is `BracketMatchGame.match`, a OneToOne, so a `Match` never
+backs more than one game. A best-of-1 is simply a series with a single game, which
+is why there is one code path rather than a special case (it replaced the old
+one-shot `BracketMatch.match` FK in migration 35). Game rows are created lazily,
+at schedule time, and `game_number` is assigned by the service — never by a
+caller. `BracketService` still mirrors the Challonge integration method-for-method:
 
 | Bracket (native) | Challonge (mirror) |
 |---|---|
 | `list_open_matches_for_user` | `list_unscheduled_matches_for_user` |
-| `schedule_bracket_match` (→ `MatchService.create_match`, link `match`) | `schedule_challonge_match` |
-| `advance_if_linked` (confirmed `Match` → `report_result`) | `push_result_if_linked` |
+| `schedule_bracket_match` (→ `MatchService.create_match`, write a `BracketMatchGame`) | `schedule_challonge_match` |
+| `advance_if_linked` (confirmed `Match` → settle the game) | `push_result_if_linked` |
+
+### Best-of-N series
+
+`best_of` resolves **per matchup**: `BracketMatch.best_of` → the round's
+`Bracket.config['rounds'][N]['best_of']` → `1`. It is semantic, not chrome —
+the scheduler and the clinch both read it. Set it before scheduling; it is
+rejected once games exist, because each game's title carries "Game 2 of 3".
+
+The bracket match stays **OPEN for the whole series** and completes only on the
+clinch, which delegates to `_record_result`. Pointer-following, the grand-final
+reset, walkover settling, and stage completion are therefore reused unchanged —
+`entry1_score`/`entry2_score` simply become games won.
+
+Two paths settle a game, so settling is a **compare-and-swap** on the game row:
+`RaceRoomService.record_finish` (a racetime finish never *confirms* a match, so
+`advance_if_linked` alone would never fire on an auto-room tournament) and
+`advance_if_linked` on the serial `discord_queue`. Counting one game twice would
+clinch a Bo3 off a single game.
+
+On the clinch, unplayed games are cancelled and their `Match` rows go through
+`MatchService.cancel_match`, so players and crew are told. `report_result` /
+`override_result` reconcile the same way — a staff-forced 2-0 must not strand a
+pre-scheduled game 3.
+
+### Holding the next game's race room
+
+Game N's room must not auto-open while game N-1 is still being raced. The hold is
+`BracketService.held_match_ids`, applied in `race_room_worker._tick` over the
+whole candidate set (two queries, not one per match) — and it keys on
+**`Match.finished_at`, not game state**, because a double forfeit never produces
+a COMPLETE game row and would deadlock the series silently.
+
+Holding alone is not enough: the poll's scan starts at `now - 15min`, so a game
+whose slot slipped further while the previous game ran long has dropped out of it
+for good. `release_next_game` pushes at game-end, reusing
+`RaceRoomService.auto_open_if_eligible` (which keeps the lead-window guard, so it
+is a no-op when the next game is still legitimately far out). A wider
+`SERIES_GRACE_MINUTES` scan backstops a process that died in between.
+
+A prior game whose `Match` was deleted **fails open** — the next game is
+released, with a warning. Failing closed produces a room that never opens, with
+nothing surfaced anywhere, which is the worse failure. Seed generation needs no
+separate hold: it hangs off room creation.
 
 Only OPEN matches whose **both** entrants resolve to a linked `user` are
 schedulable. When a linked match is confirmed, `advance_if_linked` maps its winner

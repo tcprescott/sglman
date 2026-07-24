@@ -158,6 +158,9 @@ class AdvancementMixin:
 
         await self._advance_after_result(bracket, match, winner_entry, loser_entry)
         await self._maybe_complete_stage(bracket, actor)
+        await self.cancel_remaining_games(
+            actor, match.id, 'result recorded for the match',
+        )
         return require_found(await self.repository.get_match(match_id), "Match")
 
     async def _advance_after_result(
@@ -438,6 +441,9 @@ class AdvancementMixin:
             actor, AuditActions.BRACKET_MATCH_COMPLETED, details
         )
         event_bus.publish(Event.create(EventType.BRACKET_MATCH_COMPLETED, details, actor))
+        await self.cancel_remaining_games(
+            actor, match.id, 'result overridden by staff',
+        )
         return require_found(await self.repository.get_match(match_id), "Match")
 
     async def get_open_matches(self, bracket_id: int) -> List[BracketMatch]:

@@ -13,12 +13,202 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable, Dict, Optional
 
-from nicegui import ui
+from nicegui import app, background_tasks, context, ui
+from tortoise import exceptions as tortoise_exceptions
 
-from application.services import BracketService
+from application.services import BracketService, MatchService, get_user_from_discord_id
 from application.tenant_context import tenant_scope
-from models import BracketMatch, BracketMatchState, User
+from application.utils.timezone import format_eastern_display
+from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
 from theme.notify import notify_error
+
+
+def _games_of(match: BracketMatch) -> list:
+    """The series' game rows, or [] when the caller didn't prefetch them.
+
+    ``BracketRepository.list_matches`` prefetches ``games``; a caller that built
+    the match another way simply renders no series detail rather than raising.
+    """
+    related = getattr(match, 'games', None)
+    try:
+        return list(related) if related is not None else []
+    except tortoise_exceptions.NoValuesFetched:
+        return []
+
+
+_GAME_BADGE = {
+    BracketMatchGameState.SCHEDULED: 'positive',
+    BracketMatchGameState.COMPLETE: 'primary',
+    BracketMatchGameState.CANCELLED: 'grey',
+}
+
+
+def _render_games(
+    games: list,
+    entry_name: dict,
+    best_of: int,
+    *,
+    bracket_match_id: int,
+    is_staff: bool,
+    tenant_id: int,
+    service: BracketService,
+    on_saved: Callable[[], Awaitable[None]],
+) -> None:
+    """The per-game breakdown of a series, with the admin's way into each game.
+
+    A plain row stack rather than a ``ui.table``: three rows don't warrant a
+    table, and every table needs a mobile grid (``check_table_grid``). Unscheduled
+    games are shown as arithmetic — ``best_of`` minus the rows that exist — since
+    game rows are created lazily at schedule time.
+
+    Each scheduled game opens the ordinary :class:`AdminMatchDialog` for its
+    ``Match``, so staff reschedule, assign a stage, manage crew, or cancel it
+    with the same editor the schedule tab uses rather than a bracket-specific
+    half-copy of it.
+    """
+    if best_of <= 1 and not games:
+        return
+
+    ui.separator()
+    with ui.row().classes('items-center justify-between w-full'):
+        ui.label(f'Best of {best_of}' if best_of > 1 else 'Scheduled match') \
+            .classes('section-title')
+        if is_staff:
+            _schedule_button(
+                games, best_of, bracket_match_id=bracket_match_id,
+                tenant_id=tenant_id, service=service, on_saved=on_saved,
+            )
+
+    for game in sorted(games, key=lambda g: g.game_number):
+        with ui.row().classes('items-center justify-between w-full q-py-xs'):
+            with ui.row().classes('items-center gap-2 no-wrap'):
+                if best_of > 1:
+                    ui.label(f'Game {game.game_number}').classes('text-caption')
+                scheduled = _scheduled_label(game)
+                if scheduled:
+                    ui.label(scheduled).classes('text-caption text-grey')
+                winner = entry_name.get(game.winner_entry_id)
+                if winner:
+                    ui.label(winner).classes('text-bold')
+                    if game.forfeit:
+                        ui.label('FF').classes('text-bold text-negative')
+                elif game.cancelled_reason:
+                    ui.label(game.cancelled_reason).classes('text-caption text-grey')
+            with ui.row().classes('items-center gap-1 no-wrap'):
+                ui.badge(
+                    game.state.value.title(),
+                    color=_GAME_BADGE.get(game.state, 'grey'),
+                )
+                if is_staff and game.match_id is not None:
+                    ui.button(
+                        icon='edit',
+                        on_click=lambda _=None, mid=game.match_id: background_tasks.create(
+                            _open_match_editor(mid, context.client, tenant_id, on_saved)
+                        ),
+                    ).props('flat dense round size=sm').tooltip('Edit the scheduled match')
+
+    remaining = best_of - len({g.game_number for g in games})
+    if best_of > 1 and remaining > 0:
+        ui.label(
+            f'{remaining} game(s) not yet scheduled'
+        ).classes('text-caption text-grey')
+
+
+def _scheduled_label(game) -> str:
+    """The game's scheduled time, or '' when it has no live ``Match``."""
+    match = getattr(game, 'match', None)
+    if match is None or getattr(match, 'scheduled_at', None) is None:
+        return ''
+    return format_eastern_display(match.scheduled_at)
+
+
+async def _open_match_editor(
+    match_id: int, client, tenant_id: int, on_saved: Callable[[], Awaitable[None]],
+) -> None:
+    """Open the ordinary admin match editor for one game's scheduled ``Match``."""
+    # Local import: the bracket dialog and the match dialog are peers, and only
+    # this handler needs the dependency.
+    from theme.dialog.match_dialog import AdminMatchDialog
+
+    with client:
+        with tenant_scope(tenant_id):
+            match = await MatchService().get_by_id(match_id)
+        if match is None:
+            ui.notify('That match no longer exists', color='warning')
+            await on_saved()
+            return
+
+        async def _after(_result) -> None:
+            await on_saved()
+
+        with tenant_scope(tenant_id):
+            await AdminMatchDialog(match=match, on_submit=_after).open()
+
+
+def _schedule_button(
+    games: list,
+    best_of: int,
+    *,
+    bracket_match_id: int,
+    tenant_id: int,
+    service: BracketService,
+    on_saved: Callable[[], Awaitable[None]],
+) -> None:
+    """'Schedule game N' — the only UI route into ``schedule_bracket_match``."""
+    number = _next_game_number(games, best_of)
+    if number is None:
+        return
+    label = f'Schedule game {number}' if best_of > 1 else 'Schedule match'
+    ui.button(
+        label, icon='event',
+        on_click=lambda _=None: _schedule_dialog(
+            number, bracket_match_id=bracket_match_id, tenant_id=tenant_id,
+            service=service, on_saved=on_saved,
+        ),
+    ).props('flat dense size=sm color=primary')
+
+
+def _next_game_number(games: list, best_of: int) -> Optional[int]:
+    """Mirror of the service's slot allocation, for labelling only."""
+    taken = {g.game_number for g in games}
+    return next((n for n in range(1, best_of + 1) if n not in taken), None)
+
+
+def _schedule_dialog(
+    number: int,
+    *,
+    bracket_match_id: int,
+    tenant_id: int,
+    service: BracketService,
+    on_saved: Callable[[], Awaitable[None]],
+) -> None:
+    """Collect a date/time and book the next game through ``BracketService``."""
+    with ui.dialog() as dialog, ui.card().classes('w-[22rem] max-w-full'):
+        ui.label(f'Schedule game {number}').classes('text-h6')
+        date_input = ui.input('Date (YYYY-MM-DD)').props('dense')
+        time_input = ui.input('Time (HH:MM, Eastern)').props('dense')
+
+        async def submit() -> None:
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            with tenant_scope(tenant_id):
+                try:
+                    await service.schedule_bracket_match(
+                        actor, bracket_match_id,
+                        scheduled_date=(date_input.value or '').strip(),
+                        scheduled_time=(time_input.value or '').strip(),
+                    )
+                except (ValueError, PermissionError) as ex:
+                    notify_error(ex)
+                    return
+            ui.notify(f'Game {number} scheduled', color='positive')
+            dialog.close()
+            await on_saved()
+
+        with ui.row().classes('justify-end w-full q-mt-sm gap-2'):
+            ui.button('Cancel', on_click=dialog.close).props('flat')
+            ui.button('Schedule', on_click=submit).props('color=primary')
+    dialog.open()
+
 
 _STATE_BADGE = {
     BracketMatchState.PENDING: 'grey',
@@ -34,6 +224,7 @@ def build_match_dialog(
     records: Dict[int, tuple],
     number: Optional[int],
     *,
+    best_of: int = 1,
     is_staff: bool,
     actor: Optional[User],
     tenant_id: int,
@@ -75,8 +266,11 @@ def build_match_dialog(
                 elif is_winner:
                     ui.icon('emoji_events', size='xs').classes('text-primary')
 
-        if match.match_id is not None:
-            ui.label('Scheduled to a match room.').classes('text-caption text-grey')
+        _render_games(
+            _games_of(match), entry_name, best_of,
+            bracket_match_id=match.id, is_staff=is_staff, tenant_id=tenant_id,
+            service=service, on_saved=on_saved,
+        )
 
         can_report = (
             is_staff

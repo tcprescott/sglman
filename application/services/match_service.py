@@ -26,6 +26,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.match_source_guard import assert_sg_fields_unchanged
 from application.services import discord_queue
+from application.services.match_cancellation import CancellationMixin
 from application.services.match_participants import MatchParticipants
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
@@ -43,7 +44,7 @@ _STATION_REGEXES = {
 }
 
 
-class MatchService:
+class MatchService(CancellationMixin):
     """Service for match-related business operations."""
 
     def __init__(self) -> None:
@@ -180,6 +181,7 @@ class MatchService:
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
         is_stream_candidate: bool = False,
+        title: Optional[str] = None,
         actor: Optional[User] = None,
     ) -> Match:
         """
@@ -194,6 +196,11 @@ class MatchService:
             stream_room_id: Optional stream room ID
             commentator_ids: Optional list of commentator user IDs
             tracker_ids: Optional list of tracker user IDs
+            title: Optional display label. It **replaces** the Discord scheduled
+                event's whole title and names the racetime room, so a caller must
+                pass something self-describing (see
+                ``SchedulingMixin._game_title``); leave it None for the default
+                "<tournament>: <players>" rendering.
             admin_user: User creating the match (for audit log)
 
         Returns:
@@ -242,6 +249,7 @@ class MatchService:
             comment=comment,
             stream_room_id=stream_room_id,
             is_stream_candidate=is_stream_candidate,
+            title=title,
         )
 
         await self.participants.ensure_enrolled(tournament_id, players)
@@ -670,22 +678,6 @@ class MatchService:
         """
         users = await self.participants.resolve_users(player_ids)
         await self.participants.ensure_enrolled(tournament_id, users)
-
-    async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
-        match = await self._require_match(match_id)
-        await AuthService.ensure(
-            await AuthService.can_crud_match(actor, match),
-            f"User cannot delete match {match_id}",
-        )
-        tournament_id = match.tournament_id
-        await self.repository.delete(match)
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
-        )
-        match_events.publish(match_id, match_events.DELETED)
-        event_bus.publish(Event.create(EventType.MATCH_DELETED, {
-            'match_id': match_id, 'tournament_id': tournament_id,
-        }, actor))
 
     # Match lifecycle transitions (seat / start / finish / confirm) live solely
     # in MatchScheduleService._transition, which enforces the ordering rules and

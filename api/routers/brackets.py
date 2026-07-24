@@ -20,6 +20,8 @@ from api.schemas.brackets import (
     EnrollRequest,
     EntrantCreateRequest,
     ReportResultRequest,
+    ScheduleGameRequest,
+    SetBestOfRequest,
 )
 from application.errors import require_found
 from application.services import BracketService
@@ -113,11 +115,55 @@ async def start_bracket(bracket_id: int, actor: User = Depends(require_write_act
 
 @router.post("/matches/{match_id}/result", response_model=BracketMatchResponse, summary="Report a match result")
 async def report_result(match_id: int, body: ReportResultRequest, actor: User = Depends(require_write_actor)):
-    return await BracketService().report_result(
+    service = BracketService()
+    await service.report_result(
         actor, match_id, body.winner_entry_id,
         entry1_score=body.entry1_score,
         entry2_score=body.entry2_score,
         forfeit=body.forfeit,
+    )
+    # Re-read with games loaded: the response embeds them, and report_result
+    # cancels any pending game, so the caller should see that.
+    return require_found(await service.get_match_with_games(match_id), "Bracket match")
+
+
+@router.post(
+    "/matches/{match_id}/games",
+    response_model=BracketMatchResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Schedule the next game of a match's series",
+)
+async def schedule_game(
+    match_id: int, body: ScheduleGameRequest, actor: User = Depends(require_write_actor)
+):
+    """Book the next game of this matchup into a real ``Match``.
+
+    The game number is assigned server-side — call this once per game to book a
+    best-of-N, including all N slots up front. Rejected once every slot is taken
+    or the series is decided.
+    """
+    service = BracketService()
+    await service.schedule_bracket_match(
+        actor, match_id,
+        scheduled_date=body.scheduled_date,
+        scheduled_time=body.scheduled_time,
+        stream_room_id=body.stream_room_id,
+        comment=body.comment,
+    )
+    return require_found(await service.get_match_with_games(match_id), "Bracket match")
+
+
+@router.patch(
+    "/matches/{match_id}/best-of",
+    response_model=BracketMatchResponse,
+    summary="Override a match's series length",
+)
+async def set_best_of(
+    match_id: int, body: SetBestOfRequest, actor: User = Depends(require_write_actor)
+):
+    await BracketService().set_best_of(actor, match_id, body.best_of)
+    return require_found(
+        await BracketService().get_match_with_games(match_id), "Bracket match"
     )
 
 

@@ -26,50 +26,64 @@ TICK_SECONDS = 60
 # lower bound lets a brief worker outage still catch a just-passed start.
 MAX_LEAD_MINUTES = 7 * 24 * 60
 GRACE_MINUTES = 15
+# A best-of-N game held behind a long-running earlier game can slip well past
+# GRACE_MINUTES before it may open, so series games get their own wider floor.
+SERIES_GRACE_MINUTES = 12 * 60
 
 
 async def _tick() -> None:
     from application.repositories import RacetimeRoomRepository
-    from application.services.feature_flag_service import FeatureFlagService
+    from application.services.bracket_service import BracketService
     from application.services.race_room_service import RaceRoomService
     from application.services.user_service import UserService
-    from models import FeatureFlag
 
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(minutes=GRACE_MINUTES)
     window_end = now + timedelta(minutes=MAX_LEAD_MINUTES)
 
     repo = RacetimeRoomRepository()
+    bracket_service = BracketService()
     candidates = await repo.matches_due_for_auto_open(window_start, window_end)
+
+    # Backstop: a series game deferred behind a long-running previous game can
+    # slip past this scan's 15-minute lower bound. The push at game-end normally
+    # opens it right away; this catches the case where the process died in
+    # between. Everything downstream (the hold, then auto_open_if_eligible with
+    # its lead-window guard) applies unchanged, so it can never open anything the
+    # normal path wouldn't.
+    seen = {m.id for m in candidates}
+    for match in await bracket_service.series_matches_due(
+        now - timedelta(minutes=SERIES_GRACE_MINUTES), window_end,
+    ):
+        if match.id not in seen:
+            seen.add(match.id)
+            candidates.append(match)
+
     if not candidates:
         return
+
+    # A later game of a best-of-N series waits for the earlier one to end —
+    # opening game 2's room mid-race would put the players in two rooms at once.
+    # Batched (two queries for the whole candidate set, not one per match) and
+    # applied here rather than inside auto_open_if_eligible so the push at
+    # game-end can reuse that method without paying for the scan.
+    #
+    # Deliberately NOT gated on FeatureFlag.BRACKETS: turning the flag off
+    # mid-tournament must not suddenly open every held room at once. The hold is
+    # data-driven and self-limiting — no game rows means an empty set.
+    held = await bracket_service.held_match_ids([m.id for m in candidates])
+    if held:
+        candidates = [m for m in candidates if m.id not in held]
+        if not candidates:
+            return
 
     service = RaceRoomService()
     system_user = await UserService().get_system_user()
 
     async def _open(match) -> None:
-        if not await FeatureFlagService().is_enabled(FeatureFlag.RACETIME_ROOMS):
-            return  # tenant has racetime rooms disabled
-        lead = match.tournament.room_open_minutes_before or 30
-        if match.scheduled_at is None or match.scheduled_at > now + timedelta(minutes=lead):
-            return  # not yet within this tournament's lead window
-        if await repo.get_by_match(match) is not None:
-            return  # idempotent: a room already exists
-        bot = await match.tournament.racetime_bot
-        if bot is None:
-            return  # no authorized bot to host the room
-        players = list(match.players)
-        if not players or not all(
-            getattr(p.user, 'racetime_user_id', None) for p in players
-        ):
-            # Eligibility gate: every entrant must have linked racetime.
-            logger.info(
-                'auto-open skipped for match %s: not all entrants have '
-                'linked racetime', match.id,
-            )
-            return
-        await service.create_room_for_match(match, actor=system_user)
-        logger.info('auto-opened racetime room for match %s', match.id)
+        room = await service.auto_open_if_eligible(match, now=now, actor=system_user)
+        if room is not None:
+            logger.info('auto-opened racetime room for match %s', match.id)
 
     await for_each_tenant_scoped(
         candidates,

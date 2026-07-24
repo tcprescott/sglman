@@ -18,6 +18,7 @@ from .enums import (
     BracketEntrantStatus,
     BracketEntryStatus,
     BracketFormat,
+    BracketMatchGameState,
     BracketMatchState,
     BracketState,
     ChallongeMatchState,
@@ -54,7 +55,13 @@ from .match import (
     StreamRoom,
     Tracker,
 )
-from .bracket import Bracket, BracketEntrant, BracketEntry, BracketMatch
+from .bracket import (
+    Bracket,
+    BracketEntrant,
+    BracketEntry,
+    BracketMatch,
+    BracketMatchGame,
+)
 from .equipment import Equipment, EquipmentLoan
 from .feedback import Feedback
 from .volunteer import (
@@ -98,6 +105,7 @@ __all__ = [
     'BracketEntrantStatus',
     'BracketEntryStatus',
     'BracketFormat',
+    'BracketMatchGameState',
     'BracketMatchState',
     'BracketState',
     'ChallongeMatchState',
@@ -144,6 +152,7 @@ __all__ = [
     'BracketEntrant',
     'BracketEntry',
     'BracketMatch',
+    'BracketMatchGame',
     # equipment
     'Equipment',
     'EquipmentLoan',

@@ -312,10 +312,13 @@ isn't lost:
 
 ## Out of scope
 
-- **Per-game results** (a `BracketMatchGame` table) — v1 stores set scores only.
+- ~~**Per-game results** (a `BracketMatchGame` table) — v1 stores set scores only.~~
+  **Shipped since**: `BracketMatchGame` landed with best-of-N series; set scores
+  are now derived (games won). See [features/brackets.md](features/brackets.md).
 - **Pan/zoom minimaps** and pool-splitting — field sizes don't warrant them;
   horizontal scroll + zoom buttons suffice.
-- Score *enforcement* against best-of (display-only in v1).
+- ~~Score *enforcement* against best-of (display-only in v1).~~ **Shipped since**:
+  `best_of` is semantic — it drives game numbering and the clinch.
 - Embeddable iframe module à la Challonge.
 - Team entrants, auto-scheduling — unchanged from
   [brackets-plan.md](brackets-plan.md)'s deferred list.

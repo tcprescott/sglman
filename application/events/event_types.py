@@ -16,6 +16,7 @@ class EventType:
     MATCH_CREATED = 'match.created'
     MATCH_UPDATED = 'match.updated'
     MATCH_DELETED = 'match.deleted'
+    MATCH_CANCELLED = 'match.cancelled'
     MATCH_RESCHEDULED = 'match.rescheduled'
     MATCH_SEATED = 'match.seated'
     MATCH_STARTED = 'match.started'
@@ -93,6 +94,9 @@ class EventType:
     BRACKET_CREATED = 'bracket.created'
     BRACKET_STARTED = 'bracket.started'
     BRACKET_MATCH_COMPLETED = 'bracket.match_completed'
+    BRACKET_GAME_SCHEDULED = 'bracket.game_scheduled'
+    BRACKET_GAME_COMPLETED = 'bracket.game_completed'
+    BRACKET_GAME_CANCELLED = 'bracket.game_cancelled'
     BRACKET_ADVANCED = 'bracket.advanced'
     BRACKET_COMPLETED = 'bracket.completed'
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
@@ -101,7 +105,7 @@ class EventType:
 
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
-        MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
+        MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
         MATCH_SEATED, MATCH_STARTED, MATCH_FINISHED, MATCH_CONFIRMED,
         MATCH_ACKNOWLEDGED, MATCH_RESULT_RECORDED, MATCH_SEED_ROLLED,
         MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED, MATCH_STATIONS_ASSIGNED,
@@ -119,6 +123,7 @@ class EventType:
         BRACKET_CREATED, BRACKET_STARTED, BRACKET_MATCH_COMPLETED,
         BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,
         BRACKET_ENTRANT_ADDED, BRACKET_ENTRANT_DROPPED,
+    BRACKET_GAME_SCHEDULED, BRACKET_GAME_COMPLETED, BRACKET_GAME_CANCELLED,
     })
 
     # Wildcard a subscriber can register to receive every event.

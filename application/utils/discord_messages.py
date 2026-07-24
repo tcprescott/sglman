@@ -156,6 +156,30 @@ def checked_in_dm(
     )
 
 
+def cancelled_dm(
+    tournament_name: str,
+    *,
+    reason: str = '',
+    player_names: Optional[list[str]] = None,
+    scheduled_at_display: str = '',
+    stream_room_name: str = '',
+) -> str:
+    info = _match_info_lines(
+        player_names=player_names,
+        scheduled_at_display=scheduled_at_display,
+        stream_room_name=stream_room_name,
+        time_label='Was scheduled for',
+    )
+    block = ("\n".join(info) + "\n\n") if info else ''
+    why = f"{reason}\n\n" if reason else ''
+    return (
+        f"Your match in **{tournament_name}** has been cancelled.\n\n"
+        f"{block}"
+        f"{why}"
+        f"Nothing further is needed from you."
+    )
+
+
 def state_changed_dm(
     tournament_name: str,
     new_state: str,

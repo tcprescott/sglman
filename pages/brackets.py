@@ -421,6 +421,7 @@ def create() -> None:
                 number = assign_match_numbers(match_nodes(matches)).get(match.id)
                 build_match_dialog(
                     match, entry_name, entry_seed, records, number,
+                    best_of=service.resolve_best_of(bracket, match),
                     is_staff=is_staff, actor=user, tenant_id=tenant_id,
                     service=service, on_saved=_on_saved,
                 )
