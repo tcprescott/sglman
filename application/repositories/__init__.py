@@ -16,6 +16,7 @@ from .async_qualifier_repository import (
 )
 from .player_availability_repository import PlayerAvailabilityRepository
 from .audit_repository import AuditRepository
+from .bracket_repository import BracketRepository
 from .challonge_repository import ChallongeRepository
 from .commentator_repository import CommentatorRepository
 from .discord_role_mapping_repository import DiscordRoleMappingRepository
@@ -63,6 +64,7 @@ __all__ = [
     'AsyncQualifierLiveRaceRepository',
     'PlayerAvailabilityRepository',
     'AuditRepository',
+    'BracketRepository',
     'ChallongeRepository',
     'CommentatorRepository',
     'DiscordRoleMappingRepository',

@@ -3265,6 +3265,58 @@ typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""
 full = ["httpx (>=0.27.0,<0.29.0)", "httpx2 (>=2.0.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
 
 [[package]]
+name = "swisspair"
+version = "0.2.1"
+description = "Python bindings for Swiss pairing algorithm for (not only) Magic: The Gathering."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "swisspair-0.2.1-cp310-cp310-macosx_13_0_x86_64.whl", hash = "sha256:aacecad8be70e8b05a4a6743de64725f938d1f8cb75be024144cab13981d5418"},
+    {file = "swisspair-0.2.1-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:2b7411a5e41f8dfbac3f1687ee59c1b4b14721157d4e6ad6a1c4b647e4683e62"},
+    {file = "swisspair-0.2.1-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:c79b6a6c9c61901b2ff1ab0caee9b66190bd425f8651231b5c6e9700da3958a3"},
+    {file = "swisspair-0.2.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7709114ec486cf1fd5cf0179584e8ef9e26af9f775ca5b3a53be9e3a226b49dd"},
+    {file = "swisspair-0.2.1-cp310-cp310-musllinux_1_2_i686.whl", hash = "sha256:13e6fc74c1ce02012db353a52a53ab96c1e0d4a9631870e7becb82fa61738c00"},
+    {file = "swisspair-0.2.1-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:c77a635f6210c7a0cc60488bc6a21c84dd01375dd0a745a95a2fe715ded55658"},
+    {file = "swisspair-0.2.1-cp311-cp311-macosx_13_0_x86_64.whl", hash = "sha256:2a027c8dddc13720016574d4e10e4f32932a1a930da437351f0974ee7b2ebf18"},
+    {file = "swisspair-0.2.1-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:53d2dfd66e2da874a14c8db0bab57d692b217dfa03f46dae90922e512f8c3500"},
+    {file = "swisspair-0.2.1-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:113cf1fc7360abfbef083ac5911281f6d9eaab6f95c1b8cf8287c2c54a20f3b8"},
+    {file = "swisspair-0.2.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4448f101881d47f9970c3dcfe92adcaca475050129cacca297c0868f51d1ce49"},
+    {file = "swisspair-0.2.1-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:5e26cd9b9f3494f6a0a6645b16ca8e98d1defa0922c7396bd119d7265a3f5a83"},
+    {file = "swisspair-0.2.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:aa07993860335515067a561d5c4dc5717f204b0352e769f273b6d0a29fbbe0f2"},
+    {file = "swisspair-0.2.1-cp312-cp312-macosx_13_0_x86_64.whl", hash = "sha256:1a8a1215584f98e8b541c6e48df5058a90efd8146bea21c4b8d947c59be16f6d"},
+    {file = "swisspair-0.2.1-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:39a4284a5d4f08b2a93cc7061f54c3317eadef0c3c8f37965ff9ed98e78ffcba"},
+    {file = "swisspair-0.2.1-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ee05f44388b38db77767903465e5b05c1a4be562d999b63205f80f9d4cc69554"},
+    {file = "swisspair-0.2.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c774402d712512c9052f03326fe6d993ea5a4e8e2f0921ec0a11c2696f108781"},
+    {file = "swisspair-0.2.1-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:dfa99b6a6e29e97f3847c42e09e4cb9c18f52d2eb5229a46f32511b47331ce30"},
+    {file = "swisspair-0.2.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:af5b7cba8a26d1c040cc7c8715a123e741e1ba98266833f24100d9d2931ccdea"},
+    {file = "swisspair-0.2.1-cp313-cp313-macosx_13_0_x86_64.whl", hash = "sha256:8e7ab3da07c11bb9448ef1b4e573ecf721f4b0853a26eea3c3864c55e0784283"},
+    {file = "swisspair-0.2.1-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:00df194a513c0e4faad1bbed6b9b56c031d0930ac092264c6fc941ee4f3a9f0f"},
+    {file = "swisspair-0.2.1-cp313-cp313-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:f5f91d63fb4000a2838bcd305eb88aa50f63ddf5bcde024bf5395b9dfc25527f"},
+    {file = "swisspair-0.2.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d61a1ee599d14dc2c8f870d5a82b9d798892dc2a087c3410c2fdbd1bafe374b8"},
+    {file = "swisspair-0.2.1-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:c701681b19f7efcd51c365ba31b0f9ce898cd52519a0d746b1b6338cb7274615"},
+    {file = "swisspair-0.2.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:998ab3cd16f69db43297c93c28f5f0138b5dc97fc893939f49aa6c01a631d629"},
+    {file = "swisspair-0.2.1-cp39-cp39-macosx_13_0_x86_64.whl", hash = "sha256:2f532f6ab9121224d7a909ac17c4153191f31cc5ddec80f92bfc6c9a696de65a"},
+    {file = "swisspair-0.2.1-cp39-cp39-macosx_14_0_arm64.whl", hash = "sha256:7067b6369be231d8a9746924554cf0c4307ee9f01ccc0c14ea10a2c554ed5350"},
+    {file = "swisspair-0.2.1-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ee2f656b4da619876c64c00d0ccc8ddbe721cacac2c73d395f4f4e067feb4bc7"},
+    {file = "swisspair-0.2.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7a9ef0f455ffdb6bbf2e2666c0ad9ce5fb270458ad3db4afadd9fb0c120baea6"},
+    {file = "swisspair-0.2.1-cp39-cp39-musllinux_1_2_i686.whl", hash = "sha256:9f237c62eeb418aabdec0eddbc91b98d17ceed2d0669b4337abc98cb97b51d14"},
+    {file = "swisspair-0.2.1-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:1a4e054067942ac7125b34dcb24b29ebc2199354bd9fa0525d436791378d48c4"},
+    {file = "swisspair-0.2.1-pp310-pypy310_pp73-macosx_13_0_x86_64.whl", hash = "sha256:b64f61cdf2ebbc05ec786f240e9e018b5115793389e8403aa14e9620d254bdd0"},
+    {file = "swisspair-0.2.1-pp310-pypy310_pp73-macosx_14_0_arm64.whl", hash = "sha256:fb1b842959fcf86173585091cd2e7b0ffd2348411fe09fecdc0478eb1c50c06c"},
+    {file = "swisspair-0.2.1-pp310-pypy310_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:a4279f092fc2133eebba833bba945a3bf1747c0f1292e1badcbe05face180de9"},
+    {file = "swisspair-0.2.1-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:908446529ebac4f29425ee6aedfab33fc4edc93cf704e27a5054ebebeed27b00"},
+    {file = "swisspair-0.2.1-pp39-pypy39_pp73-macosx_13_0_x86_64.whl", hash = "sha256:9fca724e1fb4bb95ee560396a333ad1380d678d7ea834e9cc86d0e28dfdeaa1e"},
+    {file = "swisspair-0.2.1-pp39-pypy39_pp73-macosx_14_0_arm64.whl", hash = "sha256:2d48865e32aa908d5eb7eccb30cddd7b008c44c135410e34c2ba8b0cea729d25"},
+    {file = "swisspair-0.2.1-pp39-pypy39_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:77f57b5666ba5782a7675a60425cedabbb60c8f1c0fca57374de81ac23d1bb0f"},
+    {file = "swisspair-0.2.1-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5f89a7994b268781cd642d164c6f37c8a2ee98a33ee7cae75b30c801ca89e26e"},
+    {file = "swisspair-0.2.1.tar.gz", hash = "sha256:bc5c47ef345f9d7b1cf986933240b280e5b58d205bc40e4851f6646a6b8bd90c"},
+]
+
+[package.extras]
+test = ["pytest"]
+
+[[package]]
 name = "tenacity"
 version = "9.1.4"
 description = "Retry code until it succeeds"
@@ -3857,4 +3909,4 @@ requests = "*"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "a1c60a210d5938f4bbc62df66d43bfe45913077da6be63d058c3c62a46e7f40a"
+content-hash = "65729e8f43307374043ad7064d636037d8b26eebd6fdf6a0941b75490b7fbd26"

@@ -1,0 +1,166 @@
+"""Bracket Repository — data access for the four native-bracket models.
+
+Pure data access (no business logic, audit, or notifications). One repository
+spans :class:`Bracket`, :class:`BracketEntrant`, :class:`BracketEntry`, and
+:class:`BracketMatch` — they are one aggregate the lifecycle drives together, so
+a single tenant-scoped repository keeps their queries in one place. Reads scope
+through the ``_tenant`` helper; custom creates stamp the ambient tenant.
+"""
+
+from typing import List, Optional
+
+from tortoise.expressions import Q
+
+from application.repositories._base import TenantScopedRepository
+from application.repositories._tenant import current_tenant_id, scoped
+from models import Bracket, BracketEntrant, BracketEntry, BracketMatch
+
+
+class BracketRepository(TenantScopedRepository[Bracket]):
+    """Data access for brackets, entrants, entries, and matches."""
+
+    model = Bracket
+
+    # --- Bracket ---------------------------------------------------------
+    async def get_bracket(self, bracket_id: int) -> Optional[Bracket]:
+        return await scoped(Bracket.filter(id=bracket_id)).first()
+
+    async def list_for_tournament(self, tournament_id: int) -> List[Bracket]:
+        return await scoped(
+            Bracket.filter(tournament_id=tournament_id)
+        ).order_by('stage_order')
+
+    async def get_stage(self, tournament_id: int, stage_order: int) -> Optional[Bracket]:
+        return await scoped(
+            Bracket.filter(tournament_id=tournament_id, stage_order=stage_order)
+        ).first()
+
+    # --- BracketEntrant --------------------------------------------------
+    async def create_entrant(self, **fields) -> BracketEntrant:
+        return await BracketEntrant.create(tenant_id=current_tenant_id(), **fields)
+
+    async def get_entrant(self, entrant_id: int) -> Optional[BracketEntrant]:
+        return await scoped(BracketEntrant.filter(id=entrant_id)).first()
+
+    async def list_entrants(self, tournament_id: int) -> List[BracketEntrant]:
+        return await scoped(
+            BracketEntrant.filter(tournament_id=tournament_id)
+        ).order_by('display_name')
+
+    # --- BracketEntry ----------------------------------------------------
+    async def create_entry(self, **fields) -> BracketEntry:
+        return await BracketEntry.create(tenant_id=current_tenant_id(), **fields)
+
+    async def get_entry(self, entry_id: int) -> Optional[BracketEntry]:
+        return await scoped(BracketEntry.filter(id=entry_id)).first()
+
+    async def list_entries(self, bracket_id: int) -> List[BracketEntry]:
+        return await scoped(
+            BracketEntry.filter(bracket_id=bracket_id)
+        ).order_by('seed', 'id')
+
+    async def list_active_entries(self, bracket_id: int) -> List[BracketEntry]:
+        from models import BracketEntryStatus
+        return await scoped(
+            BracketEntry.filter(bracket_id=bracket_id, status=BracketEntryStatus.ACTIVE)
+        ).order_by('seed', 'id')
+
+    async def get_entry_for_entrant(
+        self, bracket_id: int, entrant_id: int
+    ) -> Optional[BracketEntry]:
+        return await scoped(
+            BracketEntry.filter(bracket_id=bracket_id, entrant_id=entrant_id)
+        ).first()
+
+    # --- BracketMatch ----------------------------------------------------
+    async def create_match(self, **fields) -> BracketMatch:
+        return await BracketMatch.create(tenant_id=current_tenant_id(), **fields)
+
+    async def get_match(self, match_id: int) -> Optional[BracketMatch]:
+        return await scoped(BracketMatch.filter(id=match_id)).first()
+
+    async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
+        return await scoped(
+            BracketMatch.filter(bracket_id=bracket_id)
+        ).order_by('round', 'position')
+
+    async def get_match_at(
+        self, bracket_id: int, round: int, position: int
+    ) -> Optional[BracketMatch]:
+        return await scoped(
+            BracketMatch.filter(bracket_id=bracket_id, round=round, position=position)
+        ).first()
+
+    async def list_matches_in_round(
+        self, bracket_id: int, round: int
+    ) -> List[BracketMatch]:
+        return await scoped(
+            BracketMatch.filter(bracket_id=bracket_id, round=round)
+        ).order_by('position')
+
+    async def list_open_matches(self, bracket_id: int) -> List[BracketMatch]:
+        from models import BracketMatchState
+        return await scoped(
+            BracketMatch.filter(bracket_id=bracket_id, state=BracketMatchState.OPEN)
+        ).order_by('round', 'position')
+
+    async def max_round(self, bracket_id: int) -> Optional[int]:
+        row = await scoped(
+            BracketMatch.filter(bracket_id=bracket_id)
+        ).order_by('-round').first()
+        return row.round if row is not None else None
+
+    async def winner_feeders(self, match_id: int, slot: int) -> List[BracketMatch]:
+        """Not-yet-COMPLETE matches whose ``winner`` feeds ``slot`` of ``match_id``."""
+        from models import BracketMatchState
+        return await scoped(
+            BracketMatch.filter(winner_to_id=match_id, winner_to_slot=slot)
+        ).exclude(state=BracketMatchState.COMPLETE)
+
+    async def loser_feeders(self, match_id: int, slot: int) -> List[BracketMatch]:
+        """Not-yet-COMPLETE matches whose ``loser`` feeds ``slot`` of ``match_id``."""
+        from models import BracketMatchState
+        return await scoped(
+            BracketMatch.filter(loser_to_id=match_id, loser_to_slot=slot)
+        ).exclude(state=BracketMatchState.COMPLETE)
+
+    # --- scheduling seam (mirrors ChallongeRepository) -------------------
+    async def get_match_with_entrants(self, bracket_match_id: int) -> Optional[BracketMatch]:
+        """A bracket match with both entry slots resolved to their linked users.
+
+        Used by the scheduler, which needs ``entry.entrant.user`` on both sides.
+        """
+        return await scoped(
+            BracketMatch.filter(id=bracket_match_id)
+        ).prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+        ).first()
+
+    async def get_bracket_match_for_match(self, match_id: int) -> Optional[BracketMatch]:
+        """The bracket match linked to a scheduled ``Match`` (the ``match`` seam)."""
+        return await scoped(
+            BracketMatch.filter(match_id=match_id)
+        ).prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+        ).first()
+
+    async def open_matches_for_user(
+        self, user_id: int, tournament_id: Optional[int] = None
+    ) -> List[BracketMatch]:
+        """OPEN bracket matches where ``user_id`` is one of the two entrants.
+
+        Joins entry → entrant → user on either slot. Optionally narrowed to one
+        tournament. Not-yet-linked matches only (``match_id`` still null), since a
+        linked one is already scheduled.
+        """
+        from models import BracketMatchState
+        qs = scoped(BracketMatch.filter(
+            Q(entry1__entrant__user_id=user_id) | Q(entry2__entrant__user_id=user_id),
+            state=BracketMatchState.OPEN,
+            match_id__isnull=True,
+        ))
+        if tournament_id is not None:
+            qs = qs.filter(bracket__tournament_id=tournament_id)
+        return await qs.prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+        ).distinct().order_by('round', 'position')

@@ -356,6 +356,16 @@ class ChallongeService:
             "You do not have permission to link this tournament",
         )
 
+        # Exclusivity: a tournament uses a native bracket OR a Challonge link,
+        # never both (the symmetric guard lives in
+        # ``BracketService._ensure_no_challonge_link``).
+        from application.repositories import BracketRepository
+        if await BracketRepository().list_for_tournament(tournament_id):
+            raise ValueError(
+                "This tournament already has a native bracket; a tournament uses "
+                "a native bracket or a Challonge link, never both."
+            )
+
         identifier = self.parse_tournament_identifier(id_or_url)
         try:
             full = await self._api_client().get_tournament_full(identifier)

@@ -15,6 +15,11 @@ from .enums import (
     AsyncQualifierReviewStatus,
     AsyncQualifierRunStatus,
     BotStatus,
+    BracketEntrantStatus,
+    BracketEntryStatus,
+    BracketFormat,
+    BracketMatchState,
+    BracketState,
     ChallongeMatchState,
     DiscordEventSource,
     EquipmentStatus,
@@ -49,6 +54,7 @@ from .match import (
     StreamRoom,
     Tracker,
 )
+from .bracket import Bracket, BracketEntrant, BracketEntry, BracketMatch
 from .equipment import Equipment, EquipmentLoan
 from .feedback import Feedback
 from .volunteer import (
@@ -89,6 +95,11 @@ __all__ = [
     'AsyncQualifierReviewStatus',
     'AsyncQualifierRunStatus',
     'BotStatus',
+    'BracketEntrantStatus',
+    'BracketEntryStatus',
+    'BracketFormat',
+    'BracketMatchState',
+    'BracketState',
     'ChallongeMatchState',
     'DiscordEventSource',
     'EquipmentStatus',
@@ -128,6 +139,11 @@ __all__ = [
     'MatchWatcher',
     'StreamRoom',
     'Tracker',
+    # brackets
+    'Bracket',
+    'BracketEntrant',
+    'BracketEntry',
+    'BracketMatch',
     # equipment
     'Equipment',
     'EquipmentLoan',

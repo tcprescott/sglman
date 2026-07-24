@@ -106,6 +106,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/equipment/qr-labels` | [`pages/equipment_labels.py`](../../pages/equipment_labels.py) | Staff / Equipment Manager (`EQUIPMENT` flag); printable QR-label sheet (`?ids=…&template=…&cols=…&paper=…&show=…`). `template` is `plain` (free grid, Letter/A4) or an Avery preset (`avery5160`/`5163`/`5162`) laid out on exact die-cut inches; `show` opts in owner/community/description lines. Registered **before** `/equipment/{asset_id}` so the static path wins. |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
 | `/qualifiers`, `/qualifiers/{id}` | [`pages/qualifiers.py`](../../pages/qualifiers.py) | Login required; player async-qualifier pages (draw, timer, submit, leaderboard) — gated by the `ASYNC_QUALIFIERS` feature flag |
+| `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` | [`pages/brackets.py`](../../pages/brackets.py) | `@protected_page(feature=FeatureFlag.BRACKETS)`; read-only public bracket index + per-stage detail (see [Public bracket view](#public-bracket-view-pagesbracketspy)) |
 | `/platform` | [`pages/platform.py`](../../pages/platform.py) | Super-admin only, **no tenant context**; tenant + racetime-bot CRUD (see [multitenancy.md](../features/multitenancy.md)) |
 | `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md) |
 | Identity-link OAuth callbacks | [`challonge_oauth.py`](../../pages/challonge_oauth.py), [`twitch_oauth.py`](../../pages/twitch_oauth.py), [`racetime_oauth.py`](../../pages/racetime_oauth.py) | Login required; one-time verified-identity linking on the global `User` |
@@ -145,12 +146,13 @@ Tab visibility by role (a user sees the union of all rows they match). "VC" = Vo
 | Vol. Schedule | yes | — | — | — | — | yes | — |
 | Reports | yes | — | — | yes | yes | — | — |
 | Challonge | yes | — | — | — | — | — | — |
+| Brackets | yes | — | — | — | — | — | — |
 | Discord Roles | yes | — | — | — | — | — | — |
 | Equipment | yes | — | — | — | — | — | yes |
 | Feedback | yes | — | — | — | — | — | — |
 | Settings | yes | — | — | — | — | — | — |
 
-(Tabs render in this order. The "Settings" tab is the System Configuration page.)
+(Tabs render in this order. The "Settings" tab is the System Configuration page.) The **Brackets** tab is additionally feature-gated — it appears only when `FeatureFlag.BRACKETS` is live for the tenant (`is_staff and FeatureFlag.BRACKETS in live`), like the other online-play tabs.
 
 `can_crud = staff or tournament-admin-of-any` is passed into the Schedule tab; crew coordinators get a read-mostly Schedule — lifecycle buttons but no create/edit/stage-assign (see [Admin schedule](#admin-schedule-pagesadmin_tabsadmin_schedulepy)). Proctors reach the same `admin_schedule_page` (with `can_crud=False`) from the `/volunteer` page instead.
 
@@ -280,6 +282,7 @@ The public event schedule with crew signup.
 | [`admin_features.py`](../../pages/admin_tabs/admin_features.py) | Features | Per-tenant feature-flag enable/disable (STAFF) — see [feature-flags.md](../features/feature-flags.md) |
 | [`admin_theme.py`](../../pages/admin_tabs/admin_theme.py) | Appearance | Per-tenant brand colours (STAFF); see the [per-tenant theme](#per-tenant-theme-colours) section above |
 | [`admin_challonge.py`](../../pages/admin_tabs/admin_challonge.py) | Challonge | Manage the shared Challonge connection and per-tournament bracket sync |
+| [`admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py) | Brackets | Native bracket authoring, roster/seeding, start, results/overrides, complete & advance (STAFF, `BRACKETS` flag) — see [Admin brackets](#admin-brackets-pagesadmin_tabsadmin_bracketspy) |
 | [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Discord Roles | Map Discord roles to application roles for sign-in role sync |
 | [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Webhooks | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
 | [`admin_equipment.py`](../../pages/admin_tabs/admin_equipment.py) | Equipment | Asset CRUD, checkout/checkin, and QR-page links |
@@ -362,6 +365,26 @@ Two tab functions live in this module.
 
 - A `@ui.refreshable` connection card from `ChallongeService.get_connection_status` (configured / connected state, username, scopes, token expiry, monthly request quota usage) with **Connect** (→ `/challonge/connect`) / **Disconnect** for staff.
 - A `@ui.refreshable` "Linked tournaments" list (`Tournament.filter(challonge_tournament_id__isnull=False)`) with last-synced timestamps and a per-tournament **Sync** button (`ChallongeService.sync_bracket(..., force=True)`).
+
+### Admin brackets (`pages/admin_tabs/admin_brackets.py`)
+
+`admin_brackets_page()` (STAFF, `BRACKETS` flag by tab visibility) — the staff surface over `BracketService`. A tournament selector drives a `ui.table` of that tournament's stages (Stage, Name, Format, State) with a `body-cell-actions` slot + `enable_mobile_grid` for the phone card view. Because row-action handlers fire from detached client events that have lost the tenant contextvar, every scoped read/service call is wrapped in `tenant_scope(tenant_id)` (captured while the request context was live), and `context.client` is captured and re-entered for each dialog.
+
+| Row action | Dialog | Service calls |
+|---|---|---|
+| **Manage** (`tune`) | roster / enroll / seed / start dialog | `add_entrant`, `enroll`, `set_seeds`, `start_bracket` (+ `list_entrants`/`list_entries` reads) |
+| **Results** (`scoreboard`) | open-matches + completed-matches dialog | `report_result` (win button per slot), `override_result` |
+| **Complete stage** (`flag`) | — | `complete_stage` |
+| **Advance** (`fast_forward`) | preview + confirm dialog | `get_advancing_preview`, then `advance_stage` |
+
+**Create bracket** opens a dialog (name, format select, stage order, and a "Format / advancement options" expansion for Swiss rounds, round-robin group count, and the advancement rule) → `create_bracket`. All handlers catch service `ValueError`/`PermissionError` and surface them via `notify_error`; `wire_tab_refresh('Brackets', …)` refreshes the table on tab entry.
+
+### Public bracket view (`pages/brackets.py`)
+
+Two read-only `@protected_page(..., feature=FeatureFlag.BRACKETS)` routes, each rendering through `BaseLayout` and `BracketService` (with a load-or-404 `Tournament` lookup):
+
+- **`/tournament/{tournament_id}/brackets`** (`bracket_index`) — a card per stage (name, "Stage N · Format", state badge) with a **View** button into the detail route.
+- **`/brackets/{bracket_id}`** (`bracket_detail`) — a `@ui.refreshable` body that renders **by format**: single/double elimination as a column-per-round card layout (winners bracket, plus a separate losers-bracket section for double elim; each match a two-slot card with the winner highlighted), inside an `overflow-x: auto` wrapper so a wide bracket never overflows a phone; round robin as per-group standings tables plus a results list; Swiss as a standings table plus per-round results. Standings are computed live with `compute_standings` (the same pure helper the service uses). Standings tables call `enable_mobile_grid` for the card view. A DRAFT / unstarted stage shows its seeded entrants instead of a graph.
 
 ### Admin Discord roles (`pages/admin_tabs/admin_discord_roles.py`)
 

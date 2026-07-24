@@ -14,6 +14,7 @@ from api.routers import (
     async_qualifier_live_races,
     async_qualifiers,
     audit,
+    brackets,
     crew,
     discord_events,
     discord_role_mappings,
@@ -87,6 +88,10 @@ router.include_router(
     dependencies=[Depends(require_feature(FeatureFlag.SPEEDGAMING_ETL))],
 )
 router.include_router(discord_events.router)
+router.include_router(
+    brackets.router,
+    dependencies=[Depends(require_feature(FeatureFlag.BRACKETS))],
+)
 router.include_router(service_health.router)
 router.include_router(seeds.router)
 # Live-races MUST be registered before the async-qualifiers router: its literal

@@ -103,6 +103,14 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Community',
             established=True,
         ),
+        FeatureFlagSpec(
+            FeatureFlag.BRACKETS,
+            'Native Brackets',
+            'Generate and run tournament brackets natively (single/double '
+            'elimination, Swiss, round robin, and multi-stage chains) without '
+            'the Challonge API.',
+            'Online tournaments',
+        ),
     )
 }
 
