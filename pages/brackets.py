@@ -33,6 +33,7 @@ from application.utils.timezone import format_eastern_display
 from models import (
     Bracket,
     BracketEntry,
+    BracketEntryStatus,
     BracketFormat,
     BracketMatch,
     BracketMatchState,
@@ -51,8 +52,8 @@ from theme.brackets import (
     render_section,
     slot_sources,
 )
+from theme.brackets.tables import render_crosstable, render_pairings, render_standings
 from theme.notify import notify_error
-from theme.tables.mobile_grid import enable_mobile_grid
 
 _FORMAT_LABELS = {
     BracketFormat.SINGLE_ELIM: 'Single elimination',
@@ -168,6 +169,19 @@ def _match_nodes(matches: List[BracketMatch]) -> List[MatchNode]:
         MatchNode(id=m.id, round=m.round, position=m.position, winner_to_id=m.winner_to_id)
         for m in matches
     ]
+
+
+async def _next_stage_advancement(
+    service: BracketService, bracket: Bracket
+) -> Optional[dict]:
+    """The next stage's advancement rule, if any — drives cut lines / tinting."""
+    brackets = await service.list_brackets(bracket.tournament_id)
+    nxt = next(
+        (b for b in brackets if b.stage_order == bracket.stage_order + 1), None
+    )
+    if nxt is None or not nxt.config:
+        return None
+    return (nxt.config or {}).get('advancement')
 
 
 def _build_context(
@@ -413,43 +427,13 @@ def _build_match_dialog(
     dialog.open()
 
 
-def _render_standings_table(
-    entry_ids: List[int],
-    matches: List[BracketMatch],
-    entry_name: Dict[int, str],
-    config: Optional[dict],
-    *,
-    key_prefix: str,
-) -> None:
-    if not entry_ids:
-        ui.label('No entrants yet.').classes('italic-note')
-        return
-    standings = compute_standings(
-        entry_ids, _results_from_matches(matches), _standings_config(config)
-    )
-    columns = [
-        {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
-        {'name': 'name', 'label': 'Entrant', 'field': 'name', 'sortable': True},
-        {'name': 'record', 'label': 'W-L-D', 'field': 'record'},
-        {'name': 'points', 'label': 'Points', 'field': 'points', 'sortable': True},
-    ]
-    rows = [
-        {
-            # BracketEntry id — a unique row key; display_name can duplicate
-            # (e.g. two "TBD" placeholders), which collides Quasar's row_key.
-            'entry_id': s.ref,
-            'rank': s.rank,
-            'name': entry_name.get(s.ref, 'Unknown'),
-            'record': f'{s.wins}-{s.losses}-{s.draws}'
-            + (f' ({s.byes} bye)' if s.byes else ''),
-            'points': f'{s.points:g}',
-        }
-        for s in standings
-    ]
-    table = ui.table(
-        columns=columns, rows=rows, row_key='entry_id', pagination=0
-    ).classes('full-width')
-    enable_mobile_grid(table, columns)
+def _group_letter(group: Optional[int]) -> Optional[str]:
+    if group is None:
+        return None
+    try:
+        return chr(ord('A') + (int(group) - 1))
+    except (TypeError, ValueError):
+        return str(group)
 
 
 def _render_results_list(
@@ -458,14 +442,14 @@ def _render_results_list(
     played = [m for m in matches if m.state == BracketMatchState.COMPLETE]
     upcoming = [m for m in matches if m.state == BracketMatchState.OPEN]
     if not played and not upcoming:
+        ui.label('No matches yet.').classes('text-caption text-grey')
         return
     with ui.column().classes('gap-1 w-full'):
         for match in played:
-            completed = True
-            name1 = _slot_label(match.entry1_id, entry_name, completed=completed)
-            name2 = _slot_label(match.entry2_id, entry_name, completed=completed)
+            name1 = _slot_label(match.entry1_id, entry_name, completed=True)
+            name2 = _slot_label(match.entry2_id, entry_name, completed=True)
             if match.entry2_id is None or match.entry1_id is None:
-                winner = _slot_label(match.winner_id, entry_name, completed=completed)
+                winner = _slot_label(match.winner_id, entry_name, completed=True)
                 ui.label(f'{winner} — bye').classes('text-caption')
             else:
                 winner_name = entry_name.get(match.winner_id, 'Unknown')
@@ -482,7 +466,12 @@ def _render_round_robin(
     matches: List[BracketMatch],
     entry_name: Dict[int, str],
     config: Optional[dict],
+    *,
+    advancement: Optional[dict] = None,
+    complete: bool = False,
 ) -> None:
+    entry_seed = {e.id: e.seed for e in entries}
+    tiebreakers = _standings_config(config).tiebreakers
     group_of: Dict[int, Optional[int]] = {}
     for m in matches:
         for eid in (m.entry1_id, m.entry2_id):
@@ -492,16 +481,39 @@ def _render_round_robin(
         group_of.setdefault(e.id, e.group_number)
 
     groups = sorted({group_of.get(e.id) for e in entries}, key=lambda g: (g is None, g))
-    for group in groups:
-        group_entry_ids = [e.id for e in entries if group_of.get(e.id) == group]
-        group_matches = [m for m in matches if m.group_number == group]
-        title = f'Group {group}' if group is not None else 'Standings'
-        ui.label(title).classes('section-title q-mt-md')
-        _render_standings_table(
-            group_entry_ids, group_matches, entry_name, config,
-            key_prefix=f'rr-{group}',
-        )
-        _render_results_list(group_matches, entry_name)
+    # A per-group advancement rule tints/cuts each group's top `count`.
+    per_group_cut = (
+        advancement.get('count')
+        if advancement and advancement.get('per_group')
+        else None
+    )
+
+    with ui.element('div').classes('bracket-groups-grid'):
+        for group in groups:
+            group_entry_ids = [e.id for e in entries if group_of.get(e.id) == group]
+            group_matches = [m for m in matches if m.group_number == group]
+            with ui.card().classes('bracket-group-card'):
+                letter = _group_letter(group)
+                ui.label(f'Group {letter}' if letter else 'Standings') \
+                    .classes('bracket-section-title')
+                if not group_entry_ids:
+                    ui.label('No entrants yet.').classes('italic-note')
+                    continue
+                standings = compute_standings(
+                    group_entry_ids,
+                    _results_from_matches(group_matches),
+                    _standings_config(config),
+                )
+                render_standings(
+                    standings, entry_name, entry_seed, tiebreakers,
+                    advancing=per_group_cut, show_elim=complete,
+                )
+                order_ids = [s.ref for s in standings]
+                if 2 <= len(group_entry_ids) <= 10:
+                    with ui.expansion('Crosstable').classes('w-full'):
+                        render_crosstable(order_ids, group_matches, entry_name)
+                with ui.expansion('Matches').classes('w-full'):
+                    _render_results_list(group_matches, entry_name)
 
 
 def _render_swiss(
@@ -509,17 +521,47 @@ def _render_swiss(
     matches: List[BracketMatch],
     entry_name: Dict[int, str],
     config: Optional[dict],
+    *,
+    advancement: Optional[dict] = None,
+    complete: bool = False,
 ) -> None:
-    ui.label('Standings').classes('section-title q-mt-md')
-    _render_standings_table(
-        [e.id for e in entries], matches, entry_name, config, key_prefix='swiss',
+    entry_seed = {e.id: e.seed for e in entries}
+    dropped = {e.id for e in entries if e.status == BracketEntryStatus.DROPPED}
+    tiebreakers = _standings_config(config).tiebreakers
+
+    ui.label('Standings').classes('bracket-section-title')
+    if not entries:
+        ui.label('No entrants yet.').classes('italic-note')
+        return
+    standings = compute_standings(
+        [e.id for e in entries], _results_from_matches(matches), _standings_config(config)
     )
+    swiss_cut = advancement.get('count') if advancement else None
+    render_standings(
+        standings, entry_name, entry_seed, tiebreakers,
+        advancing=swiss_cut, show_elim=complete, dropped_ids=dropped,
+    )
+    if 'head_to_head' in tiebreakers:
+        ui.label('Remaining ties are broken by head-to-head result.') \
+            .classes('text-caption text-grey')
+
     rounds = sorted({m.round for m in matches})
-    for round_ in rounds:
-        ui.label(f'Round {round_}').classes('text-caption text-bold q-mt-sm')
-        _render_results_list(
-            [m for m in matches if m.round == round_], entry_name
-        )
+    if not rounds:
+        return
+    records = _entry_records([e.id for e in entries], matches)
+    open_rounds = [m.round for m in matches if m.state == BracketMatchState.OPEN]
+    default_round = max(open_rounds) if open_rounds else max(rounds)
+
+    ui.label('Pairings').classes('bracket-section-title')
+    with ui.tabs().classes('w-full') as tabs:
+        for r in rounds:
+            ui.tab(f'r{r}', label=f'Round {r}')
+    with ui.tab_panels(tabs, value=f'r{default_round}').classes('w-full'):
+        for r in rounds:
+            with ui.tab_panel(f'r{r}'):
+                render_pairings(
+                    [m for m in matches if m.round == r], entry_name, records,
+                )
 
 
 def create() -> None:
@@ -676,10 +718,19 @@ def create() -> None:
                             double=bracket.format == BracketFormat.DOUBLE_ELIM,
                         )
                     _populate_zoom_toolbar(toolbar_row, wrapper, _live_refresh)
-                elif bracket.format == BracketFormat.ROUND_ROBIN:
-                    _render_round_robin(entries, matches, entry_name, bracket.config)
                 else:
-                    _render_swiss(entries, matches, entry_name, bracket.config)
+                    advancement = await _next_stage_advancement(service, bracket)
+                    complete = bracket.state == BracketState.COMPLETE
+                    if bracket.format == BracketFormat.ROUND_ROBIN:
+                        _render_round_robin(
+                            entries, matches, entry_name, bracket.config,
+                            advancement=advancement, complete=complete,
+                        )
+                    else:
+                        _render_swiss(
+                            entries, matches, entry_name, bracket.config,
+                            advancement=advancement, complete=complete,
+                        )
 
         await render_body()
         register_bracket_view(bracket_id, _live_refresh)

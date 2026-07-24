@@ -268,6 +268,232 @@
   transform-origin: top left;
 }
 
+/* ---- Swiss / groups data tables ------------------------------------------ */
+
+.bracket-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.bracket-group-card {
+  padding: 10px 12px;
+}
+
+/* Standings (flex rows so a row can be tinted by fate + carry a cut line). */
+.bracket-standings {
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+}
+
+.bracket-strow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--bracket-text);
+}
+
+.bracket-strow.is-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--bracket-muted);
+  border-bottom: 1px solid var(--bracket-card-border);
+}
+
+.bracket-strow .c-rank {
+  width: 24px;
+  flex: 0 0 auto;
+  text-align: center;
+  color: var(--bracket-muted);
+}
+
+.bracket-strow .c-name {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+.bracket-strow .c-rec {
+  width: 76px;
+  flex: 0 0 auto;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.bracket-strow .c-pts {
+  width: 42px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bracket-strow .c-tb {
+  width: 54px;
+  flex: 0 0 auto;
+  text-align: right;
+  color: var(--bracket-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bracket-entrant-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bracket-entrant-cell .nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-strow.is-advancing {
+  background: rgba(85, 122, 31, 0.16);
+}
+
+.bracket-strow.is-eliminated {
+  background: rgba(179, 54, 43, 0.10);
+  color: var(--bracket-muted);
+}
+
+.bracket-strow.is-dropped {
+  opacity: 0.55;
+}
+
+.bracket-strow.is-dropped .nm {
+  text-decoration: line-through;
+}
+
+.bracket-strow.cut-below {
+  border-bottom: 2px solid var(--bracket-accent);
+}
+
+/* Swiss pairings. */
+.bracket-pairings {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bracket-prow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid var(--bracket-card-border);
+  border-radius: 5px;
+}
+
+.bracket-prow.is-open {
+  border-left: 3px solid var(--bracket-accent);
+}
+
+.bracket-prow.is-complete {
+  opacity: 0.82;
+}
+
+.bracket-prow .c-board {
+  width: 20px;
+  flex: 0 0 auto;
+  text-align: center;
+  color: var(--bracket-muted);
+}
+
+.bracket-prow .c-player {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bracket-prow .c-player.right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.bracket-prow .c-player.bye {
+  justify-content: center;
+  color: var(--bracket-muted);
+  font-style: italic;
+}
+
+.bracket-prow .c-player .nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-prow .c-player.win .nm {
+  font-weight: 700;
+}
+
+.bracket-prow .c-player .rec {
+  font-size: 10px;
+  color: var(--bracket-muted);
+}
+
+.bracket-prow .c-result {
+  width: 48px;
+  flex: 0 0 auto;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Crosstable (head-to-head grid). */
+.bracket-crosstable {
+  display: grid;
+  gap: 1px;
+  align-items: stretch;
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+.bracket-crosstable .cx-head {
+  text-align: center;
+  font-weight: 600;
+  color: var(--bracket-muted);
+}
+
+.bracket-crosstable .cx-rowhead {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 6px;
+}
+
+.bracket-crosstable .cx-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  border-radius: 3px;
+  background: var(--bracket-seed-bg);
+}
+
+.bracket-crosstable .cx-cell.win {
+  background: var(--bracket-accent);
+  color: var(--bracket-accent-text);
+  font-weight: 700;
+}
+
+.bracket-crosstable .cx-cell.loss {
+  background: transparent;
+  color: var(--bracket-muted);
+}
+
+.bracket-crosstable .cx-cell.diag {
+  background: var(--bracket-line);
+}
+
 @media print {
   .bracket-scroll {
     overflow: visible;

@@ -258,6 +258,19 @@ def slot_sources(
     return out
 
 
+def avatar_hue(name: str) -> int:
+    """Deterministic hue (0–359) for an entrant's initial-letter avatar disc."""
+    return sum(ord(c) for c in name) % 360 if name else 0
+
+
+def avatar_initial(name: str) -> str:
+    """The single letter shown on an entrant's avatar disc."""
+    for ch in name:
+        if ch.isalnum():
+            return ch.upper()
+    return '?'
+
+
 def round_label(
     round_number: int,
     *,

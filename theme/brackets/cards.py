@@ -28,6 +28,8 @@ from .layout import (
     Placement,
     SectionLayout,
     SlotSource,
+    avatar_hue,
+    avatar_initial,
     round_label,
 )
 
@@ -53,18 +55,6 @@ class BracketContext:
     rounds_config: Dict[str, dict] = field(default_factory=dict)
     scheduled_fmt: Callable[[str], str] = str  # UTC iso -> display string
     on_card_click: Optional[Callable[[int], None]] = None
-
-
-def _avatar_hue(name: str) -> int:
-    """Deterministic hue (0–359) from a name — the initial-letter disc's color."""
-    return sum(ord(c) for c in name) % 360 if name else 0
-
-
-def _initial(name: str) -> str:
-    for ch in name:
-        if ch.isalnum():
-            return ch.upper()
-    return '?'
 
 
 def _slot_entry_id(match: BracketMatch, slot: int) -> Optional[int]:
@@ -140,8 +130,8 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
 
 
 def _avatar(name: str) -> None:
-    ui.label(_initial(name)).classes('bracket-avatar').style(
-        f'--bracket-avatar-hue: {_avatar_hue(name)}'
+    ui.label(avatar_initial(name)).classes('bracket-avatar').style(
+        f'--bracket-avatar-hue: {avatar_hue(name)}'
     )
 
 
