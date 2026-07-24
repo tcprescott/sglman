@@ -170,6 +170,33 @@ class BracketService(
             bracket = await self.repository.update(bracket, **update_data)
         return bracket
 
+    async def set_round_metadata(
+        self,
+        actor: Optional[User],
+        bracket_id: int,
+        rounds: Optional[Dict[str, Any]],
+    ) -> Bracket:
+        """Set per-round display metadata (best-of / scheduled time), any state.
+
+        Round chrome is display-only (it never affects the persisted graph), so —
+        unlike :meth:`update_bracket`, which is DRAFT-only — it can be edited after
+        a stage has started. ``rounds`` is ``{round_str: {best_of, scheduled_at}}``;
+        it is merged over the existing config and revalidated by the config schema,
+        so a bad key/value surfaces as a user-facing ``ValueError``.
+        """
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can manage brackets",
+        )
+        bracket = await self._require_bracket(bracket_id)
+        merged = dict(bracket.config or {})
+        if rounds:
+            merged['rounds'] = rounds
+        else:
+            merged.pop('rounds', None)
+        validated = validate_bracket_config(merged)
+        return await self.repository.update(bracket, config=validated)
+
     async def delete_bracket(self, actor: Optional[User], bracket_id: int) -> None:
         await AuthService.ensure(
             await AuthService.is_staff(actor),

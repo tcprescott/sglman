@@ -14,16 +14,67 @@ tournament selector fire from detached client events that have lost the tenant
 contextvar.
 """
 
-from typing import Dict, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 from nicegui import background_tasks, context, ui
 
 from application.services import BracketService
 from application.tenant_context import require_tenant_id, tenant_scope
-from models import BracketFormat, BracketState, Tournament
+from application.utils.timezone import parse_eastern_datetime, to_eastern
+from models import (
+    BracketFormat,
+    BracketMatch,
+    BracketState,
+    Tournament,
+)
+from theme.brackets import (
+    assign_match_numbers,
+    build_context,
+    build_match_dialog,
+    entry_records,
+    match_nodes,
+    render_elimination,
+)
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
+
+_ELIM_FORMATS = (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM)
+
+
+def _iso_to_local_input(iso: Optional[str]) -> str:
+    """Stored UTC ISO → a ``datetime-local`` value (Eastern) for prefill."""
+    if not iso:
+        return ''
+    try:
+        dt = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return ''
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return to_eastern(dt).strftime('%Y-%m-%dT%H:%M')
+
+
+def _local_input_to_iso(value: Optional[str]) -> Optional[str]:
+    """A ``datetime-local`` value (Eastern) → stored UTC ISO, or None if blank."""
+    if not value or 'T' not in value:
+        return None
+    date_str, time_str = value.split('T', 1)
+    return parse_eastern_datetime(date_str, time_str[:5]).isoformat()
+
+
+def _distinct_rounds(matches: List[BracketMatch]) -> List[int]:
+    """Rounds present, ordered winners (asc) then losers (by magnitude)."""
+    positive = sorted({m.round for m in matches if m.round >= 0})
+    negative = sorted({m.round for m in matches if m.round < 0}, key=abs)
+    return positive + negative
+
+
+def _round_editor_label(round_number: int) -> str:
+    if round_number < 0:
+        return f'Losers Round {abs(round_number)}'
+    return f'Round {round_number}'
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="tune" color="primary"
@@ -58,6 +109,8 @@ async def admin_brackets_page() -> None:
     # client-event handler (see module docstring).
     tenant_id = require_tenant_id()
     state: Dict[str, Optional[int]] = {'tournament_id': None}
+    # The Results dialog embeds the shared bracket renderer for click-to-report.
+    ui.add_head_html('<link rel="stylesheet" href="/static/css/brackets.css">')
 
     with ui.column().classes('page-container'):
         with ui.row().classes('header-row'):
@@ -133,6 +186,7 @@ async def admin_brackets_page() -> None:
                             bracket = await service.get_bracket(bracket_id)
                             entrants = await service.list_entrants(tid)
                             entries = await service.list_entries(bracket_id)
+                            matches = await service.list_matches(bracket_id)
                         if bracket is None:
                             ui.label('Bracket not found.').classes('text-error')
                             return
@@ -231,6 +285,57 @@ async def admin_brackets_page() -> None:
                             await body.refresh()
                             await refresh_table()
 
+                        # Per-round display metadata (best-of / scheduled time) —
+                        # editable in any state (it never touches the graph).
+                        distinct_rounds = _distinct_rounds(matches)
+                        if distinct_rounds:
+                            rounds_cfg = (bracket.config or {}).get('rounds') or {}
+                            widgets: Dict[int, tuple] = {}
+                            with ui.expansion('Round settings — best-of & scheduled time') \
+                                    .classes('w-full q-mt-sm'):
+                                ui.label(
+                                    'Shown in the public bracket round headers '
+                                    '(best-of must be odd; time is Eastern).'
+                                ).classes('text-caption text-grey')
+                                for r in distinct_rounds:
+                                    cfg = rounds_cfg.get(str(r)) or {}
+                                    with ui.row().classes('items-center gap-2 w-full'):
+                                        ui.label(_round_editor_label(r)).classes('w-32')
+                                        bo = ui.number(
+                                            'Best of', value=cfg.get('best_of'), min=1,
+                                        ).props('dense inputmode=numeric').classes('w-24')
+                                        sched = ui.input(
+                                            'Scheduled (ET)',
+                                            value=_iso_to_local_input(cfg.get('scheduled_at')),
+                                        ).props('type=datetime-local dense').classes('flex-grow')
+                                        widgets[r] = (bo, sched)
+
+                                async def save_rounds() -> None:
+                                    new_rounds: Dict[str, dict] = {}
+                                    for r, (bo, sched) in widgets.items():
+                                        entry: Dict[str, object] = {}
+                                        if bo.value:
+                                            entry['best_of'] = int(bo.value)
+                                        iso = _local_input_to_iso(sched.value)
+                                        if iso:
+                                            entry['scheduled_at'] = iso
+                                        if entry:
+                                            new_rounds[str(r)] = entry
+                                    with tenant_scope(tenant_id):
+                                        try:
+                                            await service.set_round_metadata(
+                                                actor, bracket_id, new_rounds or None,
+                                            )
+                                        except (ValueError, PermissionError) as ex:
+                                            notify_error(ex)
+                                            return
+                                    ui.notify('Round settings saved', color='positive')
+                                    await body.refresh()
+
+                                ui.button(
+                                    'Save round settings', icon='save', on_click=save_rounds,
+                                ).props('flat color=primary')
+
                         with ui.row().classes('justify-end w-full q-mt-md'):
                             if is_draft and entries:
                                 ui.button('Save seeds', icon='save', on_click=save_seeds).props('flat color=primary')
@@ -252,7 +357,9 @@ async def admin_brackets_page() -> None:
                     @ui.refreshable
                     async def body() -> None:
                         with tenant_scope(tenant_id):
+                            bracket = await service.get_bracket(bracket_id)
                             matches = await service.list_matches(bracket_id)
+                            entries = await service.list_entries(bracket_id)
                             names = await _entry_name_map(bracket_id, tid)
 
                         def slot_label(entry_id: Optional[int]) -> str:
@@ -281,6 +388,40 @@ async def admin_brackets_page() -> None:
                             ui.notify('Result overridden', color='positive')
                             await body.refresh()
                             await refresh_table()
+
+                        async def _after_write() -> None:
+                            await body.refresh()
+                            await refresh_table()
+
+                        # Visual bracket embed (compact): staff click a match card
+                        # to report/override via the shared dialog. Supplements the
+                        # flat lists below (they stay as a reliable fallback).
+                        if bracket is not None and bracket.format in _ELIM_FORMATS and matches:
+                            def on_card(match_id: int) -> None:
+                                m = next((x for x in matches if x.id == match_id), None)
+                                if m is None:
+                                    return
+                                records = entry_records([e.id for e in entries], matches)
+                                number = assign_match_numbers(match_nodes(matches)).get(match_id)
+                                entry_seed = {e.id: e.seed for e in entries}
+                                build_match_dialog(
+                                    m, names, entry_seed, records, number,
+                                    is_staff=True, actor=actor, tenant_id=tenant_id,
+                                    service=service, on_saved=_after_write,
+                                )
+
+                            ctx = build_context(
+                                bracket.config, entries, matches, names, on_card_click=on_card,
+                            )
+                            ui.label('Bracket — click a match to report a result') \
+                                .classes('section-title')
+                            with ui.element('div').classes('w-full') \
+                                    .style('overflow: auto; max-height: 60vh'):
+                                render_elimination(
+                                    matches, ctx,
+                                    double=bracket.format == BracketFormat.DOUBLE_ELIM,
+                                )
+                            ui.separator()
 
                         open_matches = [m for m in matches if m.state.value == 'open']
                         complete_matches = [

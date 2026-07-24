@@ -155,6 +155,22 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
         card.on('click', lambda _=None, mid=match.id: ctx.on_card_click(mid))
 
 
+def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
+    """The same match card in normal flow (full-width) for the mobile accordion."""
+    state_class = _STATE_CLASS.get(match.state, 'is-pending')
+    card = ui.element('div').classes(f'bracket-match bracket-match-flow {state_class}')
+    card.props(f'data-match-id={match.id}')
+    number = ctx.match_number.get(match.id)
+    with card:
+        if number is not None:
+            ui.label(str(number)).classes('bracket-match-num')
+        _render_slot(match, 1, ctx)
+        _render_slot(match, 2, ctx)
+    if ctx.on_card_click is not None:
+        card.classes('is-clickable')
+        card.on('click', lambda _=None, mid=match.id: ctx.on_card_click(mid))
+
+
 def _render_header(
     col: int,
     round_number: int,

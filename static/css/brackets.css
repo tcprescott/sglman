@@ -494,11 +494,45 @@
   background: var(--bracket-line);
 }
 
+/* ---- Mobile: per-round accordion (below Quasar lt.md, <1024px) ----------- */
+
+.bracket-mobile-list {
+  display: none;
+}
+
+/* The same match card in normal document flow (full width, auto height). */
+.bracket-match.bracket-match-flow {
+  position: static;
+  width: 100%;
+  height: auto;
+  min-height: var(--bracket-card-h);
+  margin: 4px 0 8px;
+}
+
+.bracket-round-accordion {
+  border: 1px solid var(--bracket-card-border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 1023px) {
+  .bracket-mobile-list {
+    display: block;
+  }
+}
+
 @media print {
   .bracket-scroll {
     overflow: visible;
   }
+  .bracket-mobile-list,
+  .bracket-toolbar {
+    display: none;
+  }
   .bracket-match.is-clickable:hover {
     box-shadow: none;
+  }
+  .bracket-section-title {
+    break-after: avoid;
   }
 }

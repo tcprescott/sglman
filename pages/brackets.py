@@ -15,7 +15,6 @@ load-or-404 ORM lookups for the owning tournament, and computes live display
 standings with the pure :func:`compute_standings` helper. No ORM writes.
 """
 
-from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
 from nicegui import app, background_tasks, context, ui
@@ -29,7 +28,6 @@ from application.services.bracket_engines.standings import (
     compute_standings,
 )
 from application.tenant_context import require_tenant_id, tenant_scope
-from application.utils.timezone import format_eastern_display
 from models import (
     Bracket,
     BracketEntry,
@@ -44,16 +42,16 @@ from models import (
 )
 from theme.base import BaseLayout
 from theme.brackets import (
-    BracketContext,
-    MatchNode,
     assign_match_numbers,
-    layout_section,
+    build_context,
+    build_match_dialog,
+    entry_records,
+    match_nodes,
     register_bracket_view,
-    render_section,
-    slot_sources,
+    render_elimination,
+    render_elimination_mobile,
 )
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
-from theme.notify import notify_error
 
 _FORMAT_LABELS = {
     BracketFormat.SINGLE_ELIM: 'Single elimination',
@@ -114,63 +112,6 @@ def _slot_label(
     return 'BYE' if completed else 'TBD'
 
 
-def _format_scheduled(iso: str) -> str:
-    """A round's stored UTC ISO time → the app's Eastern display string."""
-    try:
-        dt = datetime.fromisoformat(iso)
-    except (TypeError, ValueError):
-        return iso
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return format_eastern_display(dt)
-
-
-def _detect_finals(
-    matches: List[BracketMatch],
-) -> tuple[Optional[BracketMatch], Optional[BracketMatch]]:
-    """Structurally locate a double-elim grand final and its optional reset.
-
-    There is no ``label``/``is_reset`` column, so detect by graph shape:
-
-    * **Grand Final** — the positive-round match with an incoming feeder from a
-      **negative** (losers-bracket) round. There is exactly one.
-    * **Reset** — the positive-round match the Grand Final itself feeds into
-      (via its ``winner_to``/``loser_to`` pointers). Absent when
-      ``grand_final_reset`` is disabled.
-
-    Either may be ``None`` for an empty or not-yet-generated finals stage.
-    """
-    by_id = {m.id: m for m in matches}
-    # For each target match, the rounds of the matches feeding into it.
-    incoming_rounds: Dict[int, List[int]] = {}
-    for m in matches:
-        for target_id in (m.winner_to_id, m.loser_to_id):
-            if target_id is not None:
-                incoming_rounds.setdefault(target_id, []).append(m.round)
-
-    grand_final: Optional[BracketMatch] = None
-    for m in matches:
-        if m.round > 0 and any(r < 0 for r in incoming_rounds.get(m.id, ())):
-            grand_final = m
-            break
-
-    reset: Optional[BracketMatch] = None
-    if grand_final is not None:
-        for target_id in (grand_final.winner_to_id, grand_final.loser_to_id):
-            candidate = by_id.get(target_id) if target_id is not None else None
-            if candidate is not None and candidate.round > 0:
-                reset = candidate
-                break
-    return grand_final, reset
-
-
-def _match_nodes(matches: List[BracketMatch]) -> List[MatchNode]:
-    return [
-        MatchNode(id=m.id, round=m.round, position=m.position, winner_to_id=m.winner_to_id)
-        for m in matches
-    ]
-
-
 async def _next_stage_advancement(
     service: BracketService, bracket: Bracket
 ) -> Optional[dict]:
@@ -182,89 +123,6 @@ async def _next_stage_advancement(
     if nxt is None or not nxt.config:
         return None
     return (nxt.config or {}).get('advancement')
-
-
-def _build_context(
-    bracket: Bracket,
-    entries: List[BracketEntry],
-    matches: List[BracketMatch],
-    entry_name: Dict[int, str],
-    *,
-    on_card_click: Optional[object] = None,
-) -> BracketContext:
-    """Resolve the per-bracket lookups the shared renderer needs, once."""
-    winner_links = [(m.id, m.winner_to_id, m.winner_to_slot) for m in matches]
-    loser_links = [(m.id, m.loser_to_id, m.loser_to_slot) for m in matches]
-    rounds_config = (bracket.config or {}).get('rounds') or {}
-    return BracketContext(
-        entry_name=entry_name,
-        entry_seed={e.id: e.seed for e in entries},
-        match_number=assign_match_numbers(_match_nodes(matches)),
-        slot_sources=slot_sources(winner_links, loser_links),
-        rounds_config=rounds_config,
-        scheduled_fmt=_format_scheduled,
-        on_card_click=on_card_click,
-    )
-
-
-def _render_elimination(
-    matches: List[BracketMatch],
-    ctx: BracketContext,
-    *,
-    double: bool,
-) -> None:
-    """Connector-lined bracket via the shared renderer; DE losers below winners."""
-    if not matches:
-        ui.label('No matches yet.').classes('italic-note')
-        return
-
-    matches_by_id = {m.id: m for m in matches}
-    positive = [m for m in matches if m.round > 0]
-    negative = [m for m in matches if m.round < 0]
-
-    if not double:
-        layout = layout_section(_match_nodes(positive))
-        max_wr = max((m.round for m in positive), default=None)
-        render_section(None, layout, matches_by_id, ctx, max_winners_round=max_wr)
-        return
-
-    grand_final, reset = _detect_finals(matches)
-    gf_round = grand_final.round if grand_final is not None else None
-    reset_round = reset.round if reset is not None else None
-    finals_rounds = {r for r in (gf_round, reset_round) if r is not None}
-    wb_rounds = [m.round for m in positive if m.round not in finals_rounds]
-    max_wr = max(wb_rounds, default=None)
-    max_lm = max((abs(m.round) for m in negative), default=None)
-
-    # Winners section carries the finals columns at its right edge (the grand
-    # final / reset feed from the winners-bracket final); losers below.
-    winners_layout = layout_section(_match_nodes(positive))
-    render_section(
-        'Winners bracket', winners_layout, matches_by_id, ctx,
-        gf_round=gf_round, reset_round=reset_round,
-        max_winners_round=max_wr, max_losers_magnitude=max_lm,
-    )
-    losers_layout = layout_section(_match_nodes(negative))
-    render_section(
-        'Losers bracket', losers_layout, matches_by_id, ctx,
-        max_losers_magnitude=max_lm,
-    )
-
-
-def _entry_records(
-    entry_ids: List[int], matches: List[BracketMatch]
-) -> Dict[int, tuple]:
-    """(wins, losses) per entry across completed, non-bye matches of this stage."""
-    rec: Dict[int, List[int]] = {eid: [0, 0] for eid in entry_ids}
-    for m in matches:
-        if m.state != BracketMatchState.COMPLETE or m.winner_id is None:
-            continue
-        if m.entry1_id is None or m.entry2_id is None:
-            continue
-        for eid in (m.entry1_id, m.entry2_id):
-            if eid in rec:
-                rec[eid][0 if eid == m.winner_id else 1] += 1
-    return {eid: (w, loss) for eid, (w, loss) in rec.items()}
 
 
 # Delegated hover-run highlight: hovering any entrant row tints that entrant's
@@ -313,118 +171,6 @@ def _populate_zoom_toolbar(row, wrapper, refresh: Callable) -> None:
         ui.space()
         ui.button(icon='refresh', on_click=refresh) \
             .props('flat dense round').tooltip('Refresh')
-
-
-def _build_match_dialog(
-    match: BracketMatch,
-    entry_name: Dict[int, str],
-    entry_seed: Dict[int, Optional[int]],
-    records: Dict[int, tuple],
-    number: Optional[int],
-    *,
-    is_staff: bool,
-    actor: Optional[User],
-    tenant_id: int,
-    service: BracketService,
-    on_saved: Callable,
-) -> None:
-    """Match detail dialog: entrants, scores/FF, state, and staff reporting."""
-    completed = match.state == BracketMatchState.COMPLETE
-
-    def name_of(entry_id: Optional[int]) -> str:
-        return entry_name.get(entry_id, 'TBD') if entry_id is not None else 'TBD'
-
-    with ui.dialog() as dialog, ui.card().classes('w-[26rem] max-w-full'):
-        with ui.row().classes('items-center justify-between w-full'):
-            ui.label(f'Match {number}' if number else 'Match').classes('text-h6')
-            ui.badge(
-                match.state.value.title(),
-                color=_STATE_COLORS.get(BracketState.ACTIVE, 'grey')
-                if match.state == BracketMatchState.OPEN else 'grey',
-            )
-
-        for slot, entry_id in ((1, match.entry1_id), (2, match.entry2_id)):
-            is_winner = (
-                completed and match.winner_id is not None and entry_id == match.winner_id
-            )
-            score = match.entry1_score if slot == 1 else match.entry2_score
-            with ui.row().classes('items-center justify-between w-full q-py-xs'):
-                with ui.row().classes('items-center gap-2 no-wrap'):
-                    seed = entry_seed.get(entry_id) if entry_id is not None else None
-                    if seed is not None:
-                        ui.label(f'#{seed}').classes('text-caption text-grey')
-                    ui.label(name_of(entry_id)).classes(
-                        'text-bold' if is_winner else ''
-                    )
-                    rec = records.get(entry_id) if entry_id is not None else None
-                    if rec is not None and (rec[0] or rec[1]):
-                        ui.label(f'({rec[0]}-{rec[1]})').classes('text-caption text-grey')
-                if completed and match.forfeit and entry_id is not None and not is_winner:
-                    ui.label('FF').classes('text-bold text-negative')
-                elif score is not None:
-                    ui.label(str(score)).classes('text-bold' if is_winner else '')
-                elif is_winner:
-                    ui.icon('emoji_events', size='xs').classes('text-primary')
-
-        if match.match_id is not None:
-            ui.label('Scheduled to a match room.').classes('text-caption text-grey')
-
-        can_report = (
-            is_staff
-            and match.state in (BracketMatchState.OPEN, BracketMatchState.COMPLETE)
-            and match.entry1_id is not None
-            and match.entry2_id is not None
-        )
-        if can_report:
-            ui.separator()
-            ui.label(
-                'Report result' if match.state == BracketMatchState.OPEN
-                else 'Override result'
-            ).classes('section-title')
-            with ui.row().classes('items-center gap-2 w-full'):
-                s1 = ui.number(
-                    label=name_of(match.entry1_id), value=match.entry1_score, min=0,
-                ).props('dense inputmode=numeric').classes('w-32')
-                s2 = ui.number(
-                    label=name_of(match.entry2_id), value=match.entry2_score, min=0,
-                ).props('dense inputmode=numeric').classes('w-32')
-            ff = ui.switch('Forfeit', value=match.forfeit)
-
-            async def save(winner_id: int) -> None:
-                e1 = int(s1.value) if s1.value is not None else None
-                e2 = int(s2.value) if s2.value is not None else None
-                with tenant_scope(tenant_id):
-                    try:
-                        if match.state == BracketMatchState.OPEN:
-                            await service.report_result(
-                                actor, match.id, winner_id,
-                                entry1_score=e1, entry2_score=e2, forfeit=ff.value,
-                            )
-                        else:
-                            await service.override_result(
-                                actor, match.id, winner_id,
-                                entry1_score=e1, entry2_score=e2, forfeit=ff.value,
-                            )
-                    except (ValueError, PermissionError) as ex:
-                        notify_error(ex)
-                        return
-                ui.notify('Result saved', color='positive')
-                dialog.close()
-                await on_saved()
-
-            with ui.row().classes('gap-2 w-full q-mt-xs'):
-                ui.button(
-                    f'Winner: {name_of(match.entry1_id)}', icon='emoji_events',
-                    on_click=lambda _=None, w=match.entry1_id: save(w),
-                ).props('dense color=primary')
-                ui.button(
-                    f'Winner: {name_of(match.entry2_id)}', icon='emoji_events',
-                    on_click=lambda _=None, w=match.entry2_id: save(w),
-                ).props('dense color=primary')
-
-        with ui.row().classes('justify-end w-full q-mt-sm'):
-            ui.button('Close', on_click=dialog.close).props('flat')
-    dialog.open()
 
 
 def _group_letter(group: Optional[int]) -> Optional[str]:
@@ -548,7 +294,7 @@ def _render_swiss(
     rounds = sorted({m.round for m in matches})
     if not rounds:
         return
-    records = _entry_records([e.id for e in entries], matches)
+    records = entry_records([e.id for e in entries], matches)
     open_rounds = [m.round for m in matches if m.state == BracketMatchState.OPEN]
     default_round = max(open_rounds) if open_rounds else max(rounds)
 
@@ -648,9 +394,9 @@ def create() -> None:
                 match = next((m for m in matches if m.id == match_id), None)
                 if match is None:
                     return
-                records = _entry_records([e.id for e in entries], matches)
-                number = assign_match_numbers(_match_nodes(matches)).get(match.id)
-                _build_match_dialog(
+                records = entry_records([e.id for e in entries], matches)
+                number = assign_match_numbers(match_nodes(matches)).get(match.id)
+                build_match_dialog(
                     match, entry_name, entry_seed, records, number,
                     is_staff=is_staff, actor=user, tenant_id=tenant_id,
                     service=service, on_saved=_live_refresh,
@@ -706,18 +452,20 @@ def create() -> None:
                     return
 
                 if bracket.format in (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM):
-                    toolbar_row = ui.row().classes('bracket-toolbar items-center gap-2 q-mb-sm')
-                    wrapper = ui.element('div').classes('bracket-zoomable w-full')
-                    with wrapper:
-                        ctx = _build_context(
-                            bracket, entries, matches, entry_name,
-                            on_card_click=on_card_click,
-                        )
-                        _render_elimination(
-                            matches, ctx,
-                            double=bracket.format == BracketFormat.DOUBLE_ELIM,
-                        )
-                    _populate_zoom_toolbar(toolbar_row, wrapper, _live_refresh)
+                    double = bracket.format == BracketFormat.DOUBLE_ELIM
+                    ctx = build_context(
+                        bracket.config, entries, matches, entry_name,
+                        on_card_click=on_card_click,
+                    )
+                    # 2-D connector bracket (>= md); a per-round accordion (< md).
+                    with ui.element('div').classes('bracket-2d w-full'):
+                        toolbar_row = ui.row().classes('bracket-toolbar items-center gap-2 q-mb-sm')
+                        wrapper = ui.element('div').classes('bracket-zoomable w-full')
+                        with wrapper:
+                            render_elimination(matches, ctx, double=double)
+                        _populate_zoom_toolbar(toolbar_row, wrapper, _live_refresh)
+                    with ui.element('div').classes('bracket-mobile-list w-full'):
+                        render_elimination_mobile(matches, ctx, double=double)
                 else:
                     advancement = await _next_stage_advancement(service, bracket)
                     complete = bracket.state == BracketState.COMPLETE

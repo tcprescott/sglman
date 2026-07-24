@@ -7,8 +7,22 @@ into absolute-positioned geometry + elbow connectors; the card layer
 Results dialog. See docs/bracket-ui-plan.md.
 """
 
-from .cards import BracketContext, render_match_card, render_section
+from .cards import (
+    BracketContext,
+    render_match_card,
+    render_mobile_card,
+    render_section,
+)
+from .dialog import build_match_dialog
 from .live import register_bracket_view
+from .render import (
+    build_context,
+    detect_finals,
+    entry_records,
+    match_nodes,
+    render_elimination,
+    render_elimination_mobile,
+)
 from .layout import (
     CARD_HEIGHT,
     COL_WIDTH,
@@ -26,7 +40,15 @@ from .layout import (
 __all__ = [
     'BracketContext',
     'render_match_card',
+    'render_mobile_card',
     'render_section',
+    'render_elimination',
+    'render_elimination_mobile',
+    'build_context',
+    'build_match_dialog',
+    'detect_finals',
+    'entry_records',
+    'match_nodes',
     'register_bracket_view',
     'MatchNode',
     'Placement',
