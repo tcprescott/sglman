@@ -23,7 +23,7 @@ an interactive permission (STAFF / ``SYNC_ADMIN``); the rest are system paths.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from application.errors import require_found
@@ -99,6 +99,51 @@ class RaceRoomService:
         """Create a room on demand (STAFF / SYNC_ADMIN), ignoring the auto toggle."""
         await AuthService.ensure_can_manage_sync(actor)
         match = require_found(await self._load_match(match_id), 'Match')
+        return await self.create_room_for_match(match, actor=actor)
+
+    async def auto_open_if_eligible(
+        self, match: Match, *, now: datetime, actor: Optional[User] = None,
+    ) -> Optional[RacetimeRoom]:
+        """Open ``match``'s room iff every automatic-open condition holds.
+
+        The eligibility rules the auto-open worker applies, as one callable so
+        every automatic trigger shares them: the 60s poll
+        (``race_room_worker._tick``) and the push that fires the moment a
+        best-of-N series' previous game ends. Returns the room when it opened one,
+        ``None`` when the match simply isn't eligible yet — not eligible is the
+        normal case, not an error, and the caller retries on its next trigger.
+
+        Deliberately **not** folded into :meth:`create_room_for_match`, which
+        ``manual_create_room`` also reaches: staff overriding these rules by hand
+        is the escape hatch when an automatic path is holding a room back.
+
+        Callers must already be inside the match's ``tenant_scope`` — the feature
+        flag resolves against the ambient tenant.
+        """
+        from application.services.feature_flag_service import FeatureFlagService
+        from models import FeatureFlag
+
+        if not await FeatureFlagService().is_enabled(FeatureFlag.RACETIME_ROOMS):
+            return None  # tenant has racetime rooms disabled
+        lead = match.tournament.room_open_minutes_before or 30
+        if match.scheduled_at is None or match.scheduled_at > now + timedelta(minutes=lead):
+            return None  # not yet within this tournament's lead window
+        if await self.room_repository.get_by_match(match) is not None:
+            return None  # idempotent: a room already exists
+        bot = await match.tournament.racetime_bot
+        if bot is None:
+            return None  # no authorized bot to host the room
+        players = list(match.players)
+        if not players or not all(
+            getattr(p.user, 'racetime_user_id', None) for p in players
+        ):
+            # Eligibility gate: every entrant must have linked racetime.
+            logger.info(
+                'auto-open skipped for match %s: not all entrants have '
+                'linked racetime', match.id,
+            )
+            return None
+        actor = actor or await self._system_actor()
         return await self.create_room_for_match(match, actor=actor)
 
     # ---- transitions -----------------------------------------------------
