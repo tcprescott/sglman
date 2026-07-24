@@ -25,7 +25,7 @@ the losers bracket** (start.gg's convention), used by double elimination.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import List, Optional, Protocol, Tuple, runtime_checkable
 
 
 @dataclass(frozen=True)

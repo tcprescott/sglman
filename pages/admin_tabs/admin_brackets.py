@@ -14,7 +14,7 @@ tournament selector fire from detached client events that have lost the tenant
 contextvar.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from nicegui import background_tasks, context, ui
 

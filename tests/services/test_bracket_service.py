@@ -11,8 +11,6 @@ from application.services.bracket_engines import get_bracket_engine
 from application.services.bracket_service import BracketService
 from application.tenant_context import tenant_scope
 from models import (
-    Bracket,
-    BracketEntrant,
     BracketFormat,
     BracketMatchState,
     BracketState,

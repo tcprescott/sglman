@@ -16,7 +16,6 @@ from models import (
     BracketFormat,
     BracketMatch,
     Tournament,
-    User,
 )
 
 
