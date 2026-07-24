@@ -9,6 +9,7 @@ defined on other mixins / the composer), ``self.repository`` and
 
 import math
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from application.events import Event, EventType, event_bus
@@ -23,6 +24,7 @@ from application.services.bracket_engines.standings import (
 )
 from models import (
     Bracket,
+    BracketEntrantStatus,
     BracketEntry,
     BracketEntryStatus,
     BracketFormat,
@@ -31,6 +33,45 @@ from models import (
     BracketState,
     User,
 )
+
+
+@dataclass(frozen=True)
+class StandingsRow:
+    """One entry's live placement, resolved against its entrant.
+
+    The service-layer view of :class:`~application.services.bracket_engines.standings.Standing`:
+    the opaque ref is resolved back to the entry/entrant it came from and the
+    display fields a caller needs to render a table are joined in.
+    """
+
+    entry_id: int
+    entrant_id: int
+    display_name: str
+    seed: Optional[int]
+    # Both drop levels are surfaced: ``status`` is this stage's participation
+    # (``BracketEntry``) while ``entrant_status`` is the tournament-wide roster
+    # state ``drop_entrant`` writes. They move independently — a rostered drop
+    # does not cascade into the stage entry — so a caller rendering "dropped"
+    # has to look at both.
+    status: BracketEntryStatus
+    entrant_status: BracketEntrantStatus
+    rank: int
+    final_rank: Optional[int]
+    points: float
+    wins: int
+    draws: int
+    losses: int
+    byes: int
+    tiebreakers: Dict[str, float] = field(default_factory=dict)
+    tied_with: Tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
+class StandingsGroup:
+    """One group's ranked rows (``group_number`` is ``None`` for a single pool)."""
+
+    group_number: Optional[int]
+    rows: List[StandingsRow]
 
 
 class CompletionMixin:
@@ -373,6 +414,87 @@ class CompletionMixin:
         if tiebreakers:
             kwargs['tiebreakers'] = tuple(tiebreakers)
         return StandingsConfig(**kwargs)
+
+    # -- standings (read) -------------------------------------------------
+
+    async def standings(self, bracket_id: int) -> List[StandingsGroup]:
+        """Live standings of a points-ranked bracket (round robin / Swiss).
+
+        The same computation :meth:`_finalize_stage` ranks with, read-only and
+        available mid-stage. Elimination formats have no points table — placement
+        there comes from the match graph — so they are rejected rather than handed
+        a meaningless one. Dropped entrants stay in the table (each row carries
+        both drop levels) because their played results still count for everyone
+        else.
+        """
+        bracket = await self._require_bracket(bracket_id)
+        if bracket.format in self._ELIM_FORMATS:
+            raise ValueError(
+                "Standings are only computed for round-robin and Swiss brackets; "
+                "read an elimination bracket's placement from its matches and its "
+                "entries' final_rank"
+            )
+
+        matches = await self.repository.list_matches(bracket.id)
+        entries = await self.repository.list_entries(bracket.id)
+        entrants = {
+            e.id: e for e in await self.repository.list_entrants(bracket.tournament_id)
+        }
+        config = self._standings_config(bracket)
+        grouped = bracket.format == BracketFormat.ROUND_ROBIN
+
+        # Group derives from the matches an entry played (the engine stamps
+        # group_number on matches, not entries); unlike the finalize path this read
+        # also runs before a stage starts, so fall back to the entry's own group so
+        # a not-yet-paired entrant still lists under its pool.
+        group_of: Dict[int, Optional[int]] = {}
+        if grouped:
+            for m in matches:
+                for eid in (m.entry1_id, m.entry2_id):
+                    if eid is not None:
+                        group_of[eid] = m.group_number
+            for e in entries:
+                group_of.setdefault(e.id, e.group_number)
+
+        groups = sorted(
+            {group_of.get(e.id) for e in entries}, key=lambda g: (g is None, g)
+        )
+        result: List[StandingsGroup] = []
+        for group in groups:
+            group_entries = {
+                e.id: e for e in entries if group_of.get(e.id) == group
+            }
+            group_matches = (
+                [m for m in matches if m.group_number == group] if grouped else matches
+            )
+            computed = compute_standings(
+                list(group_entries), self._results_from_matches(group_matches), config
+            )
+            rows = []
+            for s in computed:
+                entry = group_entries[s.ref]
+                entrant = entrants.get(entry.entrant_id)
+                rows.append(StandingsRow(
+                    entry_id=entry.id,
+                    entrant_id=entry.entrant_id,
+                    display_name=entrant.display_name if entrant else 'Unknown',
+                    seed=entry.seed,
+                    status=entry.status,
+                    entrant_status=(
+                        entrant.status if entrant else BracketEntrantStatus.ACTIVE
+                    ),
+                    rank=s.rank,
+                    final_rank=entry.final_rank,
+                    points=s.points,
+                    wins=s.wins,
+                    draws=s.draws,
+                    losses=s.losses,
+                    byes=s.byes,
+                    tiebreakers=dict(s.tiebreakers),
+                    tied_with=tuple(s.tied_with),
+                ))
+            result.append(StandingsGroup(group_number=group, rows=rows))
+        return result
 
     @staticmethod
     def _results_from_matches(matches: List[BracketMatch]) -> List[ResultRow]:

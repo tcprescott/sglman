@@ -9,7 +9,6 @@ double-elim losers bracket, byes, and the finals.
 
 from theme.brackets.layout import (
     CARD_HEIGHT,
-    ROW_PITCH,
     MatchNode,
     assign_match_numbers,
     layout_section,

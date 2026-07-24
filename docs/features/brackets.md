@@ -268,7 +268,9 @@ test harness under [`tests/services/`](../../tests/services/):
 - **Standings, advancement, multi-stage** — `test_bracket_standings.py`,
   `test_bracket_advancement.py`, `test_bracket_multistage.py`.
 - **Tenant isolation** — `test_bracket_tenant_isolation.py` (leak test);
-  **REST** — `test_api_brackets.py`.
+  **REST** — `test_api_brackets.py` (lifecycle happy path + auth matrix) and
+  `test_api_brackets_management.py` (editing, seeds, drop, result override,
+  standings, advance dry run).
 
 ## Dev seed
 

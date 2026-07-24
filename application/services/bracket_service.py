@@ -170,6 +170,15 @@ class BracketService(
 
         if update_data:
             bracket = await self.repository.update(bracket, **update_data)
+            await self.audit_service.write_log(
+                actor,
+                AuditActions.BRACKET_UPDATED,
+                {
+                    'bracket_id': bracket.id,
+                    'tournament_id': bracket.tournament_id,
+                    'changed': sorted(update_data),
+                },
+            )
         return bracket
 
     async def set_round_metadata(
@@ -197,7 +206,18 @@ class BracketService(
         else:
             merged.pop('rounds', None)
         validated = validate_bracket_config(merged)
-        return await self.repository.update(bracket, config=validated)
+        bracket = await self.repository.update(bracket, config=validated)
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.BRACKET_UPDATED,
+            {
+                'bracket_id': bracket.id,
+                'tournament_id': bracket.tournament_id,
+                'changed': ['rounds'],
+                'rounds': rounds or None,
+            },
+        )
+        return bracket
 
     async def delete_bracket(self, actor: Optional[User], bracket_id: int) -> None:
         await AuthService.ensure(
@@ -207,7 +227,15 @@ class BracketService(
         bracket = await self._require_bracket(bracket_id)
         if bracket.state != BracketState.DRAFT:
             raise ValueError("Only a DRAFT bracket can be deleted")
+        details = {
+            'bracket_id': bracket.id,
+            'tournament_id': bracket.tournament_id,
+            'name': bracket.name,
+        }
         await self.repository.delete(bracket)
+        await self.audit_service.write_log(
+            actor, AuditActions.BRACKET_DELETED, details,
+        )
 
     # -- reads ------------------------------------------------------------
     async def get_bracket(self, bracket_id: int) -> Optional[Bracket]:
@@ -310,9 +338,9 @@ class BracketService(
         self,
         actor: Optional[User],
         bracket_id: int,
-        seeds: Dict[int, int],
+        seeds: Dict[int, Optional[int]],
     ) -> None:
-        """Set per-entry seeds (``entry_id → seed``). DRAFT-only.
+        """Set per-entry seeds (``entry_id → seed``, ``None`` clears). DRAFT-only.
 
         Rejects a seed below 1 or one that collides with another entry's seed in
         the same bracket, so a duplicate can never collapse two entrants onto one
@@ -356,3 +384,14 @@ class BracketService(
             entry = entry_by_id[entry_id]
             entry.seed = seed
             await entry.save()
+
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.BRACKET_UPDATED,
+            {
+                'bracket_id': bracket.id,
+                'tournament_id': bracket.tournament_id,
+                'changed': ['seeds'],
+                'seeds': {str(k): v for k, v in seeds.items()},
+            },
+        )

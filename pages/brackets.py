@@ -39,7 +39,6 @@ from models import (
     BracketState,
     FeatureFlag,
     Tournament,
-    User,
 )
 from theme.base import BaseLayout
 from theme.brackets import (
