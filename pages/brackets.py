@@ -120,6 +120,90 @@ def _match_card(match: BracketMatch, entry_name: Dict[int, str]) -> None:
                     ui.icon('emoji_events', size='xs').classes('text-positive')
 
 
+def _detect_finals(
+    matches: List[BracketMatch],
+) -> tuple[Optional[BracketMatch], Optional[BracketMatch]]:
+    """Structurally locate a double-elim grand final and its optional reset.
+
+    There is no ``label``/``is_reset`` column, so detect by graph shape:
+
+    * **Grand Final** — the positive-round match with an incoming feeder from a
+      **negative** (losers-bracket) round. There is exactly one.
+    * **Reset** — the positive-round match the Grand Final itself feeds into
+      (via its ``winner_to``/``loser_to`` pointers). Absent when
+      ``grand_final_reset`` is disabled.
+
+    Either may be ``None`` for an empty or not-yet-generated finals stage.
+    """
+    by_id = {m.id: m for m in matches}
+    # For each target match, the rounds of the matches feeding into it.
+    incoming_rounds: Dict[int, List[int]] = {}
+    for m in matches:
+        for target_id in (m.winner_to_id, m.loser_to_id):
+            if target_id is not None:
+                incoming_rounds.setdefault(target_id, []).append(m.round)
+
+    grand_final: Optional[BracketMatch] = None
+    for m in matches:
+        if m.round > 0 and any(r < 0 for r in incoming_rounds.get(m.id, ())):
+            grand_final = m
+            break
+
+    reset: Optional[BracketMatch] = None
+    if grand_final is not None:
+        for target_id in (grand_final.winner_to_id, grand_final.loser_to_id):
+            candidate = by_id.get(target_id) if target_id is not None else None
+            if candidate is not None and candidate.round > 0:
+                reset = candidate
+                break
+    return grand_final, reset
+
+
+def _render_round_columns(
+    title: str,
+    section_rounds: List[int],
+    matches: List[BracketMatch],
+    all_rounds: List[int],
+    entry_name: Dict[int, str],
+) -> None:
+    if not section_rounds:
+        return
+    ui.label(title).classes('section-title q-mt-md')
+    # Wide bracket: keep the page body from overflowing on mobile.
+    with ui.element('div').style('overflow-x: auto; width: 100%'):
+        with ui.row().classes('no-wrap items-start gap-4'):
+            for round_ in section_rounds:
+                round_matches = sorted(
+                    (m for m in matches if m.round == round_),
+                    key=lambda m: m.position,
+                )
+                with ui.column().classes('gap-1'):
+                    ui.label(_round_label(round_, all_rounds)).classes('text-caption text-bold')
+                    for match in round_matches:
+                        _match_card(match, entry_name)
+
+
+def _render_finals_columns(
+    grand_final: Optional[BracketMatch],
+    reset: Optional[BracketMatch],
+    entry_name: Dict[int, str],
+) -> None:
+    if grand_final is None:
+        return
+    ui.label('Finals').classes('section-title q-mt-md')
+    with ui.element('div').style('overflow-x: auto; width: 100%'):
+        with ui.row().classes('no-wrap items-start gap-4'):
+            for match, label in (
+                (grand_final, 'Grand Final'),
+                (reset, 'Grand Final (reset)'),
+            ):
+                if match is None:
+                    continue
+                with ui.column().classes('gap-1'):
+                    ui.label(label).classes('text-caption text-bold')
+                    _match_card(match, entry_name)
+
+
 def _render_elimination(
     matches: List[BracketMatch],
     entry_name: Dict[int, str],
@@ -132,29 +216,22 @@ def _render_elimination(
         return
 
     all_rounds = sorted({m.round for m in matches})
-    winners_rounds = [r for r in all_rounds if r > 0]
-    losers_rounds = [r for r in all_rounds if r < 0]
 
-    def render_section(title: str, section_rounds: List[int]) -> None:
-        if not section_rounds:
-            return
-        ui.label(title).classes('section-title q-mt-md')
-        # Wide bracket: keep the page body from overflowing on mobile.
-        with ui.element('div').style('overflow-x: auto; width: 100%'):
-            with ui.row().classes('no-wrap items-start gap-4'):
-                for round_ in section_rounds:
-                    round_matches = sorted(
-                        (m for m in matches if m.round == round_),
-                        key=lambda m: m.position,
-                    )
-                    with ui.column().classes('gap-1'):
-                        ui.label(_round_label(round_, all_rounds)).classes('text-caption text-bold')
-                        for match in round_matches:
-                            _match_card(match, entry_name)
+    if not double:
+        winners_rounds = [r for r in all_rounds if r > 0]
+        _render_round_columns('Bracket', winners_rounds, matches, all_rounds, entry_name)
+        return
 
-    render_section('Winners bracket' if double else 'Bracket', winners_rounds)
-    if double:
-        render_section('Losers bracket', losers_rounds)
+    grand_final, reset = _detect_finals(matches)
+    finals_rounds = {m.round for m in (grand_final, reset) if m is not None}
+    winners_rounds = [r for r in all_rounds if r > 0 and r not in finals_rounds]
+    # Losers rounds read chronologically left-to-right: -1 first, then the
+    # progressively more-negative rounds (losers final is most-negative).
+    losers_rounds = sorted((r for r in all_rounds if r < 0), key=abs)
+
+    _render_round_columns('Winners bracket', winners_rounds, matches, all_rounds, entry_name)
+    _render_round_columns('Losers bracket', losers_rounds, matches, all_rounds, entry_name)
+    _render_finals_columns(grand_final, reset, entry_name)
 
 
 def _render_standings_table(
@@ -179,6 +256,9 @@ def _render_standings_table(
     ]
     rows = [
         {
+            # BracketEntry id — a unique row key; display_name can duplicate
+            # (e.g. two "TBD" placeholders), which collides Quasar's row_key.
+            'entry_id': s.ref,
             'rank': s.rank,
             'name': entry_name.get(s.ref, 'Unknown'),
             'record': f'{s.wins}-{s.losses}-{s.draws}'
@@ -188,7 +268,7 @@ def _render_standings_table(
         for s in standings
     ]
     table = ui.table(
-        columns=columns, rows=rows, row_key='name', pagination=0
+        columns=columns, rows=rows, row_key='entry_id', pagination=0
     ).classes('full-width')
     enable_mobile_grid(table, columns)
 
