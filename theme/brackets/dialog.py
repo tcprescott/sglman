@@ -14,11 +14,26 @@ from __future__ import annotations
 from typing import Awaitable, Callable, Dict, Optional
 
 from nicegui import ui
+from tortoise import exceptions as tortoise_exceptions
 
 from application.services import BracketService
 from application.tenant_context import tenant_scope
-from models import BracketMatch, BracketMatchState, User
+from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
 from theme.notify import notify_error
+
+
+def _games_of(match: BracketMatch) -> list:
+    """The series' game rows, or [] when the caller didn't prefetch them.
+
+    ``BracketRepository.list_matches`` prefetches ``games``; a caller that built
+    the match another way simply renders no series detail rather than raising.
+    """
+    related = getattr(match, 'games', None)
+    try:
+        return list(related) if related is not None else []
+    except tortoise_exceptions.NoValuesFetched:
+        return []
+
 
 _STATE_BADGE = {
     BracketMatchState.PENDING: 'grey',
@@ -75,7 +90,11 @@ def build_match_dialog(
                 elif is_winner:
                     ui.icon('emoji_events', size='xs').classes('text-primary')
 
-        if match.match_id is not None:
+        scheduled_games = [
+            g for g in _games_of(match)
+            if g.state != BracketMatchGameState.CANCELLED
+        ]
+        if scheduled_games:
             ui.label('Scheduled to a match room.').classes('text-caption text-grey')
 
         can_report = (

@@ -9,7 +9,7 @@ and ``self.repository`` through that composed class.
 from typing import Any, List, Optional
 
 from application.errors import require_found
-from models import BracketMatch, BracketMatchState, Match, User
+from models import BracketMatch, BracketMatchGameState, BracketMatchState, Match, User
 
 
 class SchedulingMixin:
@@ -25,7 +25,25 @@ class SchedulingMixin:
         schedulable into a real ``Match``).
         """
         matches = await self.repository.open_matches_for_user(user_id, tournament_id)
-        return [m for m in matches if self._both_entrants_linked(m)]
+        return [
+            m for m in matches
+            if self._both_entrants_linked(m) and self._has_free_game_slot(m)
+        ]
+
+    @staticmethod
+    def _has_free_game_slot(bracket_match: BracketMatch) -> bool:
+        """Whether this series still has a game left to schedule.
+
+        Reads the ``games`` the repository prefetched — no extra query per match.
+        Today a series is one game, so this is "nothing scheduled yet"; the
+        best-of-N unit compares the live game count against the resolved
+        ``best_of`` instead.
+        """
+        live = [
+            g for g in bracket_match.games
+            if g.state != BracketMatchGameState.CANCELLED
+        ]
+        return not live
 
     @staticmethod
     def _both_entrants_linked(bracket_match: BracketMatch) -> bool:
@@ -48,18 +66,23 @@ class SchedulingMixin:
         must be OPEN and unscheduled, and both entrants must be linked to a
         ``user``. Delegates match creation to :class:`MatchService` (the same seam
         Challonge uses, so seeding/crew/notifications behave identically), then
-        links the resulting ``Match`` back onto the bracket match's ``match`` FK.
+        records the resulting ``Match`` as a :class:`BracketMatchGame` — game 1 of
+        the series. Multi-game scheduling lands with the best-of-N unit; today a
+        second live game is still rejected.
         """
         bracket_match = require_found(
             await self.repository.get_match_with_entrants(bracket_match_id),
             "Bracket match",
         )
-        if bracket_match.match_id is not None:
-            raise ValueError("This bracket match has already been scheduled.")
         if bracket_match.state != BracketMatchState.OPEN:
             raise ValueError("This bracket match isn't ready to schedule yet.")
         if not self._both_entrants_linked(bracket_match):
             raise ValueError("Both players must be linked to schedule this match.")
+
+        games = await self.repository.list_games(bracket_match_id)
+        live = [g for g in games if g.state != BracketMatchGameState.CANCELLED]
+        if live:
+            raise ValueError("This bracket match has already been scheduled.")
 
         from application.services.match_service import MatchService
 
@@ -72,8 +95,12 @@ class SchedulingMixin:
             actor=actor,
             **match_kwargs,
         )
-        bracket_match.match = match
-        await bracket_match.save()
+        await self.repository.create_game(
+            bracket_match_id=bracket_match.id,
+            game_number=1,
+            match_id=match.id,
+            state=BracketMatchGameState.SCHEDULED,
+        )
         return match
 
     async def advance_if_linked(self, match: Match, actor: Optional[User]) -> bool:
@@ -92,9 +119,13 @@ class SchedulingMixin:
         """
         if actor is None:
             return False
-        bracket_match = await self.repository.get_bracket_match_for_match(match.id)
-        if bracket_match is None:
+        game = await self.repository.get_game_for_match(match.id)
+        if game is None:
             return False
+        if game.state != BracketMatchGameState.SCHEDULED:
+            return True  # already settled or cancelled — idempotent
+
+        bracket_match = game.bracket_match
         if bracket_match.state == BracketMatchState.COMPLETE:
             return True
 
@@ -115,6 +146,17 @@ class SchedulingMixin:
             ),
             None,
         )
-        if winner_entry is not None:
-            await self._record_result(actor, bracket_match.id, winner_entry.id)
+        if winner_entry is None:
+            return True
+
+        # Compare-and-swap: two settle paths race for the same game once the
+        # racetime hook lands, and counting one game's win twice would let a
+        # best-of "clinch" off a single game.
+        if not await self.repository.settle_game(
+            game.id,
+            state=BracketMatchGameState.COMPLETE,
+            winner_entry_id=winner_entry.id,
+        ):
+            return True
+        await self._record_result(actor, bracket_match.id, winner_entry.id)
         return True

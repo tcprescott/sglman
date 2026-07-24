@@ -78,7 +78,7 @@ class BracketMatchResponse(BaseModel):
     winner_to_slot: Optional[int] = None
     loser_to_id: Optional[int] = None
     loser_to_slot: Optional[int] = None
-    match_id: Optional[int] = None
+    best_of: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

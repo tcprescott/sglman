@@ -15,6 +15,8 @@ from application.services.bracket_service import BracketService
 from application.services.challonge_service import ChallongeService
 from application.tenant_context import tenant_scope
 from models import (
+    BracketMatchGame,
+    BracketMatchGameState,
     BracketMatchState,
     BracketState,
     Match,
@@ -91,8 +93,10 @@ class TestScheduleBracketMatch:
         player_ids = {p.user_id for p in await MatchPlayers.filter(match=match)}
         assert player_ids == {users[0].id, users[1].id}
 
-        await bmatch.refresh_from_db()
-        assert bmatch.match_id == match.id
+        game = await BracketMatchGame.get(bracket_match_id=bmatch.id)
+        assert game.game_number == 1
+        assert game.match_id == match.id
+        assert game.state == BracketMatchGameState.SCHEDULED
 
     async def test_placeholder_entrant_rejected(self, service):
         actor = await _staff()
@@ -118,8 +122,9 @@ class TestScheduleBracketMatch:
         actor = await _staff()
         t, _, _, bmatch = await _linked_bracket(service, actor)
         existing = await Match.create(tournament=t)
-        bmatch.match = existing
-        await bmatch.save()
+        await BracketMatchGame.create(
+            bracket_match_id=bmatch.id, game_number=1, match_id=existing.id,
+        )
         with pytest.raises(ValueError, match='already been scheduled'):
             await service.schedule_bracket_match(
                 actor, bmatch.id,

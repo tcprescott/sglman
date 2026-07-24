@@ -41,13 +41,13 @@ field tables in [data-model.md](../reference/data-model.md#native-brackets)):
 - **`BracketEntry`** — an entrant's participation within one stage (its `seed`,
   `group_number`, and — once the stage completes — `final_rank`).
 - **`BracketMatch`** — one slot in a stage's persisted match graph, carrying the
-  `winner_to` / `loser_to` progression pointers, a nullable `match` FK (the
-  scheduling seam), and optional reported **set scores** (`entry1_score` /
+  `winner_to` / `loser_to` progression pointers, a nullable `best_of` override,
+  and optional reported **set scores** (`entry1_score` /
   `entry2_score`, nullable) plus a **`forfeit`** flag. `report_result` /
   `override_result` accept the scores and forfeit flag; the reported winner must
   carry the strictly-higher score **unless** `forfeit` marks a DQ / walkover
   (win-only reporting, with null scores, stays valid). Per-round display chrome
-  (best-of, scheduled time) lives in `Bracket.config['rounds']` keyed by round
+  (scheduled time, and the default `best_of`) lives in `Bracket.config['rounds']` keyed by round
   number, not on the match.
 
 ## Formats and multi-stage chaining
@@ -121,14 +121,18 @@ no-rematch matching is unique and reproducible.
 
 ## Scheduling seam and Challonge exclusivity
 
-`BracketMatch.match` is the same nullable FK seam `ChallongeMatch.match` uses, so a
-native bracket match schedules into a real `Match` exactly like a Challonge one.
-`BracketService` mirrors the Challonge integration method-for-method:
+A bracket match spans `best_of` games, and **every game is its own scheduled
+`Match`** — that link is `BracketMatchGame.match`, a OneToOne, so a `Match` never
+backs more than one game. A best-of-1 is simply a series with a single game, which
+is why there is one code path rather than a special case (it replaced the old
+one-shot `BracketMatch.match` FK in migration 35). Game rows are created lazily,
+at schedule time, and `game_number` is assigned by the service — never by a
+caller. `BracketService` still mirrors the Challonge integration method-for-method:
 
 | Bracket (native) | Challonge (mirror) |
 |---|---|
 | `list_open_matches_for_user` | `list_unscheduled_matches_for_user` |
-| `schedule_bracket_match` (→ `MatchService.create_match`, link `match`) | `schedule_challonge_match` |
+| `schedule_bracket_match` (→ `MatchService.create_match`, write a `BracketMatchGame`) | `schedule_challonge_match` |
 | `advance_if_linked` (confirmed `Match` → `report_result`) | `push_result_if_linked` |
 
 Only OPEN matches whose **both** entrants resolve to a linked `user` are

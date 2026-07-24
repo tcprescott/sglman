@@ -1,10 +1,11 @@
-"""Bracket Repository — data access for the four native-bracket models.
+"""Bracket Repository — data access for the five native-bracket models.
 
 Pure data access (no business logic, audit, or notifications). One repository
-spans :class:`Bracket`, :class:`BracketEntrant`, :class:`BracketEntry`, and
-:class:`BracketMatch` — they are one aggregate the lifecycle drives together, so
-a single tenant-scoped repository keeps their queries in one place. Reads scope
-through the ``_tenant`` helper; custom creates stamp the ambient tenant.
+spans :class:`Bracket`, :class:`BracketEntrant`, :class:`BracketEntry`,
+:class:`BracketMatch`, and :class:`BracketMatchGame` — they are one aggregate the
+lifecycle drives together, so a single tenant-scoped repository keeps their
+queries in one place. Reads scope through the ``_tenant`` helper; custom creates
+stamp the ambient tenant.
 """
 
 from typing import List, Optional
@@ -13,11 +14,17 @@ from tortoise.expressions import Q
 
 from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
-from models import Bracket, BracketEntrant, BracketEntry, BracketMatch
+from models import (
+    Bracket,
+    BracketEntrant,
+    BracketEntry,
+    BracketMatch,
+    BracketMatchGame,
+)
 
 
 class BracketRepository(TenantScopedRepository[Bracket]):
-    """Data access for brackets, entrants, entries, and matches."""
+    """Data access for brackets, entrants, entries, matches, and series games."""
 
     model = Bracket
 
@@ -80,9 +87,11 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         return await scoped(BracketMatch.filter(id=match_id)).first()
 
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
+        # ``games`` is prefetched so a whole round can render its series state
+        # without an N+1 across the bracket view.
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id)
-        ).order_by('round', 'position')
+        ).prefetch_related('games').order_by('round', 'position')
 
     async def get_match_at(
         self, bracket_id: int, round: int, position: int
@@ -136,13 +145,26 @@ class BracketRepository(TenantScopedRepository[Bracket]):
             'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
         ).first()
 
-    async def get_bracket_match_for_match(self, match_id: int) -> Optional[BracketMatch]:
-        """The bracket match linked to a scheduled ``Match`` (the ``match`` seam)."""
+    async def get_game_for_match(self, match_id: int) -> Optional[BracketMatchGame]:
+        """The series game backed by a scheduled ``Match`` (the scheduling seam).
+
+        A ``Match`` backs at most one game (``BracketMatchGame.match`` is a
+        OneToOne), so this is single-valued. The parent bracket match and both
+        entry chains are prefetched — the settle path needs them to map a
+        ``finish_rank`` winner onto a :class:`BracketEntry`.
+        """
         return await scoped(
-            BracketMatch.filter(match_id=match_id)
+            BracketMatchGame.filter(match_id=match_id)
         ).prefetch_related(
-            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+            'bracket_match__bracket',
+            'bracket_match__entry1__entrant__user',
+            'bracket_match__entry2__entrant__user',
         ).first()
+
+    async def get_bracket_match_for_match(self, match_id: int) -> Optional[BracketMatch]:
+        """The bracket match whose series contains the game backed by ``match_id``."""
+        game = await self.get_game_for_match(match_id)
+        return game.bracket_match if game is not None else None
 
     async def open_matches_for_user(
         self, user_id: int, tournament_id: Optional[int] = None
@@ -150,17 +172,65 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         """OPEN bracket matches where ``user_id`` is one of the two entrants.
 
         Joins entry → entrant → user on either slot. Optionally narrowed to one
-        tournament. Not-yet-linked matches only (``match_id`` still null), since a
-        linked one is already scheduled.
+        tournament. ``games`` is prefetched so the service can drop the ones whose
+        series has no free slot left — that filter needs the resolved ``best_of``,
+        which is business logic and so cannot live here.
         """
         from models import BracketMatchState
         qs = scoped(BracketMatch.filter(
             Q(entry1__entrant__user_id=user_id) | Q(entry2__entrant__user_id=user_id),
             state=BracketMatchState.OPEN,
-            match_id__isnull=True,
         ))
         if tournament_id is not None:
             qs = qs.filter(bracket__tournament_id=tournament_id)
         return await qs.prefetch_related(
-            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user', 'games',
         ).distinct().order_by('round', 'position')
+
+    # --- BracketMatchGame -------------------------------------------------
+    async def create_game(self, **fields) -> BracketMatchGame:
+        return await BracketMatchGame.create(tenant_id=current_tenant_id(), **fields)
+
+    async def get_game(self, game_id: int) -> Optional[BracketMatchGame]:
+        return await scoped(BracketMatchGame.filter(id=game_id)).first()
+
+    async def list_games(self, bracket_match_id: int) -> List[BracketMatchGame]:
+        return await scoped(
+            BracketMatchGame.filter(bracket_match_id=bracket_match_id)
+        ).order_by('game_number')
+
+    async def games_for_matches(self, match_ids: List[int]) -> List[BracketMatchGame]:
+        """The game rows backed by any of ``match_ids`` (one batched query)."""
+        if not match_ids:
+            return []
+        return await scoped(BracketMatchGame.filter(match_id__in=match_ids))
+
+    async def games_for_series(
+        self, bracket_match_ids: List[int]
+    ) -> List[BracketMatchGame]:
+        """Every game row of the given series, with each game's ``Match``.
+
+        The auto-open hold reads ``match.finished_at`` off these, so the ``Match``
+        is prefetched — this plus :meth:`games_for_matches` is what keeps the hold
+        at two queries regardless of how many candidates the worker is weighing.
+        """
+        if not bracket_match_ids:
+            return []
+        return await scoped(
+            BracketMatchGame.filter(bracket_match_id__in=bracket_match_ids)
+        ).prefetch_related('match')
+
+    async def settle_game(self, game_id: int, **fields) -> bool:
+        """Compare-and-swap a SCHEDULED game to its settled state.
+
+        Returns True iff *this* call moved the row. Two settle paths race for the
+        same game — ``RaceRoomService.record_finish`` on the racetimebot task and
+        ``advance_if_linked`` on the serial ``discord_queue`` — and counting one
+        game's win twice would let a Bo3 "clinch" 2-0 off a single game. The
+        conditional UPDATE makes the loser a no-op without needing a transaction.
+        """
+        from models import BracketMatchGameState
+        updated = await scoped(BracketMatchGame.filter(
+            id=game_id, state=BracketMatchGameState.SCHEDULED,
+        )).update(**fields)
+        return bool(updated)

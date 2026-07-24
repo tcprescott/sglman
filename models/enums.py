@@ -92,6 +92,21 @@ class BracketMatchState(str, Enum):
     COMPLETE = 'complete' # winner recorded
 
 
+class BracketMatchGameState(str, Enum):
+    """State of one game within a best-of-N series.
+
+    There is no ``PENDING``: a :class:`BracketMatchGame` row is created only when
+    the game is scheduled into a ``Match``, so it enters at ``SCHEDULED``. A game
+    the series never needed (the loser of a 2-0 Bo3) ends ``CANCELLED`` rather
+    than being deleted, which keeps ``game_number`` stable and records why it was
+    never played.
+    """
+
+    SCHEDULED = 'scheduled' # linked to a Match, not yet decided
+    COMPLETE = 'complete'   # winner recorded
+    CANCELLED = 'cancelled' # never played (series clinched, or staff override)
+
+
 class BracketEntrantStatus(str, Enum):
     """Status of a tournament-level bracket entrant (across all stages)."""
 

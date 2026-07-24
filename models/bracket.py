@@ -1,7 +1,7 @@
 """Native tournament bracket models (see docs/brackets-plan.md).
 
 Wizzrobe manages brackets natively — generating, progressing, and standing
-tournaments — instead of mirroring them from the Challonge API. The four models
+tournaments — instead of mirroring them from the Challonge API. The five models
 here are all tenant-scoped:
 
 * :class:`Bracket` — one *stage* of a tournament (a single-stage tournament has
@@ -13,8 +13,10 @@ here are all tenant-scoped:
   group, and — once the stage completes — ``final_rank``).
 * :class:`BracketMatch` — one slot in a stage's persisted match graph, carrying
   the ``winner_to`` / ``loser_to`` progression pointers so elimination
-  advancement is plain pointer-following once the graph is generated, and a
-  nullable ``match`` FK — the same scheduling seam ``ChallongeMatch.match`` uses.
+  advancement is plain pointer-following once the graph is generated.
+* :class:`BracketMatchGame` — one game of that slot's best-of-N series, and the
+  scheduling seam: each game links to its own scheduled ``Match``. A best-of-1 is
+  a series with one game, so there is no special case.
 
 The pairing/progression engine is invoked only at generation (``start``) and at
 per-round pairing (Swiss / round robin); at all other times these rows are the
@@ -28,6 +30,7 @@ from .enums import (
     BracketEntrantStatus,
     BracketEntryStatus,
     BracketFormat,
+    BracketMatchGameState,
     BracketMatchState,
     BracketState,
 )
@@ -163,17 +166,71 @@ class BracketMatch(Model):
         'models.BracketMatch', related_name='feeder_losers', null=True, on_delete=fields.SET_NULL
     )
     loser_to_slot = fields.IntField(null=True)
-    # The scheduling seam: a native bracket match links to a real ``Match`` the
-    # same way ``ChallongeMatch.match`` does. SET_NULL so deleting the scheduled
-    # Match detaches it (the bracket slot survives). Null until scheduled.
-    match = fields.ForeignKeyField(
-        'models.Match', related_name='bracket_match', null=True, on_delete=fields.SET_NULL
-    )
+    # Best-of length for THIS matchup, overriding the per-round default in
+    # ``Bracket.config['rounds'][str(round)]['best_of']``. Null = use the round's
+    # value, falling back to 1. Positive and odd (a best-of has no draws).
+    best_of = fields.IntField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
+
+    # related fields
+    games = fields.ReverseRelation["BracketMatchGame"]
 
     class Meta:
         table = 'bracketmatch'
         # A stage's graph is uniquely addressed by (round, position).
         unique_together = (('bracket', 'round', 'position'),)
-        indexes = (('bracket',), ('match',))
+        indexes = (('bracket',),)
+
+
+class BracketMatchGame(Model):
+    """One game of a best-of-N series — the scheduling seam.
+
+    A bracket match spans ``best_of`` games and **every game is its own scheduled
+    ``Match``**; a ``Match`` never represents more than one game. This model is
+    that link, replacing the old one-shot ``BracketMatch.match`` FK: a best-of-1
+    is simply a series with a single game, so there is one code path rather than a
+    special case.
+
+    Rows are created **lazily, at schedule time** — a row exists because a game
+    was scheduled. "Game 3 of 3, not yet scheduled" is display arithmetic from
+    ``best_of`` minus the existing rows, so changing ``best_of`` mid-series never
+    orphans anything. ``game_number`` is assigned by the service, never by a
+    caller.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField(
+        'models.Tenant', related_name='bracket_match_games', on_delete=fields.CASCADE
+    )
+    bracket_match = fields.ForeignKeyField(
+        'models.BracketMatch', related_name='games', on_delete=fields.CASCADE
+    )
+    game_number = fields.IntField()
+    # OneToOne: a scheduled Match backs at most one game. SET_NULL so deleting the
+    # Match preserves the recorded game result — the same reasoning the other
+    # bracket FKs use, and what lets a cancelled game keep its audit trail.
+    match = fields.OneToOneField(
+        'models.Match', related_name='bracket_match_game', null=True, on_delete=fields.SET_NULL
+    )
+    winner_entry = fields.ForeignKeyField(
+        'models.BracketEntry', related_name='games_won', null=True, on_delete=fields.SET_NULL
+    )
+    # A DQ / walkover / no-show in THIS game (one entrant ranked, the other not).
+    # A series-level forfeit is the AND of its games'.
+    forfeit = fields.BooleanField(default=False)
+    state = fields.CharEnumField(
+        BracketMatchGameState, default=BracketMatchGameState.SCHEDULED, max_length=16
+    )
+    # Why a game was never played, e.g. 'series clinched 2-0'. Null unless CANCELLED.
+    cancelled_reason = fields.CharField(max_length=255, null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'bracketmatchgame'
+        # bracket_match is itself tenant-scoped, so this is a tenant-safe unique
+        # (the same argument BracketEntry's (bracket, entrant) unique uses). It
+        # also serves the ordered per-series listing.
+        unique_together = (('bracket_match', 'game_number'),)
+        indexes = (('bracket_match',), ('match',))

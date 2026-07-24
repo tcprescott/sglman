@@ -15,6 +15,7 @@ from models import (
     BracketEntry,
     BracketFormat,
     BracketMatch,
+    BracketMatchGame,
     Tournament,
 )
 
@@ -96,3 +97,24 @@ async def test_bracket_match_reads_are_isolated(two_tenants):
     with tenant_scope(b.id):
         assert [x.id for x in await scoped(BracketMatch.all())] == [mb.id]
         assert await scoped(BracketMatch.filter(id=ma.id)).first() is None
+
+
+async def test_bracket_match_game_reads_are_isolated(two_tenants):
+    a, b = two_tenants
+    with tenant_scope(a.id):
+        ta = await _tournament('TA')
+        ba = await Bracket.create(tournament=ta, name='Main', format=BracketFormat.SINGLE_ELIM)
+        ma = await BracketMatch.create(bracket=ba, round=1, position=1)
+        ga = await BracketMatchGame.create(bracket_match=ma, game_number=1)
+    with tenant_scope(b.id):
+        tb = await _tournament('TB')
+        bb = await Bracket.create(tournament=tb, name='Main', format=BracketFormat.SINGLE_ELIM)
+        mb = await BracketMatch.create(bracket=bb, round=1, position=1)
+        gb = await BracketMatchGame.create(bracket_match=mb, game_number=1)
+
+    with tenant_scope(a.id):
+        assert [x.id for x in await scoped(BracketMatchGame.all())] == [ga.id]
+        assert await scoped(BracketMatchGame.filter(id=gb.id)).first() is None
+    with tenant_scope(b.id):
+        assert [x.id for x in await scoped(BracketMatchGame.all())] == [gb.id]
+        assert await scoped(BracketMatchGame.filter(id=ga.id)).first() is None
