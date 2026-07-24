@@ -181,6 +181,7 @@ class MatchService(CancellationMixin):
         commentator_ids: Optional[List[int]] = None,
         tracker_ids: Optional[List[int]] = None,
         is_stream_candidate: bool = False,
+        title: Optional[str] = None,
         actor: Optional[User] = None,
     ) -> Match:
         """
@@ -195,6 +196,11 @@ class MatchService(CancellationMixin):
             stream_room_id: Optional stream room ID
             commentator_ids: Optional list of commentator user IDs
             tracker_ids: Optional list of tracker user IDs
+            title: Optional display label. It **replaces** the Discord scheduled
+                event's whole title and names the racetime room, so a caller must
+                pass something self-describing (see
+                ``SchedulingMixin._game_title``); leave it None for the default
+                "<tournament>: <players>" rendering.
             admin_user: User creating the match (for audit log)
 
         Returns:
@@ -243,6 +249,7 @@ class MatchService(CancellationMixin):
             comment=comment,
             stream_room_id=stream_room_id,
             is_stream_candidate=is_stream_candidate,
+            title=title,
         )
 
         await self.participants.ensure_enrolled(tournament_id, players)

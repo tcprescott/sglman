@@ -11,6 +11,7 @@ from application.services._bracket.completion import CompletionMixin
 from application.services._bracket.generation import GenerationMixin
 from application.services._bracket.multistage import MultiStageMixin
 from application.services._bracket.scheduling import SchedulingMixin
+from application.services._bracket.series import SeriesMixin
 
 __all__ = [
     "AdvancementMixin",
@@ -18,4 +19,5 @@ __all__ = [
     "GenerationMixin",
     "MultiStageMixin",
     "SchedulingMixin",
+    "SeriesMixin",
 ]

@@ -146,6 +146,7 @@ class MatchRepository:
         comment: Optional[str] = None,
         stream_room_id: Optional[int] = None,
         is_stream_candidate: bool = False,
+        title: Optional[str] = None,
     ) -> Match:
         """
         Create a new match.
@@ -156,6 +157,7 @@ class MatchRepository:
             comment: Optional comment
             stream_room_id: Optional stream room ID
             is_stream_candidate: Whether this match is a stream candidate
+            title: Optional display label (names the Discord event and race room)
 
         Returns:
             Created Match object
@@ -167,6 +169,7 @@ class MatchRepository:
             comment=comment,
             stream_room_id=stream_room_id,
             is_stream_candidate=is_stream_candidate,
+            title=title,
         )
         return match
     

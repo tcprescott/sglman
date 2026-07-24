@@ -20,6 +20,22 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from application.utils.config_validation import validate_config_blob
 
 
+def validate_best_of(value: Optional[int]) -> Optional[int]:
+    """Positive-and-odd check for a best-of length (``None`` passes through).
+
+    Shared by :class:`RoundConfig.best_of` (the per-round default) and
+    ``BracketMatch.best_of`` (the per-matchup override) so the two can never
+    disagree about what a legal series length is.
+    """
+    if value is None:
+        return value
+    if value < 1:
+        raise ValueError("best_of must be at least 1")
+    if value % 2 == 0:
+        raise ValueError("best_of must be odd (a best-of has no draws)")
+    return value
+
+
 class AdvancementConfig(BaseModel):
     """How a stage draws its field from the prior stage's ``final_rank``.
 
@@ -56,9 +72,10 @@ class AdvancementConfig(BaseModel):
 class RoundConfig(BaseModel):
     """Per-round display metadata (best-of, scheduled time) for one round.
 
-    Display-only in v1: shown in the round header (``best_of`` as a "Best of N"
-    badge, ``scheduled_at`` through ``format_eastern_display``), never enforced
-    against reported scores. ``scheduled_at`` is a UTC ISO-8601 string (all
+    ``best_of`` is **semantic**: it is the default series length for every match
+    in the round (a per-matchup ``BracketMatch.best_of`` overrides it), and the
+    scheduler and clinch logic both read it. ``scheduled_at`` stays display-only,
+    rendered through ``format_eastern_display``. It is a UTC ISO-8601 string (all
     stored datetimes are UTC — see docs/timezone-handling.md); it is accepted as
     a ``datetime`` and normalized back to an ISO string so the blob stays JSON.
     """
@@ -71,13 +88,7 @@ class RoundConfig(BaseModel):
     @field_validator('best_of')
     @classmethod
     def _best_of_positive_odd(cls, v: Optional[int]) -> Optional[int]:
-        if v is None:
-            return v
-        if v < 1:
-            raise ValueError("best_of must be at least 1")
-        if v % 2 == 0:
-            raise ValueError("best_of must be odd (a best-of has no draws)")
-        return v
+        return validate_best_of(v)
 
     @field_validator('scheduled_at')
     @classmethod

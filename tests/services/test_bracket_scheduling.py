@@ -125,7 +125,7 @@ class TestScheduleBracketMatch:
         await BracketMatchGame.create(
             bracket_match_id=bmatch.id, game_number=1, match_id=existing.id,
         )
-        with pytest.raises(ValueError, match='already been scheduled'):
+        with pytest.raises(ValueError, match='already scheduled'):
             await service.schedule_bracket_match(
                 actor, bmatch.id,
                 scheduled_date='2026-06-12', scheduled_time='14:30',

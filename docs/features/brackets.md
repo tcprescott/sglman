@@ -133,7 +133,50 @@ caller. `BracketService` still mirrors the Challonge integration method-for-meth
 |---|---|
 | `list_open_matches_for_user` | `list_unscheduled_matches_for_user` |
 | `schedule_bracket_match` (→ `MatchService.create_match`, write a `BracketMatchGame`) | `schedule_challonge_match` |
-| `advance_if_linked` (confirmed `Match` → `report_result`) | `push_result_if_linked` |
+| `advance_if_linked` (confirmed `Match` → settle the game) | `push_result_if_linked` |
+
+### Best-of-N series
+
+`best_of` resolves **per matchup**: `BracketMatch.best_of` → the round's
+`Bracket.config['rounds'][N]['best_of']` → `1`. It is semantic, not chrome —
+the scheduler and the clinch both read it. Set it before scheduling; it is
+rejected once games exist, because each game's title carries "Game 2 of 3".
+
+The bracket match stays **OPEN for the whole series** and completes only on the
+clinch, which delegates to `_record_result`. Pointer-following, the grand-final
+reset, walkover settling, and stage completion are therefore reused unchanged —
+`entry1_score`/`entry2_score` simply become games won.
+
+Two paths settle a game, so settling is a **compare-and-swap** on the game row:
+`RaceRoomService.record_finish` (a racetime finish never *confirms* a match, so
+`advance_if_linked` alone would never fire on an auto-room tournament) and
+`advance_if_linked` on the serial `discord_queue`. Counting one game twice would
+clinch a Bo3 off a single game.
+
+On the clinch, unplayed games are cancelled and their `Match` rows go through
+`MatchService.cancel_match`, so players and crew are told. `report_result` /
+`override_result` reconcile the same way — a staff-forced 2-0 must not strand a
+pre-scheduled game 3.
+
+### Holding the next game's race room
+
+Game N's room must not auto-open while game N-1 is still being raced. The hold is
+`BracketService.held_match_ids`, applied in `race_room_worker._tick` over the
+whole candidate set (two queries, not one per match) — and it keys on
+**`Match.finished_at`, not game state**, because a double forfeit never produces
+a COMPLETE game row and would deadlock the series silently.
+
+Holding alone is not enough: the poll's scan starts at `now - 15min`, so a game
+whose slot slipped further while the previous game ran long has dropped out of it
+for good. `release_next_game` pushes at game-end, reusing
+`RaceRoomService.auto_open_if_eligible` (which keeps the lead-window guard, so it
+is a no-op when the next game is still legitimately far out). A wider
+`SERIES_GRACE_MINUTES` scan backstops a process that died in between.
+
+A prior game whose `Match` was deleted **fails open** — the next game is
+released, with a warning. Failing closed produces a room that never opens, with
+nothing surfaced anywhere, which is the worse failure. Seed generation needs no
+separate hold: it hangs off room creation.
 
 Only OPEN matches whose **both** entrants resolve to a linked `user` are
 schedulable. When a linked match is confirmed, `advance_if_linked` maps its winner

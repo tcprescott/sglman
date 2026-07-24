@@ -315,16 +315,20 @@ async def _two_stage(
     await service.start_bracket(actor, playoff.id)
 
 
-async def _schedule_a_game(
+async def _seed_a_series(
     service: BracketService, tenant: Tenant, users: dict[str, User]
 ) -> None:
-    """Give one OPEN single-elim match a scheduled game, so the seam has a fixture.
+    """Leave one Bo3 mid-series: game 1 won, game 2 scheduled and waiting.
 
-    Builds the ``Match`` + :class:`BracketMatchGame` directly rather than through
-    ``BracketService.schedule_bracket_match``: that path runs
+    Builds the ``Match`` + :class:`BracketMatchGame` rows directly rather than
+    through ``BracketService.schedule_bracket_match``: that path runs
     ``MatchService.create_match``, which enforces the tournament-hours window,
-    seeds acknowledgments, and fans out Discord notifications into a queue no seed
-    script runs. ``seed_dev.py`` builds its matches the same way.
+    seeds acknowledgments, and fans out Discord notifications into a queue no
+    seed script runs. ``seed_dev.py`` builds its matches the same way.
+
+    Game 2 being scheduled-but-unfinished is the state the racetime auto-open
+    hold acts on, so ``/ui-validation`` can see a held game rather than only the
+    happy path.
     """
     tournament = await Tournament.get_or_none(
         name="Bracket Demo — Single Elimination", tenant=tenant
@@ -338,16 +342,31 @@ async def _schedule_a_game(
     if not open_matches:
         return
     bracket_match = open_matches[0]
+    best_of = service.resolve_best_of(brackets[0], bracket_match)
 
-    match, _ = await Match.get_or_create(
-        title=f"Bracket Demo — Game 1 (match {bracket_match.id})",
-        tournament=tournament, tenant=tenant,
-        defaults={"scheduled_at": datetime(2026, 8, 1, 22, 0, tzinfo=timezone.utc)},
-    )
-    await BracketMatchGame.get_or_create(
-        bracket_match=bracket_match, game_number=1, tenant=tenant,
-        defaults={"match": match, "state": BracketMatchGameState.SCHEDULED},
-    )
+    for number in (1, 2):
+        match, _ = await Match.get_or_create(
+            title=(
+                f"{tournament.name}: bracket match {bracket_match.id} "
+                f"— Game {number} of {best_of}"
+            ),
+            tournament=tournament, tenant=tenant,
+            defaults={
+                "scheduled_at": datetime(2026, 8, 1, 20 + number, 0, tzinfo=timezone.utc),
+            },
+        )
+        await BracketMatchGame.get_or_create(
+            bracket_match=bracket_match, game_number=number, tenant=tenant,
+            defaults={
+                "match": match,
+                # Game 1 is decided; game 2 is the one still waiting on it.
+                "state": (
+                    BracketMatchGameState.COMPLETE if number == 1
+                    else BracketMatchGameState.SCHEDULED
+                ),
+                "winner_entry_id": bracket_match.entry1_id if number == 1 else None,
+            },
+        )
 
 
 async def seed_brackets_for_tenant(
@@ -369,5 +388,5 @@ async def seed_brackets_for_tenant(
     await _swiss(service, actor, tenant, users)
     await _round_robin(service, actor, tenant, users)
     await _two_stage(service, actor, tenant, users)
-    await _schedule_a_game(service, tenant, users)
+    await _seed_a_series(service, tenant, users)
     print(f"    [{tenant.slug}] brackets ok")

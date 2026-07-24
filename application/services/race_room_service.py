@@ -221,6 +221,7 @@ class RaceRoomService:
         if match is not None:
             self._publish_match_result(match, results, actor)
             await self._push_challonge(match, actor)
+            await self._settle_bracket(match, actor)
 
     # ---- result mapping --------------------------------------------------
 
@@ -289,6 +290,26 @@ class RaceRoomService:
             'ranks': ranks,
             'source': 'racetime',
         }, actor))
+
+    async def _settle_bracket(self, match: Match, actor: User) -> None:
+        """Record this race as its bracket series game, if it backs one.
+
+        Peer of :meth:`_push_challonge`, and necessary for the same reason it
+        exists: a racetime finish stamps ``finished_at`` but never *confirms* the
+        match, and ``advance_if_linked`` hangs off ``confirm_match``, whose only
+        callers are human. Without this a best-of series on an auto-room
+        tournament would sit un-clinched — and its unneeded games un-cancelled —
+        until someone clicked Confirm on every game.
+
+        Settling is a compare-and-swap on the game row, so a later human confirm
+        is a no-op rather than a double count.
+        """
+        try:
+            from application.services.bracket_service import BracketService
+
+            await BracketService().settle_game_if_linked(match, actor)
+        except Exception:  # noqa: BLE001 - brackets are an optional downstream step
+            logger.exception('bracket settle failed for match %s', match.id)
 
     async def _push_challonge(self, match: Match, actor: User) -> None:
         try:

@@ -20,6 +20,7 @@ from models import (
     BracketEntry,
     BracketMatch,
     BracketMatchGame,
+    Match,
 )
 
 
@@ -142,7 +143,7 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         return await scoped(
             BracketMatch.filter(id=bracket_match_id)
         ).prefetch_related(
-            'bracket', 'entry1__entrant__user', 'entry2__entrant__user',
+            'bracket__tournament', 'entry1__entrant__user', 'entry2__entrant__user',
         ).first()
 
     async def get_game_for_match(self, match_id: int) -> Optional[BracketMatchGame]:
@@ -200,10 +201,17 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         ).order_by('game_number')
 
     async def games_for_matches(self, match_ids: List[int]) -> List[BracketMatchGame]:
-        """The game rows backed by any of ``match_ids`` (one batched query)."""
+        """The game rows backed by any of ``match_ids`` — **unscoped**, one query.
+
+        Deliberately tenant-agnostic, like ``matches_due_for_auto_open``: the
+        auto-open worker's hold runs over that scan's cross-tenant candidate list
+        *before* it binds each match's ``tenant_scope``, so a scoped read here
+        would raise. Safe because the caller supplies match ids it already holds
+        and the result only ever computes a hold decision — no row reaches a user.
+        """
         if not match_ids:
             return []
-        return await scoped(BracketMatchGame.filter(match_id__in=match_ids))
+        return await BracketMatchGame.filter(match_id__in=match_ids)
 
     async def games_for_series(
         self, bracket_match_ids: List[int]
@@ -213,12 +221,34 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         The auto-open hold reads ``match.finished_at`` off these, so the ``Match``
         is prefetched — this plus :meth:`games_for_matches` is what keeps the hold
         at two queries regardless of how many candidates the worker is weighing.
+        **Unscoped** for the same reason, and safe on the same grounds.
         """
         if not bracket_match_ids:
             return []
-        return await scoped(
-            BracketMatchGame.filter(bracket_match_id__in=bracket_match_ids)
+        return await BracketMatchGame.filter(
+            bracket_match_id__in=bracket_match_ids
         ).prefetch_related('match')
+
+    async def series_matches_due(self, window_start, window_end) -> List[Match]:
+        """Scheduled series games in a **wider** band than the auto-open poll's.
+
+        The poll's scan starts at ``now - 15min``, so a game whose slot slipped
+        further than that while the previous game ran long has dropped out of it
+        for good. The push at game-end normally opens such a game immediately;
+        this is the backstop for when the process died in between. **Unscoped**
+        like its sibling scans — the worker binds each match's tenant itself.
+        """
+        from models import BracketMatchGameState
+
+        games = await BracketMatchGame.filter(
+            state=BracketMatchGameState.SCHEDULED,
+            match_id__isnull=False,
+            match__scheduled_at__gte=window_start,
+            match__scheduled_at__lte=window_end,
+            match__finished_at__isnull=True,
+            match__tournament__racetime_auto_create_rooms=True,
+        ).prefetch_related('match__tournament', 'match__players__user')
+        return [g.match for g in games if g.match is not None]
 
     async def settle_game(self, game_id: int, **fields) -> bool:
         """Compare-and-swap a SCHEDULED game to its settled state.

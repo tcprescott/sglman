@@ -11,7 +11,7 @@ rows (B7); Swiss/round-robin re-pair per round.
 repository + audit service), the shared helpers, and the roster/enrollment CRUD,
 while the lifecycle logic lives in per-concern mixins under
 ``application/services/_bracket/`` (generation, advancement, completion,
-multistage, scheduling). The split is pure code motion — every method resolves
+multistage, scheduling, series). The split is pure code motion — every method resolves
 ``self.repository`` / ``self.audit_service`` and sibling methods through this one
 composed class, so callers still ``from application.services import
 BracketService`` and use it unchanged.
@@ -27,6 +27,7 @@ from application.services._bracket.completion import CompletionMixin
 from application.services._bracket.generation import GenerationMixin
 from application.services._bracket.multistage import MultiStageMixin
 from application.services._bracket.scheduling import SchedulingMixin
+from application.services._bracket.series import SeriesMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.bracket_config import validate_bracket_config
@@ -51,6 +52,7 @@ class BracketService(
     CompletionMixin,
     MultiStageMixin,
     SchedulingMixin,
+    SeriesMixin,
 ):
     """Service for native-bracket lifecycle operations."""
 
