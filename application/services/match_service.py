@@ -26,6 +26,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.match_source_guard import assert_sg_fields_unchanged
 from application.services import discord_queue
+from application.services.match_cancellation import CancellationMixin
 from application.services.match_participants import MatchParticipants
 from application.services.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
@@ -43,7 +44,7 @@ _STATION_REGEXES = {
 }
 
 
-class MatchService:
+class MatchService(CancellationMixin):
     """Service for match-related business operations."""
 
     def __init__(self) -> None:
@@ -670,22 +671,6 @@ class MatchService:
         """
         users = await self.participants.resolve_users(player_ids)
         await self.participants.ensure_enrolled(tournament_id, users)
-
-    async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
-        match = await self._require_match(match_id)
-        await AuthService.ensure(
-            await AuthService.can_crud_match(actor, match),
-            f"User cannot delete match {match_id}",
-        )
-        tournament_id = match.tournament_id
-        await self.repository.delete(match)
-        await self.audit_service.write_log(
-            actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
-        )
-        match_events.publish(match_id, match_events.DELETED)
-        event_bus.publish(Event.create(EventType.MATCH_DELETED, {
-            'match_id': match_id, 'tournament_id': tournament_id,
-        }, actor))
 
     # Match lifecycle transitions (seat / start / finish / confirm) live solely
     # in MatchScheduleService._transition, which enforces the ordering rules and

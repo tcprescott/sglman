@@ -39,6 +39,11 @@ import cycle.
 every subscriber error, so one bad listener can't break the others or the caller.
 `publish` itself is synchronous, never raises, and never blocks.
 
+Note that a cancelled match emits **both** `match.cancelled` and `match.deleted`:
+cancellation deletes the row, so every subscriber already listening for the
+deletion keeps working, while `match.cancelled` carries the `reason` and marks
+the difference between "called off" and "shouldn't have existed".
+
 ## Publishing (in a service, after commit)
 
 ```python

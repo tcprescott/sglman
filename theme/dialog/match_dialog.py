@@ -207,6 +207,32 @@ class BaseMatchDialog:
             with dialog:
                 notify_error(e)
 
+    def _confirm_cancel(self, dialog):
+        async def on_confirm():
+            await self._cancel_match(dialog)
+        ConfirmationDialog(
+            message=(
+                "Cancel this match? Its players and crew will be DMed, and any "
+                "open race room will be closed."
+            ),
+            on_confirm=on_confirm,
+            confirm_text="Cancel match",
+            cancel_text="Back",
+        ).open()
+
+    async def _cancel_match(self, dialog):
+        try:
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+            await self.match_service.cancel_match(self.match.id, actor=actor)
+            with dialog:
+                ui.notify('Match cancelled — players and crew notified', color='negative')
+                dialog.close()
+            if self.on_submit:
+                await self.on_submit(None)
+        except (ValueError, PermissionError) as e:
+            with dialog:
+                notify_error(e)
+
     async def _run_submit(
         self,
         dialog,
@@ -280,6 +306,10 @@ class BaseMatchDialog:
         with dialog_actions():
             if self.match:
                 ui.button('Delete', on_click=lambda: self._confirm_delete(dialog)).props('color=negative flat')
+                # Distinct from the footer's 'Cancel' (which just closes this
+                # dialog): calling the match off notifies everyone who committed
+                # to it, where Delete is the silent "this shouldn't exist" path.
+                ui.button('Cancel match', on_click=lambda: self._confirm_cancel(dialog)).props('color=negative flat')
             ui.space()
             ui.button('Cancel', on_click=dialog.close).props('flat')
             ui.button('Save' if self.match else create_label, on_click=submit).props('color=primary')

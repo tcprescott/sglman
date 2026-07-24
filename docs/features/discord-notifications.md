@@ -32,6 +32,18 @@ Sends Discord DMs to relevant users when match lifecycle events occur:
 
 Deduplication: users who are both a player and a tournament subscriber only receive one DM.
 
+### Cancellation is the exception
+
+`notify_match_cancelled` takes a **pre-resolved** `{discord_id: is_watcher}` map
+instead of a `Match`, and only fans out. Cancelling deletes the row, and every
+other notifier re-queries `MatchPlayers` / `Commentator` / `Tracker` /
+`MatchWatcher` when the queue worker finally awaits it — by which point the
+cascade has removed them all and the DM would silently reach nobody. So
+`MatchService._cancel_match` resolves recipients and builds the message *before*
+the delete. Every recipient gets a plain DM, deliberately not the watcher variant,
+whose Unwatch button would carry the id of a match that no longer exists.
+The card uses `COLOR_CANCELLED` (deep red), the palette's only negative colour.
+
 ## Notification Levels (Tournament Subscriptions)
 
 Defined in `models.py` as `MatchNotificationLevel`:

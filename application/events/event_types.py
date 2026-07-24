@@ -16,6 +16,7 @@ class EventType:
     MATCH_CREATED = 'match.created'
     MATCH_UPDATED = 'match.updated'
     MATCH_DELETED = 'match.deleted'
+    MATCH_CANCELLED = 'match.cancelled'
     MATCH_RESCHEDULED = 'match.rescheduled'
     MATCH_SEATED = 'match.seated'
     MATCH_STARTED = 'match.started'
@@ -101,7 +102,7 @@ class EventType:
 
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
-        MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
+        MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
         MATCH_SEATED, MATCH_STARTED, MATCH_FINISHED, MATCH_CONFIRMED,
         MATCH_ACKNOWLEDGED, MATCH_RESULT_RECORDED, MATCH_SEED_ROLLED,
         MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED, MATCH_STATIONS_ASSIGNED,

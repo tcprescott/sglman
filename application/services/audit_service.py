@@ -25,6 +25,7 @@ class AuditActions:
     MATCH_CREATED = 'match.created'
     MATCH_UPDATED = 'match.updated'
     MATCH_DELETED = 'match.deleted'
+    MATCH_CANCELLED = 'match.cancelled'
     MATCH_REQUESTED = 'match.requested'
     MATCH_SEATED = 'match.seated'
     MATCH_STARTED = 'match.started'

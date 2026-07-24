@@ -503,6 +503,42 @@ class MatchScheduleService:
         except Exception:
             logger.exception("notify_match_crew unexpected error for match %s", match.id)
 
+    async def notify_match_cancelled(
+        self,
+        recipients: dict[int, bool],
+        message: str,
+        embed: Optional[discord.Embed] = None,
+    ) -> None:
+        """DM a **pre-resolved** recipient set that their match was cancelled.
+
+        Unlike every sibling notifier this takes the recipients rather than a
+        ``Match``, and that difference is load-bearing. Cancellation deletes the
+        row, and ``collect_match_recipients`` re-queries ``MatchPlayers`` /
+        ``Commentator`` / ``Tracker`` / ``MatchWatcher`` — all of which cascade
+        away with it. Because ``discord_queue`` defers this coroutine to its lone
+        worker, by the time it ran the recipient set would be empty and the DMs
+        would silently reach nobody. The caller resolves recipients while the
+        match still exists and passes them in; this method only fans out.
+
+        Every recipient gets a plain DM — deliberately not the watcher variant,
+        whose Unwatch button would carry the id of a match that no longer exists.
+
+        Never raises; per-DM failures are logged and swallowed.
+        """
+        for discord_id in recipients:
+            try:
+                success, err = await self.discord_service.send_dm(
+                    discord_id, message, embed=embed,
+                )
+                if not success:
+                    logger.warning(
+                        "notify_match_cancelled DM failed for %s: %s", discord_id, err
+                    )
+            except Exception:
+                logger.exception(
+                    "notify_match_cancelled unexpected error for %s", discord_id
+                )
+
     async def _send_dms(
         self,
         match: Match,
