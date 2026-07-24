@@ -537,6 +537,15 @@
   }
 }
 
+/* Phones (Quasar xs): drop the tiebreaker columns from standings so the core
+   rank/name/record/points fit without a sideways scroll — dropped uniformly
+   from the header and every row, so the remaining columns stay aligned. */
+@media (max-width: 599px) {
+  .bracket-standings .c-tb {
+    display: none;
+  }
+}
+
 @media print {
   .bracket-scroll {
     overflow: visible;
