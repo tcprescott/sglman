@@ -1,6 +1,6 @@
 # Bracket UI Redesign Plan (design record)
 
-> Status: **proposed.** The native bracket system
+> Status: **proposed, decisions confirmed 2026-07-24.** The native bracket system
 > ([features/brackets.md](features/brackets.md)) shipped with a deliberately
 > minimal visualization — [brackets-plan.md](brackets-plan.md) budgeted the
 > polish as deferred work. This is that work: a redesign of the public bracket,
@@ -8,6 +8,8 @@
 > conventionally presented (Challonge / start.gg / Liquipedia visual grammar).
 > The engine, data model, and service layer are correct and stay untouched
 > except for the small additive fields listed in [Model additions](#model-additions).
+> The [Decisions](#decisions-confirmed-2026-07-24) below were fixed
+> interactively with the maintainer; no open questions remain for v1.
 
 ## Context: what ships today vs. the target
 
@@ -143,33 +145,41 @@ answer at our scale.
 - **Dark theme is the esports default**; drive all colors through CSS custom
   properties so Quasar dark/light switching just works.
 
-## Decisions (proposed)
+## Decisions (confirmed 2026-07-24)
 
 | # | Decision | Rationale |
 |---|---|---|
 | 1 | **Build the bracket renderer in-house as server-generated NiceGUI/HTML using the CSS-grid technique (Liquipedia's), with connectors from pseudo-element borders — no JS bracket library.** | Match cards must be *interactive NiceGUI elements* (click → existing dialogs, admin report actions, live refresh); brackets-viewer.js only offers a click callback and forecloses Quasar components inside cards. The grid technique needs no coordinate math, no SVG, themes via CSS variables, and is proven at wiki scale. brackets-viewer.js (MIT) **remains the recorded fallback** if the in-house renderer stalls — our API already exposes a graph trivially mappable to `brackets-model`. |
-| 2 | **One shared bracket-rendering module** (`theme/brackets/` — layout walker + match-card component + CSS), consumed by both the public page and the admin tab. | The admin Results dialog currently lists matches as flat text (`R-2 #1: A vs B`); staff should report results by clicking the same visual bracket users see. |
+| 2 | **One shared bracket-rendering module** (`theme/brackets/` — layout walker + match-card component + CSS), consumed by both the public page and the admin tab. Staff report/override results **by clicking a match card in the same visual bracket** (embedded in the admin Results dialog), replacing the flat text list — *supplementing* the existing dialogs, not removing them. | The admin Results dialog currently lists matches as flat text (`R-2 #1: A vs B`); a visual reporting surface is a large staff-UX win and reuses the renderer. |
 | 3 | **Draw winner-links only**; losers-bracket drops are conveyed by "Loser of …" placeholder hints, not lines. | Universal convention; loser lines are unreadable. |
-| 4 | **Add game scores** (`entry1_score`/`entry2_score`, nullable ints) to `BracketMatch`, reported optionally alongside the winner. | The score cell is the visual anchor of every match card on every platform; today we store only a winner. Nullable + optional keeps every existing flow (win-only reporting, `advance_if_linked`) valid — a missing score renders as `1–0`-style W/L glyphs. |
-| 5 | **Per-round metadata (best-of, scheduled time) lives in `Bracket.config`**, keyed by round — not on `BracketMatch`. | It's display/format metadata, uniform per round (like the reference screenshot); the config blob is already schema-validated at the service boundary; no migration beyond the score fields. Actual per-match scheduling stays on the linked `Match` (the seam), shown on the card when present. |
+| 4 | **Add set scores** (`entry1_score`/`entry2_score`, nullable ints) to `BracketMatch`, reported optionally alongside the winner, **plus a `forfeit` flag** so a winner may carry the lower/zero score (DQ/walkover). | The score cell is the visual anchor of every match card on every platform; today we store only a winner. Nullable + optional keeps every existing flow (win-only reporting, `advance_if_linked`) valid — a missing score renders as a `W/L` glyph. Per-game results are explicitly **out of scope** for v1 (a later `BracketMatchGame` table if ever wanted). |
+| 5 | **Per-round metadata (best-of, scheduled time) lives in `Bracket.config`**, keyed by round — not on `BracketMatch` — and staff set it through a **per-round editor in the admin stage-management UI**. | It's display/format metadata, uniform per round (like the reference screenshot); the config blob is already schema-validated at the service boundary; no migration beyond the score fields. Actual per-match scheduling stays on the linked `Match` (the seam), shown on the card when present. |
 | 6 | **Mobile**: below `lt.md`, elimination brackets render a per-round accordion list of stacked match cards (the `wiz-grid-card` idiom); the 2-D bracket remains available via horizontal scroll. Swiss/RR tables keep `enable_mobile_grid`. | House pattern (every table gets a mobile card view) extended to the bracket; matches industry mobile consensus. |
 | 7 | **Avatars**: entrant rows show the linked user's Discord avatar (fallback: initial-letter disc for placeholders), 20 px, hidden at compact density. | Cheap (avatar URLs already used on home/profile) and a large perceived-quality win. |
-| 8 | Seeds, match numbers, state color-coding, hover-run highlight, sticky round headers, fullscreen toggle — **all in scope**; pan/zoom minimap **out of scope** (horizontal scroll + zoom buttons suffice at our field sizes). | Convention-complete without speculative complexity. |
+| 8 | In scope: seeds, match numbers, state color-coding, sticky round headers, **hover-run highlight**, **live auto-refresh** (event-bus subscription), and a **round-robin crosstable** tab (≤ 10 entrants). **Deferred (not v1, recorded for later): fullscreen / venue mode** — see [Deferred](#deferred-recorded-for-later). Out of scope: pan/zoom minimap — horizontal scroll + zoom buttons suffice at our field sizes. | Convention-complete on the extras the maintainer wants now; venue mode is wanted eventually but not this iteration. |
+| 9 | **Winner accent = the app's existing theme accent**, driven through `--bracket-*` CSS variables (not the screenshot's literal orange), adapting to dark/light. | In-house renderer themes to Wizzrobe rather than pixel-matching Challonge; per-tenant theming stays possible later. |
+| 10 | **Swiss standings show the full configured tiebreaker chain** (`buchholz`, `omw`, `head_to_head`) as narrow muted columns with tooltip headers. | Maximum transparency for competitive players; the chain is already computed by `standings.py` — the UI just stops hiding it. |
 
 ## Model additions
 
 Deliberately minimal — one migration:
 
 - `BracketMatch.entry1_score` / `entry2_score` (`IntField(null=True)`) —
-  written by `report_result` when provided (service validates score-vs-winner
-  consistency: reported winner must have the higher score when both present);
-  surfaced through `api/schemas/brackets.py` and the REST report endpoint as
-  optional fields. Existing rows/flows unaffected.
+  written by `report_result` when provided; surfaced through
+  `api/schemas/brackets.py` and the REST report endpoint as optional fields.
+  Existing rows/flows unaffected.
+- `BracketMatch.forfeit` (`BooleanField(default=False)`) — when set, the winner
+  may carry the lower or zero score (DQ / walkover / no-show); the card renders
+  an "FF" marker so a `0`-score win reads correctly. This is what makes the
+  score-vs-winner rule *conditional*: `report_result` validates that the
+  reported winner has the strictly higher score **unless `forfeit` is set**,
+  in which case any winner/score combination is accepted.
 - `Bracket.config` schema gains an optional `rounds` map:
   `{"<round>": {"best_of": 3, "scheduled_at": "<UTC iso>"}}` (validated in
-  `bracket_config.py`; negative keys address losers rounds). Display-only in
-  v1: shown in round headers (times through `format_eastern_display`), not
-  enforced against reported scores.
+  `bracket_config.py`; negative keys address losers rounds). Set by staff
+  through a per-round editor in the admin stage UI; display-only in v1 — shown
+  in round headers (times through `format_eastern_display`), not enforced
+  against reported scores.
 
 No changes to engines, progression, standings, or the scheduling seam.
 
@@ -199,10 +209,15 @@ No changes to engines, progression, standings, or the scheduling seam.
   implicit finals column(s) at the end of the winners grid.
 - Round headers: name ("Round 1", "Winners Finals", "Losers Round 2", "Grand
   Finals") + optional time + best-of badge from config; sticky.
-- Card click → detail dialog: entrants (with records), state, linked `Match`
-  info (scheduled time, links) when present; staff additionally get the
-  report/override controls (reusing the admin dialog logic).
-- Toolbar: fullscreen toggle, zoom −/100 %/+, stage selector when multi-stage.
+- Card click → detail dialog: entrants (with records), scores (or "FF" for a
+  forfeit), state, linked `Match` info (scheduled time, links) when present;
+  staff additionally get the report/override controls (reusing the admin dialog
+  logic).
+- Winner accent (score cell fill + bold name) uses the app theme accent via
+  `--bracket-*` variables; loser row dimmed ~60 %.
+- Toolbar: zoom −/100 %/+, stage selector when multi-stage. (Fullscreen /
+  venue mode is deferred — see [Deferred](#deferred-recorded-for-later); the
+  toolbar leaves room to add its toggle later.)
 
 ### Swiss
 
@@ -210,8 +225,8 @@ No changes to engines, progression, standings, or the scheduling seam.
   table**: board #, entrant A (record chip) vs entrant B (record chip),
   score/result, byes last; complete rows dimmed, open rows accented.
 - **Standings** panel: rank, entrant (seed + avatar + name), W-L(-D), Points,
-  then the configured tiebreaker columns (`buchholz`, `omw`, `head_to_head`)
-  as narrow muted columns with tooltip headers — the tiebreaker chain is
+  then the **full configured tiebreaker chain** (`buchholz`, `omw`,
+  `head_to_head`) as narrow muted columns with tooltip headers — the chain is
   already computed by `standings.py`; the UI simply stops hiding it. Cut line
   after position N when the next stage's advancement rule is known.
 - Dropped entrants struck through with a "dropped" chip.
@@ -222,7 +237,9 @@ No changes to engines, progression, standings, or the scheduling seam.
   W-L(-T), Pts) with advancement tint + cut line derived from the next stage's
   advancement config (green = advancing, red = eliminated once locked), and
   the group's matches grouped by round below.
-- Optional **crosstable tab** per group (shown for ≤ 10 entrants).
+- A **crosstable tab** per group (entrants on both axes, cell = head-to-head
+  result, diagonal blacked out), rendered for groups of **≤ 10 entrants** and
+  hidden above that.
 
 ### Admin tab
 
@@ -241,26 +258,29 @@ No changes to engines, progression, standings, or the scheduling seam.
 
 One PR per unit; sizes S/M/L as in [brackets-plan.md](brackets-plan.md).
 
-- **U1 — Scores + round metadata (M).** The two nullable score fields +
-  migration; `report_result` accepts optional scores (consistency-validated);
-  `rounds` config schema; API schemas/report endpoint updated;
-  `seed_brackets.py` grown to write scores and per-round best-of/time so demos
-  exercise the new chrome; service/API tests.
+- **U1 — Scores, forfeit flag + round metadata (M).** The two nullable score
+  fields and the `forfeit` boolean + migration; `report_result` accepts
+  optional scores and a forfeit flag (winner = strictly-higher score enforced
+  unless `forfeit`); `rounds` config schema in `bracket_config.py`; API
+  schemas/report endpoint updated; `seed_brackets.py` grown to write scores,
+  a forfeit example, and per-round best-of/time so demos exercise the new
+  chrome; service/API tests.
 - **U2 — Shared renderer core (L).** `theme/brackets/` (layout walker, card
-  component, CSS) + the elimination public page rebuilt on it: connectors,
-  seeds, avatars, scores, states, byes/placeholder hints, sticky headers,
-  finals/reset handling. Layout-walker unit tests (positions/spans for 2–64
-  entrants incl. byes, DE losers rounds, GF+reset); `/ui-validation` pass
-  against every seeded demo.
+  component, CSS keyed to `--bracket-*` app-accent variables) + the elimination
+  public page rebuilt on it: connectors, seeds, avatars, scores/FF, states,
+  byes/placeholder hints, sticky headers, finals/reset handling. Layout-walker
+  unit tests (positions/spans for 2–64 entrants incl. byes, DE losers rounds,
+  GF+reset); `/ui-validation` pass against every seeded demo.
 - **U3 — Interactions (M).** Match detail dialog (+ staff reporting), hover-run
-  highlight, fullscreen + zoom toolbar, live refresh subscription.
-  `/ui-validation`.
-- **U4 — Swiss & groups views (M).** Round-tabbed pairings, tiebreaker columns,
-  cut lines, group cards with advancement tinting, optional crosstable.
-  `/ui-validation`.
-- **U5 — Mobile + admin embed + docs (M).** Per-round accordion list under
-  `lt.md`; admin Results dialog embedding the renderer; print stylesheet;
-  updates to [features/brackets.md](features/brackets.md),
+  highlight, zoom toolbar, live-refresh subscription (`theme/realtime.py`
+  pattern on the `BRACKET_*` events). `/ui-validation`.
+- **U4 — Swiss & groups views (M).** Round-tabbed pairings, full tiebreaker-chain
+  columns, cut lines, group cards with advancement tinting, per-group
+  crosstable tab. `/ui-validation`.
+- **U5 — Mobile + admin embed + per-round editor + docs (M).** Per-round
+  accordion list under `lt.md`; admin Results dialog embedding the renderer for
+  click-to-report; the per-round best-of/time editor in the admin stage UI;
+  print stylesheet; updates to [features/brackets.md](features/brackets.md),
   [reference/frontend.md](reference/frontend.md),
   [reference/data-model.md](reference/data-model.md),
   [reference/rest-api.md](reference/rest-api.md),
@@ -268,21 +288,36 @@ One PR per unit; sizes S/M/L as in [brackets-plan.md](brackets-plan.md).
 
 Critical path: U1 → U2 → U3; U4 depends only on U1; U5 last.
 
+## Deferred (recorded for later)
+
+Wanted eventually, deliberately not in this iteration — kept here so the intent
+isn't lost:
+
+- **Fullscreen / venue mode** — a toggle that expands the bracket container
+  (Fullscreen API) at increased scale for projectors, stream layouts, and venue
+  TVs. The in-house renderer already themes via `--bracket-*` variables and the
+  toolbar reserves space for the toggle, so this is a self-contained add-on when
+  we want it: a fullscreen button, a larger-scale CSS class, and (optionally) a
+  "stream/projector" density that hides admin chrome. No model or data changes.
+
 ## Out of scope
 
-- Pan/zoom minimaps and pool-splitting (field sizes don't warrant them).
+- **Per-game results** (a `BracketMatchGame` table) — v1 stores set scores only.
+- **Pan/zoom minimaps** and pool-splitting — field sizes don't warrant them;
+  horizontal scroll + zoom buttons suffice.
 - Score *enforcement* against best-of (display-only in v1).
 - Embeddable iframe module à la Challonge.
 - Team entrants, auto-scheduling — unchanged from
   [brackets-plan.md](brackets-plan.md)'s deferred list.
 
-## Open questions (for sign-off)
+## Resolved
 
-1. **Score entry granularity** — set score only (`2–1`), or per-game results?
-   Plan assumes set score only; per-game is a later model (`BracketMatchGame`)
-   if ever needed.
-2. **Default tiebreaker column set** for Swiss standings display — show the
-   whole configured chain (plan's assumption) or cap at the first two?
-3. Should the reference screenshot's **orange** winner accent become a
-   `--bracket-*` theme default, or reuse the existing app accent color?
-   (Plan assumes the app accent; tenants theming later.)
+Every fork that was open at drafting has been decided with the maintainer
+(2026-07-24) and folded into [Decisions](#decisions-confirmed-2026-07-24):
+in-house CSS-grid renderer; public **and** admin (click-to-report); set scores
+with a forfeit flag; per-round best-of/time in `Bracket.config` with an admin
+editor; live auto-refresh, hover-run highlight, and a round-robin crosstable in
+scope; fullscreen/venue mode **deferred** (recorded under
+[Deferred](#deferred-recorded-for-later), not cut); dedicated mobile list; full
+Swiss tiebreaker chain shown; app-theme winner accent. No open questions remain
+for v1.
