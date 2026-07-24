@@ -6,7 +6,7 @@ enums so FastAPI's JSON serialization emits the ``.value``.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -14,6 +14,7 @@ from models import (
     BracketEntrantStatus,
     BracketEntryStatus,
     BracketFormat,
+    BracketMatchGameState,
     BracketMatchState,
     BracketState,
 )
@@ -59,6 +60,23 @@ class BracketEntryResponse(BaseModel):
     updated_at: datetime
 
 
+class BracketMatchGameResponse(BaseModel):
+    """One game of a bracket match's best-of-N series."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    bracket_match_id: int
+    game_number: int
+    match_id: Optional[int] = None
+    winner_entry_id: Optional[int] = None
+    forfeit: bool = False
+    state: BracketMatchGameState
+    cancelled_reason: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class BracketMatchResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -78,12 +96,31 @@ class BracketMatchResponse(BaseModel):
     winner_to_slot: Optional[int] = None
     loser_to_id: Optional[int] = None
     loser_to_slot: Optional[int] = None
+    # Per-matchup override; null means "use the round's best_of, else 1".
     best_of: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+    # Empty until a game is scheduled — rows are created lazily, so a best-of-3
+    # with one game played reports one game, not three.
+    games: List[BracketMatchGameResponse] = []
 
 
 # --- request bodies -------------------------------------------------------
+
+
+class ScheduleGameRequest(BaseModel):
+    """Schedule the next game of a series. The game number is server-assigned."""
+
+    scheduled_date: str
+    scheduled_time: str
+    stream_room_id: Optional[int] = None
+    comment: Optional[str] = None
+
+
+class SetBestOfRequest(BaseModel):
+    """Override one matchup's series length (null = fall back to the round)."""
+
+    best_of: Optional[int] = None
 
 
 class BracketCreateRequest(BaseModel):
@@ -121,7 +158,10 @@ __all__ = [
     'BracketResponse',
     'BracketEntrantResponse',
     'BracketEntryResponse',
+    'BracketMatchGameResponse',
     'BracketMatchResponse',
+    'ScheduleGameRequest',
+    'SetBestOfRequest',
     'BracketCreateRequest',
     'EntrantCreateRequest',
     'EnrollRequest',

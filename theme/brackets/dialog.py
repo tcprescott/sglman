@@ -35,6 +35,50 @@ def _games_of(match: BracketMatch) -> list:
         return []
 
 
+_GAME_BADGE = {
+    BracketMatchGameState.SCHEDULED: 'positive',
+    BracketMatchGameState.COMPLETE: 'primary',
+    BracketMatchGameState.CANCELLED: 'grey',
+}
+
+
+def _render_games(games: list, entry_name: dict, best_of: int) -> None:
+    """The per-game breakdown of a series (nothing at all for a best-of-1).
+
+    A plain row stack rather than a ``ui.table``: three rows don't warrant a
+    table, and every table needs a mobile grid (``check_table_grid``). Unscheduled
+    games are shown as arithmetic — ``best_of`` minus the rows that exist — since
+    game rows are created lazily at schedule time.
+    """
+    if best_of <= 1:
+        if games:
+            ui.label('Scheduled to a match room.').classes('text-caption text-grey')
+        return
+
+    ui.separator()
+    ui.label(f'Best of {best_of}').classes('section-title')
+    for game in sorted(games, key=lambda g: g.game_number):
+        with ui.row().classes('items-center justify-between w-full q-py-xs'):
+            with ui.row().classes('items-center gap-2 no-wrap'):
+                ui.label(f'Game {game.game_number}').classes('text-caption')
+                winner = entry_name.get(game.winner_entry_id)
+                if winner:
+                    ui.label(winner).classes('text-bold')
+                    if game.forfeit:
+                        ui.label('FF').classes('text-bold text-negative')
+                elif game.cancelled_reason:
+                    ui.label(game.cancelled_reason).classes('text-caption text-grey')
+            ui.badge(
+                game.state.value.title(),
+                color=_GAME_BADGE.get(game.state, 'grey'),
+            )
+    remaining = best_of - len({g.game_number for g in games})
+    if remaining > 0:
+        ui.label(
+            f'{remaining} game(s) not yet scheduled'
+        ).classes('text-caption text-grey')
+
+
 _STATE_BADGE = {
     BracketMatchState.PENDING: 'grey',
     BracketMatchState.OPEN: 'positive',
@@ -49,6 +93,7 @@ def build_match_dialog(
     records: Dict[int, tuple],
     number: Optional[int],
     *,
+    best_of: int = 1,
     is_staff: bool,
     actor: Optional[User],
     tenant_id: int,
@@ -90,12 +135,7 @@ def build_match_dialog(
                 elif is_winner:
                     ui.icon('emoji_events', size='xs').classes('text-primary')
 
-        scheduled_games = [
-            g for g in _games_of(match)
-            if g.state != BracketMatchGameState.CANCELLED
-        ]
-        if scheduled_games:
-            ui.label('Scheduled to a match room.').classes('text-caption text-grey')
+        _render_games(_games_of(match), entry_name, best_of)
 
         can_report = (
             is_staff

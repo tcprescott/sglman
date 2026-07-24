@@ -11,6 +11,7 @@ import pytest
 from application.tenant_context import tenant_scope
 from models import BracketFormat, FeatureFlag, Role, TenantFeatureFlag, Tournament
 from tests.api_helpers import client_for, create_user_token, enable_all_features
+from tests.factories import make_user
 
 
 async def _staff_token(username='staff'):
@@ -270,3 +271,97 @@ async def create_bracket_via_service(actor, tournament_id):
     return await BracketService().create_bracket(
         actor, tournament_id=tournament_id, name='Main', format=BracketFormat.SINGLE_ELIM,
     )
+
+
+class TestSeriesEndpoints:
+    """best_of override + server-assigned game scheduling."""
+
+    async def _linked_bracket(self, c, tournament):
+        """A started Bo1 bracket whose entrants are linked to real users."""
+        bracket_id = (await c.post('/api/brackets', json={
+            'tournament_id': tournament.id, 'name': 'Main', 'format': 'single_elim',
+        })).json()['id']
+        for i, name in enumerate(('Alice', 'Bob'), start=1):
+            user = await make_user(discord_id=9100 + i, username=name.lower())
+            e = (await c.post('/api/brackets/entrants', json={
+                'tournament_id': tournament.id, 'display_name': name,
+                'user_id': user.id,
+            })).json()
+            await c.post(f'/api/brackets/{bracket_id}/entries', json={
+                'entrant_id': e['id'],
+            })
+        await c.post(f'/api/brackets/{bracket_id}/start')
+        open_matches = (await c.get(f'/api/brackets/{bracket_id}/open-matches')).json()
+        return bracket_id, open_matches[0]['id']
+
+    async def test_set_best_of_and_schedule_assigns_game_numbers(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            _, match_id = await self._linked_bracket(c, t)
+
+            r = await c.patch(
+                f'/api/brackets/matches/{match_id}/best-of', json={'best_of': 3},
+            )
+            assert r.status_code == 200
+            assert r.json()['best_of'] == 3
+
+            for expected in (1, 2, 3):
+                r = await c.post(
+                    f'/api/brackets/matches/{match_id}/games',
+                    json={'scheduled_date': '2026-06-12', 'scheduled_time': '14:30'},
+                )
+                assert r.status_code == 201
+                games = r.json()['games']
+                assert len(games) == expected
+                assert games[-1]['game_number'] == expected
+                assert games[-1]['state'] == 'scheduled'
+
+            # A fourth game of a best-of-3 is refused.
+            r = await c.post(
+                f'/api/brackets/matches/{match_id}/games',
+                json={'scheduled_date': '2026-06-12', 'scheduled_time': '14:30'},
+            )
+            assert r.status_code == 400
+
+    async def test_even_best_of_rejected(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            _, match_id = await self._linked_bracket(c, t)
+            r = await c.patch(
+                f'/api/brackets/matches/{match_id}/best-of', json={'best_of': 2},
+            )
+            assert r.status_code == 400
+
+    async def test_read_only_token_cannot_schedule(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            _, match_id = await self._linked_bracket(c, t)
+
+        _, readonly = await create_user_token(
+            username='ro', roles=[Role.STAFF], read_only=True,
+        )
+        async with client_for(app, readonly) as c:
+            r = await c.post(
+                f'/api/brackets/matches/{match_id}/games',
+                json={'scheduled_date': '2026-06-12', 'scheduled_time': '14:30'},
+            )
+            assert r.status_code == 403
+
+    async def test_unauthenticated_is_rejected(self, db, app):
+        async with client_for(app, None) as c:
+            r = await c.post(
+                '/api/brackets/matches/1/games',
+                json={'scheduled_date': '2026-06-12', 'scheduled_time': '14:30'},
+            )
+            assert r.status_code == 401
+
+    async def test_missing_match_is_404(self, db, app):
+        _, staff = await _staff_token()
+        async with client_for(app, staff) as c:
+            r = await c.patch(
+                '/api/brackets/matches/999999/best-of', json={'best_of': 3},
+            )
+            assert r.status_code == 404

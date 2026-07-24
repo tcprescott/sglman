@@ -112,7 +112,18 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         from models import BracketMatchState
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id, state=BracketMatchState.OPEN)
-        ).order_by('round', 'position')
+        ).prefetch_related('games').order_by('round', 'position')
+
+    async def get_match_with_games(self, match_id: int) -> Optional[BracketMatch]:
+        """A bracket match with its series games loaded.
+
+        Separate from the lean :meth:`get_match`, which the advancement recursion
+        calls repeatedly and must not pay a join for. Used where the games are
+        actually rendered or serialized.
+        """
+        return await scoped(
+            BracketMatch.filter(id=match_id)
+        ).prefetch_related('games').first()
 
     async def max_round(self, bracket_id: int) -> Optional[int]:
         row = await scoped(

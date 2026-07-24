@@ -219,6 +219,10 @@ class BracketService(
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
         return await self.repository.list_matches(bracket_id)
 
+    async def get_match_with_games(self, match_id: int) -> Optional[BracketMatch]:
+        """A bracket match with its series games loaded (for render/serialize)."""
+        return await self.repository.get_match_with_games(match_id)
+
     async def list_entries(self, bracket_id: int) -> List[BracketEntry]:
         return await self.repository.list_entries(bracket_id)
 
