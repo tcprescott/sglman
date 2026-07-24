@@ -1,6 +1,16 @@
 # Bracket UI Redesign Plan (design record)
 
-> Status: **proposed, decisions confirmed 2026-07-24.** The native bracket system
+> Status: **implemented 2026-07-24** (units U1–U5), tracking this plan. The
+> shipped renderer lives in [`theme/brackets/`](../theme/brackets/) and
+> [`static/css/brackets.css`](../../static/css/brackets.css); see
+> [features/brackets.md → Presentation](features/brackets.md#presentation--the-redesigned-bracket-view).
+> One deviation from the plan: entrant avatars are deterministic initial-letter
+> discs rather than Discord avatars, because the `User` model stores no avatar
+> hash (only the logged-in user's OAuth avatar is available). Fullscreen / venue
+> mode remains deferred (see [Deferred](#deferred-recorded-for-later)). The
+> original plan follows unchanged.
+>
+> Status (original): **proposed, decisions confirmed 2026-07-24.** The native bracket system
 > ([features/brackets.md](features/brackets.md)) shipped with a deliberately
 > minimal visualization — [brackets-plan.md](brackets-plan.md) budgeted the
 > polish as deferred work. This is that work: a redesign of the public bracket,

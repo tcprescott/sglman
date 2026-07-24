@@ -1222,7 +1222,7 @@ a group→playoff tournament has several, ordered by `stage_order`).
 | `format` | `CharEnumField(BracketFormat)` | not null | Selects the pairing engine |
 | `state` | `CharEnumField(BracketState)` | default `DRAFT` | Stage lifecycle |
 | `stage_order` | `IntField` | default 0 | 0-based chain position; `(tournament, stage_order)` unique |
-| `config` | `JSONField` | null | Schema-validated by `validate_bracket_config` (reset toggle, Swiss rounds, group count/points, tiebreakers, advancement rule) |
+| `config` | `JSONField` | null | Schema-validated by `validate_bracket_config` (reset toggle, Swiss rounds, group count/points, tiebreakers, advancement rule, and a per-round display-metadata map `rounds["<n>"] = {best_of, scheduled_at}`) |
 
 Unique `(tournament, stage_order)`; index on `tournament`.
 
@@ -1276,6 +1276,8 @@ the graph is generated, plus a nullable `match` FK — the scheduling seam
 | `group_number` | `IntField` | null | Group-stage formats only |
 | `entry1` / `entry2` | FK → `BracketEntry` | null, `SET_NULL` | The two slots (`related_name='matches_as_entry1/2'`) |
 | `winner` | FK → `BracketEntry` | null, `SET_NULL` | `related_name='matches_won'` |
+| `entry1_score` / `entry2_score` | `IntField` | null | Optional reported set scores (positional to the slots); winner must have the strictly-higher score unless `forfeit` |
+| `forfeit` | `BooleanField` | default `False` | DQ / walkover / no-show — waives the score-vs-winner rule; card renders "FF" |
 | `state` | `CharEnumField(BracketMatchState)` | default `PENDING` | |
 | `winner_to` / `loser_to` | Self-FK → `BracketMatch` | null, `SET_NULL` | Where this match's winner/loser flow (`feeder_winners` / `feeder_losers`) |
 | `winner_to_slot` / `loser_to_slot` | `IntField` | null | Which slot (1 or 2) the propagated entry fills |
