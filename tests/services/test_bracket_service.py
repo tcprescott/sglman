@@ -285,6 +285,71 @@ class TestStartGuards:
 
 
 # ---------------------------------------------------------------------------
+# seed validation
+# ---------------------------------------------------------------------------
+class TestSeedValidation:
+    async def _drafted(self, service):
+        actor = await _staff()
+        t = await _tournament()
+        bracket = await service.create_bracket(
+            actor, t.id, 'Main', BracketFormat.SINGLE_ELIM,
+        )
+        return actor, t, bracket
+
+    async def test_set_seeds_rejects_duplicate(self, service):
+        actor, t, bracket = await self._drafted(service)
+        ids = []
+        for i in range(3):
+            entrant = await service.add_entrant(actor, t.id, f'P{i}')
+            entry = await service.enroll(actor, bracket.id, entrant.id)
+            ids.append(entry.id)
+        with pytest.raises(ValueError, match='more than one'):
+            await service.set_seeds(
+                actor, bracket.id, {ids[0]: 1, ids[1]: 1, ids[2]: 2},
+            )
+
+    async def test_set_seeds_rejects_below_one(self, service):
+        actor, t, bracket = await self._drafted(service)
+        entrant = await service.add_entrant(actor, t.id, 'P')
+        entry = await service.enroll(actor, bracket.id, entrant.id)
+        with pytest.raises(ValueError, match='1 or greater'):
+            await service.set_seeds(actor, bracket.id, {entry.id: 0})
+
+    async def test_set_seeds_accepts_valid_full_seeding(self, service):
+        actor, t, bracket = await self._drafted(service)
+        ids = []
+        for i in range(4):
+            entrant = await service.add_entrant(actor, t.id, f'P{i}')
+            entry = await service.enroll(actor, bracket.id, entrant.id)
+            ids.append(entry.id)
+        await service.set_seeds(
+            actor, bracket.id, {ids[0]: 4, ids[1]: 3, ids[2]: 2, ids[3]: 1},
+        )
+        await service.start_bracket(actor, bracket.id)
+        seeds = sorted(e.seed for e in await service.list_entries(bracket.id))
+        assert seeds == [1, 2, 3, 4]
+        assert (await service.get_bracket(bracket.id)).state == BracketState.ACTIVE
+
+    async def test_start_rejects_duplicate_manual_seeds(self, service):
+        # enroll does not validate seeds, so duplicates reach start; start must
+        # reject rather than silently drop the collapsed entrant.
+        actor, t, bracket = await self._drafted(service)
+        for i, seed in enumerate([1, 2, 2, 4]):  # duplicate 2, missing 3
+            entrant = await service.add_entrant(actor, t.id, f'P{i}')
+            await service.enroll(actor, bracket.id, entrant.id, seed=seed)
+        with pytest.raises(ValueError, match='contiguous'):
+            await service.start_bracket(actor, bracket.id)
+
+    async def test_start_rejects_out_of_range_manual_seed(self, service):
+        actor, t, bracket = await self._drafted(service)
+        for i, seed in enumerate([1, 2, 3, 9]):  # 9 out of range for N=4
+            entrant = await service.add_entrant(actor, t.id, f'P{i}')
+            await service.enroll(actor, bracket.id, entrant.id, seed=seed)
+        with pytest.raises(ValueError, match='contiguous'):
+            await service.start_bracket(actor, bracket.id)
+
+
+# ---------------------------------------------------------------------------
 # tenant isolation
 # ---------------------------------------------------------------------------
 async def test_bracket_not_visible_across_tenants(service, two_tenants):

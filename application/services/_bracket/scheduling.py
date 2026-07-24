@@ -82,9 +82,13 @@ class SchedulingMixin:
         Peer of ``ChallongeService.push_result_if_linked``. Guard-and-skip:
         returns False when there is no actor or the match isn't linked to a
         bracket match. Otherwise maps the match's winner (the ``MatchPlayers`` row
-        with ``finish_rank == 1``) to the winning :class:`BracketEntry` and reports
-        it through :meth:`report_result` (skipped when the bracket match is already
-        COMPLETE). Returns True whenever the match is linked.
+        with ``finish_rank == 1``) to the winning :class:`BracketEntry` and records
+        it through the un-gated :meth:`_record_result` (skipped when the bracket
+        match is already COMPLETE). This is deliberately NOT routed through the
+        staff-gated :meth:`report_result`: the confirming actor here may be a
+        Proctor or the system user, and their confirmation must still advance the
+        bracket — matching the Challonge peer ``push_match_result``, which has no
+        staff gate. Returns True whenever the match is linked.
         """
         if actor is None:
             return False
@@ -112,5 +116,5 @@ class SchedulingMixin:
             None,
         )
         if winner_entry is not None:
-            await self.report_result(actor, bracket_match.id, winner_entry.id)
+            await self._record_result(actor, bracket_match.id, winner_entry.id)
         return True

@@ -10,6 +10,7 @@ link, never both.
 
 import pytest
 
+from application.services.auth_service import AuthService
 from application.services.bracket_service import BracketService
 from application.services.challonge_service import ChallongeService
 from application.tenant_context import tenant_scope
@@ -33,6 +34,12 @@ pytestmark = pytest.mark.usefixtures("db")
 async def _staff(discord_id: int = 1234, username: str = 'staff') -> User:
     user = await User.create(discord_id=discord_id, username=username)
     await UserRole.create(user=user, role=Role.STAFF)
+    return user
+
+
+async def _proctor(discord_id: int = 2222, username: str = 'proctor') -> User:
+    user = await User.create(discord_id=discord_id, username=username)
+    await UserRole.create(user=user, role=Role.PROCTOR)
     return user
 
 
@@ -185,6 +192,31 @@ class TestAdvanceIfLinked:
         assert entrant.user_id == users[0].id
 
         # single-elim final resolved -> stage auto-completes.
+        await bracket.refresh_from_db()
+        assert bracket.state == BracketState.COMPLETE
+
+    async def test_non_staff_confirmation_still_advances(self, service):
+        # Regression: the auto-advance seam must NOT be Staff-gated. A Proctor (or
+        # system user) confirming a linked match must still advance the bracket —
+        # the Challonge peer push_match_result has no staff gate either.
+        actor = await _staff()  # staff sets up + schedules the bracket
+        bracket, users, bmatch, match = await self._scheduled(service, actor)
+        proctor = await _proctor()
+        assert await AuthService.is_staff(proctor) is False
+
+        await MatchPlayers.filter(match=match, user=users[0]).update(finish_rank=1)
+        await MatchPlayers.filter(match=match, user=users[1]).update(finish_rank=2)
+
+        advanced = await service.advance_if_linked(match, proctor)
+        assert advanced is True
+
+        await bmatch.refresh_from_db()
+        assert bmatch.state == BracketMatchState.COMPLETE
+        winner = await service.repository.get_entry(bmatch.winner_id)
+        entrant = await winner.entrant
+        assert entrant.user_id == users[0].id
+
+        # single-elim final resolved by a non-staff confirmation -> stage completes.
         await bracket.refresh_from_db()
         assert bracket.state == BracketState.COMPLETE
 

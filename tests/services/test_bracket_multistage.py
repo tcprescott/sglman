@@ -210,6 +210,60 @@ class TestGroupToSingleElim:
 
 
 # ---------------------------------------------------------------------------
+# snake seeding: no same-source-group round-1 playoff match (any group count)
+# ---------------------------------------------------------------------------
+class TestSnakeSameGroupAvoidance:
+    @pytest.mark.parametrize('group_count', [2, 3, 4, 5])
+    @pytest.mark.parametrize('count', [2, 3])
+    async def test_round_one_never_pairs_same_source_group(
+        self, service, group_count, count
+    ):
+        actor = await _staff()
+        t = await Tournament.create(name='Cup')
+        per_group = count + 1
+        n = group_count * per_group
+        stage0 = await _build_stage(
+            service, actor, t.id, BracketFormat.ROUND_ROBIN, n,
+            stage_order=0, config={'group_count': group_count},
+        )
+        await service.start_bracket(actor, stage0.id)
+        await _play_to_completion(
+            service, actor, stage0, await _seed_of(service, stage0.id)
+        )
+
+        stage1 = await _build_stage(
+            service, actor, t.id, BracketFormat.SINGLE_ELIM, 0, stage_order=1,
+            config={'advancement': {
+                'count': count, 'per_group': True, 'seeding': 'snake',
+            }},
+        )
+
+        # Source group per entrant, read off the completed group stage.
+        s0_entries = await service.list_entries(stage0.id)
+        source_group = {e.entrant_id: e.group_number for e in s0_entries}
+
+        await service.advance_stage(actor, t.id, 0)
+        await service.start_bracket(actor, stage1.id)
+
+        s1_entries = await service.list_entries(stage1.id)
+        assert len(s1_entries) == group_count * count
+        entrant_of = {e.id: e.entrant_id for e in s1_entries}
+
+        round1 = [
+            m for m in await service.list_matches(stage1.id)
+            if m.round == 1 and m.entry1_id is not None and m.entry2_id is not None
+        ]
+        assert round1, "expected contested round-1 matches"
+        for m in round1:
+            g1 = source_group[entrant_of[m.entry1_id]]
+            g2 = source_group[entrant_of[m.entry2_id]]
+            assert g1 != g2, (
+                f"same-source-group round-1 pairing "
+                f"(group_count={group_count}, count={count}): {g1} vs {g2}"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Swiss -> top cut
 # ---------------------------------------------------------------------------
 class TestSwissToTopCut:

@@ -46,6 +46,21 @@ class AdvancementMixin:
             await AuthService.is_staff(actor),
             "Only Staff can manage brackets",
         )
+        return await self._record_result(actor, match_id, winner_entry_id)
+
+    async def _record_result(
+        self, actor: Optional[User], match_id: int, winner_entry_id: int
+    ) -> BracketMatch:
+        """Set the winner of an OPEN match and advance — WITHOUT the staff gate.
+
+        The un-gated core of :meth:`report_result`: it validates match/bracket
+        state, records the winner, writes the audit log + event, advances through
+        the progression pointers, settles downstream walkovers, and auto-completes
+        the stage. The staff gate lives on the public :meth:`report_result`; the
+        match-confirm auto-advance seam (``advance_if_linked``) reaches this
+        directly so a non-Staff confirmer's result still advances the bracket
+        (the Challonge peer ``push_match_result`` has no such gate).
+        """
         match = require_found(await self.repository.get_match(match_id), "Match")
         bracket = await self._require_bracket(match.bracket_id)
         if bracket.state != BracketState.ACTIVE:
@@ -324,7 +339,14 @@ class AdvancementMixin:
         await match.save()
 
         await self._advance_after_result(bracket, match, winner_entry, loser_entry)
-        await self._maybe_complete_stage(bracket, actor)
+        if bracket.state == BracketState.COMPLETE:
+            # The bracket already auto-finalized (COMPLETE, final_rank written), so
+            # _maybe_complete_stage would early-return, leaving final_rank/champion
+            # stale. Re-run the same ranking path complete_stage uses so ranks are
+            # recomputed from the amended results.
+            await self._finalize_stage(bracket, actor, tie_breaks=None)
+        else:
+            await self._maybe_complete_stage(bracket, actor)
 
         details = {
             'bracket_id': bracket.id,

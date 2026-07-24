@@ -279,7 +279,12 @@ class BracketService(
         bracket_id: int,
         seeds: Dict[int, int],
     ) -> None:
-        """Set per-entry seeds (``entry_id → seed``). DRAFT-only."""
+        """Set per-entry seeds (``entry_id → seed``). DRAFT-only.
+
+        Rejects a seed below 1 or one that collides with another entry's seed in
+        the same bracket, so a duplicate can never collapse two entrants onto one
+        engine slot (silently dropping a player) at ``start_bracket``.
+        """
         await AuthService.ensure(
             await AuthService.is_staff(actor),
             "Only Staff can manage brackets",
@@ -288,9 +293,33 @@ class BracketService(
         if bracket.state != BracketState.DRAFT:
             raise ValueError("Can only reseed a DRAFT bracket")
 
+        entries = await self.repository.list_entries(bracket_id)
+        entry_by_id = {e.id: e for e in entries}
+
+        # Resolve the full per-entry seeding that would result from applying the
+        # requested changes, then validate the whole set before writing anything.
+        resulting: Dict[int, Optional[int]] = {e.id: e.seed for e in entries}
         for entry_id, seed in seeds.items():
-            entry = require_found(await self.repository.get_entry(entry_id), "Entry")
-            if entry.bracket_id != bracket_id:
+            if entry_id not in entry_by_id:
+                require_found(
+                    await self.repository.get_entry(entry_id), "Entry"
+                )
                 raise ValueError("Entry belongs to a different bracket")
+            if seed is not None and seed < 1:
+                raise ValueError("A seed must be 1 or greater")
+            resulting[entry_id] = seed
+
+        seen: Dict[int, int] = {}
+        for eid, seed in resulting.items():
+            if seed is None:
+                continue
+            if seed in seen:
+                raise ValueError(
+                    f"Seed {seed} is assigned to more than one entry"
+                )
+            seen[seed] = eid
+
+        for entry_id, seed in seeds.items():
+            entry = entry_by_id[entry_id]
             entry.seed = seed
             await entry.save()

@@ -15,6 +15,7 @@ from application.events import Event, EventType, event_bus
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_config import AdvancementConfig
+from application.services.bracket_engines.base import next_power_of_two
 from models import (
     Bracket,
     BracketEntry,
@@ -171,11 +172,8 @@ class MultiStageMixin:
         ``advancers`` arrive tier-major (see :meth:`_compute_advancers`): for a
         per-group rule, the first ``G`` are the group winners, the next ``G`` the
         runners-up, and so on. ``preserve`` keeps that order as seeds 1..K.
-        ``snake`` reverses alternate tiers *symmetrically* (direction ``t`` ==
-        direction of its mirror tier), which — against the engine's standard
-        seeding, where the round-1 opponent of seed ``s`` is seed ``K+1-s`` —
-        keeps two entrants from the same source group out of the same opening
-        match while still spreading the group winners across the bracket.
+        ``snake`` re-seeds them so no round-1 playoff match pairs two advancers
+        from the same source group (see :meth:`_snake_order`).
         """
         if not advancement.per_group or advancement.seeding == 'preserve':
             order = advancers
@@ -199,12 +197,55 @@ class MultiStageMixin:
     def _snake_order(
         advancers: List[BracketEntry], group_count: int, tiers: int
     ) -> List[BracketEntry]:
-        order: List[BracketEntry] = []
-        for tier in range(tiers):
-            block = advancers[tier * group_count : (tier + 1) * group_count]
-            # Symmetric direction: a tier and its mirror (tiers-1-tier) share
-            # orientation, so a same-group pair never lands in one round-1 match.
-            if min(tier, tiers - 1 - tier) % 2 == 1:
-                block = list(reversed(block))
-            order.extend(block)
-        return order
+        """Seed per-group advancers so no round-1 match is a same-group pairing.
+
+        Guarantees that, for a single-elimination next stage, no opening-round
+        playoff match pairs two advancers from the same source group whenever the
+        group count ``G >= 2``. The single-elim engine's round-1 pairs are the
+        seed reflections ``{s, size+1-s}`` (``size`` = next power of two ``>= K``);
+        restricted to the real field those are the contested-block seeds
+        ``(byes+1 .. K)`` paired by reversal, with the strongest ``byes`` seeds
+        unopposed. Each contested pair is assigned two *distinct* source groups
+        (balanced, so the field never starves), byes absorb the remainder, and a
+        group's strongest seed takes its lowest tier — so group winners land in
+        the top seed band by group rank. Degenerate ``G < 2`` falls back to the
+        tier-major (preserve) order.
+        """
+        g = group_count
+        t = tiers
+        k = len(advancers)
+        if g < 2 or t < 1 or k != g * t:
+            return list(advancers)
+
+        size = next_power_of_two(k)
+        byes = size - k
+        contested = k - byes
+
+        group_of_seed: Dict[int, int] = {}
+        remaining = [t] * g
+        for c in range(contested // 2):
+            s_strong = byes + 1 + c
+            s_weak = k - c
+            ranked = sorted(range(g), key=lambda gi: (-remaining[gi], gi))
+            first, second = ranked[0], ranked[1]
+            # Alternate orientation by pair index so the strongest seeds spread
+            # across distinct groups (group winners land in the top band).
+            if c % 2 == 0:
+                group_of_seed[s_strong], group_of_seed[s_weak] = first, second
+            else:
+                group_of_seed[s_strong], group_of_seed[s_weak] = second, first
+            remaining[group_of_seed[s_strong]] -= 1
+            remaining[group_of_seed[s_weak]] -= 1
+        for s in range(1, byes + 1):
+            gi = max(range(g), key=lambda gi: (remaining[gi], -gi))
+            group_of_seed[s] = gi
+            remaining[gi] -= 1
+
+        seeds_by_group: Dict[int, List[int]] = defaultdict(list)
+        for s in range(1, k + 1):
+            seeds_by_group[group_of_seed[s]].append(s)
+        order: List[Optional[BracketEntry]] = [None] * k
+        for gi in range(g):
+            for tier, s in enumerate(sorted(seeds_by_group[gi])):
+                order[s - 1] = advancers[tier * g + gi]
+        return [entry for entry in order if entry is not None]

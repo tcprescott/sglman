@@ -83,23 +83,29 @@ class DoubleEliminationEngine:
                 )
 
         # --- Grand final + conditional reset ---
+        # The reset (a second grand final, played only if the losers-bracket
+        # entrant wins the first) is emitted unless grand_final_reset is disabled.
+        # When disabled the Grand Final is terminal (no onward pointers), so GF1's
+        # winner — from either bracket — is the champion.
+        reset_enabled = config.get('grand_final_reset', True)
         matches.append(
             GeneratedMatch(
                 round=gf_round,
                 position=1,
-                winner_to=Slot(reset_round, 1, 1),
-                loser_to=Slot(reset_round, 1, 2),
+                winner_to=Slot(reset_round, 1, 1) if reset_enabled else None,
+                loser_to=Slot(reset_round, 1, 2) if reset_enabled else None,
                 label='Grand Final',
             )
         )
-        matches.append(
-            GeneratedMatch(
-                round=reset_round,
-                position=1,
-                is_reset=True,
-                label='Grand Final (reset)',
+        if reset_enabled:
+            matches.append(
+                GeneratedMatch(
+                    round=reset_round,
+                    position=1,
+                    is_reset=True,
+                    label='Grand Final (reset)',
+                )
             )
-        )
 
         return matches
 

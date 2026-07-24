@@ -78,6 +78,12 @@ class GenerationMixin:
         Existing seeds are kept; missing seeds are filled from the unused values
         in ``1..N``, assigned to seed-less entries in entry-id order — so the
         result is deterministic and independent of insertion timing.
+
+        Safety net: after filling, the resulting seed set must be exactly the
+        contiguous ``1..N`` with no duplicates. Inconsistent manual seeds (a
+        duplicate or out-of-range value) would otherwise collapse or strand an
+        engine slot and silently drop an entrant, leaving matches stuck PENDING —
+        so this raises a clear ``ValueError`` instead.
         """
         n = len(entries)
         used = {e.seed for e in entries if e.seed is not None}
@@ -86,6 +92,15 @@ class GenerationMixin:
         for entry, seed in zip(missing, available):
             entry.seed = seed
             await entry.save()
+
+        assigned = sorted(e.seed for e in entries if e.seed is not None)
+        if assigned != list(range(1, n + 1)):
+            raise ValueError(
+                "Bracket seeds must be a contiguous 1.."
+                f"{n} with no duplicates, but the current seeding is "
+                f"{sorted((e.seed for e in entries), key=lambda s: (s is None, s))}. "
+                "Fix the duplicate or out-of-range seeds before starting."
+            )
         return {e.seed: e for e in entries}
 
     async def _start_generative(

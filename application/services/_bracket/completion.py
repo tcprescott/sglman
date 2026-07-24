@@ -66,7 +66,10 @@ class CompletionMixin:
             return
 
         entries = await self.repository.list_entries(bracket.id)
-        target_rounds = self._swiss_target_rounds(bracket, len(entries))
+        active_count = sum(
+            1 for e in entries if e.status == BracketEntryStatus.ACTIVE
+        )
+        target_rounds = self._swiss_target_rounds(bracket, active_count)
         if max_round >= target_rounds:
             return
 
