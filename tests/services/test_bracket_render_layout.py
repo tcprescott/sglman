@@ -17,7 +17,9 @@ from theme.brackets.layout import (
     MatchNode,
     assign_match_numbers,
     layout_section,
+    round_label,
 )
+from theme.brackets.render import detect_finals
 
 pytestmark = pytest.mark.usefixtures("db")
 
@@ -98,6 +100,39 @@ async def test_every_match_placed_without_overlap(fmt, n):
                 <= section.placements[parent_id].center_y
                 <= max(centers) + 1e-9
             )
+
+
+async def test_two_entrant_double_elim_finals_detected_and_named():
+    # Regression: a 2-entrant double elim has no losers bracket, so detect_finals'
+    # negative-feeder scan finds nothing and the loser_to fallback must kick in;
+    # the columns must read Winners Finals / Grand Finals / Grand Finals (Reset).
+    service = BracketService()
+    _, bracket = await _started(service, BracketFormat.DOUBLE_ELIM, 2)
+    matches = await service.list_matches(bracket.id)
+    assert all(m.round > 0 for m in matches)  # no losers bracket
+
+    grand_final, reset = detect_finals(matches)
+    assert grand_final is not None
+    assert reset is not None
+
+    positive = [m.round for m in matches if m.round > 0]
+    finals = {grand_final.round, reset.round}
+    max_wr = max(r for r in positive if r not in finals)
+    names = [
+        round_label(
+            r,
+            is_grand_final=r == grand_final.round,
+            is_reset=r == reset.round,
+            max_winners_round=max_wr,
+            max_losers_magnitude=None,
+            double_elim=True,
+        )
+        for r in sorted(positive)
+    ]
+    assert 'Winners Finals' in names
+    assert 'Grand Finals' in names
+    assert 'Grand Finals (Reset)' in names
+    assert 'Quarterfinals' not in names
 
 
 async def test_match_numbers_unique_and_complete():

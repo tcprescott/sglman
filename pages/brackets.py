@@ -15,6 +15,7 @@ load-or-404 ORM lookups for the owning tournament, and computes live display
 standings with the pure :func:`compute_standings` helper. No ORM writes.
 """
 
+import asyncio
 from typing import Callable, Dict, List, Optional
 
 from nicegui import app, background_tasks, context, ui
@@ -370,12 +371,34 @@ def create() -> None:
 
         # Captured while the request context is live; row-action/live-refresh
         # handlers fire from detached client events that have lost the tenant
-        # contextvar, so scoped reads/writes rebind it.
+        # contextvar (and the slot context), so scoped reads/writes rebind the
+        # tenant and refreshes re-enter this client.
         tenant_id = require_tenant_id()
+        client = context.client
         service = BracketService()
 
-        async def _live_refresh() -> None:
-            render_body.refresh()
+        # Debounced refresh: one report publishes several BRACKET_* events (and the
+        # report dialog also asks to refresh); without coalescing each would clear +
+        # rebuild the @ui.refreshable body separately and the rebuilds can stack
+        # into a duplicated render. A short debounce collapses the burst into one.
+        _refresh_task: Dict[str, object] = {'t': None}
+
+        async def _coalesced_refresh() -> None:
+            try:
+                await asyncio.sleep(0.05)
+            except asyncio.CancelledError:
+                return
+            with client:
+                render_body.refresh()
+
+        def request_refresh() -> None:
+            task = _refresh_task['t']
+            if task is not None and not task.done():
+                task.cancel()
+            _refresh_task['t'] = background_tasks.create(_coalesced_refresh())
+
+        async def _on_saved() -> None:
+            request_refresh()
 
         async def open_match_dialog(match_id: int, client) -> None:
             with client:
@@ -399,7 +422,7 @@ def create() -> None:
                 build_match_dialog(
                     match, entry_name, entry_seed, records, number,
                     is_staff=is_staff, actor=user, tenant_id=tenant_id,
-                    service=service, on_saved=_live_refresh,
+                    service=service, on_saved=_on_saved,
                 )
 
         def on_card_click(match_id: int) -> None:
@@ -407,18 +430,21 @@ def create() -> None:
 
         @ui.refreshable
         async def render_body() -> None:
-            bracket = await service.get_bracket(bracket_id)
-            if bracket is None:
-                ui.label('Bracket not found.').classes('text-error')
-                return
-
-            entrants = await service.list_entrants(bracket.tournament_id)
+            # A live-event/dialog refresh re-runs this from a background task whose
+            # tenant contextvar is unset, so scope the reads explicitly (the admin
+            # dialogs do the same) rather than relying on the client-stash fallback.
+            with tenant_scope(tenant_id):
+                bracket = await service.get_bracket(bracket_id)
+                if bracket is None:
+                    ui.label('Bracket not found.').classes('text-error')
+                    return
+                entrants = await service.list_entrants(bracket.tournament_id)
+                entries = await service.list_entries(bracket_id)
+                matches = await service.list_matches(bracket_id)
             entrant_name = {en.id: en.display_name for en in entrants}
-            entries = await service.list_entries(bracket_id)
             entry_name = {
                 e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
             }
-            matches = await service.list_matches(bracket_id)
 
             with ui.card().classes('page-container w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('items-center justify-between w-full'):
@@ -463,11 +489,12 @@ def create() -> None:
                         wrapper = ui.element('div').classes('bracket-zoomable w-full')
                         with wrapper:
                             render_elimination(matches, ctx, double=double)
-                        _populate_zoom_toolbar(toolbar_row, wrapper, _live_refresh)
+                        _populate_zoom_toolbar(toolbar_row, wrapper, request_refresh)
                     with ui.element('div').classes('bracket-mobile-list w-full'):
                         render_elimination_mobile(matches, ctx, double=double)
                 else:
-                    advancement = await _next_stage_advancement(service, bracket)
+                    with tenant_scope(tenant_id):
+                        advancement = await _next_stage_advancement(service, bracket)
                     complete = bracket.state == BracketState.COMPLETE
                     if bracket.format == BracketFormat.ROUND_ROBIN:
                         _render_round_robin(
@@ -481,4 +508,4 @@ def create() -> None:
                         )
 
         await render_body()
-        register_bracket_view(bracket_id, _live_refresh)
+        register_bracket_view(bracket_id, request_refresh)

@@ -69,6 +69,17 @@ def detect_finals(
             grand_final = m
             break
 
+    if grand_final is None:
+        # A 2-entrant double elim has no losers bracket (the WB final's loser
+        # drops straight into the grand final via loser_to), so the negative-feeder
+        # scan finds nothing. Fall back to the lowest-round positive match that is
+        # a loser_to target. (Single elim has no loser_to links, so this stays a
+        # no-op there.)
+        loser_targets = {m.loser_to_id for m in matches if m.loser_to_id is not None}
+        candidates = [m for m in matches if m.round > 0 and m.id in loser_targets]
+        if candidates:
+            grand_final = min(candidates, key=lambda m: m.round)
+
     reset: Optional[BracketMatch] = None
     if grand_final is not None:
         for target_id in (grand_final.winner_to_id, grand_final.loser_to_id):
@@ -151,13 +162,14 @@ def render_elimination(
     render_section(
         'Winners bracket', winners_layout, matches_by_id, ctx,
         gf_round=gf_round, reset_round=reset_round,
-        max_winners_round=max_wr, max_losers_magnitude=max_lm,
+        max_winners_round=max_wr, max_losers_magnitude=max_lm, double_elim=True,
     )
-    losers_layout = layout_section(match_nodes(negative))
-    render_section(
-        'Losers bracket', losers_layout, matches_by_id, ctx,
-        max_losers_magnitude=max_lm,
-    )
+    if negative:
+        losers_layout = layout_section(match_nodes(negative))
+        render_section(
+            'Losers bracket', losers_layout, matches_by_id, ctx,
+            max_losers_magnitude=max_lm, double_elim=True,
+        )
 
 
 def render_elimination_mobile(
@@ -199,6 +211,7 @@ def render_elimination_mobile(
             is_reset=r == reset_round,
             max_winners_round=max_wr,
             max_losers_magnitude=max_lm,
+            double_elim=double,
         )
         round_matches = sorted(by_round.get(r, []), key=lambda m: m.position)
         with ui.expansion(name, value=r == default_round) \

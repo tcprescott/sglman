@@ -180,6 +180,7 @@ def _render_header(
     is_reset: bool,
     max_winners_round: Optional[int],
     max_losers_magnitude: Optional[int],
+    double_elim: bool,
 ) -> None:
     with ui.element('div').classes('bracket-header'):
         ui.label(
@@ -189,6 +190,7 @@ def _render_header(
                 is_reset=is_reset,
                 max_winners_round=max_winners_round,
                 max_losers_magnitude=max_losers_magnitude,
+                double_elim=double_elim,
             )
         ).classes('bracket-header-name')
         meta = ctx.rounds_config.get(str(round_number)) or {}
@@ -211,6 +213,7 @@ def render_section(
     reset_round: Optional[int] = None,
     max_winners_round: Optional[int] = None,
     max_losers_magnitude: Optional[int] = None,
+    double_elim: bool = False,
 ) -> None:
     """Render one bracket section (winners+finals, or losers) end to end."""
     if not layout.placements:
@@ -227,6 +230,7 @@ def render_section(
                     is_reset=(reset_round is not None and round_number == reset_round),
                     max_winners_round=max_winners_round,
                     max_losers_magnitude=max_losers_magnitude,
+                    double_elim=double_elim,
                 )
         with ui.element('div').classes('bracket-canvas').style(
             f'width: {layout.width}px; height: {layout.height}px'

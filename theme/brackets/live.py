@@ -1,23 +1,22 @@
 """Live bracket refresh — subscribe a bracket detail view to the event bus.
 
-The public bracket page registers here at build time; each registration captures
-the current NiceGUI ``Client`` and subscribes a fast, non-blocking listener to
-the in-process :mod:`application.events` bus (the ``BRACKET_*`` events services
-publish after they commit). When a matching event fires, the listener schedules
-the view's ``on_change`` inside the captured client's context so the refresh
-lands in the right browser. Subscriptions are released on client disconnect.
+The public bracket page registers here at build time; the registration subscribes
+a fast, non-blocking listener to the in-process :mod:`application.events` bus (the
+``BRACKET_*`` events services publish after they commit). When a matching event
+fires, the listener invokes the caller's ``on_event`` callback — a *sync,
+non-blocking* function that schedules its own (debounced, client-scoped) refresh.
+Subscriptions are released on client disconnect.
 
-Mirrors the ``theme/realtime.py`` pattern, but against the domain event bus
-(``event_bus.subscribe_sync``) rather than ``application.match_events``.
+Coalescing lives in the caller (the page debounces so a burst of events — e.g.
+``BRACKET_MATCH_COMPLETED`` then ``BRACKET_COMPLETED`` from one report — collapses
+into a single rebuild), keeping this module a thin, non-blocking bridge.
 """
 
-from typing import Awaitable, Callable, Dict, List
+from typing import Callable, Dict, List
 
-from nicegui import app, background_tasks, context
+from nicegui import app, context
 
 from application.events import EventType, event_bus
-
-OnChange = Callable[[], Awaitable[None]]
 
 _BRACKET_EVENTS = (
     EventType.BRACKET_MATCH_COMPLETED,
@@ -32,18 +31,15 @@ _client_tokens: Dict[str, List[int]] = {}
 _disconnect_installed = False
 
 
-def register_bracket_view(bracket_id: int, on_change: OnChange) -> None:
-    """Refresh the current view when its bracket changes.
+def register_bracket_view(bracket_id: int, on_event: Callable[[], None]) -> None:
+    """Call ``on_event()`` when this bracket changes.
 
-    Must be called during page construction (a live client context). ``on_change``
-    is an async no-arg callable (typically a ``@ui.refreshable``'s ``.refresh``).
+    Must be called during page construction (a live client context). ``on_event``
+    is a **sync, non-blocking** callback (it runs inside ``publish``): it should
+    only *schedule* a refresh (see the page's debounced ``request_refresh``),
+    never block or await.
     """
-    client = context.client
-    client_id = client.id
-
-    async def _runner() -> None:
-        with client:
-            await on_change()
+    client_id = context.client.id
 
     def _callback(event) -> None:
         payload = event.payload or {}
@@ -56,7 +52,7 @@ def register_bracket_view(bracket_id: int, on_change: OnChange) -> None:
         }
         if bracket_id not in related:
             return
-        background_tasks.create(_runner())
+        on_event()
 
     token = event_bus.subscribe_sync(_callback, _BRACKET_EVENTS)
     _client_tokens.setdefault(client_id, []).append(token)

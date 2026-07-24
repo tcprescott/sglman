@@ -278,17 +278,22 @@ def round_label(
     is_reset: bool = False,
     max_winners_round: Optional[int] = None,
     max_losers_magnitude: Optional[int] = None,
+    double_elim: bool = False,
 ) -> str:
     """Human round name from the round number and its role.
 
     Winners rounds count down to Semifinals/Final (Winners Finals for double
     elim, where a grand final follows); losers rounds are "Losers Round N" up to
-    "Losers Finals". The finals columns are named explicitly.
+    "Losers Finals". The finals columns are named explicitly. ``double_elim`` is
+    an explicit signal so the winners side is named correctly even for a
+    2-entrant double elim, which has no losers bracket (``max_losers_magnitude``
+    is then ``None``).
     """
     if is_reset:
         return 'Grand Finals (Reset)'
     if is_grand_final:
         return 'Grand Finals'
+    is_de = double_elim or max_losers_magnitude is not None
     if round_number < 0:
         magnitude = abs(round_number)
         if max_losers_magnitude is not None and magnitude == max_losers_magnitude:
@@ -298,10 +303,10 @@ def round_label(
         # In a double-elim winners bracket a grand final sits beyond the WB final,
         # so the top WB round is "Winners Finals"; otherwise it's the "Final".
         if round_number == max_winners_round:
-            return 'Winners Finals' if max_losers_magnitude is not None else 'Final'
+            return 'Winners Finals' if is_de else 'Final'
         if round_number == max_winners_round - 1:
-            return 'Winners Semifinals' if max_losers_magnitude is not None else 'Semifinals'
-        if round_number == max_winners_round - 2 and max_losers_magnitude is None:
+            return 'Winners Semifinals' if is_de else 'Semifinals'
+        if round_number == max_winners_round - 2 and not is_de:
             return 'Quarterfinals'
-    prefix = 'Winners Round ' if max_losers_magnitude is not None else 'Round '
+    prefix = 'Winners Round ' if is_de else 'Round '
     return f'{prefix}{round_number}'

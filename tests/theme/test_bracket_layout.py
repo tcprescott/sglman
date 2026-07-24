@@ -155,3 +155,13 @@ class TestRoundLabels:
         assert round_label(-1, max_losers_magnitude=3) == 'Losers Round 1'
         assert round_label(4, is_grand_final=True) == 'Grand Finals'
         assert round_label(5, is_reset=True) == 'Grand Finals (Reset)'
+
+    def test_two_entrant_double_elim_signal(self):
+        # A 2-entrant double elim has NO losers bracket (max_losers_magnitude is
+        # None), so the explicit double_elim flag must still name the winners side
+        # as a double elim — not "Quarterfinals"/"Final".
+        assert round_label(1, max_winners_round=1, double_elim=True) == 'Winners Finals'
+        # Without the flag (and no losers magnitude) it would mis-name as a final.
+        assert round_label(1, max_winners_round=1) == 'Final'
+        # double_elim must suppress the single-elim "Quarterfinals" branch.
+        assert round_label(1, max_winners_round=3, double_elim=True) == 'Winners Round 1'
