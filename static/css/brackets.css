@@ -272,13 +272,19 @@
 
 .bracket-groups-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* auto-fit (not auto-fill) collapses empty tracks so a few groups stretch to
+     use the width and show all standings columns without an in-card scroll. */
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 12px;
   width: 100%;
 }
 
 .bracket-group-card {
   padding: 10px 12px;
+  /* Grid items default to min-width:auto and would grow to fit the nowrap
+     standings rows, spilling the tiebreaker columns past the card edge; 0 lets
+     the card hold its track width so .bracket-standings' overflow-x scrolls. */
+  min-width: 0;
 }
 
 /* Standings (flex rows so a row can be tinted by fate + carry a cut line). */
@@ -286,6 +292,11 @@
   display: flex;
   flex-direction: column;
   overflow-x: auto;
+  /* ui.card is a flex column, so this is a flex item: min-width:0 lets it shrink
+     to the card width (default min-width:auto would grow the card to fit the
+     nowrap rows) so overflow-x scrolls instead of spilling past the card. */
+  min-width: 0;
+  width: 100%;
 }
 
 .bracket-strow {
@@ -296,6 +307,9 @@
   border-radius: 4px;
   white-space: nowrap;
   color: var(--bracket-text);
+  /* Size each row to its content so the fixed cells never spill past the row;
+     when that exceeds the card, .bracket-standings' overflow-x scrolls instead. */
+  min-width: max-content;
 }
 
 .bracket-strow.is-head {
@@ -438,6 +452,8 @@
 .bracket-prow .c-player .rec {
   font-size: 10px;
   color: var(--bracket-muted);
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .bracket-prow .c-result {
