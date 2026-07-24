@@ -15,6 +15,7 @@ from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
 from pages.admin_tabs.admin_theme import admin_theme_page
+from pages.admin_tabs.admin_brackets import admin_brackets_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
 from pages.admin_tabs.admin_webhooks import admin_webhooks_page
@@ -132,6 +133,8 @@ def create() -> None:
             tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'group': 'Online play', 'content': admin_speedgaming_page})
         if is_staff and FeatureFlag.CHALLONGE in live:
             tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'group': 'Online play', 'content': admin_challonge_page})
+        if is_staff and FeatureFlag.BRACKETS in live:
+            tabs.append({'label': 'Brackets', 'icon': 'schema', 'group': 'Online play', 'content': admin_brackets_page})
         if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
         if (is_staff or is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:

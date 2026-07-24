@@ -307,8 +307,13 @@ class SeedGenerationService:
         if preset is not None:
             settings = dict(preset.settings or {})
         else:
-            with open("presets/dk64r/sgl.json", "r", encoding="utf-8") as f:
-                settings = json.load(f)
+            # Read off the shared event loop — a blocking file read stalls every
+            # connected user (CLAUDE.md: never block the event loop).
+            def _read_default() -> dict:
+                with open("presets/dk64r/sgl.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+
+            settings = await asyncio.to_thread(_read_default)
 
         # Optional per-preset branch override, stripped before anything is sent.
         branch = str(settings.pop('_branch', 'stable'))

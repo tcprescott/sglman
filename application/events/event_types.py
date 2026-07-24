@@ -86,6 +86,19 @@ class EventType:
     # act on; create/open/cancel stay audit-only (tenant-internal scheduling).
     ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
 
+    # Native brackets (mirrors AuditActions.BRACKET_*). Tenant-scoped domain
+    # events a webhook subscriber can act on: a bracket created/started, a match
+    # completed, an advancement, a bracket or stage completed. Published by the
+    # bracket lifecycle as the acting STAFF user.
+    BRACKET_CREATED = 'bracket.created'
+    BRACKET_STARTED = 'bracket.started'
+    BRACKET_MATCH_COMPLETED = 'bracket.match_completed'
+    BRACKET_ADVANCED = 'bracket.advanced'
+    BRACKET_COMPLETED = 'bracket.completed'
+    BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
+    BRACKET_ENTRANT_ADDED = 'bracket.entrant_added'
+    BRACKET_ENTRANT_DROPPED = 'bracket.entrant_dropped'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_RESCHEDULED,
@@ -103,6 +116,9 @@ class EventType:
         SERVICE_HEALTH_ALERT,
         ASYNC_QUALIFIER_RUN_SUBMITTED, ASYNC_QUALIFIER_RUN_REVIEWED,
         ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
+        BRACKET_CREATED, BRACKET_STARTED, BRACKET_MATCH_COMPLETED,
+        BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,
+        BRACKET_ENTRANT_ADDED, BRACKET_ENTRANT_DROPPED,
     })
 
     # Wildcard a subscriber can register to receive every event.

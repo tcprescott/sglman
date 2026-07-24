@@ -31,6 +31,7 @@ This table is a curated index of the primary services; the online-tournament, ev
 | `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Personal API access token issue/revoke/authenticate | [rest-api.md](rest-api.md) |
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
 | `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
+| `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
 | `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [crew-management.md](../features/crew-management.md) |
 | `DiscordLinkService` | [discord_link_service.py](../../application/services/discord_link_service.py) | Verified tenant↔Discord-server link (bot-authorization OAuth + authority re-check) | [multitenancy.md](../features/multitenancy.md) |
@@ -188,6 +189,35 @@ Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth
 | `push_match_result(match, actor)` | `None` | Report the recorded winner/loser to Challonge, then force a re-sync to surface newly-opened next-round matches; audits `challonge.result_pushed`. |
 
 Collaborators: `ChallongeRepository`, `TournamentRepository`, `MatchService`, `AuthService`, `AuditService`, [`challonge_client.py`](#challonge_clientpy) (`ChallongeClient`/`MockChallongeClient`), [`mock_challonge.py`](#mock_challongepy). Consumers: the Challonge OAuth callback middleware, the admin Challonge tab, and the player linking/scheduling pages.
+
+### bracket_service.py — BracketService
+
+Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): authoring a stage while DRAFT, the tournament-level roster (entrants) and per-stage participation (entries), the generate-then-persist `start` that turns a seeded field into a persisted `BracketMatch` graph via the pure engines, result recording with pointer-following advancement, stage completion + ranking, and multi-stage advancement. Every write is Staff-gated (`AuthService.is_staff`), audits an `AuditActions.BRACKET_*` action, and publishes the mirror `EventType.BRACKET_*`. Native brackets and a Challonge link are mutually exclusive (`_ensure_no_challonge_link`). The engine runs only at `start` and per Swiss round; at all other times the persisted rows are the source of truth.
+
+`BracketService` is one public class composed from per-concern mixins in the internal `application/services/_bracket/` subpackage (`generation.py`, `advancement.py`, `completion.py`, `multistage.py`, `scheduling.py`) so no single file exceeds the length budget; `bracket_service.py` keeps `__init__`, the shared helpers, and the roster/enrollment CRUD, and composes the mixins. The split is an implementation detail — importers still use `from application.services import BracketService`.
+
+| Method | Returns | Description |
+|---|---|---|
+| `create_bracket(actor, tournament_id, name, format, stage_order=0, config=None)` | `Bracket` | Create a DRAFT stage; rejects a Challonge-linked tournament, a duplicate `stage_order`, and (via `validate_bracket_config`) a bad config. Audits/events `BRACKET_CREATED`. |
+| `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None)` | `Bracket` | Edit a DRAFT stage's name / order / config. |
+| `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. |
+| `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. |
+| `add_entrant(actor, tournament_id, display_name, user_id=None)` | `BracketEntrant` | Add a roster entrant — placeholder (`user_id=None`) or linked. Audits/events `BRACKET_ENTRANT_ADDED`. |
+| `drop_entrant(actor, entrant_id)` | `BracketEntrant` | Mark an entrant `DROPPED`. Audits/events `BRACKET_ENTRANT_DROPPED`. |
+| `enroll(actor, bracket_id, entrant_id, seed=None, group_number=None)` | `BracketEntry` | Enroll a roster entrant into a DRAFT stage (once per stage). |
+| `set_seeds(actor, bracket_id, seeds)` | `None` | Bulk-set per-entry seeds (`entry_id → seed`), DRAFT only. |
+| `start_bracket(actor, bracket_id)` | `Bracket` | Fill missing seeds contiguously, generate the graph (elimination/round-robin) or pair Swiss round 1, auto-complete structural byes, and set `ACTIVE`. A non-first stage requires its predecessor `COMPLETE`. Audits/events `BRACKET_STARTED`. |
+| `report_result(actor, match_id, winner_entry_id)` | `BracketMatch` | Record an OPEN match's winner, push winner/loser through `winner_to`/`loser_to`, settle walkovers, auto-complete an elimination final and generate the next Swiss round. Audits/events `BRACKET_MATCH_COMPLETED`. |
+| `override_result(actor, match_id, winner_entry_id)` | `BracketMatch` | Staff correction of a COMPLETE match, allowed only while nothing downstream is COMPLETE. |
+| `get_open_matches(bracket_id)` | `List[BracketMatch]` | All OPEN (playable) matches. |
+| `complete_stage(actor, bracket_id, tie_breaks=None)` | `Bracket` | Finalize: write every entry's `final_rank` (elimination depth / RR + Swiss standings, with optional staff tie-breaks) and set `COMPLETE`. Audits/events `BRACKET_COMPLETED`. |
+| `advance_stage(actor, tournament_id, from_stage_order)` | `Bracket` | Seed the next stage from the source's `final_rank` per its `advancement` rule (top `count`, per-group or overall; snake/preserve seeding), enrolling fresh entries on the same entrants. Audits/events `BRACKET_STAGE_ADVANCED`. |
+| `get_advancing_preview(tournament_id, from_stage_order)` | `List[BracketEntry]` | Dry-run of the same selection for the confirm dialog. |
+| `list_open_matches_for_user(user_id, tournament_id=None)` | `List[BracketMatch]` | OPEN, unscheduled matches whose both entrants are linked users — schedulable ones (peer of `ChallongeService.list_unscheduled_matches_for_user`). |
+| `schedule_bracket_match(actor, bracket_match_id, **match_kwargs)` | `Match` | Schedule an OPEN bracket match into a real `Match` via `MatchService` and link it on `BracketMatch.match` (peer of `schedule_challonge_match`). |
+| `advance_if_linked(match, actor)` | `bool` | When a confirmed `Match` mirrors a bracket match, map its winner to the winning entry and `report_result` it (peer of `push_result_if_linked`). |
+
+Collaborators: `BracketRepository`, [`bracket_config.py`](#bracket_configpy--bracket-config-substrate) (`validate_bracket_config`, `AdvancementConfig`), [`bracket_engines/`](#bracket_engines--pairingprogression-engines) (`get_bracket_engine`, `compute_standings`), `MatchService` (scheduling seam), `AuthService`, `AuditService`, the event bus. Consumers: the [admin Brackets tab](frontend.md), the [public bracket page](frontend.md), and the [`/brackets` REST router](rest-api.md).
 
 ### crew_service.py — CrewService
 
@@ -573,7 +603,27 @@ Collaborators: `TournamentRepository`, `AuditService`. Consumers: `theme/dialog/
 
 ### tournament_config.py + tournament_strategies/ — hybrid-config substrate
 
-Foundations for online-tournament user-definable logic ([online-tournaments](../online-tournaments/README.md)). `tournament_config.py` defines `TournamentConfig` (a Pydantic model with `extra='forbid'`) and `validate_tournament_config(config)`, which normalizes the blob and raises `ValueError` on any unknown key — the single entry point `TournamentService` calls before persisting `Tournament.config`. `tournament_strategies/` is the register/lookup registry for the finite set of named strategy primitives (`register_strategy(kind, name)`, `get_strategy(kind, name)`, `available_strategies(kind)`); config picks and parameterizes them — **never `eval`**. PR 0 ships the substrate empty; feature PRs add concrete config keys and strategies.
+Foundations for online-tournament user-definable logic ([online-tournaments](../online-tournaments/README.md)). `tournament_config.py` defines `TournamentConfig` (a Pydantic model with `extra='forbid'`) and `validate_tournament_config(config)`, which normalizes the blob and raises `ValueError` on any unknown key — the single entry point `TournamentService` calls before persisting `Tournament.config`. `tournament_strategies/` is the register/lookup registry for the finite set of named strategy primitives (`register_strategy(kind, name)`, `get_strategy(kind, name)`, `available_strategies(kind)`); config picks and parameterizes them — **never `eval`**. PR 0 ships the substrate empty; feature PRs add concrete config keys and strategies. The **bracket engines** (below) are the first concrete strategies to populate it, under the `bracket_format` kind.
+
+### bracket_config.py — bracket-config substrate
+
+The schema-validated shape of `Bracket.config`, mirroring `tournament_config.py`. Two Pydantic models with `extra='forbid'`:
+
+- **`BracketConfig`** — every field optional so a stage opts into only what it uses: `grand_final_reset` (double-elim reset toggle), `swiss_rounds`, `group_count`, the standings scoring points (`win_points`/`draw_points`/`loss_points`/`bye_points`), `tiebreakers` (ordered keys), `omw_floor`, and `advancement`.
+- **`AdvancementConfig`** — how a non-first stage draws its field from the prior stage's `final_rank`: `count` (≥1), `per_group` (top `count` per source group vs. overall), `seeding` (`'snake'` default / `'preserve'`).
+
+`validate_bracket_config(config)` returns `None` unchanged or the normalized dict (unset keys dropped), raising `ValueError` on any unknown key or bad value — `BracketService` calls it before persisting.
+
+### bracket_engines/ — pairing/progression engines
+
+Pure structural code behind the `bracket_format` strategy kind ([brackets.md](../features/brackets.md)) — **no ORM, no NiceGUI, no async**; the service owns persistence. Importing the package auto-imports every sibling module, and each engine self-registers via `@register_strategy('bracket_format', …)`. Resolve one with `get_bracket_engine(fmt)` (`fmt` = a `BracketFormat` value); `available_bracket_formats()` lists the registered names.
+
+Two engine shapes ([`base.py`](../../application/services/bracket_engines/base.py) defines the contract):
+
+- **Generative** — `generate(num_entries, config) -> List[GeneratedMatch]` emits the *entire* graph up front with `winner_to`/`loser_to` pointers and seed placements. `single_elimination.py` (`SingleEliminationEngine`), `double_elimination.py` (`DoubleEliminationEngine` — winners + losers rounds via `standard_seeding`/`next_power_of_two`, grand final + conditional reset; structure ported in spirit from the MIT `smwa/python-tournaments`), and `round_robin.py` (`RoundRobinEngine` — snake-balanced groups scheduled by the circle method; no progression pointers).
+- **Pairing** — `pair_round(players, config) -> List[(ref1, ref2|None)]` is a stateless per-round call. `swiss.py` (`SwissEngine`) is a thin adapter over the MIT **`swisspair`** library (min-cost no-rematch matching + one low-standing bye), encoding a deterministic rank tiebreak into the integer points so the pairing is reproducible.
+
+[`standings.py`](../../application/services/bracket_engines/standings.py) is the shared, ORM-free standings pass — `compute_standings(refs, results, config)` over opaque `int` refs and `ResultRow` records, computing match points and a configurable tiebreaker chain (`buchholz`, `omw`, `head_to_head`) into 1-based competition ranks (unresolved ties share a rank and list each other in `tied_with`). Round robin, Swiss re-pairing, stage-completion ranking, and the public bracket page's live standings all consume it.
 
 ### triforce_text_service.py — TriforceTextService
 

@@ -311,6 +311,18 @@ class MatchScheduleService:
 
         discord_queue.enqueue(_push_challonge_result())
 
+        # Advance the native bracket when this match mirrors a bracket match.
+        # Peer of the Challonge push above: fire-and-forget so a failure never
+        # blocks confirmation; failures are visible via audit and manual replay.
+        async def _advance_bracket_result() -> None:
+            from application.services.bracket_service import BracketService
+            try:
+                await BracketService().advance_if_linked(match, actor)
+            except Exception:  # noqa: BLE001 - logged, retried manually
+                logger.exception("bracket auto-advance failed for match %s", match.id)
+
+        discord_queue.enqueue(_advance_bracket_result())
+
     async def generate_seed(self, match_id: int, actor: Optional[User] = None) -> Tuple[bool, str, Optional[str]]:
         """
         Generate a seed for a match and send DMs to players.

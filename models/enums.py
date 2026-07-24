@@ -48,6 +48,63 @@ class FeatureFlag(str, Enum):
     EQUIPMENT = 'equipment'
     VOLUNTEERS = 'volunteers'
     TRIFORCE_TEXTS = 'triforce_texts'
+    BRACKETS = 'brackets'
+
+
+class BracketFormat(str, Enum):
+    """The pairing/progression format of a single bracket stage.
+
+    Selected per stage (``Bracket.format``) and resolved to a pairing engine
+    through the ``('bracket_format', …)`` strategy registry
+    (see docs/brackets-plan.md). ``(str, Enum)`` (not ``StrEnum``) — render
+    ``.value`` in f-strings, never the bare member.
+    """
+
+    SINGLE_ELIM = 'single_elim'
+    DOUBLE_ELIM = 'double_elim'
+    SWISS = 'swiss'
+    ROUND_ROBIN = 'round_robin'
+
+
+class BracketState(str, Enum):
+    """Lifecycle of a bracket stage.
+
+    ``DRAFT`` while entrants are enrolled/seeded (the engine has not run yet);
+    ``ACTIVE`` once ``start`` generates and persists the match graph;
+    ``COMPLETE`` once every match is resolved and ``final_rank`` is written.
+    """
+
+    DRAFT = 'draft'
+    ACTIVE = 'active'
+    COMPLETE = 'complete'
+
+
+class BracketMatchState(str, Enum):
+    """State of a single persisted bracket match slot.
+
+    Deliberately parallels :class:`ChallongeMatchState` — a bracket match is
+    ``PENDING`` until both entries are known, ``OPEN`` once it can be played and
+    scheduled into a ``Match``, ``COMPLETE`` once a winner is recorded.
+    """
+
+    PENDING = 'pending'   # one or both entries not yet determined
+    OPEN = 'open'         # both entries known; playable / schedulable
+    COMPLETE = 'complete' # winner recorded
+
+
+class BracketEntrantStatus(str, Enum):
+    """Status of a tournament-level bracket entrant (across all stages)."""
+
+    ACTIVE = 'active'
+    DROPPED = 'dropped'
+
+
+class BracketEntryStatus(str, Enum):
+    """Status of an entrant's participation within one stage."""
+
+    ACTIVE = 'active'
+    DROPPED = 'dropped'
+    ELIMINATED = 'eliminated'
 
 
 class RoleSource(str, Enum):

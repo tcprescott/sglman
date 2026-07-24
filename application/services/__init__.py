@@ -21,6 +21,8 @@ from .async_qualifier_rules import validate_counts, validate_window
 from .async_qualifier_service import AsyncQualifierService
 from .audit_service import AuditService
 from .auth_service import AuthService, get_user_from_discord_id
+from .bracket_config import BracketConfig, validate_bracket_config
+from .bracket_service import BracketService
 from .challonge_service import ChallongeService
 from .crew_service import CrewService
 from . import discord_queue
@@ -100,6 +102,9 @@ __all__ = [
     'validate_window',
     'AuditService',
     'AuthService',
+    'BracketConfig',
+    'validate_bracket_config',
+    'BracketService',
     'ChallongeService',
     'CrewService',
     'discord_queue',

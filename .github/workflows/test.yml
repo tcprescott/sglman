@@ -59,6 +59,35 @@ jobs:
       - name: Run pytest (with coverage report)
         run: poetry run pytest -q --cov=application --cov=api --cov=middleware --cov-report=term-missing
 
+  swiss-crossvalidation:
+    # Cross-validate our Swiss engine against bbpPairings (a real FIDE-grade
+    # Dutch engine). Kept as a separate job so the main matrix stays fast and is
+    # not blocked on building the C++ binary.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Build bbpPairings
+        run: |
+          git clone --depth 1 https://github.com/BieremaBoyzProgramming/bbpPairings
+          make -C bbpPairings
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run Swiss cross-validation tests
+        env:
+          BBPPAIRINGS_BIN: ${{ github.workspace }}/bbpPairings/bbpPairings.exe
+        run: poetry run pytest tests/services/test_bracket_swiss_crossvalidation.py -q
+
   migrations:
     # Prove the full aerich migration chain applies from an empty PostgreSQL
     # database — the tests run on SQLite and never exercise the migrations.

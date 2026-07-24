@@ -240,6 +240,19 @@ class AuditActions:
     ASYNC_QUALIFIER_LIVE_RACE_CANCELLED = 'async_qualifier.live_race_cancelled'
     ASYNC_QUALIFIER_LIVE_RACE_RECORDED = 'async_qualifier.live_race_recorded'
 
+    # Native brackets (docs/brackets-plan.md). Bracket/entrant lifecycle and the
+    # match/advancement/stage events the lifecycle drives. Actor is a human STAFF
+    # for management; the started/completed/advanced rows capture the graph
+    # transitions the service performs.
+    BRACKET_CREATED = 'bracket.created'
+    BRACKET_STARTED = 'bracket.started'
+    BRACKET_MATCH_COMPLETED = 'bracket.match_completed'
+    BRACKET_ADVANCED = 'bracket.advanced'
+    BRACKET_COMPLETED = 'bracket.completed'
+    BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
+    BRACKET_ENTRANT_ADDED = 'bracket.entrant_added'
+    BRACKET_ENTRANT_DROPPED = 'bracket.entrant_dropped'
+
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'
     WEBHOOK_UPDATED = 'webhook.updated'

@@ -72,6 +72,7 @@ keyed backends follow the same rule rather than each being decided ad hoc.
 | `racetime_rooms` | Online tournaments | no | admin Racetime tab, race-room + profile API, auto-open worker |
 | `speedgaming_etl` | Online tournaments | no | admin SpeedGaming tab, `/speedgaming` API, sync worker |
 | `dk64_randomizer` | Online tournaments | no | the `dk64r` seed generator: selector filter (tournament dialog, Presets tab, `/seeds/randomizers`) + every roll boundary (match roll, `POST /seeds`, qualifier pool roll) |
+| `brackets` | Online tournaments | no (ships dark) | admin Brackets tab, public bracket pages (`/tournament/{id}/brackets`, `/brackets/{id}`), `/brackets` API |
 | `challonge` | Community | **yes** | admin Challonge tab |
 | `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs |
 | `volunteers` | Community | **yes** | `/volunteer`, admin Vol. Roster/Schedule, `/volunteers` API |
