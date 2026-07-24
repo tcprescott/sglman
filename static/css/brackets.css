@@ -1,0 +1,278 @@
+/* Redesigned tournament bracket view — see docs/bracket-ui-plan.md.
+ *
+ * The renderer (theme/brackets/) positions everything absolutely from the pure
+ * layout walker; this stylesheet owns all color, size, and connector geometry.
+ * Every color routes through a --bracket-* custom property so Quasar dark/light
+ * switching and per-tenant theming (the winner accent is the app --q-primary)
+ * just work. Pixel sizes here mirror the constants in theme/brackets/layout.py
+ * (COL_WIDTH 200, GUTTER 52, CARD_HEIGHT 58) — change one, change both. */
+
+:root {
+  --bracket-col-width: 200px;
+  --bracket-gutter: 52px;
+  --bracket-card-h: 58px;
+
+  --bracket-accent: var(--q-primary, #e0a82e);
+  --bracket-accent-text: #ffffff;
+  --bracket-line: #c9cdd4;
+  --bracket-card-bg: #ffffff;
+  --bracket-card-border: #e2e5ea;
+  --bracket-text: #1f2328;
+  --bracket-muted: #6b7280;
+  --bracket-seed-bg: #eef0f3;
+  --bracket-header-bg: rgba(255, 255, 255, 0.92);
+  --bracket-run-bg: rgba(224, 168, 46, 0.20);
+}
+
+.body--dark,
+.q-dark {
+  --bracket-line: #3a4048;
+  --bracket-card-bg: #1f242b;
+  --bracket-card-border: #333a43;
+  --bracket-text: #e6e8eb;
+  --bracket-muted: #9aa3ad;
+  --bracket-seed-bg: #2a2f37;
+  --bracket-header-bg: rgba(23, 18, 13, 0.92);
+  --bracket-run-bg: rgba(224, 168, 46, 0.16);
+}
+
+.bracket-section-title {
+  font-weight: 700;
+  margin: 14px 0 4px;
+  color: var(--bracket-text);
+}
+
+/* Horizontal-scrolling viewport for a wide bracket. */
+.bracket-scroll {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 10px;
+}
+
+/* Sticky round-header strip — aligns to the card columns (flex width + gutter
+ * margin match the canvas column stride). */
+.bracket-headers {
+  position: sticky;
+  top: 0;
+  display: flex;
+  z-index: 4;
+  margin-bottom: 8px;
+}
+
+.bracket-header {
+  flex: 0 0 auto;
+  width: var(--bracket-col-width);
+  margin-right: var(--bracket-gutter);
+  box-sizing: border-box;
+  background: var(--bracket-header-bg);
+  padding: 3px 6px;
+  border-radius: 5px;
+}
+
+.bracket-header:last-child {
+  margin-right: 0;
+}
+
+.bracket-header-name {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--bracket-text);
+  white-space: nowrap;
+}
+
+.bracket-header-meta {
+  gap: 6px;
+  align-items: center;
+  min-height: 14px;
+  flex-wrap: nowrap;
+}
+
+.bracket-header-time {
+  font-size: 10px;
+  color: var(--bracket-muted);
+  white-space: nowrap;
+}
+
+.bracket-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--bracket-accent);
+  border: 1px solid var(--bracket-accent);
+  border-radius: 3px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+/* The absolutely-positioned canvas the cards + connectors live in. */
+.bracket-canvas {
+  position: relative;
+}
+
+/* Connector segments (winner-links only). */
+.bracket-line {
+  position: absolute;
+  background: var(--bracket-line);
+  z-index: 0;
+}
+
+.bracket-line-h {
+  height: 2px;
+  margin-top: -1px;
+}
+
+.bracket-line-v {
+  width: 2px;
+  margin-left: -1px;
+}
+
+/* Match card. */
+.bracket-match {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: var(--bracket-card-bg);
+  border: 1px solid var(--bracket-card-border);
+  border-radius: 6px;
+  overflow: visible;
+  font-size: 12px;
+  color: var(--bracket-text);
+  z-index: 1;
+}
+
+.bracket-match.is-open {
+  border-left: 3px solid var(--bracket-accent);
+}
+
+.bracket-match.is-pending {
+  opacity: 0.72;
+}
+
+.bracket-match.is-clickable {
+  cursor: pointer;
+}
+
+.bracket-match.is-clickable:hover {
+  box-shadow: 0 0 0 2px var(--bracket-accent);
+  z-index: 2;
+}
+
+.bracket-match-num {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  transform: translateY(-52%);
+  background: var(--bracket-header-bg);
+  border: 1px solid var(--bracket-card-border);
+  color: var(--bracket-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  z-index: 3;
+}
+
+/* Entrant row. */
+.bracket-slot {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  min-width: 0;
+  border-radius: 5px;
+}
+
+.bracket-slot + .bracket-slot {
+  border-top: 1px solid var(--bracket-card-border);
+  border-radius: 0 0 5px 5px;
+}
+
+.bracket-slot.run-highlight {
+  background: var(--bracket-run-bg);
+}
+
+.bracket-seed {
+  flex: 0 0 auto;
+  min-width: 12px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--bracket-muted);
+}
+
+.bracket-avatar {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: hsl(var(--bracket-avatar-hue, 210), 45%, 45%);
+}
+
+.bracket-avatar.is-empty {
+  background: var(--bracket-seed-bg);
+}
+
+.bracket-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bracket-name.is-placeholder {
+  color: var(--bracket-muted);
+  font-style: italic;
+}
+
+.bracket-score {
+  flex: 0 0 auto;
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--bracket-muted);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.bracket-slot.is-winner .bracket-name {
+  font-weight: 700;
+  color: var(--bracket-text);
+}
+
+.bracket-slot.is-winner .bracket-score {
+  background: var(--bracket-accent);
+  color: var(--bracket-accent-text);
+}
+
+.bracket-slot.is-loser {
+  opacity: 0.55;
+}
+
+/* Zoom: the page sets --bracket-zoom; the canvas + headers scale together. */
+.bracket-zoomable .bracket-canvas,
+.bracket-zoomable .bracket-headers {
+  transform: scale(var(--bracket-zoom, 1));
+  transform-origin: top left;
+}
+
+@media print {
+  .bracket-scroll {
+    overflow: visible;
+  }
+  .bracket-match.is-clickable:hover {
+    box-shadow: none;
+  }
+}

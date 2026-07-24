@@ -15,6 +15,7 @@ load-or-404 ORM lookups for the owning tournament, and computes live display
 standings with the pure :func:`compute_standings` helper. No ORM writes.
 """
 
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from nicegui import app, ui
@@ -28,7 +29,9 @@ from application.services.bracket_engines.standings import (
     compute_standings,
 )
 from application.tenant_context import require_tenant_id
+from application.utils.timezone import format_eastern_display
 from models import (
+    Bracket,
     BracketEntry,
     BracketFormat,
     BracketMatch,
@@ -38,6 +41,14 @@ from models import (
     Tournament,
 )
 from theme.base import BaseLayout
+from theme.brackets import (
+    BracketContext,
+    MatchNode,
+    assign_match_numbers,
+    layout_section,
+    render_section,
+    slot_sources,
+)
 from theme.tables.mobile_grid import enable_mobile_grid
 
 _FORMAT_LABELS = {
@@ -99,25 +110,15 @@ def _slot_label(
     return 'BYE' if completed else 'TBD'
 
 
-def _round_label(round_: int, rounds: List[int]) -> str:
-    if round_ < 0:
-        return f'Losers Round {abs(round_)}'
-    if round_ == max(r for r in rounds if r > 0):
-        return 'Final'
-    return f'Round {round_}'
-
-
-def _match_card(match: BracketMatch, entry_name: Dict[int, str]) -> None:
-    """Render one bracket match as a compact two-slot card."""
-    completed = match.state == BracketMatchState.COMPLETE
-    with ui.card().classes('q-pa-sm q-mb-sm').style('min-width: 180px'):
-        for entry_id in (match.entry1_id, match.entry2_id):
-            is_winner = completed and match.winner_id is not None and entry_id == match.winner_id
-            classes = 'text-weight-bold text-positive' if is_winner else ''
-            with ui.row().classes('items-center justify-between no-wrap w-full gap-2'):
-                ui.label(_slot_label(entry_id, entry_name, completed=completed)).classes(classes)
-                if is_winner:
-                    ui.icon('emoji_events', size='xs').classes('text-positive')
+def _format_scheduled(iso: str) -> str:
+    """A round's stored UTC ISO time → the app's Eastern display string."""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return iso
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return format_eastern_display(dt)
 
 
 def _detect_finals(
@@ -159,79 +160,78 @@ def _detect_finals(
     return grand_final, reset
 
 
-def _render_round_columns(
-    title: str,
-    section_rounds: List[int],
+def _match_nodes(matches: List[BracketMatch]) -> List[MatchNode]:
+    return [
+        MatchNode(id=m.id, round=m.round, position=m.position, winner_to_id=m.winner_to_id)
+        for m in matches
+    ]
+
+
+def _build_context(
+    bracket: Bracket,
+    entries: List[BracketEntry],
     matches: List[BracketMatch],
-    all_rounds: List[int],
     entry_name: Dict[int, str],
-) -> None:
-    if not section_rounds:
-        return
-    ui.label(title).classes('section-title q-mt-md')
-    # Wide bracket: keep the page body from overflowing on mobile.
-    with ui.element('div').style('overflow-x: auto; width: 100%'):
-        with ui.row().classes('no-wrap items-start gap-4'):
-            for round_ in section_rounds:
-                round_matches = sorted(
-                    (m for m in matches if m.round == round_),
-                    key=lambda m: m.position,
-                )
-                with ui.column().classes('gap-1'):
-                    ui.label(_round_label(round_, all_rounds)).classes('text-caption text-bold')
-                    for match in round_matches:
-                        _match_card(match, entry_name)
-
-
-def _render_finals_columns(
-    grand_final: Optional[BracketMatch],
-    reset: Optional[BracketMatch],
-    entry_name: Dict[int, str],
-) -> None:
-    if grand_final is None:
-        return
-    ui.label('Finals').classes('section-title q-mt-md')
-    with ui.element('div').style('overflow-x: auto; width: 100%'):
-        with ui.row().classes('no-wrap items-start gap-4'):
-            for match, label in (
-                (grand_final, 'Grand Final'),
-                (reset, 'Grand Final (reset)'),
-            ):
-                if match is None:
-                    continue
-                with ui.column().classes('gap-1'):
-                    ui.label(label).classes('text-caption text-bold')
-                    _match_card(match, entry_name)
+    *,
+    on_card_click: Optional[object] = None,
+) -> BracketContext:
+    """Resolve the per-bracket lookups the shared renderer needs, once."""
+    winner_links = [(m.id, m.winner_to_id, m.winner_to_slot) for m in matches]
+    loser_links = [(m.id, m.loser_to_id, m.loser_to_slot) for m in matches]
+    rounds_config = (bracket.config or {}).get('rounds') or {}
+    return BracketContext(
+        entry_name=entry_name,
+        entry_seed={e.id: e.seed for e in entries},
+        match_number=assign_match_numbers(_match_nodes(matches)),
+        slot_sources=slot_sources(winner_links, loser_links),
+        rounds_config=rounds_config,
+        scheduled_fmt=_format_scheduled,
+        on_card_click=on_card_click,
+    )
 
 
 def _render_elimination(
     matches: List[BracketMatch],
-    entry_name: Dict[int, str],
+    ctx: BracketContext,
     *,
     double: bool,
 ) -> None:
-    """Column-per-round card layout; losers bracket in its own section for DE."""
+    """Connector-lined bracket via the shared renderer; DE losers below winners."""
     if not matches:
         ui.label('No matches yet.').classes('italic-note')
         return
 
-    all_rounds = sorted({m.round for m in matches})
+    matches_by_id = {m.id: m for m in matches}
+    positive = [m for m in matches if m.round > 0]
+    negative = [m for m in matches if m.round < 0]
 
     if not double:
-        winners_rounds = [r for r in all_rounds if r > 0]
-        _render_round_columns('Bracket', winners_rounds, matches, all_rounds, entry_name)
+        layout = layout_section(_match_nodes(positive))
+        max_wr = max((m.round for m in positive), default=None)
+        render_section(None, layout, matches_by_id, ctx, max_winners_round=max_wr)
         return
 
     grand_final, reset = _detect_finals(matches)
-    finals_rounds = {m.round for m in (grand_final, reset) if m is not None}
-    winners_rounds = [r for r in all_rounds if r > 0 and r not in finals_rounds]
-    # Losers rounds read chronologically left-to-right: -1 first, then the
-    # progressively more-negative rounds (losers final is most-negative).
-    losers_rounds = sorted((r for r in all_rounds if r < 0), key=abs)
+    gf_round = grand_final.round if grand_final is not None else None
+    reset_round = reset.round if reset is not None else None
+    finals_rounds = {r for r in (gf_round, reset_round) if r is not None}
+    wb_rounds = [m.round for m in positive if m.round not in finals_rounds]
+    max_wr = max(wb_rounds, default=None)
+    max_lm = max((abs(m.round) for m in negative), default=None)
 
-    _render_round_columns('Winners bracket', winners_rounds, matches, all_rounds, entry_name)
-    _render_round_columns('Losers bracket', losers_rounds, matches, all_rounds, entry_name)
-    _render_finals_columns(grand_final, reset, entry_name)
+    # Winners section carries the finals columns at its right edge (the grand
+    # final / reset feed from the winners-bracket final); losers below.
+    winners_layout = layout_section(_match_nodes(positive))
+    render_section(
+        'Winners bracket', winners_layout, matches_by_id, ctx,
+        gf_round=gf_round, reset_round=reset_round,
+        max_winners_round=max_wr, max_losers_magnitude=max_lm,
+    )
+    losers_layout = layout_section(_match_nodes(negative))
+    render_section(
+        'Losers bracket', losers_layout, matches_by_id, ctx,
+        max_losers_magnitude=max_lm,
+    )
 
 
 def _render_standings_table(
@@ -397,6 +397,7 @@ def create() -> None:
         await BaseLayout(
             user=user, show_admin=show_admin, show_volunteer=user is not None,
         ).render()
+        ui.add_head_html('<link rel="stylesheet" href="/static/css/brackets.css">')
 
         service = BracketService()
 
@@ -446,10 +447,12 @@ def create() -> None:
                                 ).classes('text-caption')
                     return
 
-                if bracket.format == BracketFormat.SINGLE_ELIM:
-                    _render_elimination(matches, entry_name, double=False)
-                elif bracket.format == BracketFormat.DOUBLE_ELIM:
-                    _render_elimination(matches, entry_name, double=True)
+                if bracket.format in (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM):
+                    ctx = _build_context(bracket, entries, matches, entry_name)
+                    _render_elimination(
+                        matches, ctx,
+                        double=bracket.format == BracketFormat.DOUBLE_ELIM,
+                    )
                 elif bracket.format == BracketFormat.ROUND_ROBIN:
                     _render_round_robin(entries, matches, entry_name, bracket.config)
                 else:
