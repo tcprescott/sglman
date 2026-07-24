@@ -141,6 +141,16 @@ class BracketMatch(Model):
     winner = fields.ForeignKeyField(
         'models.BracketEntry', related_name='matches_won', null=True, on_delete=fields.SET_NULL
     )
+    # Optional set scores reported alongside the winner (nullable — win-only
+    # reporting stays valid). Positional to the entry slots: ``entry1_score`` is
+    # ``entry1``'s, ``entry2_score`` is ``entry2``'s. The winner must carry the
+    # strictly-higher score UNLESS ``forfeit`` is set.
+    entry1_score = fields.IntField(null=True)
+    entry2_score = fields.IntField(null=True)
+    # A DQ / walkover / no-show: when set, the recorded winner may carry the
+    # lower or zero score (the score-vs-winner rule is waived) and the card
+    # renders an "FF" marker.
+    forfeit = fields.BooleanField(default=False)
     state = fields.CharEnumField(BracketMatchState, default=BracketMatchState.PENDING, max_length=16)
     # Progression pointers into the same graph: where this match's winner/loser
     # flow. The ``*_slot`` (1 or 2) says which entry slot they fill. Self-FK,

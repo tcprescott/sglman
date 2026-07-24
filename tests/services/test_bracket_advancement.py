@@ -491,6 +491,97 @@ class TestReportGuards:
 
 
 # ---------------------------------------------------------------------------
+# set scores + forfeit flag
+# ---------------------------------------------------------------------------
+class TestScoresAndForfeit:
+    async def _open_match(self, service, bracket):
+        return next(
+            m for m in await service.list_matches(bracket.id)
+            if m.state == BracketMatchState.OPEN
+        )
+
+    async def test_scores_persist_alongside_winner(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        result = await service.report_result(
+            actor, m.id, m.entry1_id, entry1_score=2, entry2_score=1,
+        )
+        assert result.entry1_score == 2
+        assert result.entry2_score == 1
+        assert result.forfeit is False
+        assert result.winner_id == m.entry1_id
+
+    async def test_win_only_report_leaves_scores_null(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        result = await service.report_result(actor, m.id, m.entry1_id)
+        assert result.entry1_score is None
+        assert result.entry2_score is None
+        assert result.forfeit is False
+
+    async def test_winner_must_have_higher_score(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        with pytest.raises(ValueError, match='strictly-higher'):
+            await service.report_result(
+                actor, m.id, m.entry1_id, entry1_score=1, entry2_score=2,
+            )
+
+    async def test_equal_scores_rejected(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        with pytest.raises(ValueError, match='strictly-higher'):
+            await service.report_result(
+                actor, m.id, m.entry1_id, entry1_score=1, entry2_score=1,
+            )
+
+    async def test_forfeit_allows_lower_winner_score(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        result = await service.report_result(
+            actor, m.id, m.entry1_id, entry1_score=0, entry2_score=0, forfeit=True,
+        )
+        assert result.forfeit is True
+        assert result.winner_id == m.entry1_id
+
+    async def test_forfeit_without_scores(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        result = await service.report_result(
+            actor, m.id, m.entry1_id, forfeit=True,
+        )
+        assert result.forfeit is True
+        assert result.entry1_score is None
+
+    async def test_partial_scores_rejected(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        with pytest.raises(ValueError, match='both scores or neither'):
+            await service.report_result(actor, m.id, m.entry1_id, entry1_score=2)
+
+    async def test_negative_scores_rejected(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        with pytest.raises(ValueError, match='negative'):
+            await service.report_result(
+                actor, m.id, m.entry1_id, entry1_score=1, entry2_score=-1,
+            )
+
+    async def test_override_restates_scores(self, service):
+        actor, bracket = await _started_bracket(service, BracketFormat.SINGLE_ELIM, 4)
+        m = await self._open_match(service, bracket)
+        await service.report_result(
+            actor, m.id, m.entry1_id, entry1_score=2, entry2_score=0,
+        )
+        overridden = await service.override_result(
+            actor, m.id, m.entry2_id, entry1_score=1, entry2_score=2,
+        )
+        assert overridden.winner_id == m.entry2_id
+        assert overridden.entry1_score == 1
+        assert overridden.entry2_score == 2
+
+
+# ---------------------------------------------------------------------------
 # authorization + tenant scoping
 # ---------------------------------------------------------------------------
 class TestAuthAndTenant:

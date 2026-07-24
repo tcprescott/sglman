@@ -31,35 +31,87 @@ class AdvancementMixin:
     _ELIM_FORMATS = (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM)
 
     async def report_result(
-        self, actor: Optional[User], match_id: int, winner_entry_id: int
+        self,
+        actor: Optional[User],
+        match_id: int,
+        winner_entry_id: int,
+        *,
+        entry1_score: Optional[int] = None,
+        entry2_score: Optional[int] = None,
+        forfeit: bool = False,
     ) -> BracketMatch:
         """Record ``winner_entry_id`` as the winner of an OPEN match, then advance.
 
         Staff-gated. The match must be OPEN and belong to an ACTIVE bracket, and
-        the winner must be one of the match's two entries. After completing the
-        match the winner and loser are pushed through the ``winner_to`` /
-        ``loser_to`` pointers, downstream slots are settled (auto-advancing
-        walkovers), and the stage is auto-completed when an elimination final
-        resolves.
+        the winner must be one of the match's two entries. Set scores may be
+        reported optionally (positional to the entry slots); the winner must
+        carry the strictly-higher score unless ``forfeit`` marks a DQ / walkover.
+        After completing the match the winner and loser are pushed through the
+        ``winner_to`` / ``loser_to`` pointers, downstream slots are settled
+        (auto-advancing walkovers), and the stage is auto-completed when an
+        elimination final resolves.
         """
         await AuthService.ensure(
             await AuthService.is_staff(actor),
             "Only Staff can manage brackets",
         )
-        return await self._record_result(actor, match_id, winner_entry_id)
+        return await self._record_result(
+            actor, match_id, winner_entry_id,
+            entry1_score=entry1_score, entry2_score=entry2_score, forfeit=forfeit,
+        )
+
+    @staticmethod
+    def _validate_scores(
+        match: BracketMatch,
+        winner_entry_id: int,
+        entry1_score: Optional[int],
+        entry2_score: Optional[int],
+        forfeit: bool,
+    ) -> None:
+        """Enforce the score-vs-winner rule (conditional on ``forfeit``).
+
+        Scores are optional and all-or-nothing — win-only reporting stays valid.
+        When both are given and it is not a forfeit, the reported winner must
+        carry the strictly-higher score. A forfeit waives the rule so a `0`-score
+        or lower-score win (a DQ / walkover) is accepted.
+        """
+        if entry1_score is None and entry2_score is None:
+            return
+        if entry1_score is None or entry2_score is None:
+            raise ValueError("Provide both scores or neither")
+        if entry1_score < 0 or entry2_score < 0:
+            raise ValueError("Scores cannot be negative")
+        if forfeit:
+            return
+        winner_first = winner_entry_id == match.entry1_id
+        winner_score = entry1_score if winner_first else entry2_score
+        loser_score = entry2_score if winner_first else entry1_score
+        if winner_score <= loser_score:
+            raise ValueError(
+                "The winner must have the strictly-higher score "
+                "(or mark the result a forfeit)"
+            )
 
     async def _record_result(
-        self, actor: Optional[User], match_id: int, winner_entry_id: int
+        self,
+        actor: Optional[User],
+        match_id: int,
+        winner_entry_id: int,
+        *,
+        entry1_score: Optional[int] = None,
+        entry2_score: Optional[int] = None,
+        forfeit: bool = False,
     ) -> BracketMatch:
         """Set the winner of an OPEN match and advance — WITHOUT the staff gate.
 
         The un-gated core of :meth:`report_result`: it validates match/bracket
-        state, records the winner, writes the audit log + event, advances through
-        the progression pointers, settles downstream walkovers, and auto-completes
-        the stage. The staff gate lives on the public :meth:`report_result`; the
-        match-confirm auto-advance seam (``advance_if_linked``) reaches this
-        directly so a non-Staff confirmer's result still advances the bracket
-        (the Challonge peer ``push_match_result`` has no such gate).
+        state, records the winner (and any set scores / forfeit flag), writes the
+        audit log + event, advances through the progression pointers, settles
+        downstream walkovers, and auto-completes the stage. The staff gate lives
+        on the public :meth:`report_result`; the match-confirm auto-advance seam
+        (``advance_if_linked``) reaches this directly so a non-Staff confirmer's
+        result still advances the bracket (the Challonge peer ``push_match_result``
+        has no such gate).
         """
         match = require_found(await self.repository.get_match(match_id), "Match")
         bracket = await self._require_bracket(match.bracket_id)
@@ -69,6 +121,9 @@ class AdvancementMixin:
             raise ValueError("Only an OPEN match can be reported")
         if winner_entry_id not in (match.entry1_id, match.entry2_id):
             raise ValueError("Winner must be one of the match's two entries")
+        self._validate_scores(
+            match, winner_entry_id, entry1_score, entry2_score, forfeit
+        )
 
         winner_entry = require_found(
             await self.repository.get_entry(winner_entry_id), "Entry"
@@ -81,6 +136,9 @@ class AdvancementMixin:
         )
 
         match.winner = winner_entry
+        match.entry1_score = entry1_score
+        match.entry2_score = entry2_score
+        match.forfeit = forfeit
         match.state = BracketMatchState.COMPLETE
         await match.save()
 
@@ -89,6 +147,9 @@ class AdvancementMixin:
             'match_id': match.id,
             'winner_entry_id': winner_entry_id,
             'loser_entry_id': loser_id,
+            'entry1_score': entry1_score,
+            'entry2_score': entry2_score,
+            'forfeit': forfeit,
         }
         await self.audit_service.write_log(
             actor, AuditActions.BRACKET_MATCH_COMPLETED, details
@@ -295,13 +356,22 @@ class AdvancementMixin:
         return slot1_live and slot2_live
 
     async def override_result(
-        self, actor: Optional[User], match_id: int, winner_entry_id: int
+        self,
+        actor: Optional[User],
+        match_id: int,
+        winner_entry_id: int,
+        *,
+        entry1_score: Optional[int] = None,
+        entry2_score: Optional[int] = None,
+        forfeit: bool = False,
     ) -> BracketMatch:
-        """Staff correction of an already-COMPLETE match's winner.
+        """Staff correction of an already-COMPLETE match's winner (and scores).
 
         Allowed only while no match downstream of this one is already COMPLETE
         (raise otherwise — staff must undo the downstream results first). The new
-        winner/loser are re-pushed into the still-uncompleted downstream slots.
+        winner/loser are re-pushed into the still-uncompleted downstream slots,
+        and the reported scores / forfeit flag are re-stated (the same
+        score-vs-winner rule applies).
         """
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -313,6 +383,9 @@ class AdvancementMixin:
             raise ValueError("Can only override a COMPLETE match")
         if winner_entry_id not in (match.entry1_id, match.entry2_id):
             raise ValueError("Winner must be one of the match's two entries")
+        self._validate_scores(
+            match, winner_entry_id, entry1_score, entry2_score, forfeit
+        )
 
         downstream_ids = {
             tid for tid in (match.winner_to_id, match.loser_to_id) if tid is not None
@@ -336,6 +409,9 @@ class AdvancementMixin:
         )
 
         match.winner = winner_entry
+        match.entry1_score = entry1_score
+        match.entry2_score = entry2_score
+        match.forfeit = forfeit
         await match.save()
 
         await self._advance_after_result(bracket, match, winner_entry, loser_entry)
@@ -353,6 +429,9 @@ class AdvancementMixin:
             'match_id': match.id,
             'winner_entry_id': winner_entry_id,
             'loser_entry_id': loser_id,
+            'entry1_score': entry1_score,
+            'entry2_score': entry2_score,
+            'forfeit': forfeit,
             'override': True,
         }
         await self.audit_service.write_log(

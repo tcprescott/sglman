@@ -113,7 +113,12 @@ async def start_bracket(bracket_id: int, actor: User = Depends(require_write_act
 
 @router.post("/matches/{match_id}/result", response_model=BracketMatchResponse, summary="Report a match result")
 async def report_result(match_id: int, body: ReportResultRequest, actor: User = Depends(require_write_actor)):
-    return await BracketService().report_result(actor, match_id, body.winner_entry_id)
+    return await BracketService().report_result(
+        actor, match_id, body.winner_entry_id,
+        entry1_score=body.entry1_score,
+        entry2_score=body.entry2_score,
+        forfeit=body.forfeit,
+    )
 
 
 @router.post("/{bracket_id}/complete", response_model=BracketResponse, summary="Complete a bracket stage")
