@@ -77,8 +77,11 @@ COMMENT ON TABLE "bracketmatch" IS 'One slot in a bracket stage''s persisted mat
 
 
 async def downgrade(db: BaseDBAsyncClient) -> str:
+    # Drop children before the parents they FK-reference (no CASCADE on the
+    # tables): bracketmatch → bracketentry/bracket, bracketentry → bracketentrant/
+    # bracket, bracketentrant → bracket. Reverse of the create order.
     return """
-        DROP TABLE IF EXISTS "bracket";
-        DROP TABLE IF EXISTS "bracketentrant";
         DROP TABLE IF EXISTS "bracketmatch";
-        DROP TABLE IF EXISTS "bracketentry";"""
+        DROP TABLE IF EXISTS "bracketentry";
+        DROP TABLE IF EXISTS "bracketentrant";
+        DROP TABLE IF EXISTS "bracket";"""
