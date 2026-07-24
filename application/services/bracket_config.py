@@ -12,6 +12,7 @@ added by a later unit — this schema deliberately leaves room for it rather tha
 implementing it now.
 """
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -52,6 +53,44 @@ class AdvancementConfig(BaseModel):
         return v
 
 
+class RoundConfig(BaseModel):
+    """Per-round display metadata (best-of, scheduled time) for one round.
+
+    Display-only in v1: shown in the round header (``best_of`` as a "Best of N"
+    badge, ``scheduled_at`` through ``format_eastern_display``), never enforced
+    against reported scores. ``scheduled_at`` is a UTC ISO-8601 string (all
+    stored datetimes are UTC — see docs/timezone-handling.md); it is accepted as
+    a ``datetime`` and normalized back to an ISO string so the blob stays JSON.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    best_of: Optional[int] = None
+    scheduled_at: Optional[str] = None
+
+    @field_validator('best_of')
+    @classmethod
+    def _best_of_positive_odd(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v < 1:
+            raise ValueError("best_of must be at least 1")
+        if v % 2 == 0:
+            raise ValueError("best_of must be odd (a best-of has no draws)")
+        return v
+
+    @field_validator('scheduled_at')
+    @classmethod
+    def _scheduled_at_iso(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        try:
+            datetime.fromisoformat(v)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("scheduled_at must be an ISO-8601 datetime string") from exc
+        return v
+
+
 class BracketConfig(BaseModel):
     """Validated shape of ``Bracket.config``.
 
@@ -82,6 +121,27 @@ class BracketConfig(BaseModel):
     # Multi-stage chaining: how a non-first stage draws its field from the prior
     # stage's final ranks (None on a single-stage or first stage).
     advancement: Optional[AdvancementConfig] = None
+    # Per-round display metadata (best-of, scheduled time), keyed by the round
+    # number as a string — negative keys address losers-bracket rounds. Purely
+    # display chrome for the redesigned bracket view; set by staff through the
+    # admin per-round editor. See docs/bracket-ui-plan.md.
+    rounds: Optional[Dict[str, RoundConfig]] = None
+
+    @field_validator('rounds')
+    @classmethod
+    def _round_keys_are_ints(
+        cls, v: Optional[Dict[str, RoundConfig]]
+    ) -> Optional[Dict[str, RoundConfig]]:
+        if v is None:
+            return v
+        for key in v:
+            try:
+                int(key)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"rounds keys must be integer round numbers, got {key!r}"
+                ) from exc
+        return v
 
 
 def validate_bracket_config(

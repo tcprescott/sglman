@@ -71,6 +71,38 @@ class TestCreateBracket:
                 actor, t.id, 'Main', BracketFormat.SWISS, config={'bogus_key': 1},
             )
 
+    async def test_set_round_metadata_any_state(self, service):
+        actor = await _staff()
+        t = await _tournament()
+        bracket = await service.create_bracket(
+            actor, t.id, 'Main', BracketFormat.SINGLE_ELIM,
+        )
+        # Editable while DRAFT and independent of start state (display-only).
+        updated = await service.set_round_metadata(
+            actor, bracket.id,
+            {'1': {'best_of': 3, 'scheduled_at': '2026-08-01T18:00:00+00:00'}},
+        )
+        assert updated.config['rounds']['1']['best_of'] == 3
+
+    async def test_set_round_metadata_validates(self, service):
+        actor = await _staff()
+        t = await _tournament()
+        bracket = await service.create_bracket(
+            actor, t.id, 'Main', BracketFormat.SINGLE_ELIM,
+        )
+        with pytest.raises(ValueError, match='odd'):
+            await service.set_round_metadata(actor, bracket.id, {'1': {'best_of': 2}})
+
+    async def test_set_round_metadata_staff_only(self, service):
+        staff = await _staff()
+        nobody = await _plain_user()
+        t = await _tournament()
+        bracket = await service.create_bracket(
+            staff, t.id, 'Main', BracketFormat.SINGLE_ELIM,
+        )
+        with pytest.raises(PermissionError):
+            await service.set_round_metadata(nobody, bracket.id, {'1': {'best_of': 3}})
+
     async def test_duplicate_stage_order_rejected(self, service):
         actor = await _staff()
         t = await _tournament()

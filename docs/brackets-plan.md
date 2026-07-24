@@ -336,4 +336,5 @@ validated against the harness before any service code exists.
   decision once native brackets are proven in production.
 - **Visualization polish**: v1 ships a functional custom bracket view; a
   large-bracket / phone-width rendering spike is budgeted, with
-  `brackets-viewer.js` as the drop-in fallback.
+  `brackets-viewer.js` as the drop-in fallback. → Now planned in
+  [bracket-ui-plan.md](bracket-ui-plan.md).

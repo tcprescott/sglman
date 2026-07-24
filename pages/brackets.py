@@ -15,9 +15,10 @@ load-or-404 ORM lookups for the owning tournament, and computes live display
 standings with the pure :func:`compute_standings` helper. No ORM writes.
 """
 
-from typing import Dict, List, Optional
+import asyncio
+from typing import Callable, Dict, List, Optional
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, context, ui
 
 from middleware.auth import protected_page
 
@@ -27,18 +28,31 @@ from application.services.bracket_engines.standings import (
     StandingsConfig,
     compute_standings,
 )
-from application.tenant_context import require_tenant_id
+from application.tenant_context import require_tenant_id, tenant_scope
 from models import (
+    Bracket,
     BracketEntry,
+    BracketEntryStatus,
     BracketFormat,
     BracketMatch,
     BracketMatchState,
     BracketState,
     FeatureFlag,
     Tournament,
+    User,
 )
 from theme.base import BaseLayout
-from theme.tables.mobile_grid import enable_mobile_grid
+from theme.brackets import (
+    assign_match_numbers,
+    build_context,
+    build_match_dialog,
+    entry_records,
+    match_nodes,
+    register_bracket_view,
+    render_elimination,
+    render_elimination_mobile,
+)
+from theme.brackets.tables import render_crosstable, render_pairings, render_standings
 
 _FORMAT_LABELS = {
     BracketFormat.SINGLE_ELIM: 'Single elimination',
@@ -99,178 +113,74 @@ def _slot_label(
     return 'BYE' if completed else 'TBD'
 
 
-def _round_label(round_: int, rounds: List[int]) -> str:
-    if round_ < 0:
-        return f'Losers Round {abs(round_)}'
-    if round_ == max(r for r in rounds if r > 0):
-        return 'Final'
-    return f'Round {round_}'
-
-
-def _match_card(match: BracketMatch, entry_name: Dict[int, str]) -> None:
-    """Render one bracket match as a compact two-slot card."""
-    completed = match.state == BracketMatchState.COMPLETE
-    with ui.card().classes('q-pa-sm q-mb-sm').style('min-width: 180px'):
-        for entry_id in (match.entry1_id, match.entry2_id):
-            is_winner = completed and match.winner_id is not None and entry_id == match.winner_id
-            classes = 'text-weight-bold text-positive' if is_winner else ''
-            with ui.row().classes('items-center justify-between no-wrap w-full gap-2'):
-                ui.label(_slot_label(entry_id, entry_name, completed=completed)).classes(classes)
-                if is_winner:
-                    ui.icon('emoji_events', size='xs').classes('text-positive')
-
-
-def _detect_finals(
-    matches: List[BracketMatch],
-) -> tuple[Optional[BracketMatch], Optional[BracketMatch]]:
-    """Structurally locate a double-elim grand final and its optional reset.
-
-    There is no ``label``/``is_reset`` column, so detect by graph shape:
-
-    * **Grand Final** — the positive-round match with an incoming feeder from a
-      **negative** (losers-bracket) round. There is exactly one.
-    * **Reset** — the positive-round match the Grand Final itself feeds into
-      (via its ``winner_to``/``loser_to`` pointers). Absent when
-      ``grand_final_reset`` is disabled.
-
-    Either may be ``None`` for an empty or not-yet-generated finals stage.
-    """
-    by_id = {m.id: m for m in matches}
-    # For each target match, the rounds of the matches feeding into it.
-    incoming_rounds: Dict[int, List[int]] = {}
-    for m in matches:
-        for target_id in (m.winner_to_id, m.loser_to_id):
-            if target_id is not None:
-                incoming_rounds.setdefault(target_id, []).append(m.round)
-
-    grand_final: Optional[BracketMatch] = None
-    for m in matches:
-        if m.round > 0 and any(r < 0 for r in incoming_rounds.get(m.id, ())):
-            grand_final = m
-            break
-
-    reset: Optional[BracketMatch] = None
-    if grand_final is not None:
-        for target_id in (grand_final.winner_to_id, grand_final.loser_to_id):
-            candidate = by_id.get(target_id) if target_id is not None else None
-            if candidate is not None and candidate.round > 0:
-                reset = candidate
-                break
-    return grand_final, reset
-
-
-def _render_round_columns(
-    title: str,
-    section_rounds: List[int],
-    matches: List[BracketMatch],
-    all_rounds: List[int],
-    entry_name: Dict[int, str],
-) -> None:
-    if not section_rounds:
-        return
-    ui.label(title).classes('section-title q-mt-md')
-    # Wide bracket: keep the page body from overflowing on mobile.
-    with ui.element('div').style('overflow-x: auto; width: 100%'):
-        with ui.row().classes('no-wrap items-start gap-4'):
-            for round_ in section_rounds:
-                round_matches = sorted(
-                    (m for m in matches if m.round == round_),
-                    key=lambda m: m.position,
-                )
-                with ui.column().classes('gap-1'):
-                    ui.label(_round_label(round_, all_rounds)).classes('text-caption text-bold')
-                    for match in round_matches:
-                        _match_card(match, entry_name)
-
-
-def _render_finals_columns(
-    grand_final: Optional[BracketMatch],
-    reset: Optional[BracketMatch],
-    entry_name: Dict[int, str],
-) -> None:
-    if grand_final is None:
-        return
-    ui.label('Finals').classes('section-title q-mt-md')
-    with ui.element('div').style('overflow-x: auto; width: 100%'):
-        with ui.row().classes('no-wrap items-start gap-4'):
-            for match, label in (
-                (grand_final, 'Grand Final'),
-                (reset, 'Grand Final (reset)'),
-            ):
-                if match is None:
-                    continue
-                with ui.column().classes('gap-1'):
-                    ui.label(label).classes('text-caption text-bold')
-                    _match_card(match, entry_name)
-
-
-def _render_elimination(
-    matches: List[BracketMatch],
-    entry_name: Dict[int, str],
-    *,
-    double: bool,
-) -> None:
-    """Column-per-round card layout; losers bracket in its own section for DE."""
-    if not matches:
-        ui.label('No matches yet.').classes('italic-note')
-        return
-
-    all_rounds = sorted({m.round for m in matches})
-
-    if not double:
-        winners_rounds = [r for r in all_rounds if r > 0]
-        _render_round_columns('Bracket', winners_rounds, matches, all_rounds, entry_name)
-        return
-
-    grand_final, reset = _detect_finals(matches)
-    finals_rounds = {m.round for m in (grand_final, reset) if m is not None}
-    winners_rounds = [r for r in all_rounds if r > 0 and r not in finals_rounds]
-    # Losers rounds read chronologically left-to-right: -1 first, then the
-    # progressively more-negative rounds (losers final is most-negative).
-    losers_rounds = sorted((r for r in all_rounds if r < 0), key=abs)
-
-    _render_round_columns('Winners bracket', winners_rounds, matches, all_rounds, entry_name)
-    _render_round_columns('Losers bracket', losers_rounds, matches, all_rounds, entry_name)
-    _render_finals_columns(grand_final, reset, entry_name)
-
-
-def _render_standings_table(
-    entry_ids: List[int],
-    matches: List[BracketMatch],
-    entry_name: Dict[int, str],
-    config: Optional[dict],
-    *,
-    key_prefix: str,
-) -> None:
-    if not entry_ids:
-        ui.label('No entrants yet.').classes('italic-note')
-        return
-    standings = compute_standings(
-        entry_ids, _results_from_matches(matches), _standings_config(config)
+async def _next_stage_advancement(
+    service: BracketService, bracket: Bracket
+) -> Optional[dict]:
+    """The next stage's advancement rule, if any — drives cut lines / tinting."""
+    brackets = await service.list_brackets(bracket.tournament_id)
+    nxt = next(
+        (b for b in brackets if b.stage_order == bracket.stage_order + 1), None
     )
-    columns = [
-        {'name': 'rank', 'label': '#', 'field': 'rank', 'sortable': True},
-        {'name': 'name', 'label': 'Entrant', 'field': 'name', 'sortable': True},
-        {'name': 'record', 'label': 'W-L-D', 'field': 'record'},
-        {'name': 'points', 'label': 'Points', 'field': 'points', 'sortable': True},
-    ]
-    rows = [
-        {
-            # BracketEntry id — a unique row key; display_name can duplicate
-            # (e.g. two "TBD" placeholders), which collides Quasar's row_key.
-            'entry_id': s.ref,
-            'rank': s.rank,
-            'name': entry_name.get(s.ref, 'Unknown'),
-            'record': f'{s.wins}-{s.losses}-{s.draws}'
-            + (f' ({s.byes} bye)' if s.byes else ''),
-            'points': f'{s.points:g}',
-        }
-        for s in standings
-    ]
-    table = ui.table(
-        columns=columns, rows=rows, row_key='entry_id', pagination=0
-    ).classes('full-width')
-    enable_mobile_grid(table, columns)
+    if nxt is None or not nxt.config:
+        return None
+    return (nxt.config or {}).get('advancement')
+
+
+# Delegated hover-run highlight: hovering any entrant row tints that entrant's
+# rows across every match in the bracket (Gracket's data-attribute technique).
+_HOVER_RUN_JS = (
+    '<script>'
+    'if(!window.__wizBracketHover){'
+    'window.__wizBracketHover=true;'
+    'var t=function(on){return function(e){'
+    'var el=e.target.closest?e.target.closest(\'[data-entrant-id]\'):null;'
+    'if(!el)return;'
+    'var id=el.getAttribute(\'data-entrant-id\');'
+    'if(!id)return;'
+    'var ns=document.querySelectorAll(\'.bracket-slot[data-entrant-id="\'+id+\'"]\');'
+    'for(var i=0;i<ns.length;i++){ns[i].classList.toggle(\'run-highlight\',on);}'
+    '};};'
+    "document.addEventListener('mouseover',t(true),true);"
+    "document.addEventListener('mouseout',t(false),true);"
+    '}'
+    '</script>'
+)
+
+
+def _install_hover_run() -> None:
+    ui.add_body_html(_HOVER_RUN_JS)
+
+
+def _populate_zoom_toolbar(row, wrapper, refresh: Callable) -> None:
+    """Fill the elimination toolbar: zoom −/level/+ (CSS scale) and a refresh."""
+    zoom = {'v': 1.0}
+
+    def apply() -> None:
+        wrapper.style(f'--bracket-zoom: {zoom["v"]}')
+        label.set_text(f'{int(zoom["v"] * 100)}%')
+
+    def step(delta: float) -> None:
+        zoom['v'] = max(0.5, min(1.6, round(zoom['v'] + delta, 2)))
+        apply()
+
+    with row:
+        ui.button(icon='zoom_out', on_click=lambda: step(-0.1)) \
+            .props('flat dense round').tooltip('Zoom out')
+        label = ui.label('100%').classes('text-caption text-grey')
+        ui.button(icon='zoom_in', on_click=lambda: step(0.1)) \
+            .props('flat dense round').tooltip('Zoom in')
+        ui.space()
+        ui.button(icon='refresh', on_click=refresh) \
+            .props('flat dense round').tooltip('Refresh')
+
+
+def _group_letter(group: Optional[int]) -> Optional[str]:
+    if group is None:
+        return None
+    try:
+        return chr(ord('A') + (int(group) - 1))
+    except (TypeError, ValueError):
+        return str(group)
 
 
 def _render_results_list(
@@ -279,14 +189,14 @@ def _render_results_list(
     played = [m for m in matches if m.state == BracketMatchState.COMPLETE]
     upcoming = [m for m in matches if m.state == BracketMatchState.OPEN]
     if not played and not upcoming:
+        ui.label('No matches yet.').classes('text-caption text-grey')
         return
     with ui.column().classes('gap-1 w-full'):
         for match in played:
-            completed = True
-            name1 = _slot_label(match.entry1_id, entry_name, completed=completed)
-            name2 = _slot_label(match.entry2_id, entry_name, completed=completed)
+            name1 = _slot_label(match.entry1_id, entry_name, completed=True)
+            name2 = _slot_label(match.entry2_id, entry_name, completed=True)
             if match.entry2_id is None or match.entry1_id is None:
-                winner = _slot_label(match.winner_id, entry_name, completed=completed)
+                winner = _slot_label(match.winner_id, entry_name, completed=True)
                 ui.label(f'{winner} — bye').classes('text-caption')
             else:
                 winner_name = entry_name.get(match.winner_id, 'Unknown')
@@ -303,7 +213,12 @@ def _render_round_robin(
     matches: List[BracketMatch],
     entry_name: Dict[int, str],
     config: Optional[dict],
+    *,
+    advancement: Optional[dict] = None,
+    complete: bool = False,
 ) -> None:
+    entry_seed = {e.id: e.seed for e in entries}
+    tiebreakers = _standings_config(config).tiebreakers
     group_of: Dict[int, Optional[int]] = {}
     for m in matches:
         for eid in (m.entry1_id, m.entry2_id):
@@ -313,16 +228,39 @@ def _render_round_robin(
         group_of.setdefault(e.id, e.group_number)
 
     groups = sorted({group_of.get(e.id) for e in entries}, key=lambda g: (g is None, g))
-    for group in groups:
-        group_entry_ids = [e.id for e in entries if group_of.get(e.id) == group]
-        group_matches = [m for m in matches if m.group_number == group]
-        title = f'Group {group}' if group is not None else 'Standings'
-        ui.label(title).classes('section-title q-mt-md')
-        _render_standings_table(
-            group_entry_ids, group_matches, entry_name, config,
-            key_prefix=f'rr-{group}',
-        )
-        _render_results_list(group_matches, entry_name)
+    # A per-group advancement rule tints/cuts each group's top `count`.
+    per_group_cut = (
+        advancement.get('count')
+        if advancement and advancement.get('per_group')
+        else None
+    )
+
+    with ui.element('div').classes('bracket-groups-grid'):
+        for group in groups:
+            group_entry_ids = [e.id for e in entries if group_of.get(e.id) == group]
+            group_matches = [m for m in matches if m.group_number == group]
+            with ui.card().classes('bracket-group-card'):
+                letter = _group_letter(group)
+                ui.label(f'Group {letter}' if letter else 'Standings') \
+                    .classes('bracket-section-title')
+                if not group_entry_ids:
+                    ui.label('No entrants yet.').classes('italic-note')
+                    continue
+                standings = compute_standings(
+                    group_entry_ids,
+                    _results_from_matches(group_matches),
+                    _standings_config(config),
+                )
+                render_standings(
+                    standings, entry_name, entry_seed, tiebreakers,
+                    advancing=per_group_cut, show_elim=complete,
+                )
+                order_ids = [s.ref for s in standings]
+                if 2 <= len(group_entry_ids) <= 10:
+                    with ui.expansion('Crosstable').classes('w-full'):
+                        render_crosstable(order_ids, group_matches, entry_name)
+                with ui.expansion('Matches').classes('w-full'):
+                    _render_results_list(group_matches, entry_name)
 
 
 def _render_swiss(
@@ -330,17 +268,47 @@ def _render_swiss(
     matches: List[BracketMatch],
     entry_name: Dict[int, str],
     config: Optional[dict],
+    *,
+    advancement: Optional[dict] = None,
+    complete: bool = False,
 ) -> None:
-    ui.label('Standings').classes('section-title q-mt-md')
-    _render_standings_table(
-        [e.id for e in entries], matches, entry_name, config, key_prefix='swiss',
+    entry_seed = {e.id: e.seed for e in entries}
+    dropped = {e.id for e in entries if e.status == BracketEntryStatus.DROPPED}
+    tiebreakers = _standings_config(config).tiebreakers
+
+    ui.label('Standings').classes('bracket-section-title')
+    if not entries:
+        ui.label('No entrants yet.').classes('italic-note')
+        return
+    standings = compute_standings(
+        [e.id for e in entries], _results_from_matches(matches), _standings_config(config)
     )
+    swiss_cut = advancement.get('count') if advancement else None
+    render_standings(
+        standings, entry_name, entry_seed, tiebreakers,
+        advancing=swiss_cut, show_elim=complete, dropped_ids=dropped,
+    )
+    if 'head_to_head' in tiebreakers:
+        ui.label('Remaining ties are broken by head-to-head result.') \
+            .classes('text-caption text-grey')
+
     rounds = sorted({m.round for m in matches})
-    for round_ in rounds:
-        ui.label(f'Round {round_}').classes('text-caption text-bold q-mt-sm')
-        _render_results_list(
-            [m for m in matches if m.round == round_], entry_name
-        )
+    if not rounds:
+        return
+    records = entry_records([e.id for e in entries], matches)
+    open_rounds = [m.round for m in matches if m.state == BracketMatchState.OPEN]
+    default_round = max(open_rounds) if open_rounds else max(rounds)
+
+    ui.label('Pairings').classes('bracket-section-title')
+    with ui.tabs().classes('w-full') as tabs:
+        for r in rounds:
+            ui.tab(f'r{r}', label=f'Round {r}')
+    with ui.tab_panels(tabs, value=f'r{default_round}').classes('w-full'):
+        for r in rounds:
+            with ui.tab_panel(f'r{r}'):
+                render_pairings(
+                    [m for m in matches if m.round == r], entry_name, records,
+                )
 
 
 def create() -> None:
@@ -394,26 +362,89 @@ def create() -> None:
         ui.page_title('Wizzrobe — Bracket')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
+        is_staff = await AuthService.is_staff(user)
         await BaseLayout(
             user=user, show_admin=show_admin, show_volunteer=user is not None,
         ).render()
+        ui.add_head_html('<link rel="stylesheet" href="/static/css/brackets.css">')
+        _install_hover_run()
 
+        # Captured while the request context is live; row-action/live-refresh
+        # handlers fire from detached client events that have lost the tenant
+        # contextvar (and the slot context), so scoped reads/writes rebind the
+        # tenant and refreshes re-enter this client.
+        tenant_id = require_tenant_id()
+        client = context.client
         service = BracketService()
+
+        # Debounced refresh: one report publishes several BRACKET_* events (and the
+        # report dialog also asks to refresh); without coalescing each would clear +
+        # rebuild the @ui.refreshable body separately and the rebuilds can stack
+        # into a duplicated render. A short debounce collapses the burst into one.
+        _refresh_task: Dict[str, object] = {'t': None}
+
+        async def _coalesced_refresh() -> None:
+            try:
+                await asyncio.sleep(0.05)
+            except asyncio.CancelledError:
+                return
+            with client:
+                render_body.refresh()
+
+        def request_refresh() -> None:
+            task = _refresh_task['t']
+            if task is not None and not task.done():
+                task.cancel()
+            _refresh_task['t'] = background_tasks.create(_coalesced_refresh())
+
+        async def _on_saved() -> None:
+            request_refresh()
+
+        async def open_match_dialog(match_id: int, client) -> None:
+            with client:
+                with tenant_scope(tenant_id):
+                    bracket = await service.get_bracket(bracket_id)
+                    if bracket is None:
+                        return
+                    entrants = await service.list_entrants(bracket.tournament_id)
+                    entries = await service.list_entries(bracket_id)
+                    matches = await service.list_matches(bracket_id)
+                name_by_entrant = {en.id: en.display_name for en in entrants}
+                entry_name = {
+                    e.id: name_by_entrant.get(e.entrant_id, 'Unknown') for e in entries
+                }
+                entry_seed = {e.id: e.seed for e in entries}
+                match = next((m for m in matches if m.id == match_id), None)
+                if match is None:
+                    return
+                records = entry_records([e.id for e in entries], matches)
+                number = assign_match_numbers(match_nodes(matches)).get(match.id)
+                build_match_dialog(
+                    match, entry_name, entry_seed, records, number,
+                    is_staff=is_staff, actor=user, tenant_id=tenant_id,
+                    service=service, on_saved=_on_saved,
+                )
+
+        def on_card_click(match_id: int) -> None:
+            background_tasks.create(open_match_dialog(match_id, context.client))
 
         @ui.refreshable
         async def render_body() -> None:
-            bracket = await service.get_bracket(bracket_id)
-            if bracket is None:
-                ui.label('Bracket not found.').classes('text-error')
-                return
-
-            entrants = await service.list_entrants(bracket.tournament_id)
+            # A live-event/dialog refresh re-runs this from a background task whose
+            # tenant contextvar is unset, so scope the reads explicitly (the admin
+            # dialogs do the same) rather than relying on the client-stash fallback.
+            with tenant_scope(tenant_id):
+                bracket = await service.get_bracket(bracket_id)
+                if bracket is None:
+                    ui.label('Bracket not found.').classes('text-error')
+                    return
+                entrants = await service.list_entrants(bracket.tournament_id)
+                entries = await service.list_entries(bracket_id)
+                matches = await service.list_matches(bracket_id)
             entrant_name = {en.id: en.display_name for en in entrants}
-            entries = await service.list_entries(bracket_id)
             entry_name = {
                 e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
             }
-            matches = await service.list_matches(bracket_id)
 
             with ui.card().classes('page-container w-full q-pa-lg q-mt-md column'):
                 with ui.row().classes('items-center justify-between w-full'):
@@ -446,13 +477,35 @@ def create() -> None:
                                 ).classes('text-caption')
                     return
 
-                if bracket.format == BracketFormat.SINGLE_ELIM:
-                    _render_elimination(matches, entry_name, double=False)
-                elif bracket.format == BracketFormat.DOUBLE_ELIM:
-                    _render_elimination(matches, entry_name, double=True)
-                elif bracket.format == BracketFormat.ROUND_ROBIN:
-                    _render_round_robin(entries, matches, entry_name, bracket.config)
+                if bracket.format in (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM):
+                    double = bracket.format == BracketFormat.DOUBLE_ELIM
+                    ctx = build_context(
+                        bracket.config, entries, matches, entry_name,
+                        on_card_click=on_card_click,
+                    )
+                    # 2-D connector bracket (>= md); a per-round accordion (< md).
+                    with ui.element('div').classes('bracket-2d w-full'):
+                        toolbar_row = ui.row().classes('bracket-toolbar items-center gap-2 q-mb-sm')
+                        wrapper = ui.element('div').classes('bracket-zoomable w-full')
+                        with wrapper:
+                            render_elimination(matches, ctx, double=double)
+                        _populate_zoom_toolbar(toolbar_row, wrapper, request_refresh)
+                    with ui.element('div').classes('bracket-mobile-list w-full'):
+                        render_elimination_mobile(matches, ctx, double=double)
                 else:
-                    _render_swiss(entries, matches, entry_name, bracket.config)
+                    with tenant_scope(tenant_id):
+                        advancement = await _next_stage_advancement(service, bracket)
+                    complete = bracket.state == BracketState.COMPLETE
+                    if bracket.format == BracketFormat.ROUND_ROBIN:
+                        _render_round_robin(
+                            entries, matches, entry_name, bracket.config,
+                            advancement=advancement, complete=complete,
+                        )
+                    else:
+                        _render_swiss(
+                            entries, matches, entry_name, bracket.config,
+                            advancement=advancement, complete=complete,
+                        )
 
         await render_body()
+        register_bracket_view(bracket_id, request_refresh)

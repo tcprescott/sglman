@@ -1,0 +1,56 @@
+"""Unit tests for the bracket config schema (``validate_bracket_config``).
+
+Pure-function tests (no DB): the closed, ``extra='forbid'`` schema turns typos
+and bad values into user-facing ``ValueError``s at the service boundary. Focus
+here is the per-round display-metadata map (``rounds``) added for the redesigned
+bracket view.
+"""
+
+import pytest
+
+from application.services.bracket_config import validate_bracket_config
+
+
+class TestRoundsConfig:
+    def test_valid_rounds_map(self):
+        normalized = validate_bracket_config(
+            {
+                "rounds": {
+                    "1": {"best_of": 3, "scheduled_at": "2026-08-01T18:00:00+00:00"},
+                    "-1": {"best_of": 1},
+                }
+            }
+        )
+        assert normalized["rounds"]["1"]["best_of"] == 3
+        assert normalized["rounds"]["1"]["scheduled_at"] == "2026-08-01T18:00:00+00:00"
+        # Negative keys address losers-bracket rounds.
+        assert normalized["rounds"]["-1"]["best_of"] == 1
+
+    def test_empty_round_entry_allowed(self):
+        normalized = validate_bracket_config({"rounds": {"2": {}}})
+        assert normalized["rounds"]["2"] == {}
+
+    def test_non_integer_round_key_rejected(self):
+        with pytest.raises(ValueError, match="rounds keys"):
+            validate_bracket_config({"rounds": {"final": {"best_of": 3}}})
+
+    def test_even_best_of_rejected(self):
+        with pytest.raises(ValueError, match="odd"):
+            validate_bracket_config({"rounds": {"1": {"best_of": 2}}})
+
+    def test_zero_best_of_rejected(self):
+        with pytest.raises(ValueError, match="at least 1"):
+            validate_bracket_config({"rounds": {"1": {"best_of": 0}}})
+
+    def test_bad_scheduled_at_rejected(self):
+        with pytest.raises(ValueError, match="ISO-8601"):
+            validate_bracket_config({"rounds": {"1": {"scheduled_at": "not-a-date"}}})
+
+    def test_unknown_round_key_field_rejected(self):
+        with pytest.raises(ValueError, match="Invalid bracket config"):
+            validate_bracket_config({"rounds": {"1": {"bogus": 1}}})
+
+    def test_rounds_optional(self):
+        # A config with no rounds map stays valid and drops the unset key.
+        normalized = validate_bracket_config({"swiss_rounds": 3})
+        assert "rounds" not in normalized

@@ -83,20 +83,31 @@ async def _enroll_seeded(
         await service.enroll(actor, bracket_id, entrant.id, seed=seed)
 
 
+def _win_scores(best_of: int) -> Tuple[int, int]:
+    """(winner_score, loser_score) for a clean best-of win (e.g. 1→1-0, 3→2-1)."""
+    to_win = best_of // 2 + 1
+    return to_win, to_win - 1
+
+
 async def _report_earliest_open_round(
-    service: BracketService, actor: User, bracket_id: int
+    service: BracketService, actor: User, bracket_id: int, *, best_of: int = 1
 ) -> None:
     """Report every OPEN match in the lowest-numbered open round, winner = entry1.
 
     Leaves later rounds OPEN/PENDING so the stage stays mid-play (deterministic:
-    the lower entry-slot always wins).
+    the lower entry-slot always wins). Records a clean best-of set score so the
+    redesigned bracket cards have scores to display.
     """
     open_matches = await service.get_open_matches(bracket_id)
     if not open_matches:
         return
     earliest = min(m.round for m in open_matches)
+    win, loss = _win_scores(best_of)
     for match in [m for m in open_matches if m.round == earliest]:
-        await service.report_result(actor, match.id, match.entry1_id)
+        await service.report_result(
+            actor, match.id, match.entry1_id,
+            entry1_score=win, entry2_score=loss,
+        )
 
 
 async def _single_elim(
@@ -107,6 +118,15 @@ async def _single_elim(
         return
     bracket = await service.create_bracket(
         actor, tournament.id, "Championship", BracketFormat.SINGLE_ELIM,
+        # Per-round display chrome: best-of and a scheduled time per round, so the
+        # redesigned round headers have metadata to render.
+        config={
+            "rounds": {
+                "1": {"best_of": 1, "scheduled_at": "2026-08-01T18:00:00+00:00"},
+                "2": {"best_of": 3, "scheduled_at": "2026-08-01T20:00:00+00:00"},
+                "3": {"best_of": 5, "scheduled_at": "2026-08-02T18:00:00+00:00"},
+            },
+        },
     )
     entrants = await _add_entrants(
         service, actor, tournament.id, users,
@@ -122,8 +142,8 @@ async def _single_elim(
     await _enroll_seeded(service, actor, bracket.id, entrants)
     await service.start_bracket(actor, bracket.id)
     # Round 1 resolved (byes auto-completed on start); quarter/semis open, final
-    # still pending — a partially-formed elimination bracket.
-    await _report_earliest_open_round(service, actor, bracket.id)
+    # still pending — a partially-formed elimination bracket. Round 1 is best-of-1.
+    await _report_earliest_open_round(service, actor, bracket.id, best_of=1)
 
 
 async def _double_elim(
@@ -148,7 +168,25 @@ async def _double_elim(
     await service.start_bracket(actor, bracket.id)
     # Report the winners-bracket first round: both losers drop into the losers
     # bracket, opening a losers-bracket round (and the winners final) mid-play.
-    await _report_earliest_open_round(service, actor, bracket.id)
+    # Make the first WB match a forfeit (a no-show DQ) so the demo exercises the
+    # "FF" card marker; report any remaining earliest-round matches with scores.
+    open_matches = await service.get_open_matches(bracket.id)
+    if open_matches:
+        earliest = min(m.round for m in open_matches)
+        earliest_matches = sorted(
+            (m for m in open_matches if m.round == earliest),
+            key=lambda m: m.position,
+        )
+        for index, match in enumerate(earliest_matches):
+            if index == 0:
+                await service.report_result(
+                    actor, match.id, match.entry1_id, forfeit=True,
+                )
+            else:
+                await service.report_result(
+                    actor, match.id, match.entry1_id,
+                    entry1_score=1, entry2_score=0,
+                )
 
 
 async def _swiss(

@@ -159,6 +159,70 @@ class TestHappyPath:
             final = await c.get(f'/api/brackets/{bracket_id}')
             assert final.json()['state'] == 'complete'
 
+    async def test_report_result_with_scores_and_forfeit(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = (await c.post('/api/brackets', json={
+                'tournament_id': t.id, 'name': 'Main', 'format': 'single_elim',
+            })).json()['id']
+            for name in ('Alice', 'Bob'):
+                e = (await c.post('/api/brackets/entrants', json={
+                    'tournament_id': t.id, 'display_name': name,
+                })).json()
+                await c.post(f'/api/brackets/{bracket_id}/entries', json={
+                    'entrant_id': e['id'],
+                })
+            await c.post(f'/api/brackets/{bracket_id}/start')
+
+            open_matches = (await c.get(f'/api/brackets/{bracket_id}/open-matches')).json()
+            match_id = open_matches[0]['id']
+            winner_entry_id = open_matches[0]['entry1_id']
+
+            reported = await c.post(f'/api/brackets/matches/{match_id}/result', json={
+                'winner_entry_id': winner_entry_id,
+                'entry1_score': 3, 'entry2_score': 1,
+            })
+            assert reported.status_code == 200
+            body = reported.json()
+            assert body['entry1_score'] == 3
+            assert body['entry2_score'] == 1
+            assert body['forfeit'] is False
+
+    async def test_report_result_rejects_lower_winner_score(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = (await c.post('/api/brackets', json={
+                'tournament_id': t.id, 'name': 'Main', 'format': 'single_elim',
+            })).json()['id']
+            for name in ('Alice', 'Bob'):
+                e = (await c.post('/api/brackets/entrants', json={
+                    'tournament_id': t.id, 'display_name': name,
+                })).json()
+                await c.post(f'/api/brackets/{bracket_id}/entries', json={
+                    'entrant_id': e['id'],
+                })
+            await c.post(f'/api/brackets/{bracket_id}/start')
+            open_matches = (await c.get(f'/api/brackets/{bracket_id}/open-matches')).json()
+            match_id = open_matches[0]['id']
+            winner_entry_id = open_matches[0]['entry1_id']
+
+            # Winner with the lower score is rejected unless forfeit is set.
+            bad = await c.post(f'/api/brackets/matches/{match_id}/result', json={
+                'winner_entry_id': winner_entry_id,
+                'entry1_score': 0, 'entry2_score': 2,
+            })
+            assert bad.status_code == 400
+
+            # Same scoreline is accepted as a forfeit.
+            ff = await c.post(f'/api/brackets/matches/{match_id}/result', json={
+                'winner_entry_id': winner_entry_id,
+                'entry1_score': 0, 'entry2_score': 2, 'forfeit': True,
+            })
+            assert ff.status_code == 200
+            assert ff.json()['forfeit'] is True
+
 
 # --- Feature gate ---------------------------------------------------------
 

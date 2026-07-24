@@ -70,6 +70,9 @@ class BracketMatchResponse(BaseModel):
     entry1_id: Optional[int] = None
     entry2_id: Optional[int] = None
     winner_id: Optional[int] = None
+    entry1_score: Optional[int] = None
+    entry2_score: Optional[int] = None
+    forfeit: bool = False
     state: BracketMatchState
     winner_to_id: Optional[int] = None
     winner_to_slot: Optional[int] = None
@@ -105,6 +108,9 @@ class EnrollRequest(BaseModel):
 
 class ReportResultRequest(BaseModel):
     winner_entry_id: int
+    entry1_score: Optional[int] = None
+    entry2_score: Optional[int] = None
+    forfeit: bool = False
 
 
 class AdvanceStageRequest(BaseModel):

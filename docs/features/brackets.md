@@ -21,7 +21,9 @@ Source:
 [`application/repositories/bracket_repository.py`](../../application/repositories/bracket_repository.py),
 [`api/routers/brackets.py`](../../api/routers/brackets.py),
 [`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py) (admin),
-[`pages/brackets.py`](../../pages/brackets.py) (public).
+[`pages/brackets.py`](../../pages/brackets.py) (public),
+[`theme/brackets/`](../../theme/brackets/) (shared renderer),
+[`static/css/brackets.css`](../../static/css/brackets.css).
 
 ## Data model
 
@@ -39,8 +41,14 @@ field tables in [data-model.md](../reference/data-model.md#native-brackets)):
 - **`BracketEntry`** — an entrant's participation within one stage (its `seed`,
   `group_number`, and — once the stage completes — `final_rank`).
 - **`BracketMatch`** — one slot in a stage's persisted match graph, carrying the
-  `winner_to` / `loser_to` progression pointers and a nullable `match` FK (the
-  scheduling seam).
+  `winner_to` / `loser_to` progression pointers, a nullable `match` FK (the
+  scheduling seam), and optional reported **set scores** (`entry1_score` /
+  `entry2_score`, nullable) plus a **`forfeit`** flag. `report_result` /
+  `override_result` accept the scores and forfeit flag; the reported winner must
+  carry the strictly-higher score **unless** `forfeit` marks a DQ / walkover
+  (win-only reporting, with null scores, stays valid). Per-round display chrome
+  (best-of, scheduled time) lives in `Bracket.config['rounds']` keyed by round
+  number, not on the match.
 
 ## Formats and multi-stage chaining
 
@@ -153,6 +161,44 @@ transaction:
 - **Admin tab** — `is_staff and FeatureFlag.BRACKETS in live` in `pages/admin.py`.
 - **REST** — `require_feature(FeatureFlag.BRACKETS)` on the `/brackets` router
   mount (whole router 404s when off).
+
+## Presentation — the redesigned bracket view
+
+The public and admin surfaces share one in-house renderer,
+[`theme/brackets/`](../../theme/brackets/) (design record:
+[bracket-ui-plan.md](../bracket-ui-plan.md)), that draws the canonical
+Challonge/start.gg/Liquipedia grammar — connector-lined match cards with seeds,
+initial-letter avatar discs, a right-aligned score cell (winner accented via the
+app `--q-primary` through `--bracket-*` CSS variables, loser dimmed, "FF" for a
+forfeit), sticky round headers with best-of/time chrome, and byes / "Winner of 7"
+placeholder hints. The pieces:
+
+- `layout.py` — a **pure, ORM-free layout walker**: a depth-first pass over the
+  winner-link tree assigns leaves sequential vertical slots and centers every
+  parent on its children (Toornament's algorithm), mapping round → column and
+  slot → absolute pixels. Robust to byes and the irregular double-elim losers
+  bracket. Also computes elbow connectors, stable match numbers, and round names.
+  Unit-tested in [`tests/theme/test_bracket_layout.py`](../../tests/theme/) and
+  against real engine graphs in `tests/services/test_bracket_render_layout.py`.
+- `cards.py` — the absolute-positioned match card + section renderer (sticky
+  headers, connectors); `render_mobile_card` is the flow variant for the phone
+  accordion.
+- `tables.py` — Swiss / group data tables (standings with the tiebreaker chain +
+  advancement tint + cut line, per-round pairings, per-group crosstable), built
+  from NiceGUI elements (never `ui.html` — entrant names are user-controlled).
+- `render.py` — whole-bracket helpers (`render_elimination`,
+  `render_elimination_mobile`, `build_context`, `detect_finals`) shared by the
+  public page and the admin embed; `dialog.py` — the shared match detail +
+  staff report/override dialog; `live.py` — an event-bus subscription that
+  refreshes the view on `BRACKET_*` events.
+
+Interactions: click a match → detail dialog (staff get inline report/override
+with scores + forfeit), hover-run highlight across a participant's matches, a
+zoom toolbar, and live auto-refresh. Below `lt.md` elimination brackets degrade
+to a per-round accordion. Staff set per-round best-of/time through a per-round
+editor in the admin Manage dialog (`BracketService.set_round_metadata`), and
+report results by clicking cards in the bracket embedded in the admin Results
+dialog. Styling lives in [`static/css/brackets.css`](../../static/css/brackets.css).
 
 ## Correctness harness
 
