@@ -8,6 +8,7 @@ Results dialog. See docs/bracket-ui-plan.md.
 """
 
 from .cards import BracketContext, render_match_card, render_section
+from .live import register_bracket_view
 from .layout import (
     CARD_HEIGHT,
     COL_WIDTH,
@@ -26,6 +27,7 @@ __all__ = [
     'BracketContext',
     'render_match_card',
     'render_section',
+    'register_bracket_view',
     'MatchNode',
     'Placement',
     'SectionLayout',
