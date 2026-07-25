@@ -157,13 +157,16 @@ Shutdown reverses this: the queue worker is cancelled (any still-queued DMs are 
 
 ### Single worker — required
 
-`start.sh prod` runs `uvicorn main:app --workers 1`. **Do not raise the worker count.** Three singletons live in process memory:
+`start.sh prod` runs `uvicorn main:app --workers 1`. **Do not raise the worker count.** NiceGUI is single-worker by design, and sixteen singletons live in process memory. The ones that bite hardest:
 
-- the Discord bot — N workers would open N gateway sessions and send duplicate notifications;
-- the DM queue — a plain `asyncio.Queue` with no cross-process coordination;
-- NiceGUI UI state — per-client element trees and websockets are bound to the process.
+- the Discord bot and the racetime bot runtime — N workers would open N gateway/websocket sessions and handle every interaction N times;
+- the DM and event-dispatch queues — plain `asyncio.Queue`s with no cross-process coordination;
+- the five background loops — each would run in every worker (duplicate racetime rooms, duplicate SpeedGaming syncs, duplicate health alerts);
+- NiceGUI UI state — per-client element trees and websockets are bound to the process, and `app.storage.user` is a per-process dict flushed to shared files;
+- the OAuth handoff nonce store and the per-match seed lock — these encode "one process" as a *correctness* guarantee, so a second worker breaks custom-domain login and lets two seed rolls race;
+- Aerich runs `upgrade()` at boot, so N workers race the same migration.
 
-Scale vertically; horizontal scaling would require moving the bot and queue out of process first.
+Scale vertically. The way out is a `web`/`worker` process split, not more uvicorn workers — full inventory and phased plan in [plans/single-worker-escape-plan.md](plans/single-worker-escape-plan.md).
 
 ### dev vs prod ([`start.sh`](../start.sh))
 

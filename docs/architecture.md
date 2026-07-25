@@ -25,7 +25,9 @@ Versions come from [`pyproject.toml`](../pyproject.toml) (Poetry); only major/mi
 
 ## Process model and startup
 
-Everything runs in **one Uvicorn worker** (`start.sh prod` passes `--workers 1`). This is a hard requirement, not an oversight: the process hosts the Discord bot connection, the in-memory Discord send queue, and NiceGUI's per-client websocket state. A second worker would start a second bot session and split UI state across processes.
+Everything runs in **one Uvicorn worker** (`start.sh prod` passes `--workers 1`). This is a hard requirement, not an oversight: the process hosts the Discord bot connection, the in-memory Discord send queue, and NiceGUI's per-client websocket state. A second worker would start a second bot session and split UI state across processes. NiceGUI is single-worker *by design* — raising the count is not a supported configuration of the framework, let alone of this app.
+
+The full inventory of what that constraint holds up, and the proposed way out of it (a `web`/`worker` process split rather than more uvicorn workers), is [plans/single-worker-escape-plan.md](plans/single-worker-escape-plan.md).
 
 [`main.py`](../main.py) builds the FastAPI app and wires everything together:
 
