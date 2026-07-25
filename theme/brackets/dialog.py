@@ -20,6 +20,7 @@ from application.services import BracketService, MatchService, get_user_from_dis
 from application.tenant_context import tenant_scope
 from application.utils.timezone import format_eastern_display
 from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
+from theme.dialog._helpers import dialog_actions, mobile_sheet
 from theme.notify import notify_error
 
 
@@ -233,13 +234,21 @@ def build_match_dialog(
     def name_of(entry_id: Optional[int]) -> str:
         return entry_name.get(entry_id, 'TBD') if entry_id is not None else 'TBD'
 
-    with ui.dialog() as dialog, ui.card().classes('w-[26rem] max-w-full'):
-        with ui.row().classes('items-center justify-between w-full'):
-            ui.label(f'Match {number}' if number else 'Match').classes('text-h6')
+    with ui.dialog() as dialog, ui.card().classes('dialog-card'):
+        # House chrome: a full-screen sheet on a phone, sticky title, and the
+        # sticky action bar below — so the report buttons stay reachable on a
+        # long series rather than sitting under the games list.
+        mobile_sheet(dialog)
+        with ui.row().classes('dialog-header items-center q-pa-sm'):
+            ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')
+            ui.space()
             ui.badge(
                 match.state.value.title(),
                 color=_STATE_BADGE.get(match.state, 'grey'),
             )
+            ui.button(icon='close', on_click=dialog.close) \
+                .props('flat round dense').tooltip('Close')
+        ui.separator()
 
         for slot, entry_id in ((1, match.entry1_id), (2, match.entry2_id)):
             is_winner = (
@@ -316,12 +325,12 @@ def build_match_dialog(
                 ui.button(
                     f'Winner: {name_of(match.entry1_id)}', icon='emoji_events',
                     on_click=lambda _=None, w=match.entry1_id: save(w),
-                ).props('dense color=primary')
+                ).props('dense color=primary').classes('col min-w-0 ellipsis')
                 ui.button(
                     f'Winner: {name_of(match.entry2_id)}', icon='emoji_events',
                     on_click=lambda _=None, w=match.entry2_id: save(w),
-                ).props('dense color=primary')
+                ).props('dense color=primary').classes('col min-w-0 ellipsis')
 
-        with ui.row().classes('justify-end w-full q-mt-sm'):
+        with dialog_actions().classes('justify-end'):
             ui.button('Close', on_click=dialog.close).props('flat')
     dialog.open()

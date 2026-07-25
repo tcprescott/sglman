@@ -369,7 +369,7 @@ Two tab functions live in this module.
 
 ### Admin brackets (`pages/admin_tabs/admin_brackets.py`)
 
-`admin_brackets_page()` (STAFF, `BRACKETS` flag by tab visibility) — the staff surface over `BracketService`. A tournament selector drives a `ui.table` of that tournament's stages (Stage, Name, Format, State) with a `body-cell-actions` slot + `enable_mobile_grid` for the phone card view. Because row-action handlers fire from detached client events that have lost the tenant contextvar, every scoped read/service call is wrapped in `tenant_scope(tenant_id)` (captured while the request context was live), and `context.client` is captured and re-entered for each dialog.
+`admin_brackets_page()` (STAFF, `BRACKETS` flag by tab visibility) — the staff surface over `BracketService`. A tournament selector drives a `ui.table` of that tournament's stages (Stage, Name, Format, State) with a `body-cell-actions` slot + `enable_mobile_grid` for the phone card view. Because row-action handlers fire from detached client events that have lost the tenant contextvar, every scoped read/service call is wrapped in `tenant_scope(tenant_id)` (captured while the request context was live), and `context.client` is captured and re-entered for each dialog. All four dialogs use the house chrome (`form_dialog` + `dialog_actions`) so their actions stay reachable on a phone, the Results dialog collapses its flat fallback lists behind the visual embed, and **Complete stage** confirms before locking the stage — see [brackets.md → Admin dialogs](../features/brackets.md#admin-dialogs).
 
 | Row action | Dialog | Service calls |
 |---|---|---|

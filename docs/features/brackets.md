@@ -309,6 +309,27 @@ The `--bracket-*` custom properties are declared on **`body`**, not `:root`:
 `body` while Quasar's stock blue sits on `:root`, so a `:root` declaration would
 resolve the winner accent against the stock colour and ignore tenant theming.
 
+### Admin dialogs
+
+Every bracket dialog — Create, Manage, Results, Advance, and the shared match
+report/override — goes through the house dialog chrome
+([`theme/dialog/_helpers.py`](../../theme/dialog/_helpers.py)): `form_dialog`
+(or `mobile_sheet` + a `.dialog-header` row) for a full-screen sheet with a
+sticky title on phones, and `dialog_actions()` for the sticky bottom bar.
+Hand-rolled `ui.dialog()` + `ui.card()` is what left **Start bracket** and
+**Close** 1,200–4,400px below the fold on a phone. Two further rules follow from
+the same surfaces:
+
+- In the Results dialog the flat **Open / Completed** lists are a *fallback*
+  wherever the visual bracket embed renders (elimination formats), so they sit in
+  default-closed expansions — a 32-match stage otherwise buried the dialog's own
+  actions under ~3,000px of scroll. Swiss and round robin have no embed, so there
+  the lists stay open: they are the only surface.
+- **`complete_stage` asks first.** It writes every entry's `final_rank` and locks
+  the stage with no un-complete, and it fires from one of four adjacent 44px icon
+  buttons on a phone card, so it routes through
+  [`ConfirmationDialog`](../../theme/dialog/confirmation_dialog.py).
+
 ## Correctness harness
 
 Because pairing/progression is correctness-critical, the engines carry a dedicated

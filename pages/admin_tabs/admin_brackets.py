@@ -37,6 +37,8 @@ from theme.brackets import (
     render_elimination,
     render_elimination_mobile,
 )
+from theme.dialog._helpers import dialog_actions, form_dialog
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
@@ -178,8 +180,11 @@ async def admin_brackets_page() -> None:
             tid = state['tournament_id']
             with client:
                 actor = await current_actor()
-                with ui.dialog() as dialog, ui.card().classes('w-[40rem] max-w-full'):
-                    ui.label(f"Manage — {row['name']}").classes('text-h6')
+                # form_dialog, not a bare ui.dialog: it brings the house chrome —
+                # a full-screen sheet on a phone plus a sticky header — and the
+                # action bar below is sticky with it. Hand-rolled, this dialog put
+                # 'Start bracket' and 'Close' ~1200-4400px below the fold.
+                with form_dialog(f"Manage — {row['name']}") as dialog:
 
                     @ui.refreshable
                     async def body() -> None:
@@ -195,9 +200,13 @@ async def admin_brackets_page() -> None:
                         enrolled_entrant_ids = {e.entrant_id for e in entries}
 
                         ui.label('Add entrant to tournament').classes('section-title')
+                        # Quasar column classes rather than flex-grow: on a phone
+                        # the name takes its own line and the id + Add share the
+                        # next, instead of the three controls wrapping raggedly.
                         with ui.row().classes('items-end gap-2 w-full'):
-                            name_in = ui.input('Display name').classes('flex-grow')
-                            user_in = ui.number('User ID (optional)', min=1).props('inputmode=numeric')
+                            name_in = ui.input('Display name').classes('col-12 col-sm')
+                            user_in = ui.number('User ID (optional)', min=1) \
+                                .props('inputmode=numeric').classes('col')
 
                             async def add_entrant() -> None:
                                 with tenant_scope(tenant_id):
@@ -219,12 +228,15 @@ async def admin_brackets_page() -> None:
                         if not entrants:
                             ui.label('No entrants yet.').classes('text-muted')
                         for en in entrants:
-                            with ui.row().classes('items-center gap-2 w-full'):
-                                ui.label(en.display_name).classes('text-bold')
+                            with ui.row().classes('items-center gap-2 w-full no-wrap'):
+                                # `col min-w-0 ellipsis`: a long display name
+                                # otherwise pushed the seed field and Enroll onto
+                                # a second line on every phone-width row.
+                                ui.label(en.display_name) \
+                                    .classes('text-bold col min-w-0 ellipsis')
                                 if en.id in enrolled_entrant_ids:
                                     ui.badge('enrolled', color='positive')
                                 else:
-                                    ui.space()
                                     seed_in = ui.number('Seed', min=1).props('inputmode=numeric dense').classes('w-24')
 
                                     async def enroll(_=None, entrant_id=en.id, seed_widget=seed_in) -> None:
@@ -251,11 +263,10 @@ async def admin_brackets_page() -> None:
                         name_by_entrant = {en.id: en.display_name for en in entrants}
                         seed_widgets: Dict[int, object] = {}
                         for entry in entries:
-                            with ui.row().classes('items-center gap-2 w-full'):
+                            with ui.row().classes('items-center gap-2 w-full no-wrap'):
                                 ui.label(
                                     name_by_entrant.get(entry.entrant_id, f'Entry {entry.id}')
-                                )
-                                ui.space()
+                                ).classes('col min-w-0 ellipsis')
                                 seed_widgets[entry.id] = ui.number(
                                     'Seed', value=entry.seed, min=1,
                                 ).props('inputmode=numeric dense').classes('w-24')
@@ -300,15 +311,19 @@ async def admin_brackets_page() -> None:
                                 ).classes('text-caption text-grey')
                                 for r in distinct_rounds:
                                     cfg = rounds_cfg.get(str(r)) or {}
+                                    # The round name takes its own line on a phone
+                                    # (a fixed w-32 label left the two inputs too
+                                    # little room and the row wrapped anyway).
                                     with ui.row().classes('items-center gap-2 w-full'):
-                                        ui.label(_round_editor_label(r)).classes('w-32')
+                                        ui.label(_round_editor_label(r)) \
+                                            .classes('col-12 col-sm-3 text-bold')
                                         bo = ui.number(
                                             'Best of', value=cfg.get('best_of'), min=1,
-                                        ).props('dense inputmode=numeric').classes('w-24')
+                                        ).props('dense inputmode=numeric').classes('col-4 col-sm-3')
                                         sched = ui.input(
                                             'Scheduled (ET)',
                                             value=_iso_to_local_input(cfg.get('scheduled_at')),
-                                        ).props('type=datetime-local dense').classes('flex-grow')
+                                        ).props('type=datetime-local dense').classes('col')
                                         widgets[r] = (bo, sched)
 
                                 async def save_rounds() -> None:
@@ -337,7 +352,7 @@ async def admin_brackets_page() -> None:
                                     'Save round settings', icon='save', on_click=save_rounds,
                                 ).props('flat color=primary')
 
-                        with ui.row().classes('justify-end w-full q-mt-md'):
+                        with dialog_actions().classes('justify-end'):
                             if is_draft and entries:
                                 ui.button('Save seeds', icon='save', on_click=save_seeds).props('flat color=primary')
                                 ui.button('Start bracket', icon='play_arrow', on_click=start).props('color=primary')
@@ -352,8 +367,7 @@ async def admin_brackets_page() -> None:
             tid = state['tournament_id']
             with client:
                 actor = await current_actor()
-                with ui.dialog() as dialog, ui.card().classes('w-[40rem] max-w-full'):
-                    ui.label(f"Results — {row['name']}").classes('text-h6')
+                with form_dialog(f"Results — {row['name']}") as dialog:
 
                     @ui.refreshable
                     async def body() -> None:
@@ -397,7 +411,12 @@ async def admin_brackets_page() -> None:
                         # Visual bracket embed (compact): staff click a match card
                         # to report/override via the shared dialog. Supplements the
                         # flat lists below (they stay as a reliable fallback).
-                        if bracket is not None and bracket.format in _ELIM_FORMATS and matches:
+                        embedded = (
+                            bracket is not None
+                            and bracket.format in _ELIM_FORMATS
+                            and bool(matches)
+                        )
+                        if embedded:
                             def on_card(match_id: int) -> None:
                                 m = next((x for x in matches if x.id == match_id), None)
                                 if m is None:
@@ -435,49 +454,67 @@ async def admin_brackets_page() -> None:
                             and m.entry1_id is not None and m.entry2_id is not None
                         ]
 
-                        ui.label('Open matches').classes('section-title')
-                        if not open_matches:
-                            ui.label('No open matches.').classes('text-muted')
-                        for m in open_matches:
-                            with ui.row().classes('items-center gap-2 w-full'):
-                                ui.label(
-                                    f'R{m.round} #{m.position}: '
-                                    f'{slot_label(m.entry1_id)} vs {slot_label(m.entry2_id)}'
-                                )
-                                ui.space()
-                                if m.entry1_id is not None:
-                                    ui.button(
-                                        slot_label(m.entry1_id), icon='emoji_events',
-                                        on_click=lambda _=None, mid=m.id, w=m.entry1_id: report(mid, w),
-                                    ).props('flat dense color=primary')
-                                if m.entry2_id is not None:
-                                    ui.button(
-                                        slot_label(m.entry2_id), icon='emoji_events',
-                                        on_click=lambda _=None, mid=m.id, w=m.entry2_id: report(mid, w),
-                                    ).props('flat dense color=primary')
+                        def result_row(m, *, action, icon, color) -> None:
+                            """One match: its summary, then a winner button each.
 
-                        ui.separator()
-                        ui.label('Completed matches — override').classes('section-title')
-                        if not complete_matches:
-                            ui.label('No completed matches.').classes('text-muted')
-                        for m in complete_matches:
-                            with ui.row().classes('items-center gap-2 w-full'):
-                                ui.label(
-                                    f'R{m.round} #{m.position}: '
-                                    f'{slot_label(m.entry1_id)} vs {slot_label(m.entry2_id)} '
-                                    f'→ {slot_label(m.winner_id)}'
-                                )
-                                ui.space()
-                                ui.button(
-                                    slot_label(m.entry1_id), icon='published_with_changes',
-                                    on_click=lambda _=None, mid=m.id, w=m.entry1_id: override(mid, w),
-                                ).props('flat dense color=secondary')
-                                ui.button(
-                                    slot_label(m.entry2_id), icon='published_with_changes',
-                                    on_click=lambda _=None, mid=m.id, w=m.entry2_id: override(mid, w),
-                                ).props('flat dense color=secondary')
+                            Stacked rather than a single flex row — the buttons
+                            carry full entrant names (up to ~257px), so at phone
+                            width the row wrapped into a ragged three lines.
+                            """
+                            summary = (
+                                f'R{m.round} #{m.position}: '
+                                f'{slot_label(m.entry1_id)} vs {slot_label(m.entry2_id)}'
+                            )
+                            if m.winner_id is not None:
+                                summary += f' → {slot_label(m.winner_id)}'
+                            with ui.column().classes('gap-0 w-full q-py-xs'):
+                                ui.label(summary).classes('text-caption ellipsis w-full')
+                                with ui.row().classes('items-center gap-1 w-full'):
+                                    for eid in (m.entry1_id, m.entry2_id):
+                                        if eid is None:
+                                            continue
+                                        ui.button(
+                                            slot_label(eid), icon=icon,
+                                            on_click=lambda _=None, mid=m.id, w=eid: action(mid, w),
+                                        ).props(f'flat dense color={color}')
 
-                        with ui.row().classes('justify-end w-full q-mt-md'):
+                        def open_list() -> None:
+                            if not open_matches:
+                                ui.label('No open matches.').classes('text-muted')
+                            for m in open_matches:
+                                result_row(m, action=report, icon='emoji_events', color='primary')
+
+                        def complete_list() -> None:
+                            if not complete_matches:
+                                ui.label('No completed matches.').classes('text-muted')
+                            for m in complete_matches:
+                                result_row(
+                                    m, action=override,
+                                    icon='published_with_changes', color='secondary',
+                                )
+
+                        # Where the visual bracket is present these lists are the
+                        # fallback, not the primary surface: collapsed, they stop a
+                        # 32-match stage from burying the dialog's own actions under
+                        # ~3000px of scroll. Swiss / round robin have no embed, so
+                        # there they stay open — they are the only surface.
+                        if embedded:
+                            with ui.expansion(
+                                f'Open matches ({len(open_matches)})',
+                            ).classes('w-full'):
+                                open_list()
+                            with ui.expansion(
+                                f'Completed matches — override ({len(complete_matches)})',
+                            ).classes('w-full'):
+                                complete_list()
+                        else:
+                            ui.label('Open matches').classes('section-title')
+                            open_list()
+                            ui.separator()
+                            ui.label('Completed matches — override').classes('section-title')
+                            complete_list()
+
+                        with dialog_actions().classes('justify-end'):
                             ui.button('Close', on_click=dialog.close).props('flat')
 
                     await body()
@@ -485,16 +522,32 @@ async def admin_brackets_page() -> None:
 
         # --- complete stage ----------------------------------------------
         async def complete_stage(row, client) -> None:
+            """Confirm, then finalize the stage.
+
+            ``complete_stage`` writes every entry's ``final_rank`` and locks the
+            stage — there is no un-complete — and this fires from one of four
+            adjacent 44px icon buttons on a phone card, so it asks first.
+            """
             with client:
-                actor = await current_actor()
-                with tenant_scope(tenant_id):
-                    try:
-                        await service.complete_stage(actor, row['id'])
-                    except (ValueError, PermissionError) as ex:
-                        notify_error(ex)
-                        return
-                ui.notify('Stage completed', color='positive')
-                await refresh_table()
+                async def do_complete() -> None:
+                    confirm.dialog.close()
+                    actor = await current_actor()
+                    with tenant_scope(tenant_id):
+                        try:
+                            await service.complete_stage(actor, row['id'])
+                        except (ValueError, PermissionError) as ex:
+                            notify_error(ex)
+                            return
+                    ui.notify('Stage completed', color='positive')
+                    await refresh_table()
+
+                confirm = ConfirmationDialog(
+                    f"Complete “{row['name']}”? This writes every entrant's final "
+                    'rank and locks the stage — it cannot be undone.',
+                    on_confirm=do_complete,
+                    confirm_text='Complete stage',
+                )
+                confirm.open()
 
         # --- advance stage (preview + confirm) ---------------------------
         async def open_advance(row, client) -> None:
@@ -510,15 +563,14 @@ async def admin_brackets_page() -> None:
                         notify_error(ex)
                         return
 
-                with ui.dialog() as dialog, ui.card().classes('w-[32rem] max-w-full'):
-                    ui.label(f"Advance from stage {from_stage_order}").classes('text-h6')
+                with form_dialog(f"Advance from stage {from_stage_order}") as dialog:
                     ui.label(
                         f'{len(preview)} entrant(s) would advance into the next stage:'
                     ).classes('text-caption text-grey')
                     for e in preview:
                         ui.label(
                             f'#{e.final_rank} — {names.get(e.id, f"Entry {e.id}")}'
-                        )
+                        ).classes('ellipsis w-full')
 
                     async def do_advance() -> None:
                         with tenant_scope(tenant_id):
@@ -531,7 +583,7 @@ async def admin_brackets_page() -> None:
                         dialog.close()
                         await refresh_table()
 
-                    with ui.row().classes('justify-end w-full q-mt-md'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button('Advance', icon='fast_forward', on_click=do_advance).props('color=primary')
                 dialog.open()
@@ -540,8 +592,7 @@ async def admin_brackets_page() -> None:
         def open_create() -> None:
             tid = state['tournament_id']
             with page_container:
-                with ui.dialog() as dialog, ui.card().classes('w-[32rem] max-w-full'):
-                    ui.label('Create bracket stage').classes('text-h6')
+                with form_dialog('Create bracket stage') as dialog:
                     name_in = ui.input('Name').classes('w-full')
                     fmt_in = ui.select(
                         _FORMAT_OPTIONS, value=BracketFormat.SINGLE_ELIM.value, label='Format',
@@ -584,7 +635,7 @@ async def admin_brackets_page() -> None:
                         dialog.close()
                         await refresh_table()
 
-                    with ui.row().classes('justify-end w-full q-mt-md'):
+                    with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
                         ui.button('Create', icon='add', on_click=submit).props('color=primary')
             dialog.open()
