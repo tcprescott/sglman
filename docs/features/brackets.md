@@ -273,7 +273,8 @@ placeholder hints. The pieces:
   against real engine graphs in `tests/services/test_bracket_render_layout.py`.
 - `cards.py` — the absolute-positioned match card + section renderer (sticky
   headers, connectors); `render_mobile_card` is the flow variant for the phone
-  accordion.
+  accordion (positioned `relative`, so its match-number badge gets a containing
+  block instead of stacking with every other round's).
 - `tables.py` — Swiss / group data tables (standings with the tiebreaker chain +
   advancement tint + cut line, per-round pairings, per-group crosstable), built
   from NiceGUI elements (never `ui.html` — entrant names are user-controlled).
@@ -285,11 +286,28 @@ placeholder hints. The pieces:
 
 Interactions: click a match → detail dialog (staff get inline report/override
 with scores + forfeit), hover-run highlight across a participant's matches, a
-zoom toolbar, and live auto-refresh. Below `lt.md` elimination brackets degrade
-to a per-round accordion. Staff set per-round best-of/time through a per-round
-editor in the admin Manage dialog (`BracketService.set_round_metadata`), and
-report results by clicking cards in the bracket embedded in the admin Results
+zoom toolbar, and live auto-refresh. Staff set per-round best-of/time through a
+per-round editor in the admin Manage dialog (`BracketService.set_round_metadata`),
+and report results by clicking cards in the bracket embedded in the admin Results
 dialog. Styling lives in [`static/css/brackets.css`](../../static/css/brackets.css).
+
+**Responsive rule — exactly one view renders at a time.** The 2-D bracket and the
+per-round accordion draw the same graph, so the CSS shows one or the other, never
+both: at `lt.md` and up the 2-D view; below it the accordion, with a **List /
+Bracket toggle** in the toolbar opting into the horizontally-scrolling 2-D view
+(plan decision 6). The toggle is CSS-hidden on desktop, the zoom controls hide in
+list mode (they scale the 2-D canvas only), and the chosen view is held per client
+outside the `@ui.refreshable` so a live `BRACKET_*` rebuild does not snap the
+reader back to the list. The accordion carries the round's best-of/scheduled time
+in its panel, standing in for the 2-D sticky round header. The admin Results
+dialog embeds the same pair and so inherits the rule — its scroll box is
+`.bracket-embed-scroll`, whose `flex: 0 0 auto` is load-bearing (a bare
+`overflow: auto` flex item collapses to zero height and the bracket vanishes).
+
+The `--bracket-*` custom properties are declared on **`body`**, not `:root`:
+`theme/base.py`'s `ui.colors()` writes the tenant palette's `--q-primary` onto
+`body` while Quasar's stock blue sits on `:root`, so a `:root` declaration would
+resolve the winner accent against the stock colour and ignore tenant theming.
 
 ## Correctness harness
 

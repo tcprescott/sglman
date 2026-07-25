@@ -7,7 +7,12 @@
  * just work. Pixel sizes here mirror the constants in theme/brackets/layout.py
  * (COL_WIDTH 200, GUTTER 52, CARD_HEIGHT 58) — change one, change both. */
 
-:root {
+/* Declared on <body>, not :root — theme/base.py's ui.colors() writes the tenant
+ * palette's --q-primary onto <body>, while Quasar's stock #1976D2 sits on :root.
+ * A :root declaration here would resolve var(--q-primary) against that stock
+ * blue and inherit it down, so the bracket would ignore the tenant's brand
+ * (plan decision 9). Matching the element ui.colors() targets fixes that. */
+body {
   --bracket-col-width: 200px;
   --bracket-gutter: 52px;
   --bracket-card-h: 58px;
@@ -21,7 +26,7 @@
   --bracket-muted: #6b7280;
   --bracket-seed-bg: #eef0f3;
   --bracket-header-bg: rgba(255, 255, 255, 0.92);
-  --bracket-run-bg: rgba(224, 168, 46, 0.20);
+  --bracket-run-bg: color-mix(in srgb, var(--bracket-accent) 20%, transparent);
 }
 
 .body--dark,
@@ -33,7 +38,7 @@
   --bracket-muted: #9aa3ad;
   --bracket-seed-bg: #2a2f37;
   --bracket-header-bg: rgba(23, 18, 13, 0.92);
-  --bracket-run-bg: rgba(224, 168, 46, 0.16);
+  --bracket-run-bg: color-mix(in srgb, var(--bracket-accent) 16%, transparent);
 }
 
 .bracket-section-title {
@@ -273,8 +278,10 @@
 .bracket-groups-grid {
   display: grid;
   /* auto-fit (not auto-fill) collapses empty tracks so a few groups stretch to
-     use the width and show all standings columns without an in-card scroll. */
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+     use the width and show all standings columns without an in-card scroll.
+     min() caps the track floor at the container width — a bare 320px floor
+     overflowed the page on a 320px-wide phone, clipping the header bar. */
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 12px;
   width: 100%;
 }
@@ -307,9 +314,11 @@
   border-radius: 4px;
   white-space: nowrap;
   color: var(--bracket-text);
-  /* Size each row to its content so the fixed cells never spill past the row;
-     when that exceeds the card, .bracket-standings' overflow-x scrolls instead. */
-  min-width: max-content;
+  /* Every row spans the same width so the fixed cells line up into columns.
+     Sizing each row to its own content (min-width: max-content) instead made a
+     long entrant name widen that row alone, stair-stepping W-L-D/Pts down the
+     table and pushing them out of view — the name ellipsises instead. */
+  min-width: 100%;
 }
 
 .bracket-strow.is-head {
@@ -329,7 +338,9 @@
 
 .bracket-strow .c-name {
   flex: 1 1 auto;
-  min-width: 120px;
+  /* 0, not a px floor: the floor would win over flex-shrink on a phone and push
+     the fixed cells off the row. The name cell ellipsises instead. */
+  min-width: 0;
 }
 
 .bracket-strow .c-rec {
@@ -394,6 +405,12 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+  /* The tab panel is a flex column, so this is a flex item; the default
+     min-width:auto sized it to the widest row's max-content (413px inside a
+     254px panel on a phone) and the right entrant's record chip was clipped
+     with nothing to scroll. 0 lets the rows shrink and .nm ellipsise. */
+  min-width: 0;
+  width: 100%;
 }
 
 .bracket-prow {
@@ -471,6 +488,9 @@
   align-items: stretch;
   font-size: 11px;
   overflow-x: auto;
+  /* As above: a flex item's automatic minimum size would grow the grid to fit
+     all its columns instead of letting overflow-x scroll them. */
+  min-width: 0;
 }
 
 .bracket-crosstable .cx-head {
@@ -512,17 +532,17 @@
 
 /* ---- Mobile: per-round accordion (below Quasar lt.md, <1024px) ----------- */
 
-.bracket-mobile-list {
-  display: none;
-}
-
-/* The same match card in normal document flow (full width, auto height). */
+/* The same match card in normal document flow (full width, auto height).
+ * `relative`, not `static`: .bracket-match-num is absolutely positioned, so a
+ * static card gives it no containing block and every round's badges stack on
+ * one spot near the top of the accordion instead of sitting on their own card.
+ * The top margin leaves room for the badge's translateY(-52%) overhang. */
 .bracket-match.bracket-match-flow {
-  position: static;
+  position: relative;
   width: 100%;
   height: auto;
   min-height: var(--bracket-card-h);
-  margin: 4px 0 8px;
+  margin: 12px 0 8px;
 }
 
 .bracket-round-accordion {
@@ -531,9 +551,51 @@
   margin-bottom: 6px;
 }
 
+/* Per-round chrome (best-of / scheduled time) in the accordion header — the
+   mobile stand-in for .bracket-header-meta on the 2-D round headers. */
+.bracket-round-meta {
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* One view at a time. The 2-D bracket and the accordion render the same graph,
+   so showing both (the accordion was revealed without the 2-D ever being
+   hidden) duplicated every match on phones, tablets and landscape. Desktop gets
+   the 2-D view; below lt.md the accordion leads and the toggle below opts into
+   the 2-D one (plan decision 6 — it "remains available via horizontal scroll"). */
+.bracket-mobile-list {
+  display: none;
+}
+
+.bracket-view-toggle {
+  display: none;
+}
+
 @media (max-width: 1023px) {
+  .bracket-2d {
+    display: none;
+  }
+
   .bracket-mobile-list {
     display: block;
+  }
+
+  .bracket-view-toggle {
+    display: inline-flex;
+  }
+
+  .bracket-views.view-bracket .bracket-2d {
+    display: block;
+  }
+
+  .bracket-views.view-bracket .bracket-mobile-list {
+    display: none;
+  }
+
+  /* Zoom scales the 2-D canvas, so it is inert while the accordion is showing. */
+  .bracket-views.view-list .bracket-zoom-controls {
+    display: none;
   }
 }
 
@@ -544,11 +606,46 @@
   .bracket-standings .c-tb {
     display: none;
   }
+
+  /* Tighten the fixed cells so the name keeps a usable share of a 320px row. */
+  .bracket-strow {
+    gap: 6px;
+  }
+
+  .bracket-strow .c-rec {
+    width: 58px;
+  }
+
+  .bracket-strow .c-pts {
+    width: 28px;
+  }
+
+  /* Avatars hide at compact density (plan decision 7), and the per-row seed is
+     redundant beside the rank column — together they buy the name ~45px, which
+     is the difference between "Gro…" and a readable handle. */
+  .bracket-standings .bracket-avatar,
+  .bracket-standings .c-name .bracket-seed {
+    display: none;
+  }
+}
+
+/* The bracket embedded in the admin Results dialog. `flex: 0 0 auto` is load
+ * bearing: the dialog card is a column flex container, and `overflow: auto`
+ * zeroes a flex item's automatic minimum size, so the box collapsed to height 0
+ * and the whole bracket vanished behind a blank gap at every viewport. */
+.bracket-embed-scroll {
+  flex: 0 0 auto;
+  overflow: auto;
+  max-height: 60vh;
+  width: 100%;
 }
 
 @media print {
   .bracket-scroll {
     overflow: visible;
+  }
+  .bracket-2d {
+    display: block;
   }
   .bracket-mobile-list,
   .bracket-toolbar {

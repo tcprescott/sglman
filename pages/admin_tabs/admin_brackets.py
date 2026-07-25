@@ -35,6 +35,7 @@ from theme.brackets import (
     entry_records,
     match_nodes,
     render_elimination,
+    render_elimination_mobile,
 )
 from theme.notify import notify_error
 from theme.tables.admin_crud import current_actor, wire_tab_refresh
@@ -416,12 +417,15 @@ async def admin_brackets_page() -> None:
                             )
                             ui.label('Bracket — click a match to report a result') \
                                 .classes('section-title')
-                            with ui.element('div').classes('w-full') \
-                                    .style('overflow: auto; max-height: 60vh'):
-                                render_elimination(
-                                    matches, ctx,
-                                    double=bracket.format == BracketFormat.DOUBLE_ELIM,
-                                )
+                            double = bracket.format == BracketFormat.DOUBLE_ELIM
+                            with ui.element('div').classes('bracket-embed-scroll'):
+                                with ui.element('div').classes('bracket-2d w-full'):
+                                    render_elimination(matches, ctx, double=double)
+                                # The 2-D bracket is unusable in a phone-width
+                                # dialog (a ~1200px canvas in a ~300px box), so
+                                # staff get the same accordion as the public page.
+                                with ui.element('div').classes('bracket-mobile-list w-full'):
+                                    render_elimination_mobile(matches, ctx, double=double)
                             ui.separator()
 
                         open_matches = [m for m in matches if m.state.value == 'open']

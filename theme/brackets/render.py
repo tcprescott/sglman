@@ -216,5 +216,24 @@ def render_elimination_mobile(
         round_matches = sorted(by_round.get(r, []), key=lambda m: m.position)
         with ui.expansion(name, value=r == default_round) \
                 .classes('bracket-round-accordion w-full'):
+            _render_round_meta(r, ctx)
             for m in round_matches:
                 render_mobile_card(m, ctx)
+
+
+def _render_round_meta(round_number: int, ctx) -> None:
+    """The round's best-of / scheduled time inside its accordion panel.
+
+    The 2-D view carries this in the sticky round header, which the accordion
+    replaces — without it the phone view silently drops the two facts a player
+    most needs to plan around.
+    """
+    meta = ctx.rounds_config.get(str(round_number)) or {}
+    scheduled, best_of = meta.get('scheduled_at'), meta.get('best_of')
+    if not scheduled and not best_of:
+        return
+    with ui.row().classes('bracket-round-meta'):
+        if scheduled:
+            ui.label(ctx.scheduled_fmt(scheduled)).classes('bracket-header-time')
+        if best_of:
+            ui.label(f'Best of {best_of}').classes('bracket-badge')
