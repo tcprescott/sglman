@@ -15,6 +15,7 @@ from typing import Optional
 from nicegui import app, background_tasks, ui
 
 from application.services import get_user_from_discord_id
+from application.tenant_context import require_tenant_id, tenant_scope
 
 
 def matchup_label(bracket_match) -> str:
@@ -28,6 +29,32 @@ def matchup_label(bracket_match) -> str:
         f'{base} — {name_of(bracket_match.entry1)} vs '
         f'{name_of(bracket_match.entry2)}'
     )
+
+
+async def build_options(
+    bracket_service,
+    tournament_id: Optional[int],
+    *,
+    linked_id: Optional[int],
+    match_id: Optional[int],
+) -> dict:
+    """The picker's ``{value: label}`` map for one tournament.
+
+    Module-level and ORM-free so the invariant that broke in the browser is
+    unit-testable: **the currently-linked matchup is always present**. It is OPEN
+    but its slot is already taken, so ``list_linkable_matches`` excludes it, and
+    NiceGUI's ``ChoiceElement`` raises ``ValueError: Invalid value`` for a value
+    absent from its options — which took the whole edit dialog down.
+    """
+    options = {None: '(None)'}
+    if tournament_id:
+        for bm in await bracket_service.list_linkable_matches(tournament_id):
+            options[bm.id] = matchup_label(bm)
+    if linked_id is not None and linked_id not in options and match_id is not None:
+        linked = await bracket_service.get_bracket_match_for_match(match_id)
+        if linked is not None:
+            options[linked_id] = f'{matchup_label(linked)} (linked)'
+    return options
 
 
 async def render_select(
@@ -44,17 +71,37 @@ async def render_select(
     caller then skips the link step entirely rather than reading a widget that
     isn't there.
 
+    The options are resolved **before** the select is constructed: NiceGUI's
+    ``ChoiceElement`` rejects a ``value`` that is not among ``options``, so
+    building it empty and filling it afterwards raises ``ValueError: Invalid
+    value`` on an already-linked match and takes the whole dialog down with it.
+
     The currently-linked matchup is added to the options by hand: it is OPEN but
     its slot is already taken, so ``list_linkable_matches`` excludes it and the
-    select would otherwise render blank on an already-linked match.
+    select would otherwise have nothing to show for the value it holds.
+
+    The tenant id is captured here, in request context, and rebound inside
+    ``repopulate``: that runs as a ``background_tasks`` task, where the contextvar
+    is unset and the client stash is out of reach, so a scoped read would raise
+    ``No tenant in context`` — into the log, leaving the picker silently empty.
     """
     if not brackets_live:
         return None
 
+    tenant_id = require_tenant_id()
+
+    async def current_options() -> dict:
+        with tenant_scope(tenant_id):
+            return await build_options(
+                bracket_service, selected_tournament.value,
+                linked_id=linked_id, match_id=match_id,
+            )
+
+    initial = await current_options()
     select = ui.select(
         label='Bracket matchup (optional)',
-        options={None: '(None)'},
-        value=linked_id,
+        options=initial,
+        value=linked_id if linked_id in initial else None,
         with_input=True,
     ).classes('input-full-width')
     select.tooltip(
@@ -62,20 +109,15 @@ async def render_select(
     )
 
     async def repopulate():
-        tournament_id = selected_tournament.value
-        options = {None: '(None)'}
-        if tournament_id:
-            for bm in await bracket_service.list_linkable_matches(tournament_id):
-                options[bm.id] = matchup_label(bm)
-        if linked_id is not None and linked_id not in options and match_id is not None:
-            linked = await bracket_service.get_bracket_match_for_match(match_id)
-            if linked is not None:
-                options[linked_id] = f'{matchup_label(linked)} (linked)'
+        options = await current_options()
+        # Drop a stale selection before swapping the options, for the same
+        # ChoiceElement reason: a value absent from the new options is invalid.
+        if select.value not in options:
+            select.value = None
         select.disable()
         select.options = options
         select.enable()
 
-    await repopulate()
     selected_tournament.on(
         'update:model-value', lambda: background_tasks.create(repopulate()),
     )

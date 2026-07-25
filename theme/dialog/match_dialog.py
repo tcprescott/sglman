@@ -23,6 +23,7 @@ from application.utils.timezone import (
     format_eastern_time,
     now_eastern,
 )
+from application.tenant_context import require_tenant_id, tenant_scope
 from models import FeatureFlag, Match
 from theme.dialog._helpers import (
     dialog_actions,
@@ -428,8 +429,14 @@ class AdminMatchDialog(BaseMatchDialog):
                     with_input=True,
                 ).classes('input-full-width')
 
+                # Rebound: update_selection_options re-runs as a background task on
+                # every tournament change, where the contextvar is unset — the
+                # scoped read raised "No tenant in context" and left Players empty.
+                tenant_id = require_tenant_id()
+
                 async def get_opted_in_users(tournament_id):
-                    enrolled = await self.tournament_service.get_enrolled_players_by_tournament_id(tournament_id)
+                    with tenant_scope(tenant_id):
+                        enrolled = await self.tournament_service.get_enrolled_players_by_tournament_id(tournament_id)
                     user_ids = [tp.user_id for tp in enrolled]
                     return [u for u in users if u.id in user_ids]
 

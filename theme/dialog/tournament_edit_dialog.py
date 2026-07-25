@@ -133,17 +133,17 @@ class TournamentDialog:
                         'Active',
                         value=self.tournament.is_active if self.tournament else True,
                     )
-                allow_requests_checkbox = ui.checkbox(
-                    'Players may request matches',
-                    value=(
-                        self.tournament.allow_player_match_requests
-                        if self.tournament else True
-                    ),
-                )
-                allow_requests_checkbox.tooltip(
-                    'Turned off automatically when a bracket is attached — a '
-                    'bracket-run tournament schedules only its own matchups.'
-                )
+                    allow_requests_checkbox = ui.checkbox(
+                        'Players may request matches',
+                        value=(
+                            self.tournament.allow_player_match_requests
+                            if self.tournament else True
+                        ),
+                    )
+                    allow_requests_checkbox.tooltip(
+                        'Turned off automatically when a bracket is attached — a '
+                        'bracket-run tournament schedules only its own matchups.'
+                    )
 
                 # --- Tournament Days (per-tournament override of the tenant setting) ---
                 ui.separator()
