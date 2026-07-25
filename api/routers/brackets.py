@@ -3,6 +3,12 @@
 Tenant- and feature-scoped by the mount (``FeatureFlag.BRACKETS``). Reads use the
 any-token actor dep and stay role-agnostic (the service scopes by tenant); writes
 reject read-only tokens at the HTTP layer and re-gate on Staff in the service.
+
+The one exception is ``POST /matches/{id}/games``: ``schedule_bracket_match``
+carries no gate of its own and inherits ``MatchService.create_match``'s — Staff
+**or** the target tournament's admin. That is deliberate (a TA runs their own
+event's scheduling), but it is a *delegated* gate, so a future caller that books
+a game by another route must not assume the service checks for itself.
 """
 
 from typing import List, Optional

@@ -9,6 +9,7 @@ from application.services.bracket_engines.standings import (
     Standing,
     StandingsConfig,
     compute_standings,
+    standings_config_from,
 )
 
 
@@ -177,3 +178,17 @@ def test_result_referencing_unknown_ref_raises():
 def test_self_pairing_rejected():
     with pytest.raises(ValueError):
         compute_standings([1], [ResultRow(1, 1, winner=1)], StandingsConfig())
+
+
+def test_standings_config_from_drops_unknown_tiebreakers():
+    """Rows persisted before the config schema validated tiebreaker keys must
+    still render: an unknown key is dropped rather than raised on."""
+    config = standings_config_from({'tiebreakers': ['buchholz', 'h2h']})
+    assert config.tiebreakers == ('buchholz',)
+
+
+def test_standings_config_from_reads_scoring_parameters():
+    config = standings_config_from({'win_points': 3.0, 'draw_points': 1.0})
+    assert (config.win_points, config.draw_points) == (3.0, 1.0)
+    # Unset keys keep their defaults rather than becoming None.
+    assert config.loss_points == 0.0

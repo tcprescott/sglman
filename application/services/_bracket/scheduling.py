@@ -80,6 +80,12 @@ class SchedulingMixin:
         event programme reserves all three nights of a Bo3, and the ones the
         series never needs are cancelled on the clinch). Raises once every slot is
         taken or the series is already decided.
+
+        Authorization is **delegated**: this method has no gate of its own and
+        relies on :meth:`MatchService.create_match` rejecting an actor who is
+        neither Staff nor the tournament's admin. Keep the ``create_match`` call
+        on this path — reordering the writes so a bracket row lands first would
+        let an unauthorized caller mutate the series before the gate runs.
         """
         bracket_match = require_found(
             await self.repository.get_match_with_entrants(bracket_match_id),

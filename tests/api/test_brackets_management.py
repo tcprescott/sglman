@@ -269,6 +269,17 @@ class TestEntrantDrop:
         async with client_for(app, staff) as c:
             assert (await c.post('/api/brackets/entrants/999999/drop')).status_code == 404
 
+    async def test_add_entrant_unknown_user_404s(self, db, app):
+        """Not a 500: the unresolved FK used to escape as an IntegrityError,
+        which both broke the error contract and oracled which user ids exist."""
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            r = await c.post('/api/brackets/entrants', json={
+                'tournament_id': t.id, 'display_name': 'Ghost', 'user_id': 999999,
+            })
+            assert r.status_code == 404
+
     async def test_drop_role_less_forbidden(self, db, app):
         _, staff = await _staff_token()
         t = await _tournament()

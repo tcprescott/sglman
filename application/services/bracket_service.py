@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
-from application.repositories import BracketRepository
+from application.repositories import BracketRepository, UserRepository
 from application.services._bracket.advancement import AdvancementMixin
 from application.services._bracket.completion import CompletionMixin
 from application.services._bracket.generation import GenerationMixin
@@ -272,6 +272,11 @@ class BracketService(
         await self._require_tournament(tournament_id)
         if not display_name or not display_name.strip():
             raise ValueError("Entrant display name is required")
+        if user_id is not None:
+            # Resolve before the insert: an unknown id would otherwise surface as
+            # a raw FK IntegrityError (a 500, and an id oracle) rather than the
+            # 404 every other user-referencing service raises.
+            require_found(await UserRepository.get_by_id(user_id), f"User {user_id}")
 
         entrant = await self.repository.create_entrant(
             tournament_id=tournament_id,

@@ -6,6 +6,7 @@ Handles stream room-related operations including creation, updates, and validati
 
 from typing import Optional
 
+from application.errors import require_found
 from application.repositories import StreamRoomRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -109,3 +110,18 @@ class StreamRoomService:
 
     async def get_stream_room_by_id(self, stream_room_id: int) -> Optional[StreamRoom]:
         return await self.repository.get_by_id(stream_room_id)
+
+    async def require_in_tenant(self, stream_room_id: Optional[int]) -> None:
+        """Raise unless ``stream_room_id`` is this tenant's room (``None`` passes).
+
+        A stream room is referenced by bare integer from REST bodies and admin
+        dialogs, and ``Match.stream_room`` spans tenants — unchecked, one
+        community could attach another's room to a match and surface that room's
+        name on their schedule, its Discord embed and every API response. Callers
+        that accept the id from a request must run this before persisting it.
+        """
+        if stream_room_id is not None:
+            require_found(
+                await self.repository.get_by_id(stream_room_id),
+                f"Stream room {stream_room_id}",
+            )

@@ -317,12 +317,20 @@ class TestPlayerCrewMutualExclusion:
 
 
 class TestAssignStage:
-    async def test_publishes_stage_assigned_event(self, service, captured_events):
+    async def test_publishes_stage_assigned_event(
+        self, service, captured_events, mocker,
+    ):
         from application.events import EventType
 
         match = make_match(tournament_id=9)
         service.repository.get_by_id = AsyncMock(return_value=match)
         service.repository.update = AsyncMock()
+        # The tenant guard hits the DB; this suite is pure-mock.
+        mocker.patch(
+            'application.services.match.match_service.StreamRoomService'
+            '.require_in_tenant',
+            AsyncMock(),
+        )
 
         await service.assign_stage(match_id=1, stream_room_id=4)
 

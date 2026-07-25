@@ -54,3 +54,21 @@ class TestRoundsConfig:
         # A config with no rounds map stays valid and drops the unset key.
         normalized = validate_bracket_config({"swiss_rounds": 3})
         assert "rounds" not in normalized
+
+
+class TestTiebreakers:
+    """A tiebreaker key the standings pass cannot apply must never persist.
+
+    Config edits are DRAFT-only, so a stage started with a typo could not be
+    repaired in-app — every standings read of it would raise instead.
+    """
+
+    def test_known_tiebreakers_accepted(self):
+        normalized = validate_bracket_config(
+            {"tiebreakers": ["buchholz", "omw", "head_to_head"]}
+        )
+        assert normalized["tiebreakers"] == ["buchholz", "omw", "head_to_head"]
+
+    def test_unknown_tiebreaker_rejected(self):
+        with pytest.raises(ValueError, match="unknown tiebreaker"):
+            validate_bracket_config({"tiebreakers": ["h2h"]})

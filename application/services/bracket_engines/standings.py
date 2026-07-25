@@ -27,7 +27,13 @@ Tiebreakers (config-selectable, applied in the listed order until a tie breaks):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+# Every tiebreaker key :func:`compute_standings` understands. ``bracket_config``
+# validates a stage's configured chain against this so an unknown key is rejected
+# at write time instead of raising mid-render, and
+# :func:`standings_config_from` drops any that a pre-validation row still carries.
+KNOWN_TIEBREAKERS: Tuple[str, ...] = ('buchholz', 'omw', 'head_to_head')
 
 
 @dataclass(frozen=True)
@@ -75,6 +81,30 @@ class Standing:
     draws: int = 0
     losses: int = 0
     byes: int = 0
+
+
+def standings_config_from(config: Optional[Dict[str, Any]]) -> StandingsConfig:
+    """Build a :class:`StandingsConfig` from a stage's stored ``Bracket.config``.
+
+    The one place the blob is read into scoring parameters, shared by the ranking
+    pass and the read-only views. Unknown tiebreaker keys are **dropped** rather
+    than passed through: ``bracket_config`` rejects them on write, so only a row
+    persisted before that validation existed can carry one, and letting it reach
+    :func:`compute_standings` would raise on every read of a stage that can no
+    longer be edited (config edits are DRAFT-only).
+    """
+    config = config or {}
+    kwargs: Dict[str, Any] = {}
+    for key in ('win_points', 'draw_points', 'loss_points', 'bye_points', 'omw_floor'):
+        value = config.get(key)
+        if value is not None:
+            kwargs[key] = value
+    tiebreakers = config.get('tiebreakers')
+    if tiebreakers:
+        known = tuple(tb for tb in tiebreakers if tb in KNOWN_TIEBREAKERS)
+        if known:
+            kwargs['tiebreakers'] = known
+    return StandingsConfig(**kwargs)
 
 
 _GLOBAL_TIEBREAKERS = ('buchholz', 'omw')
@@ -247,4 +277,11 @@ def compute_standings(
     return standings
 
 
-__all__ = ['ResultRow', 'StandingsConfig', 'Standing', 'compute_standings']
+__all__ = [
+    'KNOWN_TIEBREAKERS',
+    'ResultRow',
+    'StandingsConfig',
+    'Standing',
+    'compute_standings',
+    'standings_config_from',
+]
