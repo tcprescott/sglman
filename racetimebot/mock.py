@@ -3,7 +3,7 @@
 A *scripted event-emitting fake* — not a no-op skip. It fabricates the room
 lifecycle so development and tests can exercise the connection loop, health
 tracking, and event routing without a real racetime OAuth app or network. It is
-never active in production: :func:`~application.utils.mock_racetime.is_mock_racetime`
+never active in production: :func:`~application.utils.mocks.mock_racetime.is_mock_racetime`
 raises there, since fabricated finishes would corrupt real results.
 
 The transport is configurable so a test can force each health path:

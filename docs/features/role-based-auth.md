@@ -44,7 +44,7 @@ Roles are stored in the `UserRole` junction table. Each row records who granted 
 | `middleware/auth.py` | `@protected_page` — enforces login + optional role at page level |
 | `pages/admin.py` | Uses `AuthService.can_view_admin()` to gate dashboard access |
 | `theme/dialog/user_edit_dialog.py` | Admin grants/revokes roles via checkboxes |
-| `application/services/discord_role_mapping_service.py` | Login-time Discord→app role sync (`sync_user_roles`) |
+| `application/services/discord/discord_role_mapping_service.py` | Login-time Discord→app role sync (`sync_user_roles`) |
 
 ## Auth Service API
 

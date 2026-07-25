@@ -8,8 +8,8 @@ verify the *real* enqueue behaviour restore the original function explicitly.
 import asyncio
 
 
-import application.services.discord_queue as dq
-from application.services.discord_queue import enqueue as real_enqueue
+import application.services.discord.discord_queue as dq
+from application.services.discord.discord_queue import enqueue as real_enqueue
 from application.tenant_context import get_current_tenant_id, tenant_scope
 
 

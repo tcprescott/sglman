@@ -18,8 +18,8 @@ from application.services.identity_link_service import (
     IdentityLinkService,
 )
 from application.services.audit_service import AuditActions
-from application.utils.mock_racetime import is_mock_racetime
-from application.utils.racetime_client import (
+from application.utils.mocks.mock_racetime import is_mock_racetime
+from application.utils.clients.racetime_client import (
     IDENTITY_SCOPE,
     MockRacetimeClient,
     RacetimeAPIError,

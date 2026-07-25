@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from application.services import discord_link_service as dls
-from application.services.discord_link_service import DiscordLinkService
+from application.services.discord import discord_link_service as dls
+from application.services.discord.discord_link_service import DiscordLinkService
 from application.tenant_context import tenant_scope
 from models import Role, Tenant, User, UserRole
 

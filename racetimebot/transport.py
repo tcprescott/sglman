@@ -173,7 +173,7 @@ def build_transport(
     *, client_id: str, client_secret: str, category: str,
 ) -> RacetimeTransport:
     """Return the mock transport under ``MOCK_RACETIME``, else the live one."""
-    from application.utils.mock_racetime import is_mock_racetime
+    from application.utils.mocks.mock_racetime import is_mock_racetime
 
     if is_mock_racetime():
         from racetimebot.mock import MockRacetimeTransport

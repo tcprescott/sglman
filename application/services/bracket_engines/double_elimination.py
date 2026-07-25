@@ -4,7 +4,7 @@ Pure structural code: no ORM, no NiceGUI, no async. ``generate`` maps a seeded
 field onto ``GeneratedMatch`` nodes wired by ``winner_to`` / ``loser_to``
 pointers: a standard winners bracket (positive rounds), a losers bracket
 (negative rounds) that receives each winners round's losers, a grand final, and
-a conditional grand-final reset (docs/brackets-plan.md).
+a conditional grand-final reset (docs/plans/brackets-plan.md).
 
 Losers-bracket routing follows the standard halving pattern (WB-R1 losers pair,
 then alternating drop-receiving and consolidation rounds down to a single losers

@@ -156,12 +156,12 @@ async def _probe_postgres() -> Tuple[ServiceStatus, str]:
 
 
 async def _probe_discord_bot() -> Tuple[ServiceStatus, str]:
-    from application.utils.mock_discord import is_mock_discord
+    from application.utils.mocks.mock_discord import is_mock_discord
     if is_mock_discord():
         return ServiceStatus.HEALTHY, 'Mock transport (MOCK_DISCORD)'
     if not _all_set('DISCORD_TOKEN'):
         return ServiceStatus.UNKNOWN, 'DISCORD_TOKEN not set'
-    from application.services.discord_service import DiscordService
+    from application.services.discord.discord_service import DiscordService
     service = DiscordService()
     bot = service.get_bot() if hasattr(service, 'get_bot') else None
     if bot is None:
@@ -172,7 +172,7 @@ async def _probe_discord_bot() -> Tuple[ServiceStatus, str]:
 
 
 async def _probe_discord_oauth() -> Tuple[ServiceStatus, str]:
-    from application.utils.mock_discord import is_mock_discord
+    from application.utils.mocks.mock_discord import is_mock_discord
     if is_mock_discord():
         return ServiceStatus.HEALTHY, 'Mock OAuth (MOCK_DISCORD)'
     if _all_set('DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'):
@@ -181,7 +181,7 @@ async def _probe_discord_oauth() -> Tuple[ServiceStatus, str]:
 
 
 async def _probe_twitch_oauth() -> Tuple[ServiceStatus, str]:
-    from application.utils.mock_twitch import is_mock_twitch
+    from application.utils.mocks.mock_twitch import is_mock_twitch
     if is_mock_twitch():
         return ServiceStatus.HEALTHY, 'Mock OAuth (MOCK_TWITCH)'
     if _all_set('TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET'):
@@ -233,7 +233,7 @@ def _map_racetime_status(status: str, message: Optional[str]) -> ServiceStatus:
 
 
 async def _probe_speedgaming() -> Tuple[ServiceStatus, str]:
-    from application.utils.speedgaming_client import SPEEDGAMING_BASE, is_mock_speedgaming
+    from application.utils.clients.speedgaming_client import SPEEDGAMING_BASE, is_mock_speedgaming
     if is_mock_speedgaming():
         return ServiceStatus.HEALTHY, 'Mock feed (MOCK_SPEEDGAMING)'
     ok, detail = await _http_reachable(SPEEDGAMING_BASE)
@@ -244,7 +244,7 @@ async def _probe_speedgaming() -> Tuple[ServiceStatus, str]:
 
 async def _probe_challonge() -> Tuple[ServiceStatus, str]:
     """Reachability of the Challonge API **and** token validity across tenants."""
-    from application.utils.mock_challonge import is_mock_challonge
+    from application.utils.mocks.mock_challonge import is_mock_challonge
     reach_status = ServiceStatus.HEALTHY
     reach_msg = 'Mock API (MOCK_CHALLONGE)'
     if not is_mock_challonge():
@@ -418,7 +418,7 @@ class ServiceHealthService:
         if not service_health_alert_dm_enabled():
             return
         try:
-            from application.services.discord_service import DiscordService
+            from application.services.discord.discord_service import DiscordService
             from models import Role, UserRole
             rows = await UserRole.filter(role=Role.SUPER_ADMIN, tenant=None).prefetch_related('user')
             service = DiscordService()

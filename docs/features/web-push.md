@@ -113,7 +113,7 @@ DiscordService.send_dm  ──(mirror, never raises)──▶  WebPushService.mi
 | `application/repositories/web_push_repository.py` | Data access; endpoint upsert re-binds a device to the latest user |
 | `application/services/web_push_service.py` | Subscribe/unsubscribe (audited), DM mirror, encrypted delivery, pruning |
 | `application/utils/web_push.py` | Pure protocol: RFC 8291 encryption, RFC 8292 VAPID, key generation |
-| `application/services/discord_service.py` | `send_dm` calls `_mirror_dm_to_web_push` (real and mock service) |
+| `application/services/discord/discord_service.py` | `send_dm` calls `_mirror_dm_to_web_push` (real and mock service) |
 | `pages/home_tabs/web_push_section.py` | Settings UI: enable/disable buttons, subscribed-device list |
 | `static/js/web-push.js` | Client-side subscribe/unsubscribe/status helpers |
 | `static/sw.js` | `push` + `notificationclick` handlers for non-declarative browsers |

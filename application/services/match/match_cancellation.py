@@ -1,0 +1,145 @@
+"""Match cancellation — calling a scheduled match off, and telling people.
+
+Lifted out of :class:`MatchService` (the file-length guideline) as
+``MatchParticipants`` was, but as a **mixin** rather than a helper object,
+because these methods reach the service's ``_remove_match``, ``audit_service``,
+and ``match_schedule_service`` — the same composition ``BracketService`` uses for
+``application/services/_bracket/``.
+
+Cancellation is deliberately distinct from deletion. ``delete_match`` is the
+staff "this shouldn't exist" path and notifies nobody; cancelling is "this was
+real, people committed to it, and it is now off" — so it closes the racetime
+room, DMs the players and crew, and emits ``match.cancelled`` alongside the
+``match.deleted`` every existing subscriber already listens for.
+"""
+
+import logging
+from typing import Optional
+
+from application.events import match_live
+from application.events import Event, EventType, event_bus
+from application.services.discord import discord_queue
+from application.services.audit_service import AuditActions
+from application.services.auth_service import AuthService
+from models import Match, User
+
+logger = logging.getLogger(__name__)
+
+
+class CancellationMixin:
+    """Remove a match: the plain delete, and the notifying cancellation."""
+
+    async def delete_match(self, match_id: int, actor: Optional[User] = None) -> None:
+        match = await self._require_match(match_id)
+        await AuthService.ensure(
+            await AuthService.can_crud_match(actor, match),
+            f"User cannot delete match {match_id}",
+        )
+        await self._remove_match(match, actor)
+
+    async def _remove_match(self, match: Match, actor: Optional[User]) -> None:
+        """Delete the row, audit, and publish — the one deletion implementation.
+
+        Shared by :meth:`delete_match` and :meth:`cancel_match` so a cancellation
+        still emits ``match.deleted`` for existing subscribers. Cleanup of the
+        child rows (players, acknowledgments, crew, watchers) is DB-level cascade.
+        """
+        match_id = match.id
+        tournament_id = match.tournament_id
+        await self.repository.delete(match)
+        await self.audit_service.write_log(
+            actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
+        )
+        match_live.publish(match_id, match_live.DELETED)
+        event_bus.publish(Event.create(EventType.MATCH_DELETED, {
+            'match_id': match_id, 'tournament_id': tournament_id,
+        }, actor))
+
+    async def cancel_match(
+        self, match_id: int, actor: Optional[User] = None, *, reason: str = '',
+    ) -> None:
+        """Call a scheduled match off, telling everyone who was expecting it."""
+        match = await self._require_match(match_id)
+        await AuthService.ensure(
+            await AuthService.can_crud_match(actor, match),
+            f"User cannot cancel match {match_id}",
+        )
+        await self._cancel_match(match, actor, reason=reason)
+
+    async def _cancel_match(
+        self, match: Match, actor: Optional[User], *, reason: str = '',
+    ) -> None:
+        """Cancel a match — WITHOUT the CRUD gate.
+
+        The un-gated core of :meth:`cancel_match`, mirroring the
+        ``report_result`` / ``_record_result`` split. A best-of-N series that
+        clinches early cancels its remaining pre-scheduled games as the **system
+        user**, which holds no per-tenant STAFF role and so cannot pass
+        ``can_crud_match``.
+
+        Ordering is load-bearing. Recipients and the message are resolved *first*,
+        while the match still exists, because the DM is fanned out later on
+        ``discord_queue`` and every recipient query cascades away with the row
+        (see :meth:`MatchScheduleService.notify_match_cancelled`). The racetime
+        room is cancelled *before* the delete too, while it can still resolve its
+        match — otherwise SET_NULL orphans it in OPEN status forever, invisible to
+        ``get_by_match``.
+        """
+        from application.services.match.match_schedule_service import (
+            collect_match_recipients,
+            _community_name,
+            _match_descriptor,
+            _match_embed_kwargs,
+        )
+        from application.utils.discord_embeds import COLOR_CANCELLED, match_embed
+        from application.utils.discord_messages import cancelled_dm
+
+        await match.fetch_related('tournament', 'players__user', 'stream_room')
+        recipients = await collect_match_recipients(match)
+        community = await _community_name()
+        message = cancelled_dm(
+            match.tournament.name, reason=reason, **_match_descriptor(match),
+        )
+        embed = match_embed(
+            title='Match cancelled',
+            color=COLOR_CANCELLED,
+            **_match_embed_kwargs(match, community),
+        )
+
+        await self._cancel_race_room(match, actor, reason)
+
+        details = {
+            'match_id': match.id, 'tournament_id': match.tournament_id,
+            'reason': reason or None,
+        }
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.MATCH_CANCELLED, details, EventType.MATCH_CANCELLED,
+        )
+        await self._remove_match(match, actor)
+
+        discord_queue.enqueue(
+            self.match_schedule_service.notify_match_cancelled(
+                recipients, message, embed,
+            )
+        )
+
+    @staticmethod
+    async def _cancel_race_room(
+        match: Match, actor: Optional[User], reason: str
+    ) -> None:
+        """Close the match's racetime room, if it has a live one. Best-effort."""
+        from application.repositories import RacetimeRoomRepository
+        from application.services.race_room_service import RaceRoomService
+        from models import RaceRoomStatus
+
+        try:
+            room = await RacetimeRoomRepository().get_by_match(match)
+            if room is None or room.status not in (
+                RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS,
+            ):
+                return
+            await RaceRoomService().cancel_room(
+                room, actor=actor, reason=reason or 'match cancelled',
+            )
+        except Exception:  # noqa: BLE001 - cancellation must not be blocked
+            logger.exception('race room cancel failed for match %s', match.id)

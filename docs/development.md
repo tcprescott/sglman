@@ -140,16 +140,15 @@ Layout:
 
 | Path | Covers |
 |---|---|
-| `tests/test_api_matches.py` | `GET /matches` integration tests — mounts only the API router on a minimal FastAPI app and calls it through an httpx `ASGITransport` client |
-| `tests/test_api_reads.py`, `test_api_match_writes.py`, `test_api_admin_writes.py`, `test_api_phase5_writes.py`, `test_api_coverage_gaps.py` | REST API read/write endpoint suites (via the same `ASGITransport` client; `tests/api_helpers.py` holds shared setup) |
-| `tests/test_api_tokens.py` | API-token auth on REST endpoints |
+| `tests/api/` | REST API suites, one module per router family (`test_matches.py`, `test_volunteers.py`, `test_brackets.py`, …). Each mounts the API router on a minimal FastAPI app and calls it through an httpx `ASGITransport` client; `tests/api_helpers.py` holds the shared token/client setup. `test_reads.py`, `test_match_writes.py`, `test_admin_writes.py` and `test_content_and_config_writes.py` are the cross-router read/write suites; `test_error_paths.py` and `test_watchers_and_availability.py` fill in the remaining branches (403/404, read-only-token rejection, validation) |
+| `tests/tenancy/` | Multitenancy: `test_tenant_context.py`, `test_tenant_middleware.py`, `test_tenant_urls.py`, `test_tenant_session.py` for the mechanics, plus every `*isolation*.py` leak test and the `test_leak_test_coverage.py` ratchet that keeps that set complete |
+| `tests/theme/` | Presentation logic that is pure Python (bracket layout maths) rather than Vue/Quasar markup |
 | `tests/test_csv_export.py` | CSV export |
 | `tests/test_timezone.py` | Eastern↔UTC utilities |
 | `tests/test_error_handlers.py`, `test_rate_limit.py`, `test_security_hardening.py` | Error-handler responses, rate limiting, security hardening |
 | `tests/test_repositories_coverage.py` | Direct unit tests for the repository (data-access) layer — CRUD/query/filter/ordering/prefetch behavior in isolation |
-| `tests/test_infra_coverage.py` | In-process infra plumbing: event bus, async dispatch queue, `match_events` wiring, and `middleware/error_handlers` responses |
+| `tests/test_infra_coverage.py` | In-process infra plumbing: event bus, async dispatch queue, `match_live` wiring, and `middleware/error_handlers` responses |
 | `tests/test_utils_coverage.py` | Standalone utilities: `environment`, `discord_messages` builders, `easter_eggs`, `qrcode_util` |
-| `tests/test_api_volunteers.py`, `test_api_router_gaps.py` | Full REST coverage of the volunteers router and remaining branches across the users/tournament-actions/match-actions/stream-rooms/health/audit routers |
 | `tests/services/` | Service-layer suites: `test_api_token_service.py`, `test_audit_service.py`, `test_auth_service.py`, `test_challonge_service.py`, `test_crew_service.py`, `test_discord_member_sync.py`, `test_discord_queue.py`, `test_discord_role_mapping_service.py`, `test_discord_service.py`, `test_equipment_service.py`, `test_feedback_service.py`, `test_match_schedule_service.py`, `test_match_service.py`, `test_match_suggestion_service.py`, `test_match_watcher_service.py`, `test_player_availability_service.py`, `test_reports_service.py`, `test_seedgen_service.py`, `test_stream_room_service.py`, `test_system_config_service.py`, `test_tournament_notification_service.py`, `test_tournament_service.py`, `test_triforce_text_service.py`, `test_user_service.py`, the volunteer suites (`test_volunteer_autoschedule_service.py`, `test_volunteer_availability_service.py`, `test_volunteer_position_service.py`, `test_volunteer_profile_service.py`, `test_volunteer_qualification_service.py`, `test_volunteer_reminder.py`, `test_volunteer_schedule_service.py`, `test_volunteer_scheduling.py`), plus DB-backed gap-fill suites (`test_reports_service_db.py`, `test_match_service_coverage.py`, `test_match_schedule_coverage.py`, `test_equipment_coverage.py`, `test_config_feedback_coverage.py`, `test_notifications_coverage.py`, `test_match_reads_coverage.py`, `test_volunteer_services_coverage.py`, `test_challonge_service_coverage.py`) that exercise the async DB methods and error/notification branches the older pure-function suites skipped |
 
 Fixtures from the conftests:
@@ -172,7 +171,7 @@ What the main suites assert, for orientation:
 - **Triforce text / User** — submission and moderation; profile updates, roles, enrollments.
 
 - **Repositories** — the data-access layer is now unit-tested directly (`test_repositories_coverage.py`) in addition to indirect service-test exercise.
-- **Infra / utils** — event bus + dispatch queue, `match_events`, error handlers, and the standalone utility helpers.
+- **Infra / utils** — event bus + dispatch queue, `match_live`, error handlers, and the standalone utility helpers.
 
 Line coverage sits at ~92% across `application/`, `api/`, and `middleware/` (measure with the command below).
 
@@ -181,7 +180,7 @@ Still not covered (intentionally — each needs live infra the SQLite suite can'
 - Discord bot interaction handlers (`discordbot/`) — require a live Discord connection.
 - NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests (see the `ui-validation` skill for driving these in a real browser).
 - OAuth flow (`middleware/auth.py`) — requires live Discord OAuth.
-- The network-backed clients — `application/utils/challonge_client.py`, `twitch_client.py`, and the HTTP randomizer paths in `seedgen_service.py` (`_generate_alttpr`/`_generate_smmap`/`_generate_ootr`) — hit real external APIs; only their local/mocked paths are covered.
+- The network-backed clients — `application/utils/clients/challonge_client.py`, `twitch_client.py`, and the HTTP randomizer paths in `seedgen_service.py` (`_generate_alttpr`/`_generate_smmap`/`_generate_ootr`) — hit real external APIs; only their local/mocked paths are covered.
 - Most of `discord_service.py` — the parts that talk to a live bot connection.
 - `application/utils/sentry.py` — instrumentation wiring, run only at process start.
 

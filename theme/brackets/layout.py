@@ -1,7 +1,7 @@
 """Pure bracket layout walker — turns a persisted match graph into geometry.
 
 No ORM, no NiceGUI: this module is the coordinate math behind the redesigned
-bracket view (docs/bracket-ui-plan.md, U2). It takes the light
+bracket view (docs/plans/bracket-ui-plan.md, U2). It takes the light
 :class:`MatchNode` projection of ``BracketMatch`` rows for **one section**
 (winners+finals, or losers) and returns absolute pixel placements plus the elbow
 connectors that join each match to the match its winner feeds — the only links a

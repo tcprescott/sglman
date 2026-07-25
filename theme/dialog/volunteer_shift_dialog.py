@@ -3,8 +3,8 @@
 from nicegui import app, ui
 
 from application.services import get_user_from_discord_id
-from application.services.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_position_service import VolunteerPositionService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
     format_eastern_date,
     format_eastern_time,

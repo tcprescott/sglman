@@ -14,10 +14,22 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 # Run pytest with a margin under the hook's configured timeout so a clean message
 # is produced instead of the harness killing the process.
 PYTEST_TIMEOUT = 110
+
+TESTS_ROOT = Path("tests")
+
+
+def resolve(basename: str) -> list[str]:
+    """Find a test module by filename anywhere under ``tests/``.
+
+    Matching on basename rather than a fixed path keeps this hook working as the
+    test tree is regrouped into packages (``tests/api/``, ``tests/tenancy/``, …).
+    """
+    return sorted(str(p) for p in TESTS_ROOT.rglob(basename) if p.is_file())
 
 
 def candidate_tests(norm: str) -> list[str]:
@@ -31,29 +43,32 @@ def candidate_tests(norm: str) -> list[str]:
         return []
     stem = base[:-3]
 
-    candidates: list[str] = []
+    names: list[str] = []
     if norm.startswith("application/services/") or "/application/services/" in norm:
-        candidates.append(f"tests/services/test_{stem}.py")
+        names.append(f"test_{stem}.py")
     elif norm.startswith("application/repositories/") or "/application/repositories/" in norm:
-        candidates += [f"tests/services/test_{stem}.py", f"tests/test_{stem}.py"]
+        names.append(f"test_{stem}.py")
     elif norm.startswith("api/") or "/api/" in norm:
-        candidates += [f"tests/test_api_{stem}.py", f"tests/test_{stem}.py"]
+        # Router/schema modules pair with tests/api/test_<stem>.py; the legacy
+        # flat name is kept so an un-migrated file still resolves.
+        names += [f"test_{stem}.py", f"test_api_{stem}.py"]
     elif "scripts/seed_" in norm:
         # Seed edits are exercised by the seed-coverage runtime test.
-        candidates.append("tests/test_seed_coverage.py")
+        names.append("test_seed_coverage.py")
     elif norm.startswith("models/") or "/models/" in norm or norm.endswith("models.py"):
         # Fast static ratchet only; the full-seed runtime check is Stop/CI-gated.
-        candidates += [f"tests/test_{stem}.py", "tests/test_leak_test_coverage.py"]
+        names += [f"test_{stem}.py", "test_leak_test_coverage.py"]
     else:
-        candidates.append(f"tests/test_{stem}.py")
+        names.append(f"test_{stem}.py")
 
     # Deduplicate while preserving order, keep only files that exist.
     seen: set[str] = set()
     existing: list[str] = []
-    for c in candidates:
-        if c not in seen and os.path.isfile(c):
-            seen.add(c)
-            existing.append(c)
+    for name in names:
+        for path in resolve(name):
+            if path not in seen:
+                seen.add(path)
+                existing.append(path)
     return existing
 
 

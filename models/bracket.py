@@ -1,4 +1,4 @@
-"""Native tournament bracket models (see docs/brackets-plan.md).
+"""Native tournament bracket models (see docs/plans/brackets-plan.md).
 
 Wizzrobe manages brackets natively — generating, progressing, and standing
 tournaments — instead of mirroring them from the Challonge API. The five models

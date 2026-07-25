@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from nicegui import app, ui
 
 from application.services import get_user_from_discord_id
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_eastern_display
 
 

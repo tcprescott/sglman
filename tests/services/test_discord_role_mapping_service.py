@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services import discord_role_mapping_service as drms
-from application.services.discord_role_mapping_service import DiscordRoleMappingService
+from application.services.discord import discord_role_mapping_service as drms
+from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
 from models import Role, RoleSource
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")

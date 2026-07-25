@@ -2,7 +2,7 @@
 
 Views call :func:`register_view` at build time with an async ``on_change`` handler.
 Each registration captures the current NiceGUI ``Client`` and subscribes a callback
-to :mod:`application.match_events`. When a match changes, the callback schedules the
+to :mod:`application.events.match_live`. When a match changes, the callback schedules the
 handler inside the captured client's context so UI mutations land in the right
 browser. Subscriptions are cleaned up automatically when the client disconnects.
 """
@@ -11,7 +11,7 @@ from typing import Awaitable, Callable, Dict, List
 
 from nicegui import app, background_tasks, context
 
-from application import match_events
+from application.events import match_live
 
 OnChange = Callable[[int, str], Awaitable[None]]
 
@@ -38,7 +38,7 @@ def register_view(on_change: OnChange) -> None:
     def _callback(match_id: int, change_type: str) -> None:
         background_tasks.create(_runner(match_id, change_type))
 
-    token = match_events.subscribe(_callback)
+    token = match_live.subscribe(_callback)
     _client_tokens.setdefault(client_id, []).append(token)
     _install_disconnect_cleanup()
 
@@ -53,4 +53,4 @@ def _install_disconnect_cleanup() -> None:
 
 def _on_disconnect(client) -> None:
     for token in _client_tokens.pop(client.id, []):
-        match_events.unsubscribe(token)
+        match_live.unsubscribe(token)

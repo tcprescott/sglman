@@ -24,7 +24,7 @@ Defined in `models.py` as `MatchNotificationLevel(str, Enum)`:
 | `models.py` → `TournamentNotificationPreference` | User × Tournament × Level |
 | `application/services/tournament_notification_service.py` | CRUD for preferences (`upsert_preference`, `get_preference`, `get_user_preferences`, `get_active_tournaments`) |
 | `application/repositories/tournament_notification_repository.py` | Data access, including the subscriber fan-out queries (`get_match_notification_subscribers`, `get_stream_candidate_subscribers`) |
-| `application/services/match_schedule_service.py` | Reads subscribers directly via `TournamentNotificationRepository` during fan-out |
+| `application/services/match/match_schedule_service.py` | Reads subscribers directly via `TournamentNotificationRepository` during fan-out |
 | `pages/home_tabs/player_edit_info.py` | Embeds the UI for users to set their per-tournament preference |
 
 ## User Flow

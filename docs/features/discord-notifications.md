@@ -18,8 +18,8 @@ Sends Discord DMs to relevant users when match lifecycle events occur:
 
 | File | Role |
 |---|---|
-| `application/services/match_schedule_service.py` | `MatchScheduleService` — notification fan-out methods called after match state transitions |
-| `application/services/discord_service.py` | `DiscordService` — `send_dm()`, `send_dm_with_crew_buttons()` |
+| `application/services/match/match_schedule_service.py` | `MatchScheduleService` — notification fan-out methods called after match state transitions |
+| `application/services/discord/discord_service.py` | `DiscordService` — `send_dm()`, `send_dm_with_crew_buttons()` |
 | `application/services/tournament_notification_service.py` | Manages per-user/tournament notification preferences; fan-out queries |
 | `discordbot/watch_buttons.py` | Handles "Watch match" Discord button interactions |
 

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 @pytest.fixture
 def mock_svc():
     """Directly instantiate MockDiscordService (no Discord bot needed)."""
-    from application.services.discord_service import MockDiscordService
+    from application.services.discord.discord_service import MockDiscordService
     return MockDiscordService()
 
 
@@ -72,7 +72,7 @@ class TestMockDiscordService:
     async def test_get_member_role_ids_returns_coherent_roles(self, mock_svc):
         # Mock members carry roles drawn from the guild's role set, so mock login
         # role sync actually grants/revokes. Everyone is at least a Volunteer.
-        from application.utils import mock_discord_data as mdd
+        from application.utils.mocks import mock_discord_data as mdd
 
         ok, data = await mock_svc.get_member_role_ids(guild_id=mdd.GUILD_WIZ_DEFAULT, user_id=2)
         assert ok is True
@@ -96,13 +96,13 @@ def real_svc_not_ready(monkeypatch):
     Uses the real implementation explicitly (`_RealDiscordService`), which survives
     the MOCK_DISCORD swap, so these error branches are exercised in both run modes.
     """
-    from application.services.discord_service import _RealDiscordService
+    from application.services.discord.discord_service import _RealDiscordService
 
     stub_bot = MagicMock()
     stub_bot.is_ready.return_value = False
 
     monkeypatch.setattr(
-        'application.services.discord_service.get_discord_bot',
+        'application.services.discord.discord_service.get_discord_bot',
         lambda: stub_bot,
     )
 
@@ -145,7 +145,7 @@ class TestMemberCanManageGuild:
     """Authority check on a ready bot (owner / Administrator / Manage Server)."""
 
     def _svc_with_guild(self, monkeypatch, guild):
-        from application.services.discord_service import _RealDiscordService
+        from application.services.discord.discord_service import _RealDiscordService
 
         stub_bot = MagicMock()
         stub_bot.is_ready.return_value = True

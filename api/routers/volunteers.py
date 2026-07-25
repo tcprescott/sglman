@@ -22,10 +22,10 @@ from api.schemas.volunteers import (
     VolunteerShiftCreate,
     VolunteerShiftResponse,
 )
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer_profile_service import VolunteerProfileService
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_position_service import VolunteerPositionService
+from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from models import User, VolunteerShift
 
 router = APIRouter(

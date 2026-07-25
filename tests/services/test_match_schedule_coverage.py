@@ -15,7 +15,7 @@ import pytest
 
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services.audit_service import AuditService
-from application.services.match_schedule_service import MatchScheduleService
+from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.seedgen_service import SeedGenerationService
 from models import (
     AuditLog,
@@ -216,7 +216,7 @@ class TestConfirmMatchChallongePush:
 
     async def _run_and_drain(self, service, match, actor, monkeypatch):
         captured = []
-        monkeypatch.setattr("application.services.discord_queue.enqueue", captured.append)
+        monkeypatch.setattr("application.services.discord.discord_queue.enqueue", captured.append)
         await service.confirm_match(match, actor)
         for coro in captured:
             await coro
@@ -557,7 +557,7 @@ class TestSeedDmDispatch:
         service.discord_service.send_dm = AsyncMock(side_effect=[(True, "ok"), (False, "blocked")])
 
         captured = []
-        monkeypatch.setattr("application.services.discord_queue.enqueue", captured.append)
+        monkeypatch.setattr("application.services.discord.discord_queue.enqueue", captured.append)
         ok, _message, _url = await service.generate_seed(m.id, staff)
         assert ok is True
         for coro in captured:
@@ -636,7 +636,7 @@ class TestNotifyMatchScheduledFanOut:
         await MatchPlayers.create(match=m, user=await make_user(811, name="p"))
 
         captured = []
-        import application.services.discord_queue as dq
+        import application.services.discord.discord_queue as dq
         original = dq.enqueue
         dq.enqueue = captured.append
         try:
@@ -660,7 +660,7 @@ class TestNotifyMatchScheduledFanOut:
         await MatchPlayers.create(match=m, user=await make_user(812, name="p"))
 
         captured = []
-        import application.services.discord_queue as dq
+        import application.services.discord.discord_queue as dq
         original = dq.enqueue
         dq.enqueue = captured.append
         try:
@@ -684,7 +684,7 @@ class TestNotifyMatchScheduledFanOut:
         await MatchPlayers.create(match=m, user=await make_user(813, name="p"))
 
         captured = []
-        import application.services.discord_queue as dq
+        import application.services.discord.discord_queue as dq
         original = dq.enqueue
         dq.enqueue = captured.append
         try:

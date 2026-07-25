@@ -2,7 +2,7 @@
 
 An in-process publish/subscribe bus that centralizes notifications. Services
 publish a domain **event** after they commit a change; any number of subscribers
-react. It generalizes the older, match-only [`application/match_events.py`](../../application/match_events.py)
+react. It generalizes the older, match-only [`application/events/match_live.py`](../../application/events/match_live.py)
 (which still powers UI live-refresh) into a typed, named bus that anything in the
 app can subscribe to.
 
@@ -13,9 +13,13 @@ Source: [`application/events/`](../../application/events/).
 The package sits at the `application/` root — a peer of `services/`,
 `repositories/`, and `utils/` — so it is **unconstrained** by the
 architecture-enforcement hook and importable by both the service layer
-(publishers) and the presentation layer (a future UI subscriber), exactly like
-`match_events.py`. It imports nothing from `application.services`, so there is no
-import cycle.
+(publishers) and the presentation layer (a future UI subscriber). It imports
+nothing from `application.services`, so there is no import cycle.
+
+`match_live.py` lives in this package for the same reason, and is deliberately
+**not** re-exported from `application/events/__init__.py` — importing it takes
+an explicit `from application.events import match_live`, so a call site can
+never reach for it when it meant the bus.
 
 ## Pieces
 
@@ -29,7 +33,7 @@ import cycle.
 ## Two kinds of subscriber
 
 - **Sync** (`subscribe_sync`) run **inline** during `publish` and must be fast and
-  non-blocking — schedule work, never await (same rule as `match_events`). This is
+  non-blocking — schedule work, never await (same rule as `match_live`). This is
   the fast-path for UI live-refresh.
 - **Async** (`subscribe_async`) do I/O (webhook POSTs, and — in a later phase —
   Discord DMs). Their coroutine is scheduled onto the dispatch worker so `publish`
@@ -55,7 +59,7 @@ event_bus.publish(Event.create(EventType.MATCH_CREATED, {
 }, actor))
 ```
 
-Publishers today (co-published alongside the existing `match_events.publish` and
+Publishers today (co-published alongside the existing `match_live.publish` and
 Discord fan-out, which are unchanged): `match_service` (create/update/delete/
 reschedule/acknowledge/result-recorded/stage-assigned/cleared/stations-assigned/
 stream-candidate), `match_schedule_service` (`_transition` → seat/start/finish/

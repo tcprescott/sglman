@@ -20,7 +20,7 @@ import yaml
 from pyz3r import ALTTPR
 
 from application.tenant_context import require_tenant_id
-from application.utils.mock_seedgen import is_mock_seedgen
+from application.utils.mocks.mock_seedgen import is_mock_seedgen
 from models import FeatureFlag, Preset
 
 # DK64 Randomizer (api.dk64rando.com) — a task-queue backend: submit → poll →

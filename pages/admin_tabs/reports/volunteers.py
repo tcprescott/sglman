@@ -8,7 +8,7 @@ from typing import Optional
 
 from nicegui import ui
 
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_eastern_display
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (

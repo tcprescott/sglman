@@ -48,7 +48,7 @@ permalink — after validating the randomizer is one of `AVAILABLE_RANDOMIZERS` 
 without touching any backend. This lets the [async-qualifier](async-qualifiers.md)
 "Roll" flow and the browser-validation loop exercise the full
 roll → draw → submit → review → par-score → leaderboard lifecycle end to end. The
-flag is refused when `ENVIRONMENT=production` (`application/utils/mock_seedgen.py`),
+flag is refused when `ENVIRONMENT=production` (`application/utils/mocks/mock_seedgen.py`),
 mirroring `MOCK_DISCORD`/`MOCK_CHALLONGE`.
 
 ### Coverage checklist

@@ -63,7 +63,7 @@ and confirmed.
 ## 5. Close the loop
 
 - Recurring **mechanically-detectable** classes feed `/guardrail-audit`: add a
-  hook (or a ratchet test like `tests/test_leak_test_coverage.py`) so the
+  hook (or a ratchet test like `tests/tenancy/test_leak_test_coverage.py`) so the
   class cannot recur, with the extracted shared primitive named in the block
   message — `check_dry_regressions.py` is the model.
 - Judgment-level recurring classes go into

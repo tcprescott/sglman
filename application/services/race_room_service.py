@@ -273,17 +273,17 @@ class RaceRoomService:
         if not (tournament.preset_id or tournament.seed_generator):
             return
         try:
-            from application.services.match_schedule_service import MatchScheduleService
+            from application.services.match.match_schedule_service import MatchScheduleService
 
             await MatchScheduleService().generate_seed(match.id, actor)
         except Exception:  # noqa: BLE001 - a seed failure must not block the room
             logger.exception('seed attach failed for match %s', match.id)
 
     def _publish_match_result(self, match: Match, results, actor: User) -> None:
-        from application import match_events
+        from application.events import match_live
 
         ranks = {str(mp.id): rank for mp, (rank, _t) in results.items()}
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(EventType.MATCH_RESULT_RECORDED, {
             'match_id': match.id,
             'tournament_id': match.tournament_id,
@@ -389,7 +389,7 @@ class RaceRoomLifecycle:
         Runs inside the handler's ``tenant_scope(room.tenant_id)`` so the scoped
         by-slug lookup resolves the tenant's own live race.
         """
-        from application.services.async_qualifier_live_race_service import (
+        from application.services.async_qualifier.async_qualifier_live_race_service import (
             AsyncQualifierLiveRaceService,
         )
 

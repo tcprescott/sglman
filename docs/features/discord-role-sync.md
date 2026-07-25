@@ -45,8 +45,8 @@ Because the bot reads guild membership directly (it has the `members` intent), t
 | `models.py` → `RoleSource`, `UserRole.source`, `DiscordRoleMapping` | Enum, source column, mapping table |
 | `application/repositories/discord_role_mapping_repository.py` | Mapping data access |
 | `application/repositories/user_role_repository.py` | `add(..., source=)` upgrade rule, `list_for_user_by_source` |
-| `application/services/discord_role_mapping_service.py` | Mapping CRUD + `sync_user_roles` |
-| `application/services/discord_service.py` → `get_member_role_ids` | Reads a member's Discord role ids |
+| `application/services/discord/discord_role_mapping_service.py` | Mapping CRUD + `sync_user_roles` |
+| `application/services/discord/discord_service.py` → `get_member_role_ids` | Reads a member's Discord role ids |
 | `application/services/system_config_service.py` → `get_discord_sync_guild_id` | Configured guild id |
 | `middleware/auth.py` | Calls the sync during the OAuth callback |
 | `pages/admin_tabs/admin_discord_roles.py` | Admin **Discord Roles** tab (manage mappings) |

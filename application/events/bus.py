@@ -5,7 +5,7 @@ they commit; any number of subscribers react. Two subscriber flavours:
 
 * **sync** (:func:`subscribe_sync`) run inline during ``publish`` — they must be
   fast and non-blocking (schedule work, never await), exactly like
-  ``application.match_events`` subscribers. This is the fast-path for UI refresh.
+  ``application.events.match_live`` subscribers. This is the fast-path for UI refresh.
 * **async** (:func:`subscribe_async`) do I/O (webhook POSTs, and — in a later
   phase — Discord DMs). Their coroutine is offloaded to the dispatch worker so
   ``publish`` never blocks the mutating service call.

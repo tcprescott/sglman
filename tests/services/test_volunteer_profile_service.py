@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ class TestUpdateNote:
 
 class TestAssignableVolunteers:
     async def test_returns_empty_when_no_volunteer_role_users(self, monkeypatch):
-        import application.services.volunteer_profile_service as mod
+        import application.services.volunteer.volunteer_profile_service as mod
 
         class FakeUserRole:
             @staticmethod
@@ -184,7 +184,7 @@ class TestAssignableVolunteers:
         assert result == []
 
     async def test_returns_sorted_users(self, monkeypatch):
-        import application.services.volunteer_profile_service as mod
+        import application.services.volunteer.volunteer_profile_service as mod
 
         alice = SimpleNamespace(id=1, preferred_name='Alice')
         bob = SimpleNamespace(id=2, preferred_name='Bob')

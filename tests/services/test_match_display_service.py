@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from application.services.match_display_service import MatchDisplayService
+from application.services.match.match_display_service import MatchDisplayService
 from application.utils.timezone import format_eastern_datetime
 
 

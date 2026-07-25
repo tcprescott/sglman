@@ -10,23 +10,23 @@ This page documents mechanics only — singletons, method signatures, custom_id 
 
 | File | Contents |
 |---|---|
-| [`application/services/discord_service.py`](../../application/services/discord_service.py) | `get_discord_bot()` singleton factory, `DiscordService`, `MockDiscordService`, mock selection |
-| [`application/services/discord_queue.py`](../../application/services/discord_queue.py) | Outbound send queue: `start()`, `stop()`, `enqueue()`, worker loop |
+| [`application/services/discord/discord_service.py`](../../application/services/discord/discord_service.py) | `get_discord_bot()` singleton factory, `DiscordService`, `MockDiscordService`, mock selection |
+| [`application/services/discord/discord_queue.py`](../../application/services/discord/discord_queue.py) | Outbound send queue: `start()`, `stop()`, `enqueue()`, worker loop |
 | [`discordbot/crew_signup.py`](../../discordbot/crew_signup.py) | Crew signup buttons + handler (`crew_signup:` interactions) |
 | [`discordbot/match_acknowledgment.py`](../../discordbot/match_acknowledgment.py) | Player Acknowledge button + handler (`match_ack:` interactions) |
 | [`discordbot/crew_acknowledgment.py`](../../discordbot/crew_acknowledgment.py) | Crew Acknowledge button + handler (`crew_ack:` interactions) |
 | [`discordbot/watch_buttons.py`](../../discordbot/watch_buttons.py) | Unwatch button + handler (`match_watch:` interactions) |
 | [`discordbot/volunteer_acknowledgment.py`](../../discordbot/volunteer_acknowledgment.py) | Volunteer shift Acknowledge button + handler (`volunteer_ack:` interactions) |
 | [`main.py`](../../main.py) | `init_discord_bot()` / `close_discord_bot()`, queue start/stop in the FastAPI lifespan |
-| [`application/utils/mock_discord.py`](../../application/utils/mock_discord.py) | `is_mock_discord()` flag with production guard |
-| [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | Notification fan-out coroutines |
+| [`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py) | `is_mock_discord()` flag with production guard |
+| [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | Notification fan-out coroutines |
 | [`application/utils/discord_messages.py`](../../application/utils/discord_messages.py) | Plain-text DM builders (public functions) + ephemeral confirmation strings |
 | [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) | Embed-card builders (`match_embed`, `state_changed_embed`, `volunteer_embed`, `notification_embed`, `time_field`, `COLOR_*`) |
 | [`application/services/crew_service.py`](../../application/services/crew_service.py) | Crew approval → crew acknowledgment DM |
 
 ## Architecture overview
 
-The bot is a **py-cord `commands.Bot`** that lives inside the single Uvicorn worker (see [architecture.md](../architecture.md) for why one worker is a hard requirement). It is created lazily by `get_discord_bot()` in [`application/services/discord_service.py`](../../application/services/discord_service.py) and started during FastAPI lifespan startup in [`main.py`](../../main.py):
+The bot is a **py-cord `commands.Bot`** that lives inside the single Uvicorn worker (see [architecture.md](../architecture.md) for why one worker is a hard requirement). It is created lazily by `get_discord_bot()` in [`application/services/discord/discord_service.py`](../../application/services/discord/discord_service.py) and started during FastAPI lifespan startup in [`main.py`](../../main.py):
 
 1. `init_discord_bot()` — under `MOCK_DISCORD` it prints `MOCK_DISCORD enabled — skipping Discord bot start.` and returns. Otherwise it reads `DISCORD_TOKEN` and schedules `bot.start(token)` as an asyncio task (`loop.create_task`). If the token is unset it prints a warning and continues — the app runs, but the bot never connects.
 2. `discord_queue.start()` — starts the outbound send worker (next sections).
@@ -36,7 +36,7 @@ Degradation is graceful at every layer: when the bot is missing or not connected
 
 **Embeds vs. text.** Each notification is *sent* as a colour-coded `discord.Embed` card built in [`application/utils/discord_embeds.py`](../../application/utils/discord_embeds.py) (state colour, Tournament/Players/Time/Stage field grid, native `<t:unix:F>·<t:unix:R>` timestamps, community-name footer via `TenantService.current_community_name()`). `send_dm(..., embed=embed)` sends the embed as the Discord representation but **always mirrors the plain-text `message`** (from [`discord_messages.py`](../../application/utils/discord_messages.py)) to the recipient's web-push devices — so the embed layer is purely additive and the text builders remain the mirror/fallback copy. The embed is built in the request's tenant context (at enqueue time), not in the serial `discord_queue` worker.
 
-Under `MOCK_DISCORD=true` ([`application/utils/mock_discord.py`](../../application/utils/mock_discord.py)), the entire service is stubbed: the bottom of `discord_service.py` rebinds the module-level name at import time —
+Under `MOCK_DISCORD=true` ([`application/utils/mocks/mock_discord.py`](../../application/utils/mocks/mock_discord.py)), the entire service is stubbed: the bottom of `discord_service.py` rebinds the module-level name at import time —
 
 ```python
 if is_mock_discord():
@@ -70,7 +70,7 @@ sequenceDiagram
 
 ## The bot singleton
 
-`get_discord_bot()` ([`discord_service.py`](../../application/services/discord_service.py)) creates the bot once and stores it in module-level `_bot_instance`:
+`get_discord_bot()` ([`discord_service.py`](../../application/services/discord/discord_service.py)) creates the bot once and stores it in module-level `_bot_instance`:
 
 - **Intents**: `discord.Intents.default()` plus `guilds=True`, `members=True`, `dm_messages=True` (needed for DMs and guild/role visibility).
 - **Constructor**: `commands.Bot(command_prefix='!', intents=intents)`. The prefix is set but no text commands are registered — the bot only sends DMs and receives component interactions.
@@ -153,7 +153,7 @@ Button interactions are **not** testable in mock mode (no bot connection); see [
 
 ## The async send queue
 
-[`application/services/discord_queue.py`](../../application/services/discord_queue.py) is a tiny module-level FIFO that decouples request handling from Discord I/O. A single fan-out can DM dozens of users (each a `fetch_user` + `send` round-trip), so services must never await it inline — UI handlers and the shared NiceGUI event loop would stall. Instead they hand the *coroutine object* to the queue and return immediately.
+[`application/services/discord/discord_queue.py`](../../application/services/discord/discord_queue.py) is a tiny module-level FIFO that decouples request handling from Discord I/O. A single fan-out can DM dozens of users (each a `fetch_user` + `send` round-trip), so services must never await it inline — UI handlers and the shared NiceGUI event loop would stall. Instead they hand the *coroutine object* to the queue and return immediately.
 
 | Function | Signature | Behavior |
 |---|---|---|
@@ -256,7 +256,7 @@ The Unwatch button rides along on lifecycle DMs sent to watchers (there is no "w
 
 ## Message flows
 
-All outbound notifications are coroutines enqueued via `discord_queue.enqueue(...)` from [`match_service.py`](../../application/services/match_service.py), [`match_schedule_service.py`](../../application/services/match_schedule_service.py), and [`crew_service.py`](../../application/services/crew_service.py). The fan-out coroutines in `MatchScheduleService` never raise: each skips recipients without a `discord_id` or with `User.dm_notifications` off, logs per-DM failures, and swallows unexpected errors.
+All outbound notifications are coroutines enqueued via `discord_queue.enqueue(...)` from [`match_service.py`](../../application/services/match/match_service.py), [`match_schedule_service.py`](../../application/services/match/match_schedule_service.py), and [`crew_service.py`](../../application/services/crew_service.py). The fan-out coroutines in `MatchScheduleService` never raise: each skips recipients without a `discord_id` or with `User.dm_notifications` off, logs per-DM failures, and swallows unexpected errors.
 
 Recipient selection helpers:
 

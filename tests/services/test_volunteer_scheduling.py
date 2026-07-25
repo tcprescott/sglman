@@ -5,9 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
-from application.services.volunteer_profile_service import VolunteerProfileService
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
+from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from models import (
     Role,
     User,
@@ -67,7 +67,7 @@ async def test_generate_day_shifts_counts_and_midnight(db):
 # --- staggered generation -------------------------------------------------
 
 def test_validate_stagger_rules():
-    from application.services.volunteer_position_service import VolunteerPositionService
+    from application.services.volunteer.volunteer_position_service import VolunteerPositionService
     validate = VolunteerPositionService._validate_stagger
 
     validate(None, None)   # both unset -> fixed blocks
@@ -278,14 +278,14 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
 # --- reminders ------------------------------------------------------------
 
 async def test_reminder_loop_fires_once(db, monkeypatch):
-    from application.services import volunteer_reminder
+    from application.services.volunteer import volunteer_reminder
 
     class _DummyDiscord:
         async def send_dm_with_volunteer_acknowledgment_button(self, *a, **k):
             return True, 'mock'
 
     monkeypatch.setattr(
-        'application.services.discord_service.DiscordService', _DummyDiscord,
+        'application.services.discord.discord_service.DiscordService', _DummyDiscord,
     )
 
     pos = await VolunteerPosition.create(name='Admin Desk')
@@ -308,14 +308,14 @@ async def test_reminder_loop_fires_once(db, monkeypatch):
 
 
 async def test_reminder_skips_far_future_shift(db, monkeypatch):
-    from application.services import volunteer_reminder
+    from application.services.volunteer import volunteer_reminder
 
     class _DummyDiscord:
         async def send_dm_with_volunteer_acknowledgment_button(self, *a, **k):
             return True, 'mock'
 
     monkeypatch.setattr(
-        'application.services.discord_service.DiscordService', _DummyDiscord,
+        'application.services.discord.discord_service.DiscordService', _DummyDiscord,
     )
 
     pos = await VolunteerPosition.create(name='Admin Desk')

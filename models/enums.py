@@ -56,7 +56,7 @@ class BracketFormat(str, Enum):
 
     Selected per stage (``Bracket.format``) and resolved to a pairing engine
     through the ``('bracket_format', …)`` strategy registry
-    (see docs/brackets-plan.md). ``(str, Enum)`` (not ``StrEnum``) — render
+    (see docs/plans/brackets-plan.md). ``(str, Enum)`` (not ``StrEnum``) — render
     ``.value`` in f-strings, never the bare member.
     """
 

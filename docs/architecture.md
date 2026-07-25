@@ -121,10 +121,10 @@ Every top-level entry in the repository, with the doc that covers it:
 | `frontend.py` | NiceGUI ↔ FastAPI integration, static files, page registration | [reference/frontend.md](reference/frontend.md) |
 | `api/` | Public REST API (routers, Pydantic schemas, token auth, rate limiting) | [reference/rest-api.md](reference/rest-api.md) |
 | `models/` | All Tortoise ORM models (54) and enums (17), split into per-domain submodules | [reference/data-model.md](reference/data-model.md) |
-| `application/services/` | Business-logic layer (69 modules, incl. `tournament_strategies/`) | [reference/services.md](reference/services.md) |
+| `application/services/` | Business-logic layer (84 modules): flat `<domain>_service.py` modules plus a subpackage per outgrown domain — `match/`, `discord/`, `volunteer/`, `async_qualifier/`, `bracket_engines/`, `tournament_strategies/`, `_bracket/`. The top-level barrel re-exports everything, so `from application.services import X` is layout-independent | [reference/services.md](reference/services.md) |
 | `application/repositories/` | Data-access layer (43 repositories) | [reference/data-model.md](reference/data-model.md) |
 | `application/tenant_context.py`, `application/feature_flags.py` | Request-time tenant context + the feature-flag registry | [features/multitenancy.md](features/multitenancy.md), [features/feature-flags.md](features/feature-flags.md) |
-| `application/utils/` | 30 helpers: timezone, environment validation, CSV export, Challonge/Twitch/racetime/SpeedGaming clients, QR codes, web push, Sentry, host/URL/session helpers, mock flags | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
+| `application/utils/` | 30 helpers: timezone, environment validation, CSV export, QR codes, web push, Sentry, host/URL/session helpers — plus `clients/` (Challonge/Twitch/racetime/SpeedGaming/OAuth-identity HTTP clients) and `mocks/` (the `MOCK_*` flags and their offline stand-ins) | [reference/services.md](reference/services.md), [timezone-handling.md](timezone-handling.md) |
 | `middleware/` | `auth.py` (`protected_page` + `AuthMiddleware`), `tenant.py` (`TenantMiddleware` + `TransportPrefixMiddleware`), `error_handlers.py`, `security_headers.py` | [reference/authentication.md](reference/authentication.md), [features/multitenancy.md](features/multitenancy.md) |
 | `discordbot/` | Discord interaction handlers (buttons for signup/ack/watch, crew & volunteer acknowledgment) | [reference/discord-integration.md](reference/discord-integration.md) |
 | `racetimebot/` | Racetime bot runtime (peer of `discordbot/`): lifespan-managed connection per active `RacetimeBot` category, first-class health tracking, tenant-routed room-event handlers; gated by `RACETIME_BOT_ENABLED`, mockable via `MOCK_RACETIME` | [reference/services.md](reference/services.md#racetimebot--the-racetime-bot-runtime-pr-4) |
@@ -134,7 +134,7 @@ Every top-level entry in the repository, with the doc that covers it:
 | `presets/` | Built-in randomizer preset files (alttpr/, dk64r/, ootr/, smmap/) | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | Tortoise connection config + Aerich migration files | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
 | `scripts/` | `seed_dev.py` — idempotent local dev fixtures | [development.md](development.md) |
-| `tests/` | pytest suite (API, utils, and `tests/services/`) | [development.md](development.md) |
+| `tests/` | pytest suite: `services/` (service layer), `api/` (one module per REST router family), `tenancy/` (tenant context + leak tests), `theme/` (pure presentation logic), plus cross-cutting utility suites at the root | [development.md](development.md) |
 | `docs/` | This documentation | [README.md](README.md) |
 | `start.sh` | Dev/prod Uvicorn launcher, loads `.env` | [deployment.md](deployment.md) |
 | `Dockerfile`, `docker-compose.yml` | Container build and postgres+app stack | [deployment.md](deployment.md) |

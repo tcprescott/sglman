@@ -84,7 +84,7 @@ class TestExchangePlayerCode:
         assert me == {'user_id': 'rtAlice01', 'username': 'AliceRT'}
 
     async def test_missing_access_token_raises(self, db):
-        from application.utils.racetime_client import RacetimeAPIError
+        from application.utils.clients.racetime_client import RacetimeAPIError
 
         class FakeClient:
             async def exchange_code(self, code, redirect_uri):

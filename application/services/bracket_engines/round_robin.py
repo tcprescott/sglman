@@ -5,7 +5,7 @@ seeded field into balanced, seed-fair groups (snake distribution) and schedules 
 single round robin per group via the circle method — every within-group pair
 meets exactly once. Round robin has no bracket progression, so no
 ``winner_to`` / ``loser_to`` pointers are emitted; standings
-(:mod:`.standings`) decide outcomes (docs/brackets-plan.md).
+(:mod:`.standings`) decide outcomes (docs/plans/brackets-plan.md).
 """
 
 from __future__ import annotations

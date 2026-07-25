@@ -1,6 +1,6 @@
 """Unit tests for the async-qualifier par/score/leaderboard math (pure, no DB)."""
 
-from application.services.async_qualifier_scoring import (
+from application.services.async_qualifier.async_qualifier_scoring import (
     ScoredRun,
     build_leaderboard,
     compute_par,

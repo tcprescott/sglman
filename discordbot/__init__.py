@@ -1,20 +1,20 @@
 """Discord bot package.
 
 Importing this package wires the bot's component-interaction handlers and DM
-view factories into ``application.services.discord_service`` via its registries.
+view factories into ``application.services.discord.discord_service`` via its registries.
 
 This is the inversion of what used to be a bidirectional import cycle between
 ``discord_service.py`` and ``discordbot/`` — previously held together only by
 ~20 deferred, function-body imports on both sides. The dependency now runs one
 way (``discordbot`` -> ``application.services``); ``discord_service`` no longer
-imports ``discordbot`` at all. Mirrors ``application/match_events.py``. See
+imports ``discordbot`` at all. Mirrors ``application/match_live.py``. See
 docs/reviews/2026-07-project-structure-review.md, roadmap item 21.
 
 ``main.py``'s lifespan imports this package once at startup so the registration
 runs before any Discord interaction is dispatched or DM is sent.
 """
 
-from application.services.discord_service import (
+from application.services.discord.discord_service import (
     VIEW_CREW_ACK,
     VIEW_CREW_SIGNUP,
     VIEW_MATCH_ACK,

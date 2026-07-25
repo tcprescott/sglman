@@ -267,7 +267,7 @@ class SeriesMixin:
         actor, games: Sequence[BracketMatchGame], reason: str
     ) -> None:
         """Cancel the scheduled ``Match`` behind each unneeded game. Best-effort."""
-        from application.services.match_service import MatchService
+        from application.services.match.match_service import MatchService
 
         service = MatchService()
         for game in games:
@@ -400,7 +400,7 @@ class SeriesMixin:
             if nxt is None or await self.held_match_ids([nxt.match_id]):
                 return
 
-            from application.services.match_service import MatchService
+            from application.services.match.match_service import MatchService
             from application.services.race_room_service import RaceRoomService
             from application.services.user_service import UserService
 

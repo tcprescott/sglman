@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.events import EventType, event_bus
-from application.services.async_qualifier_service import AsyncQualifierService
+from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from models import (
     AsyncQualifierPermalink,
     AsyncQualifierRunStatus,

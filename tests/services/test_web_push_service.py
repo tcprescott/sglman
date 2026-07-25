@@ -117,19 +117,19 @@ class TestConfiguration:
         assert len(warnings) == 1
 
     def test_mirror_enqueue_skipped_when_unconfigured(self, no_vapid_env, monkeypatch):
-        from application.services import discord_service
+        from application.services.discord import discord_service
         enqueued = []
         monkeypatch.setattr(
-            'application.services.discord_service.event_dispatch_queue.enqueue', enqueued.append
+            'application.services.discord.discord_service.event_dispatch_queue.enqueue', enqueued.append
         )
         discord_service._mirror_dm_to_web_push(1, 'hello')
         assert enqueued == []
 
     def test_mirror_enqueued_fire_and_forget_when_configured(self, vapid_env, monkeypatch):
-        from application.services import discord_service
+        from application.services.discord import discord_service
         enqueued = []
         monkeypatch.setattr(
-            'application.services.discord_service.event_dispatch_queue.enqueue', enqueued.append
+            'application.services.discord.discord_service.event_dispatch_queue.enqueue', enqueued.append
         )
         discord_service._mirror_dm_to_web_push(1, 'hello')
         assert len(enqueued) == 1

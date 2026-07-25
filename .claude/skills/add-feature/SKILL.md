@@ -131,7 +131,7 @@ module — `enforce_architecture.py` blocks both directions).
   passing the same row-action button HTML you put in `body-cell-actions` and a
   `field_slots` snippet for each badge/chip/icon column. `check_table_grid`
   blocks a table without it (opt out with `# mobile-grid: exempt`). Detail:
-  [frontend.md](../../docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
+  [frontend.md](../../../docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
 - API routers: **never add a `_load_*_or_404` preload** (DRY hook blocks new
   ones) — the service raises `NotFoundError` and `ServiceErrorRoute` 404s.
 - Datetimes: store UTC, display Eastern — use `application/utils/timezone.py`
@@ -162,8 +162,8 @@ against.
 - **Tenant-scoped model ⇒ add a leak test.** Pattern: two tenants, write the
   same data under each via `with tenant_scope(a.id): ...`, assert reads under
   tenant B never see tenant A's rows. Canonical examples:
-  `tests/test_tenant_isolation.py`, `tests/test_tenant_read_isolation.py`.
-  Enforced: `tests/test_leak_test_coverage.py` fails a tenant-FK model that
+  `tests/tenancy/test_tenant_isolation.py`, `tests/tenancy/test_tenant_read_isolation.py`.
+  Enforced: `tests/tenancy/test_leak_test_coverage.py` fails a tenant-FK model that
   appears in no `tests/*isolation*` file, and its BACKLOG may only shrink.
 - Use `tests/factories.py` (`make_user`, `utc`) and the hoisted conftest
   fixtures (`app`, `two_tenants`, `two_tenant_api`, `stub_discord_queue`) —

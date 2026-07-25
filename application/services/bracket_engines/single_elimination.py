@@ -2,7 +2,7 @@
 
 Pure structural code: no ORM, no NiceGUI, no async. ``generate`` maps a seeded
 field onto ``GeneratedMatch`` nodes wired by ``winner_to`` pointers, with byes
-placed structurally so higher seeds meet lower ones (docs/brackets-plan.md).
+placed structurally so higher seeds meet lower ones (docs/plans/brackets-plan.md).
 """
 
 from __future__ import annotations
