@@ -219,3 +219,36 @@ async def test_volunteer_profile_opt_in_is_per_tenant(tenants):
     with tenant_scope(b.id):
         got = await VolunteerProfileRepository.get_for_user(user)
         assert got is not None and got.id == pb.id
+
+
+async def test_match_cannot_reference_another_tenants_stream_room(tenants):
+    """``stream_room_id`` arrives as a bare integer and the FK spans tenants.
+
+    Unguarded, a caller in tenant A could attach tenant B's room to their match
+    and surface its name on their schedule, Discord embed and API responses.
+    """
+    from application.errors import NotFoundError
+    from application.services.match.match_service import MatchService
+    from models import Role, UserRole
+
+    a, b = tenants
+    with tenant_scope(b.id):
+        foreign = await StreamRoom.create(name='B-only room')
+
+    staff = await User.create(discord_id=905, username='staff')
+    with tenant_scope(a.id):
+        await UserRole.create(user=staff, role=Role.STAFF, tenant_id=a.id)
+        ta = await Tournament.create(name='A Cup')
+        with pytest.raises(NotFoundError):
+            await MatchService().create_match(
+                tournament_id=ta.id,
+                scheduled_date='2030-01-01',
+                scheduled_time='12:00',
+                player_ids=[staff.id],
+                stream_room_id=foreign.id,
+                actor=staff,
+            )
+
+        match = await Match.create(tournament=ta)
+        with pytest.raises(NotFoundError):
+            await MatchService().assign_stage(match.id, foreign.id, actor=staff)

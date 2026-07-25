@@ -7,6 +7,7 @@ generate-then-persist ``start_bracket`` is checked against the pure engine's
 
 import pytest
 
+from application.errors import NotFoundError
 from application.services.bracket_engines import get_bracket_engine
 from application.services.bracket_service import BracketService
 from application.tenant_context import tenant_scope
@@ -145,6 +146,14 @@ class TestRoster:
         linked = await _plain_user()
         entrant = await service.add_entrant(actor, t.id, 'Nobody', user_id=linked.id)
         assert entrant.user_id == linked.id
+
+    async def test_add_entrant_unknown_user_is_not_found(self, service):
+        """An unknown id must 404, not reach the FK as a raw IntegrityError —
+        that surfaced as a 500 over the API and doubled as a user-id oracle."""
+        actor = await _staff()
+        t = await _tournament()
+        with pytest.raises(NotFoundError):
+            await service.add_entrant(actor, t.id, 'Ghost', user_id=999_999)
 
     async def test_drop_entrant(self, service):
         actor = await _staff()

@@ -29,6 +29,7 @@ from application.services.discord import discord_queue
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_schedule_service import MatchScheduleService
+from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
@@ -221,6 +222,8 @@ class MatchService(CancellationMixin):
         # Business rule: Must have at least one player
         if not player_ids:
             raise ValueError("Match must have at least one player")
+
+        await StreamRoomService().require_in_tenant(stream_room_id)
 
         # Parse datetime - input is in Eastern, convert to UTC for storage
         try:
@@ -586,6 +589,7 @@ class MatchService(CancellationMixin):
             await AuthService.can_assign_match_stream(actor, match),
             "User cannot assign stages for this match",
         )
+        await StreamRoomService().require_in_tenant(stream_room_id)
 
         await self.repository.update(match, stream_room_id=stream_room_id)
 

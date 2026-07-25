@@ -10,7 +10,7 @@ defined on other mixins / the composer), ``self.repository`` and
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from application.events import Event, EventType, event_bus
 from application.services.audit_service import AuditActions
@@ -21,6 +21,7 @@ from application.services.bracket_engines.standings import (
     ResultRow,
     StandingsConfig,
     compute_standings,
+    standings_config_from,
 )
 from models import (
     Bracket,
@@ -404,16 +405,7 @@ class CompletionMixin:
 
     @staticmethod
     def _standings_config(bracket: Bracket) -> StandingsConfig:
-        config = bracket.config or {}
-        kwargs: Dict[str, Any] = {}
-        for key in ('win_points', 'draw_points', 'loss_points', 'bye_points', 'omw_floor'):
-            value = config.get(key)
-            if value is not None:
-                kwargs[key] = value
-        tiebreakers = config.get('tiebreakers')
-        if tiebreakers:
-            kwargs['tiebreakers'] = tuple(tiebreakers)
-        return StandingsConfig(**kwargs)
+        return standings_config_from(bracket.config)
 
     # -- standings (read) -------------------------------------------------
 

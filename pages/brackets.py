@@ -25,8 +25,8 @@ from middleware.auth import protected_page
 from application.services import AuthService, BracketService, get_user_from_discord_id
 from application.services.bracket_engines.standings import (
     ResultRow,
-    StandingsConfig,
     compute_standings,
+    standings_config_from,
 )
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import (
@@ -69,20 +69,6 @@ _STATE_COLORS = {
 
 def _format_label(fmt: BracketFormat) -> str:
     return _FORMAT_LABELS.get(fmt, fmt.value)
-
-
-def _standings_config(config: Optional[dict]) -> StandingsConfig:
-    """Build a :class:`StandingsConfig` from a bracket's stored config, if any."""
-    config = config or {}
-    kwargs: Dict[str, object] = {}
-    for key in ('win_points', 'draw_points', 'loss_points', 'bye_points', 'omw_floor'):
-        value = config.get(key)
-        if value is not None:
-            kwargs[key] = value
-    tiebreakers = config.get('tiebreakers')
-    if tiebreakers:
-        kwargs['tiebreakers'] = tuple(tiebreakers)
-    return StandingsConfig(**kwargs)
 
 
 def _results_from_matches(matches: List[BracketMatch]) -> List[ResultRow]:
@@ -217,7 +203,7 @@ def _render_round_robin(
     complete: bool = False,
 ) -> None:
     entry_seed = {e.id: e.seed for e in entries}
-    tiebreakers = _standings_config(config).tiebreakers
+    tiebreakers = standings_config_from(config).tiebreakers
     group_of: Dict[int, Optional[int]] = {}
     for m in matches:
         for eid in (m.entry1_id, m.entry2_id):
@@ -248,7 +234,7 @@ def _render_round_robin(
                 standings = compute_standings(
                     group_entry_ids,
                     _results_from_matches(group_matches),
-                    _standings_config(config),
+                    standings_config_from(config),
                 )
                 render_standings(
                     standings, entry_name, entry_seed, tiebreakers,
@@ -273,14 +259,14 @@ def _render_swiss(
 ) -> None:
     entry_seed = {e.id: e.seed for e in entries}
     dropped = {e.id for e in entries if e.status == BracketEntryStatus.DROPPED}
-    tiebreakers = _standings_config(config).tiebreakers
+    tiebreakers = standings_config_from(config).tiebreakers
 
     ui.label('Standings').classes('bracket-section-title')
     if not entries:
         ui.label('No entrants yet.').classes('italic-note')
         return
     standings = compute_standings(
-        [e.id for e in entries], _results_from_matches(matches), _standings_config(config)
+        [e.id for e in entries], _results_from_matches(matches), standings_config_from(config)
     )
     swiss_cut = advancement.get('count') if advancement else None
     render_standings(

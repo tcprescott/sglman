@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from application.services.bracket_engines.standings import KNOWN_TIEBREAKERS
 from application.utils.config_validation import validate_config_blob
 
 
@@ -137,6 +138,26 @@ class BracketConfig(BaseModel):
     # display chrome for the redesigned bracket view; set by staff through the
     # admin per-round editor. See docs/plans/bracket-ui-plan.md.
     rounds: Optional[Dict[str, RoundConfig]] = None
+
+    @field_validator('tiebreakers')
+    @classmethod
+    def _tiebreakers_known(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Reject a tiebreaker key the standings pass cannot apply.
+
+        Without this the blob accepts any string and the failure surfaces far
+        away, as a ``ValueError`` raised inside ``compute_standings`` on *every*
+        standings read of the stage — and config edits are DRAFT-only, so a stage
+        started with a typo could never be repaired in-app.
+        """
+        if v is None:
+            return v
+        unknown = [tb for tb in v if tb not in KNOWN_TIEBREAKERS]
+        if unknown:
+            raise ValueError(
+                f"unknown tiebreaker(s) {', '.join(repr(tb) for tb in unknown)}; "
+                f"choose from {', '.join(KNOWN_TIEBREAKERS)}"
+            )
+        return v
 
     @field_validator('rounds')
     @classmethod
