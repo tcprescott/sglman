@@ -4,7 +4,7 @@ A pure layout walker (:mod:`.layout`) turns a persisted ``BracketMatch`` graph
 into absolute-positioned geometry + elbow connectors; the card layer
 (:mod:`.cards`) paints it as interactive NiceGUI elements themed by
 ``static/css/brackets.css``. Consumed by the public bracket page and the admin
-Results dialog. See docs/bracket-ui-plan.md.
+Results dialog. See docs/plans/bracket-ui-plan.md.
 """
 
 from .cards import (

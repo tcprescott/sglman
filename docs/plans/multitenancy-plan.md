@@ -3,7 +3,7 @@
 > Status: **implemented.** This was the design/implementation plan for making
 > Wizzrobe logically multitenant; the system it describes has shipped. For the
 > **running** system — tenant context, addressing, query scoping, per-tenant roles,
-> one-bot-many-guilds — read [features/multitenancy.md](features/multitenancy.md).
+> one-bot-many-guilds — read [features/multitenancy.md](../features/multitenancy.md).
 > This doc is retained as the design rationale and phased-migration record.
 >
 > _Revised 2026-07-11: realigned with the current codebase (36 models — event bus,
@@ -388,7 +388,7 @@ its own tenancy pass:
   across all environments.
 - New env var `PLATFORM_HOST` (shared host for path-mode tenants, the platform
   surface, and the OAuth callbacks); document in the
-  [deployment.md](deployment.md) env table alongside the existing
+  [deployment.md](../deployment.md) env table alongside the existing
   `REDIRECT_URL`/`OAUTH_URL` overrides it supersedes.
 
 ---
@@ -455,7 +455,7 @@ through `TenantService`/middleware, never `application.repositories`.
    callers before removing.
 10. **Event envelope is an external contract** — webhook consumers will start
     receiving a `tenant_id` field; additive, but document it in
-    [webhooks.md](features/webhooks.md) and keep `EventType` names stable.
+    [webhooks.md](../features/webhooks.md) and keep `EventType` names stable.
 11. **Backfill completeness** — the NOT-NULL tighten step is the safety net: if
     any scoped table was missed in the backfill it fails the migration rather
     than shipping orphan NULLs, so run backfill + tighten in one transaction.

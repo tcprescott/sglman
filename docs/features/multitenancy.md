@@ -5,7 +5,7 @@ independent tournament communities ("tenants"). Every request resolves to a
 tenant, and the data layer scopes reads and stamps writes to that tenant so
 communities never see each other's data. This doc describes the *implemented*
 system; the original design rationale (and deferred host-mode addressing) lives
-in [multitenancy-plan.md](../multitenancy-plan.md).
+in [multitenancy-plan.md](../plans/multitenancy-plan.md).
 
 The unifying rule: **identity, the tenancy machinery, and singleton runtime
 resources are global; everything a community owns or produces is tenant-scoped.**
@@ -63,7 +63,7 @@ STAFF service-connect, Discord-connect) hold real per-tenant OAuth tokens, so th
 stay main-site-only: their buttons are hidden on a custom domain and their
 initiation routes bounce to the path-mode surface. `X-Forwarded-Host` is honored
 only behind `TRUST_FORWARDED_HOST` (last value). Full design + rationale:
-[host-based-routing-plan.md](../host-based-routing-plan.md).
+[host-based-routing-plan.md](../plans/host-based-routing-plan.md).
 
 ## Tenant context
 
@@ -281,13 +281,14 @@ Post-migration bootstrap and ongoing tenant management use these scripts (see
   fixture creates that `Tenant` and wraps scoped models' `.create` to stamp it, so
   the existing test sites need no per-call tenant plumbing (this wrapper lives only
   in the test harness — production never auto-stamps).
-- **Leak/isolation tests** (`tests/test_tenant_isolation.py`,
-  `test_tenant_read_isolation.py`) create data under two tenants via explicit
+- **Leak/isolation tests** (`tests/tenancy/test_tenant_isolation.py`,
+  `test_tenant_read_isolation.py`, and the per-domain `*_tenant_isolation.py`
+  modules alongside them) create data under two tenants via explicit
   `tenant_scope` blocks and assert each tenant sees only its own rows — and that a
   scoped operation with no tenant raises.
-- `tests/test_tenant_middleware.py` drives a real Starlette app to prove the scope
-  rewrite routes correctly; `test_tenant_urls.py` / `test_tenant_session.py` cover
-  the return-path and session-namespacing logic.
+- `tests/tenancy/test_tenant_middleware.py` drives a real Starlette app to prove
+  the scope rewrite routes correctly; `test_tenant_urls.py` / `test_tenant_session.py`
+  cover the return-path and session-namespacing logic.
 
 **When you add a tenant-scoped model:** give it a `tenant` FK, scope its
 repository reads with `scoped(...)` and stamp writes with `current_tenant_id()`,

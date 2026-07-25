@@ -107,5 +107,5 @@ acknowledged`). Select `*` to receive all events. See [event-system.md](event-sy
 
 [`tests/services/test_webhook_service.py`](../../tests/services/test_webhook_service.py)
 (CRUD/auth/validation, HMAC signing, delivery logging, retry-then-give-up) and
-[`tests/test_api_webhooks.py`](../../tests/test_api_webhooks.py) (endpoint auth,
+[`tests/api/test_webhooks.py`](../../tests/api/test_webhooks.py) (endpoint auth,
 CRUD, secret-once).

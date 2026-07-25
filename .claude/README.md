@@ -307,7 +307,7 @@ Runs just the pytest file matching an edited module so regressions surface in-lo
 (CI runs the whole suite separately). Maps `application/services/foo_service.py` →
 `tests/services/test_foo_service.py` (and analogous repo/api/test mappings), plus
 `scripts/seed_*.py` → `tests/test_seed_coverage.py` and `models/*.py` → the
-leak-test ratchet (`tests/test_leak_test_coverage.py` — the fast static check;
+leak-test ratchet (`tests/tenancy/test_leak_test_coverage.py` — the fast static check;
 the full-seed runtime check stays Stop/CI-gated). Runs only test files that exist
 with `MOCK_DISCORD=true poetry run pytest -q <file>`, and exits 2 with the captured
 output on failure. A **timeout is exit 2**, not a pass — the message says the
@@ -334,7 +334,7 @@ in `run_full_tests.py` at Stop *and* in CI, so they also bind human contributors
   `seed_all()` against the in-memory harness and asserts every tenant-FK model has
   a row for the default tenant (plus an idempotency re-run). The claim "the seed
   covers every model" is an invariant, not prose.
-- **`tests/test_leak_test_coverage.py`** — ratchet: every tenant-FK model must
+- **`tests/tenancy/test_leak_test_coverage.py`** — ratchet: every tenant-FK model must
   appear in a `tests/*isolation*` file or carry a justified `BACKLOG` entry; a
   companion test forces stale entries out, so the backlog only shrinks.
 - **`tests/test_feature_flags.py`** — registry parity: every `FeatureFlag` member

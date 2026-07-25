@@ -7,7 +7,7 @@ loop (schedule matchup → race room → result → advance) that the
 [online-tournaments](../online-tournaments/README.md) system already delivers.
 
 This is the shipped system; the design rationale and 2026-07 library-research
-record live in [brackets-plan.md](../brackets-plan.md).
+record live in [brackets-plan.md](../plans/brackets-plan.md).
 
 Scope: **Staff-managed, tenant-scoped, feature-gated.** A tournament uses a native
 bracket **or** a Challonge link, never both. Ships behind
@@ -213,7 +213,7 @@ transaction:
 
 The public and admin surfaces share one in-house renderer,
 [`theme/brackets/`](../../theme/brackets/) (design record:
-[bracket-ui-plan.md](../bracket-ui-plan.md)), that draws the canonical
+[bracket-ui-plan.md](../plans/bracket-ui-plan.md)), that draws the canonical
 Challonge/start.gg/Liquipedia grammar — connector-lined match cards with seeds,
 initial-letter avatar discs, a right-aligned score cell (winner accented via the
 app `--q-primary` through `--bracket-*` CSS variables, loser dimmed, "FF" for a

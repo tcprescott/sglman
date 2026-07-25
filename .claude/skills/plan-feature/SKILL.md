@@ -43,7 +43,7 @@ existing models. Then state the consequences explicitly:
 
 - a migration (`aerich migrate`) — the drift hook token-matches your changed
   model/field names against it;
-- a **leak test per tenant-scoped model** — `tests/test_leak_test_coverage.py`
+- a **leak test per tenant-scoped model** — `tests/tenancy/test_leak_test_coverage.py`
   fails a model that appears in no `tests/*isolation*` file (its BACKLOG is
   for pre-existing debt only, and it may never grow);
 - seed rows — `tests/test_seed_coverage.py` runs the real seed and fails any

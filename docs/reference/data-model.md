@@ -22,7 +22,7 @@ Coding conventions for the layers above (async everywhere, no ORM writes from th
 The database is **logically multitenant**: one shared database and shared
 tables, with a `tenant_id` discriminator column on tenant-scoped rows and a
 request-time tenant context resolved from the URL (see
-[multitenancy-plan.md](../multitenancy-plan.md) and
+[multitenancy-plan.md](../plans/multitenancy-plan.md) and
 [`application/tenant_context.py`](../../application/tenant_context.py)). The
 unifying rule: **identity, the tenancy machinery, and singleton runtime
 resources are global; everything a tournament community owns or produces is

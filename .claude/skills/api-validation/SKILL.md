@@ -72,7 +72,7 @@ for status-only probes):
 - New/changed endpoints are documented in
   [docs/reference/rest-api.md](../../../docs/reference/rest-api.md)
   (doc-check will remind you).
-- The in-process equivalents live in `tests/test_api_*.py` — anything you
+- The in-process equivalents live in `tests/api/test_*.py` — anything you
   verified by hand here that isn't covered there should become a test
   (`tests/api_helpers.py` + the conftest `app`/`two_tenant_api` fixtures).
 - Kill the server when done: `pkill -f 'start.sh dev' ; pkill -f uvicorn`.

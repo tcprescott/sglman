@@ -5,14 +5,14 @@
 > mirroring them from the Challonge API. It was produced and signed off
 > 2026-07-23 and has since shipped; this doc is retained as the design rationale
 > and the library research record. For the shipped system see
-> [features/brackets.md](features/brackets.md) and the reference docs
-> ([data-model](reference/data-model.md), [services](reference/services.md),
-> [rest-api](reference/rest-api.md), [frontend](reference/frontend.md)).
+> [features/brackets.md](../features/brackets.md) and the reference docs
+> ([data-model](../reference/data-model.md), [services](../reference/services.md),
+> [rest-api](../reference/rest-api.md), [frontend](../reference/frontend.md)).
 
 ## Context
 
 Bracket structure currently comes from the **Challonge integration**
-([services.md → ChallongeService](reference/services.md)): a per-tenant OAuth
+([services.md → ChallongeService](../reference/services.md)): a per-tenant OAuth
 service account mirrors participants/matches into `ChallongeParticipant` /
 `ChallongeMatch`, players schedule open matchups into local `Match` rows, and
 confirmed results are pushed back so Challonge opens the next round. Two costs
@@ -24,7 +24,7 @@ drive this plan:
    dev/test friction structural rather than incidental.
 
 Native bracketing removes the external dependency from the core loop the
-[online-tournaments plan](online-tournaments/README.md) already delivers
+[online-tournaments plan](../online-tournaments/README.md) already delivers
 (scheduled restreamed brackets: schedule matchup → race room → result →
 advance).
 
@@ -89,7 +89,7 @@ covers SE+DE+Swiss+RR at production quality, and no Python port of
 ### Engine layer: generate-then-persist, DB as source of truth
 
 Engines live in `application/services/bracket_engines/` and register through the
-existing [`tournament_strategies`](reference/services.md) registry
+existing [`tournament_strategies`](../reference/services.md) registry
 (`register_strategy('bracket_format', 'double_elim')`, …). The engine is invoked
 at exactly **two moments**; at all other times the database is authoritative:
 
@@ -234,9 +234,9 @@ factories and hoisted conftest fixtures throughout, no network.
   (groups feeding an SE playoff) mid-chain; placeholder + linked entrants both
   represented.
 - Docs: new `docs/features/brackets.md`; updates to
-  [data-model.md](reference/data-model.md), [services.md](reference/services.md),
-  [rest-api.md](reference/rest-api.md), [frontend.md](reference/frontend.md),
-  [current-state.md](current-state.md), and the feature-flag docs.
+  [data-model.md](../reference/data-model.md), [services.md](../reference/services.md),
+  [rest-api.md](../reference/rest-api.md), [frontend.md](../reference/frontend.md),
+  [current-state.md](../current-state.md), and the feature-flag docs.
 
 ## Implementation breakdown
 
@@ -320,7 +320,7 @@ coverage, seed coverage, doc-reminder hooks.
 
 - **B13 — Rich seed + docs (S).** `seed_brackets.py` grown to the meaningful
   mid-states (per format + two-stage chain); `docs/features/brackets.md`;
-  reference-doc and [current-state.md](current-state.md) updates.
+  reference-doc and [current-state.md](../current-state.md) updates.
 
 Critical path: B0 → B1 → B6 → B7 → B9; everything else hangs off it in
 parallel. The engines (B1–B5) have no ORM dependency and can be built and

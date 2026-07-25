@@ -158,7 +158,7 @@ Design B cross-host handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`
 | `claim(token, request_host)` | `dict \| None` | Validate + consume the token on `request_host`; returns the stored payload or `None` for invalid/expired/wrong-host/replayed tokens. Single-use — the nonce is popped regardless of outcome. |
 | `reset()` | `None` | Clear the pending store (test isolation). |
 
-Consumers: `pages/auth.py` (platform-host OAuth callback → `mint`; `/session/claim` → claim) and `pages/_oauth_link.py` (platform-host provider callback → `mint_data`; `/oauth/link/claim` → claim, for racetime / Twitch / Challonge player-link). Detail: `docs/host-based-routing-plan.md`.
+Consumers: `pages/auth.py` (platform-host OAuth callback → `mint`; `/session/claim` → claim) and `pages/_oauth_link.py` (platform-host provider callback → `mint_data`; `/oauth/link/claim` → claim, for racetime / Twitch / Challonge player-link). Detail: `docs/plans/host-based-routing-plan.md`.
 
 ### challonge_service.py — ChallongeService
 

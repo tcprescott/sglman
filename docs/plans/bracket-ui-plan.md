@@ -1,9 +1,9 @@
 # Bracket UI Redesign Plan (design record)
 
 > Status: **implemented 2026-07-24** (units U1–U5), tracking this plan. The
-> shipped renderer lives in [`theme/brackets/`](../theme/brackets/) and
+> shipped renderer lives in [`theme/brackets/`](../../theme/brackets/) and
 > [`static/css/brackets.css`](../../static/css/brackets.css); see
-> [features/brackets.md → Presentation](features/brackets.md#presentation--the-redesigned-bracket-view).
+> [features/brackets.md → Presentation](../features/brackets.md#presentation--the-redesigned-bracket-view).
 > One deviation from the plan: entrant avatars are deterministic initial-letter
 > discs rather than Discord avatars, because the `User` model stores no avatar
 > hash (only the logged-in user's OAuth avatar is available). Fullscreen / venue
@@ -11,7 +11,7 @@
 > original plan follows unchanged.
 >
 > Status (original): **proposed, decisions confirmed 2026-07-24.** The native bracket system
-> ([features/brackets.md](features/brackets.md)) shipped with a deliberately
+> ([features/brackets.md](../features/brackets.md)) shipped with a deliberately
 > minimal visualization — [brackets-plan.md](brackets-plan.md) budgeted the
 > polish as deferred work. This is that work: a redesign of the public bracket,
 > Swiss, and group/round-robin views to match how tournament brackets are
@@ -290,11 +290,11 @@ One PR per unit; sizes S/M/L as in [brackets-plan.md](brackets-plan.md).
 - **U5 — Mobile + admin embed + per-round editor + docs (M).** Per-round
   accordion list under `lt.md`; admin Results dialog embedding the renderer for
   click-to-report; the per-round best-of/time editor in the admin stage UI;
-  print stylesheet; updates to [features/brackets.md](features/brackets.md),
-  [reference/frontend.md](reference/frontend.md),
-  [reference/data-model.md](reference/data-model.md),
-  [reference/rest-api.md](reference/rest-api.md),
-  [current-state.md](current-state.md).
+  print stylesheet; updates to [features/brackets.md](../features/brackets.md),
+  [reference/frontend.md](../reference/frontend.md),
+  [reference/data-model.md](../reference/data-model.md),
+  [reference/rest-api.md](../reference/rest-api.md),
+  [current-state.md](../current-state.md).
 
 Critical path: U1 → U2 → U3; U4 depends only on U1; U5 last.
 
@@ -314,7 +314,7 @@ isn't lost:
 
 - ~~**Per-game results** (a `BracketMatchGame` table) — v1 stores set scores only.~~
   **Shipped since**: `BracketMatchGame` landed with best-of-N series; set scores
-  are now derived (games won). See [features/brackets.md](features/brackets.md).
+  are now derived (games won). See [features/brackets.md](../features/brackets.md).
 - **Pan/zoom minimaps** and pool-splitting — field sizes don't warrant them;
   horizontal scroll + zoom buttons suffice.
 - ~~Score *enforcement* against best-of (display-only in v1).~~ **Shipped since**:

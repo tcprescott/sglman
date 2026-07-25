@@ -9,7 +9,7 @@ the handoff (the Phase-1 platform-host detour still handles them), and the force
 `/t/<slug>`→domain 301 (skipped: it forces a re-auth across the host boundary; the
 deep-link helper delivers the canonical-domain benefit for generated links without
 that cost). The sections below are retained as the design record.
-**Depends on:** the shipped [multitenancy](features/multitenancy.md) layer.
+**Depends on:** the shipped [multitenancy](../features/multitenancy.md) layer.
 **Supersedes:** the "deferred host-mode addressing" note in
 [multitenancy-plan.md](multitenancy-plan.md) (Phase 3/4) — this doc is the
 concrete follow-through for that one deferred piece.

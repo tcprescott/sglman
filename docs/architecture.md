@@ -134,7 +134,7 @@ Every top-level entry in the repository, with the doc that covers it:
 | `presets/` | Built-in randomizer preset files (alttpr/, dk64r/, ootr/, smmap/) | [reference/seed-generation.md](reference/seed-generation.md) |
 | `migrations/` | Tortoise connection config + Aerich migration files | [reference/data-model.md](reference/data-model.md), [deployment.md](deployment.md) |
 | `scripts/` | `seed_dev.py` — idempotent local dev fixtures | [development.md](development.md) |
-| `tests/` | pytest suite (API, utils, and `tests/services/`) | [development.md](development.md) |
+| `tests/` | pytest suite: `services/` (service layer), `api/` (one module per REST router family), `tenancy/` (tenant context + leak tests), `theme/` (pure presentation logic), plus cross-cutting utility suites at the root | [development.md](development.md) |
 | `docs/` | This documentation | [README.md](README.md) |
 | `start.sh` | Dev/prod Uvicorn launcher, loads `.env` | [deployment.md](deployment.md) |
 | `Dockerfile`, `docker-compose.yml` | Container build and postgres+app stack | [deployment.md](deployment.md) |

@@ -2,7 +2,7 @@
 
 The multitenancy contract (CLAUDE.md) requires a leak test when adding a
 tenant-scoped model; this ratchet makes that mechanical. A model counts as
-covered when its class name appears (word-bounded) in any ``tests/*isolation*``
+covered when its class name appears (word-bounded) in any ``tests/**/*isolation*``
 file. Models that predate the rule sit in BACKLOG with a reason — and the
 companion test guarantees the backlog only ever shrinks: a model that gains a
 leak test (or is deleted) must leave it.
@@ -13,7 +13,9 @@ from pathlib import Path
 
 from tests.conftest import _scoped_models
 
-TESTS_DIR = Path(__file__).parent
+# Search the whole test tree, not just this package: a leak test is allowed to
+# live next to the feature it covers as long as its filename says "isolation".
+TESTS_DIR = Path(__file__).resolve().parents[1]
 
 # Model name -> why it has no leak test yet. Shrink this list; never grow it.
 _DEBT = 'pre-ratchet debt (2026-07): needs a two-tenant read-isolation test'
@@ -49,7 +51,7 @@ BACKLOG: dict[str, str] = {
 
 def _isolation_text() -> str:
     return "\n".join(
-        p.read_text() for p in sorted(TESTS_DIR.glob("*isolation*.py"))
+        p.read_text() for p in sorted(TESTS_DIR.rglob("*isolation*.py"))
         if p.name != Path(__file__).name
     )
 
@@ -68,7 +70,7 @@ def test_every_tenant_fk_model_has_a_leak_test():
     assert not missing, (
         f"tenant-FK models with no tenant-isolation test: {missing}. Add a leak "
         f"test (two tenants, write under each via tenant_scope, assert no "
-        f"cross-tenant reads — see tests/test_tenant_isolation.py), or, only "
+        f"cross-tenant reads — see tests/tenancy/test_tenant_isolation.py), or, only "
         f"for pre-existing debt, record a reason in BACKLOG above."
     )
 
