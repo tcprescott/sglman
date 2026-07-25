@@ -134,7 +134,7 @@ await AuthService.get_roles(user)                   # set[Role]
 await AuthService.can_view_admin(user)              # any admin role / membership
 ```
 
-Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). Detail: [docs/reference/authentication.md](docs/reference/authentication.md), [docs/features/role-based-auth.md](docs/features/role-based-auth.md).
+Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views). Detail: [docs/reference/authentication.md](docs/reference/authentication.md), [docs/features/role-based-auth.md](docs/features/role-based-auth.md).
 
 ## NiceGUI patterns
 

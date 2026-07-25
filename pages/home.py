@@ -10,6 +10,7 @@ from application.tenant_context import (
 )
 from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
+from pages.home_tabs.brackets import brackets_tab
 from pages.home_tabs.equipment import equipment_tab
 from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.player import render_player_dashboard
@@ -110,6 +111,9 @@ def create() -> None:
                 app.storage.user.clear()
             ui.timer(2, lambda: ui.navigate.to('/logout'), once=True)
             return
+        # Resolved before the tabs are assembled (not inside the signed-in
+        # branch) because Brackets is flag-gated but anonymous-readable.
+        live = await FeatureFlagService().enabled_flags()
         tabs = [
             # {'label': 'Home', 'icon': 'home', 'content': announcements_page},
             {'label': 'Schedule', 'icon': 'schedule', 'content': schedule},
@@ -117,11 +121,14 @@ def create() -> None:
             {'label': 'Profile', 'icon': 'account_circle', 'content': render_edit_info_tab},
             {'label': 'Player', 'icon': 'videogame_asset', 'content': render_player_dashboard},
         ]
+        if FeatureFlag.BRACKETS in live:
+            # Spectator-facing, so it sits with the other read-only tabs and is
+            # offered signed out — the bracket pages it links to are public.
+            tabs.insert(2, {'label': 'Brackets', 'icon': 'account_tree', 'content': brackets_tab})
         if user is not None:
             # My Availability is intentionally ungated — availability feeds crew
             # signup too, not only volunteer scheduling. Triforce Texts and
             # Equipment are hidden unless the tenant has that feature enabled.
-            live = await FeatureFlagService().enabled_flags()
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             if FeatureFlag.TRIFORCE_TEXTS in live:
                 tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})

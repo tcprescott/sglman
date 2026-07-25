@@ -14,6 +14,13 @@ from .cards import (
     render_section,
 )
 from .dialog import build_match_dialog
+from .labels import (
+    FORMAT_LABELS,
+    FORMAT_OPTIONS,
+    STATE_COLORS,
+    format_label,
+    state_color,
+)
 from .live import register_bracket_view
 from .render import (
     build_context,
@@ -50,6 +57,11 @@ __all__ = [
     'entry_records',
     'match_nodes',
     'register_bracket_view',
+    'FORMAT_LABELS',
+    'FORMAT_OPTIONS',
+    'STATE_COLORS',
+    'format_label',
+    'state_color',
     'MatchNode',
     'Placement',
     'SectionLayout',

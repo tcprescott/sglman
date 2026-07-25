@@ -106,7 +106,7 @@ NiceGUI is mounted as a sub-application by `ui.run_with` (`app.mount('/', core.a
 | `/equipment/qr-labels` | [`pages/equipment_labels.py`](../../pages/equipment_labels.py) | Staff / Equipment Manager (`EQUIPMENT` flag); printable QR-label sheet (`?ids=…&template=…&cols=…&paper=…&show=…`). `template` is `plain` (free grid, Letter/A4) or an Avery preset (`avery5160`/`5163`/`5162`) laid out on exact die-cut inches; `show` opts in owner/community/description lines. Registered **before** `/equipment/{asset_id}` so the static path wins. |
 | `/equipment/{asset_id}` | [`pages/equipment.py`](../../pages/equipment.py) | Login required (`@protected_page`, path-param route); asset detail / QR target |
 | `/qualifiers`, `/qualifiers/{id}` | [`pages/qualifiers.py`](../../pages/qualifiers.py) | Login required; player async-qualifier pages (draw, timer, submit, leaderboard) — gated by the `ASYNC_QUALIFIERS` feature flag |
-| `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` | [`pages/brackets.py`](../../pages/brackets.py) | `@protected_page(feature=FeatureFlag.BRACKETS)`; read-only public bracket index + per-stage detail (see [Public bracket view](#public-bracket-view-pagesbracketspy)) |
+| `/tournament/{tournament_id}/brackets`, `/brackets/{bracket_id}` | [`pages/brackets.py`](../../pages/brackets.py) | **No login** — `@public_page(feature=FeatureFlag.BRACKETS)`; read-only bracket index + per-stage detail, reachable anonymously from the home Brackets tab (see [Public bracket view](#public-bracket-view-pagesbracketspy)) |
 | `/platform` | [`pages/platform.py`](../../pages/platform.py) | Super-admin only, **no tenant context**; tenant + racetime-bot CRUD (see [multitenancy.md](../features/multitenancy.md)) |
 | `/login`, `/logout`, `/oauth/callback` | [`pages/auth.py`](../../pages/auth.py) | See [authentication.md](authentication.md) |
 | Identity-link OAuth callbacks | [`challonge_oauth.py`](../../pages/challonge_oauth.py), [`twitch_oauth.py`](../../pages/twitch_oauth.py), [`racetime_oauth.py`](../../pages/racetime_oauth.py) | Login required; one-time verified-identity linking on the global `User` |
@@ -115,12 +115,13 @@ Each page module exposes a `create()` function that registers its `@ui.page` rou
 
 ### Home (`/`, `pages/home.py`)
 
-`home(tab: str = None)` sets the page title, resolves the current user from `app.storage.user['discord_id']`, and renders `BaseLayout`. Four tabs are always present; three more (My Availability, Triforce Texts, Equipment) are appended only when a user is logged in. If a `discord_id` is present but no matching `User` row exists, it shows an error, clears the session, and redirects to `/logout` after 2 seconds.
+`home(tab: str = None)` sets the page title, resolves the current user from `app.storage.user['discord_id']`, and renders `BaseLayout`. Four tabs are always present; Brackets is inserted third when the `BRACKETS` flag is live (signed in or not); three more (My Availability, Triforce Texts, Equipment) are appended only when a user is logged in. The flag set is therefore resolved before the tab list is assembled rather than inside the signed-in branch. If a `discord_id` is present but no matching `User` row exists, it shows an error, clears the session, and redirects to `/logout` after 2 seconds.
 
 | Tab | Content function | Login needed? |
 |---|---|---|
 | Schedule | `home_tabs/schedule.py:schedule` | No (crew signup, watch, and edit require login) |
 | On Air | `home_tabs/stage_timeline.py:stage_timeline_tab` | No |
+| Brackets | `home_tabs/brackets.py:brackets_tab` | No (tab only added when the `BRACKETS` flag is live) |
 | Profile | `home_tabs/player_edit_info.py:render_edit_info_tab` | Yes (renders a login card otherwise) |
 | Player | `home_tabs/player.py:render_player_dashboard` | Yes (renders a login card otherwise) |
 | My Availability | `home_tabs/availability.py:availability_tab` | Yes (tab only added when logged in) |
@@ -166,6 +167,7 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 |---|---|---|
 | [`schedule.py`](../../pages/home_tabs/schedule.py) | Schedule | Public event schedule with crew signup, watch toggles, notification preferences |
 | [`stage_timeline.py`](../../pages/home_tabs/stage_timeline.py) | On Air | Per-day timeline of streamed matches grouped by stream room |
+| [`brackets.py`](../../pages/home_tabs/brackets.py) | Brackets | Anonymous browse path into the public bracket pages: one card per tournament with stages, each opening its bracket view. `group_by_tournament` is pure (unit-tested); the single read is `BracketService.list_all_brackets` |
 | [`player_edit_info.py`](../../pages/home_tabs/player_edit_info.py) | Profile | Self-service profile, DM preference, tournament opt-in; hosts the device-notification, Challonge-link and API-token sections |
 | [`player.py`](../../pages/home_tabs/player.py) | Player | The logged-in player's own match list and match requests; Challonge bracket matches to schedule |
 | [`availability.py`](../../pages/home_tabs/availability.py) | My Availability | Self-service availability windows over the event window with a live effective-availability graph |
@@ -382,7 +384,7 @@ Two tab functions live in this module.
 
 ### Public bracket view (`pages/brackets.py`)
 
-Two read-only `@protected_page(..., feature=FeatureFlag.BRACKETS)` routes, each rendering through `BaseLayout` and `BracketService` (with a load-or-404 `Tournament` lookup):
+Two read-only `@public_page(..., feature=FeatureFlag.BRACKETS)` routes, each rendering through `BaseLayout` and `BracketService` (with a load-or-404 `Tournament` lookup). **Public here means anonymous** — a bracket is the spectator-facing artefact of a tournament, so neither route joins `protected_routes` and a link to one works signed out (see [`public_page`](authentication.md#public_page-decorator)). The feature and tenant gates still apply, and every staff affordance sits behind `is_staff`, which is `False` for an anonymous visitor. The browse path in is the home **Brackets** tab:
 
 - **`/tournament/{tournament_id}/brackets`** (`bracket_index`) — a card per stage (name, "Stage N · Format", state badge) with a **View** button into the detail route.
 - **`/brackets/{bracket_id}`** (`bracket_detail`) — a `@ui.refreshable` body that renders **by format** through the shared [`theme/brackets/`](#bracket-renderer-themebrackets) renderer: single/double elimination as a connector-lined 2-D bracket (winners+finals, losers below), swapped below `lt.md` for a per-round accordion with a **List / Bracket** toolbar toggle back to the 2-D view (exactly one renders at a time — see [brackets.md](../features/brackets.md#presentation--the-redesigned-bracket-view)); round robin as a responsive grid of group cards (tinted standings + crosstable + match list); Swiss as a standings panel plus round-tabbed pairings. Standings are computed live with `compute_standings` (the same pure helper the service uses). Clicking a match opens a detail dialog (staff get inline report/override with scores + forfeit); the view subscribes to `BRACKET_*` events for live refresh (`theme/brackets/live.py`) and installs a hover-run highlight. A DRAFT / unstarted stage shows its seeded entrants instead of a graph.

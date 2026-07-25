@@ -42,12 +42,15 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    `event_types` filter). Every published `Event` becomes a `domain` row on the
    dispatch worker, off the request path. This piggybacks on events services
    already publish — no new instrumentation in the domain services.
-2. **Page views** — the `protected_page` decorator
+2. **Page views** — the shared `protected_page` / `public_page` wrapper
    ([`middleware/auth.py`](../../middleware/auth.py)) records a `page.view` for
-   every authenticated page load. It reads the session identity + browser id
-   during page building and hands the write to `background_tasks.create`.
-   (Unauthenticated users are redirected by `AuthMiddleware` before the page
-   function runs, so only real usage is captured.)
+   every page load. It reads the session identity + browser id during page
+   building and hands the write to `background_tasks.create`. On a
+   `protected_page` the visitor is always authenticated (`AuthMiddleware`
+   redirects anyone else before the page function runs), so those rows always
+   carry a user. A `public_page` — the bracket views — also renders for
+   signed-out visitors, so its rows can have a null `user`/`username` and are
+   attributed to `session_id` alone.
 3. **Interactions** — presentation code calls `TelemetryService.track_interaction`
    for specific high-value actions. Currently wired: `report.viewed` in the
    reports dispatcher (fired only for an explicit `?report=` so a plain `/admin`

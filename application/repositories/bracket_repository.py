@@ -38,6 +38,16 @@ class BracketRepository(TenantScopedRepository[Bracket]):
             Bracket.filter(tournament_id=tournament_id)
         ).order_by('stage_order')
 
+    async def list_all_with_tournament(self) -> List[Bracket]:
+        """Every stage in the tenant with its tournament loaded.
+
+        Backs the browse surface, which groups stages under their tournament —
+        so the tournament is prefetched here rather than lazily per row.
+        """
+        return await scoped(Bracket.all()).prefetch_related('tournament').order_by(
+            '-tournament__is_active', 'tournament__name', 'tournament_id', 'stage_order'
+        )
+
     async def get_stage(self, tournament_id: int, stage_order: int) -> Optional[Bracket]:
         return await scoped(
             Bracket.filter(tournament_id=tournament_id, stage_order=stage_order)

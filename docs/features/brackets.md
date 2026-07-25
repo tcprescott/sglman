@@ -9,8 +9,8 @@ loop (schedule matchup → race room → result → advance) that the
 This is the shipped system; the design rationale and 2026-07 library-research
 record live in [brackets-plan.md](../plans/brackets-plan.md).
 
-Scope: **Staff-managed, tenant-scoped, feature-gated.** A tournament uses a native
-bracket **or** a Challonge link, never both. Ships behind
+Scope: **Staff-managed, tenant-scoped, feature-gated, publicly readable.** A
+tournament uses a native bracket **or** a Challonge link, never both. Ships behind
 [`FeatureFlag.BRACKETS`](feature-flags.md) — dark by default.
 
 Source:
@@ -21,7 +21,8 @@ Source:
 [`application/repositories/bracket_repository.py`](../../application/repositories/bracket_repository.py),
 [`api/routers/brackets.py`](../../api/routers/brackets.py),
 [`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py) (admin),
-[`pages/brackets.py`](../../pages/brackets.py) (public),
+[`pages/brackets.py`](../../pages/brackets.py) (public, anonymous-readable),
+[`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py) (browse tab),
 [`theme/brackets/`](../../theme/brackets/) (shared renderer),
 [`static/css/brackets.css`](../../static/css/brackets.css).
 
@@ -247,11 +248,34 @@ existing `Match`. Scheduling is the one write that is **not** Staff-only — see
 `BRACKETS` gates every entry surface — never a DB read inside a service
 transaction:
 
-- **Public pages** — `@protected_page(..., feature=FeatureFlag.BRACKETS)` on both
+- **Public pages** — `@public_page(..., feature=FeatureFlag.BRACKETS)` on both
   bracket routes (404 when off).
 - **Admin tab** — `is_staff and FeatureFlag.BRACKETS in live` in `pages/admin.py`.
 - **REST** — `require_feature(FeatureFlag.BRACKETS)` on the `/brackets` router
   mount (whole router 404s when off).
+
+## Public access — anonymous, and reachable
+
+A bracket is what a tournament shows the world, so the two view routes are
+[`public_page`](../reference/authentication.md#public_page-decorator), not
+`protected_page`: they never join `protected_routes`, so `AuthMiddleware` lets a
+signed-out request through instead of redirecting it to `/login`. Everything else
+about the gate is unchanged — the tenant must resolve, `BRACKETS` must be live for
+it, and every write/staff affordance still sits behind `AuthService.is_staff`,
+which is `False` when `user is None`. What an anonymous visitor sees is the
+read-only surface: entrant display names, seeds, scores, standings, and each
+game's scheduled time.
+
+Reachability is the other half. Home is the only page a signed-out visitor lands
+on, so the **Brackets** tab
+([`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py)) is the browse
+path: one card per tournament that has stages — active tournaments first — each
+stage row opening its bracket view, with an **All stages** link to the stage index
+for multi-stage tournaments. The tab is added whenever `BRACKETS` is live,
+**signed in or not**, which is why `pages/home.py` resolves the live flag set
+before it assembles the tab list rather than inside its signed-in branch. It reads
+once through `BracketService.list_all_brackets` (tournament prefetched, so
+grouping costs no query per row) and groups with the pure `group_by_tournament`.
 
 ## Presentation — the redesigned bracket view
 

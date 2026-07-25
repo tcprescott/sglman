@@ -104,7 +104,7 @@ All values are read from the environment **once, at import of `pages/auth.py`**.
 
 ## Route protection
 
-Protection has two layers: `AuthMiddleware` enforces **login** for registered protected paths, and the `protected_page` wrapper optionally enforces **roles** at render time.
+Protection has two layers: `AuthMiddleware` enforces **login** for registered protected paths, and the `protected_page` wrapper optionally enforces **roles** at render time. A third decorator, `public_page`, registers a tenant page that stays readable signed out — it is the same wrapper minus the `protected_routes` registration.
 
 ### `protected_page` decorator
 
@@ -129,6 +129,26 @@ Semantics:
 Current usages: `@protected_page('/admin')` ([`pages/admin.py`](../../pages/admin.py)) and `@protected_page('/equipment/{asset_id}')` ([`pages/equipment.py`](../../pages/equipment.py)) — both login-only, with authorization handled inside the page body — plus `@protected_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF])` ([`pages/volunteer.py`](../../pages/volunteer.py)), which uses the render-time role gate. Triforce text editing is no longer a standalone protected route: it lives as a Triforce Texts tab on the home page and inside the admin dashboard. Page registration order is described in [frontend.md](frontend.md).
 
 Note that on a login-only protected page, a user whose session is valid but whose `User` row no longer exists reaches the page body with no render-time gate — the page must handle that itself (as `pages/admin.py` does, below).
+
+### `public_page` decorator
+
+```python
+def public_page(
+    path: str,
+    *,
+    feature: Optional[FeatureFlag] = None,
+    telemetry_path: Optional[str] = None,
+    **page_kwargs,
+)
+```
+
+A tenant page that renders for signed-out visitors. It shares one implementation (`_tenant_page`) with `protected_page` — same tenant resolution and 404, same `stash_client_tenant_id` / `stash_client_host_mode`, same feature gate, same page-view telemetry — and differs in exactly one way: **it does not add `path` to `protected_routes`**, so `AuthMiddleware` lets an anonymous request through instead of redirecting it to `/login`.
+
+There is deliberately no `roles` argument: a page that authorizes everyone cannot also authorize a role. The page body must therefore tolerate `user is None` throughout — `get_user_from_discord_id(None)` returns `None` and every `AuthService` predicate is `False` for an anonymous visitor, so signed-in affordances hide themselves — and anything it renders is world-readable by design.
+
+Current usages: both native-bracket routes ([`pages/brackets.py`](../../pages/brackets.py)), a spectator surface a link to which has to work for someone who has never signed in. The `BRACKETS` feature gate still applies, so the pages 404 for everyone when the tenant has not enabled them.
+
+Page-view telemetry rows from a public page can carry a `NULL` `discord_id`; they are attributed to the browser session alone.
 
 ### `AuthMiddleware`
 
