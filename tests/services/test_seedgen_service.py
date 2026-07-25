@@ -188,13 +188,13 @@ class TestMockSeedgen:
         assert url == 'https://alttpr.com/h/real'
 
     def test_helper_off_by_default(self, monkeypatch):
-        from application.utils.mock_seedgen import is_mock_seedgen
+        from application.utils.mocks.mock_seedgen import is_mock_seedgen
 
         monkeypatch.delenv('MOCK_SEEDGEN', raising=False)
         assert is_mock_seedgen() is False
 
     def test_helper_refuses_in_production(self, monkeypatch):
-        from application.utils.mock_seedgen import is_mock_seedgen
+        from application.utils.mocks.mock_seedgen import is_mock_seedgen
 
         monkeypatch.setenv('MOCK_SEEDGEN', 'true')
         monkeypatch.setenv('ENVIRONMENT', 'production')

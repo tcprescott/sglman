@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 import pytest
 
 from application.events import EventType, event_bus
-from application.services.match_service import MatchService
+from application.services.match.match_service import MatchService
 from application.services.system_config_service import KEY_TOURNAMENT_HOURS, KEY_STATION_FORMAT
 from models import (
     Commentator,

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
+from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
 
 UTC = timezone.utc
 

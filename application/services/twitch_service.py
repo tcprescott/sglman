@@ -18,8 +18,8 @@ from application.services.identity_link_service import (
     IdentityLinkService,
 )
 from application.services.audit_service import AuditActions
-from application.utils.mock_twitch import is_mock_twitch
-from application.utils.twitch_client import (
+from application.utils.mocks.mock_twitch import is_mock_twitch
+from application.utils.clients.twitch_client import (
     MockTwitchClient,
     TwitchAPIError,
     TwitchClient,

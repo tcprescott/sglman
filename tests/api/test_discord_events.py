@@ -7,7 +7,7 @@ read-only tokens at the HTTP layer.
 """
 
 
-from application.services.discord_event_reconciler_service import ReconcileResult
+from application.services.discord.discord_event_reconciler_service import ReconcileResult
 from application.tenant_context import tenant_scope
 from models import DiscordScheduledEvent, Role, Tenant, Tournament
 from tests.api_helpers import client_for, create_user_token
@@ -131,7 +131,7 @@ class TestReconcile:
             return ReconcileResult(created=2, updated=1, cancelled=0, unchanged=3, errors=0)
 
         monkeypatch.setattr(
-            'application.services.discord_event_sync_service.DiscordEventReconcilerService.reconcile_tenant',
+            'application.services.discord.discord_event_sync_service.DiscordEventReconcilerService.reconcile_tenant',
             fake_reconcile,
         )
         async with client_for(app, raw) as c:

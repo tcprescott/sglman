@@ -28,7 +28,7 @@ TICK_SECONDS = 300
 
 async def _tick() -> None:
     from application.repositories import TenantRepository
-    from application.services.discord_event_reconciler_service import DiscordEventReconcilerService
+    from application.services.discord.discord_event_reconciler_service import DiscordEventReconcilerService
     from application.services.user_service import UserService
 
     tenants = [t for t in await TenantRepository.list_all() if t.discord_guild_id is not None]

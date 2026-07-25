@@ -37,8 +37,8 @@ from application.repositories import (
     AsyncQualifierRunRepository,
     RacetimeRoomRepository,
 )
-from application.services import async_qualifier_access as access
-from application.services.async_qualifier_service import AsyncQualifierService
+from application.services.async_qualifier import async_qualifier_access as access
+from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from application.services.audit_service import AuditActions, AuditService
 from application.services.racetime_bot_service import RacetimeBotService
 from application.services.user_service import UserService

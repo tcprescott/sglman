@@ -101,7 +101,7 @@ class SchedulingMixin:
             raise ValueError("This series is already decided.")
         number = await self.next_game_number(bracket_match, best_of)
 
-        from application.services.match_service import MatchService
+        from application.services.match.match_service import MatchService
 
         match = await MatchService().create_match(
             tournament_id=bracket.tournament_id,

@@ -10,16 +10,16 @@ import logging
 import os
 from typing import AsyncGenerator, Optional
 
-from application.services.discord_service import get_discord_bot
-from application.services import discord_queue
-from application.services import volunteer_reminder
+from application.services.discord.discord_service import get_discord_bot
+from application.services.discord import discord_queue
+from application.services.volunteer import volunteer_reminder
 from application.services import WebhookService
 from application.services import TelemetryService
 from application.services import web_push_service
 from application.events import event_bus
 from application.events import dispatch_queue as event_dispatch_queue
 from application.utils.easter_eggs import random_fact
-from application.utils.mock_discord import is_mock_discord
+from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import init_sentry
 import asyncio
 from aerich import Command
@@ -140,7 +140,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Discord Scheduled Events reconciler: mirrors opted-in tournaments' schedules
     # into each linked guild's Discord events. Gated by DISCORD_EVENTS_SYNC_ENABLED
     # (off by default); uses the mock transport under MOCK_DISCORD.
-    from application.services import discord_event_worker
+    from application.services.discord import discord_event_worker
     from application.utils.environment import discord_events_sync_enabled
     if discord_events_sync_enabled():
         discord_event_worker.start()

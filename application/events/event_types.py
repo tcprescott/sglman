@@ -5,7 +5,7 @@ Names are namespaced ``object.verb`` strings, mirroring the discipline of
 these are an **external contract**: webhook subscribers pick from them and match
 on them, so treat renames as breaking changes. Kept deliberately import-free of
 the service layer so the events package stays cycle-free (like
-``application.match_events``).
+``application.events.match_live``).
 """
 
 from typing import FrozenSet

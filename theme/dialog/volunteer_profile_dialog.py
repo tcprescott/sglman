@@ -3,8 +3,8 @@
 from nicegui import app, ui
 
 from application.services import get_user_from_discord_id
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_qualification_service import VolunteerQualificationService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_eastern_date, format_eastern_time
 from models import User, VolunteerAvailabilityStatus, VolunteerPosition
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet

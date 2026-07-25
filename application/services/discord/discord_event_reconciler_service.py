@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 from application.events import Event, EventType, event_bus
 from application.repositories import DiscordScheduledEventRepository, MatchRepository
 from application.services.audit_service import AuditActions, AuditService
-from application.services.discord_service import DiscordService
+from application.services.discord.discord_service import DiscordService
 from application.utils.hashing import stable_content_hash
 from models import DiscordEventSource, DiscordScheduledEvent, Match, Tenant, User
 

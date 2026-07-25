@@ -46,4 +46,4 @@ def publish(match_id: int, change_type: str = CHANGED) -> None:
         try:
             callback(match_id, change_type)
         except Exception:  # pragma: no cover - defensive
-            logger.exception("match_events subscriber error for match %s", match_id)
+            logger.exception("match_live subscriber error for match %s", match_id)

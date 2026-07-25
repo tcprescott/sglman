@@ -16,9 +16,9 @@ room, DMs the players and crew, and emits ``match.cancelled`` alongside the
 import logging
 from typing import Optional
 
-from application import match_events
+from application.events import match_live
 from application.events import Event, EventType, event_bus
-from application.services import discord_queue
+from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from models import Match, User
@@ -50,7 +50,7 @@ class CancellationMixin:
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
         )
-        match_events.publish(match_id, match_events.DELETED)
+        match_live.publish(match_id, match_live.DELETED)
         event_bus.publish(Event.create(EventType.MATCH_DELETED, {
             'match_id': match_id, 'tournament_id': tournament_id,
         }, actor))
@@ -85,7 +85,7 @@ class CancellationMixin:
         match — otherwise SET_NULL orphans it in OPEN status forever, invisible to
         ``get_by_match``.
         """
-        from application.services.match_schedule_service import (
+        from application.services.match.match_schedule_service import (
             collect_match_recipients,
             _community_name,
             _match_descriptor,

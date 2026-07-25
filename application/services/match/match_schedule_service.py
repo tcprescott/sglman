@@ -11,14 +11,14 @@ from typing import Callable, Dict, Tuple, Optional
 
 import discord
 
-from application import match_events
+from application.events import match_live
 from application.events import Event, EventType, event_bus
 from application.tenant_context import require_tenant_id
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
-from application.services import discord_queue
+from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.discord_service import DiscordService
+from application.services.discord.discord_service import DiscordService
 from application.services.seedgen_service import SeedGenerationService
 from application.utils.discord_embeds import (
     COLOR_CHECKED_IN,
@@ -223,7 +223,7 @@ class MatchScheduleService:
         community = await _community_name()
         message, embed = build_message(match, community)
         discord_queue.enqueue(self.notify_match_participants(match, message, embed))
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(event_type, {
             'match_id': match.id,
             'tournament_id': match.tournament_id,
@@ -442,7 +442,7 @@ class MatchScheduleService:
                     },
                 )
 
-                match_events.publish(match.id)
+                match_live.publish(match.id)
                 event_bus.publish(Event.create(EventType.MATCH_SEED_ROLLED, {
                     'match_id': match.id,
                     'tournament_id': match.tournament_id,

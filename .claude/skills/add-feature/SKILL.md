@@ -131,7 +131,7 @@ module — `enforce_architecture.py` blocks both directions).
   passing the same row-action button HTML you put in `body-cell-actions` and a
   `field_slots` snippet for each badge/chip/icon column. `check_table_grid`
   blocks a table without it (opt out with `# mobile-grid: exempt`). Detail:
-  [frontend.md](../../docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
+  [frontend.md](../../../docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
 - API routers: **never add a `_load_*_or_404` preload** (DRY hook blocks new
   ones) — the service raises `NotFoundError` and `ServiceErrorRoute` 404s.
 - Datetimes: store UTC, display Eastern — use `application/utils/timezone.py`

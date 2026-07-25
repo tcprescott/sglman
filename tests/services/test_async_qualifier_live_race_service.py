@@ -5,10 +5,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.events import EventType, event_bus
-from application.services.async_qualifier_live_race_service import (
+from application.services.async_qualifier.async_qualifier_live_race_service import (
     AsyncQualifierLiveRaceService,
 )
-from application.services.async_qualifier_service import AsyncQualifierService
+from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from application.services.race_room_service import RaceRoomLifecycle
 from models import (
     AsyncQualifierLiveRaceStatus,

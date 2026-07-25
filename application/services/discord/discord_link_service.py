@@ -21,7 +21,7 @@ import httpx
 
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.discord_service import DiscordService
+from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
 from application.utils.environment import get_base_url
 from models import Tenant, User

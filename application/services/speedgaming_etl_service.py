@@ -40,9 +40,9 @@ from application.repositories import (
 )
 from application.repositories.racetime_room_repository import RacetimeRoomRepository
 from application.services.audit_service import AuditActions, AuditService
-from application.services.match_participants import MatchParticipants
+from application.services.match.match_participants import MatchParticipants
 from application.utils.hashing import stable_content_hash
-from application.utils.speedgaming_client import (
+from application.utils.clients.speedgaming_client import (
     SpeedGamingAPIError,
     SpeedGamingClient,
     get_speedgaming_client,

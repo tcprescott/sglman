@@ -7,7 +7,7 @@ in-memory DB fixture, and the qualification-based filtering inside _pick.
 """
 
 
-from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
+from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
 
 
 # ---------------------------------------------------------------------------

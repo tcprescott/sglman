@@ -18,9 +18,9 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_profile_service import VolunteerProfileService
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from models import (
     User,
     VolunteerAvailabilityStatus,

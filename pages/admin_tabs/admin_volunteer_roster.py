@@ -5,10 +5,10 @@ from datetime import datetime, timedelta, timezone
 from nicegui import app, ui
 
 from application.services import AuthService, get_user_from_discord_id
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer_profile_service import VolunteerProfileService
-from application.services.volunteer_qualification_service import VolunteerQualificationService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_position_service import VolunteerPositionService
+from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_eastern_date, format_eastern_time
 from models import VolunteerAvailabilityStatus
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog

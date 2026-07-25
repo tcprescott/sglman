@@ -36,7 +36,7 @@ Discord displays it** — the copy and button styles are fully determined by cod
 - **No slash commands** — the bot only *sends* DMs and *receives* button clicks
   (`grep -rn 'slash_command\|app_commands\|tree.command'` → none).
 - Every DM is sent via `user.send(embed=..., view=...)` (or `user.send(message,
-  view=...)` when no embed) in `application/services/discord_service.py` — `view`
+  view=...)` when no embed) in `application/services/discord/discord_service.py` — `view`
   is a `discord.ui.View` of buttons.
 - Four button kinds, with Discord's `ButtonStyle` colors:
   | Style | Color | Buttons |
@@ -55,8 +55,8 @@ Discord displays it** — the copy and button styles are fully determined by cod
 | `application/utils/discord_embeds.py` | **Every embed card** — `match_embed`, `state_changed_embed`, `volunteer_embed`, `notification_embed`, `time_field`, and the `COLOR_*` palette. The card shape. |
 | `application/utils/discord_messages.py` | **Every DM/ephemeral string** — the plain-text mirror/fallback copy. Start here for wording. |
 | `discordbot/crew_signup.py`, `match_acknowledgment.py`, `crew_acknowledgment.py`, `volunteer_acknowledgment.py`, `watch_buttons.py` | Button view factories (labels + `ButtonStyle`) and click handlers |
-| `application/services/discord_service.py` | `send_dm*` methods (`user.send(embed=…, view=…)`), the web-push mirror, the mock, the `(bool, reason)` guard ladder |
-| `application/services/match_schedule_service.py`, `crew_service.py`, `volunteer_schedule_service.py`, `volunteer_reminder.py` | Where each embed is **built and threaded** into the send call (titles, colours, descriptions per notification) |
+| `application/services/discord/discord_service.py` | `send_dm*` methods (`user.send(embed=…, view=…)`), the web-push mirror, the mock, the `(bool, reason)` guard ladder |
+| `application/services/match/match_schedule_service.py`, `crew_service.py`, `volunteer_schedule_service.py`, `volunteer_reminder.py` | Where each embed is **built and threaded** into the send call (titles, colours, descriptions per notification) |
 | `docs/reference/discord-integration.md` | The map: flows, `custom_id` grammar, recipient fan-out, queue |
 
 Behavior docs: `docs/features/discord-notifications.md`, `match-acknowledgment.md`,

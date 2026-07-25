@@ -19,12 +19,12 @@ from __future__ import annotations
 import os
 from typing import Any, Dict
 
-from application.utils.oauth_identity_client import (
+from application.utils.clients.oauth_identity_client import (
     OAuthIdentityClient,
     ProviderConfig,
     opt_str,
 )
-from application.utils.oauth_identity_client import (
+from application.utils.clients.oauth_identity_client import (
     build_authorize_url as _build_authorize_url,
 )
 

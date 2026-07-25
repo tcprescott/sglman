@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from application.services.match_suggestion_service import MatchSuggestionService
+from application.services.match.match_suggestion_service import MatchSuggestionService
 
 EASTERN_TZ = timezone(timedelta(hours=-5), 'EST')
 

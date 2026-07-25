@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.audit_service import AuditActions
-from application.services.match_watcher_service import MatchWatcherService
+from application.services.match.match_watcher_service import MatchWatcherService
 
 
 @pytest.fixture

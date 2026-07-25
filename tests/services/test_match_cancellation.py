@@ -9,7 +9,7 @@ silently DMs nobody.
 
 import pytest
 
-from application.services.match_service import MatchService
+from application.services.match.match_service import MatchService
 from application.services.race_room_service import RaceRoomService
 from models import (
     Commentator,

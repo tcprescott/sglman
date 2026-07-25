@@ -14,7 +14,7 @@ Enables local development without a live Discord application or bot token. When 
 ### Mock Discord data
 
 The fake API's servers, roles, and per-member role assignments are defined in one
-place — [`application/utils/mock_discord_data.py`](../../application/utils/mock_discord_data.py) — and every
+place — [`application/utils/mocks/mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py) — and every
 `MockDiscordService` method reads from it, so the data stays self-consistent. It
 is **kept in sync with `scripts/seed_dev.py`**: the two guild ids and the four
 *mapped* role ids/names match the dev seed, so a mock member's roles resolve
@@ -37,10 +37,10 @@ No `DISCORD_TOKEN` required when mock mode is active.
 
 | File | Role |
 |---|---|
-| `application/utils/mock_discord.py` | `is_mock_discord()` — single source of truth for the flag; refuses to start if enabled in production |
+| `application/utils/mocks/mock_discord.py` | `is_mock_discord()` — single source of truth for the flag; refuses to start if enabled in production |
 | `pages/auth.py` | `create()` detects `MOCK_DISCORD` and delegates to its private `_create_mock()` (which renders the user-picker login page that impersonates an existing user or creates a new one) instead of the OAuth redirect |
-| `application/services/discord_service.py` | Defines `MockDiscordService`; aliases `DiscordService = MockDiscordService` when mock mode is detected |
-| `application/utils/mock_discord_data.py` | Fixture data (guilds, roles, member roles) the mock service returns; kept in sync with `scripts/seed_dev.py` |
+| `application/services/discord/discord_service.py` | Defines `MockDiscordService`; aliases `DiscordService = MockDiscordService` when mock mode is detected |
+| `application/utils/mocks/mock_discord_data.py` | Fixture data (guilds, roles, member roles) the mock service returns; kept in sync with `scripts/seed_dev.py` |
 
 ## Development Workflow
 

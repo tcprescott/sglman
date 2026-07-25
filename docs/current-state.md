@@ -103,9 +103,9 @@ Method-level detail for every file below lives in the [code reference docs](READ
 | `models/` | All Tortoise ORM models + enums (per-domain submodules) |
 | `middleware/auth.py` | Discord OAuth; `@protected_page` decorator; mock mode |
 | `application/services/auth_service.py` | `AuthService` — role checks, `can_crud_match`, etc. |
-| `application/services/match_service.py` | Match CRUD, lifecycle transitions |
-| `application/services/match_schedule_service.py` | Scheduling logic + Discord notification fan-out |
-| `application/services/discord_service.py` | All Discord DM and interaction logic |
+| `application/services/match/match_service.py` | Match CRUD, lifecycle transitions |
+| `application/services/match/match_schedule_service.py` | Scheduling logic + Discord notification fan-out |
+| `application/services/discord/discord_service.py` | All Discord DM and interaction logic |
 | `application/services/audit_service.py` | `AuditService` + `AuditActions` constants |
 | `discordbot/crew_signup.py` | Discord button handler for crew DM signup |
 | `discordbot/match_acknowledgment.py` | Discord button handler for match acknowledgment |

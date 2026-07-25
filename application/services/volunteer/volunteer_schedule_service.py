@@ -19,10 +19,10 @@ from application.repositories import (
     VolunteerPositionRepository,
     VolunteerShiftRepository,
 )
-from application.services import discord_queue
+from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.discord_service import DiscordService
+from application.services.discord.discord_service import DiscordService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
     EASTERN_TZ,
@@ -343,7 +343,7 @@ class VolunteerScheduleService:
     # --- Helpers ----------------------------------------------------------
 
     async def _availability_warning(self, user: User, shift: VolunteerShift) -> Optional[str]:
-        from application.services.volunteer_availability_service import (
+        from application.services.volunteer.volunteer_availability_service import (
             VolunteerAvailabilityService,
         )
         from models import VolunteerAvailabilityStatus

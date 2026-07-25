@@ -14,7 +14,7 @@ from application.errors import require_found
 from application.repositories import DiscordScheduledEventRepository, TournamentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.discord_event_reconciler_service import (
+from application.services.discord.discord_event_reconciler_service import (
     DiscordEventReconcilerService,
     ReconcileResult,
 )

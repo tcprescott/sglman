@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services.match_service import MatchService
+from application.services.match.match_service import MatchService
 
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -13,7 +13,8 @@ pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture(autouse=True)
 def _no_tournament_window(monkeypatch):
     """Match tests don't set up tournament hours; suppress the scheduling window."""
-    from application.services import match_service, system_config_service
+    from application.services import system_config_service
+    from application.services.match import match_service
 
     async def no_window(*_args, **_kwargs):
         return None

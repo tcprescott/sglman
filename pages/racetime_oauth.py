@@ -11,7 +11,7 @@ completes the flow locally without contacting racetime.gg.
 """
 
 from application.services.racetime_service import RacetimeService
-from application.utils.mock_racetime import is_mock_racetime
+from application.utils.mocks.mock_racetime import is_mock_racetime
 from pages._oauth_link import IdentityLinkFlow, register_identity_link_pages
 
 _PROFILE_RETURN = '/home/profile'

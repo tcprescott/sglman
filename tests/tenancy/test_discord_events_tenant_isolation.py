@@ -15,10 +15,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.repositories import DiscordScheduledEventRepository
-from application.services.discord_event_reconciler_service import DiscordEventReconcilerService
-from application.services.discord_service import MockDiscordService
+from application.services.discord.discord_event_reconciler_service import DiscordEventReconcilerService
+from application.services.discord.discord_service import MockDiscordService
 from application.tenant_context import tenant_scope
-from application.utils import mock_discord_data
+from application.utils.mocks import mock_discord_data
 from models import (
     DiscordEventSource,
     DiscordScheduledEvent,

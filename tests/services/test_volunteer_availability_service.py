@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from models import VolunteerAvailabilityStatus
 
 UTC = timezone.utc

@@ -9,7 +9,7 @@ sibling helpers.
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
-from application.services.async_qualifier_scoring import DEFAULT_PAR_SAMPLE_SIZE
+from application.services.async_qualifier.async_qualifier_scoring import DEFAULT_PAR_SAMPLE_SIZE
 from models import AsyncQualifier, User
 
 DEFAULT_IMBALANCE_THRESHOLD = 2

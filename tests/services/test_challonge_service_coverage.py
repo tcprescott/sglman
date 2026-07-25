@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.challonge_service import CHALLONGE_MONTHLY_QUOTA, ChallongeService
-from application.utils.challonge_client import ChallongeAPIError
+from application.utils.clients.challonge_client import ChallongeAPIError
 from models import (
     ChallongeConnection,
     ChallongeMatch,

@@ -11,7 +11,7 @@ completes the flow locally without contacting Twitch.
 """
 
 from application.services.twitch_service import TwitchService
-from application.utils.mock_twitch import is_mock_twitch
+from application.utils.mocks.mock_twitch import is_mock_twitch
 from pages._oauth_link import IdentityLinkFlow, register_identity_link_pages
 
 _PROFILE_RETURN = '/home/profile'

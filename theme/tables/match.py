@@ -304,8 +304,8 @@ class MatchTableView(MatchTableHandlersMixin):
 
     async def _on_remote_change(self, match_id, change_type):
         """Apply a match change broadcast from another user's action."""
-        from application import match_events
-        if change_type == match_events.CREATED:
+        from application.events import match_live
+        if change_type == match_live.CREATED:
             await self.refresh()  # a new match may not have a row yet
         else:
             # 'changed' updates in place; 'deleted' removes the row.

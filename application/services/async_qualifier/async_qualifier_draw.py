@@ -17,8 +17,8 @@ from application.repositories import (
     AsyncQualifierRepository,
     AsyncQualifierRunRepository,
 )
-from application.services import async_qualifier_rules as rules
-from application.services.async_qualifier_scoring import compute_par, compute_score
+from application.services.async_qualifier import async_qualifier_rules as rules
+from application.services.async_qualifier.async_qualifier_scoring import compute_par, compute_score
 from models import (
     AsyncQualifier,
     AsyncQualifierPermalink,

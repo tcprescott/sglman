@@ -24,7 +24,7 @@ When crew (Commentator or Tracker) sign up for a match, an admin must approve th
 | `models.py` → `MatchAcknowledgment` | Stores per-player acknowledgment state per match |
 | `discordbot/match_acknowledgment.py` | Discord button handler — receives `match_ack:ack:<match_id>` interactions |
 | `discordbot/crew_acknowledgment.py` | Discord button handler for crew acknowledgment |
-| `application/services/match_service.py` | `acknowledge_match()` — updates `MatchAcknowledgment` |
+| `application/services/match/match_service.py` | `acknowledge_match()` — updates `MatchAcknowledgment` |
 | `theme/dialog/match_dialog.py` | Admin match dialog shows per-player ack status |
 | `pages/home_tabs/player.py` | Player tab shows outstanding acknowledgments |
 

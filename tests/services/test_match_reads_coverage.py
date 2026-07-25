@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from application.services.match_display_service import MatchDisplayService
-from application.services.match_suggestion_service import MatchSuggestionService, _covers
+from application.services.match.match_display_service import MatchDisplayService
+from application.services.match.match_suggestion_service import MatchSuggestionService, _covers
 from application.utils.timezone import EASTERN_TZ, format_eastern_datetime, now_eastern
 from models import (
     Commentator,

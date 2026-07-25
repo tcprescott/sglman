@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, call
 
 import pytest
 
-from application.services import discord_service as dsvc
+from application.services.discord import discord_service as dsvc
 from application.services import tenant_service as tsvc
-from application.services import discord_role_mapping_service as drms
+from application.services.discord import discord_role_mapping_service as drms
 from models import User
 
 

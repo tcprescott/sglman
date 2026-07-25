@@ -10,7 +10,7 @@ from datetime import datetime, date
 from typing import List, Optional, Dict, Any, Tuple
 
 from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, Tournament, User, StreamRoom
-from application import match_events
+from application.events import match_live
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import (
@@ -24,11 +24,11 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.match_source_guard import assert_sg_fields_unchanged
-from application.services import discord_queue
-from application.services.match_cancellation import CancellationMixin
-from application.services.match_participants import MatchParticipants
-from application.services.match_schedule_service import MatchScheduleService
+from application.services.match.match_source_guard import assert_sg_fields_unchanged
+from application.services.discord import discord_queue
+from application.services.match.match_cancellation import CancellationMixin
+from application.services.match.match_participants import MatchParticipants
+from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
@@ -283,7 +283,7 @@ class MatchService(CancellationMixin):
             match, rescheduled=False, is_stream_candidate=is_stream_candidate,
         )
 
-        match_events.publish(match.id, match_events.CREATED)
+        match_live.publish(match.id, match_live.CREATED)
         event_bus.publish(Event.create(EventType.MATCH_CREATED, {
             'match_id': match.id,
             'tournament_id': tournament_id,
@@ -464,7 +464,7 @@ class MatchService(CancellationMixin):
                     match, rescheduled=False, community=community,
                 ))
 
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(
             EventType.MATCH_RESCHEDULED if scheduled_at_changed else EventType.MATCH_UPDATED,
             {'match_id': match.id, 'tournament_id': match.tournament_id,
@@ -531,7 +531,7 @@ class MatchService(CancellationMixin):
 
         await self.match_schedule_service.notify_match_scheduled(match, rescheduled=False)
 
-        match_events.publish(match.id, match_events.CREATED)
+        match_live.publish(match.id, match_live.CREATED)
         event_bus.publish(Event.create(EventType.MATCH_CREATED, {
             'match_id': match.id, 'tournament_id': tournament_id, 'player_ids': player_ids,
         }, actor))
@@ -564,7 +564,7 @@ class MatchService(CancellationMixin):
         if flag and not was_candidate:
             await self.match_schedule_service.notify_stream_candidate(match)
 
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(
             EventType.MATCH_STREAM_CANDIDATE_SET if flag else EventType.MATCH_STREAM_CANDIDATE_CLEARED,
             {'match_id': match.id, 'tournament_id': match.tournament_id},
@@ -595,7 +595,7 @@ class MatchService(CancellationMixin):
             {'match_id': match.id, 'stream_room_id': stream_room_id},
         )
 
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(
             EventType.MATCH_STAGE_ASSIGNED if stream_room_id is not None else EventType.MATCH_STAGE_CLEARED,
             {'match_id': match.id, 'tournament_id': match.tournament_id, 'stream_room_id': stream_room_id},
@@ -652,7 +652,7 @@ class MatchService(CancellationMixin):
             },
         )
 
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(EventType.MATCH_STATIONS_ASSIGNED, {
             'match_id': match.id,
             'tournament_id': match.tournament_id,
@@ -724,7 +724,7 @@ class MatchService(CancellationMixin):
             },
         )
 
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(EventType.MATCH_RESULT_RECORDED, {
             'match_id': match.id,
             'tournament_id': match.tournament_id,
@@ -755,7 +755,7 @@ class MatchService(CancellationMixin):
             AuditActions.MATCH_ACKNOWLEDGED,
             {'match_id': match.id, 'tournament_id': match.tournament_id},
         )
-        match_events.publish(match.id)
+        match_live.publish(match.id)
         event_bus.publish(Event.create(EventType.MATCH_ACKNOWLEDGED, {
             'match_id': match.id, 'tournament_id': match.tournament_id, 'user_id': user.id,
         }, user))

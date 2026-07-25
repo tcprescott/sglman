@@ -6,12 +6,12 @@ from nicegui import app, ui
 from theme.notify import notify_error
 
 from application.services import AuthService, SystemConfigService, get_user_from_discord_id
-from application.services.volunteer_autoschedule_service import VolunteerAutoscheduleService
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_position_service import VolunteerPositionService
-from application.services.volunteer_profile_service import VolunteerProfileService
-from application.services.volunteer_qualification_service import VolunteerQualificationService
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_position_service import VolunteerPositionService
+from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
     format_eastern_time,
     parse_eastern_datetime,

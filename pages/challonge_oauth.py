@@ -27,7 +27,7 @@ from starlette.responses import RedirectResponse
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
-from application.utils.mock_challonge import is_mock_challonge
+from application.utils.mocks.mock_challonge import is_mock_challonge
 from pages._oauth_link import (
     LinkHandoffProvider,
     handle_link_handoff_callback,

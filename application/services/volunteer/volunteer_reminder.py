@@ -36,8 +36,8 @@ async def _scoped_dm(tenant_id: int, coro) -> None:
 
 async def _tick() -> None:
     from application.repositories import VolunteerAssignmentRepository
-    from application.services import discord_queue
-    from application.services.discord_service import DiscordService
+    from application.services.discord import discord_queue
+    from application.services.discord.discord_service import DiscordService
     from application.services.feature_flag_service import FeatureFlagService
     from application.services.system_config_service import SystemConfigService
     from application.services.tenant_service import TenantService

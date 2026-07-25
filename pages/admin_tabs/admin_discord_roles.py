@@ -16,9 +16,9 @@ from application.services import (
     TenantService,
     get_user_from_discord_id,
 )
-from application.services.discord_link_service import connect_redirect_uri
+from application.services.discord.discord_link_service import connect_redirect_uri
 from application.tenant_context import get_current_tenant_id, is_host_mode
-from application.utils.mock_discord import is_mock_discord
+from application.utils.mocks.mock_discord import is_mock_discord
 from models import Role
 
 

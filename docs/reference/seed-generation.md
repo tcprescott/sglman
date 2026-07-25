@@ -9,7 +9,7 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | File | Contents |
 |---|---|
 | [`application/services/seedgen_service.py`](../../application/services/seedgen_service.py) | `SeedGenerationService`: `AVAILABLE_RANDOMIZERS`, `generate_seed()` dispatch, per-randomizer generators |
-| [`application/services/match_schedule_service.py`](../../application/services/match_schedule_service.py) | `MatchScheduleService.generate_seed()` — the production entry point: locking, validation, persistence, DMs, audit |
+| [`application/services/match/match_schedule_service.py`](../../application/services/match/match_schedule_service.py) | `MatchScheduleService.generate_seed()` — the production entry point: locking, validation, persistence, DMs, audit |
 | [`application/services/preset_service.py`](../../application/services/preset_service.py) | `PresetService`: CRUD (gated by `AuthService.can_manage_presets`) + `import_builtins` from the `presets/` files |
 | [`presets/`](../../presets) | Built-in settings files (`alttpr/`, `ootr/`, `smmap/`) — starting rows imported into the `Preset` table |
 | [`models/tournament.py`](../../models/tournament.py) | `Tournament.seed_generator`, `Tournament.preset`, `Preset`, `GeneratedSeeds`, `Match.generated_seed` |

@@ -9,14 +9,14 @@ from typing import Optional, Union
 
 from tortoise.transactions import in_transaction
 
-from application import match_events
+from application.events import match_live
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services import discord_queue
-from application.services.discord_service import DiscordService
+from application.services.discord import discord_queue
+from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
 from application.utils.discord_embeds import COLOR_CREW, notification_embed, time_field
 from application.utils.discord_messages import crew_assignment_dm
@@ -90,7 +90,7 @@ class CrewService:
             {'match_id': match_id, 'role': role},
         )
 
-        match_events.publish(match_id)
+        match_live.publish(match_id)
         event_bus.publish(Event.create(EventType.CREW_SIGNUP_CREATED, {
             'match_id': match_id, 'role': role, 'user_id': user.id,
         }, user))
@@ -138,7 +138,7 @@ class CrewService:
             {'match_id': match_id, 'role': role},
         )
 
-        match_events.publish(match_id)
+        match_live.publish(match_id)
         event_bus.publish(Event.create(EventType.CREW_SIGNUP_REMOVED, {
             'match_id': match_id, 'role': role, 'user_id': user.id,
         }, user))
@@ -204,7 +204,7 @@ class CrewService:
         if approved:
             await self._request_crew_acknowledgment(crew_member, crew_type)
 
-        match_events.publish(crew_member.match.id)
+        match_live.publish(crew_member.match.id)
         event_bus.publish(Event.create(EventType.CREW_APPROVAL_CHANGED, {
             'match_id': crew_member.match.id, 'crew_type': crew_type,
             'user_id': crew_member.user_id, 'approved': approved,
@@ -266,7 +266,7 @@ class CrewService:
                 },
             )
 
-        match_events.publish(crew_member.match_id)
+        match_live.publish(crew_member.match_id)
         event_bus.publish(Event.create(EventType.CREW_ACKNOWLEDGED, {
             'match_id': crew_member.match_id, 'crew_type': crew_type,
             'user_id': user.id,

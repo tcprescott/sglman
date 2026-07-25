@@ -84,7 +84,7 @@ class TestExchangePlayerCode:
         assert me == {'user_id': '20001', 'username': 'alicetv', 'display_name': 'AliceTV'}
 
     async def test_missing_access_token_raises(self, db):
-        from application.utils.twitch_client import TwitchAPIError
+        from application.utils.clients.twitch_client import TwitchAPIError
 
         class FakeClient:
             async def exchange_code(self, code, redirect_uri):

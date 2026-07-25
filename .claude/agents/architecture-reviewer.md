@@ -52,7 +52,7 @@ a new worker uses `run_worker_loop`/`for_each_tenant_scoped`
 feature flag is off (the volunteer-reminder class of bug — audit §3.4);
 availability logic goes through `application/services/availability_windows.py`;
 an audit-plus-event pair uses `AuditService.write_and_publish`; a new OAuth
-identity provider builds on `application/utils/oauth_identity_client.py` +
+identity provider builds on `application/utils/clients/oauth_identity_client.py` +
 `IdentityLinkService` rather than cloning the Twitch/racetime pair.
 
 **Error contract.** Services raising anything other than `ValueError` for

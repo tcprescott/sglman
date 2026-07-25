@@ -88,7 +88,7 @@ default_time = now.strftime('%H:%M')
 
 The following files were updated to use timezone utilities:
 
-- `application/services/match_service.py`
+- `application/services/match/match_service.py`
   - `create_match()` - Parses input as Eastern, stores as UTC
   - `update_match()` - Parses input as Eastern, stores as UTC
   - `_format_match_for_display()` - Formats datetimes in Eastern

@@ -1,4 +1,4 @@
-"""Coverage for the in-process infra: dispatch worker, match_events, bus, error handlers.
+"""Coverage for the in-process infra: dispatch worker, match_live, bus, error handlers.
 
 These modules are pure plumbing (no DB), so most tests here run without the ``db``
 fixture. The dispatch-queue tests drive the real async worker deterministically with
@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 
-from application import match_events
+from application.events import match_live
 from application.events import Event, EventType
 from application.events import bus as event_bus
 from application.events import dispatch_queue
@@ -145,43 +145,43 @@ class TestDispatchQueue:
 
 
 # --------------------------------------------------------------------------- #
-# application/match_events.py
+# application/match_live.py
 # --------------------------------------------------------------------------- #
 class TestMatchEvents:
     @pytest.fixture(autouse=True)
     def _clean_subscribers(self):
-        match_events._subscribers.clear()
+        match_live._subscribers.clear()
         yield
-        match_events._subscribers.clear()
+        match_live._subscribers.clear()
 
     def test_subscribe_delivers_to_callback(self):
         seen = []
-        match_events.subscribe(lambda mid, ct: seen.append((mid, ct)))
-        match_events.publish(5, match_events.CREATED)
+        match_live.subscribe(lambda mid, ct: seen.append((mid, ct)))
+        match_live.publish(5, match_live.CREATED)
         assert seen == [(5, 'created')]
 
     def test_publish_defaults_to_changed(self):
         seen = []
-        match_events.subscribe(lambda mid, ct: seen.append((mid, ct)))
-        match_events.publish(9)
-        assert seen == [(9, match_events.CHANGED)]
+        match_live.subscribe(lambda mid, ct: seen.append((mid, ct)))
+        match_live.publish(9)
+        assert seen == [(9, match_live.CHANGED)]
 
     def test_unsubscribe_stops_delivery(self):
         seen = []
-        token = match_events.subscribe(lambda mid, ct: seen.append(mid))
-        match_events.unsubscribe(token)
-        match_events.publish(1, match_events.DELETED)
+        token = match_live.subscribe(lambda mid, ct: seen.append(mid))
+        match_live.unsubscribe(token)
+        match_live.publish(1, match_live.DELETED)
         assert seen == []
 
     def test_unsubscribe_unknown_token_is_noop(self):
         # No subscribers registered; removing a stale token must not raise.
-        match_events.unsubscribe(9999)
+        match_live.unsubscribe(9999)
 
     def test_multiple_subscribers_each_notified(self):
         a, b = [], []
-        match_events.subscribe(lambda mid, ct: a.append(mid))
-        match_events.subscribe(lambda mid, ct: b.append(mid))
-        match_events.publish(7)
+        match_live.subscribe(lambda mid, ct: a.append(mid))
+        match_live.subscribe(lambda mid, ct: b.append(mid))
+        match_live.publish(7)
         assert a == [7] and b == [7]
 
     def test_raising_subscriber_is_isolated(self):
@@ -190,10 +190,10 @@ class TestMatchEvents:
         def boom(_mid, _ct):
             raise RuntimeError('bad match subscriber')
 
-        match_events.subscribe(boom)
-        match_events.subscribe(lambda mid, ct: seen.append(mid))
+        match_live.subscribe(boom)
+        match_live.subscribe(lambda mid, ct: seen.append(mid))
         # publish must not propagate the subscriber failure.
-        match_events.publish(3)
+        match_live.publish(3)
         assert seen == [3]
 
 

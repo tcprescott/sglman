@@ -12,8 +12,8 @@ Any logged-in user can "watch" a match to receive Discord DMs when its state cha
 |---|---|
 | `models.py` → `MatchWatcher` | Junction table: user × match watch subscriptions |
 | `discordbot/watch_buttons.py` | Discord "Unwatch" button on watcher DMs (`make_unwatch_view`) |
-| `application/services/match_watcher_service.py` | `MatchWatcherService` — `watch`/`unwatch`, query watched matches |
-| `application/services/match_schedule_service.py` | Includes watcher fan-out in notify methods |
+| `application/services/match/match_watcher_service.py` | `MatchWatcherService` — `watch`/`unwatch`, query watched matches |
+| `application/services/match/match_schedule_service.py` | Includes watcher fan-out in notify methods |
 | `pages/home_tabs/schedule.py` | Shows watch/unwatch button on each match row |
 | `theme/dialog/match_dialog.py` | Watch/unwatch toggle button in the match dialog |
 

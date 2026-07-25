@@ -8,9 +8,9 @@ guard. Shared-guild sibling safety has its own isolation test.
 
 from datetime import datetime, timedelta, timezone
 
-from application.services.discord_event_reconciler_service import DiscordEventReconcilerService
-from application.services.discord_service import MockDiscordService
-from application.utils import mock_discord_data
+from application.services.discord.discord_event_reconciler_service import DiscordEventReconcilerService
+from application.services.discord.discord_service import MockDiscordService
+from application.utils.mocks import mock_discord_data
 from models import DiscordEventSource, DiscordScheduledEvent, Match, MatchPlayers, Tenant, Tournament, User
 
 GUILD = 1000000000000000001

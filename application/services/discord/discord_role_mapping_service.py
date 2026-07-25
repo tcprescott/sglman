@@ -15,7 +15,7 @@ from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.services.discord_service import DiscordService
+from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
 from application.tenant_context import tenant_scope
 from models import DiscordRoleMapping, Role, RoleSource, Tenant, User

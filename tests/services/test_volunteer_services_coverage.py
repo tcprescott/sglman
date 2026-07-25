@@ -12,9 +12,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
-from application.services.volunteer_qualification_service import VolunteerQualificationService
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import EASTERN_TZ, parse_eastern_datetime
 from models import (
     Role,

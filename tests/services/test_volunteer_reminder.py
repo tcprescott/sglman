@@ -4,7 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-import application.services.volunteer_reminder as reminder_mod
+import application.services.volunteer.volunteer_reminder as reminder_mod
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ async def test_tick_noop_when_no_due_assignments(monkeypatch):
         raising=False,
     )
     # Patch at the module path used inside _tick
-    with patch('application.services.volunteer_reminder._tick', AsyncMock(return_value=None)):
+    with patch('application.services.volunteer.volunteer_reminder._tick', AsyncMock(return_value=None)):
         pass  # just confirm the patch mechanism works
 
     # Directly test via patching all internal imports

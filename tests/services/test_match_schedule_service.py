@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from application.services.match_schedule_service import MatchScheduleService
+from application.services.match.match_schedule_service import MatchScheduleService
 from application.utils.discord_messages import (
     checked_in_dm,
     scheduled_dm,
@@ -398,7 +398,7 @@ class TestNotifyMatchScheduled:
     async def test_enqueues_ack_crew_and_subscribers(self, service):
         self._wire(service)
         match = MockMatch()
-        with patch('application.services.match_schedule_service.discord_queue.enqueue') as enqueue:
+        with patch('application.services.match.match_schedule_service.discord_queue.enqueue') as enqueue:
             await service.notify_match_scheduled(match, rescheduled=False, is_stream_candidate=False)
 
         _, ack_kwargs = service.notify_acknowledgment_request.call_args
@@ -412,7 +412,7 @@ class TestNotifyMatchScheduled:
     async def test_stream_candidate_enqueued_when_flagged(self, service):
         self._wire(service)
         match = MockMatch()
-        with patch('application.services.match_schedule_service.discord_queue.enqueue') as enqueue:
+        with patch('application.services.match.match_schedule_service.discord_queue.enqueue') as enqueue:
             await service.notify_match_scheduled(match, rescheduled=False, is_stream_candidate=True)
 
         candidate_args = service.notify_stream_candidate_subscribers.call_args.args
@@ -423,7 +423,7 @@ class TestNotifyMatchScheduled:
     async def test_rescheduled_flag_forwarded_to_ack_request(self, service):
         self._wire(service)
         match = MockMatch()
-        with patch('application.services.match_schedule_service.discord_queue.enqueue'):
+        with patch('application.services.match.match_schedule_service.discord_queue.enqueue'):
             await service.notify_match_scheduled(match, rescheduled=True)
 
         _, ack_kwargs = service.notify_acknowledgment_request.call_args
@@ -435,7 +435,7 @@ class TestNotifyStreamCandidate:
         service.notify_stream_candidate_subscribers = MagicMock()
         service._collect_notified_discord_ids = AsyncMock(return_value=[111, 222])
         match = MockMatch()
-        with patch('application.services.match_schedule_service.discord_queue.enqueue') as enqueue:
+        with patch('application.services.match.match_schedule_service.discord_queue.enqueue') as enqueue:
             await service.notify_stream_candidate(match)
 
         args = service.notify_stream_candidate_subscribers.call_args.args
@@ -458,9 +458,9 @@ class TestCollectNotifiedDiscordIds:
         # Tracker shares the commentator's id — should be deduped away.
         tracker = SimpleNamespace(user=SimpleNamespace(discord_id=222))
 
-        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [player]), \
-             self._patch_query('application.services.match_schedule_service.Commentator.filter', [commentator]), \
-             self._patch_query('application.services.match_schedule_service.Tracker.filter', [tracker]):
+        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', [commentator]), \
+             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', [tracker]):
             ids = await service._collect_notified_discord_ids(match)
 
         assert ids == [111, 222]
@@ -519,10 +519,10 @@ class TestNotifyMatchParticipants:
         match = MockMatch()
         player = SimpleNamespace(user=SimpleNamespace(discord_id=111, dm_notifications=True))
 
-        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [player]), \
-             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', []):
+        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello", embed=None)
@@ -532,10 +532,10 @@ class TestNotifyMatchParticipants:
         match = MockMatch()
         watcher = SimpleNamespace(user=SimpleNamespace(discord_id=222, dm_notifications=True))
 
-        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', []), \
-             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', [watcher]):
+        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', [watcher]):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
@@ -547,10 +547,10 @@ class TestNotifyMatchParticipants:
         player = SimpleNamespace(user=u)
         watcher = SimpleNamespace(user=u)
 
-        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [player]), \
-             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', [watcher]):
+        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', [watcher]):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
@@ -560,10 +560,10 @@ class TestNotifyMatchParticipants:
         match = MockMatch()
         opted_out = SimpleNamespace(user=SimpleNamespace(discord_id=444, dm_notifications=False))
 
-        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter', [opted_out]), \
-             self._patch_query('application.services.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter', []):
+        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [opted_out]), \
+             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
@@ -575,12 +575,12 @@ class TestNotifyMatchParticipants:
         crew_user = SimpleNamespace(discord_id=222, dm_notifications=True)
         watcher_user = SimpleNamespace(discord_id=333, dm_notifications=True)
 
-        with self._patch_query('application.services.match_schedule_service.MatchPlayers.filter',
+        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter',
                                [SimpleNamespace(user=player_user)]), \
-             self._patch_query('application.services.match_schedule_service.Commentator.filter',
+             self._patch_query('application.services.match.match_schedule_service.Commentator.filter',
                                [SimpleNamespace(user=crew_user)]), \
-             self._patch_query('application.services.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match_schedule_service.MatchWatcher.filter',
+             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
+             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter',
                                [SimpleNamespace(user=watcher_user)]):
             await real_notify_service.notify_match_participants(match, "msg")
 

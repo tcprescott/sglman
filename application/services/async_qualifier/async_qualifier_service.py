@@ -14,7 +14,7 @@ close). This service owns every rule the repositories deliberately don't:
 - **Review** — reviewers = the qualifier's ``admins``; **self-review blocked**;
   claim-locking; approve/reject recomputes the permalink's par and rescores.
 - **Scoring / leaderboard** — par + score math in
-  :mod:`application.services.async_qualifier_scoring`; the board obeys the
+  :mod:`application.services.async_qualifier.async_qualifier_scoring`; the board obeys the
   **active-window information lockdown** (pool/par/other entrants' runs are
   staff-only until the qualifier closes).
 
@@ -40,11 +40,11 @@ from application.repositories import (
     AsyncQualifierRunRepository,
     PresetRepository,
 )
-from application.services import async_qualifier_access as access
-from application.services import async_qualifier_rules as rules
-from application.services.async_qualifier_config import validate_async_qualifier_config
-from application.services.async_qualifier_draw import AsyncQualifierDraw
-from application.services.async_qualifier_scoring import (
+from application.services.async_qualifier import async_qualifier_access as access
+from application.services.async_qualifier import async_qualifier_rules as rules
+from application.services.async_qualifier.async_qualifier_config import validate_async_qualifier_config
+from application.services.async_qualifier.async_qualifier_draw import AsyncQualifierDraw
+from application.services.async_qualifier.async_qualifier_scoring import (
     LeaderboardEntry,
     ScoredRun,
     build_leaderboard,
@@ -710,7 +710,7 @@ class AsyncQualifierService:
             discord_id = run.user.discord_id
             if not discord_id or run.user.is_placeholder:
                 return
-            from application.services.discord_service import DiscordService
+            from application.services.discord.discord_service import DiscordService
             verb = 'approved' if approved else 'rejected'
             await DiscordService().send_dm(
                 int(discord_id),

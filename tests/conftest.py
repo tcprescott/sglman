@@ -61,7 +61,7 @@ def stub_discord_queue(monkeypatch):
     """
     captured = []
     monkeypatch.setattr(
-        'application.services.discord_queue.enqueue', captured.append
+        'application.services.discord.discord_queue.enqueue', captured.append
     )
     yield captured
     for coro in captured:

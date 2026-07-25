@@ -1,6 +1,6 @@
 """Volunteer My Availability tab."""
 
-from application.services.volunteer_availability_service import VolunteerAvailabilityService
+from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from theme.availability_editor import render_availability_editor
 
 

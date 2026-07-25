@@ -12,7 +12,7 @@ import pytest
 
 from application.repositories import MatchRepository, UserRepository
 from application.services.speedgaming_etl_service import SpeedGamingETLService
-from application.utils.speedgaming_client import MockSpeedGamingClient
+from application.utils.clients.speedgaming_client import MockSpeedGamingClient
 from models import (
     Match,
     MatchPlayers,

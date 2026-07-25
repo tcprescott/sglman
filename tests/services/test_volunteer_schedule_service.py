@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from application.services.volunteer_schedule_service import VolunteerScheduleService
+from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 
 UTC = timezone.utc
 
@@ -162,7 +162,7 @@ class TestAssign:
 
         with patch.object(service, '_availability_warning', AsyncMock(return_value=None)):
             with patch(
-                'application.services.volunteer_schedule_service.VolunteerAssignment',
+                'application.services.volunteer.volunteer_schedule_service.VolunteerAssignment',
             ) as MockAssn:
                 MockAssn.filter.return_value.count = AsyncMock(return_value=2)
                 _, warnings = await service.assign(actor=MagicMock(), shift=shift, user=user)
@@ -178,7 +178,7 @@ class TestAssign:
 
         with patch.object(service, '_availability_warning', AsyncMock(return_value=None)):
             with patch(
-                'application.services.volunteer_schedule_service.VolunteerAssignment',
+                'application.services.volunteer.volunteer_schedule_service.VolunteerAssignment',
             ) as MockAssn:
                 MockAssn.filter.return_value.count = AsyncMock(return_value=0)
                 result, warnings = await service.assign(actor=MagicMock(), shift=shift, user=user)

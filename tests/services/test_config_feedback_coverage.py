@@ -458,7 +458,7 @@ class TestSetTournamentHours:
 
 class TestMatchSchedulingHonorsTournamentHours:
     async def test_tournament_override_bounds_scheduling(self, db):
-        from application.services.match_service import MatchService
+        from application.services.match.match_service import MatchService
         from application.utils.timezone import parse_eastern_datetime
 
         # Tenant has no hours; the tournament restricts 12:00–20:00 on this date.
@@ -476,7 +476,7 @@ class TestMatchSchedulingHonorsTournamentHours:
         await svc._assert_within_tournament_hours(inside, tournament.id)  # no raise
 
     async def test_falls_back_to_tenant_hours_when_tournament_unset(self, db):
-        from application.services.match_service import MatchService
+        from application.services.match.match_service import MatchService
         from application.utils.timezone import parse_eastern_datetime
 
         await set_config(KEY_TOURNAMENT_HOURS, json.dumps({

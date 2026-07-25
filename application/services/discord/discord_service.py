@@ -12,7 +12,7 @@ from discord.ext import commands
 
 from application.events import dispatch_queue as event_dispatch_queue
 from application.services.web_push_service import WebPushService
-from application.utils import mock_discord_data
+from application.utils.mocks import mock_discord_data
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ _bot_instance: Optional[commands.Bot] = None
 # function-body imports). The bot package registers each interaction handler
 # and view factory here at startup, so the dependency now runs one way (the bot
 # package -> ``application.services``) and this module never imports it back.
-# Mirrors ``application/match_events.py``.
+# Mirrors ``application/match_live.py``.
 # See docs/reviews/2026-07-project-structure-review.md, roadmap item 21.
 # ---------------------------------------------------------------------------
 
@@ -92,7 +92,7 @@ async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
     """
     try:
         from application.services.tenant_service import TenantService
-        from application.services.discord_role_mapping_service import DiscordRoleMappingService
+        from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
         from models import User
 
         # A guild may back several tenants (a shared server), so sync every one.
@@ -729,7 +729,7 @@ class MockDiscordService:
         return True, "Event cancelled."
 
 
-from application.utils.mock_discord import is_mock_discord  # noqa: E402
+from application.utils.mocks.mock_discord import is_mock_discord  # noqa: E402
 
 # Stable handle to the real implementation; survives the mock swap below so tests
 # can exercise the real error branches regardless of MOCK_DISCORD.
