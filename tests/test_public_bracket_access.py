@@ -73,3 +73,72 @@ class TestGroupByTournament:
 
     def test_empty(self):
         assert group_by_tournament([]) == []
+
+
+class TestDraftVisibility:
+    """A DRAFT stage is unpublished — staff-only on every public surface."""
+
+    def _stages(self):
+        from models import BracketState
+
+        class _B:
+            def __init__(self, id, state):
+                self.id, self.state = id, state
+
+        return [
+            _B(1, BracketState.DRAFT),
+            _B(2, BracketState.ACTIVE),
+            _B(3, BracketState.COMPLETE),
+        ]
+
+    def test_non_staff_never_sees_a_draft(self):
+        from theme.brackets import is_visible, visible_stages
+
+        stages = self._stages()
+        assert [b.id for b in visible_stages(stages, is_staff=False)] == [2, 3]
+        assert is_visible(stages[0], is_staff=False) is False
+        assert is_visible(stages[1], is_staff=False) is True
+
+    def test_staff_sees_everything(self):
+        from theme.brackets import is_visible, visible_stages
+
+        stages = self._stages()
+        assert [b.id for b in visible_stages(stages, is_staff=True)] == [1, 2, 3]
+        assert is_visible(stages[0], is_staff=True) is True
+
+    def test_empty(self):
+        from theme.brackets import visible_stages
+
+        assert visible_stages([], is_staff=False) == []
+
+
+class TestCrawlerPolicy:
+    """Signed-out surfaces are shareable by link, not published to search."""
+
+    async def test_robots_disallows_everything(self, monkeypatch):
+        import httpx
+        from fastapi import FastAPI
+
+        # frontend imports pages.auth, which builds a real Discord client at
+        # import time unless mock mode is on.
+        monkeypatch.setenv('MOCK_DISCORD', 'true')
+        import frontend
+
+        # The root routes register on a bare app — cheaper and more direct than
+        # booting the whole NiceGUI stack.
+        app = FastAPI()
+        frontend._register_root_routes(app)
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url='http://test') as client:
+            resp = await client.get('/robots.txt')
+
+        assert resp.status_code == 200
+        assert resp.text.strip() == 'User-agent: *\nDisallow: /'
+
+    def test_chrome_carries_a_noindex_meta(self):
+        """robots.txt asks a crawler not to fetch; the meta deindexes."""
+        from pathlib import Path
+
+        chrome = Path('theme/base.py').read_text()
+        assert '<meta name="robots" content="noindex, nofollow">' in chrome

@@ -241,3 +241,32 @@ class TestFormatMatchIsRacetime:
         )
         result = display_service._format_match_for_display(match)
         assert result["is_racetime"] is True
+
+
+class TestFormatMatchBracket:
+    """``bracket`` is None unless a bracket game scheduled the match.
+
+    ``make_match`` has no ``bracket_match_game`` attribute at all, which is also
+    what a caller that skipped ``prefetch_relations`` sees — the link degrades to
+    absent rather than raising.
+    """
+
+    def test_absent_relation_yields_no_link(self, display_service):
+        assert display_service._format_match_for_display(make_match())["bracket"] is None
+
+    def test_unlinked_game_row_yields_no_link(self, display_service):
+        match = make_match(bracket_match_game=None)
+        assert display_service._format_match_for_display(match)["bracket"] is None
+
+    def test_links_to_the_bracket_of_its_game(self, display_service):
+        match = make_match(
+            bracket_match_game=SimpleNamespace(
+                game_number=3,
+                bracket_match=SimpleNamespace(
+                    bracket=SimpleNamespace(id=9, name="Playoff"),
+                ),
+            )
+        )
+        assert display_service._format_match_for_display(match)["bracket"] == {
+            "id": 9, "name": "Playoff", "game": 3,
+        }

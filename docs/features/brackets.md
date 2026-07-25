@@ -266,6 +266,15 @@ which is `False` when `user is None`. What an anonymous visitor sees is the
 read-only surface: entrant display names, seeds, scores, standings, and each
 game's scheduled time.
 
+**DRAFT stages are staff-only.** A stage in `DRAFT` is unpublished — it exists so
+staff can author and seed a field before announcing it — so on every public
+surface it reads as absent to everyone else: omitted from the browse tab and the
+stage index, and a 'Bracket not found' on the detail route. The rule is one pure
+helper, [`theme/brackets/visibility.py`](../../theme/brackets/visibility.py)
+(`is_visible` / `visible_stages`), shared by the three surfaces rather than
+copied into each; staff keep the unfiltered list in Admin → Brackets, which never
+goes through it.
+
 Reachability is the other half. Home is the only page a signed-out visitor lands
 on, so the **Brackets** tab
 ([`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py)) is the browse
@@ -276,6 +285,23 @@ for multi-stage tournaments. The tab is added whenever `BRACKETS` is live,
 before it assembles the tab list rather than inside its signed-in branch. It reads
 once through `BracketService.list_all_brackets` (tournament prefetched, so
 grouping costs no query per row) and groups with the pure `group_by_tournament`.
+
+The other way in is the **schedule**: every game of a bracket match is an
+ordinary `Match`, so a row whose match was scheduled by a bracket carries a
+"<stage name> · Game N" link into that bracket's view — on the public schedule,
+the admin schedule, and the player dashboard alike, since all three are one
+`MatchTableView`. The row field is `MatchDisplayService._bracket_ref`, hydrated
+by a batched `bracket_match_game__bracket_match__bracket` prefetch (a fixed few
+queries, not one per row) and rendered by the Tournament cell slot plus its
+mobile-card twin. The link **emits** rather than carrying an `href`, because
+`ui.navigate.to` is what prepends the tenant's `root_path` under path-mode
+multitenancy.
+
+Neither surface is published to search engines: the app serves a blanket
+`robots.txt` (`frontend.py`) and `BaseLayout` stamps a `noindex, nofollow` meta.
+Signed-out means shareable by link, not indexed. Page routes are **not** rate
+limited (`api/rate_limit.py` is mounted on the REST router only) — a known gap
+that predates public brackets, since the schedule was already anonymous.
 
 ## Presentation — the redesigned bracket view
 

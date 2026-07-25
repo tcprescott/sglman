@@ -367,6 +367,7 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 | `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. |
 | `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
+| `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
 
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`. Consumers: `theme/tables/match.py` (`self.display_service` — filters, `refresh`, and single-row updates).
 

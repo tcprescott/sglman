@@ -34,6 +34,9 @@ async def _render_platform_landing() -> None:
     # stylesheet + palette + header so first impression reads as the product.
     ui.dark_mode(app.storage.user.get('dark_mode'))
     ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+    # This page builds its own chrome rather than BaseLayout's, so it repeats
+    # the site-wide noindex (see theme/base.py).
+    ui.add_head_html('<meta name="robots" content="noindex, nofollow">')
     ui.colors(
         primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
         positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',

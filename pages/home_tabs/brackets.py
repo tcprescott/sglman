@@ -12,11 +12,11 @@ tenant's ``root_path`` under path-mode multitenancy.
 
 from typing import Dict, List, Tuple
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import BracketService
+from application.services import AuthService, BracketService, get_user_from_discord_id
 from models import Bracket
-from theme.brackets import format_label, state_color
+from theme.brackets import format_label, state_color, visible_stages
 
 
 def group_by_tournament(
@@ -55,7 +55,13 @@ def _render_stage(bracket: Bracket) -> None:
 
 
 async def brackets_tab() -> None:
-    brackets = await BracketService().list_all_brackets()
+    # DRAFT stages are unpublished (theme/brackets/visibility.py): a staff
+    # viewer browses the full list, everyone else only what has started.
+    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    is_staff = await AuthService.is_staff(user)
+    brackets = visible_stages(
+        await BracketService().list_all_brackets(), is_staff=is_staff,
+    )
 
     with ui.column().classes('page-container'):
         with ui.row().classes('header-row'):

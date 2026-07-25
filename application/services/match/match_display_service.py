@@ -131,6 +131,32 @@ class MatchDisplayService:
         else:
             return 'Scheduled'
 
+    @staticmethod
+    def _bracket_ref(match: Match) -> Optional[Dict[str, Any]]:
+        """The bracket this match is a game of, for the schedule's link out.
+
+        ``bracket_match_game`` is a reverse OneToOne, so it is ``None`` for the
+        vast majority of matches (nothing scheduled it through a bracket) and
+        raises when the relation was not prefetched — a caller that skipped
+        ``prefetch_relations`` gets no link rather than an exception.
+        """
+        try:
+            game = match.bracket_match_game
+        except Exception:
+            return None
+        if game is None:
+            return None
+        bracket_match = getattr(game, 'bracket_match', None)
+        bracket = getattr(bracket_match, 'bracket', None) if bracket_match else None
+        if bracket is None:
+            return None
+        return {
+            'id': bracket.id,
+            'name': bracket.name,
+            # Only meaningful in a best-of-N series; game 1 of 1 is just "the match".
+            'game': game.game_number if game.game_number and game.game_number > 1 else None,
+        }
+
     def _format_match_for_display(
         self,
         match: Match,
@@ -176,6 +202,9 @@ class MatchDisplayService:
         return {
             'id': match.id,
             'tournament': match.tournament.name if match.tournament else '',
+            # None unless a bracket scheduled this match; drives the schedule's
+            # link into the (publicly readable) bracket view.
+            'bracket': self._bracket_ref(match),
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
             'state': state,
             'state_timestamp': state_timestamp,

@@ -150,6 +150,8 @@ Current usages: both native-bracket routes ([`pages/brackets.py`](../../pages/br
 
 Page-view telemetry rows from a public page can carry a `NULL` `discord_id`; they are attributed to the browser session alone.
 
+Signed-out readability is **not** publication: the app serves a blanket `robots.txt` (`frontend._register_root_routes`) and `BaseLayout.render_chrome` stamps a `noindex, nofollow` meta, so a shared link works while nothing gets indexed. Note that page routes carry **no rate limiting** — `api/rate_limit.py` is mounted on the REST router only.
+
 ### `AuthMiddleware`
 
 Registered in [`frontend.py`](../../frontend.py) with `app.add_middleware(AuthMiddleware)` at module import time (on the NiceGUI `app`). Its `dispatch` runs on every request:

@@ -22,6 +22,7 @@ from .labels import (
     state_color,
 )
 from .live import register_bracket_view
+from .visibility import is_visible, visible_stages
 from .render import (
     build_context,
     detect_finals,
@@ -62,6 +63,8 @@ __all__ = [
     'STATE_COLORS',
     'format_label',
     'state_color',
+    'is_visible',
+    'visible_stages',
     'MatchNode',
     'Placement',
     'SectionLayout',

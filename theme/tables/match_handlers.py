@@ -183,6 +183,19 @@ class MatchTableHandlersMixin:
             except ValueError as e:
                 ui.notify(str(e), color='warning')
 
+    def _handle_open_bracket(self, event):
+        """Navigate to the bracket a scheduled game belongs to.
+
+        The row carries the bracket id (``MatchDisplayService._bracket_ref``);
+        the bare path lets ``ui.navigate.to`` prepend the tenant's root_path.
+        Synchronous — a redirect needs no service call.
+        """
+        args = getattr(event, 'args', None)
+        row = args if isinstance(args, dict) else {}
+        bracket = row.get('bracket') if isinstance(row.get('bracket'), dict) else None
+        if bracket and bracket.get('id'):
+            ui.navigate.to(f"/brackets/{bracket['id']}")
+
     async def _handle_edit(self, event):
         match_id = self._event_match_id(event)
         if match_id is not None and self.on_edit:

@@ -7,7 +7,7 @@ import logging
 import os
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from nicegui import app, ui
 
@@ -85,6 +85,44 @@ class NoCacheStaticFiles(StaticFiles):
             await super().__call__(scope, receive, send)
 
 
+ROBOTS_TXT = 'User-agent: *\nDisallow: /\n'
+
+
+def _register_root_routes(fastapi_app: FastAPI) -> None:
+    """Register the two site-root routes that cannot live under ``/static``.
+
+    Extracted from :func:`init` so it can be exercised on a bare app.
+    """
+
+    # Keep the app out of search indexes. Some surfaces are readable signed out
+    # (the schedule, the bracket views), but "shareable by link" is not "wants
+    # to be crawled": indexing would put tournament rosters and results into
+    # results pages the community never published, and every crawl writes a
+    # page-view telemetry row. robots.txt is per-origin by spec, so this root
+    # route covers every tenant path; `BaseLayout` adds a `noindex` meta as the
+    # belt to these braces, since robots.txt only asks a crawler not to *fetch*
+    # — it does not deindex a URL already known.
+    @fastapi_app.get('/robots.txt', include_in_schema=False)
+    async def _robots() -> PlainTextResponse:
+        return PlainTextResponse(
+            ROBOTS_TXT, headers={'Cache-Control': 'public, max-age=3600'},
+        )
+
+    # Serve the service worker from the site root: a worker registered under the
+    # /static/ path can only control /static/* clients, so it could never take
+    # control of the app's start_url ('/'). Root scope is required for install.
+    @fastapi_app.get('/sw.js', include_in_schema=False)
+    async def _service_worker() -> FileResponse:
+        # no-cache so an updated worker is always revalidated — matches the
+        # NoCacheStaticFiles treatment of /static and avoids a stale SW pinning
+        # old behavior (a fresh worker is what re-fetches everything else).
+        return FileResponse(
+            'static/sw.js',
+            media_type='text/javascript',
+            headers={'Cache-Control': 'no-cache'},
+        )
+
+
 def init(fastapi_app: FastAPI) -> None:
     """
     Initialize the frontend by registering NiceGUI pages and attaching them to the FastAPI app.
@@ -106,19 +144,7 @@ def init(fastapi_app: FastAPI) -> None:
     # Mount static files directory with no-cache in development
     fastapi_app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
-    # Serve the service worker from the site root: a worker registered under the
-    # /static/ path can only control /static/* clients, so it could never take
-    # control of the app's start_url ('/'). Root scope is required for install.
-    @fastapi_app.get('/sw.js', include_in_schema=False)
-    async def _service_worker() -> FileResponse:
-        # no-cache so an updated worker is always revalidated — matches the
-        # NoCacheStaticFiles treatment of /static and avoids a stale SW pinning
-        # old behavior (a fresh worker is what re-fetches everything else).
-        return FileResponse(
-            'static/sw.js',
-            media_type='text/javascript',
-            headers={'Cache-Control': 'no-cache'},
-        )
+    _register_root_routes(fastapi_app)
 
     auth.create()
     challonge_oauth.create()

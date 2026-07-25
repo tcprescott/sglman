@@ -121,6 +121,10 @@ class BaseLayout:
                 'as="font" type="font/woff2" crossorigin>'
             )
         ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
+        # Paired with the site-wide robots.txt (frontend.py): the signed-out
+        # surfaces are shareable by link, not published to search engines, and
+        # robots.txt alone does not deindex a URL a crawler already knows.
+        ui.add_head_html('<meta name="robots" content="noindex, nofollow">')
         # PWA wiring: the manifest makes the app installable, the two media-scoped
         # theme-color metas tint the mobile browser/status-bar chrome to the gold
         # header (light) / charcoal (dark) palette, and the apple-touch-icon is the

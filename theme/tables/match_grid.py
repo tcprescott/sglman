@@ -231,6 +231,13 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
     caption_inner = ''
     if 'tournament' in present:
         caption_inner += '<span v-if="props.row.tournament">{{ props.row.tournament }}</span>'
+        # Same bracket link as the desktop Tournament cell (see match_slots).
+        caption_inner += (
+            '<a v-if="props.row.bracket" href="#" class="mgc-bracket-link q-ml-sm"'
+            ' @click.prevent="$parent.$emit(\'open_bracket\', props.row)">'
+            '<q-icon name="account_tree" size="14px" class="q-mr-xs" />'
+            '{{ props.row.bracket.name }}</a>'
+        )
     if 'id' in present:
         if has_edit:
             caption_inner += (

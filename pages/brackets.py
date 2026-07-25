@@ -54,11 +54,13 @@ from theme.brackets import (
     build_match_dialog,
     entry_records,
     format_label,
+    is_visible,
     match_nodes,
     register_bracket_view,
     render_elimination,
     render_elimination_mobile,
     state_color,
+    visible_stages,
 )
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
 
@@ -313,6 +315,7 @@ def create() -> None:
         ui.page_title('Wizzrobe — Brackets')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
+        is_staff = await AuthService.is_staff(user)
         await BaseLayout(
             user=user, show_admin=show_admin, show_volunteer=user is not None,
         ).render()
@@ -325,13 +328,16 @@ def create() -> None:
             ui.label('Tournament not found.').classes('text-error')
             return
 
-        brackets = await service.list_brackets(tournament_id)
+        # DRAFT stages are unpublished — staff-only on every public surface.
+        brackets = visible_stages(
+            await service.list_brackets(tournament_id), is_staff=is_staff,
+        )
 
         with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
             ui.label(f'{tournament.name} — Brackets').classes('page-title')
             ui.separator().classes('separator-spacing')
             if not brackets:
-                ui.label('No brackets have been created for this tournament.').classes('italic-note')
+                ui.label('No brackets have been published for this tournament.').classes('italic-note')
                 return
             for bracket in brackets:
                 with ui.card().classes('w-full q-pa-md q-mb-sm'):
@@ -437,7 +443,9 @@ def create() -> None:
             # dialogs do the same) rather than relying on the client-stash fallback.
             with tenant_scope(tenant_id):
                 bracket = await service.get_bracket(bracket_id)
-                if bracket is None:
+                # An unpublished (DRAFT) stage reads as absent to everyone but
+                # staff — its seeded field is not public until the stage starts.
+                if bracket is None or not is_visible(bracket, is_staff=is_staff):
                     ui.label('Bracket not found.').classes('text-error')
                     return
                 entrants = await service.list_entrants(bracket.tournament_id)
