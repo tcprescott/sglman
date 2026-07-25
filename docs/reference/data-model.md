@@ -518,6 +518,7 @@ Tournament metadata and configuration; the root aggregate for matches, enrollmen
 | `admins` | M2M → `User` | — | `through='TournamentAdmins'`, `related_name='admin_tournaments'` |
 | `crew_coordinators` | M2M → `User` | — | `through='TournamentCrewCoordinators'`, `related_name='crew_coordinated_tournaments'` |
 | `staff_administered` | `BooleanField` | default `False` | Staff-run vs. community tournament |
+| `allow_player_match_requests` | `BooleanField` | default `True` | Whether players may request matches outside a bracket. Turned off automatically by `BracketService.create_bracket` (stage 0) and `ChallongeService.link_tournament` — a bracket-run tournament schedules only its own matchups. Enforced in `MatchService.submit_match_request`; staff can re-enable it per tournament. |
 
 Relationships: declared reverse accessors `players`, `matches`, `teams`, `announcements`, `notification_preferences`, `triforce_texts`, `challonge_participants`, `challonge_matches`. Both M2M through tables carry a unique index on `(tournament_id, user_id)`.
 
@@ -1472,7 +1473,7 @@ Serves `Tournament` and `TournamentPlayers` ([`tournament_repository.py`](../../
 | `async get_by_ids(tournament_ids: List[int]) -> List[Tournament]` | Bulk lookup ordered by name |
 | `async get_all(active_only=False, staff_only=False, prefetch_players=False) -> List[Tournament]` | All tournaments ordered by name; filters on `is_active` / `staff_administered` |
 | `async get_all_as_dict(active_only=False, staff_only=False) -> dict[int, str]` | id → name map for select options |
-| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False, config=None, preset_id=None) -> Tournament` | Insert a tournament (`config` is the validated hybrid-config blob; `preset_id` links a seed-rolling `Preset`) |
+| `async create(name, description=None, seed_generator=None, is_active=True, players_per_match=2, team_size=1, bracket_url=None, rules_url=None, tournament_format=None, average_match_duration=None, max_match_duration=None, staff_administered=False, allow_player_match_requests=True, config=None, preset_id=None) -> Tournament` | Insert a tournament (`config` is the validated hybrid-config blob; `preset_id` links a seed-rolling `Preset`) |
 | `async update(tournament: Tournament, **fields) -> None` | `setattr` each field and save |
 | `async delete(tournament: Tournament) -> None` | Delete the tournament |
 | `async enroll_player(tournament: Tournament, user) -> TournamentPlayers` | Insert an enrollment row |

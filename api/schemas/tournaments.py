@@ -23,6 +23,9 @@ class TournamentResponse(BaseModel):
     average_match_duration: Optional[int] = None
     max_match_duration: Optional[int] = None
     staff_administered: bool
+    # False once a bracket is attached: the tournament schedules only its own
+    # matchups, so POST /matches/request is refused for it.
+    allow_player_match_requests: bool
     # Per-tournament "tournament days" override; null means the tournament
     # inherits the community (tenant) setting for that facet.
     event_start_date: Optional[date] = None

@@ -375,6 +375,10 @@ class ChallongeService:
         remote = full['tournament']
         tournament.challonge_tournament_id = remote.get('id') or identifier
         tournament.challonge_tournament_url = remote.get('url')
+        # A bracket-run tournament schedules only what the bracket produced, so
+        # close the manual player-request path. Staff can re-open it per
+        # tournament from the tournament editor.
+        tournament.allow_player_match_requests = False
         await tournament.save()
 
         await self.audit_service.write_log(
@@ -519,6 +523,9 @@ class ChallongeService:
             player_ids=[p1.user_id, p2.user_id],
             actor=actor,
             comment=comment,
+            # The bracket is the sanctioned scheduling path for a Challonge-linked
+            # tournament, so this bypasses its allow_player_match_requests toggle.
+            from_bracket=True,
         )
         await self.repository.link_match(cmatch, match)
         return match

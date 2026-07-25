@@ -127,6 +127,13 @@ class BracketService(
             config=config,
         )
 
+        # A bracket-run tournament schedules only what the bracket produced, so
+        # attaching the first stage closes the manual player-request path. Only on
+        # the first stage: a later stage must not undo a staff re-open.
+        if tournament.allow_player_match_requests and stage_order == 0:
+            tournament.allow_player_match_requests = False
+            await tournament.save(update_fields=['allow_player_match_requests'])
+
         details = {
             'bracket_id': bracket.id,
             'tournament_id': tournament_id,

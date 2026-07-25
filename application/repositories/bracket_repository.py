@@ -197,8 +197,25 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         if tournament_id is not None:
             qs = qs.filter(bracket__tournament_id=tournament_id)
         return await qs.prefetch_related(
-            'bracket', 'entry1__entrant__user', 'entry2__entrant__user', 'games',
+            'bracket__tournament', 'entry1__entrant__user', 'entry2__entrant__user',
+            'games',
         ).distinct().order_by('round', 'position')
+
+    async def open_matches_for_tournament(
+        self, tournament_id: int
+    ) -> List[BracketMatch]:
+        """Every OPEN matchup across a tournament's stages, entrants resolved.
+
+        Backs the admin editor's "link this match to a matchup" picker, so it
+        prefetches the same relations ``open_matches_for_user`` does.
+        """
+        from models import BracketMatchState
+        return await scoped(BracketMatch.filter(
+            bracket__tournament_id=tournament_id,
+            state=BracketMatchState.OPEN,
+        )).prefetch_related(
+            'bracket', 'entry1__entrant__user', 'entry2__entrant__user', 'games',
+        ).order_by('bracket__stage_order', 'round', 'position')
 
     # --- BracketMatchGame -------------------------------------------------
     async def create_game(self, **fields) -> BracketMatchGame:
@@ -206,6 +223,10 @@ class BracketRepository(TenantScopedRepository[Bracket]):
 
     async def get_game(self, game_id: int) -> Optional[BracketMatchGame]:
         return await scoped(BracketMatchGame.filter(id=game_id)).first()
+
+    async def delete_game(self, game_id: int) -> int:
+        """Delete one game row, freeing its slot. Returns the rows removed."""
+        return await scoped(BracketMatchGame.filter(id=game_id)).delete()
 
     async def list_games(self, bracket_match_id: int) -> List[BracketMatchGame]:
         return await scoped(

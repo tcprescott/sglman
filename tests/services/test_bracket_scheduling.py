@@ -22,6 +22,7 @@ from models import (
     Match,
     MatchPlayers,
     Role,
+    StreamRoom,
     Tournament,
     User,
     UserRole,
@@ -140,6 +141,57 @@ class TestScheduleBracketMatch:
                 outsider, bmatch.id,
                 scheduled_date='2026-06-12', scheduled_time='14:30',
             )
+
+    async def test_entrant_can_schedule_their_own_matchup(self, service):
+        """The bracket is a player's only scheduling route once it's attached."""
+        actor = await _staff()
+        t, _, users, bmatch = await _linked_bracket(service, actor)
+
+        match = await service.schedule_bracket_match(
+            users[0], bmatch.id,
+            scheduled_date='2026-06-12', scheduled_time='14:30',
+        )
+
+        assert match.tournament_id == t.id
+        player_ids = {p.user_id for p in await MatchPlayers.filter(match=match)}
+        assert player_ids == {users[0].id, users[1].id}
+        game = await BracketMatchGame.get(bracket_match_id=bmatch.id)
+        assert game.match_id == match.id
+
+    async def test_entrant_schedules_despite_the_request_toggle(self, service):
+        """create_bracket turns the toggle off; the bracket path must still work."""
+        actor = await _staff()
+        t, _, users, bmatch = await _linked_bracket(service, actor)
+        await t.refresh_from_db()
+        assert t.allow_player_match_requests is False
+
+        match = await service.schedule_bracket_match(
+            users[1], bmatch.id,
+            scheduled_date='2026-06-12', scheduled_time='14:30',
+        )
+        assert match.id is not None
+
+    async def test_entrant_cannot_set_staff_only_fields(self, service):
+        actor = await _staff()
+        _, _, users, bmatch = await _linked_bracket(service, actor)
+        room = await StreamRoom.create(name='Stage 1')
+        with pytest.raises(ValueError, match='Only staff can set stream_room_id'):
+            await service.schedule_bracket_match(
+                users[0], bmatch.id,
+                scheduled_date='2026-06-12', scheduled_time='14:30',
+                stream_room_id=room.id,
+            )
+
+    async def test_tournament_admin_can_schedule(self, service):
+        actor = await _staff()
+        t, _, _, bmatch = await _linked_bracket(service, actor)
+        ta = await _player(6100, 'ta')
+        await t.admins.add(ta)
+
+        match = await service.schedule_bracket_match(
+            ta, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+        )
+        assert match.tournament_id == t.id
 
 
 # ---------------------------------------------------------------------------

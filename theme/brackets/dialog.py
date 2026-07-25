@@ -49,9 +49,9 @@ def _render_games(
     best_of: int,
     *,
     bracket_match_id: int,
+    matchup_label: str,
     is_staff: bool,
     tenant_id: int,
-    service: BracketService,
     on_saved: Callable[[], Awaitable[None]],
 ) -> None:
     """The per-game breakdown of a series, with the admin's way into each game.
@@ -76,7 +76,8 @@ def _render_games(
         if is_staff:
             _schedule_button(
                 games, best_of, bracket_match_id=bracket_match_id,
-                tenant_id=tenant_id, service=service, on_saved=on_saved,
+                matchup_label=matchup_label, tenant_id=tenant_id,
+                on_saved=on_saved,
             )
 
     for game in sorted(games, key=lambda g: g.game_number):
@@ -150,21 +151,26 @@ def _schedule_button(
     best_of: int,
     *,
     bracket_match_id: int,
+    matchup_label: str,
     tenant_id: int,
-    service: BracketService,
     on_saved: Callable[[], Awaitable[None]],
 ) -> None:
-    """'Schedule game N' — the only UI route into ``schedule_bracket_match``."""
+    """'Schedule game N' — staff's route into ``schedule_bracket_match``.
+
+    Players book the same matchups from their own dashboard, which is why the
+    dialog is shared rather than bracket-local.
+    """
     number = _next_game_number(games, best_of)
     if number is None:
         return
     label = f'Schedule game {number}' if best_of > 1 else 'Schedule match'
     ui.button(
         label, icon='event',
-        on_click=lambda _=None: _schedule_dialog(
-            number, bracket_match_id=bracket_match_id, tenant_id=tenant_id,
-            service=service, on_saved=on_saved,
-        ),
+        on_click=lambda _=None: background_tasks.create(_schedule_dialog(
+            number, best_of, bracket_match_id=bracket_match_id,
+            matchup_label=matchup_label, tenant_id=tenant_id,
+            client=context.client, on_saved=on_saved,
+        )),
     ).props('flat dense size=sm color=primary')
 
 
@@ -174,40 +180,30 @@ def _next_game_number(games: list, best_of: int) -> Optional[int]:
     return next((n for n in range(1, best_of + 1) if n not in taken), None)
 
 
-def _schedule_dialog(
+async def _schedule_dialog(
     number: int,
+    best_of: int,
     *,
     bracket_match_id: int,
+    matchup_label: str,
     tenant_id: int,
-    service: BracketService,
+    client,
     on_saved: Callable[[], Awaitable[None]],
 ) -> None:
-    """Collect a date/time and book the next game through ``BracketService``."""
-    with ui.dialog() as dialog, ui.card().classes('w-[22rem] max-w-full'):
-        ui.label(f'Schedule game {number}').classes('text-h6')
-        date_input = ui.input('Date (YYYY-MM-DD)').props('dense')
-        time_input = ui.input('Time (HH:MM, Eastern)').props('dense')
+    """Open the shared schedule dialog in staff mode."""
+    from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 
-        async def submit() -> None:
+    with client:
+        with tenant_scope(tenant_id):
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-            with tenant_scope(tenant_id):
-                try:
-                    await service.schedule_bracket_match(
-                        actor, bracket_match_id,
-                        scheduled_date=(date_input.value or '').strip(),
-                        scheduled_time=(time_input.value or '').strip(),
-                    )
-                except (ValueError, PermissionError) as ex:
-                    notify_error(ex)
-                    return
-            ui.notify(f'Game {number} scheduled', color='positive')
-            dialog.close()
-            await on_saved()
-
-        with ui.row().classes('justify-end w-full q-mt-sm gap-2'):
-            ui.button('Cancel', on_click=dialog.close).props('flat')
-            ui.button('Schedule', on_click=submit).props('color=primary')
-    dialog.open()
+        await BracketScheduleDialog(
+            bracket_match_id, actor,
+            matchup_label=matchup_label,
+            game_number=number,
+            best_of=best_of,
+            tenant_id=tenant_id,
+            on_submit=on_saved,
+        ).open()
 
 
 _STATE_BADGE = {
@@ -268,8 +264,9 @@ def build_match_dialog(
 
         _render_games(
             _games_of(match), entry_name, best_of,
-            bracket_match_id=match.id, is_staff=is_staff, tenant_id=tenant_id,
-            service=service, on_saved=on_saved,
+            bracket_match_id=match.id,
+            matchup_label=f'{name_of(match.entry1_id)} vs {name_of(match.entry2_id)}',
+            is_staff=is_staff, tenant_id=tenant_id, on_saved=on_saved,
         )
 
         can_report = (

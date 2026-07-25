@@ -255,6 +255,10 @@ class AuditActions:
     BRACKET_GAME_SCHEDULED = 'bracket.game_scheduled'
     BRACKET_GAME_COMPLETED = 'bracket.game_completed'
     BRACKET_GAME_CANCELLED = 'bracket.game_cancelled'
+    # A manually-scheduled Match attached to / detached from a matchup by staff,
+    # as opposed to BRACKET_GAME_SCHEDULED's book-it-from-the-bracket path.
+    BRACKET_GAME_LINKED = 'bracket.game_linked'
+    BRACKET_GAME_UNLINKED = 'bracket.game_unlinked'
     BRACKET_ADVANCED = 'bracket.advanced'
     BRACKET_COMPLETED = 'bracket.completed'
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
