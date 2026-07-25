@@ -84,7 +84,7 @@ async def render_player_dashboard():
                         ui.label(cm.tournament.name).classes('text-bold')
                         ui.label(f'vs {opponent_name}')
                         if cm.round is not None:
-                            ui.label(f'Round {cm.round}').classes('text-caption text-muted')
+                            ui.label(f'Round {cm.round}').classes('text-caption text-grey-7')
                         ui.space()
                         if opponent_linked:
                             async def do_schedule(_=None, m=cm, oname=opponent_name):
@@ -128,13 +128,21 @@ async def render_player_dashboard():
                     opponent_name = opponent.entrant.display_name
                     best_of = bracket_service.resolve_best_of(bm.bracket, bm)
                     number = _next_game_number(bm, best_of)
-                    with ui.row().classes('items-center full-width q-my-xs'):
-                        ui.label(bm.bracket.tournament.name).classes('text-bold')
-                        ui.label(f'vs {opponent_name}')
-                        ui.label(_round_label(bm, best_of, number)).classes(
-                            'text-caption text-muted'
-                        )
-                        ui.space()
+                    # Name/matchup stack beside the action, rather than one flat
+                    # row: on a phone the flat row wrapped into a ragged three
+                    # lines with the ui.space() stranded mid-block.
+                    with ui.row().classes(
+                        'items-center justify-between full-width q-my-xs gap-2'
+                    ):
+                        with ui.column().classes('col min-w-0 gap-0'):
+                            # `ellipsis` on each line: a long tournament name
+                            # otherwise wraps to three lines on a phone once the
+                            # action button has taken its width.
+                            ui.label(bm.bracket.tournament.name) \
+                                .classes('text-bold ellipsis')
+                            ui.label(f'vs {opponent_name}').classes('ellipsis')
+                            ui.label(_round_label(bm, best_of, number)) \
+                                .classes('text-caption text-grey-7 ellipsis')
 
                         async def do_schedule(_=None, m=bm, oname=opponent_name,
                                               n=number, bo=best_of):

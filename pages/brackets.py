@@ -136,8 +136,16 @@ def _install_hover_run() -> None:
     ui.add_body_html(_HOVER_RUN_JS)
 
 
-def _populate_zoom_toolbar(row, wrapper, refresh: Callable) -> None:
-    """Fill the elimination toolbar: zoom −/level/+ (CSS scale) and a refresh."""
+def _populate_bracket_toolbar(
+    row, views, wrapper, refresh: Callable, view_state: Dict[str, str],
+) -> None:
+    """Fill the elimination toolbar: a mobile view toggle, zoom, and a refresh.
+
+    The toggle is CSS-hidden above ``lt.md`` (the 2-D bracket is the only view
+    there); below it, it swaps the accordion for the 2-D bracket by re-classing
+    the shared ``views`` wrapper. ``view_state`` survives a live-event rebuild of
+    the page body, so an auto-refresh does not throw the reader back to the list.
+    """
     zoom = {'v': 1.0}
 
     def apply() -> None:
@@ -148,12 +156,23 @@ def _populate_zoom_toolbar(row, wrapper, refresh: Callable) -> None:
         zoom['v'] = max(0.5, min(1.6, round(zoom['v'] + delta, 2)))
         apply()
 
+    def set_view(value: str) -> None:
+        view_state['v'] = value
+        views.classes(remove='view-list view-bracket', add=f'view-{value}')
+
     with row:
-        ui.button(icon='zoom_out', on_click=lambda: step(-0.1)) \
-            .props('flat dense round').tooltip('Zoom out')
-        label = ui.label('100%').classes('text-caption text-grey')
-        ui.button(icon='zoom_in', on_click=lambda: step(0.1)) \
-            .props('flat dense round').tooltip('Zoom in')
+        ui.toggle(
+            {'list': 'List', 'bracket': 'Bracket'},
+            value=view_state['v'],
+            on_change=lambda e: set_view(e.value),
+        ).props('dense unelevated no-caps size=sm').classes('bracket-view-toggle')
+        # Zoom drives the 2-D canvas only, so it hides with it in list mode.
+        with ui.row().classes('bracket-zoom-controls items-center gap-1'):
+            ui.button(icon='zoom_out', on_click=lambda: step(-0.1)) \
+                .props('flat dense round').tooltip('Zoom out')
+            label = ui.label('100%').classes('text-caption text-grey')
+            ui.button(icon='zoom_in', on_click=lambda: step(0.1)) \
+                .props('flat dense round').tooltip('Zoom in')
         ui.space()
         ui.button(icon='refresh', on_click=refresh) \
             .props('flat dense round').tooltip('Refresh')
@@ -362,6 +381,11 @@ def create() -> None:
         client = context.client
         service = BracketService()
 
+        # Which view the phone toggle is on. Held per client (not module level)
+        # and outside the refreshable so a live BRACKET_* rebuild keeps the
+        # reader where they were instead of snapping back to the list.
+        view_state: Dict[str, str] = {'v': 'list'}
+
         # Debounced refresh: one report publishes several BRACKET_* events (and the
         # report dialog also asks to refresh); without coalescing each would clear +
         # rebuild the @ui.refreshable body separately and the rebuilds can stack
@@ -469,15 +493,23 @@ def create() -> None:
                         bracket.config, entries, matches, entry_name,
                         on_card_click=on_card_click,
                     )
-                    # 2-D connector bracket (>= md); a per-round accordion (< md).
-                    with ui.element('div').classes('bracket-2d w-full'):
+                    # 2-D connector bracket (>= md); a per-round accordion (< md),
+                    # with the toolbar toggle swapping between them on a phone.
+                    # Exactly one is visible at a time — see brackets.css.
+                    views = ui.element('div').classes(
+                        f'bracket-views view-{view_state["v"]} w-full'
+                    )
+                    with views:
                         toolbar_row = ui.row().classes('bracket-toolbar items-center gap-2 q-mb-sm')
-                        wrapper = ui.element('div').classes('bracket-zoomable w-full')
-                        with wrapper:
-                            render_elimination(matches, ctx, double=double)
-                        _populate_zoom_toolbar(toolbar_row, wrapper, request_refresh)
-                    with ui.element('div').classes('bracket-mobile-list w-full'):
-                        render_elimination_mobile(matches, ctx, double=double)
+                        with ui.element('div').classes('bracket-2d w-full'):
+                            wrapper = ui.element('div').classes('bracket-zoomable w-full')
+                            with wrapper:
+                                render_elimination(matches, ctx, double=double)
+                        with ui.element('div').classes('bracket-mobile-list w-full'):
+                            render_elimination_mobile(matches, ctx, double=double)
+                        _populate_bracket_toolbar(
+                            toolbar_row, views, wrapper, request_refresh, view_state,
+                        )
                 else:
                     with tenant_scope(tenant_id):
                         advancement = await _next_stage_advancement(service, bracket)
