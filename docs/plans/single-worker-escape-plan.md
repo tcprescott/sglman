@@ -5,32 +5,133 @@
 ("write the horizontal-scaling escape plan … assert single-worker at startup"),
 which was recorded as a one-line recommendation and never written up.
 
-**Headline verdict, and the change from the previous plan:** *`uvicorn --workers N`
-is not a reachable target for this app and should stop being the goal.* NiceGUI
-is single-worker by design — its bundled reference (`nicegui/llms.md`, "Architecture")
-states it outright, its socket.io server is constructed with no cross-process
-client manager (`nicegui/nicegui.py:50`), and a client's element tree lives in the
+**Goal:** serve **at least 500 concurrent websocket connections** (§1 — measured,
+not estimated).
+
+**Headline verdict 1 — the mechanism.** *`uvicorn --workers N` is not a reachable
+target for this app and should stop being the goal.* NiceGUI is single-worker by
+design — its bundled reference (`nicegui/llms.md`, "Architecture") states it
+outright, its socket.io server is constructed with no cross-process client
+manager (`nicegui/nicegui.py:50`), and a client's element tree lives in the
 process that rendered its page. Adding workers to `main:app` does not scale this
-app; it corrupts it.
+app; it corrupts it. More capacity means more *replicas*, behind sticky sessions.
 
-What *is* reachable, and what this plan retargets to:
+**Headline verdict 2 — the bottleneck.** Holding 500 websockets is cheap (~3 % of
+a core for ~195 sockets, ~3 MB each). **Admitting** them is not: one page render
+burns ~250 ms of event-loop CPU, capping a worker at **~4 new tabs/second**. A
+measured 500-tab ramp connected only **205**. The database was never contended —
+the ceiling is CPU spent building NiceGUI element trees, **~47 % of it rendering
+the 8 of 9 home tabs the user cannot see**.
 
+So the path to 500 is, in order:
+
+- **Step 1 — cut render cost (no infrastructure).** Lazy tab rendering, then the
+  Schedule tab's element count and its 377-queries-per-render N+1. This is the
+  step change, and it multiplies with everything after it.
 - **Target A — split the singletons out of the web process.** One image, two
   roles: `web` (NiceGUI + REST, still one worker) and `worker` (Discord gateway,
   racetime runtime, the five background loops, the DM queue). No new
-  infrastructure. This is the whole win for the driver we actually have.
-- **Target B — N web replicas.** Sticky sessions + Redis. Only after A, and only
-  once one core is measurably saturated. Not recommended today.
+  infrastructure. Buys availability, not capacity.
+- **Target B — N web replicas.** Sticky sessions + Redis. The only way to add
+  cores, and now a *required* part of the capacity plan rather than a deferred
+  nice-to-have — but worth far less before Step 1 than after it.
 
 ---
 
-## 1. What we're actually buying (be honest about the driver)
+## 1. The capacity target: 500 concurrent websockets
 
-There is **no measured throughput problem.** The app is async, the DB is the
-bottleneck long before the event loop is, and no profiling has been done. If the
-justification for this work is "more requests per second," it is not justified.
+**The goal is 500 concurrent connections.** NiceGUI holds one persistent
+socket.io websocket per open browser tab, so that is 500 open tabs. The app was
+measured against that target rather than reasoned about; §1.1 is the evidence.
 
-The real drivers are **availability and blast radius**, and they are genuine:
+**Verdict: holding 500 websockets is not the problem. Admitting them is.**
+
+### 1.1 Measurements
+
+Method: seeded dev database, single no-reload worker (`uvicorn main:app
+--workers 1`, `MOCK_DISCORD`), driver opening real socket.io websockets with the
+same handshake `nicegui.js` performs (one authenticated tenant-home tab per
+virtual client). Driver and server shared a host, so CPU figures are
+conservative. Target page: the staff tenant home (`/t/default/`).
+
+| Measurement | Result |
+|---|---|
+| Page render, idle, sequential | **~200 ms wall, ~246 ms CPU** per render |
+| CPU vs wall over 20 sequential renders | 5.22 s wall / **4.93 s server CPU — 94 % CPU-bound** |
+| DB connections used, throughout | **6** (pool cap 5 + 1); `pg_active` never above 1 |
+| 25 tabs arriving together | ~2/25 connect; server logs `Response for / not ready after 3.0 seconds` |
+| 500 tabs, 0.3 s ramp (150 s) | **205/500 connected**; 36 dropped during a 60 s hold |
+| Render latency under that ramp | p50 1214 ms, p95 2898 ms, max 3591 ms |
+| CPU during ramp | pegged at **~110 % of one core** |
+| CPU while merely *holding* ~195 sockets | **2–4 % of one core** |
+| RSS | 145 MB idle → 767 MB at ~200 sockets (**~3 MB per connected tab**) |
+
+### 1.2 What that means
+
+- **Idle websockets are cheap.** ~195 held sockets cost 2–4 % of a core. 500
+  idle tabs extrapolates to well under 10 % of one core. Sockets are not the
+  constraint; file descriptors (`ulimit -n`) are not either.
+- **Memory is a budget item, not a wall.** ~3 MB per tab ⇒ 500 tabs ≈ 1.6 GB
+  resident. Size the container accordingly.
+- **Admission is the wall.** One page render costs ~250 ms of *event-loop CPU*,
+  so a single worker admits **~4 tabs per second**. 500 tabs arriving over a
+  two-minute window is ~4.2/s — exactly at the cliff, which is why only 41 %
+  connected. Renders queue behind each other, exceed NiceGUI's 3-second
+  page-response timeout, and the client is torn down before its socket attaches.
+- **The database is not the bottleneck.** `maxsize=5` was the prime suspect; it
+  was never contended (`pg_active` ≤ 1). Raising the pool would buy nothing
+  today. *(Still worth making configurable — but as hygiene, not as capacity.)*
+
+This matters because 500 concurrent tabs is not a slow trickle. The realistic
+arrival pattern for this app is a **crowd**: a race goes live, a bracket is
+published, a Discord announcement fires. That is precisely the pattern the
+current admission rate cannot serve.
+
+### 1.3 Where the 250 ms goes
+
+In-process `cProfile` over 10 renders of the staff tenant home:
+
+- **`_render_tab_panels` — 2.32 s of 4.92 s (≈47 %).** `theme/base.py:453` loops
+  `for tab in self.tabs` and **awaits every tab's content eagerly**. The staff
+  home has **9 tabs**; the user sees one. The Profile tab alone
+  (`player_edit_info.render_edit_info_tab`) costs 0.74 s across the batch, fully
+  paid on every page load by every user whether or not they open it.
+- **377 database queries per single page render** (3771 `queryset._execute` calls
+  over 10 renders). Locally that is only ~90 ms because the DB is on loopback; on
+  a network-attached database each round trip is charged again. This is an N+1
+  problem spread across the eagerly-rendered tabs.
+- **~488 NiceGUI elements per render**, and `inspect.signature` called ~1509
+  times per render (0.72 s across the batch, ≈15 %) via NiceGUI's
+  `expects_arguments` on every event-handler registration. This is a direct
+  function of element count — the only way down is to build fewer elements.
+
+### 1.4 What this changes about the plan
+
+The ordering below is now driven by measurement, not by the availability
+argument in §2:
+
+1. **Lazy tab rendering is the single highest-leverage change** and it is a
+   presentation-layer fix requiring none of this document's infrastructure.
+   Rendering only the active panel, and building others on first switch, removes
+   roughly half the render cost and a large share of the 377 queries. Every
+   replica benefits, so it multiplies with anything done later.
+2. **Then reduce the remaining render cost** (the match table's element count and
+   the N+1 queries behind the Schedule tab).
+3. **Then add processes.** Extra cores are the only way past a Python event
+   loop's single-threaded ceiling — but adding a second replica only doubles
+   admission (~4/s → ~8/s), whereas step 1 is a step change on every replica.
+   Doing step 3 first buys the least improvement for the most infrastructure.
+
+Concretely: at ~4 renders/s the target is out of reach; at a plausible post-fix
+~12–15 renders/s a single worker admits 500 tabs in ~35–40 s, and two replicas
+comfortably absorb a crowd. **Target B (§5) is therefore no longer "do not
+build" — it is the last step of a capacity plan, not the first.**
+
+---
+
+## 2. The other driver: availability and blast radius
+
+Independently of capacity, the single-process model has costs:
 
 1. **Every deploy drops the Discord gateway and every open browser websocket.**
    One process owns the FastAPI app, the py-cord gateway session, the racetime
@@ -48,7 +149,7 @@ none of them.
 
 ---
 
-## 2. Verified inventory of process-global state
+## 3. Verified inventory of process-global state
 
 Every item below was read in the tree at the time of writing. "Class" is what
 actually happens at N>1 — the distinction matters, because roughly half of these
@@ -96,7 +197,7 @@ documents this in its own module docstring; item 8 does not.
 
 ---
 
-## 3. Target A — split web from worker (recommended)
+## 4. Target A — split web from worker
 
 One Docker image, two roles chosen by env var, both started from `start.sh`.
 
@@ -177,10 +278,14 @@ duplicate DMs and duplicate racetime rooms.
 
 ---
 
-## 4. Target B — N web replicas (defer)
+## 5. Target B — N web replicas
 
-Only after A, and only with a measurement showing one core saturated. What it
-would take:
+One core **is** saturated at the 500-tab target (§1.1), so this is now required —
+but sequence it after Step 1, because a replica multiplies whatever per-render
+cost it inherits. Two replicas of today's app admit ~8 tabs/s; two replicas after
+Step 1 admit ~25–30/s. Same infrastructure, very different outcome.
+
+What it takes:
 
 - **Sticky sessions** at the load balancer, keyed on the NiceGUI client cookie.
   Non-negotiable: item 13 has no software fix short of a socket.io Redis manager,
@@ -189,47 +294,69 @@ would take:
 - **Shared stores** for items 7 (nonce), 8 (seed lock), 10 (rate limiter) — Redis
   is the natural fit for all three; item 8 could alternatively become a Postgres
   advisory lock keyed on `match_id`, which avoids Redis entirely.
-- **Item 12** (tenant cache invalidation) piggybacks on the §3 `NOTIFY` channel.
+- **Item 12** (tenant cache invalidation) piggybacks on the §4 `NOTIFY` channel.
 - Item 6 is already solved by A.
 
-That is a Redis dependency plus LB configuration to buy throughput we have no
-evidence we need. **Recommendation: do not build B. Revisit only with a profile.**
+**Recommendation:** build B, but not first. Re-measure after Step 1 and size the
+replica count from the observed renders/second rather than from this estimate.
 
 ---
 
-## 5. Phasing
+## 6. Phasing
 
-**Phase 0 — make the constraint safe and honest (do this regardless).**
-1. Advisory-lock leader election guarding the gateway, the racetime runtime, and
-   the five `BackgroundLoop`s (§3). Standalone value; no split required.
-2. Document item 8 (the seed lock) as a single-process correctness dependency, as
+Ordered by capacity-per-unit-effort, which puts the presentation-layer work
+first and the infrastructure last.
+
+**Phase 1 — cut the render cost (the capacity work; no infrastructure).**
+1. **Lazy tab panels.** `theme/base.py:_render_tab_panels` builds only the active
+   panel; others render on first switch (and stay built). Watch for tabs that
+   assume they were constructed at page load — deep-linked tabs and the
+   `_handle_tab_change` URL sync are the places to check.
+2. **Re-measure** with the §1.1 driver. This is the number that decides how many
+   replicas Phase 4 needs; do not skip it.
+3. **The Schedule tab's remaining cost** — the match table's element count (16
+   inline Vue slot templates + grid) and the N+1 behind the 377 queries/render.
+4. Keep a render-cost regression check so this does not silently return.
+
+**Phase 2 — make the current constraint safe and honest (independent; cheap).**
+5. Advisory-lock leader election guarding the gateway, the racetime runtime, and
+   the five `BackgroundLoop`s (§4). Standalone value; no split required.
+6. Document item 8 (the seed lock) as a single-process correctness dependency, as
    item 7 already documents itself.
-3. Replace the "Scale vertically" line in [deployment.md](../deployment.md) and
+7. Replace the "Scale vertically" line in [deployment.md](../deployment.md) and
    the paragraph in [architecture.md](../architecture.md) with a pointer here.
 
-**Phase 1 — cross-process nudge.**
-4. `LISTEN`/`NOTIFY` transport behind `match_live.publish` / subscribe, with the
+**Phase 3 — cross-process nudge + the split (availability).**
+8. `LISTEN`/`NOTIFY` transport behind `match_live.publish` / subscribe, with the
    listener connection owned by the lifespan. Behind an env switch, default off,
    so it is a no-op in the current single-process deployment.
-5. Tests: publish in one connection, assert delivery to a subscriber registered
+9. Tests: publish in one connection, assert delivery to a subscriber registered
    against another.
+10. `ROLE=web|worker` branch in `main.py`'s lifespan + `start.sh` + compose.
+11. Move migrations to the worker role; make web wait.
+12. Worker-role liveness; DB pool knob.
+13. Route the DM queue enqueue across the boundary (or accept that web-side DM
+    sends stay in the web process — decide, don't drift).
 
-**Phase 2 — the split.**
-6. `ROLE=web|worker` branch in `main.py`'s lifespan + `start.sh` + compose.
-7. Move migrations to the worker role; make web wait.
-8. Worker-role liveness; DB pool knob.
-9. Route the DM queue enqueue across the boundary (or accept that web-side DM
-   sends stay in the web process — decide, don't drift).
-
-**Phase 3 — only on evidence.** Target B.
+**Phase 4 — replicas (Target B).** Sticky sessions, `NICEGUI_REDIS_URL`, shared
+stores for items 7/8/10. Size the replica count from the Phase 1 re-measurement.
+Budget ~3 MB of RSS per connected tab (500 tabs ≈ 1.6 GB) per replica.
 
 ---
 
-## 6. Open questions
+## 7. Open questions
 
-- **Is availability the actual goal, or is this pre-emptive?** Phase 0 is worth
-  doing either way; Phases 1–2 are only worth it if web-tier deploys dropping the
-  Discord gateway is a felt problem.
+- **What is the real arrival pattern for 500?** The plan assumes a crowd (a race
+  goes live, a Discord announcement fires) because that is the hard case. If 500
+  is really a slow accumulation over an evening, today's ~4 tabs/s already
+  clears it and only memory needs sizing — Phase 1 stays worth doing, Phase 4
+  may not be.
+- **How many tabs does a typical viewer actually open?** 500 *connections* is not
+  500 *people* if spectators keep the bracket and schedule open in two tabs.
+  Worth measuring from telemetry before sizing replicas.
+- **Is availability also a goal, or only capacity?** Phase 3 buys no capacity. If
+  deploys dropping the Discord gateway is not a felt problem, Phase 3 can wait
+  behind Phase 4 — but Phase 4's leader-election prerequisite (step 5) cannot.
 - **DM queue after the split (step 9).** Enqueue-across-the-boundary is the clean
   answer but adds a durable-queue question we have otherwise avoided. Letting the
   web role keep its own DM queue is simpler and keeps ordering per-process only.
