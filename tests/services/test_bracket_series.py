@@ -448,3 +448,42 @@ class TestRoomIsNotOpenedForAHeldGame:
 
         assert await RacetimeRoom.filter(match_id=m1.id).exists()
         assert not await RacetimeRoom.filter(match_id=m2.id).exists()
+
+
+class TestScheduleBracketLink:
+    """The schedule's link back into the bracket a game belongs to.
+
+    Exercises the real prefetch (``bracket_match_game__bracket_match__bracket``,
+    a reverse OneToOne), which a SimpleNamespace test cannot: the row field is
+    only useful if the relation actually hydrates.
+    """
+
+    async def test_row_carries_the_bracket_it_settles(self, service):
+        from application.services.match.match_display_service import MatchDisplayService
+
+        actor = await _staff()
+        _, bracket, _, bmatch = await _series(service, actor, best_of=3)
+        await service.schedule_bracket_match(
+            actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
+        )
+        game2 = await service.schedule_bracket_match(
+            actor, bmatch.id, scheduled_date='2026-06-13', scheduled_time='14:30',
+        )
+
+        rows = {r['id']: r for r in await MatchDisplayService().get_matches_for_display()}
+
+        assert rows[game2.id]['bracket'] == {
+            'id': bracket.id, 'name': 'Main', 'game': 2,
+        }
+        # Game 1 of a series is just "the match" — no game number in the label.
+        first = next(r for r in rows.values() if r['bracket'] and r['id'] != game2.id)
+        assert first['bracket']['game'] is None
+
+    async def test_ordinary_match_has_no_bracket(self, service):
+        from application.services.match.match_display_service import MatchDisplayService
+
+        tournament = await Tournament.create(name='Unbracketed')
+        match = await Match.create(tournament=tournament, scheduled_at=utc(2026, 6, 12, 18, 0))
+
+        rows = {r['id']: r for r in await MatchDisplayService().get_matches_for_display()}
+        assert rows[match.id]['bracket'] is None

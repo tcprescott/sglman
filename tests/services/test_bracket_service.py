@@ -389,6 +389,39 @@ class TestSeedValidation:
 
 
 # ---------------------------------------------------------------------------
+# list_all_brackets (the public browse read)
+# ---------------------------------------------------------------------------
+class TestListAllBrackets:
+    async def test_orders_by_tournament_then_stage_with_tournament_loaded(self, service):
+        actor = await _staff()
+        alpha = await _tournament('Alpha')
+        beta = await _tournament('Beta')
+        await service.create_bracket(actor, beta.id, 'Main', BracketFormat.SWISS)
+        await service.create_bracket(actor, alpha.id, 'Groups', BracketFormat.ROUND_ROBIN)
+        await service.create_bracket(
+            actor, alpha.id, 'Playoff', BracketFormat.SINGLE_ELIM, stage_order=1,
+        )
+
+        rows = await service.list_all_brackets()
+
+        assert [b.name for b in rows] == ['Groups', 'Playoff', 'Main']
+        # Prefetched, so the browse tab groups without a query per row.
+        assert [b.tournament.name for b in rows] == ['Alpha', 'Alpha', 'Beta']
+
+    async def test_inactive_tournaments_sort_last(self, service):
+        actor = await _staff()
+        finished = await Tournament.create(name='Alpha', is_active=False)
+        running = await Tournament.create(name='Zulu', is_active=True)
+        await service.create_bracket(actor, finished.id, 'Old', BracketFormat.SWISS)
+        await service.create_bracket(actor, running.id, 'New', BracketFormat.SWISS)
+
+        assert [b.name for b in await service.list_all_brackets()] == ['New', 'Old']
+
+    async def test_empty_when_no_brackets(self, service):
+        assert await service.list_all_brackets() == []
+
+
+# ---------------------------------------------------------------------------
 # tenant isolation
 # ---------------------------------------------------------------------------
 async def test_bracket_not_visible_across_tenants(service, two_tenants):
@@ -401,3 +434,5 @@ async def test_bracket_not_visible_across_tenants(service, two_tenants):
     with tenant_scope(tenant_b.id):
         assert await service.get_bracket(bracket.id) is None
         assert await service.list_brackets(t.id) == []
+        # The browse read spans tournaments, so it is the easiest one to leak.
+        assert await service.list_all_brackets() == []

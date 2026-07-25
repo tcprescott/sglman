@@ -29,6 +29,7 @@ from models import (
     Tournament,
 )
 from theme.brackets import (
+    FORMAT_OPTIONS,
     assign_match_numbers,
     build_context,
     build_match_dialog,
@@ -98,14 +99,6 @@ _ROW_ACTIONS = '''
     </q-btn>
 '''
 
-_FORMAT_OPTIONS = {
-    BracketFormat.SINGLE_ELIM.value: 'Single elimination',
-    BracketFormat.DOUBLE_ELIM.value: 'Double elimination',
-    BracketFormat.SWISS.value: 'Swiss',
-    BracketFormat.ROUND_ROBIN.value: 'Round robin',
-}
-
-
 async def admin_brackets_page() -> None:
     service = BracketService()
     # Captured while the request context is live; rebound around every detached
@@ -154,7 +147,7 @@ async def admin_brackets_page() -> None:
                     'id': b.id,
                     'stage_order': b.stage_order,
                     'name': b.name,
-                    'format': _FORMAT_OPTIONS.get(b.format.value, b.format.value),
+                    'format': FORMAT_OPTIONS.get(b.format.value, b.format.value),
                     'state': b.state.value,
                 }
                 for b in brackets
@@ -595,7 +588,7 @@ async def admin_brackets_page() -> None:
                 with form_dialog('Create bracket stage') as dialog:
                     name_in = ui.input('Name').classes('w-full')
                     fmt_in = ui.select(
-                        _FORMAT_OPTIONS, value=BracketFormat.SINGLE_ELIM.value, label='Format',
+                        FORMAT_OPTIONS, value=BracketFormat.SINGLE_ELIM.value, label='Format',
                     ).classes('w-full')
                     stage_in = ui.number('Stage order', value=0, min=0).props('inputmode=numeric').classes('w-full')
 

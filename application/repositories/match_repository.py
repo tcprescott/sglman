@@ -39,7 +39,11 @@ class MatchRepository:
                 'commentators',
                 'commentators__user',
                 'trackers',
-                'trackers__user'
+                'trackers__user',
+                # The bracket seam, for the schedule's "part of <bracket>" link.
+                # A batched prefetch, so it costs a fixed few queries rather
+                # than one per row; most matches have no game row at all.
+                'bracket_match_game__bracket_match__bracket',
             )
         
         return await query.first()
@@ -134,7 +138,11 @@ class MatchRepository:
                 'commentators',
                 'commentators__user',
                 'trackers',
-                'trackers__user'
+                'trackers__user',
+                # The bracket seam, for the schedule's "part of <bracket>" link.
+                # A batched prefetch, so it costs a fixed few queries rather
+                # than one per row; most matches have no game row at all.
+                'bracket_match_game__bracket_match__bracket',
             )
         
         return await query.order_by('scheduled_at')

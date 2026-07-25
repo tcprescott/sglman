@@ -221,6 +221,7 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 | `set_round_metadata(actor, bracket_id, rounds)` | `Bracket` | Replace the per-round display metadata (`{round: {best_of, scheduled_at}}`), allowed in **any** state since round chrome never touches the graph. Audits `BRACKET_UPDATED`. |
 | `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. Audits `BRACKET_DELETED`. |
 | `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. |
+| `list_all_brackets()` | `list[Bracket]` | Every stage in the tenant with its tournament prefetched, active tournaments first then name then `stage_order` — the one read behind the anonymous home **Brackets** tab, which groups the rows rather than querying per tournament. |
 | `add_entrant(actor, tournament_id, display_name, user_id=None)` | `BracketEntrant` | Add a roster entrant — placeholder (`user_id=None`) or linked. Audits/events `BRACKET_ENTRANT_ADDED`. |
 | `drop_entrant(actor, entrant_id)` | `BracketEntrant` | Mark an entrant `DROPPED`. Audits/events `BRACKET_ENTRANT_DROPPED`. |
 | `enroll(actor, bracket_id, entrant_id, seed=None, group_number=None)` | `BracketEntry` | Enroll a roster entrant into a DRAFT stage (once per stage). |
@@ -366,6 +367,7 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 | `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. |
 | `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
+| `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
 
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`. Consumers: `theme/tables/match.py` (`self.display_service` — filters, `refresh`, and single-row updates).
 

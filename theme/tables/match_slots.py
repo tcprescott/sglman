@@ -40,8 +40,17 @@ ID_SLOT_READONLY = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-f
     <span class="cell-id">{{ props.value }}</span>
 </q-td>'''
 
+# A bracket-scheduled match links to the stage it settles. The link emits rather
+# than carrying an href: `ui.navigate.to` prepends the tenant's root_path, which
+# a hand-built href in a slot template would miss under path-mode multitenancy.
 TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    {{ props.value }}
+    <div class="cell-tournament">{{ props.value }}</div>
+    <a v-if="props.row.bracket" href="#" class="table-link cell-bracket-link"
+       @click.prevent="$parent.$emit('open_bracket', props.row)">
+        <q-icon name="account_tree" size="14px" class="q-mr-xs" />
+        <span>{{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></span>
+        <q-tooltip>View this match's bracket</q-tooltip>
+    </a>
 </q-td>'''
 
 SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">

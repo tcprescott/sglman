@@ -90,30 +90,23 @@ def _matches_protected_route(path: str) -> bool:
             return True
     return False
 
-def protected_page(
+def _tenant_page(
     path: str,
     *,
     roles: Optional[Iterable[Role]] = None,
     allow_tournament_membership: bool = False,
     feature: Optional[FeatureFlag] = None,
     telemetry_path: Optional[str] = None,
+    require_auth: bool = True,
     **page_kwargs,
 ):
-    """Register a NiceGUI page that requires authentication and optional roles.
+    """Shared implementation of :func:`protected_page` and :func:`public_page`.
 
-    Args:
-        path: Page route.
-        roles: If set, the user must hold at least one of these global roles.
-        allow_tournament_membership: If True, users who are a Tournament Admin
-            or Crew Coordinator of any tournament also pass the role gate.
-            Use for pages whose subset of features may be available to per-
-            tournament admins (e.g. the admin dashboard shell).
-        feature: If set, the page is gated behind a per-tenant feature flag —
-            when the flag is not live for the current tenant the page 404s
-            (hidden, like an unknown route), independent of the user's roles.
-        telemetry_path: Page-view path recorded for engagement telemetry. Lets
-            sibling routes that render the same page (e.g. ``/admin`` and
-            ``/admin/{section}``) report under one stable path.
+    Every tenant page — signed-in or not — resolves a tenant, stashes it on the
+    connection, honours the feature gate, and records a page view. The only
+    difference is whether the route joins ``protected_routes`` (and so whether
+    ``AuthMiddleware`` bounces an anonymous visitor to ``/login``) and whether a
+    role gate runs on top.
     """
     role_list = list(roles) if roles else None
     view_path = telemetry_path or path
@@ -121,12 +114,17 @@ def protected_page(
     gated = role_list is not None or allow_tournament_membership
 
     def decorator(func):
-        protected_routes.add(path)
+        # Only an auth-requiring route joins the registry AuthMiddleware
+        # redirects on; a public one is reachable signed out.
+        if require_auth:
+            protected_routes.add(path)
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            # Capture engagement telemetry for every authenticated page load,
-            # gated or not, before any auth short-circuit.
+            # Capture engagement telemetry for every page load, gated or not,
+            # before any auth short-circuit. On a public page the visitor may be
+            # anonymous, and the row is then attributed to the browser session
+            # alone (no discord_id).
             _record_page_view(view_path, kwargs)
 
             # Every @protected_page is a tenant page. If reached with no tenant
@@ -193,6 +191,72 @@ def protected_page(
 
         return ui.page(path, **page_kwargs)(wrapper)
     return decorator
+
+
+def protected_page(
+    path: str,
+    *,
+    roles: Optional[Iterable[Role]] = None,
+    allow_tournament_membership: bool = False,
+    feature: Optional[FeatureFlag] = None,
+    telemetry_path: Optional[str] = None,
+    **page_kwargs,
+):
+    """Register a NiceGUI page that requires authentication and optional roles.
+
+    Args:
+        path: Page route.
+        roles: If set, the user must hold at least one of these global roles.
+        allow_tournament_membership: If True, users who are a Tournament Admin
+            or Crew Coordinator of any tournament also pass the role gate.
+            Use for pages whose subset of features may be available to per-
+            tournament admins (e.g. the admin dashboard shell).
+        feature: If set, the page is gated behind a per-tenant feature flag —
+            when the flag is not live for the current tenant the page 404s
+            (hidden, like an unknown route), independent of the user's roles.
+        telemetry_path: Page-view path recorded for engagement telemetry. Lets
+            sibling routes that render the same page (e.g. ``/admin`` and
+            ``/admin/{section}``) report under one stable path.
+    """
+    return _tenant_page(
+        path,
+        roles=roles,
+        allow_tournament_membership=allow_tournament_membership,
+        feature=feature,
+        telemetry_path=telemetry_path,
+        require_auth=True,
+        **page_kwargs,
+    )
+
+
+def public_page(
+    path: str,
+    *,
+    feature: Optional[FeatureFlag] = None,
+    telemetry_path: Optional[str] = None,
+    **page_kwargs,
+):
+    """Register a tenant page that renders for signed-out visitors.
+
+    Same tenant resolution, tenant stash, feature gate, and page-view telemetry
+    as :func:`protected_page` — it just never joins ``protected_routes``, so
+    ``AuthMiddleware`` lets an anonymous request through instead of redirecting
+    it to ``/login``. There is deliberately no ``roles`` argument: a page that
+    authorizes anyone cannot also authorize a role.
+
+    The page function must therefore tolerate ``user is None`` throughout —
+    ``get_user_from_discord_id`` returns ``None`` and every ``AuthService``
+    predicate is ``False`` for an anonymous visitor, so signed-in affordances
+    hide themselves, but any surface built this way must be safe to show the
+    world.
+    """
+    return _tenant_page(
+        path,
+        feature=feature,
+        telemetry_path=telemetry_path,
+        require_auth=False,
+        **page_kwargs,
+    )
 
 
 def protected_tab_page(base: str, **kwargs):

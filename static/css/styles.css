@@ -926,6 +926,21 @@ body.body--dark {
     cursor: pointer;
 }
 
+/* Desktop twin of .mgc-bracket-link: the schedule's link into the bracket a
+   game belongs to, stacked under the tournament name in the same cell. */
+.cell-bracket-link {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8em;
+    color: var(--wiz-link);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.cell-bracket-link:hover {
+    text-decoration: underline;
+}
+
 /* NiceGUI ui.link() defaults to blue — adopt the brand link color */
 .nicegui-link {
     color: var(--wiz-link);
@@ -1360,6 +1375,18 @@ body.body--dark {
 
 .mgc-id-link {
     color: var(--wiz-link);
+    text-decoration: underline;
+}
+
+/* "Part of <bracket>" link under the tournament name — a secondary affordance,
+   so it sits a step down in size from the name it hangs off. */
+.mgc-bracket-link {
+    color: var(--wiz-link);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.mgc-bracket-link:hover {
     text-decoration: underline;
 }
 

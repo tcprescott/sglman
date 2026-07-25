@@ -185,3 +185,26 @@ async def test_unlink_cannot_reach_across_tenants(two_tenants):
 
     with tenant_scope(b.id):
         assert await scoped(BracketMatchGame.filter(id=game.id)).exists()
+
+
+async def test_browse_read_is_isolated(two_tenants):
+    """``list_all_with_tournament`` spans tournaments, so it is the widest read.
+
+    It backs an anonymous-readable page, which makes a leak here public.
+    """
+    from application.repositories.bracket_repository import BracketRepository
+
+    a, b = two_tenants
+    repo = BracketRepository()
+
+    with tenant_scope(a.id):
+        ta = await _tournament('TA')
+        ba = await Bracket.create(tournament=ta, name='Main', format=BracketFormat.SWISS)
+    with tenant_scope(b.id):
+        tb = await _tournament('TB')
+        bb = await Bracket.create(tournament=tb, name='Main', format=BracketFormat.SWISS)
+
+    with tenant_scope(a.id):
+        assert [x.id for x in await repo.list_all_with_tournament()] == [ba.id]
+    with tenant_scope(b.id):
+        assert [x.id for x in await repo.list_all_with_tournament()] == [bb.id]

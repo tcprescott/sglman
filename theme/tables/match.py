@@ -275,6 +275,10 @@ class MatchTableView(MatchTableHandlersMixin):
         if discord_id:
             self.table.on('toggle_watch', self._handle_toggle_watch)
 
+        # Bracket link: navigation only, so it needs no tenant rebind — and it
+        # goes through ui.navigate.to precisely to pick up the tenant root_path.
+        self.table.on('open_bracket', self._handle_open_bracket)
+
         # Admin-specific event wiring (slots registered above under the same
         # conditions). These handlers' callbacks reach scoped repository reads
         # (``require_tenant_id()``) before restoring any client context, so they

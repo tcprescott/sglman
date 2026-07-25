@@ -251,6 +251,14 @@ class BracketService(
     async def list_brackets(self, tournament_id: int) -> List[Bracket]:
         return await self.repository.list_for_tournament(tournament_id)
 
+    async def list_all_brackets(self) -> List[Bracket]:
+        """Every stage in the tenant, tournament loaded, active tournaments first.
+
+        The browse surface's one query: it groups the rows by tournament rather
+        than asking for each tournament's stages in turn.
+        """
+        return await self.repository.list_all_with_tournament()
+
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
         return await self.repository.list_matches(bracket_id)
 
