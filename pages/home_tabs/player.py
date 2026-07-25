@@ -2,16 +2,43 @@
 
 from nicegui import app, background_tasks, ui
 
-from application.services import ChallongeService, MatchService, get_user_from_discord_id
+from application.services import (
+    BracketService,
+    ChallongeService,
+    FeatureFlagService,
+    MatchService,
+    get_user_from_discord_id,
+)
+from models import FeatureFlag
+from theme.dialog.bracket_schedule_dialog import BracketScheduleDialog
 from theme.dialog.challonge_schedule_dialog import ChallongeScheduleDialog
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
+
+
+def _next_game_number(bracket_match, best_of: int) -> int:
+    """The slot the service would allocate next — for labelling only.
+
+    ``list_open_matches_for_user`` only returns matchups with a slot free, so the
+    fallback is unreachable; it keeps the label sane rather than raising in a
+    render pass if that ever changes.
+    """
+    taken = {g.game_number for g in bracket_match.games}
+    return next((n for n in range(1, best_of + 1) if n not in taken), best_of)
+
+
+def _round_label(bracket_match, best_of: int, number: int) -> str:
+    """'Round 2' / 'Losers round 1', plus the series position for a best-of-N."""
+    rnd = bracket_match.round
+    base = f'Losers round {abs(rnd)}' if rnd < 0 else f'Round {rnd}'
+    return f'{base} — game {number} of {best_of}' if best_of > 1 else base
 
 
 async def render_player_dashboard():
     discord_id = app.storage.user.get('discord_id', None)
     match_service = MatchService()
     challonge_service = ChallongeService()
+    bracket_service = BracketService()
     
     with ui.column().classes('page-container'):
         # Header section
@@ -77,6 +104,66 @@ async def render_player_dashboard():
                             disabled_btn = ui.button('Schedule', icon='event').props('flat color=primary')
                             disabled_btn.disable()
                             disabled_btn.tooltip("Waiting for your opponent to link their Challonge account")
+
+        # Native brackets: the *only* scheduling route in a bracket-run
+        # tournament, since those turn off manual match requests.
+        @ui.refreshable
+        async def bracket_section():
+            if not await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
+                return
+            user = await get_user_from_discord_id(discord_id)
+            if user is None:
+                return
+            matchups = await bracket_service.list_open_matches_for_user(user.id)
+            if not matchups:
+                return
+            with ui.card().classes('card-full-width'):
+                ui.label('Upcoming matches to schedule').classes('section-title')
+                ui.label('From your bracket. Pick a time and your opponent confirms.').classes(
+                    'text-caption text-grey-7'
+                )
+                for bm in matchups:
+                    me_is_e1 = bm.entry1.entrant.user_id == user.id
+                    opponent = bm.entry2 if me_is_e1 else bm.entry1
+                    opponent_name = opponent.entrant.display_name
+                    best_of = bracket_service.resolve_best_of(bm.bracket, bm)
+                    number = _next_game_number(bm, best_of)
+                    with ui.row().classes('items-center full-width q-my-xs'):
+                        ui.label(bm.bracket.tournament.name).classes('text-bold')
+                        ui.label(f'vs {opponent_name}')
+                        ui.label(_round_label(bm, best_of, number)).classes(
+                            'text-caption text-muted'
+                        )
+                        ui.space()
+
+                        async def do_schedule(_=None, m=bm, oname=opponent_name,
+                                              n=number, bo=best_of):
+                            actor = await get_user_from_discord_id(
+                                app.storage.user.get('discord_id')
+                            )
+
+                            async def after():
+                                bracket_section.refresh()
+                                await table_view.refresh()
+
+                            await BracketScheduleDialog(
+                                m.id, actor,
+                                opponent_name=oname,
+                                game_number=n,
+                                best_of=bo,
+                                tournament_name=m.bracket.tournament.name,
+                                tournament_id=m.bracket.tournament_id,
+                                player_ids=[
+                                    m.entry1.entrant.user_id,
+                                    m.entry2.entrant.user_id,
+                                ],
+                                on_submit=after,
+                            ).open()
+
+                        ui.button(
+                            f'Schedule game {number}' if best_of > 1 else 'Schedule',
+                            icon='event', on_click=do_schedule,
+                        ).props('color=primary flat')
 
         columns = [
             {'name': 'tournament', 'label': 'Tournament', 'field': 'tournament'},
@@ -153,5 +240,6 @@ async def render_player_dashboard():
             player_discord_id=discord_id
         )
         await challonge_section()
+        await bracket_section()
         background_tasks.create(table_view.refresh())
 

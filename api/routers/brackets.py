@@ -4,16 +4,17 @@ Tenant- and feature-scoped by the mount (``FeatureFlag.BRACKETS``). Reads use th
 any-token actor dep and stay role-agnostic (the service scopes by tenant); writes
 reject read-only tokens at the HTTP layer and re-gate on Staff in the service.
 
-The one exception is ``POST /matches/{id}/games``: ``schedule_bracket_match``
-carries no gate of its own and inherits ``MatchService.create_match``'s — Staff
-**or** the target tournament's admin. That is deliberate (a TA runs their own
-event's scheduling), but it is a *delegated* gate, so a future caller that books
-a game by another route must not assume the service checks for itself.
+The one exception is ``POST /matches/{id}/games``: ``schedule_bracket_match`` is
+open to Staff, the target tournament's admin, **and** the matchup's own two
+entrants — in a bracket-run tournament the bracket is the only way a player
+schedules at all. It gates for itself and routes privileged callers through
+``create_match`` and entrants through ``submit_match_request``; the extra
+scheduling fields (stage, crew) are rejected for an entrant.
 """
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.brackets import (
@@ -26,6 +27,7 @@ from api.schemas.brackets import (
     BracketUpdateRequest,
     EnrollRequest,
     EntrantCreateRequest,
+    LinkGameRequest,
     ReportResultRequest,
     RoundMetadataRequest,
     ScheduleGameRequest,
@@ -298,16 +300,60 @@ async def schedule_game(
     The game number is assigned server-side — call this once per game to book a
     best-of-N, including all N slots up front. Rejected once every slot is taken
     or the series is decided.
+
+    Staff and the tournament's admins may book on anyone's behalf; the matchup's
+    two entrants may book their own. ``stream_room_id`` is staff-only, so it is
+    forwarded only when actually set — an entrant sending it explicitly gets a
+    400 rather than having it silently dropped.
     """
     service = BracketService()
+    extra = {} if body.stream_room_id is None else {'stream_room_id': body.stream_room_id}
     await service.schedule_bracket_match(
         actor, match_id,
         scheduled_date=body.scheduled_date,
         scheduled_time=body.scheduled_time,
-        stream_room_id=body.stream_room_id,
         comment=body.comment,
+        **extra,
     )
     return require_found(await service.get_match_with_games(match_id), "Bracket match")
+
+
+@router.post(
+    "/matches/{match_id}/games/link",
+    response_model=BracketMatchResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Attach an existing scheduled match to this matchup",
+)
+async def link_game(
+    match_id: int, body: LinkGameRequest, actor: User = Depends(require_write_actor)
+):
+    """Record an already-created ``Match`` as the next game of this matchup.
+
+    Staff / tournament admin only. The match's players must be exactly the
+    matchup's two entrants, or advancement could never resolve a winner.
+    """
+    service = BracketService()
+    await service.link_match_to_bracket_match(actor, match_id, body.scheduled_match_id)
+    return require_found(await service.get_match_with_games(match_id), "Bracket match")
+
+
+@router.delete(
+    "/games/by-match/{scheduled_match_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Detach a scheduled match from its matchup",
+)
+async def unlink_game(
+    scheduled_match_id: int, actor: User = Depends(require_write_actor)
+):
+    """Detach the match from its series, leaving the ``Match`` itself in place.
+
+    Only a game that has not been played can be detached.
+    """
+    if not await BracketService().unlink_match(actor, scheduled_match_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That match is not linked to a bracket matchup.",
+        )
 
 
 @router.patch(

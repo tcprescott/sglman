@@ -85,6 +85,23 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         return await query
     
     @staticmethod
+    async def get_player_requestable(
+        user_id: Optional[int] = None,
+    ) -> List[Tournament]:
+        """Tournaments a player may still request a match in.
+
+        Excludes the bracket-run ones (``allow_player_match_requests`` off).
+        Narrowed to the tournaments ``user_id`` is enrolled in when given, which
+        is what the request dialog's default (non-"show all") list needs.
+        """
+        query = scoped(
+            Tournament.filter(allow_player_match_requests=True)
+        ).order_by('name')
+        if user_id is not None:
+            query = query.filter(players__user_id=user_id)
+        return await query.distinct()
+
+    @staticmethod
     async def get_all_as_dict(
         active_only: bool = False,
         staff_only: bool = False
@@ -122,6 +139,7 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
         staff_administered: bool = False,
+        allow_player_match_requests: bool = True,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Optional[int] = None,
         racetime_bot_id: Optional[int] = None,
@@ -169,6 +187,7 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             average_match_duration=average_match_duration,
             max_match_duration=max_match_duration,
             staff_administered=staff_administered,
+            allow_player_match_requests=allow_player_match_requests,
             config=config,
             preset_id=preset_id,
             racetime_bot_id=racetime_bot_id,

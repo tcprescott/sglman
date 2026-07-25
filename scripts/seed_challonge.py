@@ -38,6 +38,10 @@ async def seed_challonge_for_tenant(
         tournament.challonge_tournament_id = f"cht_dev_{tenant.slug}"
         tournament.challonge_tournament_url = f"https://challonge.com/wizzrobe_{tenant.slug}"
         tournament.challonge_last_synced_at = now_utc
+        # Mirrors what ChallongeService.link_tournament does: a bracket-run
+        # tournament schedules only its own matchups. Set here because this seed
+        # writes the FK directly rather than going through the service.
+        tournament.allow_player_match_requests = False
         await tournament.save()
 
     # A near-expiry token so the service-health board / tenant subset (PR 5)

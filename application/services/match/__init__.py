@@ -3,13 +3,16 @@
 ``MatchScheduleService`` owns the state machine (request → seat → start →
 finish) via its ``_transition`` template; ``MatchService`` owns CRUD and crew
 signup; the rest are the pieces they compose — participant resolution, row
-formatting for the tables, the SpeedGaming field guard, cancellation, watchers,
-and time suggestion.
+formatting for the tables, the SpeedGaming field guard, the bracket-run
+scheduling guard, player-initiated requests, cancellation, watchers, and time
+suggestion.
 """
 
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_display_service import MatchDisplayService
 from application.services.match.match_participants import MatchParticipants
+from application.services.match.match_request import MatchRequestMixin
+from application.services.match.match_request_guard import assert_player_requests_allowed
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.match.match_service import MatchService
 from application.services.match.match_source_guard import assert_sg_fields_unchanged
@@ -20,9 +23,11 @@ __all__ = [
     'CancellationMixin',
     'MatchDisplayService',
     'MatchParticipants',
+    'MatchRequestMixin',
     'MatchScheduleService',
     'MatchService',
     'MatchSuggestionService',
     'MatchWatcherService',
+    'assert_player_requests_allowed',
     'assert_sg_fields_unchanged',
 ]

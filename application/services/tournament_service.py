@@ -125,6 +125,7 @@ class TournamentService:
         players_per_match: int = 2,
         team_size: int = 1,
         staff_administered: bool = False,
+        allow_player_match_requests: bool = True,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Optional[int] = None,
         racetime_bot_id: Optional[int] = None,
@@ -172,6 +173,7 @@ class TournamentService:
             players_per_match=players_per_match,
             team_size=team_size,
             staff_administered=staff_administered,
+            allow_player_match_requests=allow_player_match_requests,
             config=config,
             preset_id=preset_id,
             racetime_bot_id=racetime_bot_id,
@@ -209,6 +211,7 @@ class TournamentService:
         players_per_match: Optional[int] = None,
         team_size: Optional[int] = None,
         staff_administered: Optional[bool] = None,
+        allow_player_match_requests: Optional[bool] = None,
         config: Optional[Dict[str, Any]] = None,
         preset_id: Any = _UNSET,
         racetime_bot_id: Any = _UNSET,
@@ -262,6 +265,8 @@ class TournamentService:
             update_data['team_size'] = team_size
         if staff_administered is not None:
             update_data['staff_administered'] = staff_administered
+        if allow_player_match_requests is not None:
+            update_data['allow_player_match_requests'] = allow_player_match_requests
         if config is not None:
             update_data['config'] = validate_tournament_config(config)
         if preset_id is not _UNSET:
@@ -369,6 +374,19 @@ class TournamentService:
 
     async def get_tournament_by_id(self, tournament_id: int) -> Optional[Tournament]:
         return await self.repository.get_by_id(tournament_id)
+
+    async def list_player_requestable(
+        self, user: Optional[User] = None,
+    ) -> list[Tournament]:
+        """Tournaments the request-a-match dialog may offer.
+
+        Bracket-run tournaments are excluded — their matches come from the
+        bracket. Pass ``user`` for the enrolled-only list, omit it for the
+        dialog's "show all tournaments" mode.
+        """
+        return await self.repository.get_player_requestable(
+            user_id=user.id if user is not None else None,
+        )
 
     async def get_tournaments_by_ids(self, tournament_ids: list[int]) -> list[Tournament]:
         return await self.repository.get_by_ids(tournament_ids)

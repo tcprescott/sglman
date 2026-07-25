@@ -154,6 +154,12 @@ class ScheduleGameRequest(BaseModel):
     comment: Optional[str] = None
 
 
+class LinkGameRequest(BaseModel):
+    """Attach an existing scheduled ``Match`` to a matchup as its next game."""
+
+    scheduled_match_id: int
+
+
 class SetBestOfRequest(BaseModel):
     """Override one matchup's series length (null = fall back to the round)."""
 

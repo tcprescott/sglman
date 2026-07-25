@@ -133,6 +133,17 @@ class TournamentDialog:
                         'Active',
                         value=self.tournament.is_active if self.tournament else True,
                     )
+                allow_requests_checkbox = ui.checkbox(
+                    'Players may request matches',
+                    value=(
+                        self.tournament.allow_player_match_requests
+                        if self.tournament else True
+                    ),
+                )
+                allow_requests_checkbox.tooltip(
+                    'Turned off automatically when a bracket is attached — a '
+                    'bracket-run tournament schedules only its own matchups.'
+                )
 
                 # --- Tournament Days (per-tournament override of the tenant setting) ---
                 ui.separator()
@@ -326,6 +337,7 @@ class TournamentDialog:
                                 players_per_match=players_per_match_input.value,
                                 team_size=team_size_input.value,
                                 staff_administered=staff_administered_checkbox.value,
+                                allow_player_match_requests=allow_requests_checkbox.value,
                                 preset_id=(preset_input.value or None),
                                 actor=actor,
                                 **days_kwargs,
@@ -350,6 +362,7 @@ class TournamentDialog:
                             players_per_match=players_per_match_input.value,
                             team_size=team_size_input.value,
                             staff_administered=staff_administered_checkbox.value,
+                            allow_player_match_requests=allow_requests_checkbox.value,
                             preset_id=(preset_input.value or None),
                             actor=actor,
                             **days_kwargs,

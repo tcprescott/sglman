@@ -132,7 +132,8 @@ caller. `BracketService` still mirrors the Challonge integration method-for-meth
 | Bracket (native) | Challonge (mirror) |
 |---|---|
 | `list_open_matches_for_user` | `list_unscheduled_matches_for_user` |
-| `schedule_bracket_match` (→ `MatchService.create_match`, write a `BracketMatchGame`) | `schedule_challonge_match` |
+| `schedule_bracket_match` (→ `create_match` / `submit_match_request`, write a `BracketMatchGame`) | `schedule_challonge_match` |
+| `link_match_to_bracket_match` / `unlink_match` (staff attach an existing `Match`) | — |
 | `advance_if_linked` (confirmed `Match` → settle the game) | `push_result_if_linked` |
 
 ### Best-of-N series
@@ -183,6 +184,45 @@ schedulable. When a linked match is confirmed, `advance_if_linked` maps its winn
 back to the winning `BracketEntry` and reports it — advancing the native bracket
 the same way `push_result_if_linked` advances Challonge.
 
+### Who may schedule, and the manual-request lockout
+
+A bracket-run tournament schedules **only the matchups the bracket produced**.
+That is one toggle plus two authorized callers:
+
+- **`Tournament.allow_player_match_requests`** (default `True`) is turned off
+  automatically by `BracketService.create_bracket` (stage 0 only, so a later stage
+  cannot undo a staff re-open) and by `ChallongeService.link_tournament`. While it
+  is off, `MatchService.submit_match_request` refuses the tournament —
+  `assert_player_requests_allowed` in
+  [`match_request_guard.py`](../../application/services/match/match_request_guard.py)
+  is the enforcement, and `UserMatchDialog` filters those tournaments out of its
+  dropdown so the choice is never offered. Staff can turn it back on per
+  tournament from the tournament editor.
+- **`schedule_bracket_match` gates for itself** and routes by actor: Staff and the
+  tournament's admins go through `MatchService.create_match` (and may set a stage
+  and crew); the matchup's **own two entrants** go through
+  `submit_match_request` with `from_bracket=True`, which is what bypasses the
+  toggle — scheduling through the bracket is the path the toggle exists to force.
+  A non-privileged caller passing staff-only fields is rejected rather than having
+  them silently dropped. `ChallongeService.schedule_challonge_match` passes the
+  same flag.
+
+Players see their pending matchups on their dashboard
+([`pages/home_tabs/player.py`](../../pages/home_tabs/player.py)), in a card
+modelled on the Challonge one, and book them through the shared
+[`BracketScheduleDialog`](../../theme/dialog/bracket_schedule_dialog.py) — the same
+dialog the staff bracket view opens, in its player mode.
+
+Going the other way, staff who scheduled a match in the ordinary editor can
+attach it to the matchup it settles: `link_match_to_bracket_match` writes the
+`BracketMatchGame` for an existing `Match`, and `unlink_match` detaches one that
+has not been played. The link validates that the match's **player set equals the
+two entrants' users** — `_winner_from_ranks` maps the winner by `user_id`, so a
+mismatched link would settle nothing and strand the series with no visible cause.
+The picker lives in the admin match dialog
+([`theme/dialog/_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py)),
+on both create and edit.
+
 A tournament uses a native bracket **or** a Challonge link, never both:
 `BracketService._ensure_no_challonge_link` rejects a native bracket on a
 Challonge-linked tournament, and the symmetric guard lives in
@@ -195,7 +235,11 @@ Every write is Staff-gated (`AuthService.is_staff`), audits an
 the [event bus](event-system.md): `BRACKET_CREATED`, `BRACKET_STARTED`,
 `BRACKET_MATCH_COMPLETED`, `BRACKET_ADVANCED` (next Swiss round),
 `BRACKET_COMPLETED`, `BRACKET_STAGE_ADVANCED`, `BRACKET_ENTRANT_ADDED`,
-`BRACKET_ENTRANT_DROPPED`. Method-level detail:
+`BRACKET_ENTRANT_DROPPED`, and the per-game `BRACKET_GAME_SCHEDULED` /
+`BRACKET_GAME_COMPLETED` / `BRACKET_GAME_CANCELLED` plus
+`BRACKET_GAME_LINKED` / `BRACKET_GAME_UNLINKED` for the staff link/unlink of an
+existing `Match`. Scheduling is the one write that is **not** Staff-only — see
+[Who may schedule](#who-may-schedule-and-the-manual-request-lockout). Method-level detail:
 [services.md → BracketService](../reference/services.md#bracket_servicepy--bracketservice).
 
 ## Gating

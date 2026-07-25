@@ -4,7 +4,9 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AuthService,
+    BracketService,
     CrewService,
+    FeatureFlagService,
     MatchService,
     MatchSuggestionService,
     MatchWatcherService,
@@ -21,7 +23,7 @@ from application.utils.timezone import (
     format_eastern_time,
     now_eastern,
 )
-from models import Match
+from models import FeatureFlag, Match
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -30,6 +32,7 @@ from theme.dialog._helpers import (
     native_time_input,
     submit_on_enter,
 )
+from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 
@@ -52,6 +55,7 @@ class BaseMatchDialog:
         self.crew_service = CrewService()
         self.tournament_service = TournamentService()
         self.stream_room_service = StreamRoomService()
+        self.bracket_service = BracketService()
 
     def _get_default_values(self):
         now = now_eastern()
@@ -382,6 +386,12 @@ class AdminMatchDialog(BaseMatchDialog):
             commentator_ids = []
             tracker_ids = []
 
+        brackets_live = await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS)
+        linked_bracket_match_id = None
+        if brackets_live and self.match:
+            linked = await self.bracket_service.get_bracket_match_for_match(self.match.id)
+            linked_bracket_match_id = linked.id if linked else None
+
         is_create = self.match is None
         title = 'Create Match' if is_create else 'Edit Match'
 
@@ -506,6 +516,13 @@ class AdminMatchDialog(BaseMatchDialog):
                     value=self.match.is_stream_candidate if self.match else False,
                 )
 
+                selected_bracket_match = await bracket_link.render_select(
+                    self.bracket_service, selected_tournament,
+                    brackets_live=brackets_live,
+                    linked_id=linked_bracket_match_id,
+                    match_id=self.match.id if self.match else None,
+                )
+
                 if self.match:
                     self._render_clear_buttons()
 
@@ -568,6 +585,10 @@ class AdminMatchDialog(BaseMatchDialog):
                         await self.match_service.set_stream_candidate(
                             self.match.id, stream_candidate_checkbox.value, actor=actor,
                         )
+                    await bracket_link.apply_link(
+                        self.bracket_service, selected_bracket_match,
+                        self.match.id, linked_bracket_match_id,
+                    )
 
                 async def do_create():
                     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -584,6 +605,9 @@ class AdminMatchDialog(BaseMatchDialog):
                     )
                     if stream_room_id:
                         await self.match_service.assign_stage(new_match.id, stream_room_id, actor=actor)
+                    await bracket_link.apply_link(
+                        self.bracket_service, selected_bracket_match, new_match.id, None,
+                    )
 
                 await self._run_submit(
                     dialog,
@@ -614,9 +638,11 @@ class UserMatchDialog(BaseMatchDialog):
             ui.notify('User not found. Please log in again.', color='negative')
             return
 
-        enrolled_players = await self.tournament_service.get_enrolled_players_by_user(user)
-        tournament_ids = [tp.tournament_id for tp in enrolled_players]
-        tournaments = await self.tournament_service.get_tournaments_by_ids(tournament_ids) if tournament_ids else []
+        # Bracket-run tournaments are excluded: their matches come from the
+        # bracket, not from a request. The service rejects them either way — this
+        # keeps the dropdown from offering a choice that can only fail.
+        tournaments = await self.tournament_service.list_player_requestable(user)
+        enrolled_any = bool(await self.tournament_service.get_enrolled_players_by_user(user))
 
         defaults = self._get_default_values()
 
@@ -636,6 +662,9 @@ class UserMatchDialog(BaseMatchDialog):
             with ui.column().classes('q-pa-md gap-2'):
                 if not tournaments:
                     ui.label(
+                        'Your tournaments are scheduled from their bracket — '
+                        'schedule your matchup from Your Schedule instead.'
+                        if enrolled_any else
                         'You have not opted into any tournaments. '
                         'Please opt in before submitting a match.'
                     ).classes('text-negative')
@@ -668,7 +697,10 @@ class UserMatchDialog(BaseMatchDialog):
                 async def update_selection_options():
                     tournament_id = selected_tournament.value
 
-                    tournaments_list = await self.tournament_service.get_all_tournaments() if show_all_tournaments.value else tournaments
+                    tournaments_list = (
+                        await self.tournament_service.list_player_requestable()
+                        if show_all_tournaments.value else tournaments
+                    )
                     selected_tournament.disable()
                     selected_tournament.options = {t.id: t.name for t in tournaments_list}
                     selected_tournament.enable()

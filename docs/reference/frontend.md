@@ -218,6 +218,7 @@ The public event schedule with crew signup.
 - A `MatchTableView` (`admin_controls=False`, `player_discord_id` set). Columns: ID, Tournament, Scheduled At, State, Players, Stage, Generated Seed, Watch. Uses the same read-only state/seed `extra_slots` as the Schedule tab.
 - A **Request Match** button opens `UserMatchDialog` in create mode.
 - When Challonge is configured, an "Upcoming matches to schedule" card lists the player's unscheduled bracket matchups (`ChallongeService.list_unscheduled_matches_for_user`); each links an opponent and a **Schedule** button that opens `ChallongeScheduleDialog` (disabled when the opponent hasn't linked their account).
+- When `FeatureFlag.BRACKETS` is live, a matching card lists the player's pending **native** bracket matchups (`BracketService.list_open_matches_for_user`) with opponent, round, and a **Schedule game N** button opening [`BracketScheduleDialog`](../../theme/dialog/bracket_schedule_dialog.py). In a bracket-run tournament this is the player's *only* scheduling route — the Request Match dialog no longer offers those tournaments.
 - Services: `MatchService.get_matches_for_player(discord_id)`, `ChallongeService.list_unscheduled_matches_for_user`.
 
 ### My Availability (`pages/home_tabs/availability.py`)
@@ -527,6 +528,8 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | File | Class(es) | Purpose | Opened from |
 |---|---|---|---|
 | [`match_dialog.py`](../../theme/dialog/match_dialog.py) | `BaseMatchDialog`, `AdminMatchDialog`, `UserMatchDialog` | Create/edit matches | Admin schedule; home Schedule & Player tabs |
+| [`_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py) | `render_select`, `apply_link`, `matchup_label` | The admin editor's bracket-matchup picker | `AdminMatchDialog` |
+| [`bracket_schedule_dialog.py`](../../theme/dialog/bracket_schedule_dialog.py) | `BracketScheduleDialog` | Schedule one game of a native-bracket matchup | Home Player tab (player mode); bracket match dialog (staff mode) |
 | [`confirmation_dialog.py`](../../theme/dialog/confirmation_dialog.py) | `ConfirmationDialog` | Generic confirm/cancel | Start/Confirm actions, crew signup/undo, match/triforce-text/equipment/shift deletes |
 | [`approve_crew_dialog.py`](../../theme/dialog/approve_crew_dialog.py) | `ApproveCrewDialog` | Toggle commentator/tracker approval | Crew name click in admin match table |
 | [`match_result_dialog.py`](../../theme/dialog/match_result_dialog.py) | `MatchResultDialog` | Record the winner when finishing | Admin schedule Finish button |
@@ -579,6 +582,7 @@ The simpler dialogs in brief:
 - Players multi-select — restricted to players enrolled in the selected tournament (via `TournamentRepository.get_enrolled_players_by_tournament_id`) unless the "Choose any players" checkbox is set; options reload whenever the tournament or checkbox changes.
 - Commentators and Trackers multi-selects (all users).
 - Date / Time (required), Comment textarea, Stream-candidate checkbox.
+- **Bracket matchup** (optional) — shown only when `FeatureFlag.BRACKETS` is live; lists the selected tournament's OPEN matchups that still have a game slot free (`BracketService.list_linkable_matches`), repopulating with the tournament. Attaches a manually-scheduled match to the matchup it settles so its result advances the bracket. In edit mode it preselects the current link (added to the options by hand, since a linked matchup is no longer "linkable") and `(None)` unlinks. Lives in [`_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py).
 - Edit mode adds the clear buttons and a read-only Player Acknowledgments list (check/pending icons, timestamps, `(auto)` markers) from `MatchAcknowledgmentRepository.list_for_match` — see [../features/match-acknowledgment.md](../features/match-acknowledgment.md).
 - Edit mode also shows a **Racetime Room** section when the match's tournament has a racetime bot: the room's slug + status if one exists, else (for STAFF/`SYNC_ADMIN`) a "Create racetime room" button calling `RaceRoomService.manual_create_room` — a manual open independent of the tournament's auto-open toggle.
 
@@ -586,14 +590,15 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 
 - *Edit*: re-fetches the match and aborts with a warning if `updated_at` changed since the dialog opened (another admin edited it); otherwise calls `MatchService.update_match(...)` with the clear flags, plus `assign_stage` and/or `set_stream_candidate` only when those values changed.
 - *Create*: `MatchService.create_match(...)`, then `assign_stage` if a stage was chosen.
+- Either way, if the bracket-matchup selection changed, `BracketService.unlink_match` and/or `link_match_to_bracket_match` reconcile it **after** the match write (the `Match` has to exist to link).
 
 A Delete button appears in edit mode. `on_submit` receives the match (edit) or nothing (create) so callers can refresh a row or the whole table.
 
 **`UserMatchDialog(discord_id, match=None, on_submit=None)`** — the player-facing variant ("Submit Match" / "Edit Match"):
 
-- Tournament options default to the player's enrolled tournaments; a "Show all tournaments" checkbox widens the list, and submitting auto-enrolls the player in the chosen tournament if needed.
+- Tournament options default to the player's enrolled tournaments; a "Show all tournaments" checkbox widens the list, and submitting auto-enrolls the player in the chosen tournament if needed. Both lists come from `TournamentService.list_player_requestable`, which **excludes bracket-run tournaments** (`allow_player_match_requests` off) — those schedule only their own matchups, and the service would refuse them anyway.
 - A single required Opponent select lists the other enrolled players of the chosen tournament (the player themself excluded).
-- Edit mode adds the watch switch, clear buttons, and Delete; players enrolled in no tournaments get a short-circuit message instead of the form.
+- Edit mode adds the watch switch, clear buttons, and Delete. With no selectable tournament the form is short-circuited with a message — "opt into a tournament" when the player is enrolled nowhere, or a pointer to Your Schedule when every one of their tournaments runs on a bracket.
 - Submission uses the same `updated_at` concurrency check, then `MatchService.update_match` (with empty commentator/tracker lists) or `MatchService.submit_match_request` for new requests, with the player as `actor`.
 
 ### User dialogs (`theme/dialog/user_edit_dialog.py`)

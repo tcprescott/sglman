@@ -28,6 +28,7 @@ from application.services.match.match_source_guard import assert_sg_fields_uncha
 from application.services.discord import discord_queue
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_participants import MatchParticipants
+from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
@@ -45,7 +46,7 @@ _STATION_REGEXES = {
 }
 
 
-class MatchService(CancellationMixin):
+class MatchService(CancellationMixin, MatchRequestMixin):
     """Service for match-related business operations."""
 
     def __init__(self) -> None:
@@ -474,70 +475,6 @@ class MatchService(CancellationMixin):
              'changed_fields': list(update_fields.keys())},
             actor,
         ))
-
-        return match
-
-    async def submit_match_request(
-        self,
-        tournament_id: int,
-        scheduled_date: str,
-        scheduled_time: str,
-        player_ids: List[int],
-        actor: User,
-        comment: Optional[str] = None,
-    ) -> Match:
-        """Player-initiated match creation.
-
-        Allowed when the actor is a player in the new match (typically self-vs-opponent
-        in a tournament they're enrolled in). Bypasses the TA/Staff CRUD gate but
-        does not grant Tournament Admin powers.
-        """
-        if actor is None:
-            raise PermissionError("Login required to submit a match request")
-        if actor.id not in player_ids:
-            raise PermissionError("You may only submit match requests where you are a player")
-
-        if not player_ids:
-            raise ValueError("Match must have at least one player")
-
-        try:
-            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
-        except ValueError as e:
-            raise ValueError(f"Invalid date/time format: {e}") from e
-
-        await self._assert_within_tournament_hours(scheduled_at, tournament_id)
-
-        # Resolve every player before touching the match row so a missing user
-        # doesn't leave an orphan Match behind.
-        players = await self.participants.resolve_users(player_ids)
-
-        match = await self.repository.create(
-            tournament_id=tournament_id,
-            scheduled_at=scheduled_at,
-            comment=comment,
-        )
-        await self.participants.ensure_enrolled(tournament_id, players)
-        for user in players:
-            await self.repository.add_player(match, user)
-
-        await self.audit_service.write_log(
-            actor,
-            AuditActions.MATCH_REQUESTED,
-            {
-                'match_id': match.id,
-                'tournament_id': tournament_id,
-                'player_ids': player_ids,
-            },
-        )
-
-        await self._seed_acknowledgments(match, player_ids, actor)
-
-        await self.match_schedule_service.notify_match_scheduled(match, rescheduled=False)
-
-        match_live.publish(match.id, match_live.CREATED)
-        event_bus.publish(Event.create(EventType.MATCH_CREATED, {
-            'match_id': match.id, 'tournament_id': tournament_id, 'player_ids': player_ids,
-        }, actor))
 
         return match
 

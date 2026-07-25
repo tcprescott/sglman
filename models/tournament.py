@@ -79,6 +79,12 @@ class Tournament(Model):
         through='TournamentCrewCoordinators',
     )
     staff_administered = fields.BooleanField(default=False)
+    # Whether players may schedule matches themselves outside a bracket
+    # (``MatchService.submit_match_request``). Turned off automatically when a
+    # native bracket is created or a Challonge bracket is linked: a bracket-run
+    # tournament schedules only the matchups the bracket produced. Staff can turn
+    # it back on per tournament.
+    allow_player_match_requests = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
