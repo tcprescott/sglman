@@ -33,6 +33,12 @@ _EVENT_CANDIDATES = frozenset({
     AuditActions.TOURNAMENT_CREATED,
     AuditActions.TOURNAMENT_UPDATED,
     AuditActions.TOURNAMENT_DELETED,
+    # Bracket *definition* authoring, the peer of the tournament CRUD above: both
+    # are DRAFT-only (name/stage/config, round chrome, reseeding, delete), so
+    # nothing competitive has happened yet for a subscriber to react to. The
+    # lifecycle events a bracket does emit start at BRACKET_STARTED.
+    AuditActions.BRACKET_UPDATED,
+    AuditActions.BRACKET_DELETED,
     AuditActions.STREAM_ROOM_CREATED,
     AuditActions.STREAM_ROOM_UPDATED,
     AuditActions.STREAM_ROOM_DELETED,

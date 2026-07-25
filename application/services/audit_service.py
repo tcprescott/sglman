@@ -246,6 +246,10 @@ class AuditActions:
     # for management; the started/completed/advanced rows capture the graph
     # transitions the service performs.
     BRACKET_CREATED = 'bracket.created'
+    # Covers every edit to a bracket's own definition — name/stage/config,
+    # per-round display metadata and reseeding — with ``details`` naming which.
+    BRACKET_UPDATED = 'bracket.updated'
+    BRACKET_DELETED = 'bracket.deleted'
     BRACKET_STARTED = 'bracket.started'
     BRACKET_MATCH_COMPLETED = 'bracket.match_completed'
     BRACKET_GAME_SCHEDULED = 'bracket.game_scheduled'

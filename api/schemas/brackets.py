@@ -108,6 +108,43 @@ class BracketMatchResponse(BaseModel):
 # --- request bodies -------------------------------------------------------
 
 
+class StandingsRowResponse(BaseModel):
+    """One entry's placement, with the entrant's name already joined in."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    entry_id: int
+    entrant_id: int
+    display_name: str
+    seed: Optional[int] = None
+    # `status` is this stage's participation; `entrant_status` is the
+    # tournament-wide roster state. They move independently — dropping an
+    # entrant does not cascade into the stage entry — so check both to render
+    # "dropped".
+    status: BracketEntryStatus
+    entrant_status: BracketEntrantStatus
+    rank: int
+    # The persisted rank written at stage completion; null until then. It can
+    # differ from `rank` when staff resolved a tie by hand.
+    final_rank: Optional[int] = None
+    points: float
+    wins: int
+    draws: int
+    losses: int
+    byes: int
+    tiebreakers: Dict[str, float] = {}
+    tied_with: List[int] = []
+
+
+class StandingsGroupResponse(BaseModel):
+    """One pool's ranked rows; ``group_number`` is null for a single pool."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    group_number: Optional[int] = None
+    rows: List[StandingsRowResponse]
+
+
 class ScheduleGameRequest(BaseModel):
     """Schedule the next game of a series. The game number is server-assigned."""
 
@@ -137,6 +174,30 @@ class EntrantCreateRequest(BaseModel):
     user_id: Optional[int] = None
 
 
+class BracketUpdateRequest(BaseModel):
+    """Edit a DRAFT bracket's definition. Omitted fields are left alone."""
+
+    name: Optional[str] = None
+    stage_order: Optional[int] = None
+    config: Optional[Dict[str, Any]] = None
+
+
+class RoundMetadataRequest(BaseModel):
+    """Replace the per-round display metadata (``{round: {best_of, scheduled_at}}``).
+
+    Null or empty clears it. Unlike the rest of the bracket definition this is
+    editable after the stage has started — round chrome never touches the graph.
+    """
+
+    rounds: Optional[Dict[str, Any]] = None
+
+
+class SetSeedsRequest(BaseModel):
+    """Per-entry seeds (``entry_id → seed``); a null seed clears that entry's."""
+
+    seeds: Dict[int, Optional[int]]
+
+
 class EnrollRequest(BaseModel):
     entrant_id: int
     seed: Optional[int] = None
@@ -160,9 +221,14 @@ __all__ = [
     'BracketEntryResponse',
     'BracketMatchGameResponse',
     'BracketMatchResponse',
+    'StandingsRowResponse',
+    'StandingsGroupResponse',
     'ScheduleGameRequest',
     'SetBestOfRequest',
     'BracketCreateRequest',
+    'BracketUpdateRequest',
+    'RoundMetadataRequest',
+    'SetSeedsRequest',
     'EntrantCreateRequest',
     'EnrollRequest',
     'ReportResultRequest',

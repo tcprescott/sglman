@@ -199,18 +199,20 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 | Method | Returns | Description |
 |---|---|---|
 | `create_bracket(actor, tournament_id, name, format, stage_order=0, config=None)` | `Bracket` | Create a DRAFT stage; rejects a Challonge-linked tournament, a duplicate `stage_order`, and (via `validate_bracket_config`) a bad config. Audits/events `BRACKET_CREATED`. |
-| `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None)` | `Bracket` | Edit a DRAFT stage's name / order / config. |
-| `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. |
+| `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None)` | `Bracket` | Edit a DRAFT stage's name / order / config. Audits `BRACKET_UPDATED`. |
+| `set_round_metadata(actor, bracket_id, rounds)` | `Bracket` | Replace the per-round display metadata (`{round: {best_of, scheduled_at}}`), allowed in **any** state since round chrome never touches the graph. Audits `BRACKET_UPDATED`. |
+| `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. Audits `BRACKET_DELETED`. |
 | `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. |
 | `add_entrant(actor, tournament_id, display_name, user_id=None)` | `BracketEntrant` | Add a roster entrant — placeholder (`user_id=None`) or linked. Audits/events `BRACKET_ENTRANT_ADDED`. |
 | `drop_entrant(actor, entrant_id)` | `BracketEntrant` | Mark an entrant `DROPPED`. Audits/events `BRACKET_ENTRANT_DROPPED`. |
 | `enroll(actor, bracket_id, entrant_id, seed=None, group_number=None)` | `BracketEntry` | Enroll a roster entrant into a DRAFT stage (once per stage). |
-| `set_seeds(actor, bracket_id, seeds)` | `None` | Bulk-set per-entry seeds (`entry_id → seed`), DRAFT only. |
+| `set_seeds(actor, bracket_id, seeds)` | `None` | Bulk-set per-entry seeds (`entry_id → seed`, `None` clears), DRAFT only. The whole resulting seeding is validated before any write, so a duplicate or `<1` seed changes nothing. Audits `BRACKET_UPDATED`. |
 | `start_bracket(actor, bracket_id)` | `Bracket` | Fill missing seeds contiguously, generate the graph (elimination/round-robin) or pair Swiss round 1, auto-complete structural byes, and set `ACTIVE`. A non-first stage requires its predecessor `COMPLETE`. Audits/events `BRACKET_STARTED`. |
 | `report_result(actor, match_id, winner_entry_id)` | `BracketMatch` | Record an OPEN match's winner, push winner/loser through `winner_to`/`loser_to`, settle walkovers, auto-complete an elimination final and generate the next Swiss round. Audits/events `BRACKET_MATCH_COMPLETED`. |
 | `override_result(actor, match_id, winner_entry_id)` | `BracketMatch` | Staff correction of a COMPLETE match, allowed only while nothing downstream is COMPLETE. |
 | `get_open_matches(bracket_id)` | `List[BracketMatch]` | All OPEN (playable) matches. |
 | `complete_stage(actor, bracket_id, tie_breaks=None)` | `Bracket` | Finalize: write every entry's `final_rank` (elimination depth / RR + Swiss standings, with optional staff tie-breaks) and set `COMPLETE`. Audits/events `BRACKET_COMPLETED`. |
+| `standings(bracket_id)` | `List[StandingsGroup]` | Live standings of a round-robin (one group per pool) or Swiss (single group) stage — the same computation `complete_stage` ranks with, read-only and available mid-stage, with each row's entrant name/seed/status and the tiebreaker chain joined in. Rejects elimination formats, whose placement comes from the match graph. |
 | `advance_stage(actor, tournament_id, from_stage_order)` | `Bracket` | Seed the next stage from the source's `final_rank` per its `advancement` rule (top `count`, per-group or overall; snake/preserve seeding), enrolling fresh entries on the same entrants. Audits/events `BRACKET_STAGE_ADVANCED`. |
 | `get_advancing_preview(tournament_id, from_stage_order)` | `List[BracketEntry]` | Dry-run of the same selection for the confirm dialog. |
 | `list_open_matches_for_user(user_id, tournament_id=None)` | `List[BracketMatch]` | OPEN, unscheduled matches whose both entrants are linked users — schedulable ones (peer of `ChallongeService.list_unscheduled_matches_for_user`). |

@@ -23,7 +23,6 @@ from models import BracketMatch, BracketMatchState
 
 from .layout import (
     CARD_HEIGHT,
-    COL_STRIDE,
     COL_WIDTH,
     Placement,
     SectionLayout,
