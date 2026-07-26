@@ -8,6 +8,19 @@ which was recorded as a one-line recommendation and never written up.
 **Goal:** serve **at least 500 concurrent websocket connections** (§1 — measured,
 not estimated).
 
+> **Status update.** Phase 1's first step — lazy tab rendering — **is shipped**,
+> and on the measured workload **the 500-connection target is already met on a
+> single worker**: 500/500 tabs connected and held, against 205/500 before. See
+> §1.5. The remaining phases are no longer required to hit 500; they are about
+> headroom, faster arrival, and availability. Each now has its own plan doc:
+>
+> | Next | Plan |
+> |---|---|
+> | Finish the render-cost work (match table, N+1, regression guard) | [render-cost-plan.md](render-cost-plan.md) |
+> | Make the single-worker constraint fail loudly, not silently | [singleton-ownership-plan.md](singleton-ownership-plan.md) |
+> | Split `web` from `worker` (availability) | [web-worker-split-plan.md](web-worker-split-plan.md) |
+> | Run N web replicas (headroom) | [web-replicas-plan.md](web-replicas-plan.md) |
+
 **Headline verdict 1 — the mechanism.** *`uvicorn --workers N` is not a reachable
 target for this app and should stop being the goal.* NiceGUI is single-worker by
 design — its bundled reference (`nicegui/llms.md`, "Architecture") states it
@@ -126,6 +139,35 @@ Concretely: at ~4 renders/s the target is out of reach; at a plausible post-fix
 ~12–15 renders/s a single worker admits 500 tabs in ~35–40 s, and two replicas
 comfortably absorb a crowd. **Target B (§5) is therefore no longer "do not
 build" — it is the last step of a capacity plan, not the first.**
+
+### 1.5 Result after lazy tab rendering (shipped)
+
+`BaseLayout._render_tab_panels` now creates every panel container up front but
+builds a tab's **content** only when it is first shown. Same harness, same
+seeded data, same single no-reload worker:
+
+| | Before | After |
+|---|---|---|
+| Tenant home (9 tabs), CPU/render | 289 ms | **132 ms** (−54 %) |
+| Admin (24 tabs), CPU/render | 566 ms | **116 ms** (−79 %) |
+| 500 tabs @ 0.3 s ramp | 205/500 connected | **500/500 connected** |
+| …still connected after 60 s hold | 169 | **500** |
+| Render latency under that ramp | p50 1214 ms / p95 2898 ms | **p50 81 ms / p95 485 ms** |
+| RSS at end of run | 767 MB @ ~200 sockets | **561 MB @ 500 sockets** |
+| CPU holding the sockets | 2–4 % of a core @ ~195 | **~7 % of a core @ 500** |
+
+Two things worth noting beyond the headline:
+
+- **Memory improved as much as CPU.** Per-connection cost fell from ~3 MB to
+  ~0.85 MB, because a client now holds one panel's element tree instead of nine.
+  500 tabs fit in ~560 MB rather than the ~1.6 GB projected in §1.2.
+- **The admin page gained most** (−79 %), which matters because staff sit on it
+  during an event, and it is the page most likely to be open in a second tab.
+
+**Admission rate is now ~7.6 renders/s** (home) — the §1.4 estimate of 12–15/s
+was optimistic, because the default Schedule tab and the page shell are
+untouched by this change. That is what
+[render-cost-plan.md](render-cost-plan.md) goes after.
 
 ---
 
@@ -305,42 +347,38 @@ replica count from the observed renders/second rather than from this estimate.
 ## 6. Phasing
 
 Ordered by capacity-per-unit-effort, which puts the presentation-layer work
-first and the infrastructure last.
+first and the infrastructure last. Each phase past the first has its own doc.
 
 **Phase 1 — cut the render cost (the capacity work; no infrastructure).**
-1. **Lazy tab panels.** `theme/base.py:_render_tab_panels` builds only the active
-   panel; others render on first switch (and stay built). Watch for tabs that
-   assume they were constructed at page load — deep-linked tabs and the
-   `_handle_tab_change` URL sync are the places to check.
-2. **Re-measure** with the §1.1 driver. This is the number that decides how many
-   replicas Phase 4 needs; do not skip it.
-3. **The Schedule tab's remaining cost** — the match table's element count (16
-   inline Vue slot templates + grid) and the N+1 behind the 377 queries/render.
-4. Keep a render-cost regression check so this does not silently return.
+1. ✅ **Lazy tab panels** — shipped. `theme/base.py` builds panel containers up
+   front and each tab's content on first show. Results in §1.5.
+2. **Everything else** → [render-cost-plan.md](render-cost-plan.md): re-profile
+   (the §1.3 attribution predates lazy tabs), the match table's element count,
+   the Schedule tab's N+1, and a queries-per-render regression guard.
 
 **Phase 2 — make the current constraint safe and honest (independent; cheap).**
-5. Advisory-lock leader election guarding the gateway, the racetime runtime, and
-   the five `BackgroundLoop`s (§4). Standalone value; no split required.
-6. Document item 8 (the seed lock) as a single-process correctness dependency, as
-   item 7 already documents itself.
-7. Replace the "Scale vertically" line in [deployment.md](../deployment.md) and
-   the paragraph in [architecture.md](../architecture.md) with a pointer here.
+→ [singleton-ownership-plan.md](singleton-ownership-plan.md). Advisory-lock
+leader election over the gateway, the racetime runtime, and the five
+`BackgroundLoop`s, plus a separate migration lock. Also documents item 8 (the
+seed lock) as a single-process correctness dependency, as item 7 already
+documents itself. Buys no capacity; makes a second process loud instead of
+silently duplicating work. Prerequisite for Phases 3 and 4.
 
 **Phase 3 — cross-process nudge + the split (availability).**
-8. `LISTEN`/`NOTIFY` transport behind `match_live.publish` / subscribe, with the
-   listener connection owned by the lifespan. Behind an env switch, default off,
-   so it is a no-op in the current single-process deployment.
-9. Tests: publish in one connection, assert delivery to a subscriber registered
-   against another.
-10. `ROLE=web|worker` branch in `main.py`'s lifespan + `start.sh` + compose.
-11. Move migrations to the worker role; make web wait.
-12. Worker-role liveness; DB pool knob.
-13. Route the DM queue enqueue across the boundary (or accept that web-side DM
-    sends stay in the web process — decide, don't drift).
+→ [web-worker-split-plan.md](web-worker-split-plan.md). `LISTEN`/`NOTIFY` behind
+`match_live` (env-switched, landable before the split), then the
+`ROLE=web|worker|all` branch, migrations moved to the worker role, worker
+liveness, and the DB pool knob.
 
-**Phase 4 — replicas (Target B).** Sticky sessions, `NICEGUI_REDIS_URL`, shared
-stores for items 7/8/10. Size the replica count from the Phase 1 re-measurement.
-Budget ~3 MB of RSS per connected tab (500 tabs ≈ 1.6 GB) per replica.
+**Phase 4 — replicas (Target B).**
+→ [web-replicas-plan.md](web-replicas-plan.md). Sticky sessions,
+`NICEGUI_REDIS_URL`, shared stores for items 7/8/10. **Not currently needed** —
+one worker now holds 500. Build only on a measured shortfall, and size from
+Phase 1's re-measurement (~7.6 admissions/s and ~0.85 MB per tab today).
+
+**Docs housekeeping (done alongside):** the "Scale vertically" line in
+[deployment.md](../deployment.md) and the process-model paragraph in
+[architecture.md](../architecture.md) now point here.
 
 ---
 
