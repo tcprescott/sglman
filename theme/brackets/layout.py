@@ -14,15 +14,39 @@ Absolute positioning (rather than CSS grid) keeps connectors exact and the layou
 robust to the irregular losers bracket, where a "minor" round match has a single
 in-section feeder and a "major" round match has two.
 
-Byes, placeholder source hints ("Winner of 7"), match numbering, and round names
-are computed here too (all pure) so the card layer stays presentational. Pixel
-constants mirror ``static/css/brackets.css``; changing one means changing both.
+Byes, placeholder source hints ("Winner of 7") and match numbering are computed
+here too (all pure) so the card layer stays presentational. Round *names* used to
+be, and moved to :mod:`application.services.bracket_engines.round_names` so a
+service or a Discord DM can say "Semifinals" too; :func:`round_label` is
+re-exported here so the card layer's imports are unchanged. Pixel constants
+mirror ``static/css/brackets.css``; changing one means changing both.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+
+from application.services.bracket_engines.round_names import round_label
+
+__all__ = [
+    'CARD_HEIGHT',
+    'COL_STRIDE',
+    'COL_WIDTH',
+    'GUTTER',
+    'MatchNode',
+    'Placement',
+    'ROW_PITCH',
+    'SectionLayout',
+    'Segment',
+    'SlotSource',
+    'assign_match_numbers',
+    'avatar_hue',
+    'avatar_initial',
+    'layout_section',
+    'round_label',
+    'slot_sources',
+]
 
 # Geometry (px) — keep in sync with static/css/brackets.css (--bracket-* vars).
 COL_WIDTH = 200          # match-card width
@@ -271,42 +295,3 @@ def avatar_initial(name: str) -> str:
     return '?'
 
 
-def round_label(
-    round_number: int,
-    *,
-    is_grand_final: bool = False,
-    is_reset: bool = False,
-    max_winners_round: Optional[int] = None,
-    max_losers_magnitude: Optional[int] = None,
-    double_elim: bool = False,
-) -> str:
-    """Human round name from the round number and its role.
-
-    Winners rounds count down to Semifinals/Final (Winners Finals for double
-    elim, where a grand final follows); losers rounds are "Losers Round N" up to
-    "Losers Finals". The finals columns are named explicitly. ``double_elim`` is
-    an explicit signal so the winners side is named correctly even for a
-    2-entrant double elim, which has no losers bracket (``max_losers_magnitude``
-    is then ``None``).
-    """
-    if is_reset:
-        return 'Grand Finals (Reset)'
-    if is_grand_final:
-        return 'Grand Finals'
-    is_de = double_elim or max_losers_magnitude is not None
-    if round_number < 0:
-        magnitude = abs(round_number)
-        if max_losers_magnitude is not None and magnitude == max_losers_magnitude:
-            return 'Losers Finals'
-        return f'Losers Round {magnitude}'
-    if max_winners_round is not None:
-        # In a double-elim winners bracket a grand final sits beyond the WB final,
-        # so the top WB round is "Winners Finals"; otherwise it's the "Final".
-        if round_number == max_winners_round:
-            return 'Winners Finals' if is_de else 'Final'
-        if round_number == max_winners_round - 1:
-            return 'Winners Semifinals' if is_de else 'Semifinals'
-        if round_number == max_winners_round - 2 and not is_de:
-            return 'Quarterfinals'
-    prefix = 'Winners Round ' if is_de else 'Round '
-    return f'{prefix}{round_number}'

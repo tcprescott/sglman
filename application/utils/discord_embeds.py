@@ -131,6 +131,42 @@ def state_changed_embed(
     )
 
 
+def matchup_ready_embed(
+    *,
+    tournament: str,
+    round_name: str,
+    opponent: str,
+    community_name: Optional[str] = None,
+    best_of: int = 1,
+    schedule_url: Optional[str] = None,
+    rebook: bool = False,
+) -> discord.Embed:
+    """Card for the "you have a matchup to schedule" DM (D7).
+
+    ``COLOR_SCHEDULED`` for a fresh matchup and ``COLOR_RESCHEDULED`` for a
+    released one, matching what those two colours already mean for a plain match
+    — the palette is one vocabulary, not two.
+    """
+    fields: list[Field] = [
+        ('Tournament', tournament, True),
+        ('Round', round_name, True),
+        ('Opponent', opponent, False),
+    ]
+    if best_of > 1:
+        fields.append(('Format', f'Best of {best_of}', True))
+    return notification_embed(
+        title='🔁 Matchup ready to reschedule' if rebook else '🗓️ Matchup ready to schedule',
+        color=COLOR_RESCHEDULED if rebook else COLOR_SCHEDULED,
+        community_name=community_name,
+        description=(
+            'This game was called off — pick a new time on the bracket.'
+            if rebook else 'Agree a time with your opponent and book it on the bracket.'
+        ),
+        fields=fields,
+        url=schedule_url,
+    )
+
+
 def volunteer_embed(
     *,
     title: str,

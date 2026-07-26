@@ -62,5 +62,18 @@ class RacetimeRoomRepository(TenantScopedRepository[RacetimeRoom]):
     async def get_by_match(self, match: Match) -> Optional[RacetimeRoom]:
         return await scoped(RacetimeRoom.filter(match_id=match.id)).first()
 
+    async def for_matches(self, match_ids: List[int]) -> dict[int, RacetimeRoom]:
+        """``{match_id: room}`` for a whole match set — **one scoped query**.
+
+        The batched peer of :meth:`get_by_match`, for the bracket view: it resolves
+        the live state of every card at once, so a 64-match field costs one query
+        rather than 64. ``RacetimeRoom.match`` is a OneToOne, so the mapping is
+        single-valued.
+        """
+        if not match_ids:
+            return {}
+        rooms = await scoped(RacetimeRoom.filter(match_id__in=list(match_ids)))
+        return {r.match_id: r for r in rooms if r.match_id is not None}
+
     async def list_all(self) -> List[RacetimeRoom]:
         return await scoped(RacetimeRoom.all()).order_by('-created_at')

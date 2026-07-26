@@ -208,3 +208,77 @@ async def test_browse_read_is_isolated(two_tenants):
         assert [x.id for x in await repo.list_all_with_tournament()] == [ba.id]
     with tenant_scope(b.id):
         assert [x.id for x in await repo.list_all_with_tournament()] == [bb.id]
+
+
+async def test_batched_room_lookup_is_isolated(two_tenants):
+    """The bracket view's racetime-room read (U2) is batched — and public.
+
+    ``for_matches`` takes a list of match ids, so an unscoped version would
+    happily return another community's room for an id it was handed. That URL is
+    then painted on an anonymous-readable page as a "Watch" link.
+    """
+    from application.repositories.racetime_room_repository import RacetimeRoomRepository
+    from models import Match, RaceRoomStatus, RacetimeBot, RacetimeRoom
+
+    a, b = two_tenants
+    repo = RacetimeRoomRepository()
+
+    # One bot, two tenants' rooms: RacetimeBot is platform-level (category is
+    # globally unique), which is exactly why the *room* read must be scoped.
+    bot = await RacetimeBot.create(
+        category='alttpr', client_id='c', client_secret='s', name='bot',
+    )
+    with tenant_scope(a.id):
+        ta = await _tournament('TA')
+        match_a = await Match.create(tournament=ta)
+        room_a = await RacetimeRoom.create(
+            bot=bot, slug='alttpr/room-a', category='alttpr',
+            status=RaceRoomStatus.OPEN, match=match_a,
+        )
+    with tenant_scope(b.id):
+        tb = await _tournament('TB')
+        match_b = await Match.create(tournament=tb)
+        await RacetimeRoom.create(
+            bot=bot, slug='alttpr/room-b', category='alttpr',
+            status=RaceRoomStatus.OPEN, match=match_b,
+        )
+
+    with tenant_scope(a.id):
+        found = await repo.for_matches([match_a.id, match_b.id])
+        assert list(found) == [match_a.id]
+        assert found[match_a.id].id == room_a.id
+
+
+async def test_release_does_not_reach_another_tenants_game(two_tenants):
+    """The cancel/delete slot release (U3a) must not free a foreign slot.
+
+    Same shape as the ``unlink_match`` leak test above: the release resolves the
+    game from a ``Match`` id, so a scoping gap would let one community's
+    cancellation delete another's booked game.
+    """
+    from application.services.bracket_service import BracketService
+    from models import Match, Role, User, UserRole
+
+    a, b = two_tenants
+    service = BracketService()
+
+    with tenant_scope(b.id):
+        tb = await _tournament('TB')
+        bb = await Bracket.create(
+            tournament=tb, name='Main', format=BracketFormat.SINGLE_ELIM,
+        )
+        mb = await BracketMatch.create(bracket=bb, round=1, position=1)
+        foreign_scheduled = await Match.create(tournament=tb)
+        game = await BracketMatchGame.create(
+            bracket_match=mb, game_number=1, match=foreign_scheduled,
+        )
+
+    with tenant_scope(a.id):
+        staff = await User.create(discord_id=8812, username='staff-a2')
+        await UserRole.create(user=staff, role=Role.STAFF)
+        assert await service.release_game_if_linked(
+            foreign_scheduled, staff, reason='cross-tenant',
+        ) is False
+
+    with tenant_scope(b.id):
+        assert await scoped(BracketMatchGame.filter(id=game.id)).exists()

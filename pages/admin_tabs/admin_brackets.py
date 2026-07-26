@@ -369,6 +369,7 @@ async def admin_brackets_page() -> None:
                             matches = await service.list_matches(bracket_id)
                             entries = await service.list_entries(bracket_id)
                             names = await _entry_name_map(bracket_id, tid)
+                            live_state = await service.matchup_live_state(matches)
 
                         def slot_label(entry_id: Optional[int]) -> str:
                             if entry_id is None:
@@ -422,10 +423,12 @@ async def admin_brackets_page() -> None:
                                     best_of=service.resolve_best_of(bracket, m),
                                     is_staff=True, actor=actor, tenant_id=tenant_id,
                                     service=service, on_saved=_after_write,
+                                    live=live_state.get(match_id),
                                 )
 
                             ctx = build_context(
-                                bracket.config, entries, matches, names, on_card_click=on_card,
+                                bracket.config, entries, matches, names,
+                                on_card_click=on_card, live_state=live_state,
                             )
                             ui.label('Bracket — click a match to report a result') \
                                 .classes('section-title')

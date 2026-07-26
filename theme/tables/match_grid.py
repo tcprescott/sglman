@@ -236,7 +236,10 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
             '<a v-if="props.row.bracket" href="#" class="mgc-bracket-link q-ml-sm"'
             ' @click.prevent="$parent.$emit(\'open_bracket\', props.row)">'
             '<q-icon name="account_tree" size="14px" class="q-mr-xs" />'
-            '{{ props.row.bracket.name }}</a>'
+            '{{ props.row.bracket.name }}'
+            '<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template>'
+            '<template v-if="props.row.bracket.standing"> · {{ props.row.bracket.standing }}</template>'
+            '</a>'
         )
     if 'id' in present:
         if has_edit:

@@ -416,6 +416,7 @@ def create() -> None:
                     entrants = await service.list_entrants(bracket.tournament_id)
                     entries = await service.list_entries(bracket_id)
                     matches = await service.list_matches(bracket_id)
+                    live_state = await service.matchup_live_state(matches)
                 name_by_entrant = {en.id: en.display_name for en in entrants}
                 entry_name = {
                     e.id: name_by_entrant.get(e.entrant_id, 'Unknown') for e in entries
@@ -431,6 +432,7 @@ def create() -> None:
                     best_of=service.resolve_best_of(bracket, match),
                     is_staff=is_staff, actor=user, tenant_id=tenant_id,
                     service=service, on_saved=_on_saved,
+                    live=live_state.get(match.id),
                 )
 
         def on_card_click(match_id: int) -> None:
@@ -451,6 +453,10 @@ def create() -> None:
                 entrants = await service.list_entrants(bracket.tournament_id)
                 entries = await service.list_entries(bracket_id)
                 matches = await service.list_matches(bracket_id)
+                # One extra query for the whole field: the derived per-matchup
+                # status and watch link the cards paint (U2). Public — the
+                # schedule already shows all of it signed out (D4).
+                live_state = await service.matchup_live_state(matches)
             entrant_name = {en.id: en.display_name for en in entrants}
             entry_name = {
                 e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
@@ -491,7 +497,7 @@ def create() -> None:
                     double = bracket.format == BracketFormat.DOUBLE_ELIM
                     ctx = build_context(
                         bracket.config, entries, matches, entry_name,
-                        on_card_click=on_card_click,
+                        on_card_click=on_card_click, live_state=live_state,
                     )
                     # 2-D connector bracket (>= md); a per-round accordion (< md),
                     # with the toolbar toggle swapping between them on a phone.
@@ -526,4 +532,12 @@ def create() -> None:
                         )
 
         await render_body()
-        register_bracket_view(bracket_id, request_refresh)
+        # The tournament id enables the live match half (U2): MATCH_* payloads
+        # carry no bracket_id, so the subscriber filters on the tournament and
+        # lets the debounce absorb the wider net.
+        with tenant_scope(tenant_id):
+            live_bracket = await service.get_bracket(bracket_id)
+        register_bracket_view(
+            bracket_id, request_refresh,
+            tournament_id=live_bracket.tournament_id if live_bracket else None,
+        )

@@ -165,6 +165,65 @@ class TestMatchInfoLines:
         lines = dm._match_info_lines(scheduled_at_display='soon', time_label='New time')
         assert lines == ['New time: soon']
 
+    def test_bracket_line_leads_the_block(self):
+        """It is what tells a player what the match is *for* (U4/U5)."""
+        lines = dm._match_info_lines(
+            player_names=['A', 'B'],
+            bracket_line='Semifinals · Game 2 of 3 · Series 1-0',
+        )
+        assert lines == [
+            'Round: Semifinals · Game 2 of 3 · Series 1-0',
+            'Players: A vs B',
+        ]
+
+    def test_no_bracket_line_for_an_ordinary_match(self):
+        assert dm._match_info_lines(player_names=['A']) == ['Players: A']
+
+
+class TestMatchupReadyDm:
+    """The one new bracket notification (D7): "you have a matchup to schedule"."""
+
+    def test_carries_opponent_seed_format_and_link(self):
+        msg = dm.matchup_ready_dm(
+            'Cool Cup', 'Semifinals', 'Bob',
+            opponent_seed=3, best_of=3,
+            schedule_url='https://wizz.gg/t/acme/brackets/7',
+        )
+        assert '**Semifinals**' in msg
+        assert '**Cool Cup**' in msg
+        assert 'Opponent: Bob (#3)' in msg
+        assert 'Format: Best of 3' in msg
+        assert '[Pick a time](https://wizz.gg/t/acme/brackets/7)' in msg
+
+    def test_a_bo1_omits_the_format_line(self):
+        msg = dm.matchup_ready_dm('Cool Cup', 'Final', 'Bob')
+        assert 'Format:' not in msg
+
+    def test_rebook_variant_says_the_game_was_called_off(self):
+        """A released game (U3a) must not read as a duplicate invitation."""
+        msg = dm.matchup_ready_dm(
+            'Cool Cup', 'Semifinals', 'Bob', rebook=True,
+            schedule_url='https://wizz.gg/brackets/7',
+        )
+        assert 'was called off' in msg
+        assert 'open to reschedule' in msg
+        assert '[Pick a new time]' in msg
+
+    def test_without_a_link_it_still_says_what_to_do(self):
+        msg = dm.matchup_ready_dm('Cool Cup', 'Final', 'Bob')
+        assert 'Pick a time on the bracket.' in msg
+
+
+class TestCancelledDmRelease:
+    def test_a_released_game_tells_the_players_to_rebook(self):
+        msg = dm.cancelled_dm('Cool Cup', released=True)
+        assert 'released' in msg
+        assert 'Nothing further is needed' not in msg
+
+    def test_an_ordinary_cancellation_is_unchanged(self):
+        msg = dm.cancelled_dm('Cool Cup')
+        assert 'Nothing further is needed from you.' in msg
+
 
 class TestSchedulingDms:
     def test_scheduled_dm_contains_tournament_and_body(self):

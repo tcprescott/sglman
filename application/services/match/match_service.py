@@ -24,6 +24,9 @@ from application.repositories import (
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.match.bracket_result_guard import (
+    assert_bracket_result_editable,
+)
 from application.services.match.match_source_guard import assert_sg_fields_unchanged
 from application.services.discord import discord_queue
 from application.services.match.match_cancellation import CancellationMixin
@@ -648,6 +651,15 @@ class MatchService(CancellationMixin, MatchRequestMixin):
 
         if not any(p.id == winner_id for p in match.players):
             raise ValueError("Winner is not a player in this match")
+
+        # D6: one correction path. A match whose bracket game already settled is
+        # corrected from the bracket, which re-advances; rewriting the ranks here
+        # would leave the bracket silently disagreeing with its own game.
+        from application.services.bracket_service import BracketService
+
+        assert_bracket_result_editable(
+            await BracketService().get_game_for_match(match.id)
+        )
 
         ranks: Dict[int, int] = {}
         for player in match.players:

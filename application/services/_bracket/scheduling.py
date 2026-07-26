@@ -6,7 +6,7 @@ methods reach siblings (including ``report_result`` defined on another mixin)
 and ``self.repository`` through that composed class.
 """
 
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from application.errors import require_found
 from application.events import EventType
@@ -212,6 +212,16 @@ class SchedulingMixin:
         """
         return await self.repository.get_bracket_match_for_match(match_id)
 
+    async def get_game_for_match(self, match_id: int) -> Optional[Any]:
+        """The series game a scheduled ``Match`` backs, or None.
+
+        Peer of :meth:`get_bracket_match_for_match`, one level down: callers that
+        need the *game's* state rather than the matchup's — the settled-result
+        guard in ``MatchService.record_match_result`` — read it here rather than
+        reaching through ``service.repository``.
+        """
+        return await self.repository.get_game_for_match(match_id)
+
     async def link_match_to_bracket_match(
         self, actor: Optional[User], bracket_match_id: int, match_id: int
     ) -> Any:
@@ -350,6 +360,150 @@ class SchedulingMixin:
             f'{e1.entrant.display_name} vs {e2.entrant.display_name} '
             f'— Game {number} of {best_of}'
         )[:255]
+
+    async def matchup_live_state(
+        self, bracket_matches: List[BracketMatch]
+    ) -> Dict[int, Dict[str, Any]]:
+        """Derived live state per matchup for the bracket view (U2, D4).
+
+        ``{bracket_match_id: {'status': MatchStatus, 'games': {game_id:
+        MatchStatus}, 'watch_url': str}}``. The bracket is the schedule's live
+        mirror (D2), so every fact here is derived from the ``Match`` rows the
+        matchup's games already point at — the bracket gains no state of its own.
+
+        The per-game map is keyed by ``game_id`` rather than positionally so the
+        card and the detail dialog cannot disagree about which game is live —
+        that disagreement is precisely the drift this work exists to remove.
+
+        **One extra query for the whole field**, whatever its size: the games and
+        their matches arrive prefetched from
+        :meth:`BracketRepository.list_matches`, and the racetime rooms are read in
+        a single batched lookup keyed on the collected match ids. A per-card
+        lookup would be an N+1 across a 64-match bracket on a page that repaints
+        on every match event.
+
+        ``watch_url`` is public on purpose (D4): the stream room's URL when the
+        game has one, else the racetime room — both already anonymous on the
+        schedule, so the public bracket exposes nothing new.
+        """
+        from application.repositories import RacetimeRoomRepository
+        from application.services.match.match_status import (
+            MatchStatus,
+            resolve,
+            resolve_matchup,
+        )
+
+        games_by_matchup = {bm.id: self._prefetched_games(bm) for bm in bracket_matches}
+        match_ids = [
+            g.match_id
+            for games in games_by_matchup.values()
+            for g in games
+            if g.match_id is not None
+        ]
+        rooms = await RacetimeRoomRepository().for_matches(match_ids)
+
+        out: Dict[int, Dict[str, Any]] = {}
+        for bracket_match in bracket_matches:
+            games = sorted(
+                games_by_matchup[bracket_match.id], key=lambda g: g.game_number
+            )
+            by_game: Dict[int, MatchStatus] = {}
+            watch_url = ''
+            for game in games:
+                match = getattr(game, 'match', None)
+                room = rooms.get(game.match_id) if game.match_id else None
+                status = resolve(
+                    match=match,
+                    game_state=game.state,
+                    room_status=room.status if room else None,
+                )
+                by_game[game.id] = status
+                if status == MatchStatus.LIVE and not watch_url:
+                    watch_url = self._watch_url(match, room)
+            statuses = list(by_game.values())
+            out[bracket_match.id] = {
+                'status': resolve_matchup(
+                    bracket_match_state=bracket_match.state,
+                    game_statuses=statuses,
+                    series_underway=any(s == MatchStatus.COMPLETE for s in statuses),
+                ),
+                'games': by_game,
+                'watch_url': watch_url,
+            }
+        return out
+
+    @staticmethod
+    def _prefetched_games(bracket_match: BracketMatch) -> List[Any]:
+        """The matchup's games, or [] when the caller didn't prefetch them."""
+        try:
+            return list(bracket_match.games)
+        except Exception:  # noqa: BLE001 - an unfetched relation renders as none
+            return []
+
+    @staticmethod
+    def _watch_url(match: Optional[Match], room: Optional[Any]) -> str:
+        """Where a viewer watches a live game: the stream, else the race room."""
+        stream_room = getattr(match, 'stream_room', None) if match else None
+        url = getattr(stream_room, 'stream_url', None)
+        if url and url.lower().startswith(('http://', 'https://')):
+            return url
+        slug = getattr(room, 'slug', None)
+        return f'https://racetime.gg/{slug}' if slug else ''
+
+    async def release_game_if_linked(
+        self, match: Match, actor: Optional[User], *, reason: str = ''
+    ) -> bool:
+        """Hand a cancelled/deleted ``Match``'s series slot back to the matchup (D3).
+
+        The mirror of :meth:`advance_if_linked`, and the fix for the sharpest
+        defect in the bracket↔schedule seam: ``BracketMatchGame.match`` is
+        SET_NULL, so cancelling a best-of-1's ``Match`` used to leave a
+        ``SCHEDULED`` game row whose ``game_number`` stayed consumed —
+        ``_has_free_game_slot`` then reported the series fully booked and the
+        matchup vanished from ``list_open_matches_for_user``, the player
+        dashboard, and its own schedule dialog, permanently and silently.
+
+        Three things shape it:
+
+        1. **It must run before the row is deleted.** After ``_remove_match`` the
+           SET_NULL has fired and the game is unreachable from the match — the
+           same ordering constraint the cancellation DM fan-out documents.
+        2. **Only a ``SCHEDULED`` game is released.** A ``COMPLETE`` game keeps
+           its result *and* its consumed slot: the bracket has already advanced
+           on it, and SET_NULL preserving the recorded outcome is exactly what
+           ``models/bracket.py`` documents. This is also what makes the method
+           re-entrant with the clinch — ``_clinch`` marks its leftover games
+           ``CANCELLED`` *before* calling ``_cancel_match`` on each, so a clinched
+           Bo3 does not get game 3's slot handed back.
+        3. **Release means deleting the row**, not marking it ``CANCELLED``.
+           ``next_game_number`` deliberately treats a cancelled number as
+           consumed, so a ``CANCELLED`` row would free nothing. Mirrors
+           :meth:`unlink_match`, which already deletes a ``SCHEDULED`` row: the
+           audit log, not the row, is the record.
+
+        Returns whether a slot was actually freed, so the caller can tell the
+        entrants to rebook.
+        """
+        game = await self.repository.get_game_for_match(match.id)
+        if game is None or game.state != BracketMatchGameState.SCHEDULED:
+            return False
+
+        bracket_match = game.bracket_match
+        details = {
+            'bracket_id': bracket_match.bracket_id,
+            'match_id': bracket_match.id,
+            'game_id': game.id,
+            'game_number': game.game_number,
+            'scheduled_match_id': match.id,
+            'reason': reason or None,
+        }
+        await self.repository.delete_game(game.id)
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_GAME_RELEASED, details,
+            EventType.BRACKET_GAME_RELEASED,
+        )
+        await self.notify_matchup_reopened(bracket_match, reason=reason)
+        return True
 
     async def advance_if_linked(self, match: Match, actor: Optional[User]) -> bool:
         """Settle a confirmed ``Match`` as its series game; advance on the clinch.

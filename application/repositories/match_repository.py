@@ -42,8 +42,12 @@ class MatchRepository:
                 'trackers__user',
                 # The bracket seam, for the schedule's "part of <bracket>" link.
                 # A batched prefetch, so it costs a fixed few queries rather
-                # than one per row; most matches have no game row at all.
+                # than one per row; most matches have no game row at all. The
+                # ``__games`` hop is one more batched query and is what lets the
+                # row show the series standing ("Game 2 of 3 · 1-0") without an
+                # N+1 (U4).
                 'bracket_match_game__bracket_match__bracket',
+                'bracket_match_game__bracket_match__games',
             )
         
         return await query.first()
@@ -141,8 +145,12 @@ class MatchRepository:
                 'trackers__user',
                 # The bracket seam, for the schedule's "part of <bracket>" link.
                 # A batched prefetch, so it costs a fixed few queries rather
-                # than one per row; most matches have no game row at all.
+                # than one per row; most matches have no game row at all. The
+                # ``__games`` hop is one more batched query and is what lets the
+                # row show the series standing ("Game 2 of 3 · 1-0") without an
+                # N+1 (U4).
                 'bracket_match_game__bracket_match__bracket',
+                'bracket_match_game__bracket_match__games',
             )
         
         return await query.order_by('scheduled_at')

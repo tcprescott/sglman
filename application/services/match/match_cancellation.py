@@ -37,15 +37,25 @@ class CancellationMixin:
         )
         await self._remove_match(match, actor)
 
-    async def _remove_match(self, match: Match, actor: Optional[User]) -> None:
+    async def _remove_match(
+        self, match: Match, actor: Optional[User], *, reason: str = '',
+    ) -> None:
         """Delete the row, audit, and publish — the one deletion implementation.
 
         Shared by :meth:`delete_match` and :meth:`cancel_match` so a cancellation
         still emits ``match.deleted`` for existing subscribers. Cleanup of the
         child rows (players, acknowledgments, crew, watchers) is DB-level cascade.
+
+        The bracket slot is released **first**, while the match still exists:
+        ``BracketMatchGame.match`` is SET_NULL, so once the row is gone the game
+        is unreachable from it (D3, and the same ordering constraint the
+        cancellation DM fan-out below documents). Sitting here rather than in
+        :meth:`_cancel_match` covers the plain staff delete too — the slot is
+        just as stranded either way.
         """
         match_id = match.id
         tournament_id = match.tournament_id
+        await self._release_bracket_slot(match, actor, reason)
         await self.repository.delete(match)
         await self.audit_service.write_log(
             actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
@@ -54,6 +64,32 @@ class CancellationMixin:
         event_bus.publish(Event.create(EventType.MATCH_DELETED, {
             'match_id': match_id, 'tournament_id': tournament_id,
         }, actor))
+
+    @staticmethod
+    async def _release_bracket_slot(
+        match: Match, actor: Optional[User], reason: str,
+    ) -> None:
+        """Hand this match's bracket game slot back, if it holds one. Best-effort.
+
+        Service→service, the same shape ``confirm_match`` uses to reach
+        ``advance_if_linked``. A no-op for the overwhelming majority of matches,
+        which back no bracket game — and for a game that already ``COMPLETE``d or
+        was ``CANCELLED`` by a clinch, which
+        :meth:`BracketService.release_game_if_linked` skips.
+
+        Swallowing failures is deliberate: a bracket problem must not leave a
+        match the staff asked to cancel half-cancelled. The stranded slot is
+        recoverable (``scripts/release_orphaned_bracket_games.py``); a
+        half-deleted match is not.
+        """
+        from application.services.bracket_service import BracketService
+
+        try:
+            await BracketService().release_game_if_linked(
+                match, actor, reason=reason,
+            )
+        except Exception:  # noqa: BLE001 - cancellation must not be blocked
+            logger.exception('bracket slot release failed for match %s', match.id)
 
     async def cancel_match(
         self, match_id: int, actor: Optional[User] = None, *, reason: str = '',
@@ -86,6 +122,7 @@ class CancellationMixin:
         ``get_by_match``.
         """
         from application.services.match.match_schedule_service import (
+            bracket_dm_context,
             collect_match_recipients,
             _community_name,
             _match_descriptor,
@@ -97,8 +134,14 @@ class CancellationMixin:
         await match.fetch_related('tournament', 'players__user', 'stream_room')
         recipients = await collect_match_recipients(match)
         community = await _community_name()
+        # Both bracket facts are resolved here, before the delete, for the same
+        # reason the recipients are: the game row is reachable from this match
+        # only while it exists. ``frees_slot`` is what turns "nothing further is
+        # needed from you" into "the matchup is open to reschedule" (D3).
+        bracket_line, frees_slot = await bracket_dm_context(match.id)
         message = cancelled_dm(
-            match.tournament.name, reason=reason, **_match_descriptor(match),
+            match.tournament.name, reason=reason, released=frees_slot,
+            **_match_descriptor(match, bracket_line),
         )
         embed = match_embed(
             title='Match cancelled',
@@ -115,7 +158,7 @@ class CancellationMixin:
         await self.audit_service.write_and_publish(
             actor, AuditActions.MATCH_CANCELLED, details, EventType.MATCH_CANCELLED,
         )
-        await self._remove_match(match, actor)
+        await self._remove_match(match, actor, reason=reason)
 
         discord_queue.enqueue(
             self.match_schedule_service.notify_match_cancelled(

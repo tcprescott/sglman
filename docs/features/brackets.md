@@ -136,6 +136,45 @@ caller. `BracketService` still mirrors the Challonge integration method-for-meth
 | `schedule_bracket_match` (→ `create_match` / `submit_match_request`, write a `BracketMatchGame`) | `schedule_challonge_match` |
 | `link_match_to_bracket_match` / `unlink_match` (staff attach an existing `Match`) | — |
 | `advance_if_linked` (confirmed `Match` → settle the game) | `push_result_if_linked` |
+| `release_game_if_linked` (cancelled/deleted `Match` → free the slot) | — |
+
+### Cancelling or deleting a game frees its slot
+
+`BracketMatchGame.match` is `SET_NULL`, so a cancelled or deleted `Match` used to
+leave its game row behind as `SCHEDULED` with a consumed `game_number` — and
+`_has_free_game_slot` then reported the series fully booked. **A cancelled
+best-of-1 left its matchup permanently unschedulable**, invisible to the player
+dashboard and to staff alike.
+
+`MatchService._remove_match` now calls `BracketService.release_game_if_linked`
+**before** the row is deleted (after that, `SET_NULL` has fired and the game is
+unreachable from the match). Three rules:
+
+1. Only a **`SCHEDULED`** game is released. A `COMPLETE` game keeps its result
+   *and* its consumed slot — the bracket has already advanced on it. This is also
+   what makes the method re-entrant with the clinch: `_clinch` marks its leftover
+   games `CANCELLED` *first*, so a clinched Bo3 does not get game 3's slot back.
+2. Release means **deleting the row**, not marking it `CANCELLED` —
+   `next_game_number` treats a cancelled number as consumed, so a `CANCELLED` row
+   would free nothing. Mirrors `unlink_match`; the audit log is the record.
+3. It is **best-effort** at the call site: a bracket failure must not leave a
+   match the staff asked to cancel half-cancelled.
+
+The release audits `BRACKET_GAME_RELEASED`, publishes the mirror event, and — via
+`notify_matchup_reopened` — tells both entrants to rebook. Slots stranded before
+the fix are cleared by `scripts/release_orphaned_bracket_games.py` (dry-run by
+default, `--apply` to act).
+
+### One correction path for a settled result
+
+Once a game is `COMPLETE` the bracket has advanced on it, so re-recording the
+`Match`'s ranks would leave the series' win count, the downstream slots, and any
+completed stage holding the old answer with nothing saying so.
+`MatchService.record_match_result` therefore consults
+`match/bracket_result_guard.py` and **raises**, naming the stage and pointing
+staff at **Results → Override** (`override_result`), which re-advances properly.
+Same shape as the SpeedGaming `match_source_guard`. Auto-retract-and-re-advance
+is deliberately deferred; this block is the stand-in.
 
 ### Best-of-N series
 
@@ -239,9 +278,41 @@ the [event bus](event-system.md): `BRACKET_CREATED`, `BRACKET_STARTED`,
 `BRACKET_ENTRANT_DROPPED`, and the per-game `BRACKET_GAME_SCHEDULED` /
 `BRACKET_GAME_COMPLETED` / `BRACKET_GAME_CANCELLED` plus
 `BRACKET_GAME_LINKED` / `BRACKET_GAME_UNLINKED` for the staff link/unlink of an
-existing `Match`. Scheduling is the one write that is **not** Staff-only — see
+existing `Match`, and `BRACKET_GAME_RELEASED` when a cancelled or deleted `Match`
+hands its slot back. Scheduling is the one write that is **not** Staff-only — see
 [Who may schedule](#who-may-schedule-and-the-manual-request-lockout). Method-level detail:
 [services.md → BracketService](../reference/services.md#bracket_servicepy--bracketservice).
+
+## Notifications
+
+**One player-facing message, and series context on the rest** (design record:
+[bracket-match-integration-plan.md](../plans/bracket-match-integration-plan.md),
+D7). The rule is narrow on purpose: *a DM is sent when it asks the recipient to
+act.*
+
+- **"Your <round> matchup is ready to schedule"** — to both entrants, whenever a
+  matchup becomes bookable: the `PENDING → OPEN` transition in `_settle_match`,
+  the grand-final reset opening, each round-1 / Swiss pairing at generation, and
+  (as a *rebook* variant) a game whose slot was released. Keyed on the
+  **transition**, so a matchup whose two slots fill at different times is
+  announced once. Scheduling is the only thing in a bracket that nobody else can
+  do for the entrants — `allow_player_match_requests` is off for bracket-run
+  tournaments — which is what earns it a DM.
+- **No advancement and no elimination message.** The bracket shows both. A
+  losers-bracket drop needs no carve-out either: that entrant simply gets the
+  ready DM when their losers matchup opens, by the same trigger as everyone else.
+- **Series context on the existing match DMs** — `Round: Semifinals · Game 2 of
+  3 · Series 1-0` leads the info block of `scheduled` / `rescheduled` /
+  `checked_in` / `cancelled` / `state_changed` / `seed` DMs, via
+  `BracketService.match_dm_context`. A bracket game's notification used to be
+  indistinguishable from a casual scheduled match. The cancellation DM adds the
+  release follow-through: "the matchup is open to reschedule."
+
+All of it goes out on `discord_queue` (which re-binds the tenant scope), respects
+`dm_notifications`, and is best-effort — a Discord failure never blocks the
+advancement that fired it. **No feature-flag check**: these fire from inside
+bracket code that only runs when a bracket exists, and an `is_enabled` read inside
+a service transaction is what [feature-flags.md](feature-flags.md) forbids.
 
 ## Gating
 
@@ -318,7 +389,9 @@ placeholder hints. The pieces:
   winner-link tree assigns leaves sequential vertical slots and centers every
   parent on its children (Toornament's algorithm), mapping round → column and
   slot → absolute pixels. Robust to byes and the irregular double-elim losers
-  bracket. Also computes elbow connectors, stable match numbers, and round names.
+  bracket. Also computes elbow connectors and stable match numbers. Round *names*
+  moved out to `application/services/bracket_engines/round_names.py` (and are
+  re-exported here) so a service or a Discord DM can say "Semifinals" too.
   Unit-tested in [`tests/theme/test_bracket_layout.py`](../../tests/theme/) and
   against real engine graphs in `tests/services/test_bracket_render_layout.py`.
 - `cards.py` — the absolute-positioned match card + section renderer (sticky
@@ -332,7 +405,42 @@ placeholder hints. The pieces:
   `render_elimination_mobile`, `build_context`, `detect_finals`) shared by the
   public page and the admin embed; `dialog.py` — the shared match detail +
   staff report/override dialog; `live.py` — an event-bus subscription that
-  refreshes the view on `BRACKET_*` events.
+  refreshes the view on `BRACKET_*` **and `MATCH_*`** events.
+
+### Live match state on the cards
+
+A bracket is most watched during the hours between "scheduled" and "confirmed",
+and it used to show none of them: the card rendered the game's stored
+`SCHEDULED / COMPLETE / CANCELLED` badge and nothing repainted it when a match
+started or finished. Now every card carries the **derived status** from
+[`application/services/match/match_status.py`](../../application/services/match/match_status.py)
+— one vocabulary shared by the schedule table, the bracket, the REST payloads,
+and the Discord embeds, so a card can no longer say "Scheduled" for a match the
+schedule is calling "In Progress".
+
+- **Data.** `BracketService.matchup_live_state(matches)` resolves the status and
+  a watch link per matchup. The games and their `Match` rows arrive prefetched
+  from `BracketRepository.list_matches`, and the racetime rooms are read in **one
+  batched query** for the whole field — never one per card.
+- **Statuses.** `LIVE` (accent border + a pulsing "LIVE" pill linking to the
+  stream, else the racetime room), `CHECKED_IN`, `AWAITING_RESULT` (played, no
+  winner yet — so a reader knows the bracket is not stuck), and
+  `NEEDS_RESCHEDULE` (an underway series with nothing booked). The quiet
+  statuses leave the matchup's own state class alone.
+- **Repaint.** `live.py` subscribes to the `MATCH_*` lifecycle events as well.
+  Their payloads carry no `bracket_id` and the subscriber is *sync and
+  non-blocking* (it runs inside `publish`), so it filters on **`tournament_id`**,
+  which every `MATCH_*` payload does carry. A slightly wider net than
+  `bracket_id`, absorbed by the page's existing debounce — the alternative is a
+  query in a sync callback.
+- **Public.** Anonymous viewers see all of it, watch link included: the schedule
+  already exposes the stream and the room signed out, so the bracket becomes the
+  link you send a viewer rather than a dead end.
+
+**Round time vs game time.** `Bracket.config['rounds'][N]['scheduled_at']` is the
+*planned* time for a round; `Match.scheduled_at` is when a specific game actually
+happens. They are allowed to differ, so the round header reads "Round time: …"
+and the card and dialog carry the game's own time.
 
 Interactions: click a match → detail dialog (staff get inline report/override
 with scores + forfeit), hover-run highlight across a participant's matches, a
@@ -417,3 +525,8 @@ seeded by advancement and started). It drives the real `BracketService` so the
 persisted graph is internally consistent, and both placeholder and linked entrants
 are represented. Demos live on their own tournaments, never the Challonge-mirrored
 one (the exclusivity guard forbids it).
+
+It also leaves the **live** states the card renderer needs — a game in progress,
+one finished-awaiting-confirmation, and a matchup left open and unbooked — in the
+double-elim demo, plus a Bo3 mid-series at 1-0 in the single-elim one. A state the
+seed never creates is a state no one can review in `/ui-validation`.

@@ -259,6 +259,9 @@ class AuditActions:
     # as opposed to BRACKET_GAME_SCHEDULED's book-it-from-the-bracket path.
     BRACKET_GAME_LINKED = 'bracket.game_linked'
     BRACKET_GAME_UNLINKED = 'bracket.game_unlinked'
+    # A cancelled/deleted Match handing its series slot back (D3), as opposed
+    # to BRACKET_GAME_UNLINKED's deliberate staff detach.
+    BRACKET_GAME_RELEASED = 'bracket.game_released'
     BRACKET_ADVANCED = 'bracket.advanced'
     BRACKET_COMPLETED = 'bracket.completed'
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'

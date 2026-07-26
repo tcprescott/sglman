@@ -369,6 +369,60 @@ async def _seed_a_series(
         )
 
 
+async def _seed_live_states(
+    service: BracketService, tenant: Tenant, users: dict[str, User]
+) -> None:
+    """Leave three matchups in the live states the bracket now renders (U2).
+
+    A state the seed never creates is a state nobody can review, and the whole
+    point of the live bracket is the hours *between* "scheduled" and "confirmed"
+    — which no other fixture reaches. This leaves, in the double-elim demo:
+
+    * a game **in progress** (``started_at`` set, no ``finished_at``) → LIVE,
+    * one **awaiting result** (finished, unconfirmed) → AWAITING_RESULT,
+    * one **released** (its game row deleted, matchup open and unbooked) →
+      the rebook path U3a produces.
+
+    ``Match`` rows are built directly, for the reasons ``_seed_a_series``
+    documents. Idempotent: each match is keyed by title and each game by
+    ``(bracket_match, game_number)``.
+    """
+    tournament = await Tournament.get_or_none(
+        name="Bracket Demo — Double Elimination", tenant=tenant
+    )
+    if tournament is None:
+        return
+    brackets = await service.list_brackets(tournament.id)
+    if not brackets:
+        return
+    open_matches = await service.get_open_matches(brackets[0].id)
+    if len(open_matches) < 3:
+        return
+
+    live_at = datetime(2026, 8, 3, 18, 0, tzinfo=timezone.utc)
+    specs = (
+        ('live', open_matches[0], {'started_at': live_at}),
+        ('awaiting result', open_matches[1], {
+            'started_at': live_at, 'finished_at': datetime(
+                2026, 8, 3, 19, 30, tzinfo=timezone.utc,
+            ),
+        }),
+    )
+    for label, bracket_match, stamps in specs:
+        match, _ = await Match.get_or_create(
+            title=f"{tournament.name}: matchup {bracket_match.id} — {label}",
+            tournament=tournament, tenant=tenant,
+            defaults={'scheduled_at': live_at, **stamps},
+        )
+        await BracketMatchGame.get_or_create(
+            bracket_match=bracket_match, game_number=1, tenant=tenant,
+            defaults={'match': match, 'state': BracketMatchGameState.SCHEDULED},
+        )
+
+    # The third matchup is left OPEN with no game row at all — what a released
+    # slot looks like once U3a has handed it back.
+
+
 async def seed_brackets_for_tenant(
     tenant: Tenant,
     tournament: Tournament,
@@ -389,4 +443,5 @@ async def seed_brackets_for_tenant(
     await _round_robin(service, actor, tenant, users)
     await _two_stage(service, actor, tenant, users)
     await _seed_a_series(service, tenant, users)
+    await _seed_live_states(service, tenant, users)
     print(f"    [{tenant.slug}] brackets ok")

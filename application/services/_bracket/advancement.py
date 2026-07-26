@@ -191,8 +191,11 @@ class AdvancementMixin:
                 await self._set_entry_status(loser_entry, BracketEntryStatus.ACTIVE)
                 self._place(reset, match.winner_to_slot, winner_entry)
                 self._place(reset, match.loser_to_slot, loser_entry)
+                was_open = reset.state == BracketMatchState.OPEN
                 reset.state = BracketMatchState.OPEN
                 await reset.save()
+                if not was_open:
+                    await self.notify_matchup_ready(reset)
             return
 
         if is_elim:
@@ -275,12 +278,18 @@ class AdvancementMixin:
         if _depth > 1000 or match.state == BracketMatchState.COMPLETE:
             return
 
+        was_open = match.state == BracketMatchState.OPEN
         has1 = match.entry1_id is not None
         has2 = match.entry2_id is not None
 
         if has1 and has2:
             match.state = BracketMatchState.OPEN
             await match.save()
+            # Keyed on the transition, not the state: a matchup whose two slots
+            # fill at different times settles twice, and its entrants must be
+            # invited to schedule exactly once (D7).
+            if not was_open:
+                await self.notify_matchup_ready(match)
             return
 
         if has1 != has2:

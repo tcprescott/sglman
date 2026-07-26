@@ -19,6 +19,7 @@ from typing import Callable, Dict, Optional
 
 from nicegui import ui
 
+from application.services.match.match_status import MatchStatus, label, tone
 from models import BracketMatch, BracketMatchState
 
 from .layout import (
@@ -38,6 +39,17 @@ _STATE_CLASS = {
     BracketMatchState.COMPLETE: 'is-complete',
 }
 
+# The derived live statuses that override the matchup's own state class (U2).
+# ``SCHEDULED``/``UNSCHEDULED``/``COMPLETE``/``PENDING`` are absent on purpose:
+# they say nothing ``_STATE_CLASS`` doesn't already say, and a card that shouted
+# about every state would stop drawing the eye to the one being played.
+_LIVE_CLASS = {
+    MatchStatus.LIVE: 'is-live',
+    MatchStatus.CHECKED_IN: 'is-checked-in',
+    MatchStatus.AWAITING_RESULT: 'is-awaiting-result',
+    MatchStatus.NEEDS_RESCHEDULE: 'is-needs-reschedule',
+}
+
 
 @dataclass
 class BracketContext:
@@ -54,6 +66,10 @@ class BracketContext:
     rounds_config: Dict[str, dict] = field(default_factory=dict)
     scheduled_fmt: Callable[[str], str] = str  # UTC iso -> display string
     on_card_click: Optional[Callable[[int], None]] = None
+    # {bracket_match_id: {'status': MatchStatus, 'watch_url': str}} from
+    # ``BracketService.matchup_live_state``. Empty for a caller that didn't
+    # resolve it, which renders exactly the pre-U2 card.
+    live_state: Dict[int, dict] = field(default_factory=dict)
 
 
 def _slot_entry_id(match: BracketMatch, slot: int) -> Optional[int]:
@@ -134,9 +150,39 @@ def _avatar(name: str) -> None:
     )
 
 
+def _card_classes(match: BracketMatch, ctx: BracketContext) -> str:
+    """The card's state class: the derived live status if there is one, else the
+    matchup's own state (U2)."""
+    live = ctx.live_state.get(match.id) or {}
+    status = live.get('status')
+    return _LIVE_CLASS.get(status) or _STATE_CLASS.get(match.state, 'is-pending')
+
+
+def _render_status_pill(match: BracketMatch, ctx: BracketContext) -> None:
+    """The corner badge: a linked "LIVE" for a game in progress, else a chip.
+
+    The watch link is rendered for anonymous viewers too (D4) — the stream and
+    the race room are already public on the schedule, so the bracket becomes the
+    link you send a viewer rather than a dead end. ``target=_blank`` with
+    ``rel=noopener`` because it leaves the app.
+    """
+    live = ctx.live_state.get(match.id) or {}
+    status = live.get('status')
+    if status is None or status not in _LIVE_CLASS:
+        return
+    if status == MatchStatus.LIVE:
+        url = live.get('watch_url') or ''
+        if url:
+            ui.link('LIVE', url, new_tab=True).classes('bracket-live-pill') \
+                .tooltip('Watch this match')
+        else:
+            ui.label('LIVE').classes('bracket-live-pill')
+        return
+    ui.label(label(status)).classes(f'bracket-status-pill tone-{tone(status)}')
+
+
 def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketContext) -> None:
-    state_class = _STATE_CLASS.get(match.state, 'is-pending')
-    card = ui.element('div').classes(f'bracket-match {state_class}').style(
+    card = ui.element('div').classes(f'bracket-match {_card_classes(match, ctx)}').style(
         f'left: {placement.left}px; top: {placement.top}px; '
         f'width: {COL_WIDTH}px; height: {CARD_HEIGHT}px'
     )
@@ -146,6 +192,7 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
     with card:
         if number is not None:
             ui.label(str(number)).classes('bracket-match-num')
+        _render_status_pill(match, ctx)
         _render_slot(match, 1, ctx)
         _render_slot(match, 2, ctx)
 
@@ -156,13 +203,15 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
 
 def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
     """The same match card in normal flow (full-width) for the mobile accordion."""
-    state_class = _STATE_CLASS.get(match.state, 'is-pending')
-    card = ui.element('div').classes(f'bracket-match bracket-match-flow {state_class}')
+    card = ui.element('div').classes(
+        f'bracket-match bracket-match-flow {_card_classes(match, ctx)}'
+    )
     card.props(f'data-match-id={match.id}')
     number = ctx.match_number.get(match.id)
     with card:
         if number is not None:
             ui.label(str(number)).classes('bracket-match-num')
+        _render_status_pill(match, ctx)
         _render_slot(match, 1, ctx)
         _render_slot(match, 2, ctx)
     if ctx.on_card_click is not None:
@@ -196,7 +245,13 @@ def _render_header(
         with ui.row().classes('bracket-header-meta'):
             scheduled = meta.get('scheduled_at')
             if scheduled:
-                ui.label(ctx.scheduled_fmt(scheduled)).classes('bracket-header-time')
+                # "Round time" — the *planned* time for the round, which is a
+                # different thing from each game's ``Match.scheduled_at`` shown
+                # on the card and in the dialog, and allowed to differ from it
+                # (U3c). Unlabelled, the two read as a contradiction.
+                ui.label(f'Round time: {ctx.scheduled_fmt(scheduled)}') \
+                    .classes('bracket-header-time') \
+                    .tooltip('Planned time for this round; each game carries its own scheduled time')
             best_of = meta.get('best_of')
             if best_of:
                 ui.label(f'Best of {best_of}').classes('bracket-badge')
