@@ -164,10 +164,11 @@ Two things worth noting beyond the headline:
 - **The admin page gained most** (−79 %), which matters because staff sit on it
   during an event, and it is the page most likely to be open in a second tab.
 
-**Admission rate is now ~7.6 renders/s** (home) — the §1.4 estimate of 12–15/s
-was optimistic, because the default Schedule tab and the page shell are
-untouched by this change. That is what
-[render-cost-plan.md](render-cost-plan.md) goes after.
+**Since then**, a second fix (the match table was loading three times per page —
+see [render-cost-plan.md](render-cost-plan.md) R1) took the home page to **74 ms
+CPU and 26 queries** per render. The measured end-to-end ceiling is now
+**~10 tabs/second**: 500 tabs connect with zero failures at 3.3/s, 6.7/s and
+10/s, and fall over at 16/s. Before this work, 500 tabs failed at 3.3/s.
 
 ---
 
