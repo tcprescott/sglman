@@ -37,13 +37,21 @@ logger = logging.getLogger(__name__)
 
 
 def log_unhandled_error(exc: BaseException, path: str) -> str:
-    """Log an unhandled exception with a traceable UUID and tag it in Sentry."""
+    """Log an unhandled exception with a traceable UUID and tag it in Sentry.
+
+    The tag is set **before** the log call, and that order is load-bearing:
+    Sentry's ``LoggingIntegration`` turns this ``logger.error`` into an event
+    synchronously, snapshotting the scope's tags as it goes. Tagging afterwards
+    left the event with no ``error_id`` at all — so the id printed on the user's
+    error page matched nothing in Sentry — and then leaked that id onto the next
+    unrelated event in the same request scope.
+    """
     error_id = str(uuid.uuid4())
-    logger.error('UNHANDLED ERROR error_id=%s path=%s', error_id, path, exc_info=exc)
     try:
         sentry_sdk.set_tag('error_id', error_id)
     except Exception:  # pragma: no cover - Sentry optional
         pass
+    logger.error('UNHANDLED ERROR error_id=%s path=%s', error_id, path, exc_info=exc)
     return error_id
 
 
