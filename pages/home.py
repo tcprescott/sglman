@@ -138,11 +138,10 @@ def create() -> None:
             if FeatureFlag.EQUIPMENT in live:
                 tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'content': equipment_tab})
         show_admin = await AuthService.can_view_admin(user)
-        show_volunteer = user is not None
         base_path = f"{request.scope.get('root_path', '')}/home" if request else '/home'
         await BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='home', user=user,
-            show_admin=show_admin, show_volunteer=show_volunteer,
+            show_admin=show_admin,
         ).render()
 
     # Home is the tenant landing (`/`) and its sections hang off `/home/<slug>`,

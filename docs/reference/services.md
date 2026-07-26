@@ -135,7 +135,7 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 |---|---|---|
 | `get_roles(user)` | `set[Role]` | All global roles held by the user (empty for `None`). |
 | `has_role(user, role)` | `bool` | Whether the user holds a specific global `Role`. |
-| `is_staff(user)` | `bool` | Holds `Role.STAFF`. |
+| `is_staff(user)` | `bool` | Holds `Role.STAFF` in the current tenant, **or** is the global `SUPER_ADMIN` (staff-equivalence — the one hook that gives a platform admin full authority in every tenant). |
 | `is_proctor(user)` | `bool` | Holds `Role.PROCTOR`. |
 | `is_stream_manager(user)` | `bool` | Holds `Role.STREAM_MANAGER`. |
 | `is_volunteer_coordinator(user)` | `bool` | Holds `Role.VOLUNTEER_COORDINATOR`. |
@@ -143,6 +143,7 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `is_volunteer(user)` | `bool` | Holds `Role.VOLUNTEER`. |
 | `is_tournament_admin(user, tournament_id)` | `bool` | Listed in `Tournament.admins`. |
 | `is_crew_coordinator_of(user, tournament_id)` | `bool` | Listed in `Tournament.crew_coordinators`. |
+| `can_view_volunteer(user)` | `bool` | Whether the Volunteer hub is reachable here: `FeatureFlag.VOLUNTEERS` live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's single source of truth, mirroring the `@protected_tab_page('/volunteer')` gate so the header link cannot dead-end. |
 | `can_view_admin(user)` | `bool` | An admin global role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of any tournament. Excludes `PROCTOR`/`VOLUNTEER`. |
 | `can_edit_tournament(user, tournament)` | `bool` | Staff, or TA of that tournament. |
 | `can_crud_match(user, match)` | `bool` | Staff, or TA of the match's tournament. |

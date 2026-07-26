@@ -24,7 +24,7 @@ online-tournament admin roles; `super_admin` is the one global platform role.
 | `preset_manager` | Seed-preset authors | Author/edit the tenant's seed-rolling presets (`can_manage_presets`) |
 | `sync_admin` | Sync/integration admins | Manage upstream sync config: SpeedGaming links, Discord events, racetime bot/room config (`can_manage_sync`) |
 | `qualifier_admin` | Qualifier admins | Administer async qualifiers — author pools/permalinks and work the reviewer queue (`can_admin_qualifier`) |
-| `super_admin` | Platform operators | Global `/platform` tenant management; bypasses the per-tenant role gate (`is_super_admin`) |
+| `super_admin` | Platform operators | Global `/platform` tenant management; bypasses the per-tenant role gate (`is_super_admin`) and is staff-equivalent inside **every** tenant (see below) |
 
 The three online-tournament admin roles each gate a management surface/worker the
 way STAFF gates the rest, and STAFF (and the system automation actor and
@@ -32,6 +32,27 @@ way STAFF gates the rest, and STAFF (and the system automation actor and
 **only** role whose `UserRole` row carries `tenant=NULL`; it is never granted
 per-tenant, stays visible inside any tenant request, and is checked via
 `AuthService.is_super_admin` rather than the tenant-scoped role path.
+
+### Super-admin authority inside a tenant
+
+A `super_admin` has **full authority in every tenant**, including one they hold no
+roles in. This is implemented in exactly one place — `AuthService.is_staff`
+returns True for the global role — because STAFF is the override term in
+essentially every `can_*`/`ensure_*` helper, so widening it there carries the
+platform role through the whole policy surface rather than scattering
+`is_super_admin` across dozens of call sites. Two deliberate limits:
+
+- **`get_roles`/`has_role` stay literal.** They answer "which grants does this
+  user hold *here*", which is what role-management UI displays; fabricating a
+  STAFF grant would show a role nobody granted. A surface keyed to a specific
+  role rather than to staffness (e.g. the Volunteer hub's own "My Availability" /
+  "My Shifts" self-service tabs) therefore does not open up to a super-admin.
+- **Feature flags are not bypassed.** Authority is over what a community has
+  turned *on*. A flag that is off hides its subsystem from the super-admin too —
+  `/volunteer` 404s in a tenant without `VOLUNTEERS` regardless of role — so a
+  platform admin never operates a feature the tenant has not enabled.
+
+Tests: `tests/services/test_super_admin_authority.py`.
 
 Roles are stored in the `UserRole` junction table. Each row records who granted the role (`granted_by` FK to User), when, and its `source` (`manual` vs `discord`). Roles can be granted by hand by Staff **or** synced automatically from a user's Discord roles at login — see [discord-role-sync.md](discord-role-sync.md). The sync only ever revokes the `discord`-sourced roles it created; `manual` grants are preserved.
 

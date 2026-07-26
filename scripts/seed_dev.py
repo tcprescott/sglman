@@ -76,6 +76,11 @@ async def seed_users() -> dict[str, User]:
         ("100000000000000005", "player_two",   "Player Two"),
         ("100000000000000006", "player_three", "Player Three"),
         ("100000000000000007", "player_four",  "Player Four"),
+        # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
+        # the dev fixture for "platform authority, zero local grants", which is
+        # what /platform and the super-admin's in-tenant access need to be
+        # exercised against.
+        ("100000000000000008", "super_admin",  "Platform Owner"),
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
@@ -87,6 +92,21 @@ async def seed_users() -> dict[str, User]:
     await link_racetime_identities(users)
     print("  users ok (global)")
     return users
+
+
+async def seed_super_admin(users: dict[str, User]) -> None:
+    """Grant the global ``SUPER_ADMIN`` role (``UserRole`` with ``tenant=NULL``).
+
+    Granted outside ``seed_for_tenant`` because the row is deliberately
+    tenant-less, and to no other seeded user — the point of the fixture is a
+    platform admin whose authority in each community comes *only* from this role,
+    so ``/platform`` and the cross-tenant admin paths are reachable in dev.
+    """
+    await UserRole.get_or_create(
+        user=users['super_admin'], role=Role.SUPER_ADMIN, tenant=None,
+        defaults={'granted_by': None},
+    )
+    print('  super admin ok (global, tenant=NULL)')
 
 
 async def seed_feature_groups() -> dict:
@@ -103,12 +123,18 @@ async def seed_feature_groups() -> dict:
             'flags': [], 'is_default': True,
         },
     )
-    online, _ = await FeatureFlagGroup.get_or_create(
+    # update_or_create for the two demo tiers: migration 31 seeds 'Online
+    # Tournaments' with the flags that existed *then*, so a get_or_create leaves
+    # any flag added later (dk64_randomizer) out of the tier this claims to
+    # define. Group contents are a super-admin's editable data in production —
+    # the migration is right not to rewrite them there — but in dev the seed is
+    # the fixture set and gets to be authoritative.
+    online, _ = await FeatureFlagGroup.update_or_create(
         name='Online Tournaments',
         defaults={'flags': ['async_qualifiers', 'racetime_rooms', 'speedgaming_etl',
                             'dk64_randomizer']},
     )
-    full, _ = await FeatureFlagGroup.get_or_create(
+    full, _ = await FeatureFlagGroup.update_or_create(
         name='Full Access',
         defaults={'flags': [f.value for f in FeatureFlag]},
     )
@@ -124,17 +150,21 @@ async def assign_feature_group(tenant: Tenant, groups: dict) -> None:
     extra feature force-granted as a per-tenant availability exception. Together
     they exercise group-derived, community-disabled, and override states.
     """
+    # update_or_create, not get_or_create: migration 32 backfills every
+    # ``established`` flag as available+enabled for pre-existing tenants, so a
+    # get_or_create finds that row and silently keeps the demo state it means to
+    # set — the community-opted-out case then never exists in dev.
     if tenant.slug == 'default':
         tenant.feature_group = groups['full']
         await tenant.save()
-        await TenantFeatureFlag.get_or_create(
+        await TenantFeatureFlag.update_or_create(
             tenant=tenant, flag=FeatureFlag.TRIFORCE_TEXTS.value,
             defaults={'available': None, 'enabled': False},  # community opted out
         )
     else:
         tenant.feature_group = groups['online']
         await tenant.save()
-        await TenantFeatureFlag.get_or_create(
+        await TenantFeatureFlag.update_or_create(
             tenant=tenant, flag=FeatureFlag.EQUIPMENT.value,
             defaults={'available': True, 'enabled': None},  # per-tenant exception
         )
@@ -718,6 +748,7 @@ async def seed_all() -> None:
     own in-memory connection — see tests/test_seed_coverage.py.
     """
     users = await seed_users()
+    await seed_super_admin(users)
     bots = await seed_racetime_bots()
     groups = await seed_feature_groups()
     for slug, name, guild_id, _label, domain in TENANT_SPECS:

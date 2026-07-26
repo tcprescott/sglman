@@ -45,6 +45,7 @@ service transaction — so a service method never does a feature-flag DB read.
 | Surface | How |
 |---|---|
 | Whole pages | `@protected_page('/path', feature=FeatureFlag.X)` → 404 when off (hidden, role-independent). Used by `/qualifiers`, `/equipment`, `/volunteer`. |
+| Nav links to a gated page | The nav must not offer a link the gate will reject, or it dead-ends on a 404/403. The Volunteer entry resolves through `AuthService.can_view_volunteer` (flag **and** role), which `BaseLayout` calls when `show_volunteer` is left at its `None` default — one helper shared with the page's own gate so the two cannot drift. |
 | Admin tabs | `pages/admin.py` loads `FeatureFlagService().enabled_flags()` once and `and`-s the flag into each subsystem tab's condition. |
 | Home tabs | `pages/home.py` gates the Triforce Texts and Equipment tabs (My Availability stays ungated — it feeds crew signup too). |
 | REST API | `api/__init__.py` attaches `require_feature(FeatureFlag.X)` to each gated router's `include_router`; a disabled feature 404s. |
@@ -53,6 +54,14 @@ service transaction — so a service method never does a feature-flag DB read.
 
 The admin **Features** tab itself is only role-gated (STAFF), never flag-gated —
 it is the control panel.
+
+**A super-admin does not bypass a flag.** The platform role is staff-equivalent
+inside every tenant (see
+[role-based-auth.md](role-based-auth.md#super-admin-authority-inside-a-tenant)),
+but that is authority over what a community has turned *on*: `is_enabled` takes no
+user, so a tenant with `VOLUNTEERS` off 404s `/volunteer` for a super-admin too.
+Gating a feature is not an authorization question, so the fix for "I can't see it"
+is to grant the tenant the flag on `/platform`, not to widen a role.
 
 ### API-key randomizers are always flag-gated
 

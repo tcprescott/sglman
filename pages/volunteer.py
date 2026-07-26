@@ -21,8 +21,11 @@ def create() -> None:
         user = await get_user_from_discord_id(discord_id)
 
         roles = await AuthService.get_roles(user)
-        is_staff = Role.STAFF in roles
+        # Staff-equivalence, so a platform super-admin gets the Proctor Station.
+        is_staff = await AuthService.is_staff(user)
         is_proctor = Role.PROCTOR in roles
+        # Literal grant: the two self-service tabs are about *this* user's own
+        # availability and shifts, which staffness does not confer.
         is_volunteer = Role.VOLUNTEER in roles
 
         tabs = []

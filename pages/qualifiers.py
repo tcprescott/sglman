@@ -61,7 +61,7 @@ def create() -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifiers')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
-        await BaseLayout(user=user, show_admin=show_admin, show_volunteer=user is not None).render()
+        await BaseLayout(user=user, show_admin=show_admin).render()
 
         with ui.column().classes('page-container'):
             ui.label('Async Qualifiers').classes('page-title')
@@ -88,7 +88,7 @@ def create() -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Async Qualifier')
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
-        await BaseLayout(user=user, show_admin=show_admin, show_volunteer=user is not None).render()
+        await BaseLayout(user=user, show_admin=show_admin).render()
 
         if user is None:
             ui.label('You must be logged in.').classes('text-error')

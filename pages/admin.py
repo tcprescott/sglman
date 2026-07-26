@@ -5,6 +5,7 @@ from nicegui import app, ui
 from middleware.auth import protected_tab_page
 
 from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
+from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag, Role
 from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
@@ -67,16 +68,22 @@ def create() -> None:
             return
 
         roles = await AuthService.get_roles(user)
-        is_staff = Role.STAFF in roles
+        # Staff-equivalence (not the literal grant) so a platform super-admin has
+        # full authority in this tenant; every tab below is `is_staff or <role>`.
+        is_staff = await AuthService.is_staff(user)
         is_stream_manager = Role.STREAM_MANAGER in roles
         is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
         is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
         is_preset_manager = Role.PRESET_MANAGER in roles
         is_sync_admin = Role.SYNC_ADMIN in roles
         is_qualifier_admin = Role.QUALIFIER_ADMIN in roles
-        is_ta_any = await user.admin_tournaments.all().exists()
-        is_cc_any = await user.crew_coordinated_tournaments.all().exists()
-        is_qa_any = await user.admin_async_qualifiers.all().exists()
+        # Tenant-filtered: these reverse relations hang off the *global* User, so
+        # unfiltered they let a tournament admin in one community through this
+        # gate in every other one.
+        tid = get_current_tenant_id()
+        is_ta_any = await user.admin_tournaments.filter(tenant_id=tid).exists()
+        is_cc_any = await user.crew_coordinated_tournaments.filter(tenant_id=tid).exists()
+        is_qa_any = await user.admin_async_qualifiers.filter(tenant_id=tid).exists()
 
         # Per-tenant feature flags: a subsystem's tab only appears when the
         # tenant has that feature live (available AND enabled), in addition to
@@ -167,6 +174,6 @@ def create() -> None:
         base_path = f"{request.scope.get('root_path', '')}/admin" if request else '/admin'
         base_layout = BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='admin', user=user,
-            show_admin=True, show_volunteer=user is not None,
+            show_admin=True,
         )
         await base_layout.render()

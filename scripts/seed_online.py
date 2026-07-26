@@ -17,7 +17,7 @@ What they cover:
 from datetime import datetime, timedelta, timezone
 
 from models import (
-    User, UserRole, Role, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
+    User, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
     Preset, RacetimeBot, RacetimeBotTenant, RacetimeRoom, RaceRoomProfile,
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
     DiscordScheduledEvent, DiscordEventSource,
@@ -30,8 +30,15 @@ from application.utils.timezone import now_eastern
 
 
 async def link_racetime_identities(users: dict[str, User]) -> None:
-    """Link two players to racetime handles (PR 2) and grant a global
-    SUPER_ADMIN so the ``/platform`` surface is reachable in dev."""
+    """Link two players to racetime handles (PR 2).
+
+    Deliberately grants no roles. This used to also make ``staff_user`` a global
+    SUPER_ADMIN "so /platform is reachable in dev", which left the one user the
+    validation loop drives admin views as indistinguishable from a platform
+    admin — every staff-vs-super-admin difference silently untestable. The
+    dedicated ``super_admin`` fixture (``seed_dev.seed_super_admin``) covers
+    /platform instead.
+    """
     racetime_links = [
         ("player_one", "aBcDeFg1", "PlayerOne"),
         ("player_two", "hIjKlMn2", "PlayerTwo"),
@@ -43,11 +50,6 @@ async def link_racetime_identities(users: dict[str, User]) -> None:
             u.racetime_username = rt_name
             u.racetime_linked_at = now_eastern()
             await u.save()
-
-    await UserRole.get_or_create(
-        user=users["staff_user"], role=Role.SUPER_ADMIN, tenant=None,
-        defaults={"granted_by": None},
-    )
 
 
 async def seed_racetime_bots() -> dict[str, RacetimeBot]:

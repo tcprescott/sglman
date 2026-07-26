@@ -35,7 +35,7 @@ def create() -> None:
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         show_admin = await AuthService.can_view_admin(user)
         await BaseLayout(
-            user=user, show_admin=show_admin, show_volunteer=user is not None,
+            user=user, show_admin=show_admin,
         ).render()
 
         if user is None:
