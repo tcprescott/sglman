@@ -64,6 +64,9 @@ class MatchTableView(MatchTableHandlersMixin):
         # stash is reachable, so scoped repository reads would raise
         # ``require_tenant_id()``; ``_bg`` rebinds this captured tenant.
         self._tenant_id = get_current_tenant_id()
+        # True until the stored filters have been restored, so restoring them
+        # does not each trigger their own table load. See _refresh_unless_initializing.
+        self._initializing = True
         # Initialize services
         self.service = MatchService()
         self.display_service = MatchDisplayService()
@@ -78,23 +81,51 @@ class MatchTableView(MatchTableHandlersMixin):
                 await coro
         background_tasks.create(_run())
 
+    def _refresh_unless_initializing(self) -> None:
+        """Reload the table for a *user's* filter change.
+
+        Restoring a stored filter during the initial load also fires these
+        handlers, and each one used to schedule its own full reload — three table
+        loads per page render instead of one. During initialization the reload is
+        left to :meth:`_initial_load`, which runs once after every filter is
+        restored (and therefore reads the final filter state).
+        """
+        if self._initializing:
+            return
+        self._bg(self.refresh())
+
     def _on_state_filter_change(self, *_args, **_kwargs):
         # Tenant-scoped: a filter is meaningful only within its own community.
         tenant_session_set('state_filter', self.state_filter.value)
         self._update_filter_badge()
-        self._bg(self.refresh())
+        self._refresh_unless_initializing()
 
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value (namespaced by tenant — ids are global).
         tenant_session_set('tournament_filter', self.tournament_filter.value)
         self._update_filter_badge()
-        self._bg(self.refresh())
+        self._refresh_unless_initializing()
 
     def _on_stream_room_filter_change(self, *_args, **_kwargs):
         # Store the stream room ID value (namespaced by tenant — ids are global).
         tenant_session_set('stream_room_filter', self.stream_room_filter.value)
         self._update_filter_badge()
-        self._bg(self.refresh())
+        self._refresh_unless_initializing()
+
+    async def _initial_load(self) -> None:
+        """Populate the filters, then load the table exactly once.
+
+        The view owns its own first load: callers used to kick a `refresh()` of
+        their own after constructing it, which raced the filter restore (the
+        table could load before the stored tournament filter was applied) and
+        cost an extra query fan-out.
+        """
+        try:
+            await self._load_tournaments()
+            await self._load_stream_rooms()
+        finally:
+            self._initializing = False
+        await self.refresh()
 
     def _toggle_filters(self):
         """Show/hide the filter card on mobile; CSS gates ``wiz-filters-open`` to <1024px."""
@@ -206,9 +237,8 @@ class MatchTableView(MatchTableHandlersMixin):
                 with ui.column().classes('flex-center'):
                     ui.button(icon='refresh', on_click=self.refresh).props('flat color=primary').tooltip('Refresh table')
 
-        # Load filters data after UI is set up
-        self._bg(self._load_tournaments())
-        self._bg(self._load_stream_rooms())
+        # Restore the filters, then load the table — one task, one load.
+        self._bg(self._initial_load())
 
         with ui.column().classes('full-width') as table_container:
             self.table_container = table_container
