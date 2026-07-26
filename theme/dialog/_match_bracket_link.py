@@ -31,6 +31,64 @@ def matchup_label(bracket_match) -> str:
     )
 
 
+async def linked_matchup_id(
+    bracket_service, match, *, brackets_live: bool
+) -> Optional[int]:
+    """The matchup this match is already linked to, or None.
+
+    A no-op query-wise when brackets are off for the tenant or the dialog is
+    creating a match — there is nothing to be linked to yet.
+    """
+    if not brackets_live or match is None:
+        return None
+    linked = await bracket_service.get_bracket_match_for_match(match.id)
+    return linked.id if linked else None
+
+
+async def render_matchup_panel(bracket_service, match_id: Optional[int]) -> None:
+    """What this match is *for*: round, seeds, series standing, and stakes (U4).
+
+    Rendered by :func:`render_select` above the picker, and only when the match
+    already backs a bracket game — an unlinked match has nothing to say here, and
+    the picker below is how it gets linked. Read-only; the link into the bracket
+    view uses ``ui.navigate.to`` so path-mode multitenancy's ``root_path`` is
+    applied.
+    """
+    if match_id is None:
+        return
+    summary = await bracket_service.matchup_summary(match_id)
+    if summary is None:
+        return
+
+    with ui.card().classes('w-full q-pa-sm q-mb-sm'):
+        with ui.row().classes('items-center justify-between w-full no-wrap'):
+            with ui.column().classes('gap-0 min-w-0'):
+                ui.label(
+                    f"{summary['bracket_name']} · {summary['round_name']}"
+                ).classes('text-bold ellipsis')
+                detail = []
+                if summary['best_of'] > 1:
+                    detail.append(
+                        f"Game {summary['game_number']} of {summary['best_of']}"
+                    )
+                if summary['standing']:
+                    detail.append(f"Series {summary['standing']}")
+                if summary['stakes']:
+                    detail.append(summary['stakes'])
+                if detail:
+                    ui.label(' · '.join(detail)).classes('text-caption')
+            ui.button(
+                'Bracket', icon='account_tree',
+                on_click=lambda bid=summary['bracket_id']: ui.navigate.to(
+                    f'/brackets/{bid}'
+                ),
+            ).props('flat dense')
+        with ui.row().classes('items-center gap-3 w-full'):
+            for entrant in summary['entrants']:
+                seed = f"#{entrant['seed']} " if entrant['seed'] is not None else ''
+                ui.label(f"{seed}{entrant['name']}").classes('text-caption')
+
+
 async def build_options(
     bracket_service,
     tournament_id: Optional[int],
@@ -80,6 +138,10 @@ async def render_select(
     its slot is already taken, so ``list_linkable_matches`` excludes it and the
     select would otherwise have nothing to show for the value it holds.
 
+    The matchup panel above it (:func:`render_matchup_panel`) is rendered from
+    here rather than by the caller, so the dialog has one call for the whole
+    bracket section and the panel cannot be shown when the picker is not.
+
     The tenant id is captured here, in request context, and rebound inside
     ``repopulate``: that runs as a ``background_tasks`` task, where the contextvar
     is unset and the client stash is out of reach, so a scoped read would raise
@@ -88,6 +150,7 @@ async def render_select(
     if not brackets_live:
         return None
 
+    await render_matchup_panel(bracket_service, match_id)
     tenant_id = require_tenant_id()
 
     async def current_options() -> dict:

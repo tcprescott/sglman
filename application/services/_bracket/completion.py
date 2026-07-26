@@ -123,6 +123,7 @@ class CompletionMixin:
 
         entry_by_id = {e.id: e for e in entries}
         next_round = max_round + 1
+        paired: List[BracketMatch] = []
         for position, (ref1, ref2) in enumerate(pairings, start=1):
             if ref2 is None:
                 winner = entry_by_id[ref1]
@@ -136,14 +137,19 @@ class CompletionMixin:
                     state=BracketMatchState.COMPLETE,
                 )
             else:
-                await self.repository.create_match(
+                paired.append(await self.repository.create_match(
                     bracket_id=bracket.id,
                     round=next_round,
                     position=position,
                     entry1=entry_by_id[ref1],
                     entry2=entry_by_id[ref2],
                     state=BracketMatchState.OPEN,
-                )
+                ))
+
+        # Swiss pairs a round into existence already OPEN, so — like generation —
+        # there is no PENDING → OPEN transition for ``_settle_match`` to catch.
+        for bracket_match in paired:
+            await self.notify_matchup_ready(bracket_match)
 
         details = {
             'bracket_id': bracket.id,

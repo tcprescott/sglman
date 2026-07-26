@@ -99,6 +99,7 @@ class EventType:
     BRACKET_GAME_CANCELLED = 'bracket.game_cancelled'
     BRACKET_GAME_LINKED = 'bracket.game_linked'
     BRACKET_GAME_UNLINKED = 'bracket.game_unlinked'
+    BRACKET_GAME_RELEASED = 'bracket.game_released'
     BRACKET_ADVANCED = 'bracket.advanced'
     BRACKET_COMPLETED = 'bracket.completed'
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
@@ -126,7 +127,7 @@ class EventType:
         BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,
         BRACKET_ENTRANT_ADDED, BRACKET_ENTRANT_DROPPED,
         BRACKET_GAME_SCHEDULED, BRACKET_GAME_COMPLETED, BRACKET_GAME_CANCELLED,
-        BRACKET_GAME_LINKED, BRACKET_GAME_UNLINKED,
+        BRACKET_GAME_LINKED, BRACKET_GAME_UNLINKED, BRACKET_GAME_RELEASED,
     })
 
     # Wildcard a subscriber can register to receive every event.

@@ -48,7 +48,7 @@ TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
     <a v-if="props.row.bracket" href="#" class="table-link cell-bracket-link"
        @click.prevent="$parent.$emit('open_bracket', props.row)">
         <q-icon name="account_tree" size="14px" class="q-mr-xs" />
-        <span>{{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}</template></span>
+        <span>{{ props.row.bracket.name }}<template v-if="props.row.bracket.game"> · Game {{ props.row.bracket.game }}<template v-if="props.row.bracket.best_of > 1"> of {{ props.row.bracket.best_of }}</template></template><template v-if="props.row.bracket.standing"> · {{ props.row.bracket.standing }}</template></span>
         <q-tooltip>View this match's bracket</q-tooltip>
     </a>
 </q-td>'''

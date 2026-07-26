@@ -1,6 +1,6 @@
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -378,7 +378,15 @@ class TestMatchLifecycleEvents:
         match = make_match(tournament_id=9, players=[p1, p2])
         service.repository.get_by_id = AsyncMock(return_value=match)
 
-        await service.record_match_result(match_id=1, winner_id=10, actor=SimpleNamespace(id=1))
+        # This match backs no bracket game, which is the settled-result guard's
+        # no-op path; stubbed because these lifecycle tests run without a DB.
+        with patch(
+            'application.services.bracket_service.BracketService.get_game_for_match',
+            AsyncMock(return_value=None),
+        ):
+            await service.record_match_result(
+                match_id=1, winner_id=10, actor=SimpleNamespace(id=1),
+            )
 
         assert [e.event_type for e in captured_events] == [EventType.MATCH_RESULT_RECORDED]
         assert captured_events[0].payload == {

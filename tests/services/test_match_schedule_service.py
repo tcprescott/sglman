@@ -402,7 +402,9 @@ class TestNotifyMatchScheduled:
             await service.notify_match_scheduled(match, rescheduled=False, is_stream_candidate=False)
 
         _, ack_kwargs = service.notify_acknowledgment_request.call_args
-        assert ack_kwargs == {'rescheduled': False, 'community': ''}
+        assert ack_kwargs == {
+            'rescheduled': False, 'community': '', 'bracket_line': '',
+        }
         subs_args = service.notify_tournament_subscribers_scheduled.call_args.args
         assert subs_args[0] is match
         assert subs_args[2] == [111]
@@ -427,7 +429,9 @@ class TestNotifyMatchScheduled:
             await service.notify_match_scheduled(match, rescheduled=True)
 
         _, ack_kwargs = service.notify_acknowledgment_request.call_args
-        assert ack_kwargs == {'rescheduled': True, 'community': ''}
+        assert ack_kwargs == {
+            'rescheduled': True, 'community': '', 'bracket_line': '',
+        }
 
 
 class TestNotifyStreamCandidate:

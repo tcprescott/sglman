@@ -27,10 +27,24 @@ body {
   --bracket-seed-bg: #eef0f3;
   --bracket-header-bg: rgba(255, 255, 255, 0.92);
   --bracket-run-bg: color-mix(in srgb, var(--bracket-accent) 20%, transparent);
+
+  /* Live-status tones (U2). Named for what they *mean*, not what they look
+   * like — the semantic name is chosen once in
+   * application/services/match/match_status.py (STATUS_TONES) and mapped here
+   * and in discord_embeds.py, so the web pill and the Discord card cannot drift
+   * apart. */
+  --bracket-live: #d1343f;
+  --bracket-imminent: #b45309;
+  --bracket-attention: #b45309;
+  --bracket-done: #6b7280;
 }
 
 .body--dark,
 .q-dark {
+  --bracket-live: #f2555f;
+  --bracket-imminent: #d98324;
+  --bracket-attention: #d98324;
+  --bracket-done: #9aa3ad;
   --bracket-line: #3a4048;
   --bracket-card-bg: #1f242b;
   --bracket-card-border: #333a43;
@@ -155,6 +169,92 @@ body {
 
 .bracket-match.is-pending {
   opacity: 0.72;
+}
+
+/* Live statuses (U2). The card's left rule carries the state, the same channel
+ * is-open already uses, so a bracket read at a glance says which matchups are
+ * happening *now* rather than merely which are playable. */
+.bracket-match.is-live {
+  border-left: 3px solid var(--bracket-live);
+}
+
+.bracket-match.is-checked-in,
+.bracket-match.is-needs-reschedule {
+  border-left: 3px solid var(--bracket-attention);
+}
+
+.bracket-match.is-awaiting-result {
+  border-left: 3px solid var(--bracket-done);
+}
+
+/* The "LIVE" pill, and its pulse. Respects prefers-reduced-motion — a bracket
+ * left open on a stream overlay for hours must not force animation on someone
+ * who asked for none. */
+.bracket-live-pill {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  transform: translateY(-52%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bracket-live);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  text-decoration: none;
+  z-index: 3;
+}
+
+.bracket-live-pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: bracket-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes bracket-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bracket-live-pill::before {
+    animation: none;
+  }
+}
+
+/* The non-live status chips (Checked in / Awaiting result / Needs reschedule)
+ * sit in the same corner but read as chrome, not an alarm. */
+.bracket-status-pill {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  transform: translateY(-52%);
+  background: var(--bracket-header-bg);
+  border: 1px solid currentColor;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.bracket-status-pill.tone-imminent,
+.bracket-status-pill.tone-attention {
+  color: var(--bracket-attention);
+}
+
+.bracket-status-pill.tone-done {
+  color: var(--bracket-done);
 }
 
 .bracket-match.is-clickable {

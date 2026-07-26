@@ -268,5 +268,5 @@ class TestFormatMatchBracket:
             )
         )
         assert display_service._format_match_for_display(match)["bracket"] == {
-            "id": 9, "name": "Playoff", "game": 3,
+            "id": 9, "name": "Playoff", "game": 3, "best_of": 1, "standing": "",
         }

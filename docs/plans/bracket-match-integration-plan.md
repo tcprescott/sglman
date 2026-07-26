@@ -1,6 +1,17 @@
 # Bracket ↔ Match Integration Plan (design record)
 
-> Status: **proposed, decisions confirmed 2026-07-26.** The native bracket system
+> Status: **implemented 2026-07-26.** All five units landed as specified; the
+> living documentation is [features/brackets.md](../features/brackets.md)
+> (live state, the release rule, the correction rule, notifications),
+> [reference/services.md](../reference/services.md) (the new modules and
+> methods), and [reference/frontend.md](../reference/frontend.md). Two things
+> departed from the plan as written and are noted inline below: the guard point
+> is `MatchService.record_match_result` (the plan called it `set_match_winner`,
+> which does not exist, and there are no un-transition methods to guard), and
+> `NEEDS_RESCHEDULE` is derived from *"an underway series with nothing booked"*
+> rather than from a released best-of-1, which leaves no trace to derive it from.
+>
+> Original status: **proposed, decisions confirmed 2026-07-26.** The native bracket system
 > ([features/brackets.md](../features/brackets.md)) and the scheduled-match
 > lifecycle are both shipped and correct in isolation; they meet at exactly one
 > seam and read, to a user, as two products sharing a database. This plan closes

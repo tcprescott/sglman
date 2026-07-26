@@ -70,6 +70,11 @@ class GenerationMixin:
         }
         await self.audit_service.write_log(actor, AuditActions.BRACKET_STARTED, details)
         event_bus.publish(Event.create(EventType.BRACKET_STARTED, details, actor))
+        # Generation writes the opening round straight to OPEN rather than
+        # transitioning into it, so ``_settle_match``'s per-transition DM never
+        # sees round 1 (D7). Announce them here instead — after the state pass,
+        # so every matchup this reads is settled.
+        await self.notify_open_matchups(bracket)
         return bracket
 
     async def _assign_seeds(self, entries: List[BracketEntry]) -> Dict[int, BracketEntry]:

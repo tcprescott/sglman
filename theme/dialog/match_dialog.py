@@ -388,10 +388,9 @@ class AdminMatchDialog(BaseMatchDialog):
             tracker_ids = []
 
         brackets_live = await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS)
-        linked_bracket_match_id = None
-        if brackets_live and self.match:
-            linked = await self.bracket_service.get_bracket_match_for_match(self.match.id)
-            linked_bracket_match_id = linked.id if linked else None
+        linked_bracket_match_id = await bracket_link.linked_matchup_id(
+            self.bracket_service, self.match, brackets_live=brackets_live,
+        )
 
         is_create = self.match is None
         title = 'Create Match' if is_create else 'Edit Match'

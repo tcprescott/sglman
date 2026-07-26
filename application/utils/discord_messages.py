@@ -47,12 +47,19 @@ def _match_info_lines(
     scheduled_at_display: str = '',
     stream_room_name: str = '',
     time_label: str = 'Scheduled for',
+    bracket_line: str = '',
 ) -> list[str]:
-    """Consistent identifying block for a match: players, time, stage.
+    """Consistent identifying block for a match: round, players, time, stage.
 
-    Omits any line whose data is empty.
+    Omits any line whose data is empty. ``bracket_line`` is the series context
+    for a match that is one game of a bracket matchup — "Semifinals · Game 2 of 3
+    · Series 1-0" — and leads, because it is the thing that tells a player *what
+    this match is for*. Empty for the vast majority of matches, which no bracket
+    scheduled.
     """
     lines: list[str] = []
+    if bracket_line:
+        lines.append(f"Round: {bracket_line}")
     players = _players_label(player_names)
     if players:
         lines.append(f"Players: {players}")
@@ -73,11 +80,13 @@ def scheduled_dm(
     *,
     player_names: Optional[list[str]] = None,
     stream_room_name: str = '',
+    bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
         stream_room_name=stream_room_name,
+        bracket_line=bracket_line,
     )
     body = "\n".join(info)
     return (
@@ -93,12 +102,14 @@ def rescheduled_dm(
     *,
     player_names: Optional[list[str]] = None,
     stream_room_name: str = '',
+    bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=new_scheduled_at_display,
         stream_room_name=stream_room_name,
         time_label='New time',
+        bracket_line=bracket_line,
     )
     body = "\n".join(info)
     return (
@@ -115,6 +126,7 @@ def acknowledgment_request_dm(
     rescheduled: bool,
     stream_room_name: str = '',
     player_names: Optional[list[str]] = None,
+    bracket_line: str = '',
 ) -> str:
     if rescheduled:
         intro = f"Your match in **{tournament_name}** has been rescheduled."
@@ -127,6 +139,7 @@ def acknowledgment_request_dm(
         scheduled_at_display=scheduled_at_display,
         stream_room_name=stream_room_name,
         time_label=time_label,
+        bracket_line=bracket_line,
     )
     body = "\n".join(info)
     return (
@@ -142,11 +155,13 @@ def checked_in_dm(
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
     stream_room_name: str = '',
+    bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
         stream_room_name=stream_room_name,
+        bracket_line=bracket_line,
     )
     block = ("\n".join(info) + "\n\n") if info else ''
     return (
@@ -163,20 +178,30 @@ def cancelled_dm(
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
     stream_room_name: str = '',
+    bracket_line: str = '',
+    released: bool = False,
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
         stream_room_name=stream_room_name,
         time_label='Was scheduled for',
+        bracket_line=bracket_line,
     )
     block = ("\n".join(info) + "\n\n") if info else ''
     why = f"{reason}\n\n" if reason else ''
+    # A bracket game that was cancelled hands its series slot back (D3), so the
+    # matchup is open again and the entrants are the ones who have to rebook it —
+    # the opposite of the default "nothing further is needed".
+    closing = (
+        "This game has been released — the matchup is open to reschedule."
+        if released else "Nothing further is needed from you."
+    )
     return (
         f"Your match in **{tournament_name}** has been cancelled.\n\n"
         f"{block}"
         f"{why}"
-        f"Nothing further is needed from you."
+        f"{closing}"
     )
 
 
@@ -187,14 +212,59 @@ def state_changed_dm(
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
     stream_room_name: str = '',
+    bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
         stream_room_name=stream_room_name,
+        bracket_line=bracket_line,
     )
     block = ("\n\n" + "\n".join(info)) if info else ''
     return f"Your match in **{tournament_name}** is now: **{new_state}**.{block}"
+
+
+def matchup_ready_dm(
+    tournament_name: str,
+    round_name: str,
+    opponent_name: str,
+    *,
+    opponent_seed: Optional[int] = None,
+    best_of: int = 1,
+    schedule_url: str = '',
+    rebook: bool = False,
+) -> str:
+    """The one new bracket notification: "you have a matchup to schedule".
+
+    A DM is sent when it asks the recipient to *do* something, and this is the
+    only thing in a bracket that nobody else can do for them —
+    ``allow_player_match_requests`` is off for bracket-run tournaments, so the
+    bracket is their sole route to booking a time. Advancing and being eliminated
+    get no DM: the bracket shows those.
+
+    ``rebook`` is the released-game variant (D3): the matchup was booked, the
+    game was called off, and its slot is open again. It says so explicitly rather
+    than reading as a duplicate of the first invitation.
+    """
+    opponent = f"{opponent_name} (#{opponent_seed})" if opponent_seed else opponent_name
+    lines = [f"Opponent: {opponent}", f"Round: {round_name}"]
+    if best_of > 1:
+        lines.append(f"Format: Best of {best_of}")
+    body = "\n".join(lines)
+    if rebook:
+        intro = (
+            f"Your **{round_name}** match in **{tournament_name}** was called off, "
+            f"and the matchup is open to reschedule."
+        )
+        action = "Pick a new time"
+    else:
+        intro = (
+            f"Your **{round_name}** matchup in **{tournament_name}** is ready to "
+            f"schedule."
+        )
+        action = "Pick a time"
+    call = f"[{action}]({schedule_url})" if schedule_url else f"{action} on the bracket."
+    return f"{intro}\n\n{body}\n\n{call}"
 
 
 def stream_candidate_dm(
@@ -223,11 +293,13 @@ def seed_dm(
     player_names: Optional[list[str]] = None,
     scheduled_at_display: str = '',
     stream_room_name: str = '',
+    bracket_line: str = '',
 ) -> str:
     info = _match_info_lines(
         player_names=player_names,
         scheduled_at_display=scheduled_at_display,
         stream_room_name=stream_room_name,
+        bracket_line=bracket_line,
     )
     block = ("\n".join(info) + "\n\n") if info else ''
     return (

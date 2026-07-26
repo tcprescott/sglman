@@ -225,6 +225,59 @@ class TestHappyPath:
             assert ff.json()['forfeit'] is True
 
 
+class TestDerivedStatus:
+    """Match payloads carry the cross-surface derived status (U1/U2).
+
+    The point of the shared vocabulary is that an API consumer, the web bracket,
+    and a Discord DM all say the same word about the same matchup — so the API
+    reporting it is part of the contract, not a convenience.
+    """
+
+    @staticmethod
+    async def _started_bracket(c, tournament_id: int) -> int:
+        bracket_id = (await c.post('/api/brackets', json={
+            'tournament_id': tournament_id, 'name': 'Main', 'format': 'single_elim',
+        })).json()['id']
+        for name in ('Alice', 'Bob'):
+            entrant = (await c.post('/api/brackets/entrants', json={
+                'tournament_id': tournament_id, 'display_name': name,
+            })).json()
+            await c.post(f'/api/brackets/{bracket_id}/entries', json={
+                'entrant_id': entrant['id'],
+            })
+        await c.post(f'/api/brackets/{bracket_id}/start')
+        return bracket_id
+
+    async def test_an_unbooked_matchup_reports_unscheduled(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await self._started_bracket(c, t.id)
+
+            matches = (await c.get(f'/api/brackets/{bracket_id}/matches')).json()
+            assert [m['status'] for m in matches] == ['unscheduled']
+            open_matches = (
+                await c.get(f'/api/brackets/{bracket_id}/open-matches')
+            ).json()
+            assert [m['status'] for m in open_matches] == ['unscheduled']
+
+    async def test_a_settled_matchup_reports_complete(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await self._started_bracket(c, t.id)
+            match_id = (
+                await c.get(f'/api/brackets/{bracket_id}/open-matches')
+            ).json()[0]['id']
+            entries = (await c.get(f'/api/brackets/{bracket_id}/entries')).json()
+            await c.post(f'/api/brackets/matches/{match_id}/result', json={
+                'winner_entry_id': entries[0]['id'],
+            })
+
+            matches = (await c.get(f'/api/brackets/{bracket_id}/matches')).json()
+            assert [m['status'] for m in matches] == ['complete']
+
+
 # --- Feature gate ---------------------------------------------------------
 
 

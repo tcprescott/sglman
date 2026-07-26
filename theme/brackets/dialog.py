@@ -17,6 +17,9 @@ from nicegui import app, background_tasks, context, ui
 from tortoise import exceptions as tortoise_exceptions
 
 from application.services import BracketService, MatchService, get_user_from_discord_id
+from application.services.match.match_status import MatchStatus
+from application.services.match.match_status import label as status_label
+from application.services.match.match_status import tone as status_tone
 from application.tenant_context import tenant_scope
 from application.utils.timezone import format_eastern_display
 from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
@@ -43,6 +46,20 @@ _GAME_BADGE = {
     BracketMatchGameState.CANCELLED: 'grey',
 }
 
+# The derived status vocabulary's tones → Quasar badge colours. Mapped from the
+# semantic name defined once in ``match_status.STATUS_TONES``, so this dialog,
+# the card's pill, and the Discord embed all colour the same state the same way.
+_TONE_COLOR = {
+    'neutral': 'grey',
+    'info': 'positive',
+    'imminent': 'warning',
+    'live': 'red',
+    'done': 'blue-grey',
+    'settled': 'primary',
+    'cancelled': 'grey',
+    'attention': 'warning',
+}
+
 
 def _render_games(
     games: list,
@@ -54,6 +71,8 @@ def _render_games(
     is_staff: bool,
     tenant_id: int,
     on_saved: Callable[[], Awaitable[None]],
+    game_status: Optional[dict] = None,
+    watch_url: str = '',
 ) -> None:
     """The per-game breakdown of a series, with the admin's way into each game.
 
@@ -97,10 +116,22 @@ def _render_games(
                 elif game.cancelled_reason:
                     ui.label(game.cancelled_reason).classes('text-caption text-grey')
             with ui.row().classes('items-center gap-1 no-wrap'):
-                ui.badge(
-                    game.state.value.title(),
-                    color=_GAME_BADGE.get(game.state, 'grey'),
-                )
+                # The derived status when the caller resolved it (U2) — so this
+                # row says "Live" while the match is being raced instead of
+                # "Scheduled" — falling back to the stored game state otherwise.
+                status = (game_status or {}).get(game.id)
+                if status is not None:
+                    ui.badge(status_label(status), color=_TONE_COLOR.get(
+                        status_tone(status), 'grey',
+                    ))
+                    if status == MatchStatus.LIVE and watch_url:
+                        ui.link('Watch', watch_url, new_tab=True) \
+                            .props('dense').classes('text-caption')
+                else:
+                    ui.badge(
+                        game.state.value.title(),
+                        color=_GAME_BADGE.get(game.state, 'grey'),
+                    )
                 if is_staff and game.match_id is not None:
                     ui.button(
                         icon='edit',
@@ -227,6 +258,7 @@ def build_match_dialog(
     tenant_id: int,
     service: BracketService,
     on_saved: Callable[[], Awaitable[None]],
+    live: Optional[dict] = None,
 ) -> None:
     """Build and open the match dialog: entrants, scores/FF, state, reporting."""
     completed = match.state == BracketMatchState.COMPLETE
@@ -242,10 +274,16 @@ def build_match_dialog(
         with ui.row().classes('dialog-header items-center q-pa-sm'):
             ui.label(f'Match {number}' if number else 'Match').classes('text-h6 q-ma-none')
             ui.space()
-            ui.badge(
-                match.state.value.title(),
-                color=_STATE_BADGE.get(match.state, 'grey'),
-            )
+            status = (live or {}).get('status')
+            if status is not None:
+                ui.badge(status_label(status), color=_TONE_COLOR.get(
+                    status_tone(status), 'grey',
+                ))
+            else:
+                ui.badge(
+                    match.state.value.title(),
+                    color=_STATE_BADGE.get(match.state, 'grey'),
+                )
             ui.button(icon='close', on_click=dialog.close) \
                 .props('flat round dense').tooltip('Close')
         ui.separator()
@@ -276,6 +314,8 @@ def build_match_dialog(
             bracket_match_id=match.id,
             matchup_label=f'{name_of(match.entry1_id)} vs {name_of(match.entry2_id)}',
             is_staff=is_staff, tenant_id=tenant_id, on_saved=on_saved,
+            game_status=(live or {}).get('games'),
+            watch_url=(live or {}).get('watch_url', ''),
         )
 
         can_report = (

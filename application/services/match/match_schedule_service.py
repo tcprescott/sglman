@@ -114,16 +114,42 @@ async def collect_match_recipients(
     return recipients
 
 
-def _match_descriptor(match: Match) -> dict:
+def _match_descriptor(match: Match, bracket_line: str = '') -> dict:
     """Extract human-readable match fields from a match with ``players__user``,
-    ``stream_room`` (and ``scheduled_at``) loaded, for passing to message builders."""
+    ``stream_room`` (and ``scheduled_at``) loaded, for passing to message builders.
+
+    ``bracket_line`` is the caller-resolved series context ("Semifinals · Game 2
+    of 3 · Series 1-0"); it is passed in rather than looked up here because this
+    is a sync projection and the lookup is a query. '' for a match no bracket
+    scheduled, which is almost all of them.
+    """
     return {
         'player_names': [p.user.preferred_name for p in match.players],
         'scheduled_at_display': (
             format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
         ),
         'stream_room_name': match.stream_room.name if match.stream_room else '',
+        'bracket_line': bracket_line,
     }
+
+
+async def bracket_dm_context(match_id: int) -> tuple[str, bool]:
+    """``(bracket_line, frees_a_slot)`` for a match's DMs, or ``('', False)``.
+
+    Service→service into ``BracketService`` (the same seam ``confirm_match`` uses
+    for ``advance_if_linked``), kept here as a one-liner so the notification
+    builders below — and ``CancellationMixin`` — don't each import the bracket
+    service. Never raises: a match DM must not be lost over its subtitle.
+    """
+    from application.services.bracket_service import BracketService
+
+    return await BracketService().match_dm_context(match_id)
+
+
+async def bracket_line_for(match_id: int) -> str:
+    """Just the series-context line — the transition DMs' half of the context."""
+    line, _ = await bracket_dm_context(match_id)
+    return line
 
 
 async def _community_name() -> str:
@@ -149,10 +175,12 @@ def _match_embed_kwargs(match: Match, community: str) -> dict:
     }
 
 
-def _checked_in_notification(match: Match, community: str) -> tuple:
+def _checked_in_notification(
+    match: Match, community: str, bracket_line: str = '',
+) -> tuple:
     """(text, embed) for the check-in DM."""
     return (
-        checked_in_dm(match.tournament.name, **_match_descriptor(match)),
+        checked_in_dm(match.tournament.name, **_match_descriptor(match, bracket_line)),
         match_embed(
             title='✅ Match checked in', color=COLOR_CHECKED_IN,
             description='The match is about to begin — good luck!',
@@ -161,10 +189,14 @@ def _checked_in_notification(match: Match, community: str) -> tuple:
     )
 
 
-def _state_notification(match: Match, community: str, new_state: str) -> tuple:
+def _state_notification(
+    match: Match, community: str, new_state: str, bracket_line: str = '',
+) -> tuple:
     """(text, embed) for a started/finished/confirmed transition DM."""
     return (
-        state_changed_dm(match.tournament.name, new_state, **_match_descriptor(match)),
+        state_changed_dm(
+            match.tournament.name, new_state, **_match_descriptor(match, bracket_line),
+        ),
         state_changed_embed(
             match.tournament.name, new_state,
             community_name=community,
@@ -198,13 +230,15 @@ class MatchScheduleService:
         timestamp_field: str,
         audit_action: str,
         event_type: str,
-        build_message: Callable[[Match, str], tuple],
+        build_message: Callable[[Match, str, str], tuple],
     ) -> None:
         """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
 
         ``check`` raises ValueError on a precondition failure; ``build_message``
-        takes ``(match, community_name)`` and returns ``(text, embed)`` — both are
-        built after the relations are fetched, in this request's tenant context.
+        takes ``(match, community_name, bracket_line)`` and returns
+        ``(text, embed)`` — all three are resolved after the relations are
+        fetched, in this request's tenant context, because the queue worker that
+        sends the DM has neither the relations nor the tenant.
         """
         await AuthService.ensure(
             await AuthService.can_transition_match(actor, match),
@@ -221,7 +255,7 @@ class MatchScheduleService:
         # Resolve the community name here (request context) rather than in the
         # queue worker, and pass the pre-built embed down with the text.
         community = await _community_name()
-        message, embed = build_message(match, community)
+        message, embed = build_message(match, community, await bracket_line_for(match.id))
         discord_queue.enqueue(self.notify_match_participants(match, message, embed))
         match_live.publish(match.id)
         event_bus.publish(Event.create(event_type, {
@@ -248,7 +282,7 @@ class MatchScheduleService:
             timestamp_field="seated_at",
             audit_action=AuditActions.MATCH_SEATED,
             event_type=EventType.MATCH_SEATED,
-            build_message=lambda m, c: _checked_in_notification(m, c),
+            build_message=lambda m, c, b: _checked_in_notification(m, c, b),
         )
 
     async def start_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -264,7 +298,7 @@ class MatchScheduleService:
             timestamp_field="started_at",
             audit_action=AuditActions.MATCH_STARTED,
             event_type=EventType.MATCH_STARTED,
-            build_message=lambda m, c: _state_notification(m, c, "Started"),
+            build_message=lambda m, c, b: _state_notification(m, c, "Started", b),
         )
 
     async def finish_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -280,7 +314,7 @@ class MatchScheduleService:
             timestamp_field="finished_at",
             audit_action=AuditActions.MATCH_FINISHED,
             event_type=EventType.MATCH_FINISHED,
-            build_message=lambda m, c: _state_notification(m, c, "Finished"),
+            build_message=lambda m, c, b: _state_notification(m, c, "Finished", b),
         )
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
@@ -296,7 +330,7 @@ class MatchScheduleService:
             timestamp_field="confirmed_at",
             audit_action=AuditActions.MATCH_CONFIRMED,
             event_type=EventType.MATCH_CONFIRMED,
-            build_message=lambda m, c: _state_notification(m, c, "Confirmed"),
+            build_message=lambda m, c, b: _state_notification(m, c, "Confirmed", b),
         )
 
         # Push the confirmed result to Challonge when this match mirrors a
@@ -399,7 +433,7 @@ class MatchScheduleService:
                 await match.save()
 
                 # Send DMs to players in the background (respects dm_notifications opt-out)
-                descriptor = _match_descriptor(match)
+                descriptor = _match_descriptor(match, await bracket_line_for(match.id))
                 community = await _community_name()
                 seed_embed = match_embed(
                     title='🎲 Seed ready', color=COLOR_SEED,
@@ -573,15 +607,17 @@ class MatchScheduleService:
         *,
         rescheduled: bool,
         community: str = '',
+        bracket_line: str = '',
     ) -> None:
         """
         Send a DM with an Acknowledge button to every current match player
         whose acknowledgment is still pending and who opts in to DMs.
 
-        ``community`` is the embed-footer community name, resolved by the caller
-        in request context — this coroutine is awaited later by the scope-less
-        ``discord_queue`` worker, where the tenant is no longer in scope, so the
-        footer must be passed in rather than looked up here.
+        ``community`` is the embed-footer community name and ``bracket_line`` the
+        series context, both resolved by the caller in request context — this
+        coroutine is awaited later by the scope-less ``discord_queue`` worker,
+        where the tenant is no longer in scope, so they must be passed in rather
+        than looked up here.
 
         Never raises; per-DM failures are logged and swallowed.
         """
@@ -595,6 +631,7 @@ class MatchScheduleService:
                 rescheduled=rescheduled,
                 stream_room_name=match.stream_room.name if match.stream_room else '',
                 player_names=player_names,
+                bracket_line=bracket_line,
             )
             embed = match_embed(
                 title='🔄 Match rescheduled' if rescheduled else '📣 Match scheduled',
@@ -729,11 +766,13 @@ class MatchScheduleService:
         await match.fetch_related('tournament', 'players__user', 'stream_room')
         player_names = [p.user.preferred_name for p in match.players]
         build_message = rescheduled_dm if rescheduled else scheduled_dm
+        bracket_line = await bracket_line_for(match.id)
         msg = build_message(
             match.tournament.name,
             format_eastern_display(match.scheduled_at),
             player_names=player_names,
             stream_room_name=match.stream_room.name if match.stream_room else '',
+            bracket_line=bracket_line,
         )
         community = await _community_name()
         embed = match_embed(
@@ -743,7 +782,10 @@ class MatchScheduleService:
             player_names=player_names, when=match.scheduled_at,
             stream_room_name=match.stream_room.name if match.stream_room else None,
         )
-        discord_queue.enqueue(self.notify_acknowledgment_request(match, rescheduled=rescheduled, community=community))
+        discord_queue.enqueue(self.notify_acknowledgment_request(
+            match, rescheduled=rescheduled, community=community,
+            bracket_line=bracket_line,
+        ))
         discord_queue.enqueue(self.notify_match_crew(match, msg, embed))
 
         # Collect IDs already notified to avoid duplicates in subscriber fan-out

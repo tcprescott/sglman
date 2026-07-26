@@ -100,10 +100,26 @@ class BracketRepository(TenantScopedRepository[Bracket]):
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
         # ``games__match`` is prefetched so a whole round can render its series
         # state — including each game's scheduled time — without an N+1 across
-        # the bracket view.
+        # the bracket view. ``__stream_room`` rides along for the live "Watch"
+        # link (U2): a fixed number of queries for the whole field, whatever its
+        # size, which is the rule the bracket view is held to.
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id)
-        ).prefetch_related('games__match').order_by('round', 'position')
+        ).prefetch_related(
+            'games__match__stream_room',
+        ).order_by('round', 'position')
+
+    async def round_links(self, bracket_id: int) -> List[dict]:
+        """``(id, round, winner_to_id, loser_to_id)`` for a stage — one lean query.
+
+        A ``.values()`` projection rather than whole rows: round *naming*
+        (``bracket_engines.round_names``) needs the progression pointers and
+        nothing else, and it runs on the notification path where a full
+        ``list_matches`` would be wasteful.
+        """
+        return await scoped(BracketMatch.filter(bracket_id=bracket_id)).values(
+            'id', 'round', 'winner_to_id', 'loser_to_id',
+        )
 
     async def get_match_at(
         self, bracket_id: int, round: int, position: int
@@ -121,9 +137,11 @@ class BracketRepository(TenantScopedRepository[Bracket]):
 
     async def list_open_matches(self, bracket_id: int) -> List[BracketMatch]:
         from models import BracketMatchState
+        # ``games__match`` (not just ``games``) so callers can derive each
+        # matchup's live status without an N+1 — one more batched query.
         return await scoped(
             BracketMatch.filter(bracket_id=bracket_id, state=BracketMatchState.OPEN)
-        ).prefetch_related('games').order_by('round', 'position')
+        ).prefetch_related('games__match').order_by('round', 'position')
 
     async def get_match_with_games(self, match_id: int) -> Optional[BracketMatch]:
         """A bracket match with its series games loaded.

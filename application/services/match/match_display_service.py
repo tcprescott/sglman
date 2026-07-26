@@ -18,6 +18,7 @@ from application.repositories import (
     StreamRoomRepository,
     TournamentRepository,
 )
+from application.services.match.match_status import legacy_label, resolve
 from application.utils.timezone import (
     format_eastern_datetime,
     format_eastern_display,
@@ -104,41 +105,38 @@ class MatchDisplayService:
         return await self.stream_room_repository.get_all_as_dict()
 
     def _get_match_state(self, match: Match) -> str:
+        """The schedule table's state string for a match.
+
+        A thin adapter over :func:`match_status.resolve` rather than its own
+        ladder, so this table's labels cannot drift from the bracket's — that
+        drift is exactly what made the two surfaces read as separate products.
+        No ``room_status`` is passed: the schedule shows the recorded lifecycle,
+        and letting a racetime room advance a row here would disagree with the
+        timestamp the row's own action buttons act on.
+
+        Returns one of the five historical strings — 'Confirmed', 'Finished',
+        'Started', 'Checked In', 'Scheduled' — which the filter chips and the
+        Vue table slots compare against by value.
         """
-        Determine the current state of a match based on its timestamps.
-
-        Business logic for match state progression:
-        - Confirmed: match has confirmed_at timestamp
-        - Finished: match has finished_at timestamp
-        - Started: match has started_at timestamp
-        - Checked In: match has seated_at timestamp
-        - Scheduled: default state
-
-        Args:
-            match: Match object
-
-        Returns:
-            State string: 'Confirmed', 'Finished', 'Started', 'Checked In', or 'Scheduled'
-        """
-        if match.confirmed_at:
-            return 'Confirmed'
-        elif match.finished_at:
-            return 'Finished'
-        elif match.started_at:
-            return 'Started'
-        elif match.seated_at:
-            return 'Checked In'
-        else:
-            return 'Scheduled'
+        return legacy_label(resolve(match=match))
 
     @staticmethod
     def _bracket_ref(match: Match) -> Optional[Dict[str, Any]]:
-        """The bracket this match is a game of, for the schedule's link out.
+        """The bracket matchup this match is a game of, for the schedule's link out.
 
         ``bracket_match_game`` is a reverse OneToOne, so it is ``None`` for the
         vast majority of matches (nothing scheduled it through a bracket) and
         raises when the relation was not prefetched — a caller that skipped
         ``prefetch_relations`` gets no link rather than an exception.
+
+        Beyond the stage name and game number this now carries the **series
+        context** (U4): the resolved best-of and the standing so far, so a
+        schedule row reads "Game 2 of 3 · 1-0" instead of a bare "Game 2". Both
+        come off the games the repository already prefetched — no extra query
+        per row. The round *name* is deliberately absent: naming a round is
+        structural and needs the stage's whole graph, which is a query the
+        schedule table must not pay per row; the Discord DMs, which fan out one
+        at a time, do resolve it.
         """
         try:
             game = match.bracket_match_game
@@ -150,12 +148,38 @@ class MatchDisplayService:
         bracket = getattr(bracket_match, 'bracket', None) if bracket_match else None
         if bracket is None:
             return None
+        best_of, standing = MatchDisplayService._series_context(bracket, bracket_match)
         return {
             'id': bracket.id,
             'name': bracket.name,
             # Only meaningful in a best-of-N series; game 1 of 1 is just "the match".
             'game': game.game_number if game.game_number and game.game_number > 1 else None,
+            'best_of': best_of,
+            'standing': standing,
         }
+
+    @staticmethod
+    def _series_context(bracket, bracket_match) -> tuple:
+        """``(best_of, standing)`` for a matchup, or ``(1, '')`` when unavailable.
+
+        Both computations are the bracket service's pure ones (``resolve_best_of``
+        / ``_standing_from``) reused rather than re-derived, so the schedule
+        cannot quote a different series length or score than the bracket does.
+        ``standing`` is '' before the first game settles — "0-0" reads as a
+        result that has been played.
+        """
+        from application.services.bracket_service import BracketService
+
+        try:
+            best_of = BracketService.resolve_best_of(bracket, bracket_match)
+            if best_of <= 1:
+                return best_of, ''
+            games = list(bracket_match.games)
+            e1, e2 = BracketService._standing_from(games, bracket_match)
+            standing = f'{max(e1, e2)}-{min(e1, e2)}' if (e1 or e2) else ''
+            return best_of, standing
+        except Exception:
+            return 1, ''
 
     def _format_match_for_display(
         self,

@@ -13,6 +13,19 @@ Sends Discord DMs to relevant users when match lifecycle events occur:
 - **Finished** — DM sent to players and crew with result.
 - **Stage assigned** — DM to players when a stream stage is assigned.
 - **Stream candidate** — DM to subscribed users (with crew signup buttons) when a match is flagged as a stream candidate.
+- **Matchup ready to schedule** — DM to both entrants of a bracket matchup the
+  moment it becomes bookable (and again, as a *rebook*, if its game is later
+  called off). The one bracket-specific message: see
+  [brackets.md → Notifications](brackets.md#notifications) for the rule that
+  keeps it the only one.
+
+**Series context on every match DM.** A match that is one game of a bracket
+matchup leads its info block with `Round: Semifinals · Game 2 of 3 · Series 1-0`
+— resolved once by `BracketService.match_dm_context` and threaded through
+`_match_descriptor(match, bracket_line)`. Empty for the vast majority of matches,
+which no bracket scheduled. The cancellation DM additionally swaps "Nothing
+further is needed from you" for "the matchup is open to reschedule" when the
+cancellation frees a bracket slot.
 
 ## Key Files
 

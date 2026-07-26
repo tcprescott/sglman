@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from application.services.match.match_status import MatchStatus
 from models import (
     BracketEntrantStatus,
     BracketEntryStatus,
@@ -92,6 +93,12 @@ class BracketMatchResponse(BaseModel):
     entry2_score: Optional[int] = None
     forfeit: bool = False
     state: BracketMatchState
+    # The derived cross-surface status (docs/plans/bracket-match-integration-plan.md,
+    # U1): what the web bracket paints and what the Discord DM says, so an API
+    # consumer sees "live" while a game is being raced rather than having to
+    # re-derive it from the games' Match timestamps. Populated on the list reads;
+    # None where the matchup's games were not resolved.
+    status: Optional[MatchStatus] = None
     winner_to_id: Optional[int] = None
     winner_to_slot: Optional[int] = None
     loser_to_id: Optional[int] = None

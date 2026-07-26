@@ -128,14 +128,30 @@ async def get_standings(bracket_id: int, actor: User = Depends(require_api_actor
 
 @router.get("/{bracket_id}/matches", response_model=List[BracketMatchResponse], summary="List a bracket's matches")
 async def list_matches(bracket_id: int, actor: User = Depends(require_api_actor)):
-    require_found(await BracketService().get_bracket(bracket_id), "Bracket")
-    return await BracketService().list_matches(bracket_id)
+    service = BracketService()
+    require_found(await service.get_bracket(bracket_id), "Bracket")
+    return await _with_status(service, await service.list_matches(bracket_id))
 
 
 @router.get("/{bracket_id}/open-matches", response_model=List[BracketMatchResponse], summary="List a bracket's open (playable) matches")
 async def list_open_matches(bracket_id: int, actor: User = Depends(require_api_actor)):
-    require_found(await BracketService().get_bracket(bracket_id), "Bracket")
-    return await BracketService().get_open_matches(bracket_id)
+    service = BracketService()
+    require_found(await service.get_bracket(bracket_id), "Bracket")
+    return await _with_status(service, await service.get_open_matches(bracket_id))
+
+
+async def _with_status(service: BracketService, matches: list) -> list:
+    """Stamp each matchup with its derived cross-surface status (U1/U2).
+
+    ``BracketMatchResponse`` reads attributes off the ORM rows, so the derived
+    value is attached to each row rather than assembled into a second shape —
+    one batched query for the whole list, and the API reports the same status
+    the web bracket paints and the Discord DM quotes.
+    """
+    live = await service.matchup_live_state(matches)
+    for match in matches:
+        match.status = (live.get(match.id) or {}).get('status')
+    return matches
 
 
 @router.get("/{bracket_id}/entries", response_model=List[BracketEntryResponse], summary="List a bracket's entries")

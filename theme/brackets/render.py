@@ -15,6 +15,10 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from nicegui import ui
 
+from application.services.bracket_engines.round_names import (
+    RoundNode,
+    detect_finals_ids,
+)
 from application.utils.timezone import format_eastern_display
 from models import BracketMatch, BracketMatchState
 
@@ -51,43 +55,21 @@ def detect_finals(
 ) -> Tuple[Optional[BracketMatch], Optional[BracketMatch]]:
     """Structurally locate a double-elim grand final and its optional reset.
 
-    * **Grand Final** — the positive-round match with an incoming feeder from a
-      **negative** (losers-bracket) round.
-    * **Reset** — the positive-round match the grand final itself feeds into.
-    Either may be ``None`` for an empty or not-yet-generated finals stage.
+    Thin adapter over :func:`round_names.detect_finals_ids`, which owns the
+    structural rule so the Discord/service naming path and the renderer cannot
+    disagree about which match is the grand final. This one maps the ids back to
+    the ORM rows the caller already holds. Either may be ``None`` for an empty or
+    not-yet-generated finals stage.
     """
     by_id = {m.id: m for m in matches}
-    incoming_rounds: Dict[int, List[int]] = {}
-    for m in matches:
-        for target_id in (m.winner_to_id, m.loser_to_id):
-            if target_id is not None:
-                incoming_rounds.setdefault(target_id, []).append(m.round)
-
-    grand_final: Optional[BracketMatch] = None
-    for m in matches:
-        if m.round > 0 and any(r < 0 for r in incoming_rounds.get(m.id, ())):
-            grand_final = m
-            break
-
-    if grand_final is None:
-        # A 2-entrant double elim has no losers bracket (the WB final's loser
-        # drops straight into the grand final via loser_to), so the negative-feeder
-        # scan finds nothing. Fall back to the lowest-round positive match that is
-        # a loser_to target. (Single elim has no loser_to links, so this stays a
-        # no-op there.)
-        loser_targets = {m.loser_to_id for m in matches if m.loser_to_id is not None}
-        candidates = [m for m in matches if m.round > 0 and m.id in loser_targets]
-        if candidates:
-            grand_final = min(candidates, key=lambda m: m.round)
-
-    reset: Optional[BracketMatch] = None
-    if grand_final is not None:
-        for target_id in (grand_final.winner_to_id, grand_final.loser_to_id):
-            candidate = by_id.get(target_id) if target_id is not None else None
-            if candidate is not None and candidate.round > 0:
-                reset = candidate
-                break
-    return grand_final, reset
+    gf_id, reset_id = detect_finals_ids([
+        RoundNode(
+            id=m.id, round=m.round,
+            winner_to_id=m.winner_to_id, loser_to_id=m.loser_to_id,
+        )
+        for m in matches
+    ])
+    return by_id.get(gf_id), by_id.get(reset_id)
 
 
 def build_context(
@@ -97,8 +79,14 @@ def build_context(
     entry_name: Dict[int, str],
     *,
     on_card_click: Optional[Callable[[int], None]] = None,
+    live_state: Optional[Dict[int, dict]] = None,
 ) -> BracketContext:
-    """Resolve the per-bracket lookups the renderer needs, once."""
+    """Resolve the per-bracket lookups the renderer needs, once.
+
+    ``live_state`` is ``BracketService.matchup_live_state``'s output — the
+    derived status and watch link per matchup (U2). Optional: a caller that
+    doesn't pass it gets exactly the pre-U2 card.
+    """
     winner_links = [(m.id, m.winner_to_id, m.winner_to_slot) for m in matches]
     loser_links = [(m.id, m.loser_to_id, m.loser_to_slot) for m in matches]
     rounds_config = (config or {}).get('rounds') or {}
@@ -110,6 +98,7 @@ def build_context(
         rounds_config=rounds_config,
         scheduled_fmt=format_scheduled,
         on_card_click=on_card_click,
+        live_state=live_state or {},
     )
 
 
@@ -234,6 +223,8 @@ def _render_round_meta(round_number: int, ctx) -> None:
         return
     with ui.row().classes('bracket-round-meta'):
         if scheduled:
-            ui.label(ctx.scheduled_fmt(scheduled)).classes('bracket-header-time')
+            # "Round time", not the game's time — see the 2-D header (U3c).
+            ui.label(f'Round time: {ctx.scheduled_fmt(scheduled)}') \
+                .classes('bracket-header-time')
         if best_of:
             ui.label(f'Best of {best_of}').classes('bracket-badge')

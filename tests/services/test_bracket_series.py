@@ -474,6 +474,7 @@ class TestScheduleBracketLink:
 
         assert rows[game2.id]['bracket'] == {
             'id': bracket.id, 'name': 'Main', 'game': 2,
+            'best_of': 3, 'standing': '',
         }
         # Game 1 of a series is just "the match" — no game number in the label.
         first = next(r for r in rows.values() if r['bracket'] and r['id'] != game2.id)
