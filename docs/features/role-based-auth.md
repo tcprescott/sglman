@@ -44,9 +44,16 @@ platform role through the whole policy surface rather than scattering
 
 - **`get_roles`/`has_role` stay literal.** They answer "which grants does this
   user hold *here*", which is what role-management UI displays; fabricating a
-  STAFF grant would show a role nobody granted. A surface keyed to a specific
-  role rather than to staffness (e.g. the Volunteer hub's own "My Availability" /
-  "My Shifts" self-service tabs) therefore does not open up to a super-admin.
+  STAFF grant would show a role nobody granted. Presentation code that needs the
+  gate (rather than the display) must therefore call `is_staff`, not
+  `Role.STAFF in await get_roles(user)` — reading the literal grant in
+  `pages/admin.py` is exactly what locked super-admins out.
+- **Self-service surfaces still render.** The Volunteer hub's "My Availability" /
+  "My Shifts" tabs open to staff-equivalent users too. They read the *signed-in*
+  user's own rows, so they are safe and simply empty for someone who volunteers
+  for nothing, and the domain rule that matters is enforced where it belongs:
+  saving availability without a volunteer opt-in raises a `ValueError` from
+  `VolunteerAvailabilityService.set_windows` and surfaces as a notification.
 - **Feature flags are not bypassed.** Authority is over what a community has
   turned *on*. A flag that is off hides its subsystem from the super-admin too —
   `/volunteer` 404s in a tenant without `VOLUNTEERS` regardless of role — so a
