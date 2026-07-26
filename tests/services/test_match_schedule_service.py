@@ -462,9 +462,9 @@ class TestCollectNotifiedDiscordIds:
         # Tracker shares the commentator's id — should be deduped away.
         tracker = SimpleNamespace(user=SimpleNamespace(discord_id=222))
 
-        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [player]), \
-             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', [commentator]), \
-             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', [tracker]):
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', [commentator]), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', [tracker]):
             ids = await service._collect_notified_discord_ids(match)
 
         assert ids == [111, 222]
@@ -523,10 +523,10 @@ class TestNotifyMatchParticipants:
         match = MockMatch()
         player = SimpleNamespace(user=SimpleNamespace(discord_id=111, dm_notifications=True))
 
-        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [player]), \
-             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', []):
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_awaited_once_with(111, "hello", embed=None)
@@ -536,10 +536,10 @@ class TestNotifyMatchParticipants:
         match = MockMatch()
         watcher = SimpleNamespace(user=SimpleNamespace(discord_id=222, dm_notifications=True))
 
-        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', [watcher]):
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', [watcher]):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
@@ -551,10 +551,10 @@ class TestNotifyMatchParticipants:
         player = SimpleNamespace(user=u)
         watcher = SimpleNamespace(user=u)
 
-        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [player]), \
-             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', [watcher]):
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', [player]), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', [watcher]):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
@@ -564,10 +564,10 @@ class TestNotifyMatchParticipants:
         match = MockMatch()
         opted_out = SimpleNamespace(user=SimpleNamespace(discord_id=444, dm_notifications=False))
 
-        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter', [opted_out]), \
-             self._patch_query('application.services.match.match_schedule_service.Commentator.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter', []):
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter', [opted_out]), \
+             self._patch_query('application.services.match._match_recipients.Commentator.filter', []), \
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter', []):
             await real_notify_service.notify_match_participants(match, "hello")
 
         real_notify_service.discord_service.send_dm.assert_not_awaited()
@@ -579,12 +579,12 @@ class TestNotifyMatchParticipants:
         crew_user = SimpleNamespace(discord_id=222, dm_notifications=True)
         watcher_user = SimpleNamespace(discord_id=333, dm_notifications=True)
 
-        with self._patch_query('application.services.match.match_schedule_service.MatchPlayers.filter',
+        with self._patch_query('application.services.match._match_recipients.MatchPlayers.filter',
                                [SimpleNamespace(user=player_user)]), \
-             self._patch_query('application.services.match.match_schedule_service.Commentator.filter',
+             self._patch_query('application.services.match._match_recipients.Commentator.filter',
                                [SimpleNamespace(user=crew_user)]), \
-             self._patch_query('application.services.match.match_schedule_service.Tracker.filter', []), \
-             self._patch_query('application.services.match.match_schedule_service.MatchWatcher.filter',
+             self._patch_query('application.services.match._match_recipients.Tracker.filter', []), \
+             self._patch_query('application.services.match._match_recipients.MatchWatcher.filter',
                                [SimpleNamespace(user=watcher_user)]):
             await real_notify_service.notify_match_participants(match, "msg")
 

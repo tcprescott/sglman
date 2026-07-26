@@ -33,7 +33,7 @@ from application.utils.discord_messages import (
     stream_candidate_dm,
 )
 from application.utils.timezone import format_eastern_display
-from models import Commentator, Match, MatchPlayers, MatchWatcher, Tracker
+from models import Match, MatchPlayers
 
 logger = logging.getLogger(__name__)
 

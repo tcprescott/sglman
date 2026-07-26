@@ -14,8 +14,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, Dict, Tuple, Optional
 
-import discord
-
 from application.events import match_live
 from application.events import Event, EventType, event_bus
 from application.tenant_context import require_tenant_id
@@ -37,24 +35,17 @@ from application.services.match._schedule_notifications import MatchNotification
 from application.services.seedgen_service import SeedGenerationService
 from application.utils.discord_embeds import (
     COLOR_CHECKED_IN,
-    COLOR_RESCHEDULED,
-    COLOR_SCHEDULED,
     COLOR_SEED,
-    COLOR_STREAM,
     match_embed,
     state_changed_embed,
 )
 from application.utils.discord_messages import (
-    acknowledgment_request_dm,
     checked_in_dm,
-    rescheduled_dm,
-    scheduled_dm,
     seed_dm,
     state_changed_dm,
-    stream_candidate_dm,
 )
 from application.utils.timezone import format_eastern_display
-from models import Match, GeneratedSeeds, MatchPlayers, Commentator, Tracker, MatchWatcher, User
+from models import Match, GeneratedSeeds, User
 
 logger = logging.getLogger(__name__)
 
