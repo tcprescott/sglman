@@ -10,7 +10,7 @@ methods reach siblings (including ``_propagate_winner`` and
 from typing import List, Optional
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from models import (
@@ -151,10 +151,10 @@ class AdvancementMixin:
             'entry2_score': entry2_score,
             'forfeit': forfeit,
         }
-        await self.audit_service.write_log(
-            actor, AuditActions.BRACKET_MATCH_COMPLETED, details
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_MATCH_COMPLETED, details,
+            EventType.BRACKET_MATCH_COMPLETED,
         )
-        event_bus.publish(Event.create(EventType.BRACKET_MATCH_COMPLETED, details, actor))
 
         await self._advance_after_result(bracket, match, winner_entry, loser_entry)
         await self._maybe_complete_stage(bracket, actor)
@@ -446,10 +446,10 @@ class AdvancementMixin:
             'forfeit': forfeit,
             'override': True,
         }
-        await self.audit_service.write_log(
-            actor, AuditActions.BRACKET_MATCH_COMPLETED, details
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_MATCH_COMPLETED, details,
+            EventType.BRACKET_MATCH_COMPLETED,
         )
-        event_bus.publish(Event.create(EventType.BRACKET_MATCH_COMPLETED, details, actor))
         await self.cancel_remaining_games(
             actor, match.id, 'result overridden by staff',
         )

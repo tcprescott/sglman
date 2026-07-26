@@ -12,8 +12,9 @@ from api.schemas.tournament_actions import (
     TournamentUpdateRequest,
 )
 from api.schemas.tournaments import TournamentResponse
+from api._helpers import load_user_or_404
 from application.errors import require_found
-from application.services import MatchSuggestionService, TournamentService, UserService
+from application.services import MatchSuggestionService, TournamentService
 from application.tenant_context import require_tenant_id
 from models import Tournament, User
 
@@ -25,10 +26,6 @@ async def _load_tournament_or_404(tournament_id: int) -> Tournament:
         await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id()),
         "Tournament",
     )
-
-
-async def _load_user_or_404(user_id: int) -> User:
-    return require_found(await UserService().get_user_by_id(user_id), "User")
 
 
 @router.post(
@@ -85,7 +82,7 @@ async def suggest_match_time(
 @router.post("/{tournament_id}/admins", summary="Add a tournament admin (Staff only)")
 async def add_admin(tournament_id: int, body: MembershipRequest, actor: User = Depends(require_write_actor)):
     tournament = await _load_tournament_or_404(tournament_id)
-    target = await _load_user_or_404(body.user_id)
+    target = await load_user_or_404(body.user_id)
     await TournamentService().add_admin(tournament, target, actor=actor)
     return {"detail": "Admin added"}
 
@@ -97,7 +94,7 @@ async def add_admin(tournament_id: int, body: MembershipRequest, actor: User = D
 )
 async def remove_admin(tournament_id: int, user_id: int, actor: User = Depends(require_write_actor)):
     tournament = await _load_tournament_or_404(tournament_id)
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await TournamentService().remove_admin(tournament, target, actor=actor)
 
 
@@ -106,7 +103,7 @@ async def add_crew_coordinator(
     tournament_id: int, body: MembershipRequest, actor: User = Depends(require_write_actor),
 ):
     tournament = await _load_tournament_or_404(tournament_id)
-    target = await _load_user_or_404(body.user_id)
+    target = await load_user_or_404(body.user_id)
     await TournamentService().add_crew_coordinator(tournament, target, actor=actor)
     return {"detail": "Crew coordinator added"}
 
@@ -120,5 +117,5 @@ async def remove_crew_coordinator(
     tournament_id: int, user_id: int, actor: User = Depends(require_write_actor),
 ):
     tournament = await _load_tournament_or_404(tournament_id)
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await TournamentService().remove_crew_coordinator(tournament, target, actor=actor)

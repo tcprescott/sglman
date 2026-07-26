@@ -110,6 +110,26 @@ RULES = [
         "  user-error contract — or keep the feature unselectable (audit §1.3).",
     ),
     Rule(
+        "audit-publish-pair",
+        lambda n: in_services(n) and os.path.basename(n) != "audit_service.py",
+        re.compile(r"write_log\([\s\S]{0,400}?event_bus\.publish\("),
+        "Hand-rolled `write_log(...)` followed by `event_bus.publish(...)`.\n"
+        "  Use AuditService.write_and_publish(actor, action, details, event_type)\n"
+        "  (application/services/audit_service.py). When the event needs extra\n"
+        "  routing keys the audit row doesn't carry, pass event_extra={...}; when it\n"
+        "  needs a wholly different payload, pass event_details={...}\n"
+        "  (2026-07 engineering-practices audit §A1).",
+    ),
+    Rule(
+        "local-audit-emit-wrapper",
+        lambda n: in_services(n) and os.path.basename(n) != "audit_service.py",
+        re.compile(r"def\s+_audit_and_(?:emit|publish|write)\w*\s*\("),
+        "A private _audit_and_* wrapper reimplementing the shared pairing.\n"
+        "  Build this domain's detail dict, then delegate to\n"
+        "  AuditService.write_and_publish — race_room_service carried exactly this\n"
+        "  local copy (2026-07 engineering-practices audit §A1).",
+    ),
+    Rule(
         "test-factory-redefinition",
         in_tests,
         re.compile(r"def\s+(?:utc|make_user|_user)\s*\("),

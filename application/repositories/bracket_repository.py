@@ -60,6 +60,16 @@ class BracketRepository(TenantScopedRepository[Bracket]):
     async def get_entrant(self, entrant_id: int) -> Optional[BracketEntrant]:
         return await scoped(BracketEntrant.filter(id=entrant_id)).first()
 
+    async def update_entrant(self, entrant: BracketEntrant, **fields) -> BracketEntrant:
+        """Persist field changes on one entrant.
+
+        Named rather than inherited: the generic ``update`` is typed against this
+        repository's ``model`` (:class:`Bracket`), and this aggregate spans five
+        models — so each writable one gets an explicit ``update_*`` beside its
+        ``create_*``, all delegating to the one shared setattr-and-save.
+        """
+        return await self.update(entrant, **fields)
+
     async def list_entrants(self, tournament_id: int) -> List[BracketEntrant]:
         return await scoped(
             BracketEntrant.filter(tournament_id=tournament_id)
@@ -71,6 +81,27 @@ class BracketRepository(TenantScopedRepository[Bracket]):
 
     async def get_entry(self, entry_id: int) -> Optional[BracketEntry]:
         return await scoped(BracketEntry.filter(id=entry_id)).first()
+
+    async def update_entry(self, entry: BracketEntry, **fields) -> BracketEntry:
+        """Persist field changes on one stage entry. See :meth:`update_entrant`."""
+        return await self.update(entry, **fields)
+
+    async def set_entry_seeds(self, seeds: dict) -> None:
+        """Apply ``{entry_id: seed}`` in one statement per distinct seed value.
+
+        The seeding UI submits the whole field at once, so the naive loop was one
+        UPDATE per entry — 64 sequential round-trips on the shared event loop for a
+        64-entrant reseed. Grouping by seed collapses that to one statement per
+        distinct value (and clearing seeds to a single ``seed=None`` update).
+        Callers must have validated the set first: this writes what it is given.
+        """
+        if not seeds:
+            return
+        by_seed: dict = {}
+        for entry_id, seed in seeds.items():
+            by_seed.setdefault(seed, []).append(entry_id)
+        for seed, entry_ids in by_seed.items():
+            await scoped(BracketEntry.filter(id__in=entry_ids)).update(seed=seed)
 
     async def list_entries(self, bracket_id: int) -> List[BracketEntry]:
         return await scoped(
@@ -96,6 +127,10 @@ class BracketRepository(TenantScopedRepository[Bracket]):
 
     async def get_match(self, match_id: int) -> Optional[BracketMatch]:
         return await scoped(BracketMatch.filter(id=match_id)).first()
+
+    async def update_match(self, match: BracketMatch, **fields) -> BracketMatch:
+        """Persist field changes on one matchup. See :meth:`update_entrant`."""
+        return await self.update(match, **fields)
 
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
         # ``games__match`` is prefetched so a whole round can render its series

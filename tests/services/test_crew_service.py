@@ -33,6 +33,7 @@ def service():
     svc.match_repository.get_players = AsyncMock(return_value=[])
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
+    svc.audit_service.write_and_publish = AsyncMock()
     svc.discord_service = MagicMock()
     svc.discord_service.send_dm_with_crew_acknowledgment_button = AsyncMock(
         return_value=(True, 'sent')

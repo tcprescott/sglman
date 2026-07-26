@@ -39,6 +39,11 @@ _EVENT_CANDIDATES = frozenset({
     # lifecycle events a bracket does emit start at BRACKET_STARTED.
     AuditActions.BRACKET_UPDATED,
     AuditActions.BRACKET_DELETED,
+    # Per-stage enrollment, by the same reasoning: ``enroll`` is DRAFT-only, so a
+    # subscriber learns the final field from BRACKET_STARTED instead. (The
+    # tournament-level roster *does* emit BRACKET_ENTRANT_ADDED — that one is not
+    # gated on DRAFT and survives the stage.)
+    AuditActions.BRACKET_ENTRY_ADDED,
     AuditActions.STREAM_ROOM_CREATED,
     AuditActions.STREAM_ROOM_UPDATED,
     AuditActions.STREAM_ROOM_DELETED,
@@ -98,6 +103,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # In-app feedback triage.
     AuditActions.FEEDBACK_SUBMITTED,
     AuditActions.FEEDBACK_REVIEWED,
+    # A coordinator's free-text note on a volunteer profile: tenant-internal
+    # staffing detail, and potentially personal — not for arbitrary receivers.
+    AuditActions.VOLUNTEER_NOTE_UPDATED,
     # Equipment catalog CRUD (checkout/checkin are candidates above).
     AuditActions.EQUIPMENT_CREATED,
     AuditActions.EQUIPMENT_UPDATED,

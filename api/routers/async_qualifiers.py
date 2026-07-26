@@ -34,8 +34,9 @@ from api.schemas.async_qualifiers import (
     SubmitRunRequest,
 )
 from api.schemas.common import UserBase
+from api._helpers import load_user_or_404
 from application.errors import require_found
-from application.services import AsyncQualifierService, UserService
+from application.services import AsyncQualifierService
 from application.tenant_context import require_tenant_id
 from models import AsyncQualifier, User
 
@@ -47,10 +48,6 @@ async def _load_qualifier_or_404(qualifier_id: int) -> AsyncQualifier:
         await AsyncQualifier.get_or_none(id=qualifier_id, tenant_id=require_tenant_id()),
         "Qualifier",
     )
-
-
-async def _load_user_or_404(user_id: int) -> User:
-    return require_found(await UserService().get_user_by_id(user_id), "User")
 
 
 # ============================================================ reads (A)
@@ -189,7 +186,7 @@ async def delete_qualifier(qualifier_id: int, actor: User = Depends(require_writ
     summary="Grant a user admin/reviewer on a qualifier",
 )
 async def add_admin(qualifier_id: int, body: AdminRequest, actor: User = Depends(require_write_actor)):
-    target = await _load_user_or_404(body.user_id)
+    target = await load_user_or_404(body.user_id)
     await AsyncQualifierService().add_admin(actor, qualifier_id, target)
 
 
@@ -199,7 +196,7 @@ async def add_admin(qualifier_id: int, body: AdminRequest, actor: User = Depends
     summary="Revoke a user's admin/reviewer on a qualifier",
 )
 async def remove_admin(qualifier_id: int, user_id: int, actor: User = Depends(require_write_actor)):
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await AsyncQualifierService().remove_admin(actor, qualifier_id, target)
 
 

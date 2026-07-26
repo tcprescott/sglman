@@ -8,6 +8,13 @@ committed as literals. This flags two things in the edited file:
   2. An assignment to a secret-named variable (STORAGE_SECRET, DB_PASSWORD,
      *_TOKEN, *_SECRET, *_API_KEY, …) whose value is a hardcoded string literal.
 
+Not flagged, because the name contains a secret-ish word but the value is public
+config rather than a credential: names ending ``_URL``/``_URI``/``_ENDPOINT``/
+``_PREFIX``/``_SUFFIX``/``_HEADER``/``_PARAM``/``_FIELD``/``_NAME`` (e.g.
+``TOKEN_URL``, ``TOKEN_PREFIX``), and any plain ``http(s)://``/``ws(s)://`` value.
+A credential smuggled into a URL is still caught — those carry ``@`` (userinfo)
+or ``=`` (query parameter).
+
 Exit 0 = clean / not applicable; exit 2 = likely secret (stderr explains).
 """
 
@@ -25,6 +32,12 @@ PLACEHOLDER_RX = re.compile(
 # ``verb.object`` audit-action constants. Not a credential (secrets are
 # high-entropy / mixed-case; Discord tokens are matched separately above).
 ACTION_CONSTANT_RX = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$")
+# Names that contain a secret-ish word but denote public, non-sensitive config:
+# ``TOKEN_URL`` (an OAuth endpoint), ``TOKEN_PREFIX`` (the visible prefix every
+# issued token carries). The secret is what these *address* or *label*, never
+# their own value.
+NON_SECRET_NAME_RX = re.compile(r"_(?:URL|URI|ENDPOINT|PREFIX|SUFFIX|HEADER|PARAM|FIELD|NAME)$")
+URL_VALUE_RX = re.compile(r"^(?:https?|wss?)://", re.IGNORECASE)
 
 
 def looks_like_secret_literal(value: str) -> bool:
@@ -34,7 +47,31 @@ def looks_like_secret_literal(value: str) -> bool:
         return False
     if ACTION_CONSTANT_RX.match(value):
         return False
+    # A URL is an address, not a credential — but only a *clean* one. A URL
+    # carrying userinfo (``https://user:pw@host``) or a query credential
+    # (``?access_token=…``) is exactly the leak this hook exists for, so those
+    # fall through and stay flagged.
+    if URL_VALUE_RX.match(value) and "@" not in value and "=" not in value:
+        return False
     return True
+
+
+def is_public_config(name: str, value: str) -> bool:
+    """True when a secret-ish *name* denotes public config rather than a credential.
+
+    Deliberately narrow, and never a blanket pass on the name: the value must
+    also look benign. ``TOKEN_URL``/``TOKEN_PREFIX`` are exempt, while a
+    ``*_URL`` that smuggles a credential is left to ``looks_like_secret_literal``
+    to reject — the name must not become a way to launder a real secret past the
+    check.
+    """
+    if not NON_SECRET_NAME_RX.search(name):
+        return False
+    if URL_VALUE_RX.match(value):
+        return False  # value-based URL handling above decides, not the name
+    # A prefix / header / field label is short by nature; a real key assigned to
+    # such a name would run well past this.
+    return len(value) <= 32
 
 
 def assignment_targets(node: ast.AST) -> list[str]:
@@ -89,6 +126,8 @@ def main() -> None:
                 if not looks_like_secret_literal(value.value):
                     continue
                 for name in targets:
+                    if is_public_config(name, value.value):
+                        continue
                     if SECRET_NAME_RX.search(name):
                         violations.append(
                             (node.lineno, f"hardcoded literal assigned to secret-named '{name}'")

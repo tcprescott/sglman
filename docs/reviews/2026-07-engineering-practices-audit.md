@@ -4,7 +4,7 @@
 **Commit audited:** `ec743eb` (origin/main)
 **Delta window:** `a402d19..ec743eb` — 154 commits, 565 files, +37,642 / −6,782 lines. Dominated by the **native brackets subsystem** (~4,550 lines of service/repo code plus UI, API, CSS and ~5,500 lines of tests), the bracket ↔ scheduled-match integration, the `_oauth_link` refactor, and the single-worker capacity work.
 **Scope:** whole codebase. Findings are labelled **[new]** (introduced inside the window) or **[pre-existing]**.
-**Status:** report only — **no code was changed**. Remediation is delegated, ordered by leverage in §5.
+**Status:** report written first, then **remediated in the same branch** — see [§8 Remediation status](#8-remediation-status) for what shipped, what was deliberately deferred, and the one finding the fix attempt disproved (B4).
 **Predecessor:** [2026-07-code-quality-audit.md](2026-07-code-quality-audit.md) (commit `a402d19`). §6 records which of its findings verifiably landed.
 
 ## Method, and what it means for these numbers
@@ -38,7 +38,7 @@ Numbers stated below are the post-refutation ones.
 | B1 | `BracketService.enroll` writes with no audit and no event, unlike its two siblings | **Medium** | new | `bracket_service.py:328` |
 | B2 | `set_best_of` mutates a matchup with no audit, via a direct ORM write | **Medium** | new | `_bracket/series.py:63` |
 | B3 | `update_note` writes with no audit; `opt_in`/`opt_out` beside it both audit | Low | pre-existing | `volunteer_profile_service.py:54` |
-| B4 | `bracket.updated` / `bracket.deleted` have no `EventType`, though `bracket.created` does | Low (contract) | new | `event_types.py:94-107` |
+| B4 | ~~`bracket.updated` / `bracket.deleted` have no `EventType`~~ — **retracted, false positive** | — | — | see §2 B4 |
 | C1 | `set_seeds` issues one UPDATE per entry (64 queries for a 64-entrant reseed) | Medium (perf) | new | `bracket_service.py:405-408` |
 | C2 | Service-layer direct ORM writes where a repository method exists | Low | new | `bracket_service.py:320`, `:136`, `series.py:91` |
 | D1 | `check_layer_exports.py` false-positives on the private `_crew_repository.py` | **Medium (guardrail)** | pre-existing | `.claude/scripts/check_layer_exports.py:33` |
@@ -59,10 +59,10 @@ Only `TenantScopedRepository` reached full adoption, and it is the one whose tar
 
 ### The four highest-leverage fixes
 
-1. **Widen `write_and_publish` so the 24 non-adopters *can* adopt**, then convert the 13 drop-ins and delete `_audit_and_emit`. The reason adoption stalled is diagnosable (A1): the event dict is systematically the audit dict *plus* routing keys, and the helper has no way to say that. Fixing the signature converts ~37 sites, not 13.
-2. **Fix D1 and D2** — a two-line diff each. Three of fourteen `check_*` hooks currently cry wolf on untouched `main`; that is what teaches contributors to skim past the other eleven.
-3. **Close B1–B3.** Three real audit gaps, each sitting directly beside a correctly-audited sibling.
-4. **Teach `check_dry_regressions.py` the three stalled primitives**, so A1–A3 cannot re-accumulate.
+1. **Widen `write_and_publish` so the 24 non-adopters *can* adopt**, then convert the 13 drop-ins and delete `_audit_and_emit`. The reason adoption stalled is diagnosable (A1): the event dict is systematically the audit dict *plus* routing keys, and the helper has no way to say that. _[Done for the signature + 15 sites; the rest deferred on test-stub coupling — §8.]_
+2. **Fix D1 and D2** — a two-line diff each. Three of fourteen `check_*` hooks currently cry wolf on untouched `main`; that is what teaches contributors to skim past the other eleven. _[Done — 24/24 hooks now clean tree-wide.]_
+3. **Close B1–B3.** Three real audit gaps, each sitting directly beside a correctly-audited sibling. _[Done.]_
+4. **Teach `check_dry_regressions.py` the three stalled primitives**, so A1–A3 cannot re-accumulate. _[Done for the audit+publish pair and the local wrapper; `ServiceTableView` adoption (A2) is still unguarded.]_
 
 ---
 
@@ -138,11 +138,17 @@ Each of these was verified by reading the method, not by sweep — and each sits
 
 `application/services/volunteer/volunteer_profile_service.py:54-58` writes `profile.note` and returns. The two methods immediately above it — `opt_in` (`:40-44`) and `opt_out` (`:46-52`) — both write an audit row. A staff-visible note on a volunteer's profile is a tracked change everywhere else in the codebase.
 
-### B4 [Low, new] Bracket authoring is half-published
+### B4 ~~[Low, new] Bracket authoring is half-published~~ — **RETRACTED (false positive)**
 
-`event_types.py:94-107` registers 14 `BRACKET_*` events. `AuditActions` has 16 — the two without an `EventType` are `BRACKET_UPDATED` and `BRACKET_DELETED`. The consequence for the **external contract**: a webhook subscriber is told when a stage is *created* (`bracket_service.py:146`) and when anything happens to it afterwards, but never when it is renamed, reseeded, restaged, or deleted (`:182`, `:219`, `:245`, `:410` — all audit-only).
+The original finding read: *`event_types.py` registers 14 `BRACKET_*` events while `AuditActions` has 16; `BRACKET_UPDATED` and `BRACKET_DELETED` have no `EventType`, so a subscriber never learns a stage was renamed, reseeded, restaged, or deleted — and since `BRACKET_CREATED` **is** published, the subsystem is internally inconsistent.*
 
-This may be deliberate; the file documents that choice elsewhere ("*Qualifier/pool/permalink authoring and admin grants stay audit-only*"). But brackets made the opposite choice for `created`, so the subsystem is internally inconsistent either way. **Suggested fix:** decide explicitly — either add the two events, or drop `BRACKET_CREATED` to audit-only and document authoring as internal, as the qualifier block does.
+**This was wrong, and the codebase already had the answer.** `tests/services/test_event_audit_parity.py` is a ratchet test asserting every `AuditAction` is either emitted as an event or listed in an explicit eventless ledger with a rationale. Both actions are in that ledger, under `_EVENT_CANDIDATES`, with this reasoning recorded at `:35-40`:
+
+> Bracket *definition* authoring, the peer of the tournament CRUD above: both are DRAFT-only (name/stage/config, round chrome, reseeding, delete), so nothing competitive has happened yet for a subscriber to react to. The lifecycle events a bracket does emit start at `BRACKET_STARTED`.
+
+That is a deliberate, documented, test-enforced decision — not drift. The "inconsistency" with `BRACKET_CREATED` is also thinner than claimed: announcing that a stage now exists is useful, while its subsequent draft-edits are noise on a stage nobody is playing yet.
+
+**How it was caught:** the remediation added the two `EventType` members, and the parity ratchet failed with *"Ledger entries that are now emitted events: ['bracket.deleted', 'bracket.updated']"*. The change was reverted. This is the ratchet doing precisely its job — and a reminder that this report's §6 praise for `_no_external_network` ("made mechanically unrepeatable") applies here too: **the audit should have consulted the eventless ledger before calling the asymmetry drift.** Any future claim that an action is missing an event must check that file first.
 
 ---
 
@@ -309,3 +315,67 @@ Extend `check_dry_regressions.py` — which today references none of these primi
 3. a new `_load_*_or_404` whose body is a bare `require_found` one-liner already present in another router.
 
 `check_dry_regressions.py` is the model the previous audit named for this, and A1–A3 are the evidence that an extraction without one decays back into optional style.
+
+---
+
+## 8. Remediation status
+
+Landed in the same branch as this report, in the leverage order of §7. The full
+suite is green and **all 24 guardrail hooks are clean tree-wide** (they were
+21/24 when the report was written).
+
+### Shipped
+
+| Finding | What changed |
+|---|---|
+| **D1** | `check_layer_exports.py` now skips underscore-prefixed modules — `_crew_repository.py`, `_base.py` and `_tenant.py` are package-private by convention. |
+| **D2** | `check_secret_leak.py` gained `is_public_config()`: names ending `_URL`/`_PREFIX`/… are exempt **only when the value is also benign**. A `*_URL` carrying userinfo (`user:pw@host`) or a query credential (`?access_token=…`) is still flagged. Verified against a probe covering both directions. |
+| **A1 (partial)** | `write_and_publish` gained `event_extra=` / `event_details=`, and **15 sites** migrated: the 12 mechanical drop-ins (10 in brackets), `race_room_service._audit_and_emit` (now builds its detail dict then delegates), and crew signup/undo. Five now-dead `Event`/`event_bus` imports removed. |
+| **A3** | `load_user_or_404` hoisted into `api/_helpers.py`; the three byte-identical copies deleted and their orphaned imports cleaned. |
+| **B1** | `BracketService.enroll` now writes `BRACKET_ENTRY_ADDED` (new audit action, registered in the eventless ledger). |
+| **B2** | `set_best_of` now audits `BRACKET_UPDATED` and writes via `repository.update_match`. |
+| **B3** | `update_note` now audits `VOLUNTEER_NOTE_UPDATED` (new action, ledgered as tenant-internal/personal). |
+| **C1** | `set_seeds` → `BracketRepository.set_entry_seeds`: one statement per distinct seed instead of one UPDATE per entry. A 64-entrant reseed drops from 64 sequential round-trips to a handful. |
+| **C2** | `drop_entrant` → `update_entrant`; `create_bracket`'s cross-aggregate write → `TournamentRepository.update`; `set_best_of` → `update_match`. Three named `update_*` methods added to `BracketRepository` for its five-model aggregate, each delegating to the one shared setattr-and-save. |
+| **E1** | `match_schedule_service.py` **815 → 409** lines: notifications extracted to `_schedule_notifications.MatchNotificationMixin`, with `_match_recipients.py` and `_dm_context.py` holding what both halves share (the original module re-exports them, so external lazy importers are unaffected). `seed_dev.py` **801 → 768** via `seed_observability_for_tenant`, following the existing `seed_*_for_tenant` convention. |
+| **F1** | `challonge_service.py` gained a module logger; the swallowed post-push re-sync failure is now `logger.warning(..., exc_info=True)` instead of `print()`, so it reaches Sentry. |
+| **F2** | Discord bot-ready `print()` → `logger.info`. |
+| **Loop closed** | `check_dry_regressions.py` gained two rules — `audit-publish-pair` (a new `write_log` → `event_bus.publish` sequence) and `local-audit-emit-wrapper` (a new private `_audit_and_*`). Both verified to fire on a planted regression and to stay silent on a verbatim rewrite of every existing service. `CLAUDE.md`'s event-publishing section was rewritten to teach `write_and_publish` first, since it previously documented the exact shape the new rule blocks. |
+
+### Deliberately not done
+
+- **A1, the remaining ~22 divergent sites.** Migratable in principle, but 17 test
+  files stub `audit_service.write_log` and assert on its call args, so converting
+  them means churning assertions across all 17 — a large, risky diff for a pure
+  DRY win on sites that behave correctly today. The widened signature plus the new
+  hook mean the *next* site written gets it right; the backlog can be worked
+  file-by-file. **Two sites must not be mechanically converted**:
+  `crew_service.update_crew_approval` (`:196`) and `acknowledge_crew_assignment`
+  (`:257`) audit **conditionally** but publish **unconditionally** — folding them
+  into one call would silently make the event conditional. Whether that asymmetry
+  is intentional (a UI-refresh nudge) or a latent bug is an open question worth its
+  own look.
+- **A2** (12 admin tabs onto `ServiceTableView`) — mechanical but broad; genuinely
+  opportunistic, best done per-tab alongside other work in each file.
+- **F3** (three `coroutine was never awaited` warnings) — investigated and left.
+  The webhook one is deliberate (`coro.close()` at `test_webhook_service.py:198`),
+  and the other two are GC-timing artefacts surfacing at the point where
+  `conftest.py` *already* closes captured coroutines. No un-awaited service call
+  hides behind them.
+
+### Retracted
+
+- **B4** — the fix attempt tripped the `test_event_audit_parity` ratchet, which
+  revealed the omission was a documented decision. See §2 B4. Net effect: one
+  finding disproved by trying to fix it, which is the cheapest possible way to
+  learn a finding was wrong.
+
+### Test-visible consequences of the code motion
+
+Two test files needed updating, both legitimately:
+`test_match_schedule_coverage.py`'s fan-out assertions compare `__qualname__`,
+which now reads `MatchNotificationMixin.notify_*` (7 strings), and
+`test_crew_service.py`'s `audit_service` stub needed `write_and_publish` added
+beside `write_log`. Nothing else in 3,161 tests was coupled to the split — the
+`MatchPlayers.filter`-style patch targets kept working because they patch the
+shared model class, not the module that references it.

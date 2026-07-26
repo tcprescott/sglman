@@ -8,7 +8,7 @@ that composed class.
 
 from typing import Any, Dict, List, Optional
 
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_engines import get_bracket_engine
@@ -68,8 +68,9 @@ class GenerationMixin:
             'format': bracket.format.value,
             'num_entries': num_entries,
         }
-        await self.audit_service.write_log(actor, AuditActions.BRACKET_STARTED, details)
-        event_bus.publish(Event.create(EventType.BRACKET_STARTED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_STARTED, details, EventType.BRACKET_STARTED,
+        )
         # Generation writes the opening round straight to OPEN rather than
         # transitioning into it, so ``_settle_match``'s per-transition DM never
         # sees round 1 (D7). Announce them here instead — after the state pass,

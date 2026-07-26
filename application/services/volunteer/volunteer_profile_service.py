@@ -55,6 +55,9 @@ class VolunteerProfileService:
         profile = await self.repository.get_or_create_for_user(user)
         profile.note = note
         await self.repository.save(profile)
+        await self.audit_service.write_log(
+            user, AuditActions.VOLUNTEER_NOTE_UPDATED, {'note': note},
+        )
         return profile
 
     async def assignable_volunteers(self) -> List[User]:

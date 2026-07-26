@@ -10,7 +10,13 @@ both imported and listed in __all__ in the sibling __init__.py.
 A ``*_service.py``/``*_repository.py`` module with **no** matching class but
 public top-level functions (the ``discord_queue`` shape — e.g.
 ``oauth_handoff_service.py``) must instead have its module *stem* imported
-(``from . import stem``) and listed in __all__. Known miss, deliberately kept:
+(``from . import stem``) and listed in __all__.
+
+Underscore-prefixed modules are skipped outright: ``_crew_repository.py``,
+``_base.py`` and ``_tenant.py`` are package-private by convention, holding shared
+bases and helpers for their siblings rather than public API.
+
+Known miss, deliberately kept:
 acronym-cased primaries (``SpeedGamingETLService`` vs the filename-derived
 ``SpeedgamingEtlService``) are invisible to both branches.
 
@@ -27,6 +33,13 @@ def package_for(norm: str) -> str | None:
     """Return the package dir for an eligible service/repository source path."""
     base = os.path.basename(norm)
     if base == "__init__.py" or not base.endswith(".py"):
+        return None
+    # An underscore-prefixed module is package-private by convention
+    # (``_crew_repository.py``, ``_base.py``, ``_tenant.py``): whatever it defines
+    # is a shared base or helper for its siblings, deliberately *not* part of the
+    # package's public surface. Demanding a ``Generic[T]`` base be re-exported
+    # would invert the convention.
+    if base.startswith("_"):
         return None
     if norm.endswith("_service.py") and "application/services/" in f"/{norm}":
         return os.path.dirname(norm)
