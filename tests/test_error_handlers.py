@@ -51,6 +51,25 @@ class TestLogUnhandledError:
             error_id = log_unhandled_error(RuntimeError('boom'), '/x')
         sentry.set_tag.assert_called_once_with('error_id', error_id)
 
+    def test_tags_error_id_before_logging_it(self):
+        """The tag must precede the log call, not follow it.
+
+        Sentry's LoggingIntegration converts ``logger.error`` into an event
+        synchronously, capturing the scope's tags at that moment. Tagging after
+        the log left every event without an ``error_id``, making the id on the
+        user's error page unsearchable — so the *order* is the contract here, and
+        asserting ``set_tag`` was merely called does not pin it.
+        """
+        calls = []
+        with patch('middleware.error_handlers.sentry_sdk') as sentry, \
+                patch('middleware.error_handlers.logger') as log:
+            sentry.set_tag.side_effect = lambda *a, **k: calls.append('set_tag')
+            log.error.side_effect = lambda *a, **k: calls.append('log')
+            log_unhandled_error(RuntimeError('boom'), '/x')
+        assert calls == ['set_tag', 'log'], (
+            f'expected the Sentry tag to be set before the log call, got {calls}'
+        )
+
     def test_sentry_failure_does_not_break_logging(self):
         with patch('middleware.error_handlers.sentry_sdk') as sentry:
             sentry.set_tag.side_effect = RuntimeError('sentry down')

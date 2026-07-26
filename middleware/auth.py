@@ -290,8 +290,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 return RedirectResponse(f'{root_path}/login')
         else:
             # Attach the logged-in user to Sentry so error events show who hit them.
-            sentry_sdk.set_user({
-                'id': str(app.storage.user.get('discord_id')),
-                'username': app.storage.user.get('username'),
-            })
+            # Guarded on discord_id being present: str(None) would file the events
+            # under a phantom 'None' user that aggregates unrelated reports.
+            discord_id = app.storage.user.get('discord_id')
+            if discord_id is not None:
+                sentry_sdk.set_user({
+                    'id': str(discord_id),
+                    'username': app.storage.user.get('username'),
+                })
         return await call_next(request)

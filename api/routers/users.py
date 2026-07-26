@@ -19,16 +19,12 @@ from api.schemas.user_actions import (
     UserSelfUpdate,
 )
 from api.schemas.users import UserDetailResponse, UserListItem
-from application.errors import require_found
+from api._helpers import load_user_or_404
 from application.services import UserService
 from application.services.auth_service import AuthService
 from models import Role, User
 
 router = APIRouter(prefix="/users", tags=["Users"], route_class=ServiceErrorRoute)
-
-
-async def _load_user_or_404(user_id: int) -> User:
-    return require_found(await UserService().get_user_by_id(user_id), "User")
 
 
 async def _to_detail(user: User) -> UserDetailResponse:
@@ -74,7 +70,7 @@ async def get_me(actor: User = Depends(require_api_actor)):
 async def get_user(user_id: int, actor: User = Depends(require_api_actor)):
     if actor.id != user_id and not await AuthService.is_staff(actor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
-    return await _to_detail(await _load_user_or_404(user_id))
+    return await _to_detail(await load_user_or_404(user_id))
 
 
 # --- Writes -----------------------------------------------------------------
@@ -116,7 +112,7 @@ async def update_me(body: UserSelfUpdate, actor: User = Depends(require_write_ac
     summary="Update a user's profile (self or Staff)",
 )
 async def update_user(user_id: int, body: UserProfileUpdate, actor: User = Depends(require_write_actor)):
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await UserService().update_user_profile(
         user=target, actor=actor, display_name=body.display_name, pronouns=body.pronouns,
     )
@@ -129,7 +125,7 @@ async def update_user(user_id: int, body: UserProfileUpdate, actor: User = Depen
     summary="Update admin-managed fields (Staff only)",
 )
 async def update_user_admin(user_id: int, body: UserAdminUpdate, actor: User = Depends(require_write_actor)):
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await UserService().update_user_admin_fields(user=target, actor=actor, is_active=body.is_active)
     return await _to_detail(target)
 
@@ -143,7 +139,7 @@ async def update_user_tournaments(
 ):
     if actor.id != user_id and not await AuthService.is_staff(actor):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await UserService().manage_tournament_enrollments(
         user=target, actor=actor, tournament_ids=set(body.tournament_ids), is_update=True,
     )
@@ -152,7 +148,7 @@ async def update_user_tournaments(
 
 @router.post("/{user_id}/roles", summary="Grant a global role (Staff only)")
 async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(require_write_actor)):
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await UserService().grant_role(target, body.role, actor=actor)
     return {"detail": f"Granted {body.role.value}"}
 
@@ -163,5 +159,5 @@ async def grant_role(user_id: int, body: RoleRequest, actor: User = Depends(requ
     summary="Revoke a global role (Staff only)",
 )
 async def revoke_role(user_id: int, role: Role, actor: User = Depends(require_write_actor)):
-    target = await _load_user_or_404(user_id)
+    target = await load_user_or_404(user_id)
     await UserService().revoke_role(target, role, actor=actor)

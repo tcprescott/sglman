@@ -39,8 +39,7 @@ from models import (
     StreamRoom, SystemConfiguration,
     ApiToken, Feedback, FeedbackCategory, FeedbackStatus,
     Equipment, EquipmentLoan, EquipmentStatus,
-    AuditLog, TelemetryEvent, DiscordRoleMapping, TriforceText, PlayerAvailability,
-    Webhook, WebhookDelivery,
+    AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
     VolunteerPosition, VolunteerProfile, VolunteerShift,
     VolunteerAssignment, VolunteerQualification,
     VolunteerAvailability, VolunteerAvailabilityStatus,
@@ -50,6 +49,7 @@ from application.tenant_context import tenant_scope
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
+from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_online import (
     link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
 )
@@ -690,26 +690,9 @@ async def seed_for_tenant(
         # --- Native brackets (scripts/seed_brackets.py) ----------------------
         await seed_brackets_for_tenant(tenant, tournament, users)
 
-        # --- Webhooks ---------------------------------------------------------
-        # Inactive so a dev session never attempts outbound deliveries; the one
-        # seeded delivery row makes the admin delivery log render regardless.
-        webhook, _ = await Webhook.get_or_create(
-            name="Dev Webhook (inactive)", tenant=tenant,
-            defaults={
-                "url": "http://127.0.0.1:9/dev-webhook",
-                "secret": "dev-webhook-secret-not-real",
-                "event_types": ["*"],
-                "is_active": False,
-            },
-        )
-        if not await WebhookDelivery.filter(webhook=webhook, tenant=tenant).exists():
-            await WebhookDelivery.create(
-                tenant=tenant, webhook=webhook, event_type="match.created",
-                payload=json.dumps({"match_id": finished_match.id}, sort_keys=True),
-                response_status=200, attempt_count=1, success=True,
-                delivered_at=now_utc,
-            )
-        print(f"    [{tenant.slug}] webhooks ok")
+
+        # --- Webhooks + telemetry (scripts/seed_observability.py) -------------
+        await seed_observability_for_tenant(tenant, staff, finished_match, now_utc)
 
         # --- Audit log -------------------------------------------------------
         audit_specs = [
@@ -726,22 +709,6 @@ async def seed_for_tenant(
                 )
         print(f"    [{tenant.slug}] audit log ok")
 
-        # --- Telemetry -------------------------------------------------------
-        # One row per category (page / interaction / domain) so the admin
-        # telemetry report renders each section.
-        telemetry_specs = [
-            ("page", "page.view", f"/t/{tenant.slug}/", "sess-dev-1"),
-            ("interaction", "report.exported", f"/t/{tenant.slug}/admin", "sess-dev-1"),
-            ("domain", "match.created", None, None),
-        ]
-        if await TelemetryEvent.filter(tenant=tenant).count() == 0:
-            for category, event_type, path, session_id in telemetry_specs:
-                await TelemetryEvent.create(
-                    tenant=tenant, user=staff, category=category,
-                    event_type=event_type, path=path, session_id=session_id,
-                    details=json.dumps({"seed": True}),
-                )
-        print(f"    [{tenant.slug}] telemetry ok")
 
 
 async def seed_all() -> None:

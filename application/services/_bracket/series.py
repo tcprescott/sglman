@@ -88,8 +88,19 @@ class SeriesMixin:
                 "This match already has scheduled games; cancel them before "
                 "changing the series length."
             )
-        bracket_match.best_of = best_of
-        await bracket_match.save()
+        bracket_match = await self.repository.update_match(
+            bracket_match, best_of=best_of,
+        )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.BRACKET_UPDATED,
+            {
+                'bracket_id': bracket_match.bracket_id,
+                'match_id': bracket_match.id,
+                'changed': ['best_of'],
+                'best_of': best_of,
+            },
+        )
         return bracket_match
 
     # -- standings ---------------------------------------------------------

@@ -84,16 +84,14 @@ class CrewService:
         else:
             await self.tracker_repository.create(match=match, user=user, approved=False)
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             user,
             AuditActions.CREW_SIGNUP_CREATED,
             {'match_id': match_id, 'role': role},
+            EventType.CREW_SIGNUP_CREATED,
+            event_extra={'user_id': user.id},
         )
-
         match_live.publish(match_id)
-        event_bus.publish(Event.create(EventType.CREW_SIGNUP_CREATED, {
-            'match_id': match_id, 'role': role, 'user_id': user.id,
-        }, user))
 
     async def undo_crew_signup(
         self,
@@ -132,16 +130,14 @@ class CrewService:
         # Delete crew entry
         await crew_member.delete()
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             user,
             AuditActions.CREW_SIGNUP_REMOVED,
             {'match_id': match_id, 'role': role},
+            EventType.CREW_SIGNUP_REMOVED,
+            event_extra={'user_id': user.id},
         )
-
         match_live.publish(match_id)
-        event_bus.publish(Event.create(EventType.CREW_SIGNUP_REMOVED, {
-            'match_id': match_id, 'role': role, 'user_id': user.id,
-        }, user))
 
     async def get_crew_member_by_id(
         self,

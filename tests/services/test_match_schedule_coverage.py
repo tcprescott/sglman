@@ -649,9 +649,9 @@ class TestNotifyMatchScheduledFanOut:
         for coro in captured:
             coro.close()
         assert enqueued == {
-            "MatchScheduleService.notify_acknowledgment_request",
-            "MatchScheduleService.notify_match_crew",
-            "MatchScheduleService.notify_tournament_subscribers_scheduled",
+            "MatchNotificationMixin.notify_acknowledgment_request",
+            "MatchNotificationMixin.notify_match_crew",
+            "MatchNotificationMixin.notify_tournament_subscribers_scheduled",
         }
 
     async def test_stream_candidate_adds_fourth_enqueue(self, service, db):
@@ -672,10 +672,10 @@ class TestNotifyMatchScheduledFanOut:
             coro.close()
         # The stream-candidate branch adds the subscriber fan-out as the 4th enqueue.
         assert enqueued == {
-            "MatchScheduleService.notify_acknowledgment_request",
-            "MatchScheduleService.notify_match_crew",
-            "MatchScheduleService.notify_tournament_subscribers_scheduled",
-            "MatchScheduleService.notify_stream_candidate_subscribers",
+            "MatchNotificationMixin.notify_acknowledgment_request",
+            "MatchNotificationMixin.notify_match_crew",
+            "MatchNotificationMixin.notify_tournament_subscribers_scheduled",
+            "MatchNotificationMixin.notify_stream_candidate_subscribers",
         }
 
     async def test_notify_stream_candidate_enqueues_subscriber_fanout(self, service, db):

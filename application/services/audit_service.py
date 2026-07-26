@@ -170,6 +170,7 @@ class AuditActions:
     # Volunteer scheduling
     VOLUNTEER_OPTED_IN = 'volunteer.opted_in'
     VOLUNTEER_OPTED_OUT = 'volunteer.opted_out'
+    VOLUNTEER_NOTE_UPDATED = 'volunteer.note_updated'
     VOLUNTEER_POSITION_CREATED = 'volunteer.position_created'
     VOLUNTEER_POSITION_UPDATED = 'volunteer.position_updated'
     VOLUNTEER_POSITION_DELETED = 'volunteer.position_deleted'
@@ -267,6 +268,9 @@ class AuditActions:
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
     BRACKET_ENTRANT_ADDED = 'bracket.entrant_added'
     BRACKET_ENTRANT_DROPPED = 'bracket.entrant_dropped'
+    # Per-stage participation, distinct from the tournament-level roster above:
+    # who is enrolled in a stage decides who the generated graph contains.
+    BRACKET_ENTRY_ADDED = 'bracket.entry_added'
 
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'
@@ -394,16 +398,43 @@ class AuditService:
         action: str,
         details: Optional[Mapping[str, Any]],
         event_type: str,
+        *,
+        event_extra: Optional[Mapping[str, Any]] = None,
+        event_details: Optional[Mapping[str, Any]] = None,
     ) -> AuditLog:
         """Write an audit row, then fire the matching event on the in-process bus.
 
         Promotes the audit-then-publish pairing that services previously
-        hand-rolled into one call: the event carries the same ``details`` dict
-        and the same ``actor``. Publishing is synchronous, fire-and-forget, and
+        hand-rolled into one call. Publishing is synchronous, fire-and-forget, and
         never raises, so a subscriber failure cannot roll back the audit write.
+
+        By default the event carries the same ``details`` and ``actor`` as the
+        audit row. The two payloads legitimately diverge, though — the audit trail
+        is tenant-internal and records *what a human did*, while the event is an
+        **external contract** whose subscribers need routing keys (``user_id``,
+        ``tournament_id``) that the audit row already implies from its own
+        ``user`` FK and context. Two ways to express that:
+
+        - ``event_extra`` — the common case: ``details`` plus these keys. Prefer
+          this, because the shared keys stay written once.
+        - ``event_details`` — a wholly independent event payload, for the rare
+          case where the audit row carries detail the contract should *not*
+          expose (an internal ``guild_id``, a verbose diff).
+
+        Passing both is a caller bug: ``event_extra`` would silently do nothing.
         """
+        if event_extra is not None and event_details is not None:
+            raise ValueError(
+                "write_and_publish takes event_extra or event_details, not both"
+            )
         log = await self.write_log(actor, action, details)
-        event_bus.publish(Event.create(event_type, dict(details) if details else {}, actor))
+        if event_details is not None:
+            payload = dict(event_details)
+        else:
+            payload = dict(details) if details else {}
+            if event_extra:
+                payload.update(event_extra)
+        event_bus.publish(Event.create(event_type, payload, actor))
         return log
 
     async def get_logs_for_user(

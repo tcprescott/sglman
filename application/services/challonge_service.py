@@ -11,6 +11,7 @@ their own Challonge identity (scope ``me``) only so we can map them to bracket
 participants; their tokens are not retained.
 """
 
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -37,6 +38,8 @@ from models import (
     Tournament,
     User,
 )
+
+logger = logging.getLogger(__name__)
 
 # Refresh the service token slightly before it actually expires.
 _TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
@@ -588,9 +591,13 @@ class ChallongeService:
         # Sync. Failures here must not undo the successful push.
         try:
             await self._sync_tournament(cmatch.tournament, actor, force=True)
-        except (ValueError, ChallongeAPIError) as e:
-            print(f"[challonge] post-push re-sync failed for tournament "
-                  f"{cmatch.tournament_id}: {e}")
+        except (ValueError, ChallongeAPIError):
+            # Logged rather than printed so a silently-stale bracket leaves a
+            # diagnostic trail in structured logs and Sentry.
+            logger.warning(
+                "Challonge post-push re-sync failed for tournament %s",
+                cmatch.tournament_id, exc_info=True,
+            )
 
     @staticmethod
     def _participant_id_for_user(cmatch: ChallongeMatch, user_id: int) -> Optional[str]:

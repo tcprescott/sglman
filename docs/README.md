@@ -73,6 +73,7 @@ Some newer subsystems do not yet have a dedicated feature doc; they are covered 
 Point-in-time codebase audits — each report names the audited commit, labels findings [new]/[pre-existing] with `file:line` citations, and records an adversarial reconciliation pass. Remediation is delegated to follow-up work; recurring mechanical bug classes feed the `.claude/` guardrail hooks.
 
 - [reviews/2026-07-code-quality-audit.md](reviews/2026-07-code-quality-audit.md) — DRY & engineering-practices audit (whole codebase); remediated in waves, extractions listed in §4.
+- [reviews/2026-07-engineering-practices-audit.md](reviews/2026-07-engineering-practices-audit.md) — follow-up audit at `ec743eb`, covering the brackets subsystem window. Theme: **extractions land, adoption stalls** — the prior report's five extractions all shipped but three are only partly adopted. Also flags two guardrail hooks that false-positive on unmodified `main`, four audit-convention gaps, and two 800-line budget violations. §6 records which prior findings verifiably landed.
 
 ## Design records (`docs/online-tournaments/`, `docs/plans/`)
 

@@ -12,7 +12,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_engines import get_bracket_engine
@@ -156,8 +156,9 @@ class CompletionMixin:
             'round': next_round,
             'format': bracket.format.value,
         }
-        await self.audit_service.write_log(actor, AuditActions.BRACKET_ADVANCED, details)
-        event_bus.publish(Event.create(EventType.BRACKET_ADVANCED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_ADVANCED, details, EventType.BRACKET_ADVANCED,
+        )
 
     def _swiss_players(
         self,
@@ -261,8 +262,9 @@ class CompletionMixin:
             'tournament_id': bracket.tournament_id,
             'format': bracket.format.value,
         }
-        await self.audit_service.write_log(actor, AuditActions.BRACKET_COMPLETED, details)
-        event_bus.publish(Event.create(EventType.BRACKET_COMPLETED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_COMPLETED, details, EventType.BRACKET_COMPLETED,
+        )
         return bracket
 
     async def _elimination_result(

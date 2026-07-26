@@ -20,8 +20,8 @@ BracketService`` and use it unchanged.
 from typing import Any, Dict, List, Optional, Union
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
-from application.repositories import BracketRepository, UserRepository
+from application.events import EventType
+from application.repositories import BracketRepository, TournamentRepository, UserRepository
 from application.services._bracket.advancement import AdvancementMixin
 from application.services._bracket.completion import CompletionMixin
 from application.services._bracket.generation import GenerationMixin
@@ -133,8 +133,9 @@ class BracketService(
         # attaching the first stage closes the manual player-request path. Only on
         # the first stage: a later stage must not undo a staff re-open.
         if tournament.allow_player_match_requests and stage_order == 0:
-            tournament.allow_player_match_requests = False
-            await tournament.save(update_fields=['allow_player_match_requests'])
+            await TournamentRepository.update(
+                tournament, allow_player_match_requests=False,
+            )
 
         details = {
             'bracket_id': bracket.id,
@@ -142,8 +143,9 @@ class BracketService(
             'name': bracket.name,
             'format': fmt.value,
         }
-        await self.audit_service.write_log(actor, AuditActions.BRACKET_CREATED, details)
-        event_bus.publish(Event.create(EventType.BRACKET_CREATED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_CREATED, details, EventType.BRACKET_CREATED,
+        )
         return bracket
 
     async def update_bracket(
@@ -307,8 +309,10 @@ class BracketService(
             'display_name': entrant.display_name,
             'user_id': user_id,
         }
-        await self.audit_service.write_log(actor, AuditActions.BRACKET_ENTRANT_ADDED, details)
-        event_bus.publish(Event.create(EventType.BRACKET_ENTRANT_ADDED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_ENTRANT_ADDED, details,
+            EventType.BRACKET_ENTRANT_ADDED,
+        )
         return entrant
 
     async def drop_entrant(self, actor: Optional[User], entrant_id: int) -> BracketEntrant:
@@ -317,11 +321,14 @@ class BracketService(
             "Only Staff can manage brackets",
         )
         entrant = require_found(await self.repository.get_entrant(entrant_id), "Entrant")
-        entrant.status = BracketEntrantStatus.DROPPED
-        await entrant.save()
+        entrant = await self.repository.update_entrant(
+            entrant, status=BracketEntrantStatus.DROPPED,
+        )
         details = {'entrant_id': entrant.id, 'tournament_id': entrant.tournament_id}
-        await self.audit_service.write_log(actor, AuditActions.BRACKET_ENTRANT_DROPPED, details)
-        event_bus.publish(Event.create(EventType.BRACKET_ENTRANT_DROPPED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_ENTRANT_DROPPED, details,
+            EventType.BRACKET_ENTRANT_DROPPED,
+        )
         return entrant
 
     # -- enrollment (per-stage entries) -----------------------------------
@@ -348,13 +355,25 @@ class BracketService(
         if await self.repository.get_entry_for_entrant(bracket_id, entrant_id) is not None:
             raise ValueError("Entrant is already enrolled in this bracket")
 
-        return await self.repository.create_entry(
+        entry = await self.repository.create_entry(
             bracket_id=bracket_id,
             entrant_id=entrant_id,
             seed=seed,
             group_number=group_number,
             status=BracketEntryStatus.ACTIVE,
         )
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.BRACKET_ENTRY_ADDED,
+            {
+                'entry_id': entry.id,
+                'bracket_id': bracket_id,
+                'tournament_id': bracket.tournament_id,
+                'entrant_id': entrant_id,
+                'seed': seed,
+            },
+        )
+        return entry
 
     async def set_seeds(
         self,
@@ -402,10 +421,7 @@ class BracketService(
                 )
             seen[seed] = eid
 
-        for entry_id, seed in seeds.items():
-            entry = entry_by_id[entry_id]
-            entry.seed = seed
-            await entry.save()
+        await self.repository.set_entry_seeds(seeds)
 
         await self.audit_service.write_log(
             actor,

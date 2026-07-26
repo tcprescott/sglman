@@ -66,7 +66,17 @@ See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern 
 
 **Audit logging:** action strings are namespaced `verb.object` (e.g. `match.created`) — use a constant from `AuditActions` (add one when introducing a new action), pass `actor: User` explicitly (never guard with `if actor:`), and pass `details` as a plain dict. Full conventions: [docs/features/audit-logging.md](docs/features/audit-logging.md).
 
-**Event publishing:** after a service commits a change (and after its audit write), fire-and-forget an event on the in-process bus so subscribers (webhooks, UI refresh) can react: `event_bus.publish(Event.create(EventType.MATCH_CREATED, {...}, actor))` (`from application.events import Event, EventType, event_bus`). `EventType` names mirror `AuditActions` and are an **external contract** — add a member to `EventType` + `EventType.ALL` for a new event; treat renames as breaking. `publish` is synchronous, never raises, and never blocks. Lives at `application/events/` (a peer of `services/`, so it's exempt from the architecture hook). Its narrow sibling `application/events/match_live.py` is **not** the same thing: that one carries only `(match_id, change_type)` to nudge open UI views. Publish domain events on `event_bus`; use `match_live` only for UI refresh. Detail: [docs/features/event-system.md](docs/features/event-system.md).
+**Event publishing:** after a service commits a change, fire-and-forget an event on the in-process bus so subscribers (webhooks, UI refresh) can react. When the change is also audited — the usual case — do both in one call rather than hand-rolling the pair (`check_dry_regressions.py` blocks a new `write_log` + `event_bus.publish` sequence):
+
+```python
+await self.audit_service.write_and_publish(
+    actor, AuditActions.MATCH_CREATED, details, EventType.MATCH_CREATED,
+    event_extra={'tournament_id': match.tournament_id},   # event-only routing keys
+    # or event_details={...} for a wholly separate event payload
+)
+```
+
+Use bare `event_bus.publish(Event.create(EventType.X, {...}, actor))` (`from application.events import Event, EventType, event_bus`) only where there is no audit row to pair with — a worker observation, or a publish that must fire on a path the audit deliberately skips. `EventType` names mirror `AuditActions` and are an **external contract** — add a member to `EventType` + `EventType.ALL` for a new event; treat renames as breaking. `publish` is synchronous, never raises, and never blocks. Lives at `application/events/` (a peer of `services/`, so it's exempt from the architecture hook). Its narrow sibling `application/events/match_live.py` is **not** the same thing: that one carries only `(match_id, change_type)` to nudge open UI views. Publish domain events on `event_bus`; use `match_live` only for UI refresh. Detail: [docs/features/event-system.md](docs/features/event-system.md).
 
 ## Timezone handling
 

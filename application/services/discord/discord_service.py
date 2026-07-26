@@ -130,7 +130,7 @@ def get_discord_bot() -> commands.Bot:
         
         @_bot_instance.event
         async def on_ready() -> None:
-            print(f'Discord bot ready. Logged in as {_bot_instance.user}')
+            logger.info('Discord bot ready. Logged in as %s', _bot_instance.user)
 
         @_bot_instance.event
         async def on_interaction(interaction: discord.Interaction) -> None:

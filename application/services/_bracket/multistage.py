@@ -11,7 +11,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
 from application.services.bracket_config import AdvancementConfig
@@ -77,11 +77,9 @@ class MultiStageMixin:
             'to_bracket_id': next_stage.id,
             'advanced': len(advancers),
         }
-        await self.audit_service.write_log(
-            actor, AuditActions.BRACKET_STAGE_ADVANCED, details
-        )
-        event_bus.publish(
-            Event.create(EventType.BRACKET_STAGE_ADVANCED, details, actor)
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_STAGE_ADVANCED, details,
+            EventType.BRACKET_STAGE_ADVANCED,
         )
         return next_stage
 

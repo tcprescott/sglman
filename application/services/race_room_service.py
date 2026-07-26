@@ -357,8 +357,12 @@ class RaceRoomService:
             detail['tournament_id'] = match.tournament_id
         if extra:
             detail.update(extra)
-        await self.audit_service.write_log(actor, audit_action, detail)
-        event_bus.publish(Event.create(event_type, detail, actor))
+        # Builds this domain's shared room-detail payload, then hands the
+        # audit-then-publish pairing to the one shared implementation rather than
+        # repeating it here.
+        await self.audit_service.write_and_publish(
+            actor, audit_action, detail, event_type,
+        )
 
 
 # Lifecycle adapter the racetimebot/ handler injects: translates a transport
