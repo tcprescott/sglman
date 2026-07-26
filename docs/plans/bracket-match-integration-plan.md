@@ -7,7 +7,7 @@
 > that gap. The [Decisions](#decisions-confirmed-2026-07-26) below were fixed
 > interactively with the maintainer. **No model changes and no migration** — the
 > work is a shared derived vocabulary, two new seam calls, one guard, richer
-> renderers, and three notifications.
+> renderers, and one new notification.
 
 ## Context: one seam, one direction, one instant
 
@@ -96,7 +96,7 @@ retracts or flags the advancement.
 | **D4** | Anonymous bracket viewers see **full live state**, including racetime room and stream links. | The public bracket becomes the link you send viewers. No new data is exposed — the schedule is already anonymous and carries all of it. |
 | **D5** | The shared status vocabulary is **derived, with no schema change.** | One pure resolver; the timestamps stay the single source of truth. A persisted column is recorded as [deferred](#deferred). |
 | **D6** | Editing the result of a match whose game already settled is **blocked**, pointing staff at the bracket's `override_result`. | One correction path. `override_result` already handles re-advancement; a second one would need an un-advance policy we do not want to own yet. |
-| **D7** | Bracket progression gets **player-facing notifications**: matchup-ready (with the schedule link), elimination/advancement, and series context folded into existing match DMs. | The bracket advancing silently is the single loudest "two systems" signal. |
+| **D7** | The only new player-facing notification is **"you have a matchup to schedule"** (with the schedule link); series context is folded into the existing match DMs. **No advancement or elimination messages** — the bracket shows those. | A DM is sent when it asks the recipient to act. Scheduling is the one thing only the entrant can do, and the bracket is their only route to it. |
 
 ## U1 — One derived status vocabulary
 
@@ -281,22 +281,29 @@ Then:
 
 ## U5 — Notifications (D7)
 
-Two of the three requested notifications share one trigger, which is worth
-stating plainly: a matchup becoming ready to schedule and an entrant advancing
-into it are **the same event** seen from two sides. So there are two messages, not
-three, both fired from `_settle_match` / `_advance_after_result` in
-`_bracket/advancement.py` at the moment a downstream `BracketMatch` reaches `OPEN`
-with both entrants linked:
+**One new message, and one existing one made richer.** A DM is sent only when it
+asks the recipient to *do* something; progression itself is something the bracket
+shows, not something it announces.
 
-- **To both entrants — "Your <round name> matchup is ready."** Opponent name and
-  seed, best-of, and a deep link to the bracket's schedule dialog. Fires **once**,
-  keyed on the `PENDING → OPEN` transition, so a matchup whose two slots fill at
-  different times does not double-DM.
-- **To the eliminated entrant — "Your run has ended."** Final placing where the
-  stage has one, and where they were knocked out. In double elimination the
-  winners-bracket loser is *not* eliminated — they get the matchup-ready DM for
-  their losers-bracket match instead. `loser_to` being non-null is exactly that
-  test, so the branch is structural, not a format special-case.
+- **"Your <round name> matchup is ready to schedule."** To both entrants, fired
+  from `_settle_match` / `_advance_after_result` in `_bracket/advancement.py` at
+  the moment a `BracketMatch` reaches `OPEN` with both entrants linked. Carries
+  the opponent's name and seed, the best-of, and a deep link to the bracket's
+  schedule dialog. Fires **once**, keyed on the `PENDING → OPEN` transition, so a
+  matchup whose two slots fill at different times does not double-DM.
+
+  It is the entrant's only route to booking — `allow_player_match_requests` is off
+  for bracket tournaments — which is what earns it a DM. Advancing and being
+  eliminated earn none: **no "you've advanced" and no "your run has ended"**
+  message (maintainer, 2026-07-26). A convenient side effect is that the double
+  elimination carve-out disappears: a winners-bracket loser simply gets the ready
+  DM for their losers-bracket matchup when it opens, by the same rule as everyone
+  else, with no `loser_to` branch to get wrong.
+
+  The **same trigger also covers a released game** (U3a): a matchup that returns
+  to unbooked is `OPEN` with a free slot again, so the entrants are told to
+  rebook rather than discovering it themselves. The DM says so explicitly rather
+  than reading as a duplicate of the first one.
 - **Series context in existing DMs** — `_match_descriptor` gains an optional
   `bracket_line` and `_match_info_lines` renders it as
   `Round: Semifinal · Game 2 of 3 · Series 1-0`. Every existing match DM
@@ -334,10 +341,10 @@ exactly what [feature-flags.md](../features/feature-flags.md) forbids.
 | U3a | **Cancel a Bo1 → the matchup is schedulable again** (the S3 regression, stated as a test). Delete a match → same. Clinch a Bo3 → game 3's slot stays consumed (the re-entrancy case). `COMPLETE` game's match deleted → result preserved, slot kept. |
 | U3b | `set_match_winner` on a settled game raises and names the bracket; `override_result` still works. |
 | U4 | `_bracket_ref` payload shape; round names identical between `layout.py` and the lifted module. |
-| U5 | Matchup-ready fires once on `PENDING → OPEN`, not twice; the double-elim winners-bracket loser gets matchup-ready, not elimination; DM opt-out respected. |
+| U5 | Matchup-ready fires once on `PENDING → OPEN`, not twice; a released game (U3a) re-fires it; **no DM on advancement or elimination** — including the double-elim winners-bracket loser, who gets only the ready DM for their losers-bracket matchup; DM opt-out respected. |
 | Tenancy | Leak test for the new batched room lookup and the release path. |
 | REST | `test_api_brackets.py` — match payloads carry the derived status. |
-| Live | `/ui-validation` for the bracket card states; `/discord-ux` for the three DM shapes. |
+| Live | `/ui-validation` for the bracket card states; `/discord-ux` for the matchup-ready DM and the series line on an existing one. |
 
 ## Dev seed
 
@@ -358,7 +365,7 @@ Idempotent (`get_or_create`) and tenant-scoped like the existing rows.
 events), `features/event-system.md` + `features/audit-logging.md`
 (`BRACKET_GAME_RELEASED`), `reference/services.md` (the new methods and modules),
 `reference/frontend.md` (bracket card statuses), `features/discord-notifications.md`
-(the two new DMs and the series line), and this file's status header.
+(the matchup-ready DM and the series line), and this file's status header.
 
 ## Deferred (recorded for later)
 
