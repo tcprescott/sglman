@@ -1,9 +1,13 @@
 import json
+import logging
 import re
 
 from nicegui import app, ui
 
+from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import User
+
+logger = logging.getLogger(__name__)
 
 
 def tab_slug(label: str) -> str:
@@ -52,6 +56,14 @@ class BaseLayout:
         self._bottom_tab_labels: list = []
         self._syncing_nav = False
         self._tab_item_refs: dict = {}
+        # Lazy tab rendering: every panel gets a container up front, but its
+        # content is built on first show. `_pending_tabs` holds the not-yet-built
+        # tabs; a label leaves it exactly once, when its content is built.
+        self._tab_containers: dict = {}
+        self._pending_tabs: dict = {}
+        # Captured at page-build time (the request context) and rebound around a
+        # deferred build, which runs in an event handler with no tenant contextvar.
+        self._tenant_id = get_current_tenant_id()
         # Base URL (including any /t/<slug> root_path) that section slugs hang
         # off of, e.g. '/t/foo/admin'. None for tab-less pages, which never
         # rewrite the URL.
@@ -360,7 +372,7 @@ class BaseLayout:
         # (drawer, bottom nav, swipe) produces identical side effects and no loops.
         self._tab_panels.set_value(label)
 
-    def _handle_tab_change(self) -> None:
+    async def _handle_tab_change(self) -> None:
         """Single sink for panel-value changes: sync the drawer highlight, the
         bottom-nav highlight, and the /base/<slug> section URL regardless of what
         drove the change (drawer item, bottom tab, or swipe). Registered after the
@@ -373,18 +385,24 @@ class BaseLayout:
             else:
                 item.props(remove='active')
         self._sync_bottom_nav(label)
+        # replace(), not push(): tab switches (incl. every swipe) update the URL for
+        # deep-linking/sharing without stacking history entries that would turn the
+        # Back button into a per-tab trap on mobile. The section is a path segment
+        # (/base/<slug>), not a query param, so the URL reads like an app route.
+        # Done before the (possibly awaited) first build so the URL lands promptly.
+        if self._base_path is not None:
+            ui.navigate.history.replace(f'{self._base_path}/{self._slug_by_label[label]}')
+        # First visit builds the panel, which loads its own data — broadcasting
+        # ``selected_tab`` as well would make it fetch twice. Afterwards the panel
+        # already exists, so the broadcast is what refreshes it.
+        if await self._build_tab(label):
+            return
         # Notify the newly-shown tab so it can refresh its data. Tabs listen via
         # ``ui.on('selected_tab', ...)`` (see theme/tables/admin_crud.wire_tab_refresh
         # and the per-tab wiring in pages/admin_tabs/*); every listener filters on its
         # own label, so a single broadcast reaches exactly the active tab. Emitted
         # client-side via the global emitEvent so e.args is the plain label string.
         ui.run_javascript(f"emitEvent('selected_tab', {json.dumps(label)})")
-        # replace(), not push(): tab switches (incl. every swipe) update the URL for
-        # deep-linking/sharing without stacking history entries that would turn the
-        # Back button into a per-tab trap on mobile. The section is a path segment
-        # (/base/<slug>), not a query param, so the URL reads like an app route.
-        if self._base_path is not None:
-            ui.navigate.history.replace(f'{self._base_path}/{self._slug_by_label[label]}')
 
     def _sync_bottom_nav(self, label: str) -> None:
         """Highlight the active tab in the bottom nav. Tabs beyond the first four
@@ -450,32 +468,79 @@ class BaseLayout:
             # flows back through _handle_tab_change.
             self._bottom_tabs.on_value_change(self._on_bottom_tab)
 
-    async def _render_tab_panels(self) -> None:
-        """Render tab panel content with programmatically controlled panel switching."""
+    @staticmethod
+    async def _render_tab_content(tab: dict) -> None:
+        """Invoke one tab's content callable, sync or async, with its optional
+        ``(func, args, kwargs)`` tuple form."""
         import inspect
 
-        async def render_tab_content(tab):
-            content = tab['content']
-            if isinstance(content, tuple):
-                content_func = content[0]
-                args = content[1] if len(content) > 1 and content[1] is not None else ()
-                kwargs = content[2] if len(content) > 2 and content[2] is not None else {}
-            else:
-                content_func = content
-                args = ()
-                kwargs = {}
-            if inspect.iscoroutinefunction(content_func):
-                await content_func(*args, **kwargs)
-            else:
-                content_func(*args, **kwargs)
+        content = tab['content']
+        if isinstance(content, tuple):
+            content_func = content[0]
+            args = content[1] if len(content) > 1 and content[1] is not None else ()
+            kwargs = content[2] if len(content) > 2 and content[2] is not None else {}
+        else:
+            content_func = content
+            args = ()
+            kwargs = {}
+        if inspect.iscoroutinefunction(content_func):
+            await content_func(*args, **kwargs)
+        else:
+            content_func(*args, **kwargs)
 
+    async def _build_tab(self, label: str, *, deferred: bool = True) -> bool:
+        """Build a tab's content the first time it is shown. Returns whether it
+        built now (``False`` means it was already built, or the label is unknown).
+
+        The tenant captured at page-build time is rebound around the build: a
+        deferred build runs inside a websocket event handler, where the tenant
+        contextvar is unset and only the client stash would answer — the same
+        hazard, and the same fix, as ``admin_crud.wire_tab_refresh``.
+
+        ``deferred`` distinguishes a post-load build (gets a spinner, because the
+        user is waiting on it) from the initial in-page build of the visible tab.
+        """
+        tab = self._pending_tabs.pop(label, None)
+        if tab is None:
+            return False
+        container = self._tab_containers[label]
+        spinner = None
+        if deferred:
+            with container:
+                spinner = ui.spinner(size='lg').classes('q-ma-md')
+        try:
+            with container:
+                with tenant_scope(self._tenant_id):
+                    await self._render_tab_content(tab)
+        except Exception:
+            logger.exception('Failed to build tab %r', label)
+            with container:
+                ui.label('This section failed to load. Try switching tabs again.') \
+                    .classes('text-negative q-ma-md')
+        finally:
+            if spinner is not None:
+                container.remove(spinner)
+        return True
+
+    async def _render_tab_panels(self) -> None:
+        """Build the panel shells, then fill in only the visible one.
+
+        Every ``ui.tab_panel`` container is created up front so panel switching,
+        deep-linked sections, and swipe all keep working, but a tab's *content* is
+        built the first time that tab is shown. The home page carries up to nine
+        tabs and a viewer sees one, so eager rendering spent ~47% of the page's
+        render CPU on panels nobody looked at
+        (docs/plans/single-worker-escape-plan.md §1.3).
+        """
         with ui.tab_panels(value=self._default_tab).props('swipeable animated').classes(
             'w-full'
         ) as self._tab_panels:
             for tab in self.tabs:
                 with ui.tab_panel(tab['label']):
-                    with ui.row().classes('full-width'):
-                        await render_tab_content(tab)
+                    self._tab_containers[tab['label']] = ui.row().classes('full-width')
+                self._pending_tabs[tab['label']] = tab
+
+        await self._build_tab(self._default_tab, deferred=False)
 
         # Panel changes (drawer click, bottom-tab tap, or swipe) all route through
         # _handle_tab_change, which syncs both highlights and the URL. Registered
