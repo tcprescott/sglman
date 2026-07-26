@@ -90,6 +90,12 @@ renders one `q-item` per tab (24 on admin) plus the bottom-nav duplicate of the
 first four, on every page load. Unlike R2/R3 the win applies to *every* page,
 including the light ones.
 
+*Note:* ≈9 % is ~6 ms, which is **below the noise floor in §2b** — so this cannot
+be validated by timing on the current rig. Either measure it structurally
+(element count per render) or batch it with R2 so the combined change clears the
+noise. Also note the drawer cannot simply be built lazily: `show-if-above` means
+it is genuinely visible on desktop, not just on toggle.
+
 ### R6 — The 6 repeated user lookups
 
 `get_user_from_discord_id` resolves the same signed-in user several times per
@@ -134,6 +140,54 @@ None of the above stays fixed without a check. Options, cheapest first:
    is not silently reverted.
 
 Prefer (1) — it catches the N+1 class generally, not just this one instance.
+
+---
+
+## 2b. Measured and rejected — do not re-try these
+
+Each of these looked like a quick win, was implemented or prototyped, measured,
+and **produced no demonstrable improvement**. Recorded so the next person does
+not spend the same afternoon.
+
+- **`BaseHTTPMiddleware` → pure ASGI.** The stack carries four of them
+  (`FunFact`, `SecurityHeaders`, `Auth`, `Tenant`), and Starlette runs the
+  downstream app in an anyio task group per middleware per request — a real,
+  documented cost. Converting the two header-only ones was implemented in full
+  (headers verified byte-for-byte). Result: sequential median **63 ms baseline vs
+  71 ms converted** — i.e. no better, with ranges overlapping almost entirely.
+  Under a 500-tab burst, **288/500 baseline vs 255/500 converted**. Reverted.
+  *If revisited, the candidates worth converting are `Auth` and `Tenant` (which
+  run real logic), not the header ones — and only with a measurement rig quieter
+  than the one described below.*
+- **Raising NiceGUI's `response_timeout`** (default 3.0 s) from the single choke
+  point at `middleware/auth.py:192`. When a page build exceeds it, NiceGUI
+  cancels the build and *deletes the client*, so a queued visitor gets nothing
+  rather than a slow page — which is exactly the burst failure mode. Raising it
+  to 20 s gave **304/500 and 219/500** against a baseline of 92, 255, 288/500.
+  No signal. Reverted.
+- **Disabling TLS on the database connection.** The profile showed heavy
+  `asyncio.sslproto` and ~1200 HMAC operations per render, because Debian's
+  packaged Postgres enables `ssl=on` with a snakeoil certificate. This is a
+  **test-environment artifact**: `postgres:16-alpine` (what `docker-compose.yml`
+  runs) ships no server certificate, so production is already un-TLS'd. It also
+  means every CPU figure in these plans is slightly **pessimistic** relative to
+  the real deployment.
+
+### Measurement noise floor — read before chasing anything small
+
+On the box these numbers were taken (driver and server sharing a host):
+
+- Sequential renders vary **±15 %** run to run (50 renders per sample, 5 samples).
+- The 16 tabs/s burst is past the system's knee and is **chaotic**: five runs of
+  the identical configuration produced 92, 219, 255, 288 and 304 connections out
+  of 500.
+
+**Anything under a ~20 % improvement cannot be validated here.** That is why the
+remaining items are structural (fewer elements, fewer queries) rather than
+micro-optimizations: only changes large enough to clear the noise are worth
+attempting without a dedicated, quiet measurement environment. Prefer
+**queries per render** as the primary metric where possible — it is exact and
+machine-independent.
 
 ---
 
