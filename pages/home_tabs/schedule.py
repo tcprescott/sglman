@@ -1,6 +1,6 @@
 
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
@@ -116,5 +116,6 @@ def schedule():
             grid_breakpoint='lt.lg',
         )
 
-        # Initial table load
-        background_tasks.create(table_view.refresh())
+        # The view loads itself once its filters are restored (MatchTableView
+        # ._initial_load) — kicking a refresh here as well raced that restore and
+        # doubled the query fan-out.

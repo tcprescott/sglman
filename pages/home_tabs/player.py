@@ -1,6 +1,6 @@
 
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import (
     BracketService,
@@ -249,5 +249,6 @@ async def render_player_dashboard():
         )
         await challonge_section()
         await bracket_section()
-        background_tasks.create(table_view.refresh())
+        # No initial refresh here: MatchTableView._initial_load owns it, and runs
+        # after the stored filters are restored rather than racing them.
 
