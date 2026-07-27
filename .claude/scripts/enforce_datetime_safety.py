@@ -22,6 +22,9 @@ import json
 import re
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
 # (compiled pattern, short name, fix hint). Each anchors on a *naive* call.
 RULES = [

@@ -16,6 +16,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 # Run pytest with a margin under the hook's configured timeout so a clean message
 # is produced instead of the harness killing the process.
 PYTEST_TIMEOUT = 110

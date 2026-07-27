@@ -15,6 +15,10 @@ import ast
 import json
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 
 def is_actor_test(test: ast.AST) -> bool:
     # if actor:

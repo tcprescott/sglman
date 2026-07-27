@@ -23,6 +23,10 @@ import json
 import re
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 DISCORD_TOKEN_RX = re.compile(r"\b[A-Za-z0-9_-]{24,}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}\b")
 SECRET_NAME_RX = re.compile(r"(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY)", re.IGNORECASE)
 PLACEHOLDER_RX = re.compile(

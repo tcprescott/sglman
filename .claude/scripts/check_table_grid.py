@@ -45,6 +45,10 @@ import json
 import re
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 _EXEMPT_RE = re.compile(r"mobile-grid:\s*exempt|noqa:\s*mobile-grid", re.IGNORECASE)
 
 

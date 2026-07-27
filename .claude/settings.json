@@ -6,37 +6,37 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_architecture.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_architecture.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_async_safety.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_async_safety.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_datetime_safety.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_datetime_safety.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_migration_safety.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_migration_safety.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_nicegui_client_api.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_nicegui_client_api.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_dry_regressions.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_dry_regressions.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_fixture_cost.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_fixture_cost.py\"",
             "timeout": 10
           }
         ]
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_safe_commands.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_safe_commands.py\"",
             "timeout": 10
           }
         ]
@@ -57,12 +57,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/install-deps.sh",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/install-deps.sh\"",
             "timeout": 300
           },
           {
             "type": "command",
-            "command": ".claude/hooks/session-start.sh",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session-start.sh\"",
             "timeout": 10
           }
         ]
@@ -74,82 +74,82 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/doc-reminder.sh",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/doc-reminder.sh\"",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_syntax.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_syntax.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_file_length.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_file_length.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_no_orm_writes.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_no_orm_writes.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_audit_actions.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_audit_actions.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_audit_actor.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_audit_actor.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_slot_context.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_slot_context.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_table_grid.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_table_grid.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_markdown_xss.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_markdown_xss.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_import_resolution.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_import_resolution.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_layer_exports.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_layer_exports.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_secret_leak.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_secret_leak.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_tenant_scoping.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_tenant_scoping.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_event_types.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_event_types.py\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/run_related_tests.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/run_related_tests.py\"",
             "timeout": 120
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_feature_flag_gating.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_feature_flag_gating.py\"",
             "timeout": 15
           }
         ]
@@ -160,27 +160,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/doc-check.sh",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/doc-check.sh\"",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/enforce_import_resolution.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_import_resolution.py\"",
             "timeout": 20
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_migration_drift.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_migration_drift.py\"",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/check_seed_coverage.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_seed_coverage.py\"",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python3 .claude/scripts/run_full_tests.py",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/run_full_tests.py\"",
             "timeout": 300
           }
         ]

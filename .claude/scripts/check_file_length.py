@@ -13,6 +13,10 @@ unreadable file, within budget — exits 0 (fail open).
 import json
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 SOFT_LIMIT = 800
 HARD_LIMIT = 1500
 

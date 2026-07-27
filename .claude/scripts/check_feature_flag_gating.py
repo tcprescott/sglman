@@ -30,7 +30,9 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+from _hook_paths import anchor
+
+REPO = anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
 # Entry surfaces scanned for the "hidden in the UI" half.
 ENTRY_SURFACE_GLOBS = (

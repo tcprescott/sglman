@@ -23,26 +23,17 @@ Exit 0 = clean / fail-open; exit 2 = unresolved first-party import (stderr expla
 import ast
 import json
 import os
-import subprocess
 import sys
 
+from _hook_paths import anchor, repo_root as _repo_root
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
 _PROVIDED_CACHE: dict[str, frozenset[str] | None] = {}
 
 
 def repo_root() -> str:
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if out.returncode == 0 and out.stdout.strip():
-            return out.stdout.strip()
-    except Exception:
-        pass
-    return os.getcwd()
+    return str(_repo_root())
 
 
 def is_first_party_top(top: str, root: str) -> bool:
