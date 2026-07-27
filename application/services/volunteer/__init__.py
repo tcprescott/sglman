@@ -14,6 +14,7 @@ from application.services.volunteer.volunteer_autoschedule_service import (
 from application.services.volunteer.volunteer_availability_service import (
     VolunteerAvailabilityService,
 )
+from application.services.volunteer.volunteer_export_service import VolunteerExportService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import (
@@ -24,6 +25,7 @@ from application.services.volunteer.volunteer_schedule_service import VolunteerS
 __all__ = [
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
+    'VolunteerExportService',
     'VolunteerPositionService',
     'VolunteerProfileService',
     'VolunteerQualificationService',

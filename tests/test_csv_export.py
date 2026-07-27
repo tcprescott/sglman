@@ -5,12 +5,15 @@ whose first non-whitespace character is one of ``= + - @`` must be escaped
 so that spreadsheet software does not interpret it as a formula.
 """
 
+import io
+import zipfile
 from datetime import datetime, timezone
 
 import pytest
 
 from application.utils import csv_export
 from application.utils.csv_export import (
+    files_to_zip_bytes,
     rows_to_csv_bytes,
     timestamped_filename,
     _csv_safe_cell,
@@ -196,3 +199,30 @@ class TestTimestampedFilename:
 
         monkeypatch.setattr(csv_export, 'datetime', FixedDateTime)
         assert timestamped_filename('peak') == 'peak-20251023T143015Z.csv'
+
+
+# ---------------------------------------------------------------------------
+# files_to_zip_bytes
+# ---------------------------------------------------------------------------
+
+
+class TestFilesToZipBytes:
+    def test_roundtrips_members_in_insertion_order(self):
+        data = files_to_zip_bytes({
+            'README.txt': b'hello',
+            'rows.csv': rows_to_csv_bytes([{'name': 'a', 'label': 'A'}], [{'a': 1}]),
+        })
+
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            assert archive.namelist() == ['README.txt', 'rows.csv']
+            assert archive.read('README.txt') == b'hello'
+            assert 'A' in archive.read('rows.csv').decode('utf-8-sig')
+
+    def test_empty_mapping_produces_a_valid_empty_archive(self):
+        with zipfile.ZipFile(io.BytesIO(files_to_zip_bytes({}))) as archive:
+            assert archive.namelist() == []
+
+    def test_member_timestamps_are_fixed(self):
+        """A ZIP date has no offset, so members carry a fixed stamp, not "now"."""
+        with zipfile.ZipFile(io.BytesIO(files_to_zip_bytes({'a.txt': b'x'}))) as archive:
+            assert archive.getinfo('a.txt').date_time == (1980, 1, 1, 0, 0, 0)

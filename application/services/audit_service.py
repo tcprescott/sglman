@@ -186,6 +186,7 @@ class AuditActions:
     VOLUNTEER_DRAFT_CLEARED = 'volunteer.draft_cleared'
     VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
     VOLUNTEER_QUALIFICATIONS_UPDATED = 'volunteer.qualifications_updated'
+    VOLUNTEER_DATA_EXPORTED = 'volunteer.data_exported'
 
     # Web push (device notifications)
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'

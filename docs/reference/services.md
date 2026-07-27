@@ -92,6 +92,7 @@ This table is a curated index of the primary services; the online-tournament, ev
 | `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
+| `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
 | `VolunteerPositionService` | [volunteer_position_service.py](../../application/services/volunteer/volunteer_position_service.py) | Coordinator-defined volunteer position CRUD | — |
 | `VolunteerQualificationService` | [volunteer_qualification_service.py](../../application/services/volunteer/volunteer_qualification_service.py) | Read and set which positions a volunteer is qualified to fill | — |
 | `VolunteerProfileService` | [volunteer_profile_service.py](../../application/services/volunteer/volunteer_profile_service.py) | Volunteer opt-in lifecycle and assignable pool | — |
@@ -959,6 +960,27 @@ Reads and replaces the set of positions a volunteer is qualified to fill. Qualif
 | `set_qualifications(actor, user, position_ids)` | `None` | Coordinator-only; replace the user's qualification set atomically; audits `volunteer.qualifications_updated`. |
 
 Collaborators: `VolunteerQualificationRepository`, `AuthService`, `AuditService`. Consumers: the coordinator volunteer management tab, `VolunteerAutoscheduleService` (reads qualifications directly from the model for performance).
+
+### volunteer_export_service.py — VolunteerExportService
+
+Read-only. Flattens the coordinator's volunteer data into plain tables so an initial schedule can be drafted in a spreadsheet and brought back by hand. Gated by `AuthService.can_manage_volunteers` and `@requires_feature(FeatureFlag.VOLUNTEERS)`, and audited under `volunteer.data_exported` — the export copies every volunteer's declared availability and free-text notes out of the app, so who took a copy and when is worth a row.
+
+| Method | Returns | Description |
+|---|---|---|
+| `build(actor, start, end)` | `VolunteerExportBundle` | Coordinator-only. Every sheet covering `[start, end]`; raises `ValueError` when the window is inverted. |
+
+The bundle carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()` — the covering note packaged with the CSVs.
+
+| Sheet | Contents |
+|---|---|
+| `volunteers` | The roster: pool/opt-in state, the volunteer's own opt-in note, qualified positions, declared and already-assigned hours. **Never windowed** — a volunteer with no availability still has to appear, since filling that gap is the job. |
+| `availability` | Every declared window overlapping the range, including `unavailable` ones, in both Eastern and ISO-8601 UTC. |
+| `positions` | Position definitions plus their staffing totals for the range. |
+| `shifts` | One row per shift with filled/open counts and the assigned names. |
+| `assignments` | One row per placement, with its source (`Auto-draft`/`Coordinator`) and whether it matches the volunteer's stated availability. |
+| `schedule` | One row per **slot**, open slots included — the grid to actually draft on, which `assignments` cannot express because an unfilled slot has no record. States: `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`. |
+
+Collaborators: the six volunteer repositories, `UserRepository` (names for the coordinators who assigned/checked in), `VolunteerProfileService.assignable_volunteers`, `VolunteerAvailabilityService.covers`, `AuthService`, `AuditService`, `TenantService`. Consumer: `VolunteerExportDialog` on both volunteer admin tabs, which renders the sheets as `README.txt` + one CSV each in a single ZIP (`files_to_zip_bytes`).
 
 ### volunteer_reminder.py — module functions
 

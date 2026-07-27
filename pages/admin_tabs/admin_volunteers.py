@@ -18,6 +18,7 @@ from application.utils.timezone import (
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 
@@ -84,6 +85,9 @@ async def admin_volunteers_page() -> None:
                           on_click=lambda: clear_draft()).props('flat color=negative')
                 ui.button('Manage positions', icon='badge',
                           on_click=lambda: open_positions_dialog()).props('flat')
+                ui.button('Export data', icon='download',
+                          on_click=lambda: VolunteerExportDialog().open()) \
+                    .props('flat').tooltip('Download the roster, availability and schedule as CSVs')
                 ui.button('Reset all volunteer data', icon='delete_forever',
                           on_click=lambda: open_reset_dialog()).props('flat color=negative')
 
