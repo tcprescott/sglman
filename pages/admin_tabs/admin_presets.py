@@ -8,8 +8,8 @@ from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
-    FeatureFlagService,
     PresetService,
+    RandomizerCredentialService,
     SeedGenerationService,
     get_user_from_discord_id,
 )
@@ -28,11 +28,11 @@ _ROW_ACTIONS = '''
 
 async def admin_presets_page() -> None:
     service = PresetService()
-    # Flag-gated randomizers the tenant isn't authorized for are dropped from the
-    # create/edit select (mirrors the tournament dialog); a stored preset on such
-    # a randomizer stays valid and editable (its value is re-added below).
-    live_flags = await FeatureFlagService().enabled_flags()
-    available_randomizers = SeedGenerationService.available_randomizers(live_flags)
+    # Randomizers whose API key this community has not configured are dropped from
+    # the create/edit select (mirrors the tournament dialog); a stored preset on
+    # such a randomizer stays valid and editable (its value is re-added below).
+    configured = await RandomizerCredentialService().configured_randomizers()
+    available_randomizers = SeedGenerationService.available_randomizers(configured)
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -60,6 +60,15 @@ async def admin_presets_page() -> None:
             return await get_user_from_discord_id(app.storage.user.get('discord_id'))
 
         async def refresh_table():
+            # Re-read the configured set, not just the rows: the admin tabs are
+            # built once per page load, so a key entered on the Randomizer Keys
+            # tab would otherwise not reach this select until a full reload —
+            # and "set the key, then author the preset" is the expected flow.
+            # ``wire_tab_refresh`` runs this on every switch back to this tab.
+            nonlocal available_randomizers
+            available_randomizers = SeedGenerationService.available_randomizers(
+                await RandomizerCredentialService().configured_randomizers()
+            )
             presets = await service.list_presets(await _current())
             table.rows = [
                 {

@@ -196,6 +196,8 @@ class AuditActions:
     PRESET_UPDATED = 'preset.updated'
     PRESET_DELETED = 'preset.deleted'
     PRESET_IMPORTED = 'preset.imported'
+    RANDOMIZER_CREDENTIAL_SET = 'randomizer_credential.set'
+    RANDOMIZER_CREDENTIAL_CLEARED = 'randomizer_credential.cleared'
 
     # SpeedGaming ETL (PR 7). Config CRUD is tenant-scoped, actor = a human
     # SYNC_ADMIN; the sync/import/skip/cancel/auto-finish rows are written by the

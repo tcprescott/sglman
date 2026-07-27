@@ -64,6 +64,7 @@ from . import availability_windows
 from .player_availability_service import PlayerAvailabilityService
 from . import oauth_handoff_service
 from .preset_service import PresetService
+from .randomizer_credential_service import RandomizerCredentialService
 from .race_room_profile_service import RaceRoomProfileService
 from .race_room_service import RaceRoomService
 from . import race_room_worker
@@ -144,6 +145,7 @@ __all__ = [
     'oauth_handoff_service',
     'PlayerAvailabilityService',
     'PresetService',
+    'RandomizerCredentialService',
     'RaceRoomProfileService',
     'RaceRoomService',
     'race_room_worker',

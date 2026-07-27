@@ -224,10 +224,9 @@ async def test_triforce_text_embed_returns_none_not_raises(bare_tenant):
 
 async def test_every_flag_declares_how_it_is_enforced():
     """Mirrors the check_feature_flag_gating hook so CI fails too, not just the
-    editing session: a flag with neither an owning service module nor per_value
-    enforcement is UI-only gated."""
+    editing session: a flag with no owning service module is UI-only gated."""
     for spec in all_specs():
-        assert spec.service_modules or spec.per_value, (
-            f'FeatureFlag.{spec.flag.name} declares no service_modules and is not '
-            'per_value — nothing verifies that its service enforces the flag.'
+        assert spec.service_modules, (
+            f'FeatureFlag.{spec.flag.name} declares no service_modules — nothing '
+            'verifies that its service enforces the flag.'
         )

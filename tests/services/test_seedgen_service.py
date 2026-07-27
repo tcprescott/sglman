@@ -153,14 +153,12 @@ class TestGenerateSeedPreset:
 class TestMockSeedgen:
     @pytest.mark.parametrize('randomizer', ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'dk64r', 'test'])
     async def test_returns_mock_url_without_network(self, service, monkeypatch, randomizer):
-        # No ALTTPR.generate / aiohttp / OOTR_API_KEY / DK64R_API_KEY needed: the
-        # mock returns before any backend is reached — even for randomizers that
-        # would otherwise raise for missing credentials (smmap/ootr/dk64r).
+        # No ALTTPR.generate / aiohttp / credential rows needed: the mock returns
+        # before any backend is reached — even for randomizers that would
+        # otherwise raise for a missing credential (smmap/ootr/dk64r). No ``db``
+        # fixture either, which is the point: nothing touches the credential table.
         monkeypatch.setenv('ENVIRONMENT', 'development')
         monkeypatch.setenv('MOCK_SEEDGEN', 'true')
-        monkeypatch.delenv('OOTR_API_KEY', raising=False)
-        monkeypatch.delenv('SMMAP_SPOILER_TOKEN', raising=False)
-        monkeypatch.delenv('DK64R_API_KEY', raising=False)
         url = await service.generate_seed(randomizer)
         assert url.startswith(f'https://mock.seedgen.local/{randomizer}/')
 
@@ -245,32 +243,55 @@ class TestGenerateZ1r:
 
 
 # ---------------------------------------------------------------------------
-# available_randomizers / gating_flag — the flag-gated selector filter
+# available_randomizers — the credential-driven selector filter
 # ---------------------------------------------------------------------------
 
 
 class TestRandomizerAvailability:
-    def test_dk64r_gated_by_dk64_flag(self):
-        from models import FeatureFlag
-        assert SeedGenerationService.gating_flag('dk64r') is FeatureFlag.DK64_RANDOMIZER
-
-    def test_ungated_randomizer_has_no_gating_flag(self):
-        assert SeedGenerationService.gating_flag('alttpr') is None
-        assert SeedGenerationService.gating_flag('ootr') is None
-
-    def test_dk64r_present_only_when_flag_live(self):
-        from models import FeatureFlag
-        without = SeedGenerationService.available_randomizers(set())
-        assert 'dk64r' not in without
-        withflag = SeedGenerationService.available_randomizers({FeatureFlag.DK64_RANDOMIZER})
-        assert 'dk64r' in withflag
-
-    def test_ungated_randomizers_always_present(self):
+    def test_keyed_randomizers_hidden_without_credentials(self):
         available = SeedGenerationService.available_randomizers(set())
-        for r in ('alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'mmr', 'smdash', 'wwr', 'test'):
+        for r in ('ootr', 'smmap', 'dk64r'):
+            assert r not in available
+
+    def test_keyed_randomizer_appears_once_configured(self):
+        available = SeedGenerationService.available_randomizers({'dk64r'})
+        assert 'dk64r' in available
+        # Configuring one key says nothing about the others.
+        assert 'ootr' not in available
+
+    def test_credential_free_randomizers_always_present(self):
+        available = SeedGenerationService.available_randomizers(set())
+        for r in ('alttpr', 'ff1r', 'z1r', 'mmr', 'smdash', 'wwr', 'test'):
             assert r in available
         # AVAILABLE_RANDOMIZERS stays whole — validity is not availability.
-        assert 'dk64r' in SeedGenerationService.AVAILABLE_RANDOMIZERS
+        for r in ('ootr', 'smmap', 'dk64r'):
+            assert r in SeedGenerationService.AVAILABLE_RANDOMIZERS
+
+
+# ---------------------------------------------------------------------------
+# Per-tenant credential resolution (the successor to the *_API_KEY env vars)
+# ---------------------------------------------------------------------------
+
+
+class TestCredentialResolution:
+    @pytest.mark.parametrize('randomizer,key,label', [
+        ('ootr', 'api_key', 'OoT Randomizer API key'),
+        ('smmap', 'spoiler_token', 'Map Rando spoiler token'),
+        ('dk64r', 'api_key', 'DK64 Randomizer API key'),
+    ])
+    async def test_missing_credential_names_it(self, service, db, randomizer, key, label):
+        with pytest.raises(ValueError, match=f'{label} is not configured'):
+            await service._credential(randomizer, key)
+
+    async def test_configured_credential_is_returned_verbatim(self, service, db):
+        from models import RandomizerCredential
+
+        await RandomizerCredential.create(randomizer='ootr', key='api_key', value='abc123')
+        assert await service._credential('ootr', 'api_key') == 'abc123'
+
+    async def test_unknown_credential_is_rejected(self, service, db):
+        with pytest.raises(ValueError, match='Unknown randomizer credential'):
+            await service._credential('alttpr', 'api_key')
 
 
 # ---------------------------------------------------------------------------
@@ -342,15 +363,24 @@ class _DK64RStub:
         return self._next('GET', url, kwargs)
 
 
+@pytest.fixture
+async def dk64r_key(db):
+    """The tenant's own DK64R credential — the successor to ``DK64R_API_KEY``.
+
+    ``db`` binds the default test tenant, so the row is auto-stamped with it.
+    """
+    from models import RandomizerCredential
+
+    await RandomizerCredential.create(randomizer='dk64r', key='api_key', value='k')
+
+
 class TestGenerateDk64r:
-    async def test_missing_api_key_raises(self, service, monkeypatch):
-        monkeypatch.delenv('DK64R_API_KEY', raising=False)
+    async def test_missing_credential_raises(self, service, db):
         preset = _preset({'settings_string': 's'})
-        with pytest.raises(ValueError, match='DK64R_API_KEY is not configured'):
+        with pytest.raises(ValueError, match='DK64 Randomizer API key is not configured'):
             await service._generate_dk64r(preset)
 
-    async def test_settings_string_happy_path(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'secret-key')
+    async def test_settings_string_happy_path(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (200, {'level_randomization': 'level_order'}),        # convert_settings
             (200, {'task_id': 'task-123', 'status': 'queued'}),   # submit-task
@@ -367,7 +397,7 @@ class TestGenerateDk64r:
 
         assert url == 'https://dk64randomizer.com/randomizer.html?seed_id=90210'
         # The API key travels as X-API-Key on the session.
-        assert stub.headers == {'X-API-Key': 'secret-key'}
+        assert stub.headers == {'X-API-Key': 'k'}
         # Convert was called with the settings string, submit with the expanded dict.
         assert stub.calls[0][1].endswith('/convert_settings')
         assert stub.calls[0][2]['json'] == {'settings': 'abc123'}
@@ -378,8 +408,7 @@ class TestGenerateDk64r:
         # Poll hits task-status for the returned task id.
         assert '/task-status/task-123' in stub.calls[2][1]
 
-    async def test_full_json_preset_skips_convert(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_full_json_preset_skips_convert(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (200, {'task_id': 't1', 'status': 'queued'}),
             (200, {'status': 'finished', 'result': {'seed_number': 5}}),
@@ -399,8 +428,7 @@ class TestGenerateDk64r:
             'level_randomization': 'level_order', 'krool_phases': 5,
         }
 
-    async def test_dev_branch_routes_to_dev_host_and_is_stripped(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_dev_branch_routes_to_dev_host_and_is_stripped(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (200, {'task_id': 't1', 'status': 'queued'}),
             (200, {'status': 'finished', 'result': {'seed_number': 77}}),
@@ -419,14 +447,12 @@ class TestGenerateDk64r:
         import json as _json
         assert '_branch' not in _json.loads(stub.calls[0][2]['json']['settings_data'])
 
-    async def test_unknown_branch_raises(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_unknown_branch_raises(self, service, monkeypatch, dk64r_key):
         preset = _preset({'_branch': 'nightly', 'krool_phases': 3})
         with pytest.raises(ValueError, match='Unknown DK64R branch'):
             await service._generate_dk64r(preset)
 
-    async def test_no_preset_falls_back_to_builtin_file(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_no_preset_falls_back_to_builtin_file(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (200, {'expanded': True}),                             # convert (builtin is a settings string)
             (200, {'task_id': 't1', 'status': 'queued'}),
@@ -441,8 +467,7 @@ class TestGenerateDk64r:
         # The committed builtin is a settings-string preset → convert runs first.
         assert stub.calls[0][1].endswith('/convert_settings')
 
-    async def test_submit_rejection_raises(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_submit_rejection_raises(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (400, {'error': 'invalid settings_data'}),            # submit-task 400
         ])
@@ -453,8 +478,7 @@ class TestGenerateDk64r:
         with pytest.raises(ValueError, match='invalid settings_data'):
             await service._generate_dk64r(preset)
 
-    async def test_task_crash_http_500_raises(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_task_crash_http_500_raises(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (200, {'task_id': 't1', 'status': 'queued'}),
             (500, {'error': 'generator exploded'}),               # task-status 500
@@ -467,8 +491,7 @@ class TestGenerateDk64r:
         with pytest.raises(ValueError, match='generate the seed'):
             await service._generate_dk64r(preset)
 
-    async def test_failed_status_raises(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_failed_status_raises(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub([
             (200, {'task_id': 't1', 'status': 'queued'}),
             (200, {'status': 'failed'}),                          # defensive failed inside 200
@@ -481,8 +504,7 @@ class TestGenerateDk64r:
         with pytest.raises(ValueError, match='failed to generate'):
             await service._generate_dk64r(preset)
 
-    async def test_poll_timeout_raises(self, service, monkeypatch):
-        monkeypatch.setenv('DK64R_API_KEY', 'k')
+    async def test_poll_timeout_raises(self, service, monkeypatch, dk64r_key):
         stub = _DK64RStub(
             [(200, {'task_id': 't1', 'status': 'queued'})],
             default=(200, {'status': 'queued', 'position': 9}),   # never finishes

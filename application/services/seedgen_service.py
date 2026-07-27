@@ -8,7 +8,6 @@ Registers not-yet-implemented stubs: MMR, SMDASH, WWR.
 
 import asyncio
 import json
-import os
 import random
 import secrets
 import time
@@ -19,12 +18,14 @@ import aiohttp
 import yaml
 from pyz3r import ALTTPR
 
+from application.errors import MissingCredentialError
+from application.randomizer_credentials import credentials_for, spec_for
 from application.tenant_context import require_tenant_id
 from application.utils.mocks.mock_seedgen import is_mock_seedgen
-from models import FeatureFlag, Preset
+from models import Preset
 
 # DK64 Randomizer (api.dk64rando.com) — a task-queue backend: submit → poll →
-# result. See docs/online-tournaments/implementation/dk64-randomizer.md.
+# result.
 DK64R_API_BASE = 'https://api.dk64rando.com/api'
 DK64R_BRANCHES = {'stable', 'dev'}
 # The player-facing site host per branch (the permalink the roll returns).
@@ -58,13 +59,6 @@ class SeedGenerationService:
     # roll). Anything else ignores the preset and rolls hard-coded settings.
     PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r'}
 
-    # Randomizers gated behind a per-tenant feature flag: they reach an upstream
-    # that requires an API key whose owner attaches usage restrictions the
-    # community must be authorized (and have agreed) to use. Availability of the
-    # flag is how a super-admin records that authorization. The mapping is used
-    # to filter selector surfaces and to gate every roll boundary.
-    FLAG_GATED_RANDOMIZERS = {'dk64r': FeatureFlag.DK64_RANDOMIZER}
-
     # Randomizers whose generator can embed community triforce texts.
     TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}
 
@@ -73,27 +67,41 @@ class SeedGenerationService:
         return generator in cls.TRIFORCE_TEXT_RANDOMIZERS
 
     @classmethod
-    def gating_flag(cls, randomizer: Optional[str]) -> Optional[FeatureFlag]:
-        """The feature flag gating ``randomizer``, or ``None`` when it is ungated.
+    def available_randomizers(cls, configured: Set[str]) -> List[str]:
+        """The randomizers a tenant may *select*, given the credentials it has set.
 
-        Every roll boundary (match schedule, REST roll, qualifier pool roll)
-        consults this to enforce the usage agreement at call time.
-        """
-        return cls.FLAG_GATED_RANDOMIZERS.get(randomizer)
-
-    @classmethod
-    def available_randomizers(cls, live_flags: Set[FeatureFlag]) -> List[str]:
-        """The randomizers a tenant may *select*, given its live feature flags.
-
-        Drops any flag-gated randomizer whose flag is not live. Validity is not
-        availability: ``AVAILABLE_RANDOMIZERS`` stays the whole set (a stored
-        ``dk64r`` preset is a valid row even where the flag is off), while the
-        two selector surfaces offer only what the tenant is authorized to use.
+        ``configured`` is ``RandomizerCredentialService.configured_randomizers()``.
+        Drops any randomizer whose upstream needs a key the community has not
+        supplied — validity is not availability: ``AVAILABLE_RANDOMIZERS`` stays
+        the whole set (a stored ``dk64r`` preset is a valid row with or without a
+        key, and each editor re-adds its own row's randomizer), while the selector
+        surfaces offer only what this community can actually roll.
         """
         return [
             r for r in cls.AVAILABLE_RANDOMIZERS
-            if r not in cls.FLAG_GATED_RANDOMIZERS or cls.FLAG_GATED_RANDOMIZERS[r] in live_flags
+            if not credentials_for(r) or r in configured
         ]
+
+    async def _credential(self, randomizer: str, key: str) -> str:
+        """This tenant's value for one randomizer credential.
+
+        The successor to the process-wide ``*_API_KEY`` env vars: credentials are
+        per tenant with no deployment-wide fallback, so a community that has not
+        supplied one gets a clear error instead of silently rolling on someone
+        else's key. Called from inside a generator, i.e. after the ``MOCK_SEEDGEN``
+        short-circuit, so mock rolls still need no credentials.
+        """
+        from application.services.randomizer_credential_service import (
+            RandomizerCredentialService,
+        )
+
+        value = await RandomizerCredentialService().resolve(randomizer, key)
+        if not value:
+            raise MissingCredentialError(
+                f'{spec_for(randomizer, key).label} is not configured for this '
+                f'community. Add it under Admin → Randomizer Keys.'
+            )
+        return value
 
     async def generate_seed(self, randomizer: str, preset: Optional[Preset] = None) -> str:
         """
@@ -235,10 +243,8 @@ class SeedGenerationService:
             URL to the generated seed
         """
         # Never fall back to a committed default — a leaked spoiler token
-        # unlocks spoiler logs for race seeds (mirrors the OOTR_API_KEY guard).
-        spoiler_token = os.environ.get('SMMAP_SPOILER_TOKEN')
-        if not spoiler_token:
-            raise ValueError('SMMAP_SPOILER_TOKEN is not configured.')
+        # unlocks spoiler logs for race seeds.
+        spoiler_token = await self._credential('smmap', 'spoiler_token')
         with open("presets/smmap/community_race_s4.json", "r", encoding="utf-8") as f:
             settings = f.read()
 
@@ -263,9 +269,7 @@ class SeedGenerationService:
 
         # The OOTR API authenticates via a ``key`` query parameter; guard
         # against silently sending key=None when it is not configured.
-        api_key = os.environ.get('OOTR_API_KEY')
-        if not api_key:
-            raise ValueError('OOTR_API_KEY is not configured.')
+        api_key = await self._credential('ootr', 'api_key')
 
         async with aiohttp.request(
             method='post',
@@ -295,13 +299,10 @@ class SeedGenerationService:
 
         The upstream is a task queue: convert settings (if needed), submit the
         task, poll until it finishes, and return a shareable dk64randomizer.com
-        permalink. The API is key-gated (``DK64R_API_KEY``, sent as ``X-API-Key``)
-        — which is why the ``dk64r`` randomizer is flag-gated at every roll
-        boundary. See docs/online-tournaments/implementation/dk64-randomizer.md.
+        permalink. The API is key-gated: the community's own key is sent as the
+        ``X-API-Key`` header on every call.
         """
-        api_key = os.environ.get('DK64R_API_KEY')
-        if not api_key:
-            raise ValueError('DK64R_API_KEY is not configured.')
+        api_key = await self._credential('dk64r', 'api_key')
 
         # Resolve settings: the preset when given, else the committed default.
         if preset is not None:

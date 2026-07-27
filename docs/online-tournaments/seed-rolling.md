@@ -68,7 +68,7 @@ Phase 1 (preset infrastructure) is **implemented**. Only ALTTPR reads `preset.se
 | ff1r | ✅ | — |
 | z1r | ✅ | — |
 | smmap (Map Rando) | ✅ | — |
-| dk64r (DK64) | ✅ | ✅ — flag-gated, needs `DK64R_API_KEY` |
+| dk64r (DK64) | ✅ | ✅ — needs the community's own DK64 Randomizer API key (Admin → Randomizer Keys) |
 
 ## Data model
 

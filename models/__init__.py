@@ -41,6 +41,7 @@ from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscript
 from .tournament import (
     GeneratedSeeds,
     Preset,
+    RandomizerCredential,
     Tournament,
     TournamentNotificationPreference,
     TournamentPlayers,
@@ -135,6 +136,7 @@ __all__ = [
     # tournament
     'GeneratedSeeds',
     'Preset',
+    'RandomizerCredential',
     'Tournament',
     'TournamentNotificationPreference',
     'TournamentPlayers',

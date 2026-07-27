@@ -66,7 +66,6 @@ one request cost one resolution rather than 3N queries.
 | REST API | `api/__init__.py` attaches `require_feature(FeatureFlag.X)` to each gated router's `include_router`; a disabled feature 404s. |
 | Auto workers | The racetime auto-open and SpeedGaming sync workers skip a tenant whose flag is off (a clean `is_enabled` check inside `tenant_scope`). Skipping, not raising: a loop over tenants must not die on the first one that lacks the feature. |
 | **The owning service** | `@requires_feature(FeatureFlag.X)` (from `application.feature_flags`) on its public entry methods — every mutation, plus the top-level reads that return the feature's data. Not internal helpers or per-row getters. Raises `FeatureDisabledError`. Each flag names its owning module(s) in `FeatureFlagSpec.service_modules`, and `check_feature_flag_gating.py` fails the edit if one of them does not enforce the flag. |
-| A value within a shared control | When the gated thing is one *option* in a shared select rather than a whole page/router (e.g. the `dk64r` seed generator), the gate is a **per-value filter at each selection surface** plus an **explicit flag check at each action boundary**. `dk64r` filters via `SeedGenerationService.available_randomizers(live_flags)` and re-checks at every roll (see [seed-generation.md](../reference/seed-generation.md#flag-gated-randomizers)). The roll check is the sanctioned service-layer flag read — it sits at the roll's authorization boundary, not inside a low-level transaction. |
 
 The admin **Features** tab itself is only role-gated (STAFF), never flag-gated —
 it is the control panel.
@@ -79,15 +78,16 @@ user, so a tenant with `VOLUNTEERS` off 404s `/volunteer` for a super-admin too.
 Gating a feature is not an authorization question, so the fix for "I can't see it"
 is to grant the tenant the flag on `/platform`, not to widen a role.
 
-### API-key randomizers are always flag-gated
+### API-key randomizers are not flag-gated
 
-A convention worth stating explicitly: **any seed randomizer whose upstream
-requires an API key to generate is gated behind a per-tenant feature flag.** The
-key's owner attaches usage restrictions the community must agree to, and a
-super-admin's availability grant is how the platform records that a given tenant
-is authorized (and has agreed) to use it — an authorization gate, not a beta
-toggle. `dk64_randomizer` (api.dk64rando.com, `DK64R_API_KEY`) is the first; new
-keyed backends follow the same rule rather than each being decided ad hoc.
+A flag is the wrong tool for a keyed randomizer, and this used to be done the
+wrong way: `dk64_randomizer` existed only to record that a community was
+authorized to use the deployment's shared DK64 API key. Randomizer credentials
+are now **per tenant** — a community supplies the key it was issued and is bound
+by — so the credential itself is the gate: the randomizer is hidden from every
+selector until the key is set, and rolling without one raises. There is nothing
+left for a flag to decide. See
+[seed-generation.md](../reference/seed-generation.md#per-tenant-credentials).
 
 ## The current flags
 
@@ -96,7 +96,6 @@ keyed backends follow the same rule rather than each being decided ad hoc.
 | `async_qualifiers` | Online tournaments | no (ships dark) | `/qualifiers`, admin Qualifiers tab, `/async-qualifiers*` API | `async_qualifier/` (`AsyncQualifierService`, `AsyncQualifierLiveRaceService`) |
 | `racetime_rooms` | Online tournaments | no | admin Racetime tab, race-room + profile API, auto-open worker | `race_room_service.py` (the worker delegates to it) |
 | `speedgaming_etl` | Online tournaments | no | admin SpeedGaming tab, `/speedgaming` API, sync worker | `speedgaming_sync_service.py`, `speedgaming_sync_worker.py` |
-| `dk64_randomizer` | Online tournaments | no | the `dk64r` seed generator: selector filter (tournament dialog, Presets tab, `/seeds/randomizers`) | per-value: every roll boundary via `gating_flag` (match roll, `POST /seeds`, qualifier pool roll) |
 | `brackets` | Online tournaments | no (ships dark) | admin Brackets tab, public bracket pages (`/tournament/{id}/brackets`, `/brackets/{id}`), `/brackets` API | `bracket_service.py` |
 | `challonge` | Community | **yes** | admin Challonge tab (no REST router exists) | `challonge_service.py`; `push_result_if_linked` soft-skips |
 | `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs (no REST router exists) | `equipment_service.py` |

@@ -16,10 +16,7 @@ the first is the failure mode this hook exists to stop:
    behind ``require_feature`` — still reaches it. UI-only gating is not gating.
 
 Each flag declares its owning ``service_modules`` in its ``FeatureFlagSpec``, so
-the check is exact rather than heuristic. A flag whose gated thing is one *value*
-in a shared control (``per_value=True``, e.g. ``dk64r`` among the randomizers)
-enforces through ``SeedGenerationService.FLAG_GATED_RANDOMIZERS`` + a
-``gating_flag`` check at each action boundary instead of a module guard.
+the check is exact rather than heuristic.
 
 Runs only when an edit could plausibly change the answer (the registry, the enum,
 a declared service module, or a known entry surface), so it stays cheap.
@@ -46,7 +43,6 @@ ENTRY_SURFACE_GLOBS = (
 
 REGISTRY = REPO / 'application' / 'feature_flags.py'
 ENUM = REPO / 'models' / 'enums.py'
-SEEDGEN = REPO / 'application' / 'services' / 'seedgen_service.py'
 
 
 def _read(path: Path) -> str:
@@ -66,7 +62,7 @@ def _flag_members() -> list[str]:
 
 
 def _specs() -> dict[str, dict]:
-    """Parse the registry statically: member -> {service_modules, per_value}.
+    """Parse the registry statically: member -> {service_modules}.
 
     Static parse rather than importing the package: the hook must run without a
     configured environment (importing models pulls in Tortoise + env vars).
@@ -83,15 +79,13 @@ def _specs() -> dict[str, dict]:
         if not (isinstance(first, ast.Attribute) and isinstance(first.value, ast.Name)
                 and first.value.id == 'FeatureFlag'):
             continue
-        entry: dict = {'service_modules': [], 'per_value': False}
+        entry: dict = {'service_modules': []}
         for kw in node.keywords:
             if kw.arg == 'service_modules':
                 entry['service_modules'] = [
                     e.value for e in getattr(kw.value, 'elts', [])
                     if isinstance(e, ast.Constant) and isinstance(e.value, str)
                 ]
-            elif kw.arg == 'per_value' and isinstance(kw.value, ast.Constant):
-                entry['per_value'] = bool(kw.value.value)
         specs[first.attr] = entry
     return specs
 
@@ -121,7 +115,7 @@ def _guards_flag(source: str, member: str) -> bool:
     )
 
 
-def _entry_surface_hits(member: str, per_value: bool = False) -> list[str]:
+def _entry_surface_hits(member: str) -> list[str]:
     """Files that hide FeatureFlag.<member> at an entry surface."""
     patterns = [
         rf'feature\s*=\s*FeatureFlag\.{member}\b',          # page decorator
@@ -129,11 +123,6 @@ def _entry_surface_hits(member: str, per_value: bool = False) -> list[str]:
         rf'FeatureFlag\.{member}\s+in\s+live\b',              # admin/home tab
         rf'is_enabled\(\s*FeatureFlag\.{member}\b',           # worker / dialog skip
     ]
-    if per_value:
-        # A per-value flag is hidden by filtering the shared control's options,
-        # which never names the flag — the mapping in FLAG_GATED_RANDOMIZERS does
-        # that. Accept the filter call as the hiding mechanism.
-        patterns.append(r'available_randomizers\(')
     hits = []
     for glob in ENTRY_SURFACE_GLOBS:
         for path in REPO.glob(glob):
@@ -161,7 +150,7 @@ def audit() -> list[str]:
             continue
 
         # --- half 1: hidden in the UI ------------------------------------
-        if not _entry_surface_hits(member, per_value=spec['per_value']):
+        if not _entry_surface_hits(member):
             problems.append(
                 f"FeatureFlag.{member} is never gated at an entry surface.\n"
                 f"    Nothing hides it, so the feature shows for tenants that lack it. Add one of:\n"
@@ -172,17 +161,6 @@ def audit() -> list[str]:
             )
 
         # --- half 2: enforced in the service -----------------------------
-        if spec['per_value']:
-            seedgen = _read(SEEDGEN)
-            if f'FeatureFlag.{member}' not in seedgen:
-                problems.append(
-                    f"FeatureFlag.{member} is declared per_value=True but is not mapped in\n"
-                    f"    SeedGenerationService.FLAG_GATED_RANDOMIZERS, so no action boundary\n"
-                    f"    enforces it. A per-value flag must filter each selection surface AND\n"
-                    f"    be re-checked via gating_flag() at every action boundary."
-                )
-            continue
-
         declared = spec['service_modules']
         if not declared:
             problems.append(
@@ -190,8 +168,7 @@ def audit() -> list[str]:
                 f"    Name the module(s) that own the feature in its FeatureFlagSpec so the\n"
                 f"    service layer is verifiably enforcing it — UI-only gating means any\n"
                 f"    caller without a gate (new page, Discord handler, worker, un-mounted\n"
-                f"    router) still reaches the feature. Set per_value=True instead if the\n"
-                f"    gated thing is one value inside a shared control."
+                f"    router) still reaches the feature."
             )
             continue
 

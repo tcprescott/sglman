@@ -137,28 +137,24 @@ class TestGenerateSeed:
         assert ok is False
         assert "not found" in message
 
-    async def test_flag_gated_randomizer_blocked_when_flag_off(self, service, db):
-        # A flag-gated randomizer (dk64r) is refused with a clean tuple — and no
-        # upstream call — when the community's DK64_RANDOMIZER flag is off. A
-        # fresh tenant starts with every flag off (unlike the db-fixture tenant).
-        from application.tenant_context import tenant_scope
-        from models import Tenant
-        b = await Tenant.create(name="NoDK64", slug="no-dk64")
-        with tenant_scope(b.id):
-            staff = await make_staff(discord_id=9100)
-            t = await Tournament.create(name="T", seed_generator="dk64r")
-            m = await Match.create(tournament=t)
-            service.seedgen_service.generate_seed = AsyncMock(return_value="url")
+    async def test_keyed_randomizer_blocked_when_credential_missing(self, service, db):
+        # A keyed randomizer (dk64r) whose credential this community has not
+        # supplied surfaces as a clean error tuple naming the missing key. The
+        # real generator runs here (no AsyncMock) — the refusal comes from
+        # credential resolution inside it, not from a boundary pre-check.
+        staff = await make_staff(discord_id=9100)
+        t = await Tournament.create(name="T", seed_generator="dk64r")
+        m = await Match.create(tournament=t)
 
-            ok, message, url = await service.generate_seed(m.id, staff)
+        ok, message, url = await service.generate_seed(m.id, staff)
 
         assert ok is False
         assert url is None
-        assert "not enabled" in message
-        service.seedgen_service.generate_seed.assert_not_awaited()
+        assert "DK64 Randomizer API key is not configured" in message
 
-    async def test_flag_gated_randomizer_allowed_when_flag_on(self, service, db):
-        # The db-fixture tenant has every flag on, so the dk64r roll proceeds.
+    async def test_keyed_randomizer_allowed_when_credential_configured(self, service, db):
+        from models import RandomizerCredential
+        await RandomizerCredential.create(randomizer="dk64r", key="api_key", value="k")
         staff = await make_staff(discord_id=9200)
         t = await Tournament.create(name="T", seed_generator="dk64r")
         m = await Match.create(tournament=t)

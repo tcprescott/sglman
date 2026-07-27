@@ -40,8 +40,7 @@ _Local setup, the mock-Discord dev loop, fixtures, migrations, tests, and CI. Pa
    | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | optional in mock mode | OAuth app credentials from the Discord Developer Portal; only needed for real login. |
    | `BASE_URL` | leave unset | Defaults to `http://localhost:8000` for local dev; used to derive the OAuth redirect URI. |
    | `REDIRECT_URL`, `OAUTH_URL` | leave unset | Derived automatically from `BASE_URL` and `DISCORD_CLIENT_ID`; override only for non-standard values. |
-   | `OOTR_API_KEY` | optional | Only for OOTR seed generation. |
-   | `SMMAP_SPOILER_TOKEN` | optional | Overrides the built-in Super Metroid Map Rando spoiler token. |
+   | `MOCK_SEEDGEN` | recommended: `true` | Returns fake seed permalinks instead of rolling real seeds, so no randomizer credentials are needed. Randomizer API keys are **not** env vars — each community sets its own on Admin → Randomizer Keys, and `seed_dev` seeds placeholders. |
 
 3. Start PostgreSQL. Two options, both driven by [`docker-compose.yml`](../docker-compose.yml) (service names: `postgres`, `wizzrobe`):
 
