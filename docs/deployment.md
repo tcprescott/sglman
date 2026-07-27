@@ -130,10 +130,17 @@ Every variable the application reads:
 | `SERVICE_HEALTH_ALERT_DM` | no | off | `application/utils/environment.py` | When truthy, an unhealthy-transition alert (PR 5) additionally Discord-DMs every super-admin. Health transitions always publish a `service_health.alert` event and capture to Sentry regardless; this opts into the noisier per-admin DM channel. Truthy values: `1`, `true`, `yes`, `on`. |
 | `VAPID_PRIVATE_KEY` | no | — | `application/services/web_push_service.py` | Enables device notifications (web push). Base64url raw 32-byte P-256 key — generate once with `poetry run python scripts/generate_vapid_keys.py`. **Keep secret and stable**: rotating it invalidates every existing subscription. Feature (and its settings UI) is off while unset. See [features/web-push.md](features/web-push.md). |
 | `VAPID_SUBJECT` | no | `BASE_URL` when https | `application/services/web_push_service.py` | `mailto:` or `https:` contact sent to push services with each delivery (RFC 8292). Without a usable value the web push feature stays off even when the key is set. |
-| `API_RATE_LIMIT_PER_MIN` | no | `120` | `api/rate_limit.py` | Per-client request budget per minute for the REST API, keyed by token (or client IP for unauthenticated requests). |
+| `API_RATE_LIMIT_PER_MIN` | no | `120` | `api/rate_limit.py` | Per-client request budget per minute, keyed by token (or client IP for unauthenticated requests). Shared by the REST API and the MCP server, so one credential gets one combined budget. |
+| `MCP_ENABLED` | no | on | `mcpserver/__init__.py` | Truthy values: `1`, `true`, `yes`, `on`. Kill switch for the remote MCP server. When off there is no `/mcp` route, no OAuth or discovery routes, and the lifespan hook is a no-op. See [features/mcp-server.md](features/mcp-server.md). |
 | `TRUST_PROXY_FORWARDED_FOR` | no | off | `api/rate_limit.py` | Truthy values: `1`, `true`, `yes`, `on`. When set, the rate limiter trusts the `X-Forwarded-For` header for the real client IP — enable only behind a trusted reverse proxy. |
 
 See [reference/authentication.md](reference/authentication.md) for how the OAuth variables are wired into the login flow.
+
+**Reverse proxy:** `/mcp` and `/.well-known/*` must be passed through unrewritten.
+`BASE_URL` must be the public URL — it is the MCP resource identifier and the
+OAuth issuer, both of which clients compare against what they requested.
+MCP's DNS-rebinding protection is deliberately disabled because `Host` and TLS
+terminate at the proxy; see [features/mcp-server.md](features/mcp-server.md).
 
 ### Startup refusals (fail-fast)
 

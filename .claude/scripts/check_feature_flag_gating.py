@@ -37,6 +37,7 @@ ENTRY_SURFACE_GLOBS = (
     'pages/**/*.py',
     'theme/**/*.py',
     'api/**/*.py',
+    'mcpserver/**/*.py',
     'middleware/*.py',
     'application/services/*_worker.py',
 )
@@ -203,7 +204,8 @@ def _relevant(norm: str) -> bool:
     if 'application/services/' in norm:
         return True
     return any(
-        seg in norm for seg in ('/pages/', '/theme/', '/api/', '/middleware/')
+        seg in norm
+        for seg in ('/pages/', '/theme/', '/api/', '/mcpserver/', '/middleware/')
     )
 
 

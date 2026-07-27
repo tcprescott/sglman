@@ -23,6 +23,7 @@ from pages import (
     equipment,
     equipment_labels,
     home,
+    mcp_consent,
     platform,
     qualifiers,
     racetime_oauth,
@@ -150,6 +151,9 @@ def init(fastapi_app: FastAPI) -> None:
     challonge_oauth.create()
     twitch_oauth.create()
     racetime_oauth.create()
+    # Tenant-less like the provider callbacks above: an MCP grant authenticates
+    # a person across the platform, not within one community.
+    mcp_consent.create()
     # Shared cross-host link handoff routes (/oauth/link/start on the platform
     # host, /oauth/link/claim on custom domains). Registered after the providers
     # so their handoff configs are in the registry; the routes are provider-

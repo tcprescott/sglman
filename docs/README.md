@@ -51,6 +51,7 @@ Implementation notes for each shipped feature.
 | [features/feature-flags.md](features/feature-flags.md) | Per-tenant feature flags: two-tier (super-admin availability + tenant enable), page/tab/API/worker gating |
 | [features/webhooks.md](features/webhooks.md) | Staff-managed outbound webhooks: signing, retries, delivery log, config UI |
 | [features/telemetry.md](features/telemetry.md) | Engagement telemetry: page views, interactions, domain-event mirror, Staff-only report |
+| [features/mcp-server.md](features/mcp-server.md) | Remote MCP server (`mcpserver/`): read-only typed tools at `/mcp` for Claude Desktop/Code, OAuth 2.1 only |
 | [features/web-push.md](features/web-push.md) | Device notifications: Declarative Web Push (iOS/Android/desktop) mirroring Discord DMs |
 | [features/discord-role-sync.md](features/discord-role-sync.md) | Map Discord guild roles to app roles at login |
 | [features/match-acknowledgment.md](features/match-acknowledgment.md) | Player and crew match acknowledgment flows |
@@ -100,6 +101,7 @@ Every source area of the repository maps to at least one doc. This table is the 
 | `main.py` | [architecture.md](architecture.md) (startup/lifespan), [reference/rest-api.md](reference/rest-api.md) (app metadata) |
 | `frontend.py` | [reference/frontend.md](reference/frontend.md), [architecture.md](architecture.md) |
 | `api/` — routers, schemas, dependencies, rate_limit | [reference/rest-api.md](reference/rest-api.md) |
+| `mcpserver/` — remote MCP server: transport (`asgi.py`), gating (`auth.py`, `registry.py`), OAuth authorization server (`oauth/`), tools (`tools/`) | [features/mcp-server.md](features/mcp-server.md) |
 | `models/` package — 58 models, 22 enums (per-domain submodules; re-exported from `models/__init__.py`) | [reference/data-model.md](reference/data-model.md) |
 | `application/services/` — 84 modules: flat `<domain>_service.py` plus the `match/`, `discord/`, `volunteer/`, `async_qualifier/`, `bracket_engines/`, `tournament_strategies/` and `_bracket/` subpackages | [reference/services.md](reference/services.md); deep dives: [reference/discord-integration.md](reference/discord-integration.md) (discord_service, discord_queue), [reference/seed-generation.md](reference/seed-generation.md) (seed_generation_service), [reference/authentication.md](reference/authentication.md) (auth_service), [features/telemetry.md](features/telemetry.md) (telemetry_service) |
 | `application/events/` — event bus (`bus.py`, `event.py`, `event_types.py`, `dispatch_queue.py`) plus `match_live.py`, the narrow match-only signal the UI subscribes to | [features/event-system.md](features/event-system.md) |

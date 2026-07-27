@@ -24,7 +24,7 @@ from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_service import TenantService
 from application.tenant_context import reset_tenant_id, set_tenant_id
-from models import ApiToken, FeatureFlag, User
+from models import ApiToken, ApiTokenOrigin, FeatureFlag, User
 
 
 async def tenant_context_scope():
@@ -74,7 +74,12 @@ async def resolve_token(
             detail="API token required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    result = await ApiTokenService().authenticate(creds.credentials)
+    try:
+        result = await ApiTokenService().resolve_actor(creds.credentials)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -82,12 +87,17 @@ async def resolve_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     user, token = result
-    if not user.is_active:
+    # An OAuth token belongs to the MCP server: it is platform-wide (no tenant)
+    # and its holder consented to a read-only tool surface, not to the REST API.
+    # Refusing it here — and refusing a PAT at /mcp — means a credential minted
+    # for one surface can never be replayed against the other.
+    if token.origin == ApiTokenOrigin.OAUTH.value:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account is inactive",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This token is for the MCP server and cannot be used with the REST API",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    # A token acts within exactly one tenant: set the request tenant context from
+    # A PAT acts within exactly one tenant: set the request tenant context from
     # it (the token was resolved globally, before any context existed), so the
     # same tenant-aware service checks the web UI uses apply here.
     tenant = await TenantService.get_by_id(token.tenant_id)

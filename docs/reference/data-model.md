@@ -453,11 +453,26 @@ Constraints: `unique_together ('guild_id', 'discord_role_id', 'app_role')`; `Met
 
 #### `ApiToken`
 
-Personal access token granting REST API access as its owning user. Only the SHA-256 hash is stored; the plaintext is shown once at creation. A token acts with the owner's full permissions unless `read_only` is set, in which case it may only call read endpoints — see [rest-api.md](rest-api.md) and [`ApiTokenService`](services.md). No `updated_at` field.
+A bearer credential acting as its owning user. Only the SHA-256 hash is stored; the plaintext is shown once. A token acts with the owner's full permissions unless `read_only` is set. No `updated_at` field.
+
+**Two kinds share this table**, distinguished by `origin`, so revocation, expiry, and the profile listing have one implementation:
+
+| `origin` | `tenant` | Surface | Scope |
+|---|---|---|---|
+| `pat` | set | `/api` | one community |
+| `oauth` | `NULL` | `/mcp` | platform-wide; each tool call names its community |
+
+Each surface refuses the other's kind, so a credential minted for one can never be replayed against the other. See [rest-api.md](rest-api.md), [features/mcp-server.md](../features/mcp-server.md), and [`ApiTokenService`](services.md).
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
+| `tenant` | FK → `Tenant` | **null** | Set for PATs; NULL for OAuth tokens, which are platform-wide |
 | `user` | FK → `User` | not null | `related_name='api_tokens'` |
+| `origin` | `CharField(16)` | default `'pat'`, `index=True` | `ApiTokenOrigin`: `pat` or `oauth` |
+| `oauth_client` | FK → `McpOAuthClient` | null | The MCP client this token was issued to |
+| `refresh_token_hash` | `CharField(64)` | null, `unique=True`, `index=True` | SHA-256 of the refresh token; rotated on every refresh |
+| `refresh_expires_at` | `DatetimeField` | null | Refresh-token expiry (30 days) |
+| `scope` | `CharField(255)` | null | OAuth scope granted |
 | `name` | `CharField(100)` | not null | User-supplied label |
 | `token_hash` | `CharField(64)` | not null, `unique=True`, `index=True` | SHA-256 of the plaintext token |
 | `token_prefix` | `CharField(24)` | not null | Non-secret prefix shown in the UI to identify the token |
@@ -467,6 +482,41 @@ Personal access token granting REST API access as its owning user. Only the SHA-
 | `revoked_at` | `DatetimeField` | null | Set when revoked; non-null tokens are rejected |
 
 Constraints: `Meta.table = 'apitoken'`.
+
+#### `McpOAuthClient`
+
+An MCP client registered through RFC 7591 dynamic client registration. **Global — no tenant FK**: an OAuth grant authenticates a user platform-wide. Clients are *public* (no secret stored) because Claude Desktop and Claude Code are native apps that cannot keep one; PKCE is what binds a code to the client that requested it. Registration is open by design — that is what lets a client self-configure from a URL — and grants nothing on its own, since every code still requires an interactive, authenticated approval.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `client_id` | `CharField(64)` | not null, `unique=True`, `index=True` | |
+| `client_name` | `CharField(255)` | not null | Shown on the consent screen and in the profile list |
+| `redirect_uris` | `JSONField` | default `[]` | Exact-match allowlist checked on every authorize and token call |
+| `grant_types`, `response_types` | `JSONField` | default `[]` | |
+| `token_endpoint_auth_method` | `CharField(32)` | default `'none'` | |
+| `scope` | `CharField(255)` | null | |
+
+Constraints: `Meta.table = 'mcpoauthclient'`.
+
+#### `McpAuthorizationCode`
+
+A single-use authorization code awaiting exchange. **Global — no tenant FK.** Only the hash is stored; `consumed_at` makes the exchange single-use, so a replayed code is refused even inside its five-minute window.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `code_hash` | `CharField(64)` | not null, `unique=True`, `index=True` | |
+| `client` | FK → `McpOAuthClient` | not null | CASCADE |
+| `user` | FK → `User` | not null | Who approved it |
+| `redirect_uri` | `CharField(2048)` | not null | Re-checked at exchange (RFC 6749) |
+| `redirect_uri_provided_explicitly` | `BooleanField` | default `True` | |
+| `code_challenge` | `CharField(128)` | not null | PKCE, verified by the MCP SDK |
+| `code_challenge_method` | `CharField(8)` | default `'S256'` | |
+| `scope` | `CharField(255)` | null | |
+| `resource` | `CharField(2048)` | null | RFC 8707 resource indicator |
+| `expires_at` | `DatetimeField` | not null | Five minutes |
+| `consumed_at` | `DatetimeField` | null | Set on exchange |
+
+Constraints: `Meta.table = 'mcpauthorizationcode'`.
 
 #### `Feedback`
 
@@ -1595,7 +1645,8 @@ The equipment, volunteering, availability, Challonge, API-token, feedback, and w
 
 | Repository | Source | Serves | Key methods |
 |---|---|---|---|
-| `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `get_by_id`, `get_by_hash`, `list_for_user`, `touch_last_used`, `revoke` |
+| `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `create_oauth_token`, `get_by_id`, `get_by_hash`, `get_by_refresh_hash`, `rotate_refresh`, `list_for_user`, `touch_last_used`, `revoke`. Reads match this tenant's PATs **or** the user's tenant-less OAuth tokens, so MCP connections stay revocable from any community. |
+| `McpAuthRepository` | [`mcp_auth_repository.py`](../../application/repositories/mcp_auth_repository.py) | `McpOAuthClient`, `McpAuthorizationCode` | `create_client`, `get_client`, `create_code`, `get_code`, `consume_code`, `purge_expired_codes`. Global by design — neither model carries a tenant. |
 | `FeedbackRepository` | [`feedback_repository.py`](../../application/repositories/feedback_repository.py) | `Feedback` | `create`, `get_by_id`, `list_recent`, `set_status` |
 | `TenantFeatureFlagRepository` | [`feature_flag_repository.py`](../../application/repositories/feature_flag_repository.py) | `TenantFeatureFlag` | `list_for_tenant`, `map_for_tenant`, `get_for_tenant`, `set_override` (tri-state; deletes an all-NULL row) |
 | `FeatureFlagGroupRepository` | [`feature_flag_group_repository.py`](../../application/repositories/feature_flag_group_repository.py) | `FeatureFlagGroup` | `list_all`, `get_by_id`, `get_by_name`, `get_default`, `create`, `update`, `delete`, `clear_default`, `count_tenants` |

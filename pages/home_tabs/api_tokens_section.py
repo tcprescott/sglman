@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 
 from nicegui import ui
 
+from application.utils.environment import get_base_url
 from application.services import ApiTokenService
-from models import User
+from models import ApiTokenOrigin, User
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
 
@@ -26,20 +27,27 @@ async def render_api_tokens_section(user: User) -> None:
             return
         with ui.column().classes('input-full-width'):
             for t in tokens:
+                is_oauth = t.origin == ApiTokenOrigin.OAUTH.value
                 with ui.row().classes('row-centered').style('justify-content: space-between; width: 100%;'):
                     with ui.column().classes('gap-0'):
                         with ui.row().classes('row-centered'):
                             ui.label(t.name).classes('text-weight-medium')
-                            if t.read_only:
-                                ui.badge('read-only').props('color=grey')
-                            ui.label(f'{t.token_prefix}…').classes('text-muted text-caption')
+                            if is_oauth:
+                                # The row's label is already the client name (it
+                                # is what the token was named at issue), so the
+                                # badge marks the *kind* rather than repeating it.
+                                ui.badge('AI client').props('color=primary')
+                            else:
+                                if t.read_only:
+                                    ui.badge('read-only').props('color=grey')
+                                ui.label(f'{t.token_prefix}…').classes('text-muted text-caption')
                         used = f'Last used {t.last_used_at:%Y-%m-%d}' if t.last_used_at else 'Never used'
                         expires = f' · Expires {t.expires_at:%Y-%m-%d}' if t.expires_at else ''
                         ui.label(used + expires).classes('text-muted text-caption')
-                    ui.button(icon='delete', on_click=lambda _, tid=t.id: revoke(tid)) \
+                    ui.button(icon='delete', on_click=lambda _, tid=t.id, o=is_oauth: revoke(tid, o)) \
                         .props('flat dense color=negative')
 
-    def revoke(token_id: int) -> None:
+    def revoke(token_id: int, is_oauth: bool = False) -> None:
         async def do_revoke() -> None:
             confirm.dialog.close()
             try:
@@ -49,8 +57,14 @@ async def render_api_tokens_section(user: User) -> None:
                 ui.notify(str(e), color='warning')
             token_list.refresh()
 
+        message = (
+            'Disconnect this AI client? It will lose access immediately and must '
+            'be reconnected to use Wizzrobe again.'
+            if is_oauth else
+            'Revoke this token? Any integration using it will stop working immediately.'
+        )
         confirm = ConfirmationDialog(
-            message='Revoke this token? Any integration using it will stop working immediately.',
+            message=message,
             on_confirm=do_revoke, confirm_text='Revoke',
         )
         confirm.open()
@@ -104,11 +118,41 @@ async def render_api_tokens_section(user: User) -> None:
         ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(raw_token)})')
         ui.notify('Token copied to clipboard.', color='positive', icon='content_copy')
 
+    def copy_text(value: str, label: str) -> None:
+        ui.run_javascript(f'navigator.clipboard.writeText({json.dumps(value)})')
+        ui.notify(f'{label} copied to clipboard.', color='positive', icon='content_copy')
+
+    def render_mcp_callout() -> None:
+        """The connect-your-AI-client callout, above the credential list.
+
+        There is no button here on purpose: an MCP connection is started from the
+        client, not from us. The one thing the user needs from this page is the
+        URL to paste, so that is what the callout gives them — everything after
+        that is the OAuth flow, which signs them in and shows a consent screen.
+        """
+        mcp_url = f'{get_base_url()}/mcp'
+        with ui.card().classes('card-full-width q-mb-sm').props('flat bordered'):
+            with ui.row().classes('row-centered no-wrap'):
+                ui.icon('smart_toy').classes('text-primary')
+                ui.label('Connect an AI client').classes('text-weight-medium')
+            ui.label(
+                'Add this URL as a custom connector in Claude (or any MCP client) to '
+                'ask questions about your communities. You will be asked to sign in '
+                'and approve the connection. Access is read-only.'
+            ).classes('text-muted text-caption')
+            with ui.row().classes('row-centered no-wrap input-full-width'):
+                ui.input(value=mcp_url).classes('col').props('outlined readonly dense')
+                ui.button(
+                    icon='content_copy',
+                    on_click=lambda: copy_text(mcp_url, 'MCP server URL'),
+                ).props('flat dense').tooltip('Copy MCP server URL')
+
     # Developer-only surface — collapsed by default so it doesn't dominate the
     # profile for the majority of users who never touch the REST API.
     with ui.card().classes('card-full-width'):
-        with ui.expansion('API tokens', icon='vpn_key').classes('w-full') \
+        with ui.expansion('API tokens & AI clients', icon='vpn_key').classes('w-full') \
                 .props('header-class=text-weight-bold'):
+            render_mcp_callout()
             ui.label(
                 'Personal tokens for the Wizzrobe REST API. Each token acts with your '
                 'permissions; mark a token read-only to limit it to read endpoints.'

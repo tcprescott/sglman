@@ -28,6 +28,7 @@ from .feedback_repository import FeedbackRepository
 from .match_acknowledgment_repository import MatchAcknowledgmentRepository
 from .match_repository import MatchRepository
 from .match_watcher_repository import MatchWatcherRepository
+from .mcp_auth_repository import McpAuthRepository
 from .preset_repository import PresetRepository
 from .randomizer_credential_repository import RandomizerCredentialRepository
 from .race_room_profile_repository import RaceRoomProfileRepository
@@ -76,6 +77,7 @@ __all__ = [
     'FeedbackRepository',
     'MatchAcknowledgmentRepository',
     'MatchRepository',
+    'McpAuthRepository',
     'MatchWatcherRepository',
     'PresetRepository',
     'RandomizerCredentialRepository',

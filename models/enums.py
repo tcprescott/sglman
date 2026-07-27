@@ -121,6 +121,20 @@ class BracketEntryStatus(str, Enum):
     ELIMINATED = 'eliminated'
 
 
+class ApiTokenOrigin(str, Enum):
+    """How an :class:`~models.ApiToken` was issued, and therefore where it works.
+
+    ``PAT`` tokens are created on the profile page, carry a ``tenant``, and are
+    accepted only by the REST API. ``OAUTH`` tokens are minted by the MCP
+    authorization server, carry no tenant (platform-wide), and are accepted only
+    at ``/mcp``. Each surface rejects the other kind so a credential minted for
+    one can never be replayed against the other.
+    """
+
+    PAT = 'pat'
+    OAUTH = 'oauth'
+
+
 class RoleSource(str, Enum):
     MANUAL = 'manual'
     DISCORD = 'discord'

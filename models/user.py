@@ -92,22 +92,44 @@ class User(Model):
 
 
 class ApiToken(Model):
-    """A personal access token granting REST API access as its owning user.
+    """A bearer credential acting as its owning user.
 
-    Only the SHA-256 hash of the token is stored; the plaintext is shown once
-    at creation. A token acts with the full permissions of ``user`` unless
-    ``read_only`` is set, in which case it may only call read endpoints.
+    Only the SHA-256 hash of the token is stored; the plaintext is shown once at
+    creation (PAT) or returned once from the token endpoint (OAuth). A token acts
+    with the full permissions of ``user`` unless ``read_only`` is set.
+
+    Two kinds share this table, distinguished by ``origin``:
+
+    - ``pat`` — a personal access token created on the profile page. ``tenant``
+      is set, and the REST API derives the request's community from it.
+    - ``oauth`` — issued by the MCP authorization server. ``tenant`` is NULL:
+      the token is platform-wide and each MCP tool call names its own community.
+      Rejected at ``/api``; a PAT is likewise rejected at ``/mcp``.
+
+    One table so revocation, expiry, and the profile listing have a single
+    implementation for both.
     """
 
     id = fields.IntField(pk=True)
-    # A token acts within one tenant; token_hash stays globally unique (the
-    # lookup happens before any tenant context exists — see api/dependencies.py).
-    tenant = fields.ForeignKeyField('models.Tenant', related_name='api_tokens', on_delete=fields.CASCADE)
+    # NULL for OAuth tokens (platform-wide). token_hash stays globally unique —
+    # the lookup happens before any tenant context exists (api/dependencies.py,
+    # mcpserver/asgi.py).
+    tenant = fields.ForeignKeyField(
+        'models.Tenant', related_name='api_tokens', on_delete=fields.CASCADE, null=True
+    )
     user = fields.ForeignKeyField('models.User', related_name='api_tokens')
     name = fields.CharField(max_length=100)
     token_hash = fields.CharField(max_length=64, unique=True, index=True)
     token_prefix = fields.CharField(max_length=24)
     read_only = fields.BooleanField(default=False)
+    origin = fields.CharField(max_length=16, default='pat', index=True)
+    oauth_client = fields.ForeignKeyField(
+        'models.McpOAuthClient', related_name='tokens', on_delete=fields.CASCADE, null=True
+    )
+    # Refresh tokens are hashed like access tokens and rotate on every use.
+    refresh_token_hash = fields.CharField(max_length=64, null=True, unique=True, index=True)
+    refresh_expires_at = fields.DatetimeField(null=True)
+    scope = fields.CharField(max_length=255, null=True)
     last_used_at = fields.DatetimeField(null=True)
     expires_at = fields.DatetimeField(null=True)
     revoked_at = fields.DatetimeField(null=True)

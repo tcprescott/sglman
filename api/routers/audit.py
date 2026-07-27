@@ -1,6 +1,5 @@
 """Audit log endpoints (read, admin only)."""
 
-import json
 from datetime import datetime
 from typing import Optional
 
@@ -9,18 +8,14 @@ from fastapi import APIRouter, Depends, Query
 from api.dependencies import ServiceErrorRoute, require_admin
 from api.schemas.audit import AuditLogEntry, AuditLogPage
 from application.services import AuditService
+from application.utils.serialization import decode_json_details
 from models import User
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit"], route_class=ServiceErrorRoute)
 
 
-def _decode_details(raw: Optional[str]):
-    if not raw:
-        return None
-    try:
-        return json.loads(raw)
-    except (ValueError, TypeError):
-        return raw
+# Shared with the MCP audit tool so both surfaces decode details identically.
+_decode_details = decode_json_details
 
 
 @router.get(

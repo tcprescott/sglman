@@ -19,6 +19,7 @@ repos_changed=0
 api_changed=0
 frontend_changed=0
 discord_changed=0
+mcp_changed=0
 
 while IFS= read -r f; do
   case "$f" in
@@ -34,6 +35,8 @@ while IFS= read -r f; do
       frontend_changed=1 ;;
     discordbot/*.py)
       [[ "$(basename "$f")" != "__init__.py" ]] && discord_changed=1 ;;
+    mcpserver/*.py|mcpserver/*/*.py)
+      mcp_changed=1 ;;
   esac
 done <<< "$ALL_CHANGED"
 
@@ -59,6 +62,9 @@ CHECKLIST=()
 }
 [[ $discord_changed -eq 1 ]] && {
   CHECKLIST+=("[ ] docs/reference/discord-integration.md — key files table, interaction handlers")
+}
+[[ $mcp_changed -eq 1 ]] && {
+  CHECKLIST+=("[ ] docs/features/mcp-server.md — tool catalogue, gates, OAuth flow")
 }
 
 # Substantial changes → remind about current-state.md
