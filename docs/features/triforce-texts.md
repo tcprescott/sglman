@@ -1,49 +1,34 @@
-# Feature: Triforce Texts
+# Triforce Texts
 
-_Added: PR #14 | Status: Stable_
+Player-submitted end-game triforce-screen lines for ALTTPR (ported from
+sahasrahbot), moderated by staff and baked into the generated seed. Gated by
+[`FeatureFlag.TRIFORCE_TEXTS`](feature-flags.md), enforced on every public method
+of `TriforceTextService`.
 
-## What It Does
+Both surfaces are **tabs**, not routes: submission on the "Triforce Texts" home
+tab ([`pages/home_tabs/triforce_texts.py`](../../pages/home_tabs/triforce_texts.py),
+with inline tournament selection), moderation on the admin tab of the same name
+([`pages/admin_tabs/triforce_texts.py`](../../pages/admin_tabs/triforce_texts.py)).
+Logic lives in
+[`triforce_text_service.py`](../../application/services/triforce_text_service.py)
+over `TriforceText` (in [`models/tournament.py`](../../models/tournament.py)).
 
-A player submission system for ALTTP (A Link to the Past) end-game triforce screen lines, ported from sahasrahbot. Players submit custom text lines that appear on the triforce screen. Admins moderate (approve/reject) each submission.
+## Behaviour
 
-## Location
+- **`approved` is tri-state**: `None` pending, `True` approved, `False` rejected —
+  with `approved_by` / `approved_at` recording the moderator. One method covers
+  both outcomes: `moderate(text_id, approved, actor)`.
+- **Per tournament.** Each row belongs to a `Tournament`; the submission tab lists
+  only tournaments whose seed generator supports texts
+  (`SeedGenerationService.supports_triforce_texts`) and that are active. Admins
+  see every submission, filterable by tournament.
+- **Submitting is a paid option.** `AuthService.can_submit_triforce_text` requires
+  the `TRIFORCE_SUBMITTER` role (staff override) on top of those two tournament
+  conditions, and `submit()` re-checks it rather than trusting the tab.
+- **Exactly three lines, ≤19 characters each**, matched against the allowed
+  character set, at least one non-blank — enforced in `submit()`.
+- Moderating and deleting are Staff or tournament-admin only and audited
+  (`triforce_text.*`); delete is confirmation-gated in the UI.
 
-Both submission and moderation are home/admin **tabs**, not standalone page routes:
-
-- Submission: the "Triforce Texts" home tab (`pages/home_tabs/triforce_texts.py`, `triforce_texts_tab()`) — requires login and inline tournament selection.
-- Moderation: the "Triforce Texts" admin tab (`pages/admin_tabs/triforce_texts.py`).
-
-## Submission Flow
-
-1. Player opens the "Triforce Texts" home tab and picks a tournament that is accepting submissions.
-2. Fills out the triforce text form (multiple lines, character limits enforced).
-3. Submits — `TriforceTextService.submit()` stores the entry with `approved=None` (pending).
-4. Admin reviews pending submissions in the admin dashboard under the "Triforce Texts" tab.
-5. Admin approves or rejects. Approved texts are exported/used for the game ROM.
-
-## Moderation
-
-- Admin view: `pages/admin_tabs/triforce_texts.py`
-- Delete is confirmation-gated via `ConfirmationDialog` (PR #31 fix).
-- A single `TriforceTextService.moderate(text_id, approved, actor)` method handles both approve and reject — pass `approved=True` to approve, `approved=False` to reject.
-- All moderate/delete actions are written to `AuditLog`.
-
-## Key Files
-
-| File | Role |
-|---|---|
-| `models.py` → `TriforceText` | Model with user FK, tournament FK, `text`, `author`, tristate `approved` (nullable bool: `None`=pending, `True`=approved, `False`=rejected), `approved_by`/`approved_at` |
-| `pages/home_tabs/triforce_texts.py` | Player submission tab |
-| `pages/admin_tabs/triforce_texts.py` | Admin moderation tab |
-| `application/services/triforce_text_service.py` | Business logic: submit, moderate, delete |
-| `application/repositories/` (triforce) | ORM queries for TriforceText |
-
-## Character/Format Constraints
-
-Character limits and line count restrictions are enforced in `TriforceTextService.submit()`. Any violation raises `ValueError` which the UI catches and displays via `ui.notify()`.
-
-## Per-Tournament Scope
-
-Each `TriforceText` row is linked to a specific `Tournament`. The submission tab lists tournaments that are accepting submissions; submitting is gated on `AuthService.can_submit_triforce_text` (a paid option per tournament). Admins see all submissions filterable by tournament.
-
-**See also:** [reference/seed-generation.md](../reference/seed-generation.md) — how approved texts integrate with ALTTPR seed generation; [reference/frontend.md](../reference/frontend.md) — submission page and moderation tab internals.
+**See also:** [seed-generation.md](../reference/seed-generation.md) — how approved
+texts reach the ALTTPR seed.

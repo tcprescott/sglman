@@ -43,14 +43,12 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    dispatch worker, off the request path. This piggybacks on events services
    already publish — no new instrumentation in the domain services.
 2. **Page views** — the shared `protected_page` / `public_page` wrapper
-   ([`middleware/auth.py`](../../middleware/auth.py)) records a `page.view` for
-   every page load. It reads the session identity + browser id during page
-   building and hands the write to `background_tasks.create`. On a
-   `protected_page` the visitor is always authenticated (`AuthMiddleware`
-   redirects anyone else before the page function runs), so those rows always
-   carry a user. A `public_page` — the bracket views — also renders for
-   signed-out visitors, so its rows can have a null `user`/`username` and are
-   attributed to `session_id` alone.
+   ([`middleware/auth.py`](../../middleware/auth.py)) records a `page.view` per
+   page load, reading the session identity + browser id during page building and
+   handing the write to `background_tasks.create`. `protected_page` rows always
+   carry a user (`AuthMiddleware` redirects anyone else first); `public_page` rows
+   — the bracket views — may have a null `user`/`username` and are attributed to
+   `session_id` alone.
 3. **Interactions** — presentation code calls `TelemetryService.track_interaction`
    for specific high-value actions. Currently wired: `report.viewed` in the
    reports dispatcher (fired only for an explicit `?report=` so a plain `/admin`
@@ -59,17 +57,11 @@ honor the `TELEMETRY_ENABLED` kill-switch.
    session_id=…)` from the presentation layer, reading identity from
    `app.storage`.
 
-## Why not just reuse the event bus / audit log?
-
-- **Event bus** carries an **external contract** (`EventType.ALL`) that webhook
-  subscribers match on. Routing high-volume page views/clicks through it would
-  flood webhook receivers and bloat that contract. Telemetry instead *consumes*
-  the bus (mirrors domain events) and captures engagement events on its own
-  side channel that only it reads.
-- **AuditLog** is a deliberate, low-volume record of privileged actions. Mixing
-  high-volume behavioral signal into it would drown the audit trail and change
-  its meaning. `TelemetryEvent` is a separate append-only table with its own
-  aggregation indexes.
+Telemetry has its own table rather than reusing either neighbour: `EventType.ALL`
+is an external webhook contract that high-volume page views would flood and
+bloat, and `AuditLog` is a low-volume record of privileged actions that
+behavioural signal would drown. Telemetry *consumes* the bus and keeps its own
+append-only table with its own aggregation indexes.
 
 ## The report
 

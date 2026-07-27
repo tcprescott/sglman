@@ -90,3 +90,45 @@ shares nothing with a `Tournament`'s, and reusing the name would collide with th
 existing `Tournament` aggregate and invite conditional behaviour in both.
 `AsyncTournament*` in upstream source and old migrations maps 1:1 onto
 `AsyncQualifier*`.
+
+## Async qualifiers
+
+The self-paced permalink-pool qualifier is a peer aggregate of `Tournament` with its
+own state machine: **window opens → draw → run → review → scored leaderboard →
+close**. Surface reference:
+[`AsyncQualifierService`](../reference/services.md#async_qualifier_servicepy--asyncqualifierservice).
+
+**Reveal == start.** A player draws a permalink and the run clock starts in the same
+atomic, row-locked transaction — there is no "look at the seed, then decide". The
+transaction is what enforces one active run per player, the `runs_per_pool` cap, and
+permalink no-repeat.
+
+**Imbalance-forcing fairness.** The draw picks a permalink at random, *unless* the
+pool's play-count spread has crossed `draw_imbalance_threshold`, at which point it
+forces the least-played one. Pure randomness leaves permalinks with wildly different
+sample sizes, and par is a mean over the fastest runs — a thin permalink produces a
+par (and therefore scores) nobody can trust. Forcing only past a threshold keeps the
+common case unpredictable.
+
+**Finish times are bounded.** A submitted time must be positive and under
+`MAX_RUN_SECONDS` (a week), so a typed-in typo is a readable validation error rather
+than an out-of-range column write.
+
+**Review is adversarial by construction.** Reviewers are the qualifier's own `admins`,
+runs are claim-locked so two reviewers cannot double-handle one, and **self-review is
+blocked** — an admin who ran the qualifier cannot approve their own run. Live racetime
+qualifier races are the deliberate exception: they skip sign-off entirely and are
+written `APPROVED`, because a racetime result is self-attributing.
+
+**Scoring.** `compute_par` is the mean of the N fastest approved runs on a permalink;
+`compute_score` is `clamp(0, 105, (2 − elapsed/par) · 100)` — par scores 100, twice par
+scores 0, and the 105 ceiling caps what a single outlier run can be worth. Forfeits,
+non-finishers and unfilled pool slots score 0. Approving or rejecting a run recomputes
+that permalink's par and rescores every approved run on it, so a late submission
+retroactively corrects the board rather than grandfathering an early par.
+
+**Active-window information lockdown.** While the qualifier is open, the leaderboard,
+the pools, and the pars are staff-only (`is_results_public`). Publishing them mid-window
+would tell a player who has not run yet exactly what time they need — which is the whole
+advantage the async format is trying not to hand out. Everything unlocks when the
+qualifier goes inactive or passes `closes_at`.

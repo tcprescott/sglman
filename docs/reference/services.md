@@ -1,6 +1,6 @@
 # Service Layer Reference
 
-_Method-level reference for `application/services/` (84 modules) and `application/utils/` (30 modules). Part of the [documentation index](../README.md)._
+_Method-level reference for `application/services/` and `application/utils/`. Part of the [documentation index](../README.md)._
 
 ## Package layout
 
@@ -14,21 +14,15 @@ _Method-level reference for `application/services/` (84 modules) and `applicatio
 | `async_qualifier/` | Qualifier lifecycle, seed draw, scoring, access rules, and config validation |
 | `bracket_engines/` | Pure pairing/progression engines behind the `bracket_format` strategy kind (auto-registered on import) |
 | `tournament_strategies/` | The strategy registry the engines register into |
-| `_bracket/` | Private mixins composed into `BracketService` (generation, advancement, completion, scheduling, series, multi-stage) |
+| `_bracket/` | Private mixins composed into `BracketService` (see [BracketService](#bracket_servicepy--bracketservice)) |
 
-Each public subpackage re-exports its names, and `application/services/__init__.py` re-exports those in turn — so **`from application.services import MatchService` works regardless of which module a service lives in**, and that is the import form callers should use. `bracket_engines`/`tournament_strategies` are the deliberate exception: they are imported by path.
-
-`application/utils/` follows the same shape: helpers sit at the top level, with `clients/` for the third-party HTTP clients (Challonge, racetime, SpeedGaming, Twitch, OAuth identity) and `mocks/` for the `MOCK_*` flags and their offline stand-ins.
+Each public subpackage re-exports its names and `application/services/__init__.py` re-exports those in turn, so **`from application.services import MatchService` works regardless of which module a service lives in** — that is the import form callers should use. `bracket_engines`/`tournament_strategies` are the deliberate exception: they are imported by path. `application/utils/` follows the same shape: helpers sit at the top level, with `clients/` for the third-party HTTP clients (Challonge, racetime, SpeedGaming, Twitch, OAuth identity) and `mocks/` for the `MOCK_*` flags and their offline stand-ins.
 
 ## Pattern & conventions
 
-Services are the business-logic layer of the [three-layer architecture](../refactoring-guide.md): pages and dialogs call services, services call repositories, repositories touch the ORM. The rules below are codebase-wide; see [CLAUDE.md](../../CLAUDE.md) for the full convention list.
+Services are the business-logic layer of the [three-layer architecture](../refactoring-guide.md): pages and dialogs call services, services call repositories, repositories touch the ORM. Layer boundaries, `ValueError`-for-user-errors, and audit conventions are codebase-wide — see [CLAUDE.md](../../CLAUDE.md), [refactoring-guide.md](../refactoring-guide.md) and [audit-logging.md](../features/audit-logging.md). What follows is specific to this layer.
 
-- **Services own business rules.** Validation, permission gates, cross-entity coordination, audit logging, and Discord notification fan-out all live here. Repositories (see [data-model.md](data-model.md)) stay free of business logic; UI stays free of writes.
-- **No NiceGUI imports.** Services never render or notify the UI; resolving the session user from `app.storage` happens in the page layer, which passes the `discord_id` into `get_user_from_discord_id`.
-- **`ValueError` for user-facing errors.** Validation failures ("Match must have at least one player", "Tournament not found") raise `ValueError`; the UI catches it and shows `ui.notify(str(e), color='warning')`.
-- **`PermissionError` for authorization failures.** Permission gates run through `AuthService.ensure(allowed, message)`, which raises `PermissionError`. UI handlers that gate-protected services catch both (see `pages/admin_tabs/admin_schedule.py`).
-- **Audit logging** uses `AuditService.write_log(actor, action, details)` with `verb.object` action constants from `AuditActions`. The actor is required — `write_log` raises `ValueError` when actor is `None`. See [audit-logging.md](../features/audit-logging.md) and the [CLAUDE.md conventions](../../CLAUDE.md).
+- **`PermissionError` for authorization failures.** Permission gates run through `AuthService.ensure(allowed, message)`, which raises `PermissionError`. UI handlers that call gate-protected services catch both it and `ValueError` (see `pages/admin_tabs/admin_schedule.py`).
 - **The `actor` parameter.** Mutating methods take the acting `User` as a trailing `actor` parameter (or `user` when the action is inherently self-service, e.g. `acknowledge_match`, `signup_crew`, `watch`). The same object feeds both the permission gate and the audit entry; callers resolve it once via `get_user_from_discord_id(app.storage.user.get('discord_id'))`.
 - **Stateless instances.** Services hold only repository/service references; instantiate per request (`MatchService()`) or call static methods on the class (`AuthService`, `SystemConfigService`). The intentional pieces of module/class state are `MatchScheduleService._seed_locks` (per-match seed-generation locks), the `discord_queue` module's queue/worker, and the `volunteer_reminder` module's background loop task.
 - **`(ok, message)` tuple returns** are the exception, not the rule, and exist only where failure is routine and must not raise:
@@ -38,33 +32,36 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 
   Everything else returns models/values and raises on failure.
 - **Fire-and-forget Discord work** is wrapped in a coroutine and handed to `discord_queue.enqueue(...)` rather than awaited inline, so DB transactions never block on Discord rate limits.
+- **Call sites are deliberately not listed.** Who calls a service changes on every UI change; `grep` the service name for an always-current answer. Sections list `Collaborators:` (what a service depends on) instead, which is stable.
 
 ## Service catalog
-
-This table is a curated index of the primary services; the online-tournament, event/webhook, service-health, and background-worker modules are documented in the sections further down rather than repeated here. For the authoritative module list, see `application/services/` (84 modules across the layout above).
 
 | Service | Module | Responsibility | Feature doc |
 |---|---|---|---|
 | `AnalyticsService` | [analytics_service.py](../../application/services/analytics_service.py) | Longitudinal trends: crew participation, volunteer hours, tournament health | — |
 | `ApiTokenService` | [api_token_service.py](../../application/services/api_token_service.py) | Bearer credential issue/revoke/authenticate (PATs and OAuth tokens) | [rest-api.md](rest-api.md) |
 | `McpAuthService` | [mcp_auth_service.py](../../application/services/mcp_auth_service.py) | The MCP OAuth 2.1 authorization server: dynamic client registration, authorization codes, access/refresh token issue and rotation | [features/mcp-server.md](../features/mcp-server.md) |
+| `AsyncQualifierService` | [async_qualifier_service.py](../../application/services/async_qualifier/async_qualifier_service.py) | Self-paced permalink-pool qualifiers: management, draw, run lifecycle, review, scoring | [online-tournaments.md](../features/online-tournaments.md) |
+| `AsyncQualifierLiveRaceService` | [async_qualifier_live_race_service.py](../../application/services/async_qualifier/async_qualifier_live_race_service.py) | Synchronous racetime qualifier races feeding `AsyncQualifierRun`s | [online-tournaments.md](../features/online-tournaments.md) |
 | `AuditService` / `AuditActions` | [audit_service.py](../../application/services/audit_service.py) | Write and query the audit trail | [audit-logging.md](../features/audit-logging.md) |
-| `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](../features/role-based-auth.md) |
+| `AuthService` / `get_user_from_discord_id` | [auth_service.py](../../application/services/auth_service.py) | Role checks and permission policy | [authentication.md](authentication.md), [role-based-auth.md](authentication.md#roles) |
 | `BracketService` | [bracket_service.py](../../application/services/bracket_service.py) | Native bracket lifecycle: author stages, roster/enroll/seed, start (generate + persist), report results + advance, complete, multi-stage advancement, scheduling seam, best-of-N series (`SeriesMixin`: game numbering, clinch, the racetime auto-open hold) | [brackets.md](../features/brackets.md) |
 | `ChallongeService` | [challonge_service.py](../../application/services/challonge_service.py) | Challonge OAuth, bracket sync, scheduling, result push | — |
-| `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [crew-management.md](../features/crew-management.md) |
+| `CrewService` | [crew_service.py](../../application/services/crew_service.py) | Crew signup/undo, approval, and acknowledgment | [match-participation.md](../features/match-participation.md) |
+| `DiscordEventReconcilerService` | [discord_event_reconciler_service.py](../../application/services/discord/discord_event_reconciler_service.py) | Idempotent mirror of the schedule into a guild's Discord Scheduled Events | [discord.md](../features/discord.md) |
+| `DiscordEventSyncService` | [discord_event_sync_service.py](../../application/services/discord/discord_event_sync_service.py) | Admin surface over the reconciler: per-tournament opt-in + "reconcile now" | [discord.md](../features/discord.md) |
 | `DiscordLinkService` | [discord_link_service.py](../../application/services/discord/discord_link_service.py) | Verified tenant↔Discord-server link (bot-authorization OAuth + authority re-check) | [multitenancy.md](../features/multitenancy.md) |
-| `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord-role-sync.md](../features/discord-role-sync.md) |
+| `DiscordRoleMappingService` | [discord_role_mapping_service.py](../../application/services/discord/discord_role_mapping_service.py) | Discord-role→app-role mapping CRUD and login-time role sync | [discord.md](../features/discord.md) |
 | `discord_queue` (module) | [discord_queue.py](../../application/services/discord/discord_queue.py) | Serialized background Discord sends | [discord-integration.md](discord-integration.md) |
 | `DiscordService` / `MockDiscordService` | [discord_service.py](../../application/services/discord/discord_service.py) | Bot DMs, button views, guild roles | [discord-integration.md](discord-integration.md) |
 | `EquipmentService` | [equipment_service.py](../../application/services/equipment_service.py) | Lending-asset CRUD and checkout/check-in workflow | — |
 | `FeatureFlagService` | [feature_flag_service.py](../../application/services/feature_flag_service.py) | Per-tenant feature gating: effective-state resolution (override → group → default), group (tier) CRUD + assignment, availability/enable writes | [feature-flags.md](../features/feature-flags.md) |
 | `FeedbackService` | [feedback_service.py](../../application/services/feedback_service.py) | In-app feedback submission and review | — |
 | `MatchDisplayService` | [match_display_service.py](../../application/services/match/match_display_service.py) | Read + format matches into table-row dicts (filters, display shape) | [frontend.md](frontend.md) |
-| `MatchScheduleService` | [match_schedule_service.py](../../application/services/match/match_schedule_service.py) | Match lifecycle transitions, seed rolls, DM fan-out | [discord-notifications.md](../features/discord-notifications.md) |
-| `MatchService` | [match_service.py](../../application/services/match/match_service.py) | Match CRUD, lifecycle, station/stage, acknowledgments, cancellation (`CancellationMixin`) | [match-acknowledgment.md](../features/match-acknowledgment.md) |
+| `MatchScheduleService` | [match_schedule_service.py](../../application/services/match/match_schedule_service.py) | Match lifecycle transitions, seed rolls, DM fan-out | [match-participation.md](../features/match-participation.md) |
+| `MatchService` | [match_service.py](../../application/services/match/match_service.py) | Match CRUD, results, station/stage, acknowledgments, cancellation (`CancellationMixin`) | [match-participation.md](../features/match-participation.md) |
 | `MatchSuggestionService` | [match_suggestion_service.py](../../application/services/match/match_suggestion_service.py) | Suggest match start times that minimise venue occupancy | — |
-| `MatchWatcherService` | [match_watcher_service.py](../../application/services/match/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-watcher.md](../features/match-watcher.md) |
+| `MatchWatcherService` | [match_watcher_service.py](../../application/services/match/match_watcher_service.py) | Watch/unwatch matches for DM updates | [match-participation.md](../features/match-participation.md) |
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
@@ -72,12 +69,13 @@ This table is a curated index of the primary services; the online-tournament, ev
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours` helpers used by both Reports and Insights (so on-time % can't drift) | — |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
+| `ServiceHealthService` | [service_health_service.py](../../application/services/service_health_service.py) | Platform external-service health probes (computed + cached, no model) | — |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
-| `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [tournament-notifications.md](../features/tournament-notifications.md) |
+| `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
 | `TwitchService` | [twitch_service.py](../../application/services/twitch_service.py) | Twitch account-linking OAuth (verified identity capture) | — |
@@ -89,7 +87,9 @@ This table is a curated index of the primary services; the online-tournament, ev
 | `RaceRoomService` | [race_room_service.py](../../application/services/race_room_service.py) | Racetime room lifecycle mapped onto a `Match` (create/open/seed/finish/cancel + result capture) | — |
 | `SpeedGamingETLService` | [speedgaming_etl_service.py](../../application/services/speedgaming_etl_service.py) | One-way SpeedGaming→Wizzrobe schedule ETL (extract/transform/load into `Match`) | — |
 | `SpeedGamingSyncService` | [speedgaming_sync_service.py](../../application/services/speedgaming_sync_service.py) | Tenant-facing SpeedGaming event-link CRUD + on-demand "sync now" | — |
-| `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](../features/role-based-auth.md) |
+| `UserService` | [user_service.py](../../application/services/user_service.py) | User CRUD, profiles, roles, enrollments | [role-based-auth.md](authentication.md#roles) |
+| `WebhookService` | [webhook_service.py](../../application/services/webhook_service.py) | Staff-managed outbound webhooks: CRUD + signed delivery | [webhooks.md](../features/webhooks.md) |
+| `WebPushService` | [web_push_service.py](../../application/services/web_push_service.py) | Per-device browser push subscriptions + encrypted delivery | [web-push.md](../features/web-push.md) |
 | `VolunteerAutoscheduleService` | [volunteer_autoschedule_service.py](../../application/services/volunteer/volunteer_autoschedule_service.py) | Greedy draft generator for the volunteer schedule | — |
 | `VolunteerAvailabilityService` | [volunteer_availability_service.py](../../application/services/volunteer/volunteer_availability_service.py) | Volunteer-declared availability windows | — |
 | `VolunteerExportService` | [volunteer_export_service.py](../../application/services/volunteer/volunteer_export_service.py) | Flattens roster, preferences, positions, shifts, assignments and a slot grid into spreadsheet-ready tables | — |
@@ -99,7 +99,7 @@ This table is a curated index of the primary services; the online-tournament, ev
 | `volunteer_reminder` (module) | [volunteer_reminder.py](../../application/services/volunteer/volunteer_reminder.py) | Background loop sending shift-reminder DMs | — |
 | `VolunteerScheduleService` | [volunteer_schedule_service.py](../../application/services/volunteer/volunteer_schedule_service.py) | Volunteer shifts, assignments, acknowledgment, coverage | — |
 
-All classes and `get_user_from_discord_id` are re-exported from [`application/services/__init__.py`](../../application/services/__init__.py); the helper modules `discord_queue`, `volunteer_reminder`, `async_qualifier_access`, `async_qualifier_scoring`, `availability_windows`, and `reporting_shared` are imported as modules (`from application.services import discord_queue`). `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)) are also re-exported here.
+Every service **class** is re-exported from [`application/services/__init__.py`](../../application/services/__init__.py), along with `get_user_from_discord_id` and `NotFoundError` / `require_found` (from [`application/errors.py`](../../application/errors.py)). The helper and worker modules — `availability_windows`, `discord_queue`, `discord_event_worker`, `oauth_handoff_service`, `race_room_worker`, `reporting_shared`, `service_health_worker`, `speedgaming_sync_worker`, `volunteer_reminder` — are exported as modules (`from application.services import discord_queue`). Non-class members (`AuditActions`, `MatchStatus`, `TelemetryCategory`) import from their own module.
 
 ### api_token_service.py — ApiTokenService
 
@@ -113,42 +113,56 @@ Issues, lists, revokes, and authenticates personal API access tokens. Only the S
 | `authenticate(raw_token)` | `(User, ApiToken) \| None` | Resolve a raw bearer token to its owner. Returns `None` for unknown/revoked/expired tokens (logged as warnings); on success updates `last_used_at`. |
 | `resolve_actor(raw_token)` | `(User, ApiToken) \| None` | `authenticate` plus the deactivated-owner check. **The shared front half of bearer authentication for both entry surfaces** — the REST API and the MCP server call this so their notion of "who is this token" cannot drift. Raises `PermissionError` when the token is valid but its owner is deactivated (401 vs 403 at the caller). Binds no tenant: which community a request acts in is the caller's decision. |
 
-Collaborators: `ApiTokenRepository`, `AuditService`. Consumers: the REST API authentication layer (bearer-token auth) and the token-management UI.
+Collaborators: `ApiTokenRepository`, `AuditService`.
+
+### mcp_auth_service.py — McpAuthService
+
+The OAuth 2.1 authorization server behind the MCP endpoint: dynamic client registration, PKCE authorization codes, and access/refresh token issue and rotation. Tokens are `ApiToken` rows, so `ApiTokenService.resolve_actor` remains the one bearer-authentication front half for both entry surfaces. Only hashes are stored — raw codes and tokens are returned once. Full flow: [mcp-server.md](../features/mcp-server.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `register_client(...)` / `get_client(client_id)` | `McpOAuthClient` / `\| None` | Dynamic client registration (RFC 7591, open by design — registering grants nothing, since every code still needs interactive approval) and lookup. At least one redirect URI is required (`ValueError`). |
+| `begin_authorization(pending)` / `get_pending(txn_id)` / `discard_pending(txn_id)` | `str` / `PendingAuthorization` / `None` | Park an in-flight authorization request in the bounded in-process store while the user consents; `get_pending` raises on an unknown or expired transaction. Expired entries are swept on access. |
+| `approve(txn_id, user)` | `(code, redirect_uri, state)` | The user consented: mint a single-use authorization code bound to the client and the PKCE challenge. |
+| `load_code(client_id, raw_code)` | `McpAuthorizationCode \| None` | Resolve a raw code for its owning client (`None` when unknown, consumed, or expired). |
+| `exchange_code(...)` | `(access, refresh, expires_in)` | Verify the PKCE verifier and consume the code for a token pair. |
+| `load_refresh_token(client_id, raw_refresh)` / `exchange_refresh(token)` | `ApiToken \| None` / `(access, refresh, expires_in)` | Refresh-token rotation — the old token is replaced, not reused. |
+| `load_access_token(raw_token)` / `revoke(token)` | `ApiToken \| None` / `None` | Resolve a bearer token for the MCP request path; revoke a token (RFC 7009). |
+
+`PendingAuthorization` (same module) is the parked-request dataclass. Collaborators: `McpAuthRepository`, `ApiTokenRepository`, `AuditService`.
 
 ### audit_service.py — AuditService
 
 Writes and queries `AuditLog` rows. Every mutating service action records who did what, with JSON-encoded details. Canonical doc: [audit-logging.md](../features/audit-logging.md).
 
-**`AuditActions`** is a plain constants class holding every namespaced `verb.object` action string used in the codebase — one place to grep when reviewing audit coverage. Namespaces covered: `match.*` (lifecycle, CRUD, stage/station assignment, stream-candidate flag, watchers, seed rolls), `crew.*` (signups, approval, acknowledgment), `tournament.*` (CRUD, TA/CC grants), `user.*` (CRUD, profile edits, activation, roles, enrollments), `stream_room.*` (CRUD), `system_config.*` (updates), `triforce_text.*` (submission/moderation lifecycle), `apitoken.*` (issue/revoke), `feedback.*` (submission/review), `equipment.*` (asset CRUD, checkout/check-in), `challonge.*` (connection, player/tournament linking, bracket sync, result push), `volunteer.*` (opt-in, position/shift CRUD, assignment, acknowledgment, drafts), and `player_availability.*` (window updates). Add a new constant here when introducing a new action; never pass literal strings.
+**`AuditActions`** is a plain constants class holding every namespaced `verb.object` action string in the codebase — one place to grep when reviewing audit coverage. Add a constant here when introducing a new action; never pass a literal string. Namespaces mirror the domains one-for-one (`match.*`, `crew.*`, `bracket.*`, `volunteer.*`, …), so the class itself is the list.
 
 | Method | Returns | Description |
 |---|---|---|
-| `write_log(actor, action, details=None)` | `AuditLog` | Create an entry; JSON-encodes `details` (non-serializable values fall back to `str`). Raises `ValueError` if `actor` is `None`. |
+| `write_and_publish(actor, action, details, event_type, *, event_extra=None, event_details=None)` | `AuditLog` | Write the audit row **and** publish the mirror event. The default for any audited change; a hand-rolled `write_log` + `event_bus.publish` pair is blocked by `check_dry_regressions.py`. `event_extra` adds routing keys to the audit `details`; `event_details` replaces the payload wholesale (passing both raises). |
+| `write_log(actor, action, details=None)` | `AuditLog` | Audit-only write (no event) — for changes with no paired event. JSON-encodes `details` (non-serializable values fall back to `str`). Raises `ValueError` if `actor` is `None`. |
 | `list_logs(*, start=None, end=None, user_id=None, action_contains=None, limit=100, offset=0)` | `list[AuditLog]` | Filtered, paginated log listing (delegates to `AuditRepository`). |
 | `count_logs(*, start=None, end=None, user_id=None, action_contains=None)` | `int` | Count matching the same filters as `list_logs`. |
 | `get_logs_for_user(user, limit=None)` | `list[AuditLog]` | A user's entries, most recent first. |
 | `get_recent_logs(limit=100)` | `list[AuditLog]` | Most recent entries across all users, with `user` prefetched. |
 
-Collaborators: `AuditRepository`. Consumers: every mutating service (writer side); the audit log viewer at `pages/admin_tabs/reports/audit.py` (reader side).
+Collaborators: `AuditRepository`, the [event bus](../features/event-system.md).
 
 ### auth_service.py — AuthService and get_user_from_discord_id
 
-Stateless authorization policy: every check is a `@staticmethod async def` taking `User | None` and returning a bool (no exceptions for "not allowed" — that is `ensure`'s job). Deep dive: [authentication.md](authentication.md); role semantics: [role-based-auth.md](../features/role-based-auth.md).
+Stateless authorization policy: every check is a `@staticmethod async def` taking `User | None` and returning a bool (no exceptions for "not allowed" — that is `ensure`'s job). Deep dive: [authentication.md](authentication.md); role semantics: [role-based-auth.md](authentication.md#roles).
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_roles(user)` | `set[Role]` | All global roles held by the user (empty for `None`). |
-| `has_role(user, role)` | `bool` | Whether the user holds a specific global `Role`. |
+| `is_super_admin(user)` | `bool` | Holds the one global role (`UserRole` with `tenant=NULL`). |
+| `get_roles(user)` | `set[Role]` | The user's roles **in the current tenant**; excludes `SUPER_ADMIN`; empty for `None` or when no tenant is in scope. |
+| `has_role(user, role)` | `bool` | Holds `role` **in the current tenant**; False with no tenant in scope. |
 | `is_staff(user)` | `bool` | Holds `Role.STAFF` in the current tenant, **or** is the global `SUPER_ADMIN` (staff-equivalence — the one hook that gives a platform admin full authority in every tenant). |
-| `is_proctor(user)` | `bool` | Holds `Role.PROCTOR`. |
-| `is_stream_manager(user)` | `bool` | Holds `Role.STREAM_MANAGER`. |
-| `is_volunteer_coordinator(user)` | `bool` | Holds `Role.VOLUNTEER_COORDINATOR`. |
-| `is_equipment_manager(user)` | `bool` | Holds `Role.EQUIPMENT_MANAGER`. |
-| `is_volunteer(user)` | `bool` | Holds `Role.VOLUNTEER`. |
-| `is_tournament_admin(user, tournament_id)` | `bool` | Listed in `Tournament.admins`. |
-| `is_crew_coordinator_of(user, tournament_id)` | `bool` | Listed in `Tournament.crew_coordinators`. |
+| `is_proctor` / `is_stream_manager` / `is_volunteer_coordinator` / `is_equipment_manager` / `is_volunteer` / `is_triforce_submitter` | `bool` | Holds the matching per-tenant `Role`. |
+| `is_tournament_admin(user, tournament_id)` | `bool` | Listed in `Tournament.admins`, filtered to this tenant. |
+| `is_crew_coordinator_of(user, tournament_id)` | `bool` | Listed in `Tournament.crew_coordinators`, filtered to this tenant. |
 | `can_view_volunteer(user)` | `bool` | Whether the Volunteer hub is reachable here: `FeatureFlag.VOLUNTEERS` live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's single source of truth, mirroring the `@protected_tab_page('/volunteer')` gate so the header link cannot dead-end. |
-| `can_view_admin(user)` | `bool` | An admin global role (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of any tournament. Excludes `PROCTOR`/`VOLUNTEER`. |
+| `can_view_admin(user)` | `bool` | Super-admin, an admin role in this tenant (`STAFF`, `STREAM_MANAGER`, `EQUIPMENT_MANAGER`, `VOLUNTEER_COORDINATOR`), or TA/CC of a tournament in this tenant. Excludes `PROCTOR`/`VOLUNTEER`. |
 | `can_edit_tournament(user, tournament)` | `bool` | Staff, or TA of that tournament. |
 | `can_crud_match(user, match)` | `bool` | Staff, or TA of the match's tournament. |
 | `can_transition_match(user, match)` | `bool` | Staff, Proctor, or TA — gates seat/start/finish/confirm, seed rolls, station assignment. |
@@ -164,15 +178,15 @@ Stateless authorization policy: every check is a `@staticmethod async def` takin
 | `can_manage_presets(user)` | `bool` | System actor, super-admin, Staff, or `PRESET_MANAGER` — gates seed-rolling preset management (online tournaments). |
 | `can_manage_sync(user)` | `bool` | System actor, super-admin, Staff, or `SYNC_ADMIN` — gates upstream sync config (SpeedGaming links, Discord events, racetime bot/room config). |
 | `can_admin_qualifier(user, qualifier=None)` | `bool` | System actor, super-admin, Staff, `QUALIFIER_ADMIN`, or — when a `qualifier` is passed — a per-entity admin on its `admins` M2M. |
+| `can_submit_triforce_text(user, tournament)` | `bool` | Staff or `TRIFORCE_SUBMITTER`, **and** the tournament is active with a generator that supports texts. |
 | `ensure(allowed, message="Permission denied")` | `None` | Raises `PermissionError(message)` when `allowed` is falsy; the standard gate inside mutating services. |
+| `ensure_super_admin` / `ensure_can_manage_presets` / `ensure_can_manage_sync` / `ensure_can_admin_qualifier` | `None` | Gate-and-raise wrappers over the matching `is_*`/`can_*` predicate. |
 
 **Module-level helper:** `get_user_from_discord_id(discord_id) -> User | None` resolves a Discord id — typically `app.storage.user.get('discord_id')`, read in the page layer — to a `User` model (or `None` when logged out / deleted). Call it once at page entry and pass the result into the helpers above — don't re-resolve per check.
 
-Consumers: `middleware/auth.py` (`protected_page` role enforcement), nearly every page and dialog (`pages/home.py`, `pages/admin.py`, `pages/admin_tabs/*`, `theme/dialog/*`, `theme/tables/*`), and all mutating services via `ensure`.
-
 ### oauth_handoff_service.py — module functions
 
-Design B cross-host handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`): the OAuth always completes on the platform host, which **mints** a short-lived (30s TTL), single-use, host-bound token and redirects to the target domain's claim route, which **claims** it and completes the flow where the host-only session cookie lives. Only the nonce + host travel in the URL; the payload stays server-side in a bounded in-process store (single-worker deployment precondition, like the tenant caches). Signed with `STORAGE_SECRET` via `itsdangerous`. Two payload shapes share the same store: **login** (`mint` — Discord `discord_id`/username/avatar) and **secondary-provider identity links** (`mint_data` — a generic `data` dict carrying the public provider identity).
+Cross-host handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`): OAuth always completes on the platform host, which **mints** a short-lived (30s TTL), single-use, host-bound token and redirects to the target domain's claim route, which **claims** it and completes the flow where the host-only session cookie lives. Only the nonce + host travel in the URL; the payload stays server-side in a bounded in-process store (a single-worker precondition, like the tenant caches), signed with `STORAGE_SECRET` via `itsdangerous`. Two payload shapes share the store: **login** (`mint`) and **secondary-provider identity links** (`mint_data`).
 
 | Function | Returns | Description |
 |---|---|---|
@@ -181,11 +195,11 @@ Design B cross-host handoff for custom tenant domains (`HOST_OAUTH_MODE=handoff`
 | `claim(token, request_host)` | `dict \| None` | Validate + consume the token on `request_host`; returns the stored payload or `None` for invalid/expired/wrong-host/replayed tokens. Single-use — the nonce is popped regardless of outcome. |
 | `reset()` | `None` | Clear the pending store (test isolation). |
 
-Consumers: `pages/auth.py` (platform-host OAuth callback → `mint`; `/session/claim` → claim) and `pages/_oauth_link.py` (platform-host provider callback → `mint_data`; `/oauth/link/claim` → claim, for racetime / Twitch / Challonge player-link). Detail: `docs/plans/host-based-routing-plan.md`.
+The claim routes are `/session/claim` (login, in `pages/auth.py`) and `/oauth/link/claim` (provider links, in `pages/_oauth_link.py`). Detail: [multitenancy.md](../features/multitenancy.md).
 
 ### challonge_service.py — ChallongeService
 
-Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock_challongepy).
+Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth connection writes brackets; players link their own Challonge identity (scope `me`) only so they can be mapped to bracket participants (their tokens are not retained). The service mirrors a linked tournament's bracket into local `ChallongeParticipant`/`ChallongeMatch` rows, schedules open matchups through the existing match-request flow, and pushes recorded results back to Challonge. Module constants: `CHALLONGE_MONTHLY_QUOTA = 500`, plus internal token-refresh-buffer and sync-throttle windows. Mock mode is gated by [`MOCK_CHALLONGE`](#mock-switches).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -211,13 +225,13 @@ Coordinates the Challonge integration: one shared Wizzrobe service-account OAuth
 | `push_result_if_linked(match, actor)` | `bool` | Push the result only when the match mirrors a Challonge match; returns whether a push was attempted (used by the confirm flow). |
 | `push_match_result(match, actor)` | `None` | Report the recorded winner/loser to Challonge, then force a re-sync to surface newly-opened next-round matches; audits `challonge.result_pushed`. |
 
-Collaborators: `ChallongeRepository`, `TournamentRepository`, `MatchService`, `AuthService`, `AuditService`, [`challonge_client.py`](#challonge_clientpy) (`ChallongeClient`/`MockChallongeClient`), [`mock_challonge.py`](#mock_challongepy). Consumers: the Challonge OAuth callback middleware, the admin Challonge tab, and the player linking/scheduling pages.
+Collaborators: `ChallongeRepository`, `TournamentRepository`, `MatchService`, `AuthService`, `AuditService`, [`challonge_client.py`](#challonge_clientpy) (`ChallongeClient`/`MockChallongeClient`), [`mock_challonge.py`](#mock-switches).
 
 ### bracket_service.py — BracketService
 
 Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): authoring a stage while DRAFT, the tournament-level roster (entrants) and per-stage participation (entries), the generate-then-persist `start` that turns a seeded field into a persisted `BracketMatch` graph via the pure engines, result recording with pointer-following advancement, stage completion + ranking, and multi-stage advancement. Every write is Staff-gated (`AuthService.is_staff`), audits an `AuditActions.BRACKET_*` action, and publishes the mirror `EventType.BRACKET_*`. Native brackets and a Challonge link are mutually exclusive (`_ensure_no_challonge_link`). The engine runs only at `start` and per Swiss round; at all other times the persisted rows are the source of truth.
 
-`BracketService` is one public class composed from per-concern mixins in the internal `application/services/_bracket/` subpackage (`generation.py`, `advancement.py`, `completion.py`, `multistage.py`, `scheduling.py`) so no single file exceeds the length budget; `bracket_service.py` keeps `__init__`, the shared helpers, and the roster/enrollment CRUD, and composes the mixins. The split is an implementation detail — importers still use `from application.services import BracketService`.
+`BracketService` is one public class composed from per-concern mixins in the internal `application/services/_bracket/` subpackage (`generation.py`, `advancement.py`, `completion.py`, `multistage.py`, `scheduling.py`, `series.py`, `notifications.py`) so no single file exceeds the length budget; `bracket_service.py` keeps `__init__`, the shared helpers, and the roster/enrollment CRUD, and composes the mixins. The split is an implementation detail — importers still use `from application.services import BracketService`.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -254,11 +268,11 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 | `matchup_summary(match_id)` | `dict \| None` | What a scheduled `Match` is *for* — round name, game number, best-of, series standing, both entrants with seeds, and the stakes ("Winner to Semifinals"). Backs the admin match editor's matchup panel. |
 | `notify_matchup_ready(bracket_match, *, rebook=False)` | `None` | DM both entrants that they have a matchup to schedule. Fired on the `PENDING → OPEN` transition, at generation/Swiss pairing, and (with `rebook`) after a slot release. Best-effort, on `discord_queue`. |
 
-Collaborators: `BracketRepository`, [`bracket_config.py`](#bracket_configpy--bracket-config-substrate) (`validate_bracket_config`, `AdvancementConfig`), [`bracket_engines/`](#bracket_engines--pairingprogression-engines) (`get_bracket_engine`, `compute_standings`), `MatchService` (scheduling seam), `AuthService`, `AuditService`, the event bus. Consumers: the [admin Brackets tab](frontend.md), the [public bracket page](frontend.md), and the [`/brackets` REST router](rest-api.md).
+Collaborators: `BracketRepository`, [`bracket_config.py`](#bracket_configpy--bracket-config-substrate) (`validate_bracket_config`, `AdvancementConfig`), [`bracket_engines/`](#bracket_engines--pairingprogression-engines) (`get_bracket_engine`, `compute_standings`), `MatchService` (scheduling seam), `AuthService`, `AuditService`, the event bus.
 
 ### crew_service.py — CrewService
 
-Crew (commentator/tracker) self-signup, the approval workflow, and crew-side acknowledgment. Feature doc: [crew-management.md](../features/crew-management.md).
+Crew (commentator/tracker) self-signup, the approval workflow, and crew-side acknowledgment. Feature doc: [match-participation.md](../features/match-participation.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -269,11 +283,11 @@ Crew (commentator/tracker) self-signup, the approval workflow, and crew-side ack
 | `approve_crew_member(crew_member, crew_type, actor=None)` | `Commentator \| Tracker` | Convenience wrapper for `update_crew_approval(..., approved=True)`. |
 | `acknowledge_crew_assignment(crew_id, crew_type, user)` | `Commentator \| Tracker` | Crew member confirms their own approved assignment. Rejects other users and unapproved rows (`ValueError`); already-acknowledged rows are a silent no-op. |
 
-Collaborators: `CommentatorRepository`, `TrackerRepository`, `MatchRepository` (signup match lookup), `AuditService`, `DiscordService` (via `discord_queue`). Consumers: `theme/dialog/approve_crew_dialog.py`, `theme/tables/match.py` (web signup/undo + acknowledge buttons), `api/routers/match_actions.py` (REST signup/undo), `discordbot/crew_signup.py` and `discordbot/crew_acknowledgment.py` (DM button handlers).
+Collaborators: `CommentatorRepository`, `TrackerRepository`, `MatchRepository` (signup match lookup), `AuditService`, `DiscordService` (via `discord_queue`).
 
 ### discord_role_mapping_service.py — DiscordRoleMappingService
 
-CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discord guild roles onto application roles. Feature doc: [discord-role-sync.md](../features/discord-role-sync.md).
+CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discord guild roles onto application roles. Feature doc: [discord.md](../features/discord.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -282,7 +296,7 @@ CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discor
 | `remove_mapping(mapping_id, actor)` | `None` | Staff-only; `ValueError` if missing; audits `discord_role.mapping_removed`. |
 | `sync_user_roles(user)` | `dict` | Full-syncs the user's Discord-sourced roles. **Never raises** — fails open on any error so login is never blocked. Grants mapped roles the user lacks (`source=discord`), revokes Discord-sourced roles no longer present, and never touches `source=manual` rows. Returns a `{'granted', 'revoked', 'skipped'}` summary. |
 
-Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `SystemConfigService.get_discord_sync_guild_id`, `AuthService`, `AuditService`. Consumers: `middleware/auth.py` (OAuth callback calls `sync_user_roles`), `pages/admin_tabs/admin_discord_roles.py` (mapping management UI).
+Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `SystemConfigService.get_discord_sync_guild_id`, `AuthService`, `AuditService`.
 
 ### discord_queue.py — module functions
 
@@ -317,23 +331,21 @@ Thin wrapper around the shared discord.py bot: DM sending (plain and with intera
 | `get_guild_summary(guild_id)` | `(bool, {id, name} \| str)` | Name of a guild the bot can see (renders the connected-server label; confirms bot presence). |
 | `member_can_manage_guild(guild_id, user_id)` | `(bool, bool \| str)` | Whether a user is owner / Administrator / has Manage Server. **Fails closed** (`ok=False`) if the bot can't determine it. The authority check behind `DiscordLinkService`. |
 
-**`MockDiscordService`** mirrors the full public surface, printing to stdout and returning success tuples. Its fixture data (guilds, roles, member roles, authority) comes from [`mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py), kept in sync with `scripts/seed_dev.py`. When [`MOCK_DISCORD`](../features/mock-discord.md) is enabled, the module rebinds the name `DiscordService = MockDiscordService` at import time, so all callers get the stub transparently.
+**`MockDiscordService`** mirrors the full public surface, printing to stdout and returning success tuples. Its fixture data (guilds, roles, member roles, authority) comes from [`mock_discord_data.py`](../../application/utils/mocks/mock_discord_data.py), kept in sync with `scripts/seed_dev.py`. When [`MOCK_DISCORD`](../features/discord.md#mock-mode) is enabled, the module rebinds the name `DiscordService = MockDiscordService` at import time, so all callers get the stub transparently.
 
 ### discord_link_service.py — DiscordLinkService
 
 Verified linking of a `Tenant` to a Discord guild. Because `discord_guild_id` is no longer unique, a tenant may not merely *claim* a guild id — `DiscordLinkService` gates linking twice: **app** (`can_manage_link` → tenant STAFF or super-admin) and **Discord** (the actor must administer the guild). `authorize_url(state)` builds Discord's bot-authorization URL (`scope=bot`, adds the bot on consent); `complete_link(actor, tenant, code)` exchanges the code for an authoritative `guild` object then calls `link_guild(actor, tenant, guild_id)`, which re-checks `DiscordService.member_can_manage_guild` (fails closed) before stamping the guild via `TenantService.set_discord_guild_id` and auditing `discord.server_linked`. `disconnect(actor, tenant)` clears the link (leaving the bot, which other tenants may share) and audits `discord.server_unlinked`. Callback route: `/oauth/discord/connect/callback` in [`pages/auth.py`](../../pages/auth.py). Env: `DISCORD_BOT_PERMISSIONS`, `DISCORD_CONNECT_REDIRECT_URL`.
 
-Consumers: `MatchScheduleService` and `CrewService` (notification fan-out), `theme/dialog/send_message_dialog.py` (admin "send DM" dialog).
+### discord_event_reconciler_service.py — DiscordEventReconcilerService
 
-### discord_event_reconciler_service.py — DiscordEventReconcilerService (PR 8)
-
-Mirrors the Wizzrobe schedule into a tenant guild's **Discord Scheduled Events** as idempotent reconciliation. `reconcile_tenant(tenant, *, actor, now=None)` reads the tenant's opted-in tournaments' scheduled matches in a forward window, then per match creates / updates (content-hash change) / leaves unchanged its `DiscordScheduledEvent` link, and cancels links whose source match finished or vanished. **Shared-guild safety**: the working set is only the tenant's own link rows (the repository is tenant-scoped), so a sibling tenant's event in a shared guild is never enumerated or cancelled; the target guild is the verified `Tenant.discord_guild_id`. Renders title/description from `{tournament}`/`{match}`/`{players}` templates. Audits + emits `discord_event.created`/`updated`/`cancelled` (the per-run summary is audit-only). Collaborators: `DiscordScheduledEventRepository`, `MatchRepository`, `DiscordService`, `AuditService`, event bus.
+Mirrors the Wizzrobe schedule into a tenant guild's **Discord Scheduled Events** as idempotent reconciliation. `reconcile_tenant(tenant, *, actor, now=None)` reads the tenant's opted-in tournaments' scheduled matches in a forward window, then per match creates / updates (on a content-hash change) / leaves unchanged its `DiscordScheduledEvent` link, and cancels links whose source match finished or vanished. **Shared-guild safety**: the working set is only the tenant's own link rows (the repository is tenant-scoped), so a sibling tenant's event in a shared guild is never enumerated or cancelled; the target guild is the verified `Tenant.discord_guild_id`. Titles/descriptions render from `{tournament}`/`{match}`/`{players}` templates. Audits + emits `discord_event.created`/`updated`/`cancelled` (the per-run summary is audit-only). Collaborators: `DiscordScheduledEventRepository`, `MatchRepository`, `DiscordService`, `AuditService`, event bus.
 
 **discord_event_worker.py** — the reconcile background loop (peer of `speedgaming_sync_worker`). Every 5 min it scans (cross-tenant, unscoped) every tenant with a linked guild, then reconciles each inside `tenant_scope` as the system user. Idempotent, so an unchanged schedule is a cheap no-op. Started from the lifespan only when `DISCORD_EVENTS_SYNC_ENABLED` is on.
 
-### discord_event_sync_service.py — DiscordEventSyncService (PR 8)
+### discord_event_sync_service.py — DiscordEventSyncService
 
-The human-driven surface over the reconciler, gated by `AuthService.can_manage_sync`. `list_tournaments` / `update_settings(actor, tournament_id, *, enabled, duration_minutes, title_template, description_template)` manage per-tournament opt-in (audits `discord_event.settings_updated`); `list_events` feeds the admin observability table; `reconcile_now(actor)` runs the reconciler for the ambient tenant on demand (raises `ValueError` when no guild is linked). Consumer: the admin **Discord Events** tab.
+The human-driven surface over the reconciler, gated by `AuthService.can_manage_sync`. `list_tournaments` / `update_settings(actor, tournament_id, *, enabled, duration_minutes, title_template, description_template)` manage per-tournament opt-in (audits `discord_event.settings_updated`); `list_events` feeds the admin observability table; `reconcile_now(actor)` runs the reconciler for the ambient tenant on demand (raises `ValueError` when no guild is linked).
 
 ### equipment_service.py — EquipmentService
 
@@ -347,9 +359,8 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 | `delete_asset(actor, equipment_id)` | `None` | Manager-only; refuses an asset with an open loan. Audits `equipment.deleted`. |
 | `checkout(actor, equipment_id, borrower_id=None)` | `EquipmentLoan` | Open a loan; managers may set a `borrower_id`, otherwise the borrower is `actor`. Rejects retired/already-checked-out assets; flips status to `CHECKED_OUT`. Audits `equipment.checked_out`. |
 | `checkin(actor, equipment_id)` | `Equipment` | Close the open loan and flip status to `AVAILABLE`; `ValueError` when not checked out. Audits `equipment.checked_in`. |
-| `list_assets()` | `list[Equipment]` | All assets. |
+| `list_assets()` / `get_asset(equipment_id)` | reads | Every asset; one asset by id. |
 | `get_assets_by_ids(ids)` | `list[Equipment]` | Tenant-scoped fetch of the given assets (ordered by asset number) for the bulk QR-label sheet; unknown/foreign ids are silently dropped. |
-| `get_asset(equipment_id)` | `Equipment \| None` | Lookup by id. |
 | `current_loan(equipment)` | `EquipmentLoan \| None` | The open loan for an asset, if any. |
 | `open_loans_by_equipment_id()` | `dict[int, EquipmentLoan]` | All open loans keyed by equipment id (table batch-load). |
 | `loan_history(equipment)` | `list[EquipmentLoan]` | Full loan history for an asset. |
@@ -367,7 +378,25 @@ Records in-app feedback from logged-in attendees and lets admins review it. The 
 | `list_recent(limit=200)` | `list[Feedback]` | Recent submissions for the admin review list. |
 | `mark_reviewed(actor, feedback_id)` | `Feedback` | Admin-only (`can_view_admin`); sets status `REVIEWED`; `ValueError` for unknown id. Audits `feedback.reviewed`. |
 
-Collaborators: `FeedbackRepository`, `AuthService`, `AuditService`. Consumers: the in-app feedback dialog and the admin feedback review tab.
+Collaborators: `FeedbackRepository`, `AuthService`, `AuditService`.
+
+### feature_flag_service.py — FeatureFlagService
+
+Resolves and administers the per-tenant [feature flags](../features/feature-flags.md). A flag is **live** when it is *available* (from the tenant's `FeatureFlagGroup` tier, or the default group, with a tri-state per-tenant override on top) **and** *enabled* (the community's STAFF opt-out). Group CRUD and availability writes are super-admin gated; the enable toggle is STAFF gated.
+
+| Method | Returns | Description |
+|---|---|---|
+| `is_enabled(flag)` | `bool` | Whether one flag is live for the ambient tenant. Reads the memoized set, so N checks in a request cost one pass. |
+| `enabled_flags()` | `set[FeatureFlag]` | Every live flag in one query; the per-request cache the guards read (`reset_flag_cache()` clears it). |
+| `ensure_enabled(flag)` | `None` | Raise `FeatureDisabledError` unless the flag is live. Prefer the `@requires_feature` decorator over calling this by hand. |
+| `list_for_tenant_admin(actor)` / `set_tenant_enabled(...)` | `list[dict]` / — | STAFF-gated: every flag's effective state for the ambient tenant, and the enable toggle behind the admin **Features** tab. |
+| `current_tenant_group_name()` | `str \| None` | The tier the ambient tenant sits in (shown alongside the toggles). |
+| `list_for_tenant(actor, tenant_id)` / `set_availability(...)` | `list[dict]` / — | Super-admin: a named tenant's flag states and the availability override, from `/platform`. |
+| `list_groups` / `list_groups_with_counts` / `get_group` / `create_group` / `update_group` / `delete_group` / `assign_tenant_group` | — | Super-admin group (tier) CRUD and per-tenant assignment. One group is always the default; deleting the last default is refused. |
+
+`@requires_feature(FeatureFlag.X)` (from [`application/feature_flags.py`](../../application/feature_flags.py)) is the service-layer half of gating: it wraps a service's public entry methods and raises `FeatureDisabledError`, a `NotFoundError` — so REST answers 404 and a UI `except ValueError` notifies. Each flag's `FeatureFlagSpec` names the `service_modules` it must guard, and `check_feature_flag_gating.py` enforces that plus the entry-surface half. Placement rules and the two carve-outs (soft integration points return neutral; workers skip the tenant): [feature-flags.md](../features/feature-flags.md).
+
+Collaborators: `TenantFeatureFlagRepository`, `FeatureFlagGroupRepository`, `TenantRepository`, `AuthService`, `AuditService`.
 
 ### match_display_service.py — MatchDisplayService
 
@@ -381,11 +410,11 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
 | `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
 
-Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`. Consumers: `theme/tables/match.py` (`self.display_service` — filters, `refresh`, and single-row updates).
+Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`.
 
 ### match_schedule_service.py — MatchScheduleService
 
-Match lifecycle transitions (seat → start → finish → confirm), seed rolling, and all Discord DM fan-out for match events. Every transition is gated by `AuthService.can_transition_match`, validates ordering (e.g. "Match must be checked in before starting" as `ValueError`), stamps the timestamp, writes the matching `match.*` audit action, and enqueues a participant DM. Feature docs: [discord-notifications.md](../features/discord-notifications.md), [match-acknowledgment.md](../features/match-acknowledgment.md), [match-watcher.md](../features/match-watcher.md).
+Match lifecycle transitions (seat → start → finish → confirm), seed rolling, and all Discord DM fan-out for match events. Every transition is gated by `AuthService.can_transition_match`, validates ordering (e.g. "Match must be checked in before starting" as `ValueError`), stamps the timestamp, writes the matching `match.*` audit action, and enqueues a participant DM. Feature docs: [match-participation.md](../features/match-participation.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -396,19 +425,20 @@ Match lifecycle transitions (seat → start → finish → confirm), seed rollin
 | `generate_seed(match_id, actor=None)` | `(bool, str, str \| None)` | Roll a seed via `SeedGenerationService`, resolving the tournament's `preset` FK (randomizer + settings) when set, else the legacy `seed_generator` string. Per-match `asyncio.Lock` (class-level `_seed_locks` dict) rejects concurrent rolls; also fails softly when a seed already exists, no generator is configured, the generator is unknown, or permission is denied. On success creates the `GeneratedSeeds` row, audits `match.seed_rolled`, and enqueues seed DMs to opted-in players. Exceptions are caught and returned as `(False, error, None)`. |
 | `notify_match_participants(match, message)` | `None` | DM opted-in players, approved crew, and watchers — one DM per person; watchers get the Unwatch-button variant. Never raises; per-DM failures are printed. |
 | `notify_match_crew(match, message)` | `None` | DM approved crew and watchers, excluding players (players get the acknowledgment DM instead). Never raises. |
+| `notify_match_cancelled(match, reason)` | `None` | DM players, approved crew, and watchers that the match is off, with the stated reason. Never raises. |
 | `notify_acknowledgment_request(match, *, rescheduled)` | `None` | DM each player whose acknowledgment is still pending with an Acknowledge button; message wording switches on `rescheduled`. Never raises. |
 | `notify_tournament_subscribers_scheduled(match, message, exclude_discord_ids)` | `None` | DM tournament-notification subscribers (filtered by whether the match has a stream room) with crew signup buttons, skipping already-notified ids. Never raises. |
 | `notify_stream_candidate_subscribers(match, exclude_discord_ids)` | `None` | DM stream-candidate subscribers with crew signup buttons. Skipped entirely when the match already has a stream room (those subscribers were already notified). Never raises. |
 | `notify_match_scheduled(match, *, rescheduled=False, is_stream_candidate=False)` | `None` | The collapsed scheduled/rescheduled fan-out shared by `create_match`/`update_match`/`submit_match_request`: loads relations, computes the exclude list, then enqueues the ack request + crew DM + tournament-subscriber DMs (+ stream-candidate DMs when flagged). Awaited by the caller; the individual sub-notifications run on the queue. |
 | `notify_stream_candidate(match)` | `None` | Standalone stream-candidate fan-out for `set_stream_candidate` (fetch + collect exclude + enqueue the subscriber DMs). |
 
-The per-recipient `notify_*` methods are designed to run **inside** the `discord_queue` worker: callers enqueue them rather than awaiting. All DM recipients are filtered by `User.dm_notifications` and the presence of a `discord_id`.
+The per-recipient `notify_*` methods are designed to run **inside** the `discord_queue` worker: callers enqueue them rather than awaiting. All DM recipients are filtered by `User.dm_notifications` and the presence of a `discord_id`. The module is split to stay under the file-length guideline, all parts mixed into `MatchScheduleService`: `match_schedule_service.py` holds the lifecycle transitions and `generate_seed`, `match/_schedule_notifications.py` the `notify_*` methods, `match/_match_recipients.py` the recipient resolution, and `match/_dm_context.py` the lazy bracket-line / community-name lookups a DM's subtitle needs.
 
-Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentNotificationRepository`, `DiscordService`, `SeedGenerationService`, `AuditService`, `discord_queue`. Consumers: `pages/admin_tabs/admin_schedule.py` (seat/start/finish/confirm/seed buttons), `MatchService` (reuses the notify helpers and DM message builders).
+Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentNotificationRepository`, `DiscordService`, `SeedGenerationService`, `AuditService`, `discord_queue`.
 
 ### match_service.py — MatchService
 
-Match CRUD with full notification fan-out, schedule queries, station/stage assignment, results, and player acknowledgments. Table display formatting now lives in [`MatchDisplayService`](#match_display_servicepy--matchdisplayservice) and crew signup/undo in [`CrewService`](#crew_servicepy--crewservice); the schedule-query methods below delegate to `MatchRepository`.
+Match CRUD with full notification fan-out, schedule queries, station/stage assignment, results, and player acknowledgments. The seat → start → finish → confirm transitions belong to [`MatchScheduleService`](#match_schedule_servicepy--matchscheduleservice) alone; table display formatting lives in [`MatchDisplayService`](#match_display_servicepy--matchdisplayservice) and crew signup/undo in [`CrewService`](#crew_servicepy--crewservice). The schedule-query methods below delegate to `MatchRepository`.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -425,49 +455,47 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 | `ensure_players_enrolled(tournament_id, player_ids)` | `None` | Enroll any of the given users not yet in the tournament (`ValueError` on unknown id). |
 | `delete_match(match_id, actor=None)` | `None` | Delete; gated by `can_crud_match`; audits `match.deleted`. Notifies nobody — the silent "this shouldn't exist" path. |
 | `cancel_match(match_id, actor=None, *, reason='')` | `None` | Call a real match off: DMs players + crew, cancels any live racetime room, audits/emits `match.cancelled`, then deletes (so `match.deleted` still fires). Gated by `can_crud_match`; the un-gated `_cancel_match` is what a clinched best-of-N series calls as the system user. Lives in [match_cancellation.py](../../application/services/match/match_cancellation.py) (`CancellationMixin`). |
-| `seat_players(match_id, actor=None)` | `Match` | Set `seated_at` and DM participants (older sibling of `MatchScheduleService.seat_match`, without the already-seated guard). |
-| `finish_match(match_id, actor=None)` | `Match` | Set `finished_at`; requires `seated_at` (older sibling of `MatchScheduleService.finish_match`). |
+| `get_match_by_id(match_id)` / `get_by_id(...)` / `get_match_players(match)` / `get_player_names(match_id)` / `list_acknowledgments(match)` | reads | Load-or-`None` / load-or-raise fetches and the participant/acknowledgment reads presentation and the entry surfaces use instead of reaching into repositories. |
 | `record_match_result(match_id, winner_id, actor)` | `Match` | Two-player results: winner gets `finish_rank` 1, the other 2. `winner_id` is a **`MatchPlayers` row id**, not a User id. Gated by `can_transition_match`. |
 | `acknowledge_match(match_id, user)` | `MatchAcknowledgment` | Player confirms they have seen their match. Only current players may acknowledge; double-acknowledge raises `ValueError`. Audits `match.acknowledged`. |
 
 **Creation/reschedule flow.** `create_match` resolves every referenced user up front (so a bad id cannot leave an orphan `Match` row), creates the row, enrolls players in the tournament if needed, attaches commentators/trackers as pre-approved, audits `match.created`, then seeds per-player acknowledgment rows (the actor auto-acknowledges their own). Finally it hands the whole scheduled-notification fan-out to `MatchScheduleService.notify_match_scheduled` (ack request + crew DM + subscriber fan-out, plus stream-candidate when flagged). `update_match` re-seeds acknowledgments when `scheduled_at` or the player set changed; on a time change it calls `notify_match_scheduled(rescheduled=True)`, otherwise it enqueues just the acknowledgment request.
 
-Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `UserRepository`, `CommentatorRepository`, `TrackerRepository`, `AuditService`, `MatchScheduleService` (lifecycle notify + `notify_match_scheduled`/`notify_stream_candidate`), `AuthService`, `discord_queue`. Consumers: `theme/tables/match.py` (acknowledge, plus reads via `MatchDisplayService`), `theme/dialog/match_dialog.py` (create/update/delete/request), `theme/dialog/match_result_dialog.py`, `theme/dialog/station_assignment_dialog.py`, `theme/dialog/stream_room_dialog.py` (stage + candidate flag), `pages/home_tabs/schedule.py`, `pages/home_tabs/stage_timeline.py`, `pages/home_tabs/player.py`, `discordbot/match_acknowledgment.py` (DM button handler).
+Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `UserRepository`, `CommentatorRepository`, `TrackerRepository`, `AuditService`, `MatchScheduleService` (lifecycle notify + `notify_match_scheduled`/`notify_stream_candidate`), `AuthService`, `discord_queue`.
 
-**match_request_guard.py** — the bracket-run scheduling lockout, a peer of `match_source_guard.py`. `assert_player_requests_allowed(tournament)` raises `PermissionError` when `Tournament.allow_player_match_requests` is off — the flag `BracketService.create_bracket` and `ChallongeService.link_tournament` turn off, because a bracket-run tournament schedules only the matchups its bracket produced. `UserMatchDialog` also filters those tournaments out of its dropdown, but this is the enforcement: `POST /api/matches/request` reaches the service directly, and a gap here would let a player invent a matchup the bracket never produced — one that still notifies crew and lands on the schedule. Called by `MatchService.submit_match_request`, which skips it for `from_bracket=True`.
+**Guard modules.** Three pure, single-function modules hold the rules `MatchService` must not be able to skip. Each is the *enforcement*: the UI also hides or disables the thing, but the REST routers reach the service directly, so a gap here would ship a silently-wrong match.
 
-**match_request.py** — `MatchRequestMixin`, the player-initiated `submit_match_request` split out of `match_service.py` for the file-length guideline (composed into `MatchService` the way `CancellationMixin` is). See its row in the `MatchService` table above.
+| Module | Function | Raises | Called by |
+|---|---|---|---|
+| `match_request_guard.py` | `assert_player_requests_allowed(tournament)` | `PermissionError` when `Tournament.allow_player_match_requests` is off — the flag `BracketService.create_bracket` and `ChallongeService.link_tournament` turn off, because a bracket-run tournament schedules only the matchups its bracket produced | `submit_match_request` (skipped for `from_bracket=True`) |
+| `match_source_guard.py` | `assert_sg_fields_unchanged(match, *, tournament_id, scheduled_date, scheduled_time, players_changed)` | `ValueError` when a staff edit would change an ETL-owned field (schedule, players, tournament) on an SG-sourced match (`speedgaming_episode_id` set). Compared by *value*, so the dialog can resubmit disabled fields unchanged; a no-op for non-sourced matches | `update_match` |
+| `bracket_result_guard.py` | `assert_bracket_result_editable(game)` | `ValueError` when the `Match` backs a `COMPLETE` `BracketMatchGame` — the bracket already advanced on that result, so rewriting the ranks would strand the series count and downstream slots. The message names the stage and points staff at **Results → Override**, which re-advances properly. A no-op with no game, or a `SCHEDULED` one | `record_match_result`, reading the game via `BracketService.get_game_for_match` |
 
-**bracket_result_guard.py** — the settled-bracket-game half of the correction rule, a peer of `match_source_guard.py` in shape and reasoning. `assert_bracket_result_editable(game)` raises `ValueError` when the `Match` backs a `COMPLETE` `BracketMatchGame`: the bracket has already advanced on that result, so rewriting the match's ranks would leave the series win count, the downstream slots, and any completed stage holding the old answer with nothing saying so. The message names the stage and points staff at the bracket's **Results → Override**, which re-advances properly. A no-op for the overwhelming majority of matches (no game at all) and for a `SCHEDULED` game, where recording a result is the normal path. Called by `MatchService.record_match_result`, which reads the game through `BracketService.get_game_for_match`.
+**match_status.py** — the **one derived status vocabulary** shared by the schedule table, the bracket cards, the REST bracket payloads, and the Discord embeds. Pure and ORM-free. `MatchStatus` has nine members (`PENDING`, `UNSCHEDULED`, `SCHEDULED`, `CHECKED_IN`, `LIVE`, `AWAITING_RESULT`, `COMPLETE`, `CANCELLED`, `NEEDS_RESCHEDULE`); `resolve(*, match, game_state=None, bracket_match_state=None, room_status=None)` projects a `Match` onto it — a settled/cancelled **game** state outranks the timestamps, the timestamps are read newest-first, and the racetime room is a **tiebreaker only** (an `IN_PROGRESS` room with no `started_at` still reads `LIVE`). `resolve_matchup` folds a series' game statuses into one. **Derived, never stored** — the timestamps stay the source of truth. `legacy_label` adapts a status back to the schedule table's five historical strings; `STATUS_TONES` names the colour semantically once, mapped to Quasar in `theme/` and to `COLOR_*` ints in `discord_embeds.py`. Detail: [brackets.md](../features/brackets.md#live-match-state-on-the-cards).
 
-**match_status.py** — the **one derived status vocabulary** shared by the schedule table, the bracket cards, the REST bracket payloads, and the Discord embeds (design record: [bracket-match-integration-plan.md](../plans/bracket-match-integration-plan.md), U1). Pure and ORM-free. `MatchStatus` has nine members (`PENDING`, `UNSCHEDULED`, `SCHEDULED`, `CHECKED_IN`, `LIVE`, `AWAITING_RESULT`, `COMPLETE`, `CANCELLED`, `NEEDS_RESCHEDULE`); `resolve(*, match, game_state=None, bracket_match_state=None, room_status=None)` projects a `Match` onto it — a settled/cancelled **game** state outranks the timestamps, the timestamps are read newest-first, and the racetime room is a **tiebreaker only** (an `IN_PROGRESS` room with no `started_at` still reads `LIVE`). `resolve_matchup` folds a series' game statuses into one. **Derived, never stored** (D5): the timestamps stay the source of truth. `MatchDisplayService._get_match_state` is a thin adapter returning the schedule table's five historical strings via `legacy_label`, so those labels cannot drift from the bracket's; colour is defined once as a semantic *tone* name and mapped to Quasar colours in `theme/` and to `COLOR_*` ints in `discord_embeds.py`.
-
-**match_source_guard.py** — the per-field half of the SpeedGaming read-only contract, extracted from `MatchService` to keep it focused (and under the file-length guideline). `assert_sg_fields_unchanged(match, *, tournament_id, scheduled_date, scheduled_time, players_changed)` raises `ValueError` when a staff edit would change an ETL-owned field (schedule, players, tournament) on an SG-sourced match (`speedgaming_episode_id` set); a no-op for non-sourced matches. Comparison is by *value*, so the edit dialog can resubmit the disabled fields unchanged — only a genuine change is rejected. The UI also disables these fields, but this is the enforcement: a gap here would be silently reverted on the next sync and look like a bug. Called by `MatchService.update_match`.
-
-**match_participants.py** — `MatchParticipants`, the participant-row orchestration extracted from `MatchService` to keep it under the file-length guideline. Pure repository plumbing (no audit, no events): `resolve_users` (id list → `User`s, one query, `ValueError` on the first missing id), `ensure_enrolled` (batch-enroll players not yet in the tournament), `sync_players`/`sync_crew` (reconcile the player and commentator/tracker rows to a target id set), and `seed_acknowledgments` (reset and re-create per-player ack rows, auto-acking the actor). `MatchService` composes it lazily via a `participants` property bound to its own repositories, so create/update/request all share one roster path.
+**match_participants.py** — `MatchParticipants`, the participant-row orchestration split out of `MatchService`. Pure repository plumbing, no audit or events: `resolve_users` (id list → `User`s in one query, `ValueError` on the first missing id), `ensure_enrolled`, `sync_players`/`sync_crew` (reconcile player and commentator/tracker rows to a target id set), and `seed_acknowledgments` (reset and re-create per-player ack rows, auto-acking the actor). `MatchService` composes it lazily via a `participants` property, so create/update/request share one roster path.
 
 ### match_suggestion_service.py — MatchSuggestionService
 
-Suggests an optimal match start time by finding occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy (and preferring slots all players prefer). Searches the next 4 hours within the configured tournament hours first, then falls back to the full remaining event window. Player availability is honoured: a slot is ineligible if any player with declared windows is unavailable for it. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
+Finds occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy and preferring slots all players prefer. Searches the next 4 hours within the configured tournament hours first, then the full remaining event window. A slot is ineligible if any player with declared windows is unavailable for it. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
 
 | Method | Returns | Description |
 |---|---|---|
 | `suggest_match_time(tournament_id, player_ids)` | `datetime` | Best UTC start time for the match. Raises `ValueError` when no eligible slot exists within the event schedule. |
 
-Collaborators: `PlayerAvailabilityRepository`, `SystemConfigService` (`get_tournament_hours`, `get_event_window`), [`timezone.py`](#timezonepy), queries `Match`/`Tournament` directly. Consumers: the match-request/create dialogs ("suggest time" helper).
+Collaborators: `PlayerAvailabilityRepository`, `SystemConfigService` (`get_tournament_hours`, `get_event_window`), [`timezone.py`](#timezonepy), queries `Match`/`Tournament` directly.
 
 ### match_watcher_service.py — MatchWatcherService
 
-Opt-in "watch this match" subscriptions: watchers receive lifecycle DMs without being players or crew. The DM fan-out itself happens in `MatchScheduleService`. Feature doc: [match-watcher.md](../features/match-watcher.md).
+Opt-in "watch this match" subscriptions: watchers receive lifecycle DMs without being players or crew. The DM fan-out itself happens in `MatchScheduleService`. Feature doc: [match-participation.md](../features/match-participation.md).
 
 | Method | Returns | Description |
 |---|---|---|
 | `watch(match_id, user)` | `MatchWatcher` | Subscribe (idempotent via get-or-create). Rejects unknown and already-confirmed matches (`ValueError`); audits `match.watcher_added` only on creation. |
 | `unwatch(match_id, user)` | `bool` | Unsubscribe; returns whether a row was removed; audits `match.watcher_removed` when it was. |
-| `is_watching(match_id, user)` | `bool` | Whether the user currently watches the match. |
-| `list_watched_match_ids(user)` | `list[int]` | All match ids the user watches (used to mark rows in the schedule table). |
+| `is_watching(match_id, user)` / `list_watched_match_ids(user)` | `bool` / `list[int]` | Whether the user watches one match; every match id they watch (marks rows in the schedule table). |
 
-Collaborators: `MatchWatcherRepository`, `MatchRepository`, `AuditService`. Consumers: `theme/tables/match.py` and `theme/dialog/match_dialog.py` (watch toggles), `discordbot/watch_buttons.py` (Unwatch DM button).
+Collaborators: `MatchWatcherRepository`, `MatchRepository`, `AuditService`.
 
 ### player_availability_service.py — PlayerAvailabilityService
 
@@ -479,14 +507,14 @@ Self-service availability for any logged-in player — unlike volunteer availabi
 | `set_windows(user, windows)` | `list[PlayerAvailability]` | Replace the user's availability with `(starts_at, ends_at, status, note)` tuples (each must end after it starts); transactional. Audits `player_availability.updated`. |
 | `clear(user)` | `None` | Delete all of the user's windows; audits `player_availability.updated` with `window_count: 0`. |
 | `availability_map(user_ids, start, end)` | `dict[int, list[PlayerAvailability]]` | user_id → windows overlapping `[start, end]` (batch lookup). |
-| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus \| None` | Strongest signal for a window: an overlapping `UNAVAILABLE` wins; else `PREFERRED` beats `AVAILABLE`; `None` if nothing overlaps. |
-| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status \| None)]` | Split `[start, end]` into maximal constant-availability segments (resolved by `covers` precedence, adjacent equal segments merged). |
+| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus \| None` | Delegate to [`availability_windows`](#package-layout): strongest signal for a window — an overlapping `UNAVAILABLE` wins; else `PREFERRED` beats `AVAILABLE`; `None` if nothing overlaps. |
+| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status \| None)]` | Delegate to `availability_windows`: split `[start, end]` into maximal constant-availability segments (resolved by `covers` precedence, adjacent equal segments merged). |
 
-Collaborators: `PlayerAvailabilityRepository`, `AuditService`. Consumers: the player availability page and `MatchSuggestionService`.
+Collaborators: `PlayerAvailabilityRepository`, `AuditService`, `availability_windows`.
 
 ### reports_service.py — ReportsService
 
-Aggregation queries behind the admin Reports tabs. All time math runs in US/Eastern via [`application/utils/timezone.py`](../../application/utils/timezone.py); each match contributes an estimated active window (`seated_at` or scheduled−1h → `finished_at` or start+expected duration, default 90 min). Module constants: `DEFAULT_MATCH_DURATION_MIN = 90`, `ON_TIME_THRESHOLD_MIN = 5`. Feature doc: [admin-reports.md](../features/admin-reports.md).
+Aggregation queries behind the admin Reports tabs. All time math runs in US/Eastern via [`application/utils/timezone.py`](../../application/utils/timezone.py); each match contributes an estimated active window (`seated_at` or scheduled−1h → `finished_at` or start+expected duration, default 90 min). The duration and on-time thresholds are imported from `reporting_shared`. Feature doc: [admin-reports.md](../features/admin-reports.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -499,11 +527,11 @@ Aggregation queries behind the admin Reports tabs. All time math runs in US/East
 
 **Module-level helper:** `event_day_bounds(d) -> (datetime, datetime)` — midnight-to-midnight Eastern-aware bounds for a date.
 
-Collaborators: `SystemConfigService` (capacity limit); queries `Match`/`StreamRoom` ORM directly (read-only aggregation). Consumers: `pages/admin_tabs/reports/` (`dashboard.py`, `capacity.py`, `match_ops.py`, `crew.py`, `stream_rooms.py`).
+Collaborators: `SystemConfigService` (capacity limit); queries `Match`/`StreamRoom` ORM directly (read-only aggregation).
 
 ### analytics_service.py — AnalyticsService
 
-Longitudinal / cross-event analytics behind the admin Reports → **Insights & Trends** page — the trend counterpart to `ReportsService`'s point-in-time snapshots. Events are bucketed by the US/Eastern calendar date of when they happened (`week` = Monday-anchored, `month` = 1st-anchored) into contiguous buckets (capped at `MAX_BUCKETS = 240`). Module constants: `ON_TIME_THRESHOLD_MIN = 5`, `HEALTH_WEIGHTS` (completion 0.30, on-time 0.25, coverage 0.25, duration 0.20).
+Longitudinal / cross-event analytics behind the admin Reports → **Insights & Trends** page — the trend counterpart to `ReportsService`'s point-in-time snapshots. Events are bucketed by the US/Eastern calendar date of when they happened (`week` = Monday-anchored, `month` = 1st-anchored) into contiguous buckets (capped at `MAX_BUCKETS = 240`). Module constants: `HEALTH_WEIGHTS` (completion 0.30, on-time 0.25, coverage 0.25, duration 0.20) and `MAX_BUCKETS = 240`; `ON_TIME_THRESHOLD_MIN` is imported from `reporting_shared`.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -514,7 +542,7 @@ Longitudinal / cross-event analytics behind the admin Reports → **Insights & T
 
 **Pure helpers (unit-tested without a DB):** `bucket_start`, `iter_bucket_starts`, `bucket_label`, `_bucket_index`, `health_score` (weighted average of present `(value, weight)` components, renormalized so missing dimensions don't dilute the score; `None` when no component has data), `_finalize_health`, `_duration_hours`.
 
-Collaborators: queries `Match`/`Commentator`/`Tracker`/`VolunteerShift`/`VolunteerAssignment`/`AuditLog` ORM directly (read-only aggregation, same pattern as `ReportsService`); `now_eastern` for the past-match cutoff. Consumers: `pages/admin_tabs/reports/insights.py`.
+Collaborators: queries `Match`/`Commentator`/`Tracker`/`VolunteerShift`/`VolunteerAssignment`/`AuditLog` ORM directly (read-only aggregation, same pattern as `ReportsService`); `now_eastern` for the past-match cutoff.
 
 ### seedgen_service.py — SeedGenerationService
 
@@ -522,12 +550,15 @@ Generates randomizer seeds from the presets in `presets/`. Deep dive (per-random
 
 | Member | Returns | Description |
 |---|---|---|
-| `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
-| `generate_seed(randomizer, preset=None)` | `str` | Dispatch to the named generator; returns the seed URL/string. ALTTPR uses `preset.settings` when a `Preset` is supplied (else the built-in `casualboots` settings); other backends ignore the preset (hard-coded until PR 11). `ValueError` for unsupported keys. |
+| `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `mmr`, `smdash`, `dk64r`, `wwr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
+| `STUB_RANDOMIZERS` (class attr) | `set[str]` | Registered for selection but not wired to an upstream — rolling one raises `ValueError`: `mmr`, `smdash`, `wwr`. |
+| `PRESET_AWARE_RANDOMIZERS` (class attr) | `set[str]` | Generators that resolve the `Preset`'s settings (`alttpr`, `dk64r`); everything else ignores it. |
+| `TRIFORCE_TEXT_RANDOMIZERS` (class attr) / `supports_triforce_texts(generator)` | `set[str]` / `bool` | Generators that can embed community triforce texts (`alttpr`), and the predicate `AuthService.can_submit_triforce_text` gates on. |
+| `generate_seed(randomizer, preset=None)` | `str` | Dispatch to the named generator; returns the seed URL/string. ALTTPR uses `preset.settings` when a `Preset` is supplied (else the built-in `casualboots` settings); the other preset-aware generator is `dk64r`; every other backend ignores the preset and rolls hard-coded settings. `ValueError` for unsupported keys. |
 | `available_randomizers(configured)` (classmethod) | `list[str]` | `AVAILABLE_RANDOMIZERS` minus any randomizer whose declared credential this community has not set. Pure and DB-free; the caller passes `RandomizerCredentialService.configured_randomizers()`. |
 | `generate_alttpr_for_tournament(tournament_id, balanced=True)` | `str` | ALTTPR seed with an approved community triforce text embedded — balanced selection weights every submitter equally; falls back to a plain seed when no approved texts exist. `ValueError` for unknown tournaments. |
 
-Collaborators: `TriforceTextService` (text selection), `RandomizerCredentialService` (roll-time credential resolution — raises `MissingCredentialError` when this community has not set one), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path, passing the resolved `Preset`), `theme/dialog/tournament_edit_dialog.py` and `api/routers/seeds.py` (selector filtering).
+Collaborators: `TriforceTextService` (text selection), `RandomizerCredentialService` (roll-time credential resolution — raises `MissingCredentialError` when this community has not set one), `pyz3r`/`aiohttp` for external randomizer APIs.
 
 ### randomizer_credential_service.py — RandomizerCredentialService
 
@@ -541,7 +572,7 @@ A community's own credentials for the key-gated randomizer upstreams — the per
 | `configured_randomizers()` | `set[str]` | Randomizers whose *every* declared credential this tenant has supplied — one query. Feeds `SeedGenerationService.available_randomizers`. |
 | `resolve(randomizer, key)` | `str \| None` | The stored secret, unmasked. **Deliberately ungated** and the only path that returns a value: its sole caller is `SeedGenerationService` mid-roll, whose boundary already authorized the actor. Never call it from anything that renders. |
 
-Mutations and `list_status` gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). No events — a community's key rotation is not for arbitrary webhook receivers. Collaborators: `RandomizerCredentialRepository`, `AuditService`, `AuthService`, `application.randomizer_credentials` (the spec registry). Consumers: `pages/admin_tabs/admin_randomizer_keys.py`, `pages/admin_tabs/admin_presets.py`, `theme/dialog/tournament_edit_dialog.py`, `api/routers/seeds.py`, `SeedGenerationService`.
+Mutations and `list_status` gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). No events — a community's key rotation is not for arbitrary webhook receivers. Collaborators: `RandomizerCredentialRepository`, `AuditService`, `AuthService`, `application.randomizer_credentials` (the spec registry).
 
 ### preset_service.py — PresetService
 
@@ -549,14 +580,13 @@ Tenant-authored seed-rolling presets (a named `randomizer` + `settings` blob). D
 
 | Member | Returns | Description |
 |---|---|---|
-| `list_presets(actor)` | `list[Preset]` | All of the tenant's presets. Gated by `AuthService.can_manage_presets`. |
-| `list_selectable()` | `list[Preset]` | All presets (ungated read) — populates the tournament dialog's Seed Preset select. |
+| `list_presets(actor)` / `list_selectable()` | `list[Preset]` | The tenant's presets, gated by `AuthService.can_manage_presets`; and the ungated read that populates the tournament dialog's Seed Preset select. |
 | `create_preset(actor, *, name, randomizer, settings, description=None)` | `Preset` | Validate (known randomizer, dict settings, unique `(randomizer, name)`) and insert. Audits `preset.created`. |
 | `update_preset(actor, preset_id, *, name=None, randomizer=None, settings=None, description=None)` | `Preset` | Partial update with the same validation + uniqueness re-check. Audits `preset.updated`. |
 | `delete_preset(actor, preset_id)` | `None` | Delete. Audits `preset.deleted`. Detaches linked tournaments (`SET_NULL`). |
 | `import_builtins(actor)` | `list[Preset]` | Import the committed `presets/` files as rows, idempotent by `(randomizer, name)`. Audits `preset.imported`. |
 
-All mutations gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). Collaborators: `PresetRepository`, `AuditService`, `AuthService`, `SeedGenerationService` (randomizer validity). Consumers: `pages/admin_tabs/admin_presets.py` (admin Presets tab), `theme/dialog/tournament_edit_dialog.py` (Seed Preset select).
+All mutations gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). Collaborators: `PresetRepository`, `AuditService`, `AuthService`, `SeedGenerationService` (randomizer validity).
 
 ### stream_room_service.py — StreamRoomService
 
@@ -567,35 +597,33 @@ CRUD for `StreamRoom` (stage) records. All mutations are gated by `AuthService.c
 | `create_stream_room(name, stream_url=None, is_active=True, actor=None)` | `StreamRoom` | Create; trims inputs; non-empty name required (`ValueError`). |
 | `update_stream_room(stream_room, name=None, stream_url=None, is_active=None, actor=None)` | `StreamRoom` | Partial update; rejects blanking the name. |
 | `delete_stream_room(stream_room, actor=None)` | `None` | Delete and audit. |
-| `get_all_stream_rooms(active_only=False)` | `list[StreamRoom]` | All rooms, optionally only active. |
-| `get_stream_room_by_id(stream_room_id)` | `StreamRoom \| None` | Lookup by id. |
+| `get_all_stream_rooms(active_only=False)` / `get_stream_room_by_id(id)` | reads | All rooms (optionally only active); one room by id. |
+| `require_in_tenant(stream_room_id)` | `None` | Raise unless the room belongs to the in-scope tenant — the guard callers use before assigning a room id that arrived from a request body. |
 
-Collaborators: `StreamRoomRepository`, `AuditService`. Consumers: `theme/dialog/stream_room_edit_dialog.py` (via the admin settings tab). Match↔room assignment lives on `MatchService.assign_stage`, not here.
+Collaborators: `StreamRoomRepository`, `AuditService`. Match↔room assignment lives on `MatchService.assign_stage`, not here.
 
 ### system_config_service.py — SystemConfigService
 
-Typed, static accessors over the `SystemConfiguration` key/value table. Module constants name the known keys: `KEY_EVENT_START_DATE`, `KEY_EVENT_END_DATE`, `KEY_MAX_CONCURRENT_PLAYERS`, `KEY_MAX_CONCURRENT_STAGES`, `KEY_VOLUNTEER_REMINDER_LEAD_MINUTES`, `KEY_TOURNAMENT_HOURS`, `KEY_DISCORD_SYNC_GUILD_ID`.
+Typed, static accessors over the `SystemConfiguration` key/value table. Module constants name the known keys: `KEY_EVENT_START_DATE`, `KEY_EVENT_END_DATE`, `KEY_MAX_CONCURRENT_PLAYERS`, `KEY_MAX_CONCURRENT_STAGES`, `KEY_VOLUNTEER_REMINDER_LEAD_MINUTES`, `KEY_TOURNAMENT_HOURS`, `KEY_DISCORD_SYNC_GUILD_ID`, `KEY_STATION_FORMAT`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_raw(key)` | `str \| None` | Raw stored value. |
+| `get_raw(key)` / `get_int(key, default=None)` / `get_date(key, default=None)` | `str` / `int` / `date`, or `None` | Typed reads of one key, falling back on a missing or unparseable value. |
 | `set_raw(key, value, actor)` | `SystemConfiguration` | Upsert; Staff-only (`ensure`); audits `system_config.updated` with old/new values. |
-| `get_int(key, default=None)` | `int \| None` | Int parse with fallback on missing/garbage values. |
 | `get_discord_sync_guild_id()` | `int \| None` | Discord guild id used for login-time role sync (read by `DiscordRoleMappingService`). |
-| `get_date(key, default=None)` | `date \| None` | ISO date parse with fallback. |
 | `get_event_window()` | `(date, date)` | Event start/end. Falls back to min/max `Match.scheduled_at`, then to today; clamps end ≥ start. |
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stream rooms. |
 | `get_volunteer_reminder_lead_minutes(default=60)` | `int` | How far ahead of a shift the reminder loop fires; default when unset/non-positive. |
 | `get_tournament_hours()` | `dict[date, (time, time)]` | Per-day open/close windows (JSON-decoded; malformed entries skipped). |
 | `get_tournament_window_for_date(d)` | `(time, time) \| None` | Open/close window for one date, or `None` when unconfigured. |
-| `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; validates HH:MM format and that close is after open (`ValueError`). |
-
-Consumers: `ReportsService`, `MatchSuggestionService`, `volunteer_reminder`, `DiscordRoleMappingService`, and `pages/admin_tabs/reports/` (`shared.py`, `capacity.py`, `dashboard.py`).
+| `set_tournament_hours(mapping, actor)` | `None` | Persist `{date: (open_HH:MM, close_HH:MM)}`; Staff-only. |
+| `validate_hours_mapping(mapping)` | `None` | Pure HH:MM / close-after-open validation (`ValueError`), shared with `set_tournament_hours`. |
+| `get_station_format(default=StationFormat.FREE)` | `StationFormat` | The venue's station-numbering mode. |
 
 ### telemetry_service.py — TelemetryService
 
-Engagement telemetry — *how* people use the tool, as opposed to the deliberate actions `AuditService` records. Three best-effort, non-blocking capture points, all honoring the `TELEMETRY_ENABLED` kill-switch and swallowing/logging their own errors so telemetry never breaks a render or a mutating call: `record_event(event)` (registered on the [event bus](../features/event-system.md) in `main.py`, mirroring every published domain event into a `domain` `TelemetryEvent` row on the dispatch worker), `track_page_view(...)` (called from the `protected_page` decorator on every authenticated page load, capturing path + bounded query params + browser session id), and `track_interaction(...)` (curated UI actions, e.g. `report.viewed` from the reports dispatcher). Reads power the Staff-only engagement report and are gated on `AuthService.is_staff` (`ensure`, like `WebhookService`): `engagement_summary`, `top_paths`, `top_event_types`, `top_users`, `list_events`, `count_events` — aggregations run in the database via `TelemetryRepository`. `TelemetryCategory` (`page`/`interaction`/`domain`) and `TelemetryEventType` (`page.view`/`report.viewed`/`report.exported`) name the buckets and engagement event types. Collaborators: `TelemetryRepository`, `AuthService`, `application.events`, `application.utils.environment.telemetry_enabled`. Consumers: `main.py` (bus subscription), `middleware/auth.py` (page views), `pages/admin_tabs/reports/` (`__init__.py` interaction, `telemetry.py` report). Feature doc: [telemetry.md](../features/telemetry.md).
+Engagement telemetry — *how* people use the tool, as opposed to the deliberate actions `AuditService` records. Three best-effort capture points, all honoring the `TELEMETRY_ENABLED` kill-switch and swallowing their own errors so telemetry never breaks a render or a mutating call: `record_event(event)` (subscribed to the [event bus](../features/event-system.md) in `main.py`, mirroring every domain event into a `domain` row on the dispatch worker), `track_page_view(...)` (from the `protected_page` decorator — path, bounded query params, browser session id), and `track_interaction(...)` (curated UI actions). Reads are `AuthService.is_staff`-gated and aggregate in the database via `TelemetryRepository`: `engagement_summary`, `top_paths`, `top_event_types`, `top_users`, `list_events`, `count_events`. `TelemetryCategory` (`page`/`interaction`/`domain`) and `TelemetryEventType` (`page.view`/`report.viewed`/`report.exported`) name the buckets. Collaborators: `TelemetryRepository`, `AuthService`, `application.events`, `application.utils.environment.telemetry_enabled`. Feature doc: [telemetry.md](../features/telemetry.md).
 
 ### tenant_service.py — TenantService
 
@@ -614,11 +642,11 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. |
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
-Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`. Consumers: `middleware/tenant.py` (slug→tenant resolution), `pages/platform.py` (tenant CRUD UI), `pages/home.py` (community picker), `application/services/discord/discord_service.py` + `discord_role_mapping_service.py` (guild→tenant routing).
+Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`.
 
 ### tenant_theme_service.py — TenantThemeService
 
-The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/ember); a community's STAFF may override four brand colours — `primary`, `secondary`, `accent`, and the header bar — stored under `Tenant.config['theme']` (no dedicated columns). Semantic status colours (positive/negative/warning/info) are intentionally not editable. Reads merge stored overrides onto the defaults so callers always get a full palette; writes are STAFF-gated (`AuthService.ensure(is_staff, …)`), validated to 6-digit hex, and audited (`theme.updated`, tenant-scoped). `Tenant` is the tenancy discriminator (never tenant-scoped), so this service reads/writes through the cross-tenant `TenantRepository`. Applied by `BaseLayout` — see [frontend.md § Per-tenant theme colours](../reference/frontend.md#per-tenant-theme-colours).
+The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/ember); a community's STAFF may override four brand colours — `primary`, `secondary`, `accent`, and the header bar — stored under `Tenant.config['theme']`, no dedicated columns. Semantic status colours (positive/negative/warning/info) are deliberately not editable. Reads merge overrides onto the defaults so callers always get a full palette; writes are STAFF-gated, validated to 6-digit hex, and audited `theme.updated`. `Tenant` is the tenancy discriminator (never tenant-scoped), so this service goes through the cross-tenant `TenantRepository`. Applied by `BaseLayout` — see [frontend.md § Per-tenant theme colours](../reference/frontend.md#per-tenant-theme-colours).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -630,20 +658,19 @@ The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/
 | `contrast_report(colors)` | `dict[str, dict]` | Per-colour WCAG-AA contrast (`{ratio, ok, threshold, against}`) of each colour against the surface it's used on — pure, skips invalid/blank values. |
 | `contrast_warnings(colors)` | `list[str]` | Human-readable warnings for colours below the 4.5:1 AA target. |
 
-Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset field passes, so a preset can never ship failing AA. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`. Consumers: `theme/base.py` (`BaseLayout` chrome), `pages/admin_tabs/admin_theme.py` (the Appearance editor, presets + live warnings).
+Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset field passes, so a preset can never ship failing AA. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`.
 
 ### tournament_notification_service.py — TournamentNotificationService
 
-Per-user, per-tournament match-notification preference management (`MatchNotificationLevel`). The subscriber queries that consume these preferences live in `TournamentNotificationRepository` and are called from `MatchScheduleService`. Feature doc: [tournament-notifications.md](../features/tournament-notifications.md).
+Per-user, per-tournament match-notification preference management (`MatchNotificationLevel`). The subscriber queries that consume these preferences live in `TournamentNotificationRepository` and are called from `MatchScheduleService`. Feature doc: [match-participation.md](../features/match-participation.md).
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_preference(user, tournament_id)` | `TournamentNotificationPreference \| None` | A user's preference for one tournament (`None` for unknown tournament or unset). |
-| `get_user_preferences(user)` | `list[TournamentNotificationPreference]` | All of a user's preferences. |
+| `get_preference(user, tournament_id)` / `get_user_preferences(user)` | reads | One tournament's preference (`None` when unknown or unset); all of a user's preferences. |
 | `upsert_preference(user, tournament_id, match_notifications)` | `TournamentNotificationPreference` | Create/update; validates the level string against `MatchNotificationLevel` and the tournament's existence (`ValueError`). |
 | `get_active_tournaments()` | `list[Tournament]` | Active tournaments, name-ordered (for the preference dialog). |
 
-Collaborators: `TournamentNotificationRepository`, `TournamentRepository`. Consumers: `theme/dialog/tournament_notification_dialog.py` (profile tab).
+Collaborators: `TournamentNotificationRepository`, `TournamentRepository`.
 
 ### tournament_service.py — TournamentService
 
@@ -658,14 +685,13 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `remove_admin(tournament, target, actor=None)` | `None` | Revoke Tournament Admin. |
 | `add_crew_coordinator(tournament, target, actor=None)` | `None` | Grant Crew Coordinator. |
 | `remove_crew_coordinator(tournament, target, actor=None)` | `None` | Revoke Crew Coordinator. |
-| `get_all_tournaments(active_only=False)` | `list[Tournament]` | List tournaments. |
-| `get_tournament_by_id(tournament_id)` | `Tournament \| None` | Lookup by id. |
+| `get_all_tournaments(active_only=False)` / `get_tournament_by_id(id)` | reads | Tournament list (optionally active only); one tournament by id. |
 
-Collaborators: `TournamentRepository`, `AuditService`. Consumers: `theme/dialog/tournament_edit_dialog.py`, `theme/dialog/user_edit_dialog.py`, `pages/admin_tabs/reports/shared.py` (filter options).
+Collaborators: `TournamentRepository`, `AuditService`.
 
 ### tournament_config.py + tournament_strategies/ — hybrid-config substrate
 
-Foundations for online-tournament user-definable logic ([online-tournaments](../online-tournaments/README.md)). `tournament_config.py` defines `TournamentConfig` (a Pydantic model with `extra='forbid'`) and `validate_tournament_config(config)`, which normalizes the blob and raises `ValueError` on any unknown key — the single entry point `TournamentService` calls before persisting `Tournament.config`. `tournament_strategies/` is the register/lookup registry for the finite set of named strategy primitives (`register_strategy(kind, name)`, `get_strategy(kind, name)`, `available_strategies(kind)`); config picks and parameterizes them — **never `eval`**. PR 0 ships the substrate empty; feature PRs add concrete config keys and strategies. The **bracket engines** (below) are the first concrete strategies to populate it, under the `bracket_format` kind.
+Foundations for online-tournament user-definable logic ([online-tournaments.md](../features/online-tournaments.md)). `tournament_config.py` defines `TournamentConfig` (a Pydantic model with `extra='forbid'`) and `validate_tournament_config(config)`, which normalizes the blob and raises `ValueError` on any unknown key — the single entry point `TournamentService` calls before persisting `Tournament.config`. `tournament_strategies/` is the register/lookup registry for the finite set of named strategy primitives (`register_strategy(kind, name)`, `get_strategy(kind, name)`, `available_strategies(kind)`); config picks and parameterizes them — **never `eval`**. The **bracket engines** (below) are the concrete strategies populating it, under the `bracket_format` kind.
 
 ### bracket_config.py — bracket-config substrate
 
@@ -685,9 +711,10 @@ Two engine shapes ([`base.py`](../../application/services/bracket_engines/base.p
 - **Generative** — `generate(num_entries, config) -> List[GeneratedMatch]` emits the *entire* graph up front with `winner_to`/`loser_to` pointers and seed placements. `single_elimination.py` (`SingleEliminationEngine`), `double_elimination.py` (`DoubleEliminationEngine` — winners + losers rounds via `standard_seeding`/`next_power_of_two`, grand final + conditional reset; structure ported in spirit from the MIT `smwa/python-tournaments`), and `round_robin.py` (`RoundRobinEngine` — snake-balanced groups scheduled by the circle method; no progression pointers).
 - **Pairing** — `pair_round(players, config) -> List[(ref1, ref2|None)]` is a stateless per-round call. `swiss.py` (`SwissEngine`) is a thin adapter over the MIT **`swisspair`** library (min-cost no-rematch matching + one low-standing bye), encoding a deterministic rank tiebreak into the integer points so the pairing is reproducible.
 
-[`round_names.py`](../../application/services/bracket_engines/round_names.py) is the shared, ORM-free round naming — `round_label(...)` for one round and `round_names(nodes, *, double_elim)` for a whole stage graph, plus `detect_finals_ids` (the structural "which match is the grand final / reset" rule). It lived in `theme/brackets/layout.py`, which meant only the *rendered* bracket could name a round; lifting it is what lets a service, a Discord DM, or a REST payload say "Semifinals". `layout.py` re-exports `round_label`, and `render.detect_finals` is a thin adapter over `detect_finals_ids`, so the renderer and the notification path cannot disagree.
+Two shared, ORM-free passes sit beside the engines so a service, a Discord DM, or a REST payload can use them without the renderer:
 
-[`standings.py`](../../application/services/bracket_engines/standings.py) is the shared, ORM-free standings pass — `compute_standings(refs, results, config)` over opaque `int` refs and `ResultRow` records, computing match points and a configurable tiebreaker chain (`buchholz`, `omw`, `head_to_head`) into 1-based competition ranks (unresolved ties share a rank and list each other in `tied_with`). Round robin, Swiss re-pairing, stage-completion ranking, and the public bracket page's live standings all consume it.
+- [`round_names.py`](../../application/services/bracket_engines/round_names.py) — `round_label(...)` for one round, `round_names(nodes, *, double_elim)` for a whole stage graph, and `detect_finals_ids` (the structural "which match is the grand final / reset" rule). `theme/brackets/layout.py` re-exports `round_label` and `render.detect_finals` adapts `detect_finals_ids`, so the renderer and the notification path cannot disagree.
+- [`standings.py`](../../application/services/bracket_engines/standings.py) — `compute_standings(refs, results, config)` over opaque `int` refs and `ResultRow` records, computing match points and a configurable tiebreaker chain (`buchholz`, `omw`, `head_to_head`) into 1-based competition ranks (unresolved ties share a rank and list each other in `tied_with`). Round robin, Swiss re-pairing, stage-completion ranking, and the public bracket page's live standings all consume it.
 
 ### triforce_text_service.py — TriforceTextService
 
@@ -703,37 +730,33 @@ Community-submitted ALTTP end-game triforce texts, scoped per tournament, with a
 | `get_balanced_text(tournament)` | `str \| None` | Random submitter first, then a random approved text from them — equal weight per submitter (deleted-user texts form their own bucket). |
 | `get_random_text(tournament)` | `str \| None` | Uniformly random approved text. |
 
-Collaborators: `TriforceTextRepository`, `AuditService`, `AuthService`. Consumers: `pages/triforce_texts.py` (player submission page), `pages/admin_tabs/triforce_texts.py` (moderation tab), `SeedGenerationService.generate_alttpr_for_tournament` (text selection).
+Collaborators: `TriforceTextRepository`, `AuditService`, `AuthService`.
 
-### twitch_service.py — TwitchService
+### identity_link_service.py — IdentityLinkService, TwitchService, RacetimeService
 
-Coordinates the Twitch account-linking integration: a logged-in user completes a one-time Twitch OAuth login so we can record their verified Twitch identity (id / login / display name) on their `User`. Identity only — the user's Twitch access token is used once during linking and discarded. Mock mode is gated by [`MOCK_TWITCH`](#mock_twitchpy).
-
-| Method | Returns | Description |
-|---|---|---|
-| `is_configured()` (static) | `bool` | OAuth app credentials are present (or mock is on). |
-| `player_authorize_url(state)` (static) | `str` | Twitch OAuth authorize URL to redirect the browser to. |
-| `redirect_uri()` (static) | `str` | The registered OAuth redirect URI (`TWITCH_REDIRECT_URI` or derived from `BASE_URL`). |
-| `exchange_player_code(code)` | `{user_id, username, display_name}` | Exchange a user's auth code and return their identity (token used once, discarded). |
-| `record_player_link(user, twitch_user_id, twitch_username, actor)` | `None` | Persist the linked Twitch identity; rejects ids already linked elsewhere (`ValueError`); audits `twitch.linked`. |
-| `unlink_player(user, actor)` | `None` | Clear a user's Twitch link; audits `twitch.unlinked`. |
-
-Collaborators: `AuditService`, [`twitch_client.py`](#twitch_clientpy) (`TwitchClient`/`MockTwitchClient`), [`mock_twitch.py`](#mock_twitchpy). Consumers: the Twitch OAuth pages ([`pages/twitch_oauth.py`](../../pages/twitch_oauth.py)) and the profile "Link Twitch" card ([`pages/home_tabs/twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py)).
-
-### racetime_service.py — RacetimeService
-
-Coordinates the racetime.gg account-linking integration: a logged-in user completes a one-time racetime OAuth login (read scope) so we can record their verified racetime identity (id / name) on their `User`. Identity only — the access token is used once during linking and discarded (mirrors `TwitchService`). Mock mode is gated by [`MOCK_RACETIME`](#mock_racetimepy). These are the **identity-link** OAuth credentials only; the race-room bots use their own per-category credentials on `RacetimeBot` rows.
+The **provider-parameterized account-linking engine** behind both secondary-identity integrations. A logged-in user completes a one-time OAuth login with the provider so their verified identity is recorded on their `User`; the access token is used once during linking and discarded — identity only, never a stored credential. `TwitchService` and `RacetimeService` are thin public shells that construct an `IdentityLinkProvider` and delegate every call, so the two flows cannot drift.
 
 | Method | Returns | Description |
 |---|---|---|
-| `is_configured()` (static) | `bool` | OAuth app credentials are present (or mock is on). |
-| `player_authorize_url(state)` (static) | `str` | racetime OAuth authorize URL to redirect the browser to. |
-| `redirect_uri()` (static) | `str` | The registered OAuth redirect URI (`RACETIME_REDIRECT_URI` or derived from `BASE_URL`). |
-| `exchange_player_code(code)` | `{user_id, username}` | Exchange a user's auth code and return their identity (token used once, discarded). |
-| `record_player_link(user, racetime_user_id, racetime_username, actor)` | `None` | Persist the linked racetime identity; rejects ids already linked elsewhere (`ValueError`); audits `racetime.linked`. |
-| `unlink_player(user, actor)` | `None` | Clear a user's racetime link; audits `racetime.unlinked`. |
+| `is_configured()` | `bool` | OAuth app credentials are present (or the provider's mock is on). |
+| `player_authorize_url(state)` | `str` | Provider OAuth authorize URL to redirect the browser to. |
+| `redirect_uri()` | `str` | The registered OAuth redirect URI (provider env var, else derived from `BASE_URL`). |
+| `build_oauth_client()` | client | The real or mock client for the provider (`_oauth_client()` on the shells). |
+| `exchange_player_code(code)` | `dict` | Exchange a user's auth code and return their identity (token used once, discarded). Twitch returns `{user_id, username, display_name}`; racetime `{user_id, username}`. |
+| `record_player_link(user, provider_user_id, provider_username, actor)` | `None` | Persist the linked identity on the `User`; rejects ids already linked elsewhere (`ValueError`); audits the provider's `*.linked` action. |
+| `unlink_player(user, actor)` | `None` | Clear the link; audits the provider's `*.unlinked` action. |
 
-Collaborators: `AuditService`, [`racetime_client.py`](#racetime_clientpy) (`RacetimeClient`/`MockRacetimeClient`), [`mock_racetime.py`](#mock_racetimepy). Consumers: the racetime OAuth pages ([`pages/racetime_oauth.py`](../../pages/racetime_oauth.py)) and the profile "Link racetime.gg" card ([`pages/home_tabs/racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py)).
+`IdentityLinkProvider` carries everything that differs between the two:
+
+| | Twitch | racetime.gg |
+|---|---|---|
+| `field_prefix` on `User` | `twitch_*` | `racetime_*` |
+| Scope | none (public identity needs none, keeping consent minimal) | `IDENTITY_SCOPE` (read) |
+| Audit actions | `twitch.linked` / `twitch.unlinked` | `racetime.linked` / `racetime.unlinked` |
+| Mock switch | `MOCK_TWITCH` | `MOCK_RACETIME` |
+| Client | `TwitchClient` / `MockTwitchClient` | `RacetimeClient` / `MockRacetimeClient` |
+
+These are the **identity-link** OAuth credentials only; the race-room bots use their own per-category credentials on `RacetimeBot` rows. Collaborators: `AuditService`, the [OAuth identity clients](#oauth-identity-clients), the [mock switches](#mock-switches).
 
 ### racetime_bot_service.py — RacetimeBotService
 
@@ -752,7 +775,7 @@ Platform administration of the shared, **global** racetime bots (one per game ca
 | `list_authorized_for_tenant(tenant_id)` | `[RacetimeBot]` | Tenant-facing: active bots a tenant may select (no secret exposed; explicit tenant id). |
 | `is_authorized_for_tenant(bot_id, tenant_id)` | `bool` | Whether a tenant may select a given bot. |
 
-Runtime health methods (PR 4) are **not** SUPER_ADMIN-gated — the caller is the trusted in-process connection loop acting as the system user, writing platform-level (`tenant=NULL`) health rows. `client_secret` never appears in them.
+Runtime health methods are **not** SUPER_ADMIN-gated — the caller is the trusted in-process connection loop acting as the system user, writing platform-level (`tenant=NULL`) health rows. `client_secret` never appears in them.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -763,11 +786,19 @@ Runtime health methods (PR 4) are **not** SUPER_ADMIN-gated — the caller is th
 | `record_error(id, actor, msg, *, auth_failed=False)` | `None` | `status=error` + message; audits `racetime_bot.error` (with `auth_failed`). |
 | `mark_disconnected(id, actor, msg=None)` | `None` | `status=disconnected`; audits `racetime_bot.disconnected`. |
 
-Collaborators: `AuditService`, `RacetimeBotRepository`. Consumers: the `/platform` bot CRUD + tenant-assignment UI ([`pages/platform.py`](../../pages/platform.py)), `TournamentService` (validating a tournament's selected bot against the tenant's grants), and the `racetimebot/` runtime (health writes).
+Collaborators: `AuditService`, `RacetimeBotRepository`.
 
-#### racetimebot/ — the racetime bot runtime (PR 4)
+#### racetimebot/ — the racetime bot runtime
 
-A peer of `discordbot/` (presentation layer: calls services, never repositories). Started from the FastAPI lifespan when `RACETIME_BOT_ENABLED` is on; a no-op otherwise. Modules: `manager.py` (`RacetimeBotManager` singleton — one `CategoryConnection` task per active bot, re-adopts open rooms on boot, `restart(actor, id)`), `connection.py` (`CategoryConnection` — the supervised loop: authenticate → `record_connected` → run with heartbeats; auth error → `record_error(auth_failed=True)` and stop; transient → `record_error` + exponential backoff capped 5 min; graceful stop → `mark_disconnected`), `handler.py` (`RaceHandler` — resolves slug → room → tenant via the unscoped lookup, binds `tenant_scope`, delegates to a lifecycle object; a raised handler is caught so it never kills the bot), `transport.py` (`RacetimeTransport` seam: `RealRacetimeTransport` does a real `client_credentials` token fetch + liveness loop; `RaceRoomEvent`/`RaceEntrant`/`EntrantStatus` value types; `RacetimeAuthError`/`RacetimeTransientError`), and `mock.py` (`MockRacetimeTransport` — the scripted fake for `MOCK_RACETIME` and tests).
+A peer of `discordbot/`, not part of `application/services/` — presentation layer: it calls services, never repositories. Started from the FastAPI lifespan when `RACETIME_BOT_ENABLED` is on; a no-op otherwise. Tenant resolution here is 1:1 (slug → room → tenant), the opposite of `discordbot/`'s fan-out — see [online-tournaments.md](../features/online-tournaments.md#two-bot-runtimes-opposite-tenant-resolution-models).
+
+| Module | Holds |
+|---|---|
+| `manager.py` | `RacetimeBotManager` singleton — one `CategoryConnection` task per active bot, re-adopts open rooms on boot, `restart(actor, id)` |
+| `connection.py` | `CategoryConnection` — the supervised loop: authenticate → `record_connected` → run with heartbeats. Auth error → `record_error(auth_failed=True)` and stop; transient → `record_error` + exponential backoff capped at 5 min; graceful stop → `mark_disconnected` |
+| `handler.py` | `RaceHandler` — resolves slug → room → tenant via the unscoped lookup, binds `tenant_scope`, delegates to a lifecycle object; a raising handler is caught so it never kills the bot |
+| `transport.py` | The `RacetimeTransport` seam: `RealRacetimeTransport` (`client_credentials` token fetch + liveness loop), the `RaceRoomEvent`/`RaceEntrant`/`EntrantStatus` value types, `RacetimeAuthError`/`RacetimeTransientError` |
+| `mock.py` | `MockRacetimeTransport` — the scripted fake for `MOCK_RACETIME` and tests |
 
 ### race_room_profile_service.py — RaceRoomProfileService
 
@@ -775,21 +806,20 @@ Tenant-scoped CRUD for reusable racetime room settings (the `startrace` paramete
 
 | Method | Returns | Description |
 |---|---|---|
-| `list_profiles(actor)` / `get_profile(actor, id)` | `[RaceRoomProfile]` / `RaceRoomProfile` | Gated reads. |
-| `list_selectable()` | `[RaceRoomProfile]` | Ungated read for the tournament dialog. |
+| `list_profiles(actor)` / `get_profile(actor, id)` / `list_selectable()` | `[RaceRoomProfile]` | Gated list and single read; plus the ungated read that fills the tournament dialog's profile select. |
 | `create_profile(actor, *, name, **fields)` | `RaceRoomProfile` | Create; per-tenant unique name; rejects negative timers. |
 | `update_profile(actor, id, *, name=None, **fields)` | `RaceRoomProfile` | Update. |
 | `delete_profile(actor, id)` | `None` | Delete. |
 
-Collaborators: `AuditService`, `RaceRoomProfileRepository`. Consumers: the admin **Racetime** tab ([`pages/admin_tabs/admin_racetime.py`](../../pages/admin_tabs/admin_racetime.py)) and the tournament dialog's profile select.
+Collaborators: `AuditService`, `RaceRoomProfileRepository`.
 
 ### racetime_room_service.py — RacetimeRoomService
 
-Record lookup + status writes for race-room→tenant routing. `get_by_slug(slug)` is the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant); `get_for_match(match)` finds a match's room; `list_open_rooms()` returns not-yet-terminal rooms across all tenants (unscoped, for boot-time re-adoption); `set_status(room, status)` writes the cached lifecycle status (stamping `opened_at` the first time a room reaches `in_progress`). The richer create/seed/result lifecycle lands in PR 6.
+Record lookup + status writes for race-room→tenant routing. `get_by_slug(slug)` is the **unscoped** entry point the inbound-event router uses (a racetime event carries only the slug, no tenant); `get_for_match(match)` finds a match's room; `list_open_rooms()` returns not-yet-terminal rooms across all tenants (unscoped, for boot-time re-adoption); `set_status(room, status)` writes the cached lifecycle status (stamping `opened_at` the first time a room reaches `in_progress`). The richer create/seed/result lifecycle lives in [`RaceRoomService`](#race_room_servicepy--raceroomservice).
 
-Collaborators: `RacetimeRoomRepository`. Consumers: the `racetimebot/` runtime (re-adoption + status writes).
+Collaborators: `RacetimeRoomRepository`.
 
-### race_room_service.py — RaceRoomService (PR 6)
+### race_room_service.py — RaceRoomService
 
 The racetime room lifecycle mapped onto a `Match` — the business layer both the auto-open worker and the `racetimebot/` handlers call. Tenant-scoped (callers bind the tenant); **acts as the system user**; audits + publishes a `race_room.*` event on every transition.
 
@@ -801,11 +831,11 @@ The racetime room lifecycle mapped onto a `Match` — the business layer both th
 | `record_finish(room, entrants, *, actor=None)` | `None` | Maps entrants → linked `User`, records `finish_rank` (place) + `finish_time` (seconds), closes the match, feeds the existing result path (+ optional Challonge push). Handles forfeit / no-show / DQ / one-finisher; unmatched handles go to the audit for reconcile. Emits `race_room.finished` + `race_room.result_recorded` + `match.result_recorded`. |
 | `cancel_room(room, *, actor=None, reason=None)` | `None` | Marks the room cancelled; emits `race_room.cancelled`. |
 
-`RaceRoomLifecycle` (same module) is the adapter the PR 4 handler injects: it translates a transport `RaceRoomEvent` into the matching transition. Collaborators: `RacetimeRoomRepository`, `AuditService`, `AuthService`, `UserService`, `MatchScheduleService`, `ChallongeService`, the event bus. Consumers: the auto-open worker, the `racetimebot/` handlers, and the admin match dialog (manual create).
+`RaceRoomLifecycle` (same module) is the adapter the `racetimebot/` handler injects: it translates a transport `RaceRoomEvent` into the matching transition. Collaborators: `RacetimeRoomRepository`, `AuditService`, `AuthService`, `UserService`, `MatchScheduleService`, `ChallongeService`, the event bus.
 
 **race_room_worker.py** — the auto-open background loop (peer of `volunteer_reminder`). Every 60 s it scans (cross-tenant, unscoped) not-yet-finished matches on auto-create tournaments in a wide window, then per match — inside `tenant_scope` — opens a room when it enters that tournament's `room_open_minutes_before` lead, is idempotent (one room per match), has an authorized bot, and every entrant has a linked racetime identity. Started from the lifespan only when `RACETIME_BOT_ENABLED` is on.
 
-### service_health_service.py — ServiceHealthService (PR 5)
+### service_health_service.py — ServiceHealthService
 
 Platform external-service health monitor. **Computed-and-cached, no persistence model**: an async probe registry (`_PROBES`) whose results live in a process-global in-memory cache (`_CACHE`, owned by the single worker/on-demand refresh — safe module-level state). `ServiceStatus` = `healthy / degraded / credential_warning / down / unknown` (`credential_warning` is the distinct "up but a credential is expiring/rejected" signal). Each probe is wrapped with a hard timeout so one hung dependency can't stall the board; a raising probe becomes `down`.
 
@@ -815,22 +845,22 @@ Platform external-service health monitor. **Computed-and-cached, no persistence 
 | `snapshot()` | `list[ProbeResult]` | Cached results (UNKNOWN placeholders for not-yet-probed keys); the board's instant initial paint. |
 | `tenant_subset(tenant_id)` | `list[ProbeResult]` | The read-only subset a tenant's STAFF may see — its authorized racetime bots + its own Challonge connection — probed live (not from the platform cache). Caller binds the tenant scope. |
 
-Probes: PostgreSQL (DB round-trip), Discord bot (gateway readiness / mock), Discord OAuth (config), racetime bots (reads `RacetimeBot.status`, maps `error` w/ auth message → credential-warning), SpeedGaming (reachability / mock), Challonge (API reachability **+** token expiry across all tenants via `ChallongeRepository.list_all_connections()`, an explicitly-unscoped read), Twitch OAuth (config), seed-gen upstreams alttpr.com / ootrandomizer.com / maprando.com (reachability), web-push/VAPID (config), Sentry (config). Alerting: `refresh` publishes `EventType.SERVICE_HEALTH_ALERT` (platform-level → no tenant webhook; the real channels are Sentry `capture_message` + optional super-admin DM under `SERVICE_HEALTH_ALERT_DM`). Consumers: `/platform` board (full, refreshable) and the admin **Service Health** tab (tenant subset) via `pages/service_health_view.py`.
+Probes, by kind: **round-trip** — PostgreSQL; **reachability** — SpeedGaming, Challonge, and the seed-gen upstreams alttpr.com / ootrandomizer.com / maprando.com; **config presence** — Discord OAuth, Twitch OAuth, web-push/VAPID, Sentry; **runtime state** — the Discord bot's gateway readiness and `RacetimeBot.status` (an `error` with an auth message maps to credential-warning). Challonge additionally checks token expiry across all tenants via `ChallongeRepository.list_all_connections()`, an explicitly-unscoped read. Alerting: `refresh` publishes `EventType.SERVICE_HEALTH_ALERT`, which is platform-level so no tenant webhook fires; the real channels are Sentry `capture_message` plus an optional super-admin DM under `SERVICE_HEALTH_ALERT_DM`.
 
 **service_health_worker.py** — the periodic probe loop (peer of `discord_event_worker`). Every 120 s it calls `ServiceHealthService().refresh()` with **no tenant scope** (all probes are platform-level). Started from the lifespan only when `SERVICE_HEALTH_ENABLED` is on; the board still refreshes on demand regardless. The loop never dies — a failing tick is logged and retried.
 
-### speedgaming_etl_service.py — SpeedGamingETLService (PR 7)
+### speedgaming_etl_service.py — SpeedGamingETLService
 
-One-way SpeedGaming → Wizzrobe schedule ETL, ported from sahabot2 and adapted to the three-layer + multitenant shape. Per active `SpeedGamingEventLink` the sync worker (never a UI caller) drives the pipeline: **extract** a forward schedule window from the SG API (`SpeedGamingClient`), **transform** each episode to UTC and resolve every player to a `User` via the placeholder pattern, **load** by upserting a `SpeedGamingEpisode` staging row and materializing/refreshing its `Match` + `MatchPlayers`. Runs as the reserved **system `User`** (audit/event actor), always inside the worker's `tenant_scope`. Two race-day guards uphold the hybrid read-only contract: a re-sync **skips** a match that is finished / manually progressed / racetime-linked, and **auto-finishes** SG-sourced matches more than 4h past their scheduled time (unless a room is linked). The per-field read-only lock on a sourced match lives in [`match_source_guard.py`](#match_servicepy--matchservice) / `MatchService.update_match`; this service owns the sync side. Audited under `sg_sync.*`; module constant `BACKFILL_GRACE_HOURS = 1`.
+One-way SpeedGaming → Wizzrobe schedule ETL. Per active `SpeedGamingEventLink` the sync worker (never a UI caller) drives the pipeline: **extract** a forward schedule window from the SG API (`SpeedGamingClient`), **transform** each episode to UTC and resolve every player to a `User` via the placeholder pattern, **load** by upserting a `SpeedGamingEpisode` staging row and materializing/refreshing its `Match` + `MatchPlayers`. Runs as the reserved **system `User`**, always inside the worker's `tenant_scope`. Two race-day guards uphold the hybrid read-only contract: a re-sync **skips** a match that is finished / manually progressed / racetime-linked, and **auto-finishes** SG-sourced matches more than 4h past their scheduled time (unless a room is linked). The per-field lock on a sourced match is [`match_source_guard.py`](#match_servicepy--matchservice). Audited under `sg_sync.*`; module constant `BACKFILL_GRACE_HOURS = 1`.
 
 | Method | Returns | Description |
 |---|---|---|
 | `sync_event_link(link, *, actor, now=None)` | `SyncResult` | Sync one active link (assumes ambient tenant = `link.tenant`): import every episode in the window, soft-detach episodes that vanished upstream, auto-finish stale matches, and record the link's observability fields (`last_synced_at`/`last_status`/`last_error`). Never raises on a per-episode failure — failures are tallied. |
 | `import_episode(link, raw, *, actor, now=None)` | `str` | Transform+load one raw SG episode: upsert its staging row and materialize/refresh its match. Returns the outcome key (`'imported'`/`'unchanged'`/`'skipped'`) for the caller to tally; raises on a transform/load failure so the caller can mark that episode ERROR. |
 
-`SyncResult` (same module) is the per-run tally dataclass — `imported`, `unchanged`, `skipped`, `cancelled`, `auto_finished`, `errors`, `error_messages` — with `as_dict()` for the audit/observability payload. Collaborators: `SpeedGamingEpisodeRepository`, `SpeedGamingEventLinkRepository`, `MatchRepository`/`MatchService`, `UserRepository`, `AuditService`, the event bus, `SpeedGamingClient`. Consumers: `speedgaming_sync_worker` and `SpeedGamingSyncService.sync_now`.
+`SyncResult` (same module) is the per-run tally dataclass — `imported`, `unchanged`, `skipped`, `cancelled`, `auto_finished`, `errors`, `error_messages` — with `as_dict()` for the audit/observability payload. Collaborators: `SpeedGamingEpisodeRepository`, `SpeedGamingEventLinkRepository`, `MatchRepository`/`MatchService`, `UserRepository`, `AuditService`, the event bus, `SpeedGamingClient`.
 
-### speedgaming_sync_service.py — SpeedGamingSyncService (PR 7)
+### speedgaming_sync_service.py — SpeedGamingSyncService
 
 The human-driven management surface over the SG ETL: CRUD of `SpeedGamingEventLink` rows (which SG event slug feeds which tournament) and an on-demand "sync now" for one link. Every mutation is gated by `AuthService.can_manage_sync` (STAFF / super-admin / `SYNC_ADMIN`) and audited under `sg_sync.*`. The background worker calls the ETL directly as the system user; this service is the admin-facing peer.
 
@@ -843,7 +873,7 @@ The human-driven management surface over the SG ETL: CRUD of `SpeedGamingEventLi
 | `delete_link(actor, link_id)` | `None` | Remove a link; audits `sg_sync.event_link_deleted`. |
 | `sync_now(actor, link_id)` | `SyncResult` | Run `SpeedGamingETLService.sync_event_link` for one link on demand and return the run tally. |
 
-Collaborators: `SpeedGamingEventLinkRepository`, `SpeedGamingEpisodeRepository`, `TournamentRepository`, `SpeedGamingETLService`, `AuthService`, `AuditService`. Consumer: the admin **SpeedGaming** sync tab.
+Collaborators: `SpeedGamingEventLinkRepository`, `SpeedGamingEpisodeRepository`, `TournamentRepository`, `SpeedGamingETLService`, `AuthService`, `AuditService`.
 
 ### user_service.py — UserService
 
@@ -851,7 +881,7 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_user_by_discord_id(discord_id)` | `User \| None` | Lookup by Discord id. |
+| `get_user_by_discord_id(discord_id)` / `get_user_by_id(user_id)` | `User \| None` | Lookups the entry surfaces use instead of touching `UserRepository`. |
 | `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
@@ -867,11 +897,11 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | `revoke_role(target, role, actor)` | `None` | Remove a `UserRole` row. |
 | `manage_tournament_enrollments(user, actor, tournament_ids, is_update=True)` | `None` | Update mode diffs against current enrollments; create mode (new users) only adds. |
 
-Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthService`. Consumers: `theme/dialog/user_edit_dialog.py` (admin user management), `pages/home_tabs/player_edit_info.py` (self profile), `theme/tables/match.py` and `pages/home_tabs/schedule.py` (session-user resolution).
+Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthService`.
 
 ## Volunteering
 
-The onsite volunteer subsystem spans six services plus a background reminder loop. The data flow is: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
+The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
 
 ### volunteer_profile_service.py — VolunteerProfileService
 
@@ -890,18 +920,14 @@ Collaborators: `VolunteerProfileRepository`, `AuditService`.
 
 ### volunteer_availability_service.py — VolunteerAvailabilityService
 
-Self-service availability for opted-in volunteers, plus the coordinator-picker lookups that flag who is available for a shift. Windows carry a `VolunteerAvailabilityStatus` and are replaced wholesale on each save. (Mirrors `PlayerAvailabilityService` but requires an active volunteer opt-in.)
+Self-service availability for opted-in volunteers, plus the coordinator-picker lookups that flag who is available for a shift. **Method-for-method the same surface as [`PlayerAvailabilityService`](#player_availability_servicepy--playeravailabilityservice)** — `availability_for`, `set_windows`, `clear`, `availability_map`, and the two `availability_windows` delegates `covers` / `effective_segments`, over `VolunteerAvailability` rows. Two differences:
 
-| Method | Returns | Description |
-|---|---|---|
-| `availability_for(user)` | `list[VolunteerAvailability]` | The user's declared windows. |
-| `set_windows(user, windows)` | `list[VolunteerAvailability]` | Replace availability with `(starts_at, ends_at, status, note)` tuples; **requires the user to be opted in** (`ValueError`); each window must end after it starts; transactional. Audits `volunteer.availability_updated`. |
-| `clear(user)` | `None` | Delete all windows; audits `volunteer.availability_updated` with `window_count: 0`. |
-| `availability_map(user_ids, start, end)` | `dict[int, list[VolunteerAvailability]]` | user_id → windows overlapping `[start, end]`. |
-| `covers(windows, start, end)` (static) | `VolunteerAvailabilityStatus \| None` | Strongest signal for a shift (unavailable > preferred > available; `None` if nothing overlaps). |
-| `effective_segments(windows, start, end)` (static) | `list[(datetime, datetime, status \| None)]` | Split `[start, end]` into maximal constant-availability segments. |
+| Difference | |
+|---|---|
+| Opt-in gate | `set_windows` requires an active volunteer opt-in and raises `ValueError` otherwise. |
+| Audit action | Writes are audited `volunteer.availability_updated` (not `player_availability.updated`). |
 
-Collaborators: `VolunteerAvailabilityRepository`, `VolunteerProfileRepository`, `AuditService`. Consumers: `VolunteerScheduleService` (assignment availability warnings) and `VolunteerAutoscheduleService` (candidate scoring).
+Collaborators: `VolunteerAvailabilityRepository`, `VolunteerProfileRepository`, `AuditService`, `availability_windows`.
 
 ### volunteer_position_service.py — VolunteerPositionService
 
@@ -909,8 +935,7 @@ CRUD for the arbitrary, coordinator-defined position/job list. Positions optiona
 
 | Method | Returns | Description |
 |---|---|---|
-| `list_all()` / `list_active()` | `list[VolunteerPosition]` | All positions, or only active ones. |
-| `get(position_id)` | `VolunteerPosition \| None` | Lookup by id. |
+| `list_all()` / `list_active()` / `get(position_id)` | reads | All positions, only active ones, one by id. |
 | `create(actor, name, description=None, color=None, display_order=0, is_active=True, shift_length_minutes=None, stagger_minutes=None)` | `VolunteerPosition` | Coordinator-only; non-empty unique name required; validates the stagger config (positive, stagger ≤ shift length). Audits `volunteer.position_created`. |
 | `update(actor, position, **fields)` | `VolunteerPosition` | Coordinator-only partial update; re-validates name uniqueness and stagger config when those fields change. Audits `volunteer.position_updated`. |
 | `delete(actor, position)` | `None` | Coordinator-only; audits `volunteer.position_deleted`. |
@@ -923,8 +948,7 @@ Core shift/assignment operations: creating shifts (including bulk day generation
 
 | Method | Returns | Description |
 |---|---|---|
-| `list_shifts_for_window(start, end)` | `list[VolunteerShift]` | Shifts overlapping `[start, end]`. |
-| `get_shift(shift_id)` | `VolunteerShift \| None` | Lookup by id. |
+| `list_shifts_for_window(start, end)` / `get_shift(shift_id)` | reads | Shifts overlapping `[start, end]`; one shift by id. |
 | `create_shift(actor, position_id, starts_at, ends_at, label=None, slots_needed=1, notes=None)` | `VolunteerShift` | Coordinator-only; requires end after start and ≥1 slot. Audits `volunteer.shift_created`. |
 | `generate_day_shifts(actor, date_str, position_ids, blocks)` | `list[VolunteerShift]` | Coordinator-only; create a day's shifts from `(label, start_HHMM, end_HHMM)` blocks (a block ending ≤ its start crosses midnight). Staggered positions instead get rolling shifts spanning the day window. Transactional; audits `volunteer.shift_created`. |
 | `update_shift(actor, shift, **fields)` | `VolunteerShift` | Coordinator-only partial update; same end>start / slots≥1 validation. Audits `volunteer.shift_updated`. |
@@ -936,7 +960,7 @@ Core shift/assignment operations: creating shifts (including bulk day generation
 | `assignments_for_user(user, upcoming_after=None)` | `list[VolunteerAssignment]` | A user's assignments, optionally only those starting after a cutoff. |
 | `coverage(start, end)` | `list[dict]` | Per-shift filled/needed counts (flagging understaffed shifts). |
 
-Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPositionRepository`, `VolunteerAvailabilityService`, `DiscordService` (via `discord_queue`), `AuditService`, `AuthService`, [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy). Consumers: the coordinator schedule tab, the volunteer's own shift list, and `discordbot/` (the volunteer-acknowledge DM button).
+Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPositionRepository`, `VolunteerAvailabilityService`, `DiscordService` (via `discord_queue`), `AuditService`, `AuthService`, [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy).
 
 ### volunteer_autoschedule_service.py — VolunteerAutoscheduleService
 
@@ -947,7 +971,7 @@ Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool 
 | `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions); returns `{created, unfilled, pool_size}`. Transactional; audits `volunteer.draft_generated`. |
 | `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. |
 
-Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly. Consumers: the coordinator auto-fill action.
+Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly.
 
 ### volunteer_qualification_service.py — VolunteerQualificationService
 
@@ -955,11 +979,10 @@ Reads and replaces the set of positions a volunteer is qualified to fill. Qualif
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_qualified_position_ids(user)` | `Set[int]` | Position ids the user is qualified for. |
-| `get_qualified_user_ids_for_position(position_id)` | `Set[int]` | User ids qualified for a position. |
+| `get_qualified_position_ids(user)` / `get_qualified_user_ids_for_position(position_id)` | `Set[int]` | The qualification set read from either side. |
 | `set_qualifications(actor, user, position_ids)` | `None` | Coordinator-only; replace the user's qualification set atomically; audits `volunteer.qualifications_updated`. |
 
-Collaborators: `VolunteerQualificationRepository`, `AuthService`, `AuditService`. Consumers: the coordinator volunteer management tab, `VolunteerAutoscheduleService` (reads qualifications directly from the model for performance).
+Collaborators: `VolunteerQualificationRepository`, `AuthService`, `AuditService`.
 
 ### volunteer_export_service.py — VolunteerExportService
 
@@ -969,18 +992,9 @@ Read-only. Flattens the coordinator's volunteer data into plain tables so an ini
 |---|---|---|
 | `build(actor, start, end)` | `VolunteerExportBundle` | Coordinator-only. Every sheet covering `[start, end]`; raises `ValueError` when the window is inverted. |
 
-The bundle carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()` — the covering note packaged with the CSVs.
+`VolunteerExportBundle` carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()`. Six sheets: **`volunteers`** (the roster — pool/opt-in state, opt-in note, qualified positions, declared and assigned hours; **never windowed**, since a volunteer with no availability is exactly the gap to fill), **`availability`** (every window overlapping the range, `unavailable` ones included, in both Eastern and ISO-8601 UTC), **`positions`**, **`shifts`** (filled/open counts + assigned names), **`assignments`** (one row per placement, its source `Auto-draft`/`Coordinator`, and whether it matches stated availability), and **`schedule`** (one row per **slot**, open slots included — the grid to draft on, which `assignments` cannot express because an unfilled slot has no record; states `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`).
 
-| Sheet | Contents |
-|---|---|
-| `volunteers` | The roster: pool/opt-in state, the volunteer's own opt-in note, qualified positions, declared and already-assigned hours. **Never windowed** — a volunteer with no availability still has to appear, since filling that gap is the job. |
-| `availability` | Every declared window overlapping the range, including `unavailable` ones, in both Eastern and ISO-8601 UTC. |
-| `positions` | Position definitions plus their staffing totals for the range. |
-| `shifts` | One row per shift with filled/open counts and the assigned names. |
-| `assignments` | One row per placement, with its source (`Auto-draft`/`Coordinator`) and whether it matches the volunteer's stated availability. |
-| `schedule` | One row per **slot**, open slots included — the grid to actually draft on, which `assignments` cannot express because an unfilled slot has no record. States: `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`. |
-
-Collaborators: the six volunteer repositories, `UserRepository` (names for the coordinators who assigned/checked in), `VolunteerProfileService.assignable_volunteers`, `VolunteerAvailabilityService.covers`, `AuthService`, `AuditService`, `TenantService`. Consumer: `VolunteerExportDialog` on both volunteer admin tabs, which renders the sheets as `README.txt` + one CSV each in a single ZIP (`files_to_zip_bytes`).
+`VolunteerExportDialog` renders the bundle as `README.txt` + one CSV per sheet in a single ZIP (`files_to_zip_bytes`). Collaborators: the volunteer repositories, `UserRepository`, `VolunteerProfileService.assignable_volunteers`, `VolunteerAvailabilityService.covers`, `AuthService`, `AuditService`, `TenantService`.
 
 ### volunteer_reminder.py — module functions
 
@@ -995,41 +1009,55 @@ Collaborators: `VolunteerAssignmentRepository`, `SystemConfigService.get_volunte
 
 ### web_push_service.py — WebPushService
 
-Per-device browser push notifications ("Device Notifications"): subscription CRUD (audited via `AuditActions.WEB_PUSH_*`) plus the encrypted delivery path. `mirror_dm(discord_id, message)` is enqueued fire-and-forget from `DiscordService.send_dm` onto the event dispatch worker for every outgoing DM (never raises; no-op unless VAPID is configured and the user has subscriptions); `notify_user(user, *, title, body, navigate=None)` targets one user directly. Sends the Declarative Web Push JSON shape (`web_push: 8030`) — rendered natively on Safari/iOS 18.4+ and by the `static/sw.js` `push` handler elsewhere — encrypted per RFC 8291 (in a worker thread) with a per-origin-cached VAPID `Authorization` header, delivered concurrently per user through a shared `httpx.AsyncClient` (closed via `aclose_http_client()` in the app lifespan). Prunes subscriptions the push service reports gone (404/410). Configured by `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` (resolved once per env tuple, so misconfiguration warns once, not per DM); `is_configured()` / `get_public_key()` gate the settings UI. Collaborators: `WebPushRepository`, `AuditService`, [`web_push.py`](#web_pushpy), `application.utils.environment.get_base_url`. Feature doc: [web-push.md](../features/web-push.md).
+Per-device browser push notifications ("Device Notifications"): subscription CRUD (audited `AuditActions.WEB_PUSH_*`) plus the encrypted delivery path. `mirror_dm(discord_id, message)` is enqueued fire-and-forget from `DiscordService.send_dm` for every outgoing DM (never raises; a no-op unless VAPID is configured and the user has subscriptions); `notify_user(user, *, title, body, navigate=None)` targets one user directly. Sends the Declarative Web Push JSON shape (`web_push: 8030`) — rendered natively on Safari/iOS 18.4+, by `static/sw.js` elsewhere — encrypted per RFC 8291 in a worker thread, with a per-origin-cached VAPID `Authorization` header, delivered concurrently per user through a shared `httpx.AsyncClient` (closed via `aclose_http_client()` in the lifespan). Prunes subscriptions the push service reports gone (404/410). Configured by `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, resolved once per env tuple so misconfiguration warns once rather than per DM; `is_configured()` / `get_public_key()` gate the settings UI. Collaborators: `WebPushRepository`, `AuditService`, [`web_push.py`](#web_pushpy), `application.utils.environment.get_base_url`. Feature doc: [web-push.md](../features/web-push.md).
 
 ### webhook_service.py — WebhookService
 
-Staff-managed outbound webhooks: CRUD (all gated on `AuthService.is_staff` and audited via `AuditActions.WEBHOOK_*`) plus the delivery path. `deliver_event(event)` is registered on the [event bus](../features/event-system.md) in `main.py`; for each active webhook subscribed to the event it enqueues `_deliver_one` onto the event dispatch worker, which POSTs an HMAC-SHA256-signed JSON body via `httpx.AsyncClient` (bounded retry + `WebhookDelivery` logging). Validates `https://` + SSRF host rules (production) and event-type names; generates the signing secret with `secrets.token_urlsafe`. Collaborators: `WebhookRepository`, `WebhookDeliveryRepository`, `AuditService`, `AuthService`, `application.events`.
+Staff-managed outbound webhooks: CRUD (gated on `AuthService.is_staff`, audited `AuditActions.WEBHOOK_*`) plus the delivery path. `deliver_event(event)` is subscribed to the [event bus](../features/event-system.md) in `main.py`; for each active webhook subscribed to that event it enqueues `_deliver_one` onto the dispatch worker, which POSTs an HMAC-SHA256-signed JSON body via `httpx.AsyncClient` (bounded retry + `WebhookDelivery` logging). Validates `https://`, the SSRF host rules (production), and event-type names; the signing secret comes from `secrets.token_urlsafe`. Collaborators: `WebhookRepository`, `WebhookDeliveryRepository`, `AuditService`, `AuthService`, `application.events`.
 
 > The event bus itself (`application/events/`) — the publish/subscribe backbone these deliveries hang off — is documented in [event-system.md](../features/event-system.md).
 
-### async_qualifier_service.py — AsyncQualifierService (PR 9)
+### async_qualifier_service.py — AsyncQualifierService
 
-The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` with its own state machine (window opens → draw → run → review → scored leaderboard → close). Owns every rule the repositories don't:
+The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` with its own state machine (window opens → draw → run → review → scored leaderboard → close). Every public method carries `@requires_feature(FeatureFlag.ASYNC_QUALIFIERS)`; management is gated by `AuthService.can_admin_qualifier`. Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_submitted`/`run_reviewed` onto the event bus (`EventType.ASYNC_QUALIFIER_RUN_*`), with a best-effort Discord DM on review. Design — state machine, fairness draw, results lockdown, scoring formulas: [online-tournaments.md](../features/online-tournaments.md#async-qualifiers).
 
-- **Management** — qualifier/pool/permalink CRUD + per-qualifier `admins`, gated by `AuthService.can_admin_qualifier` (STAFF/`QUALIFIER_ADMIN`/super-admin, or a per-qualifier admin). `roll_permalinks` rolls N seeds from the pool's `Preset` via `SeedGenerationService`; `add_permalinks_bulk` pastes many. Config validated by `validate_async_qualifier_config` (`application/services/async_qualifier/async_qualifier_config.py`).
-- **Draw** (`start_run`) — an atomic, row-locked (`in_transaction` + `lock_user_for_draw`) transaction enforcing one active run per player, the `runs_per_pool` cap, and permalink no-repeat, then picking a permalink by **imbalance-forcing fairness** (random unless a pool's play-count spread crosses `draw_imbalance_threshold`, then the least-played). Reveal == start (web-first).
-- **Run lifecycle** — `submit_run` (→ review; the finish time must be positive and under `MAX_RUN_SECONDS`, a week, so a typed-in typo is a readable error rather than an out-of-range column write), `forfeit_run` (irreversible, scores 0), `reattempt_run` (voids the prior run, frees the slot, requires a reason, limited by `allowed_reattempts`).
-- **Review** — reviewers = the qualifier's `admins`; **self-review blocked**; `claim_run`/`release_claim` claim-locking; `review_run` approves/rejects, then recomputes the permalink's par and rescores its approved runs.
-- **Scoring / leaderboard** — par + score math in `async_qualifier_scoring.py` (`compute_par` = mean of the N fastest approved runs; `compute_score` = `clamp(0,105,(2−elapsed/par)·100)`; `build_leaderboard` = per-pool slots, unfilled = 0, plus an estimate). `get_leaderboard` enforces the **active-window information lockdown** (`is_results_public`): the board/pools/pars are staff-only until the qualifier closes (inactive or past `closes_at`).
+| Method | Returns | Description |
+|---|---|---|
+| `list_qualifiers` / `get_qualifier` / `create_qualifier` / `update_qualifier` / `delete_qualifier` | `AsyncQualifier`(s) | Qualifier CRUD; config validated by `validate_async_qualifier_config`. |
+| `add_admin` / `remove_admin` / `list_admins` | — / `list[User]` | The per-qualifier `admins` M2M, who are also its reviewers. |
+| `list_pools` / `create_pool` / `update_pool` / `delete_pool` | `AsyncQualifierPool`(s) | Pool CRUD within a qualifier. |
+| `add_permalink` / `add_permalinks_bulk` / `roll_permalinks` / `update_permalink` / `delete_permalink` | `AsyncQualifierPermalink`(s) | Permalink management; `roll_permalinks` rolls N seeds from the pool's `Preset` via `SeedGenerationService`, `add_permalinks_bulk` pastes many at once. |
+| `list_open_qualifiers` / `get_qualifier_for_player` / `get_player_pools` / `list_user_runs` / `get_active_run` | reads | The player-facing surface. |
+| `start_run(user, qualifier_id, pool_id)` | `AsyncQualifierRun` | The **draw**: an atomic, row-locked transaction enforcing one active run per player, the `runs_per_pool` cap, and permalink no-repeat, then picking a permalink by imbalance-forcing fairness. Reveal == start. |
+| `submit_run(...)` / `forfeit_run(user, run_id)` / `reattempt_run(user, run_id, *, reason)` | `AsyncQualifierRun` | Run lifecycle: submit a finish time (positive and under `MAX_RUN_SECONDS`) for review; forfeit irreversibly for 0; or void the prior run and free the slot, within `allowed_reattempts`. |
+| `list_review_queue` / `claim_run` / `release_claim` / `review_run` / `get_run_notes` | — | Review: claim-locking, then approve/reject (**self-review blocked**), which recomputes the permalink's par and rescores its approved runs. |
+| `is_results_public(qualifier, now=None)` / `get_leaderboard(...)` | `bool` / `dict` | The board, pools, and pars are staff-only until the qualifier closes (inactive or past `closes_at`). |
+| `recompute_par_and_scores(permalink_id)` | `None` | Recompute one permalink's par and rescore its approved runs; the public entry the live-race capture path reuses. |
 
-Audits every state change (`AuditActions.ASYNC_QUALIFIER_*`) and mirrors `run_submitted`/`run_reviewed` onto the event bus (`EventType.ASYNC_QUALIFIER_RUN_*`). Best-effort Discord DM on review. Collaborators: the five `AsyncQualifier*` repositories, `PresetRepository`, `SeedGenerationService`, `AuthService`, `AuditService`, `application.events`. Admin UI: `pages/admin_tabs/admin_qualifiers.py`; player UI: `pages/qualifiers.py`. Design: [async-qualifiers.md](../online-tournaments/async-qualifiers.md). `recompute_par_and_scores(permalink_id)` is the public entry the live-race capture path (below) reuses.
+Four sibling modules keep the service under the file-length guideline:
 
-Two sibling helpers keep the service under the file-length guideline (both extracted from it, same three-layer standing as `async_qualifier_config.py`/`async_qualifier_scoring.py`):
+- **async_qualifier_config.py** — `validate_async_qualifier_config`, the Pydantic `extra='forbid'` validator for `AsyncQualifier.config`.
+- **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window`, `ensure_window_open`, `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (tunables off `qualifier.config`, with defaults), and `display_name`.
+- **async_qualifier_access.py** — shared gate + entity resolution both qualifier services use: `ensure_qualifier_admin(...)` and the `require_qualifier`/`require_pool`/`require_permalink`/`require_run` load-or-`NotFoundError` lookups.
+- **async_qualifier_draw.py** — `AsyncQualifierDraw`, the repository-touching draw and recompute engine (`draw_candidates`/`pick_permalink`/`recompute_par_and_scores`), composed as `self.draw`.
+- **async_qualifier_scoring.py** — the pure par/score math: `compute_par`, `compute_score`, `build_leaderboard`.
 
-- **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window` (input validation), `ensure_window_open` (raises when the window is closed/not-yet-open), `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (read tunables off `qualifier.config` with defaults), and `display_name`. `is_results_public` stays a thin `AsyncQualifierService` method delegating here, so `pages/qualifiers.py` keeps calling `service.is_results_public`.
-- **async_qualifier_access.py** — shared access helpers the two split qualifier services both use: `ensure_qualifier_admin(...)` (the repeated admin gate) and `require_qualifier`/`require_pool`/`require_permalink`/`require_run` (load-or-`NotFoundError` lookups), so the gate + entity-resolution ladder lives in one place.
-- **async_qualifier_draw.py** — `AsyncQualifierDraw`, the fairness draw + par/score recompute engine that touches repositories. `draw_candidates`/`pick_permalink` implement the imbalance-forcing draw; `recompute_par_and_scores` recomputes a permalink's par (via `async_qualifier_scoring`) and rescores its approved runs. Composed by `AsyncQualifierService.__init__` as `self.draw`; `start_run` and the review/reattempt/live-race recompute paths call through it.
+Collaborators: the `AsyncQualifier*` repositories, `PresetRepository`, `SeedGenerationService`, `AuthService`, `AuditService`, the event bus.
 
-### async_qualifier_live_race_service.py — AsyncQualifierLiveRaceService (PR 10)
+### async_qualifier_live_race_service.py — AsyncQualifierLiveRaceService
 
-Synchronous racetime qualifier races whose results flow into `AsyncQualifierRun`s, **reusing the PR 4/6 racetime subsystem** rather than a second integration:
+Synchronous racetime qualifier races whose results flow into `AsyncQualifierRun`s, **reusing the existing racetime subsystem** (`racetimebot/` + `RaceRoomService`) rather than a second integration. Same `@requires_feature(FeatureFlag.ASYNC_QUALIFIERS)` + `can_admin_qualifier` gating. `RaceRoomLifecycle` (in `race_room_service.py`) routes a started/finished/cancelled room here instead of the match path when `RacetimeRoom.match_id` is null and the slug resolves to a live race.
 
-- **Author** (`create_live_race`) — schedule a race for a pool, optionally pinning a permalink and an SG `episode`; gated by `AuthService.can_admin_qualifier`.
-- **Open** (`open_room`) — create a `RacetimeRoom` (with `match=None`) named by one of the tenant's authorized bots (`RacetimeBotService.list_authorized_for_tenant`), mirror its slug onto the live race (`racetime_slug`), and move it to `PENDING`. Idempotent.
-- **Capture** (`record_finish`) — map each racetime entrant to a `User` (by `racetime_user_id`), write an `AsyncQualifierRun` (`done`→finished, `dnf`→forfeit, `dq`→disqualified; `finish_time`→`elapsed_seconds`), then par-score via `AsyncQualifierService.recompute_par_and_scores`. Live-race runs **skip reviewer sign-off** (written `APPROVED` — the racetime result is self-attributing); non-finishers score 0. **Refuses to record while any entrant is still racing.**
+| Method | Returns | Description |
+|---|---|---|
+| `list_live_races` / `get_live_race` / `list_runs` | reads | The admin **Live Races** sub-tab's data. |
+| `create_live_race(...)` | `AsyncQualifierLiveRace` | Schedule a race for a pool, optionally pinning a permalink and an SG `episode`. |
+| `open_room(actor, live_race_id)` | `AsyncQualifierLiveRace` | Create a `RacetimeRoom` (with `match=None`) named by one of the tenant's authorized bots, mirror its slug onto the live race (`racetime_slug`), and move it to `PENDING`. Idempotent. |
+| `mark_in_progress(live_race)` | `AsyncQualifierLiveRace` | Runtime transition from the room handler (un-gated — the caller is the trusted bot loop). |
+| `record_finish(...)` | `None` | Map each racetime entrant to a `User` by `racetime_user_id` and write an `AsyncQualifierRun` (`done`→finished, `dnf`→forfeit, `dq`→disqualified; `finish_time`→`elapsed_seconds`), then par-score via `AsyncQualifierService.recompute_par_and_scores`. Live-race runs **skip reviewer sign-off** (written `APPROVED` — a racetime result is self-attributing); non-finishers score 0. **Refuses to record while any entrant is still racing.** |
+| `cancel_live_race(actor, live_race_id)` | `None` | Call the race off. |
 
-`RaceRoomLifecycle` (in `race_room_service.py`) routes a finished/started/cancelled room to this service instead of the match path when `RacetimeRoom.match_id` is null and the room's slug resolves to a live race. Audits `AuditActions.ASYNC_QUALIFIER_LIVE_RACE_*` (create/open/cancel are audit-only; the captured finish also emits `EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED`). Collaborators: `AsyncQualifierLiveRaceRepository`, `AsyncQualifierRunRepository`, `RacetimeRoomRepository`, `RacetimeBotService`, `AsyncQualifierService`, `UserService`, `AuditService`. Admin UI: the **Live Races** sub-tab in `pages/admin_tabs/admin_qualifiers.py`. Design: [async-qualifiers.md](../online-tournaments/async-qualifiers.md).
+Audits `AuditActions.ASYNC_QUALIFIER_LIVE_RACE_*` (create/open/cancel are audit-only; the captured finish also emits `EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED`). Collaborators: `AsyncQualifierLiveRaceRepository`, `AsyncQualifierRunRepository`, `RacetimeRoomRepository`, `RacetimeBotService`, `AsyncQualifierService`, `UserService`, `AuditService`.
 
 ## Utilities (`application/utils/`)
 
@@ -1051,29 +1079,19 @@ Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the in
 | `ChallongeClient.update_match(tournament_id, match_id, winner_participant_id, loser_participant_id, winner_score='1', loser_score='0')` | `None` | Report a match result (winner flagged `advancing`). |
 | `MockChallongeClient` | — | `MOCK_CHALLONGE` stub returning a canned 4-player single-elim bracket so local dev can click through connect/link/sync/schedule/push. |
 
-### twitch_client.py
+### OAuth identity clients
 
-Thin async `aiohttp` wrapper over the two Twitch endpoints the account-linking flow needs — the OAuth token exchange and the Helix `users` lookup ([twitch_client.py](../../application/utils/clients/twitch_client.py)). Returns a **normalized** identity dict so `TwitchService` never sees the wire shape. Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, `USERS_URL`.
-
-| Member | Returns | Description |
-|---|---|---|
-| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | Twitch OAuth authorize URL to redirect the browser to. |
-| `TwitchAPIError` (exception) | — | Raised on an API error or unexpected payload. |
-| `TwitchClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
-| `TwitchClient.get_me(access_token)` | `{user_id, username, display_name}` | The authenticated account identity for a raw token (sends the required `Client-Id` header). |
-| `MockTwitchClient` | — | `MOCK_TWITCH` stub returning a deterministic canned identity (chosen via `MOCK_TWITCH_IDENTITY`) so local dev can click through link/unlink. |
-
-### racetime_client.py
-
-Thin async `aiohttp` wrapper over the two racetime.gg endpoints the account-linking flow needs — the OAuth token exchange and the `o/userinfo` lookup ([racetime_client.py](../../application/utils/clients/racetime_client.py)). Returns a **normalized** identity dict so `RacetimeService` never sees the wire shape. Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, `USERINFO_URL`, `IDENTITY_SCOPE`.
+`twitch_client.py` and `racetime_client.py` are thin async `aiohttp` wrappers over the two endpoints each account-linking flow needs — the OAuth token exchange and the identity lookup (Helix `users` / `o/userinfo`). Both return a **normalized** identity dict so the service never sees the wire shape, and both are built on the shared base in `application/utils/clients/oauth_identity_client.py`.
 
 | Member | Returns | Description |
 |---|---|---|
-| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | racetime OAuth authorize URL to redirect the browser to. |
-| `RacetimeAPIError` (exception) | — | Raised on an API error or unexpected payload. |
-| `RacetimeClient.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
-| `RacetimeClient.get_me(access_token)` | `{user_id, username}` | The authenticated racetime account identity for a raw token. |
-| `MockRacetimeClient` | — | `MOCK_RACETIME` stub returning a deterministic canned identity (chosen via `MOCK_RACETIME_IDENTITY`) so local dev can click through link/unlink. |
+| `build_authorize_url(client_id, redirect_uri, scope, state)` (function) | `str` | Provider OAuth authorize URL to redirect the browser to. |
+| `TwitchAPIError` / `RacetimeAPIError` (exceptions) | — | Raised on an API error or unexpected payload. |
+| `<Provider>Client.exchange_code(code, redirect_uri)` | `dict` | Exchange an auth code for a token payload. |
+| `<Provider>Client.get_me(access_token)` | `dict` | The authenticated account identity for a raw token — `{user_id, username, display_name}` for Twitch (which sends the required `Client-Id` header), `{user_id, username}` for racetime. |
+| `MockTwitchClient` / `MockRacetimeClient` | — | Stubs returning a deterministic canned identity (chosen via `MOCK_TWITCH_IDENTITY` / `MOCK_RACETIME_IDENTITY`) so local dev can click through link/unlink. |
+
+Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, plus `USERS_URL` (Twitch) / `USERINFO_URL` + `IDENTITY_SCOPE` (racetime).
 
 ### csv_export.py
 
@@ -1114,45 +1132,17 @@ Environment detection and fail-fast startup validation ([environment.py](../../a
 | `is_production()` | `bool` | True when the environment is exactly `'production'`. |
 | `validate_security_config()` | `None` | Raises `RuntimeError` — aborting startup — when `STORAGE_SECRET` is missing/blank (always; it signs the session store the whole authorization model trusts), and additionally in production when `DB_USERNAME` or `DB_PASSWORD` is empty. |
 
-### mock_discord.py
+### Mock switches
 
-Single helper backing the [`MOCK_DISCORD` development mode](../features/mock-discord.md) ([mock_discord.py](../../application/utils/mocks/mock_discord.py)).
+Each `MOCK_*` env var is read through one helper in `application/utils/mocks/`, returning True when the flag is `1`/`true`/`yes` (case-insensitive). Every mock is an authentication, authorization, or integrity bypass, so each helper **raises `RuntimeError` rather than returning True while `ENVIRONMENT=production`** — the process refuses to start instead of silently exposing the bypass. Except where noted, the owning service reads its switch to select the `Mock*Client` over the real one and to report `is_configured()` true.
 
-| Function | Returns | Description |
+| Function | Env var | What it fakes |
 |---|---|---|
-| `is_mock_discord()` | `bool` | True when `MOCK_DISCORD` is `1`/`true`/`yes` (case-insensitive). Because the mock layer is a complete authentication bypass (the `/login` user picker can impersonate anyone, including Staff), the function **raises `RuntimeError` when enabled while `ENVIRONMENT=production`** rather than returning True. |
-
-This check is what swaps `DiscordService` for `MockDiscordService` at import time (see [discord_service.py](#discord_servicepy--discordservice-mockdiscordservice-get_discord_bot)).
-
-### mock_challonge.py
-
-The Challonge counterpart to `mock_discord` ([mock_challonge.py](../../application/utils/mocks/mock_challonge.py)). Lets local development exercise the full Challonge flow (connect, link, sync, schedule, push results) without a real OAuth app or bracket.
-
-| Function | Returns | Description |
-|---|---|---|
-| `is_mock_challonge()` | `bool` | True when `MOCK_CHALLONGE` is `1`/`true`/`yes`. Because it fakes an authenticated Challonge connection, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
-
-`ChallongeService` reads this to choose `MockChallongeClient` over `ChallongeClient` and to report `is_configured()` as true in mock mode.
-
-### mock_twitch.py
-
-The Twitch counterpart to `mock_challonge` ([mock_twitch.py](../../application/utils/mocks/mock_twitch.py)). Lets local development exercise the full Twitch link/unlink flow without a real OAuth app.
-
-| Function | Returns | Description |
-|---|---|---|
-| `is_mock_twitch()` | `bool` | True when `MOCK_TWITCH` is `1`/`true`/`yes`. Because it fakes a verified Twitch identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
-
-`TwitchService` reads this to choose `MockTwitchClient` over `TwitchClient` and to report `is_configured()` as true in mock mode.
-
-### mock_racetime.py
-
-The racetime.gg counterpart to `mock_twitch` ([mock_racetime.py](../../application/utils/mocks/mock_racetime.py)). Lets local development exercise the full racetime link/unlink flow without a real OAuth app. Also gates the bot runtime added in a later PR; both halves share the one production-refusal switch.
-
-| Function | Returns | Description |
-|---|---|---|
-| `is_mock_racetime()` | `bool` | True when `MOCK_RACETIME` is `1`/`true`/`yes`. Because it fakes a verified racetime identity, it **raises `RuntimeError` when enabled while `ENVIRONMENT=production`**. |
-
-`RacetimeService` reads this to choose `MockRacetimeClient` over `RacetimeClient` and to report `is_configured()` as true in mock mode.
+| `is_mock_discord()` | `MOCK_DISCORD` | The whole Discord layer. A complete **authentication bypass**: `/login` becomes a public user picker that can impersonate anyone (including Staff) or mint privileged users. Rebinds `DiscordService = MockDiscordService` at import time (see [discord_service.py](#discord_servicepy--discordservice-mockdiscordservice-get_discord_bot)). Detail: [discord.md](../features/discord.md#mock-mode). |
+| `is_mock_challonge()` | `MOCK_CHALLONGE` | An authenticated Challonge connection, so dev can exercise connect → link → sync → schedule → push against a canned bracket. |
+| `is_mock_twitch()` | `MOCK_TWITCH` | A verified Twitch identity for the link/unlink flow. |
+| `is_mock_racetime()` | `MOCK_RACETIME` | A verified racetime identity for link/unlink — **and** the `racetimebot/` runtime; both halves share the one production-refusal switch. |
+| `is_mock_seedgen()` | `MOCK_SEEDGEN` | Seed rolling: `generate_seed` returns a believable permalink instead of reaching a live randomizer, most of which need credentials or are unreachable from a dev sandbox. |
 
 ### qrcode_util.py
 
@@ -1216,15 +1206,16 @@ Shared primitives and clients used across the service layer; each is a thin, foc
 | `oauth_identity_client.py` | Shared OAuth identity-link transport (base for the Twitch/racetime clients + `IdentityLinkService`). |
 | `racetime_entrants.py` | Helpers to reconcile racetime entrants against local `User` records. |
 | `discord_embeds.py` | Discord embed builders (colour-by-category / match-state) for notification DMs. |
-| `mock_seedgen.py` | `is_mock_seedgen()` — detect the mock seed-generation layer (production-refused). |
 | `mock_discord_data.py` | Canned mock Discord data used by `DiscordService` under `MOCK_DISCORD`. |
 | `tenant_session.py` | Per-tenant namespacing of `app.storage.user` UI state (`tenant_session_get`/`set`). |
 | `tenant_urls.py` | Tenant-qualified URL building/validation + post-login return-path guards. |
 | `color_contrast.py` | WCAG contrast helpers (used by `TenantThemeService`). |
+| `http_headers.py` | Reduce arbitrary text to a latin-1-safe response-header value, so one non-encodable character in a header set on every response cannot take the response down. |
+| `serialization.py` | JSON-safe coercion shared across entry surfaces — notably `decode_json_details`, which falls back to the raw string rather than losing a whole audit row to a malformed `details` blob. |
 
 ## Testing the service layer
 
-Service tests live in `tests/services/` — broadly one `test_<service>.py` module per service, now covering the great majority of the layer (audit, auth, challonge, crew, discord queue/service/role-mapping/member-sync, equipment, feedback, match/match-schedule/match-watcher/suggestion, player availability, reports, seed generation, stream room, system config, tournament/tournament-notification, triforce text, user, the six volunteer services + reminder, plus the newer analytics, telemetry, webhook, service-health, SpeedGaming-ETL, racetime bot/room, async-qualifier, preset, match-source-guard, discord-event-reconciler, discord-link, tenant, and web-push suites). Coverage is not total — the live-infra paths (real Discord/racetime connections, the HTTP randomizer clients) are exercised only through their mocked seams; see [development.md](../development.md#coverage--known-gaps) for the intentional gaps. Key fixtures:
+Service tests live in `tests/services/` — broadly one `test_<service>.py` module per service, covering the great majority of the layer. Coverage is not total — the live-infra paths (real Discord/racetime connections, the HTTP randomizer clients) are exercised only through their mocked seams; see [development.md](../development.md#coverage--known-gaps) for the intentional gaps. Key fixtures:
 
 - [`tests/conftest.py`](../../tests/conftest.py) provides a function-scoped `db` fixture: a fresh in-memory SQLite database per test via `Tortoise.init(db_url="sqlite://:memory:")` + `generate_schemas()`, torn down by closing connections — no state leaks between tests.
 - [`tests/services/conftest.py`](../../tests/services/conftest.py) adds an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture coroutines instead of running them, letting tests assert that notifications were enqueued while closing the coroutines to avoid "never awaited" warnings.

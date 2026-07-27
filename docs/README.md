@@ -65,7 +65,7 @@ instead — **volunteering**, **equipment lending**, **Challonge**, **API tokens
 ## Conventions for this directory
 
 - **CLAUDE.md is canonical for rules.** A doc here explains mechanism and gives examples; it should not restate a rule CLAUDE.md already states — that is how the two drift apart.
-- **No hand-maintained counts.** "62 models", "29 routers" and friends go stale within weeks and were wrong in six places before this was written. Say "every model", not a number, unless the number is the point and stable (the eleven roles, the four bracket formats).
+- **No hand-maintained counts.** Doc-stated totals of models, routers, services or repositories go stale within weeks — every such number in this tree was wrong before this was written, and two of them contradicted each other because the same count was maintained in two files. Say "every model", not a number, unless the number is the point and stable (the eleven roles, the four bracket formats).
 - **Design records are not kept after they ship.** Once a plan is implemented, the feature doc is the truth and the plan is deleted — git history holds the rationale. The same goes for point-in-time audit reports.
 - **Prose that restates code is what rots.** Prefer a table of names and one-line purposes over paragraphs describing what a function does.
 - `.claude/` hooks nag on edits to `models/`, `application/`, `api/`, `pages/`, `theme/`, `discordbot/` and `mcpserver/` — see [`.claude/README.md`](../.claude/README.md).

@@ -8,33 +8,11 @@ Built with FastAPI + NiceGUI, backed by PostgreSQL, integrated with Discord for 
 
 ## Features
 
-### On-site event management
-- **Match scheduling & lifecycle** — create, edit, and track matches through Scheduled → Checked In → In Progress → Finished
-- **Stream room assignment** — assign matches to named stages and track what's on air
-- **Player dashboard** — players see upcoming matches, acknowledge schedules, and submit triforce text
-- **Crew coordination** — commentator and tracker signup with an admin approval workflow (web + Discord DM buttons)
-- **Volunteer scheduling** — opt-in positions, shifts, availability, an auto-scheduler, and reminders
-- **Equipment lending** — assets, checkout/check-in, loan history, and QR codes
-- **Player availability** — self-service availability windows that feed match-time suggestions
-- **Triforce text submissions** — ALTTP end-game screen text submission and moderation per tournament
-- **Reports & insights** — match ops, crew hours, capacity, stream room, audit-log, and trended analytics reports
+- **On-site event management** — match scheduling and lifecycle, stream-room assignment, a player dashboard, crew signup and approval, volunteer scheduling, equipment lending, player availability, triforce-text submissions, and operational reports.
+- **Online tournaments** — tenant-authored seed presets across multiple randomizers, racetime.gg room lifecycle, async qualifiers, SpeedGaming schedule ETL, and Discord Scheduled Events sync.
+- **Platform & integrations** — multitenancy with a `/platform` super-admin surface, per-tenant feature flags, role-based access control, Discord (OAuth, one bot for many guilds, role sync, DMs), web push, a token-authenticated REST API, a remote MCP server, an event bus with outbound webhooks, telemetry, audit logging, and Challonge / Twitch / racetime.gg identity linking.
 
-### Online tournaments
-- **User-managed seed presets** — tenant-authored presets drive seed generation across multiple randomizers (ALTTPR, OOTR, SM Map Rando, DK64, …), no code change per tournament
-- **Racetime.gg room lifecycle** — rooms auto-open ahead of scheduled matches, drive through finish/cancel, attach the seed, and capture results
-- **Async qualifiers** — self-paced permalink-pool qualifiers with par scoring, a reviewer queue, and synchronous live races
-- **SpeedGaming schedule ETL** — one-way sync of SpeedGaming episodes into matches, with placeholder users for unresolved players
-- **Discord Scheduled Events sync** — idempotent mirroring of the schedule into each community's Discord server
-
-### Platform & integrations
-- **Multitenancy** — many communities from one deployment, addressed by `/t/<slug>` path or a custom domain, with a `/platform` super-admin surface
-- **Per-tenant feature flags** — deliberately-gated subsystems, disabled by default, managed per community
-- **Role-based access control** — eleven roles spanning community staff, online-tournament admins, and the global super-admin
-- **Discord integration** — OAuth login, one bot serving many guilds, guild-role → app-role sync, and DM notifications
-- **Web push** — device notifications (iOS/Android/desktop) mirroring Discord DMs
-- **REST API** — full read/write API authenticated by personal access tokens
-- **Event bus & webhooks** — an in-process event bus with staff-managed signed outbound webhooks
-- **Engagement telemetry**, **audit logging**, **in-app feedback**, and **Challonge / Twitch / racetime.gg** identity linking
+[docs/current-state.md](docs/current-state.md) is the living per-feature status list.
 
 ## Tech Stack
 
@@ -62,8 +40,8 @@ Developer documentation lives in [`docs/`](docs/README.md):
 - [Current state](docs/current-state.md) — living status snapshot of every feature
 - [Development guide](docs/development.md) — local setup, mock Discord mode, fixtures, tests
 - [Deployment guide](docs/deployment.md) — Docker, the authoritative environment-variable table, operations
-- [Code reference](docs/README.md#code-reference-docsreference) — data model, services, REST API, auth, Discord, seed generation, frontend
-- [Feature docs](docs/README.md#feature-reference-docsfeatures) — implementation notes per feature
+- [Code reference](docs/README.md#code-reference-reference) — data model, services, REST API, auth, Discord, seed generation, frontend
+- [Feature docs](docs/README.md#features-features) — implementation notes per feature
 
 ## Quick Start
 
@@ -71,11 +49,11 @@ Developer documentation lives in [`docs/`](docs/README.md):
 
 ```bash
 poetry install
-cp .env.example .env    # set STORAGE_SECRET; for a no-Discord loop set MOCK_DISCORD=true and ENVIRONMENT=development
-./start.sh dev          # runs on http://localhost:8000 with auto-reload
+cp .env.example .env    # set STORAGE_SECRET and the DB_* values
+./start.sh mock         # http://localhost:8000, auto-reload, no external credentials
 ```
 
-`MOCK_DISCORD=true` swaps Discord OAuth for a local user-picker and stubs all Discord calls, so the full app is developable without a Discord application. See the [development guide](docs/development.md) for the mock-Discord loop and dev fixtures (`scripts/seed_dev.py`).
+`./start.sh mock` forces `ENVIRONMENT=development` plus the `MOCK_DISCORD`/`MOCK_CHALLONGE`/`MOCK_SEEDGEN` flags: Discord OAuth becomes a local user-picker, Discord calls are stubbed, and seeds return fake permalinks — so the full app is developable with no Discord or randomizer credentials. Use `./start.sh dev` when you want real integrations. See the [development guide](docs/development.md) for the mock loop and dev fixtures (`scripts/seed_dev.py`).
 
 ### Docker
 
@@ -94,22 +72,9 @@ Migrations also run automatically on startup.
 
 ## Environment Variables
 
-Core variables to get started:
+To boot you need `DB_HOST`, `DB_PORT`, `DB_NAME` and `STORAGE_SECRET`; `DB_USERNAME`/`DB_PASSWORD` are additionally enforced when `ENVIRONMENT=production`.
 
-| Variable | Required | Description |
-|---|---|---|
-| `DB_HOST` | yes | PostgreSQL hostname |
-| `DB_PORT` | yes | PostgreSQL port (default `5432`) |
-| `DB_NAME` | yes | Database name |
-| `DB_USERNAME` / `DB_PASSWORD` | prod | Database credentials (enforced when `ENVIRONMENT=production`) |
-| `STORAGE_SECRET` | yes | NiceGUI session storage encryption key |
-| `ENVIRONMENT` | no | `development` (default) or `production` |
-| `MOCK_DISCORD` | no | `true` bypasses Discord OAuth (user-picker at `/login`) and stubs Discord; refused in production |
-| `DISCORD_TOKEN` | for Discord | Discord bot token (not needed in mock mode) |
-| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | for Discord | Discord OAuth app credentials |
-| `BASE_URL` | no | Public base URL (default `http://localhost:8000`); derives the OAuth redirect URI |
-
-The **authoritative, complete** environment-variable table — including the online-tournament workers, multitenancy (`PLATFORM_HOST`), web push (VAPID), telemetry, and randomizer API keys — lives in the [deployment guide](docs/deployment.md#environment-variables) and is kept in sync with [`application/utils/environment.py`](application/utils/environment.py) and [`.env.example`](.env.example).
+The **authoritative, complete** table — Discord, multitenancy (`PLATFORM_HOST`), the online-tournament workers, web push, telemetry, the `MOCK_*` flags and more — lives in the [deployment guide](docs/deployment.md#environment-variables), alongside the annotated [`.env.example`](.env.example) template.
 
 ## API Docs
 

@@ -21,7 +21,7 @@ Everything listed is **stable in production** unless marked otherwise.
 | **Volunteering** | opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders, coordinator data export | [services](reference/services.md) |
 | **Equipment** | assets, checkout/check-in, loan history, QR codes | [services](reference/services.md) |
 | **Platform** | multitenancy (`/t/<slug>` + custom domains), per-tenant feature flags, `/platform` super-admin surface, service-health board | [multitenancy](features/multitenancy.md), [feature-flags](features/feature-flags.md) |
-| **Identity & access** | Discord OAuth, eleven roles, guild-role sync, Challonge/Twitch/racetime identity linking | [role-based-auth](features/role-based-auth.md), [authentication](reference/authentication.md) |
+| **Identity & access** | Discord OAuth, eleven roles, guild-role sync, Challonge/Twitch/racetime identity linking | [roles](reference/authentication.md#roles), [authentication](reference/authentication.md) |
 | **Integrations** | REST API + personal access tokens, MCP server at `/mcp`, event bus, signed outbound webhooks, web push, Challonge | [rest-api](reference/rest-api.md), [mcp-server](features/mcp-server.md), [webhooks](features/webhooks.md) |
 | **Observability** | audit logging, engagement telemetry, analytics/insights reports, in-app feedback, Sentry | [audit-logging](features/audit-logging.md), [telemetry](features/telemetry.md), [admin-reports](features/admin-reports.md) |
 
@@ -53,7 +53,7 @@ application/services/     ← business rules, validation, audit, notifications
   ↓
 application/repositories/ ← ORM queries (Tortoise), tenant scoping
   ↓
-models/                   ← 62 Tortoise models + 24 enums, per-domain submodules
+models/                   ← Tortoise models + enums, per-domain submodules
 ```
 
 All datetimes stored UTC, displayed US/Eastern ([timezone-handling](timezone-handling.md)).

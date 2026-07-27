@@ -11,7 +11,7 @@ _Reference for Wizzrobe's REST API: the router package in [`api/`](../../api/) a
 | Base path | `/api` |
 | Swagger UI | `/api/docs` |
 | ReDoc | `/api/redoc` |
-| Source | [`api/`](../../api/) package — `routers/`, `schemas/`, `dependencies.py`; mounted in [`main.py`](../../main.py) |
+| Source | [`api/`](../../api/) package — `routers/`, `schemas/`, `dependencies.py`, `rate_limit.py`; mounted in [`main.py`](../../main.py) |
 
 The API is served by the same Uvicorn process as the NiceGUI frontend. The interactive Swagger UI at `/api/docs` is the authoritative, always-current catalogue (every endpoint, schema, and example); this page summarises the model.
 
@@ -19,13 +19,14 @@ The API is served by the same Uvicorn process as the NiceGUI frontend. The inter
 
 **Every endpoint requires a personal bearer token**, with one exception: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth)).
 
-Generate a token on your profile page (**Edit Your Information → API Tokens**), then send it on each request:
+Generate a token on the home **Profile** tab (the *API tokens & AI clients* card), then send it on each request:
 
 ```
 Authorization: Bearer wizzrobe_pat_xxxxxxxx...
 ```
 
-- A token **acts as its owning user** and inherits that user's exact permissions and scope — the same `AuthService` role checks that gate the web UI apply. A non-staff token gets `403` from staff-only routes; a Tournament Admin token can edit only its own tournaments; a self-action (acknowledge, sign up, edit own profile) only ever affects the token's user.
+- A token is **bound to exactly one tenant**, chosen at creation. `resolve_token` reads `token.tenant_id`, returns `403` if that tenant is missing or inactive, and sets the request tenant context — the API is excluded from `TenantMiddleware`, so the **token, not the URL, is what scopes the request**. A router-level `tenant_context_scope` dependency baselines the contextvar to `None` and resets it after the response, so a tenant never leaks to the next request on a reused task.
+- A token **acts as its owning user** and inherits that user's exact permissions and scope *within that tenant* — the same `AuthService` role checks that gate the web UI apply. A non-staff token gets `403` from staff-only routes; a Tournament Admin token can edit only its own tournaments; a self-action (acknowledge, sign up, edit own profile) only ever affects the token's user.
 - A token may be flagged **read-only**, in which case it can call read (`GET`) endpoints only; any write returns `403`.
 - Tokens are stored as a SHA-256 hash (the plaintext is shown once at creation), support an optional expiry, and can be revoked at any time. Implementation: [`ApiToken`](../../models/user.py) model, [`ApiTokenService`](../../application/services/api_token_service.py), auth dependency in [`api/dependencies.py`](../../api/dependencies.py).
 
@@ -40,10 +41,18 @@ Tokens can also be managed programmatically via the `/api/tokens` endpoints (cre
 | `401` | Missing, malformed, unknown, revoked, or expired token |
 | `403` | Inactive account, read-only token used for a write, or the user lacks the required role/scope (`PermissionError` from a service) |
 | `400` | Validation/business-rule error (`ValueError` from a service) |
-| `404` | Entity not found |
+| `404` | Entity not found (including a feature-flag-gated router the tenant hasn't enabled) |
 | `422` | Request body/query failed schema validation |
+| `429` | Rate limit exceeded — carries a `Retry-After` header |
+| `503` | `GET /health` only: the database is unreachable |
 
 `PermissionError`/`ValueError` → `403`/`400` translation is handled by `ServiceErrorRoute` in [`api/dependencies.py`](../../api/dependencies.py), scoped to the API routers so the NiceGUI frontend is unaffected.
+
+### Rate limiting
+
+`rate_limit` ([`api/rate_limit.py`](../../api/rate_limit.py)) is a dependency on the aggregating router, so it applies to **every** endpoint including `/health`. It is an in-process fixed-window counter (the app runs single-worker), `API_RATE_LIMIT_PER_MIN` requests per minute, default 120.
+
+It runs **before** authentication, so unauthenticated floods are capped too. The client IP is always enforced as a ceiling; a *well-formed* bearer token additionally gets its own bucket (keyed by SHA-256 hash, never the raw secret) so one client's traffic is throttled independently below that ceiling. Garbage or rotating bearer values fall through to the IP key — the `wizzrobe_pat_` prefix is public, so bucketing solely on a presented token would let an attacker mint a fresh empty bucket per request. `X-Forwarded-For` is trusted only when `TRUST_PROXY_FORWARDED_FOR` is set, since the header is client-spoofable.
 
 ## Architecture
 
@@ -53,39 +62,7 @@ API handlers are a thin presentation layer: they authenticate, then delegate to 
 
 Grouped by domain (tag). See `/api/docs` for parameters, request/response schemas, and examples.
 
-### Router source files
-
-| Router | Source |
-|---|---|
-| Health | [`api/routers/health.py`](../../api/routers/health.py) |
-| Matches (read) | [`api/routers/matches.py`](../../api/routers/matches.py) |
-| Match actions (write) | [`api/routers/match_actions.py`](../../api/routers/match_actions.py) |
-| Crew | [`api/routers/crew.py`](../../api/routers/crew.py) |
-| Tournaments (read) | [`api/routers/tournaments.py`](../../api/routers/tournaments.py) |
-| Tournament actions (write) | [`api/routers/tournament_actions.py`](../../api/routers/tournament_actions.py) |
-| Stream rooms | [`api/routers/stream_rooms.py`](../../api/routers/stream_rooms.py) |
-| Stream room actions | [`api/routers/stream_room_actions.py`](../../api/routers/stream_room_actions.py) |
-| Users | [`api/routers/users.py`](../../api/routers/users.py) |
-| Player availability | [`api/routers/player_availability.py`](../../api/routers/player_availability.py) |
-| Volunteers | [`api/routers/volunteers.py`](../../api/routers/volunteers.py) |
-| Triforce texts | [`api/routers/triforce.py`](../../api/routers/triforce.py) |
-| Notifications | [`api/routers/notifications.py`](../../api/routers/notifications.py) |
-| Audit | [`api/routers/audit.py`](../../api/routers/audit.py) |
-| System config | [`api/routers/system_config.py`](../../api/routers/system_config.py) |
-| API tokens | [`api/routers/tokens.py`](../../api/routers/tokens.py) |
-| Discord role mappings | [`api/routers/discord_role_mappings.py`](../../api/routers/discord_role_mappings.py) |
-| Webhooks | [`api/routers/webhooks.py`](../../api/routers/webhooks.py) |
-| Presets | [`api/routers/presets.py`](../../api/routers/presets.py) |
-| Race room profiles | [`api/routers/race_room_profiles.py`](../../api/routers/race_room_profiles.py) |
-| Racetime bots | [`api/routers/racetime_bots.py`](../../api/routers/racetime_bots.py) |
-| Race rooms | [`api/routers/race_rooms.py`](../../api/routers/race_rooms.py) |
-| SpeedGaming | [`api/routers/speedgaming.py`](../../api/routers/speedgaming.py) |
-| Discord events | [`api/routers/discord_events.py`](../../api/routers/discord_events.py) |
-| Service health | [`api/routers/service_health.py`](../../api/routers/service_health.py) |
-| Seeds | [`api/routers/seeds.py`](../../api/routers/seeds.py) |
-| Async qualifiers | [`api/routers/async_qualifiers.py`](../../api/routers/async_qualifiers.py) |
-| Async qualifier live races | [`api/routers/async_qualifier_live_races.py`](../../api/routers/async_qualifier_live_races.py) |
-| Brackets | [`api/routers/brackets.py`](../../api/routers/brackets.py) |
+One module per group under [`api/routers/`](../../api/routers/), named after the group, with a matching module under [`api/schemas/`](../../api/schemas/). The cross-cutting pieces are `dependencies.py` (auth deps + `tenant_context_scope` + `require_feature` + `ServiceErrorRoute`), `rate_limit.py`, `_helpers.py` (shared load-or-404), and `_match_view.py` (match serialization).
 
 ### Health (`/api/health`)
 - `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
@@ -114,9 +91,9 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 - `GET /stream-rooms?active_only=` (`active_only` returns only active rooms, default `false`) · `GET /stream-rooms/{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
 
 ### Users & roles (`/api/users`)
-- `GET /users?role=` (Staff; `role` optionally filters to users holding that global role) · `GET /users/me` · `GET /users/{id}` (self or Staff).
+- `GET /users?role=` (Staff; `role` optionally filters to users holding that role **in the token's tenant**) · `GET /users/me` · `GET /users/{id}` (self or Staff).
 - `POST /users` (Staff) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments`.
-- `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff).
+- `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff) — grant/revoke a role. Roles are per-tenant except `SUPER_ADMIN`; see [authentication.md § Roles](authentication.md#roles). (The Swagger `summary` strings still say "global role" — a stale docstring, not a different behaviour.)
 
 ### Player availability (`/api/users/me/availability`)
 - `GET` (own windows) · `PUT` (replace all windows) · `DELETE` (clear). Self-service for any authenticated user; windows feed match-time suggestions.
@@ -151,20 +128,24 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 ### Discord role mappings (`/api/discord-role-mappings`)
 - `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → app-role mappings (Staff).
 
+## Feature-flag gating
+
+When the caller's tenant has not enabled a router's flag, the **whole router 404s** — as if the feature did not exist — rather than 403'ing. See [features/feature-flags.md](../features/feature-flags.md).
+
+| Group | Flag |
+|---|---|
+| Triforce texts | `TRIFORCE_TEXTS` |
+| Volunteers | `VOLUNTEERS` |
+| Race room profiles, Race rooms | `RACETIME_ROOMS` |
+| SpeedGaming | `SPEEDGAMING_ETL` |
+| Async qualifiers, Async qualifier live races | `ASYNC_QUALIFIERS` |
+| Brackets | `BRACKETS` |
+
+Every other group stays open, including presets, seeds, racetime bots, discord events and service health. `GET /seeds/randomizers` filters on a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).
+
 ## Online-tournament features
 
-The online-tournament subsystems now have full read + write REST parity. As elsewhere,
-handlers are a thin layer over the service — the same `AuthService` gate the web UI uses
-applies. Two of these groups are **global / platform** resources gated by the two
-super-admin dependencies added for them (`require_super_admin` / `require_super_admin_write`
-in [`api/dependencies.py`](../../api/dependencies.py), which check the global
-`SUPER_ADMIN` role — `UserRole` with `tenant=NULL` — rather than tenant STAFF). The
-tenant-role-gated groups (presets, sync, qualifiers) use the coarse
-`require_api_actor`/`require_write_actor` HTTP dep and let the service enforce the
-finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a
-sub-STAFF token with the right role is accepted rather than 403'd.
-
-Several groups are also **feature-flag-gated**: when the caller's tenant has not enabled the flag, the whole router **404s** (as if the feature did not exist) rather than 403'ing. This applies to race-room profiles + race rooms (`RACETIME_ROOMS`), SpeedGaming (`SPEEDGAMING_ETL`), async qualifiers + live races (`ASYNC_QUALIFIERS`), brackets (`BRACKETS`), and — in the core set — triforce texts (`TRIFORCE_TEXTS`) and volunteers (`VOLUNTEERS`); presets, seeds, racetime bots, discord events, and service health stay open. See [features/feature-flags.md](../features/feature-flags.md). `GET /seeds/randomizers` is filtered by a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).
+Two of these groups are **global / platform** resources gated by `require_super_admin` / `require_super_admin_write` ([`api/dependencies.py`](../../api/dependencies.py)), which check the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`) rather than tenant STAFF. The tenant-role-gated groups (presets, sync, qualifiers) use the coarse `require_api_actor` / `require_write_actor` HTTP dep and let the service enforce the finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a sub-STAFF token with the right role is accepted rather than 403'd.
 
 ### Presets (`/api/presets`)
 Tenant-authored seed presets (service gate `can_manage_presets`).
@@ -221,15 +202,20 @@ Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifi
 - `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `DELETE /{id}` (cancel). Inbound racetime capture (`mark_in_progress`, `record_finish`) is **not** exposed.
 
 ### Brackets (`/api/brackets`)
-Native tournament brackets ([brackets.md](../features/brackets.md)). Feature-gated by `BRACKETS` (whole router 404s when the tenant hasn't enabled it). Reads take any token and are tenant-scoped in-service; writes reject read-only tokens at the HTTP layer and re-gate on **Staff** in `BracketService`. Thin wrappers over the service — schemas in [`api/schemas/brackets.py`](../../api/schemas/brackets.py).
-- **Reads:** `GET /brackets?tournament_id=` (stages of a tournament) · `GET /brackets/entrants?tournament_id=` (roster) · `GET /brackets/{id}` · `GET /brackets/{id}/matches` · `GET /brackets/{id}/open-matches` · `GET /brackets/{id}/entries` · `GET /brackets/matches/{match_id}` (one matchup with its `games`) · `GET /brackets/my-open-matches?tournament_id=` (the **caller's** OPEN matchups that still have a game slot free, and whose *both* entrants are user-linked — the peer of the Challonge unscheduled-match list) · `GET /brackets/{id}/standings` · `GET /brackets/advancing-preview?tournament_id=&from_stage_order=`.
-- **Authoring / roster:** `POST /brackets` (create a stage) · `PATCH /brackets/{id}` (`{name?, stage_order?, config?}` — DRAFT-only; omitted fields are left alone) · `DELETE /brackets/{id}` (204, DRAFT-only) · `PUT /brackets/{id}/rounds` (`{rounds}` — replace the per-round `{best_of, scheduled_at}` display metadata, or null to clear; the one definition edit allowed **after** a stage starts, because round chrome never touches the graph) · `PATCH /brackets/{id}/seeds` (`{seeds: {entry_id: seed|null}}` — DRAFT-only; the whole resulting seeding is validated before any write, so a duplicate or `<1` seed changes nothing, and the new entry order is returned) · `POST /brackets/entrants` (add entrant) · `POST /brackets/entrants/{entrant_id}/drop` (mark DROPPED on the **roster**: played results stand and keep counting for everyone else; it does not cascade into the per-stage `BracketEntry.status` that advancement filters on) · `POST /brackets/{id}/entries` (enroll).
-- **Lifecycle:** `POST /brackets/{id}/start` (generate the match graph) · `POST /brackets/matches/{match_id}/result` (`{winner_entry_id, entry1_score?, entry2_score?, forfeit?}` — optional set scores; the winner must have the strictly-higher score unless `forfeit`) · `PATCH /brackets/matches/{match_id}/result` (same body — **staff correction** of an already-COMPLETE match; rejected while a downstream match is itself COMPLETE, and it re-pushes the amended winner/loser downstream, recomputing stage ranks if the stage had already finalized) · `POST /brackets/{id}/complete` (finalize the stage) · `POST /brackets/advance-stage?tournament_id=` (`{from_stage_order}` — seed the next stage from the prior stage's ranks; `GET /brackets/advancing-preview` is its dry run, returning the same entries in advancement order and writing nothing). `BracketMatchResponse` surfaces `entry1_score` / `entry2_score` / `forfeit`, plus `best_of`, a nested `games` list, and a derived **`status`** — the cross-surface `MatchStatus` (`pending` / `unscheduled` / `scheduled` / `checked_in` / `live` / `awaiting_result` / `complete` / `needs_reschedule`) the web bracket paints and the Discord DM quotes, so an API consumer sees `live` while a game is being raced instead of re-deriving it from the games' `Match` timestamps. Populated on the two list reads (`/matches`, `/open-matches`); `null` elsewhere.
-- **Standings:** `GET /brackets/{id}/standings` returns `[{group_number, rows}]` — round robin one group per pool (ascending, `null` last), Swiss a single `null` group. Each row carries the entrant's `display_name`, `seed`, both drop levels (`status` = this stage's entry, `entrant_status` = the roster), live `rank`, `points`, `wins`/`draws`/`losses`/`byes`, the computed `tiebreakers` chain and `tied_with`, plus the persisted `final_rank` (null until the stage completes; it can differ from `rank` when staff hand-resolved a tie). Rows come back in rank order and dropped entries stay listed. Elimination formats have no points table and **400**: read their placement from `/matches` and each entry's `final_rank`.
-- **Best-of-N series:** `PATCH /brackets/matches/{match_id}/best-of` (`{best_of}` — odd, or null to fall back to the round's value; rejected once games exist) · `POST /brackets/matches/{match_id}/games` (`{scheduled_date, scheduled_time, stream_room_id?, comment?}` — books the **next** game into a real `Match`; the game number is server-assigned, so call it once per game, and all N slots may be booked up front). `games` is empty until a game is scheduled (rows are created lazily), and unneeded games are cancelled when the series clinches. Note `BracketMatchResponse.match_id` was **removed** in favour of `games` — a bracket match no longer has a single scheduled `Match`.
-- **Who may schedule a game:** `POST /brackets/matches/{id}/games` accepts Staff, the tournament's admins, **and the matchup's own two entrants** — in a bracket-run tournament the bracket is the only way a player schedules at all. `stream_room_id` is staff-only and is rejected (400) for an entrant rather than silently dropped.
-- **Linking an existing match (staff):** `POST /brackets/matches/{match_id}/games/link` (`{scheduled_match_id}`) attaches an already-created `Match` to the matchup as its next game — for a match scheduled through the ordinary editor. The match's players must be exactly the matchup's two entrants (400 otherwise), it must belong to the same tournament, and it must not already be linked. `DELETE /brackets/games/by-match/{scheduled_match_id}` detaches one that has not been played (404 when the match backs no game, 400 once it has a result); the `Match` itself is left in place.
+Native tournament brackets. Reads take any token and are tenant-scoped in-service; writes reject read-only tokens at the HTTP layer and re-gate in `BracketService` — **Staff** everywhere except `POST /matches/{id}/games`, which also accepts the tournament's admins and the matchup's own two entrants (in a bracket-run tournament the bracket is the only way a player schedules at all). Thin wrappers over the service; schemas in [`api/schemas/brackets.py`](../../api/schemas/brackets.py). Behaviour — formats, advancement, roster rules, series semantics, who may schedule — is documented in [brackets.md](../features/brackets.md).
+- **Reads:** `GET /brackets?tournament_id=` (stages) · `/brackets/entrants?tournament_id=` (roster) · `/brackets/{id}` · `/brackets/{id}/matches` · `/brackets/{id}/open-matches` · `/brackets/{id}/entries` · `/brackets/matches/{match_id}` (one matchup with its `games`) · `/brackets/my-open-matches?tournament_id=` (the **caller's** OPEN matchups with a free game slot and both entrants user-linked — the peer of the Challonge unscheduled-match list) · `/brackets/{id}/standings` · `/brackets/advancing-preview?tournament_id=&from_stage_order=` (dry run of the advance, writing nothing).
+- **Authoring / roster:** `POST /brackets` · `PATCH /brackets/{id}` (`{name?, stage_order?, config?}`, DRAFT-only, omitted fields left alone) · `DELETE /brackets/{id}` (204, DRAFT-only) · `PUT /brackets/{id}/rounds` (`{rounds}` — the per-round `{best_of, scheduled_at}` display metadata, or null to clear; the one definition edit allowed **after** a stage starts, since round chrome never touches the graph) · `PATCH /brackets/{id}/seeds` (`{seeds: {entry_id: seed|null}}`, DRAFT-only; the whole resulting seeding is validated before any write, so a duplicate or `<1` seed changes nothing, and the new entry order is returned) · `POST /brackets/entrants` · `POST /brackets/entrants/{entrant_id}/drop` · `POST /brackets/{id}/entries`.
+- **Lifecycle:** `POST /brackets/{id}/start` · `POST /brackets/matches/{match_id}/result` (`{winner_entry_id, entry1_score?, entry2_score?, forfeit?}`) · `PATCH /brackets/matches/{match_id}/result` (same body — staff correction of an already-COMPLETE match) · `POST /brackets/{id}/complete` · `POST /brackets/advance-stage?tournament_id=` (`{from_stage_order}`).
+- **Series:** `PATCH /brackets/matches/{match_id}/best-of` (`{best_of}` — odd, or null to fall back to the round's value; rejected once games exist) · `POST /brackets/matches/{match_id}/games` (`{scheduled_date, scheduled_time, stream_room_id?, comment?}` — books the **next** game into a real `Match`; the game number is server-assigned, so call it once per game, and all N slots may be booked up front). `stream_room_id` is staff-only and 400s for an entrant rather than being silently dropped.
+- **Linking (staff):** `POST /brackets/matches/{match_id}/games/link` (`{scheduled_match_id}`) attaches an already-created `Match` as the matchup's next game — for a match scheduled through the ordinary editor. Its players must be exactly the matchup's two entrants (400 otherwise), same tournament, not already linked. `DELETE /brackets/games/by-match/{scheduled_match_id}` detaches an unplayed one (404 when the match backs no game, 400 once it has a result); the `Match` itself is left in place.
+
+Two response shapes are worth calling out because they differ from the UI's view of the same data:
+
+- `BracketMatchResponse` has **no `match_id`** — a bracket match is a *series*, so its scheduled matches live in the nested `games` list (empty until a game is booked; rows are created lazily and unneeded ones are cancelled when the series clinches). It also carries `best_of`, `entry1_score`/`entry2_score`/`forfeit`, and a derived **`status`** — the cross-surface `MatchStatus` (`pending` / `unscheduled` / `scheduled` / `checked_in` / `live` / `awaiting_result` / `complete` / `needs_reschedule`) the web bracket paints and the Discord DM quotes, so a consumer sees `live` mid-race instead of re-deriving it from game timestamps. Populated on the two list reads (`/matches`, `/open-matches`); `null` elsewhere.
+- `GET /brackets/{id}/standings` returns `[{group_number, rows}]` — round robin one group per pool (ascending, `null` last), Swiss a single `null` group. Each row carries `display_name`, `seed`, both drop levels (`status` = this stage's entry, `entrant_status` = the roster), live `rank`, `points`, `wins`/`draws`/`losses`/`byes`, the `tiebreakers` chain and `tied_with`, and the persisted `final_rank` (null until the stage completes; it can differ from `rank` when staff hand-resolved a tie). Rows come back in rank order and dropped entries stay listed. Elimination formats have no points table and **400** — read their placement from `/matches` and each entry's `final_rank`.
 
 ## Tests
 
-Integration tests live in [`tests/`](../../tests/): `test_api_tokens.py`, `test_api_matches.py`, `test_api_reads.py`, `test_api_match_writes.py`, `test_api_admin_writes.py`, `test_api_phase5_writes.py`, and one `test_api_<resource>.py` per online-tournament group (`test_api_presets.py`, `test_api_race_room_profiles.py`, `test_api_racetime_bots.py`, `test_api_race_rooms.py`, `test_api_speedgaming.py`, `test_api_discord_events.py`, `test_api_service_health.py`, `test_api_seeds.py`, `test_api_async_qualifiers.py`, `test_api_async_qualifier_live_races.py`). They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client; pass `roles=[Role.SUPER_ADMIN]` for a global super-admin token). Each new group covers the baseline matrix (happy-path read, `401` unauthenticated, `403` read-only-write, cross-tenant isolation, `403` role-less) plus resource-specific cases.
+Integration tests live in [`tests/`](../../tests/) as `test_api_<resource>.py`, roughly one per group. They use the in-memory SQLite `db` fixture and the helpers in [`tests/api_helpers.py`](../../tests/api_helpers.py) (full app + token-authenticated client; pass `roles=[Role.SUPER_ADMIN]` for a global super-admin token).
+
+Every group covers the same baseline matrix plus its own resource-specific cases: happy-path read, `401` unauthenticated, `403` read-only-token write, cross-tenant isolation, and `403` for a role-less token.

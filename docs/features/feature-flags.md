@@ -38,31 +38,19 @@ no-op. Deleting a group reassigns its tenants to ungrouped (→ default fallback
 
 ## Where gating is enforced
 
-Gating a subsystem is **two obligations**, and doing only the first is the
-failure mode to watch for:
-
-1. **Hide it at the entry surfaces** so it is not visible where it is not live.
-2. **Enforce it in the owning service** so it is not *reachable* where it is not
-   live — by a caller that has no gate, or by one whose gate someone forgot.
-
-**UI-only gating is not gating.** Hiding a tab does nothing about a Discord
-interaction handler, a background worker, a REST router nobody mounted behind
-`require_feature`, or the next page someone adds. The service that owns the
-feature is the one place every caller passes through, so that is where the
-refusal belongs.
-
-Both halves stay **authorization-style gates at a boundary** (like
-`@protected_page` and the API auth deps), never a business rule buried inside a
-transaction. The service guard sits on the public entry method and reads a
-per-request cache (`_flag_cache`, a contextvar keyed by tenant), so N guards in
-one request cost one resolution rather than 3N queries.
+Gating is the two obligations CLAUDE.md states — hide it at the entry surfaces,
+*and* enforce it in the owning service. Both halves are authorization-style gates
+at a boundary, never a business rule inside a transaction: the service guard sits
+on the public entry method and reads a per-request cache (`_flag_cache`, a
+contextvar keyed by tenant), so N guards in one request cost one resolution rather
+than 3N queries. Concretely:
 
 | Surface | How |
 |---|---|
 | Whole pages | `@protected_page('/path', feature=FeatureFlag.X)` → 404 when off (hidden, role-independent). Used by `/qualifiers`, `/equipment`, `/volunteer`. |
 | Nav links to a gated page | The nav must not offer a link the gate will reject, or it dead-ends on a 404/403. The Volunteer entry resolves through `AuthService.can_view_volunteer` (flag **and** role), which `BaseLayout` calls when `show_volunteer` is left at its `None` default — one helper shared with the page's own gate so the two cannot drift. |
 | Admin tabs | `pages/admin.py` loads `FeatureFlagService().enabled_flags()` once and `and`-s the flag into each subsystem tab's condition. |
-| Home tabs | `pages/home.py` gates the Triforce Texts and Equipment tabs (My Availability stays ungated — it feeds crew signup too). |
+| Home tabs | `pages/home.py` gates the Brackets, Triforce Texts and Equipment tabs (My Availability stays ungated — it feeds crew signup too). Brackets is resolved before the signed-in branch, since it is anonymous-readable. |
 | REST API | `api/__init__.py` attaches `require_feature(FeatureFlag.X)` to each gated router's `include_router`; a disabled feature 404s. |
 | Auto workers | The racetime auto-open and SpeedGaming sync workers skip a tenant whose flag is off (a clean `is_enabled` check inside `tenant_scope`). Skipping, not raising: a loop over tenants must not die on the first one that lacks the feature. |
 | **The owning service** | `@requires_feature(FeatureFlag.X)` (from `application.feature_flags`) on its public entry methods — every mutation, plus the top-level reads that return the feature's data. Not internal helpers or per-row getters. Raises `FeatureDisabledError`. Each flag names its owning module(s) in `FeatureFlagSpec.service_modules`, and `check_feature_flag_gating.py` fails the edit if one of them does not enforce the flag. |
@@ -72,21 +60,15 @@ it is the control panel.
 
 **A super-admin does not bypass a flag.** The platform role is staff-equivalent
 inside every tenant (see
-[role-based-auth.md](role-based-auth.md#super-admin-authority-inside-a-tenant)),
+[authentication.md](../reference/authentication.md#roles)),
 but that is authority over what a community has turned *on*: `is_enabled` takes no
 user, so a tenant with `VOLUNTEERS` off 404s `/volunteer` for a super-admin too.
-Gating a feature is not an authorization question, so the fix for "I can't see it"
-is to grant the tenant the flag on `/platform`, not to widen a role.
+The fix for "I can't see it" is to grant the tenant the flag on `/platform`, not
+to widen a role.
 
-### API-key randomizers are not flag-gated
-
-A flag is the wrong tool for a keyed randomizer, and this used to be done the
-wrong way: `dk64_randomizer` existed only to record that a community was
-authorized to use the deployment's shared DK64 API key. Randomizer credentials
-are now **per tenant** — a community supplies the key it was issued and is bound
-by — so the credential itself is the gate: the randomizer is hidden from every
-selector until the key is set, and rolling without one raises. There is nothing
-left for a flag to decide. See
+**A keyed randomizer is not flag-gated.** Randomizer credentials are per tenant,
+so the credential is the gate: the randomizer is hidden from every selector until
+the key is set, and rolling without one raises. See
 [seed-generation.md](../reference/seed-generation.md#per-tenant-credentials).
 
 ## The current flags
@@ -111,18 +93,17 @@ dark.
 ## Groups (tiers)
 
 [Migration 31](../../migrations/models/31_20260715120000_feature_flag_groups.py)
-adds the group layer on top: `FeatureFlagGroup` + `Tenant.feature_group`, makes
-`TenantFeatureFlag.available/enabled` nullable (tri-state), and seeds an **empty**
-`Default` group plus an `Online Tournaments` group. The migration is
-non-destructive — the migration-30 pins stay in place as per-tenant overrides, so
-existing communities keep their features; you migrate them onto groups at your
-pace via `/platform`.
+adds the group layer: `FeatureFlagGroup` + `Tenant.feature_group`, tri-state
+`TenantFeatureFlag.available/enabled`, and an **empty** `Default` group plus an
+`Online Tournaments` group. It is non-destructive — the migration-30 pins survive
+as per-tenant overrides, so a community keeps its features until you move it onto
+a group via `/platform`.
 
 Super-admins manage groups on `/platform` → **Feature Groups** (create/edit/
 delete, mark one default, pick its flags) and assign a tenant to a group from its
 **Features** button. Because availability derives from the group **live**, editing
-a group re-tiers every tenant on it in one edit. `FeatureFlagService` owns the
-group CRUD, the `assign_tenant_group` write, and the effective-state resolution.
+a group re-tiers every tenant on it. `FeatureFlagService` owns the group CRUD, the
+`assign_tenant_group` write, and the effective-state resolution.
 
 ## Adding a feature flag
 
@@ -133,10 +114,11 @@ first** (see CLAUDE.md). When you do:
    to [`application/feature_flags.py`](../../application/feature_flags.py). Set
    `established=True` **only** if the feature is already in live use (then add its
    key to the migration backfill so existing tenants keep it).
-2. **Hide it at the entry surfaces:** `feature=` on the page's `@protected_page`; `and FeatureFlag.X in live` on its admin/home tab; `require_feature(FeatureFlag.X)` on its REST router; an `is_enabled` skip in any background worker that acts on it; and resolve any nav link *to* the page through an access helper so it is never offered where the gate would reject it.
-3. **Enforce it in the owning service:** name the module(s) in the spec's `service_modules`, then put `@requires_feature(FeatureFlag.X)` on their public entry methods — every mutation plus the top-level reads that return the feature's data. Leave soft integration points (something an unrelated flow calls for *every* record) returning a neutral value instead, and let workers skip rather than raise.
-4. Seed it in [`scripts/seed_dev.py`](../../scripts/seed_dev.py) so the dev tenants exercise it. If the fixture goes through a service that now enforces the flag, seed it only for a tenant whose tier grants it.
-5. Add coverage to [`tests/test_feature_flags.py`](../../tests/test_feature_flags.py) and a service-refusal case to [`tests/test_feature_flag_enforcement.py`](../../tests/test_feature_flag_enforcement.py); if a test spins up a second tenant that should behave normally, give it the flags (`enable_all_flags` in `tests/conftest.py`, `enable_all_features` in `tests/api_helpers.py`).
+2. Wire **both halves of the gate** per the surface table above, and name the
+   owning module(s) in the spec's `service_modules` so the hook can check the
+   service half.
+3. Seed it in [`scripts/seed_dev.py`](../../scripts/seed_dev.py) so the dev tenants exercise it. If the fixture goes through a service that now enforces the flag, seed it only for a tenant whose tier grants it.
+4. Add coverage to [`tests/test_feature_flags.py`](../../tests/test_feature_flags.py) and a service-refusal case to [`tests/test_feature_flag_enforcement.py`](../../tests/test_feature_flag_enforcement.py); if a test spins up a second tenant that should behave normally, give it the flags (`enable_all_flags` in `tests/conftest.py`, `enable_all_features` in `tests/api_helpers.py`).
 
 `check_feature_flag_gating.py` (PostToolUse hook) fails the edit if either half is
 missing, so a flag cannot ship UI-only gated.
