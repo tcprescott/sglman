@@ -33,10 +33,10 @@ async def render_api_tokens_section(user: User) -> None:
                         with ui.row().classes('row-centered'):
                             ui.label(t.name).classes('text-weight-medium')
                             if is_oauth:
-                                # The client name is the useful identity here — the
-                                # user recognises "Claude Desktop", not a prefix.
-                                client = t.oauth_client.client_name if t.oauth_client else 'MCP client'
-                                ui.badge(client).props('color=primary')
+                                # The row's label is already the client name (it
+                                # is what the token was named at issue), so the
+                                # badge marks the *kind* rather than repeating it.
+                                ui.badge('AI client').props('color=primary')
                             else:
                                 if t.read_only:
                                     ui.badge('read-only').props('color=grey')

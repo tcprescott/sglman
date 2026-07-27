@@ -101,7 +101,9 @@ def create() -> None:
                 params['state'] = pending.state
             ui.navigate.to(f'{pending.redirect_uri}{sep}{urlencode(params)}')
 
-        with ui.column().classes('page-container items-center'):
+        # w-full on the column, or `items-center` has no width to centre within
+        # and the card hugs the left edge of the viewport.
+        with ui.column().classes('page-container items-center w-full q-pt-xl'):
             with ui.card().classes('card-full-width').style('max-width: 520px;'):
                 ui.label('Connect to Wizzrobe').classes('section-title')
                 ui.label(

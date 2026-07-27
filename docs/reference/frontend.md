@@ -178,7 +178,8 @@ Several further modules render **inside** the Profile tab rather than as standal
 
 | Module | Renders | Responsibility |
 |---|---|---|
-| [`api_tokens_section.py`](../../pages/home_tabs/api_tokens_section.py) | "API Tokens" card in Profile | Create / list / revoke personal REST API tokens via `ApiTokenService`; the plaintext token is shown once at creation |
+| [`api_tokens_section.py`](../../pages/home_tabs/api_tokens_section.py) | "API tokens & AI clients" card in Profile | Create / list / revoke personal REST API tokens via `ApiTokenService`; the plaintext token is shown once at creation. Also lists connected MCP clients (badged with the client name) and carries the copyable **MCP server URL** callout — an MCP connection is started from the client, so the URL is all this page can usefully offer |
+| [`mcp_consent.py`](../../pages/mcp_consent.py) | `/oauth/mcp/consent` | OAuth approval screen for MCP clients. A bespoke `@ui.page`, **not** `@protected_page`: every protected page is a tenant page and 404s without a tenant, but an MCP grant is platform-wide. Adds itself to `protected_routes` directly to get the sign-in redirect. See [features/mcp-server.md](../features/mcp-server.md) |
 | [`challonge_link_section.py`](../../pages/home_tabs/challonge_link_section.py) | "Challonge" card in Profile | Verify-link / unlink a Challonge account via `ChallongeService`; hides itself entirely when the integration isn't configured |
 | [`twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py) | "Twitch" card in Profile | Verify-link / unlink a Twitch identity via `TwitchService`; hides itself entirely when the integration isn't configured |
 | [`racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py) | "racetime.gg" card in Profile | Verify-link / unlink a racetime.gg identity via `RacetimeService`; hides itself entirely when the integration isn't configured |
