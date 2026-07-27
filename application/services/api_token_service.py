@@ -110,3 +110,26 @@ class ApiTokenService:
         await self.repository.touch_last_used(token, now)
         logger.debug('API token auth succeeded: token id=%s', token.id)
         return token.user, token
+
+    async def resolve_actor(self, raw_token: str) -> Optional[Tuple[User, ApiToken]]:
+        """Authenticate a bearer token and return its ``(user, token)``.
+
+        The shared front half of every bearer-authenticated entry surface: the
+        REST API and the MCP server both call this so their notion of "who is
+        this token" cannot drift. Returns ``None`` for an unknown, revoked, or
+        expired token, and raises ``PermissionError`` when the token itself is
+        valid but its owner has been deactivated — the two cases map to
+        different statuses (401 vs 403) at every caller.
+
+        GLOBAL: deliberately touches no tenant context. Which community a request
+        acts in is the caller's decision — the REST API takes it from the token's
+        own ``tenant``, the MCP server from each tool call — so binding it here
+        would force one surface's model onto the other.
+        """
+        result = await self.authenticate(raw_token)
+        if result is None:
+            return None
+        user, token = result
+        if not user.is_active:
+            raise PermissionError("This account is inactive")
+        return user, token

@@ -37,7 +37,8 @@ from models import (
     Commentator, Tracker, GeneratedSeeds,
     TournamentNotificationPreference, MatchNotificationLevel,
     StreamRoom, SystemConfiguration,
-    ApiToken, Feedback, FeedbackCategory, FeedbackStatus,
+    ApiToken, ApiTokenOrigin, McpOAuthClient,
+    Feedback, FeedbackCategory, FeedbackStatus,
     Equipment, EquipmentLoan, EquipmentStatus,
     AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
     VolunteerPosition, VolunteerProfile, VolunteerShift,
@@ -749,6 +750,47 @@ async def seed_for_tenant(
 
 
 
+async def seed_mcp_oauth(users: dict[str, User]) -> None:
+    """Seed a registered MCP client and a deterministic dev OAuth token.
+
+    Global, like the users above: an OAuth grant belongs to no community. The
+    token lets /api-validation and manual curl runs exercise ``/mcp`` without
+    driving the whole browser-based authorization flow, exactly as the dev PAT
+    strings do for the REST API. Non-secret fixtures; only hashes are stored.
+
+    ``McpAuthorizationCode`` is deliberately not seeded — see below.
+    """
+    client, _ = await McpOAuthClient.get_or_create(
+        client_id="devseed-local-client",
+        defaults={
+            "client_name": "Dev Seed MCP Client",
+            "redirect_uris": ["http://127.0.0.1:6274/oauth/callback"],
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": "none",
+        },
+    )
+    staff = users["staff_user"]
+    oauth_bearer = "wizzrobe_mcp_devseed_local_only_do_not_use"
+    refresh_bearer = "wizzrobe_mcpref_devseed_local_only_do_not_use"
+    if not await ApiToken.filter(user=staff, name="Dev Seed MCP Token").exists():
+        now = datetime.now(timezone.utc)
+        await ApiToken.create(
+            user=staff, name="Dev Seed MCP Token", tenant=None,
+            oauth_client=client, origin=ApiTokenOrigin.OAUTH.value, read_only=True,
+            token_hash=hashlib.sha256(oauth_bearer.encode()).hexdigest(),
+            token_prefix=oauth_bearer[:17],
+            expires_at=now + timedelta(days=3650),
+            refresh_token_hash=hashlib.sha256(refresh_bearer.encode()).hexdigest(),
+            refresh_expires_at=now + timedelta(days=3650),
+        )
+    print(f"  mcp oauth ok (global; dev bearer: {oauth_bearer})")
+
+
+# seed-exempt: McpAuthorizationCode — ephemeral single-use rows minted mid-flow
+# and consumed seconds later; a seeded one would always be stale/expired.
+
+
 async def seed_all() -> None:
     """Seed everything into the already-initialized ORM connection.
 
@@ -757,6 +799,7 @@ async def seed_all() -> None:
     """
     users = await seed_users()
     await seed_super_admin(users)
+    await seed_mcp_oauth(users)
     bots = await seed_racetime_bots()
     groups = await seed_feature_groups()
     for slug, name, guild_id, _label, domain in TENANT_SPECS:

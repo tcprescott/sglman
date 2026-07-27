@@ -11,6 +11,7 @@ other — only the shared enums in :mod:`models.enums` are imported directly.
 
 from .enums import (
     SYSTEM_USER_DISCORD_ID,
+    ApiTokenOrigin,
     AsyncQualifierLiveRaceStatus,
     AsyncQualifierReviewStatus,
     AsyncQualifierRunStatus,
@@ -38,6 +39,7 @@ from .enums import (
 from .tenant import Tenant, TenantMembership
 from .feature_flag import FeatureFlagGroup, TenantFeatureFlag
 from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
+from .mcp import McpAuthorizationCode, McpOAuthClient
 from .tournament import (
     GeneratedSeeds,
     Preset,
@@ -99,6 +101,7 @@ __all__ = [
     # constants
     'SYSTEM_USER_DISCORD_ID',
     # enums
+    'ApiTokenOrigin',
     'AsyncQualifierLiveRaceStatus',
     'AsyncQualifierReviewStatus',
     'AsyncQualifierRunStatus',
@@ -133,6 +136,9 @@ __all__ = [
     'User',
     'UserRole',
     'WebPushSubscription',
+    # mcp oauth
+    'McpAuthorizationCode',
+    'McpOAuthClient',
     # tournament
     'GeneratedSeeds',
     'Preset',

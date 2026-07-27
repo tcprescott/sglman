@@ -52,6 +52,11 @@ def candidate_tests(norm: str) -> list[str]:
         # Router/schema modules pair with tests/api/test_<stem>.py; the legacy
         # flat name is kept so an un-migrated file still resolves.
         names += [f"test_{stem}.py", f"test_api_{stem}.py"]
+    elif norm.startswith("mcpserver/") or "/mcpserver/" in norm:
+        # tests/mcp/ prefixes its modules with test_mcp_ so they never collide
+        # with the same-named REST suites (mcpserver/tools/matches.py must not
+        # resolve to tests/api/test_matches.py).
+        names.append(f"test_mcp_{stem}.py")
     elif "scripts/seed_" in norm:
         # Seed edits are exercised by the seed-coverage runtime test.
         names.append("test_seed_coverage.py")

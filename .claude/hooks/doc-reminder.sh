@@ -78,6 +78,13 @@ case "$FILE_PATH" in
     ;;
 esac
 
+# mcpserver/ — the MCP entry surface
+case "$FILE_PATH" in
+  */mcpserver/*.py|*/mcpserver/*/*.py)
+    remind "$FILE_PATH changed → update docs/features/mcp-server.md (tool catalogue, gates, OAuth flow)"
+    ;;
+esac
+
 # New top-level directory heuristic: __init__.py two path components below repo root
 if [[ $REMINDED -eq 0 ]]; then
   REPO="$(git rev-parse --show-toplevel 2>/dev/null)"

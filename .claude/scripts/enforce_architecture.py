@@ -7,7 +7,7 @@ Reads a Claude Code tool-execution payload from stdin and exits with:
   2 — violation found (stderr describes exactly what was wrong)
 
 Boundaries enforced:
-  Presentation (pages/, theme/, frontend.py, api/, discordbot/)
+  Presentation (pages/, theme/, frontend.py, api/, discordbot/, mcpserver/)
     → MUST NOT import from application.repositories
     → MUST NOT reach through a service to its repository
       (`service.repository.foo(...)`, `self.x_repository.bar(...)`)
@@ -44,7 +44,7 @@ NICEGUI_ALLOWLIST = {"auth_service.py"}
 REACHTHROUGH_RE = re.compile(r"\.\s*(\w*repository)\s*\.\s*\w+\s*\(")
 
 # Module prefixes that mark the presentation surface, for the upward-import rules.
-PRESENTATION_MODULES = ("pages", "theme", "frontend", "api", "discordbot")
+PRESENTATION_MODULES = ("pages", "theme", "frontend", "api", "discordbot", "mcpserver")
 
 
 def imports_presentation(mod: str) -> str | None:
@@ -66,10 +66,11 @@ def extract_imports(content: str) -> list[str]:
 def classify(path: str) -> str | None:
     """Return 'presentation', 'service', 'repository', or None.
 
-    api/ (REST routers) and discordbot/ (Discord interaction handlers) are
-    entry surfaces — a second and third presentation layer alongside the web
-    UI — so they obey the same rule: they may call services and do read-only
-    load-or-404 model lookups, but must never import application.repositories.
+    api/ (REST routers), discordbot/ (Discord interaction handlers) and
+    mcpserver/ (MCP tools) are entry surfaces — presentation layers alongside
+    the web UI — so they obey the same rule: they may call services and do
+    read-only load-or-404 model lookups, but must never import
+    application.repositories.
     """
     norm = path.replace("\\", "/")
     if (
@@ -82,6 +83,8 @@ def classify(path: str) -> str | None:
         or norm.startswith("api/")
         or "/discordbot/" in norm
         or norm.startswith("discordbot/")
+        or "/mcpserver/" in norm
+        or norm.startswith("mcpserver/")
     ):
         return "presentation"
     if "/application/services/" in norm or norm.endswith("/application/services"):
@@ -113,7 +116,7 @@ def check(file_path: str, content: str) -> list[str]:
                 violations.append(
                     f"ARCHITECTURE VIOLATION in '{file_path}':\n"
                     f"  Presentation layer imports from repository layer: '{mod}'\n"
-                    f"  pages/, theme/, api/, and discordbot/ must never import "
+                    f"  pages/, theme/, api/, discordbot/, and mcpserver/ must never import "
                     f"directly from application/repositories/.\n"
                     f"  Fix: route all data access through application/services/ instead."
                 )
@@ -145,7 +148,7 @@ def check(file_path: str, content: str) -> list[str]:
                     f"ARCHITECTURE VIOLATION in '{file_path}':\n"
                     f"  Repository layer imports from the presentation surface: '{mod}'\n"
                     f"  application/repositories/ must never import from pages/, theme/,\n"
-                    f"  api/, discordbot/, frontend, or nicegui.\n"
+                    f"  api/, discordbot/, mcpserver/, frontend, or nicegui.\n"
                     f"  Fix: repositories are pure data access — remove all UI dependencies."
                 )
 
@@ -165,7 +168,7 @@ def check(file_path: str, content: str) -> list[str]:
                     f"ARCHITECTURE VIOLATION in '{file_path}':\n"
                     f"  Service layer imports from the presentation surface: '{mod}'\n"
                     f"  application/services/ must not reach up into pages/, theme/, api/,\n"
-                    f"  discordbot/, or frontend — data flows Repository → Service → Presentation.\n"
+                    f"  discordbot/, mcpserver/, or frontend — data flows Repository → Service → Presentation.\n"
                     f"  Fix: move the shared piece into application/utils/ (or events/), or pass\n"
                     f"  plain values into the service from the caller."
                 )
