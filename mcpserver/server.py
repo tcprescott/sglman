@@ -15,8 +15,10 @@ from mcpserver.tools import register_all
 
 INSTRUCTIONS = """\
 Read-only access to Wizzrobe, a tournament management platform. You can look up \
-tournaments, matches, schedules, people, crew and volunteer assignments, audit \
-history, and engagement telemetry. Nothing here modifies data.
+tournaments, matches, schedules, brackets and qualifiers, people, crew and \
+volunteer assignments, equipment, seed presets, racetime and SpeedGaming \
+integrations, audit history, engagement telemetry, and operational reports. \
+Nothing here modifies data.
 
 Start with `whoami`. It reports which communities you belong to, what role you \
 hold in each, and which optional features each has enabled — so you can avoid \

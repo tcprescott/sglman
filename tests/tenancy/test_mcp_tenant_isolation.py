@@ -94,6 +94,30 @@ class TestScoping:
         assert not is_error, payload
         assert all('b-only' not in str(item['details']) for item in payload['items'])
 
+    async def test_every_domain_scopes_to_the_named_community(self, two_tenants):
+        """One assertion per newly-exposed service, not just per tool.
+
+        Each of these reaches its rows through a different service, so scoping
+        is re-established once per domain rather than inherited. A tool wired to
+        an unscoped read would pass every single-tenant test and fail only here.
+        """
+        from models import Equipment, Preset, Webhook
+
+        tenant_a, tenant_b = two_tenants
+        _, raw = await _staff_everywhere(two_tenants)
+        with tenant_scope(tenant_b.id):
+            await Equipment.create(asset_number=1, name='B console')
+            await Preset.create(name='B preset', randomizer='alttpr', settings={})
+            await Webhook.create(name='B hook', url='https://b.test', secret='x')
+
+        async with mcp_session() as client:
+            for tool in ('list_equipment', 'list_presets', 'list_webhooks'):
+                is_error, payload = await call_tool(
+                    client, raw, tool, tenant=tenant_a.slug,
+                )
+                assert not is_error, (tool, payload)
+                assert payload['result'] == [], (tool, payload)
+
 
 class TestTenantArgument:
     async def test_unknown_slug_and_unentitled_slug_look_identical(self, two_tenants):

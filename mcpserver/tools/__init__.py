@@ -7,9 +7,12 @@ Each module exposes ``register_tools(mcp)`` and registers only through
 from mcp.server.fastmcp import FastMCP
 
 from mcpserver.tools import (
+    analytics,
     competition,
+    equipment,
     matches,
     observability,
+    online_play,
     orientation,
     people,
     tournaments,
@@ -24,5 +27,8 @@ def register_all(mcp: FastMCP) -> None:
     matches.register_tools(mcp)
     people.register_tools(mcp)
     volunteers.register_tools(mcp)
+    equipment.register_tools(mcp)
     observability.register_tools(mcp)
+    analytics.register_tools(mcp)
     competition.register_tools(mcp)
+    online_play.register_tools(mcp)

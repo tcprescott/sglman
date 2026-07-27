@@ -1,31 +1,40 @@
-"""Audit history, engagement telemetry, and system configuration.
+"""Audit history, engagement telemetry, integrations, and system configuration.
 
 Gates mirror ``api/routers/audit.py`` (admin), ``api/routers/system_config.py``
-(staff), and the telemetry service's own staff check.
+(staff), ``api/routers/webhooks.py`` (staff), ``api/routers/service_health.py``
+(staff for the tenant subset), and the telemetry service's own staff check.
+
+Feedback has no REST counterpart; its gate of record is the Admin → Feedback
+tab, which is staff-only.
 """
 
-from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from application.services import AuditService, TelemetryService
+from application.services import (
+    AuditService,
+    FeedbackService,
+    ServiceHealthService,
+    TelemetryService,
+    WebhookService,
+)
 from application.tenant_context import require_tenant_id
 from application.utils.serialization import decode_json_details
 from mcpserver.auth import Gate, current_actor
 from mcpserver.registry import register
-from mcpserver.schemas import AuditEntry, AuditPage, TenantArg
+from mcpserver.schemas import (
+    AuditEntry,
+    AuditPage,
+    FeedbackEntry,
+    ServiceHealthProbe,
+    TenantArg,
+    WebhookDeliveryInfo,
+    WebhookInfo,
+)
+from mcpserver.tools._args import choose, clamp, parse_ts
 
 MAX_ROWS = 500
-
-
-def _parse(label: str, value: Optional[str]) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError as exc:
-        raise ValueError(f'{label} must be an ISO 8601 timestamp') from exc
 
 
 async def list_audit_log(
@@ -42,9 +51,9 @@ async def list_audit_log(
     Requires admin access. Actions are namespaced `verb.object` strings such as
     `match.created`; `action_contains` does a substring match. Times are UTC.
     """
-    limit = max(1, min(limit, MAX_ROWS))
+    limit = clamp(limit, low=1, high=MAX_ROWS)
     offset = max(0, offset)
-    start_dt, end_dt = _parse('start', start), _parse('end', end)
+    start_dt, end_dt = parse_ts('start', start), parse_ts('end', end)
 
     service = AuditService()
     total = await service.count_logs(
@@ -70,14 +79,14 @@ async def telemetry_summary(
     tenant: TenantArg = None,
     start: Optional[str] = None,
     end: Optional[str] = None,
-) -> dict:
+) -> Dict[str, Any]:
     """Engagement totals for a window: events, unique users, sessions, page views.
 
     Requires staff access.
     """
     actor = current_actor()
     return await TelemetryService().engagement_summary(
-        actor.user, start=_parse('start', start), end=_parse('end', end),
+        actor.user, start=parse_ts('start', start), end=parse_ts('end', end),
     )
 
 
@@ -87,31 +96,26 @@ async def telemetry_top(
     start: Optional[str] = None,
     end: Optional[str] = None,
     limit: int = 15,
-) -> List[dict]:
+) -> List[Dict[str, Any]]:
     """Top engagement rows for one dimension: `paths`, `event_types`, or `users`.
 
     Requires staff access.
     """
     actor = current_actor()
-    limit = max(1, min(limit, 100))
-    start_dt, end_dt = _parse('start', start), _parse('end', end)
+    limit = clamp(limit, low=1, high=100)
+    start_dt, end_dt = parse_ts('start', start), parse_ts('end', end)
     service = TelemetryService()
-    dispatch = {
+    fn = choose(dimension, {
         'paths': service.top_paths,
         'event_types': service.top_event_types,
         'users': service.top_users,
-    }
-    fn = dispatch.get(dimension)
-    if fn is None:
-        raise ValueError(
-            f"Unknown dimension '{dimension}'. Valid: {', '.join(dispatch)}"
-        )
+    })
     return await fn(actor.user, start=start_dt, end=end_dt, limit=limit)
 
 
 async def get_system_config(
     tenant: TenantArg = None,
-) -> List[dict]:
+) -> List[Dict[str, Any]]:
     """Read the community's system configuration entries.
 
     Requires staff access.
@@ -124,8 +128,111 @@ async def get_system_config(
     return [{'name': e.name, 'value': e.value} for e in entries]
 
 
+async def list_service_health(
+    tenant: TenantArg = None,
+) -> List[ServiceHealthProbe]:
+    """Check the community's own integrations: its racetime bots and Challonge link.
+
+    Requires staff access. Probed live, so this is current rather than cached.
+    This is the tenant subset — the platform-wide board is a super-admin surface
+    and is not exposed here.
+    """
+    probes = await ServiceHealthService().tenant_subset(require_tenant_id())
+    return [
+        ServiceHealthProbe(
+            key=probe.key,
+            label=probe.label,
+            category=probe.category,
+            status=getattr(probe.status, 'value', probe.status),
+            message=probe.message,
+            checked_at=probe.checked_at,
+        )
+        for probe in probes
+    ]
+
+
+async def list_webhooks(
+    tenant: TenantArg = None,
+) -> List[WebhookInfo]:
+    """List the community's outbound webhooks and the events each subscribes to.
+
+    Requires staff access. Signing secrets are never returned.
+    """
+    hooks = await WebhookService().list_webhooks(current_actor().user)
+    return [
+        WebhookInfo(
+            id=hook.id,
+            name=hook.name,
+            url=hook.url,
+            event_types=list(hook.event_types or []),
+            is_active=hook.is_active,
+        )
+        for hook in hooks
+    ]
+
+
+async def list_webhook_deliveries(
+    webhook_id: int,
+    tenant: TenantArg = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> List[WebhookDeliveryInfo]:
+    """List recent delivery attempts for one webhook — what fired, and what failed.
+
+    Requires staff access. The serialized request payload is omitted; use
+    `list_audit_log` for what the underlying change was.
+    """
+    deliveries = await WebhookService().list_deliveries(
+        current_actor().user, webhook_id,
+        limit=clamp(limit, low=1, high=MAX_ROWS), offset=max(0, offset),
+    )
+    return [
+        WebhookDeliveryInfo(
+            id=row.id,
+            event_type=row.event_type,
+            success=row.success,
+            response_status=row.response_status,
+            attempt_count=row.attempt_count,
+            error=row.error,
+            created_at=row.created_at,
+            delivered_at=row.delivered_at,
+        )
+        for row in deliveries
+    ]
+
+
+async def list_feedback(
+    tenant: TenantArg = None,
+    limit: int = 50,
+) -> List[FeedbackEntry]:
+    """List feedback users submitted from the site, most recent first.
+
+    Requires staff access.
+    """
+    rows = await FeedbackService().list_recent(limit=clamp(limit, low=1, high=MAX_ROWS))
+    return [
+        FeedbackEntry(
+            id=row.id,
+            category=getattr(row.category, 'value', row.category),
+            status=getattr(row.status, 'value', row.status),
+            message=row.message,
+            page_url=row.page_url,
+            submitted_by=row.user.preferred_name if row.user else None,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+
+
 def register_tools(mcp: FastMCP) -> None:
     register(mcp, list_audit_log, gate=Gate.ADMIN, title='Search audit log')
     register(mcp, telemetry_summary, gate=Gate.STAFF, title='Telemetry summary')
     register(mcp, telemetry_top, gate=Gate.STAFF, title='Telemetry leaderboards')
     register(mcp, get_system_config, gate=Gate.STAFF, title='Get system config')
+    register(mcp, list_service_health, gate=Gate.STAFF, title='Service health')
+    register(mcp, list_webhooks, gate=Gate.STAFF, title='List webhooks')
+    register(
+        mcp, list_webhook_deliveries, gate=Gate.STAFF,
+        title='List webhook deliveries',
+    )
+    register(mcp, list_feedback, gate=Gate.STAFF, title='List feedback')
