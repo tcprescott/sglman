@@ -80,6 +80,13 @@ authenticates a person, not a membership. It registers itself in
 There is **no community picker**. The token carries no community; asking would
 imply a scoping it does not have.
 
+It still reads as Wizzrobe: the page applies
+[`render_platform_chrome('Authorize')`](../reference/frontend.md#tenant-less-chrome-themechromepy)
+— the shared tenant-less header, stylesheet, phoenix palette and dark mode — and
+its card, grant list and expired-transaction notice use the `.consent-*` classes
+in `styles.css`. The palette is the shipped default rather than a tenant
+override, because the credential being granted is not scoped to a community.
+
 ## Choosing a community
 
 Every tool except `whoami` and `list_tenants` takes a required `tenant` argument

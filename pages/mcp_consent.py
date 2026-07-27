@@ -23,6 +23,7 @@ from application.errors import NotFoundError
 from application.services import McpAuthService
 from application.services.auth_service import get_user_from_discord_id
 from middleware.auth import protected_routes
+from theme.chrome import render_platform_chrome
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,25 @@ _GRANTS = [
     ('groups', 'Read crew and volunteer assignments'),
     ('history', 'Read audit history, where your role already allows it'),
 ]
+
+
+def _render_notice(headline: str, message: str) -> None:
+    """The consent card's failure shape — an expired or unknown transaction.
+
+    Deliberately not the themed error page: nothing is broken and there is no
+    tenant to frame it in, so it stays on the same tenant-less consent surface
+    and simply says the request can be started again.
+    """
+    render_platform_chrome('Authorize')
+    with ui.column().classes('consent-page'):
+        with ui.card().classes('consent-card consent-card--warn'):
+            ui.icon('hourglass_disabled').classes('consent-badge consent-badge--warn')
+            ui.label(headline).classes('consent-title')
+            ui.label(message).classes('consent-lede')
+            ui.label(
+                'Nothing was shared. Start the connection again from the app '
+                'that sent you here.'
+            ).classes('consent-note')
 
 
 def _deny_redirect(redirect_uri: str, state: str | None) -> RedirectResponse:
@@ -67,12 +87,12 @@ def create() -> None:
             # consent screen with no identity behind it.
             return RedirectResponse('/login', status_code=302)
 
+        ui.page_title('Authorize — Wizzrobe')
+
         try:
             pending = service.get_pending(txn)
         except NotFoundError as exc:
-            with ui.column().classes('page-container'):
-                ui.label('Authorization request expired').classes('section-title')
-                ui.label(str(exc)).classes('text-muted')
+            _render_notice('Authorization request expired', str(exc))
             return None
 
         client = await service.get_client(pending.client_id)
@@ -101,29 +121,37 @@ def create() -> None:
                 params['state'] = pending.state
             ui.navigate.to(f'{pending.redirect_uri}{sep}{urlencode(params)}')
 
-        # w-full on the column, or `items-center` has no width to centre within
-        # and the card hugs the left edge of the viewport.
-        with ui.column().classes('page-container items-center w-full q-pt-xl'):
-            with ui.card().classes('card-full-width').style('max-width: 520px;'):
-                ui.label('Connect to Wizzrobe').classes('section-title')
+        def _signed_in_as() -> None:
+            """Whose grant this is, in the header — the same identity the card names."""
+            ui.label(user.preferred_name).classes('user-name')
+
+        render_platform_chrome('Authorize', right=_signed_in_as)
+
+        with ui.column().classes('consent-page'):
+            with ui.card().classes('consent-card'):
+                ui.icon('link').classes('consent-badge')
+                ui.label('Connect to Wizzrobe').classes('consent-title')
                 ui.label(
                     f'{client_name} wants to access Wizzrobe as '
                     f'{user.preferred_name}.'
-                ).classes('text-body1')
-                ui.separator()
-                ui.label('It will be able to:').classes('text-weight-medium q-mt-sm')
-                for icon, text in _GRANTS:
-                    with ui.row().classes('row-centered no-wrap'):
-                        ui.icon(icon).classes('text-primary')
-                        ui.label(text).classes('text-caption')
-                ui.label(
-                    'It cannot change anything — this connection is read-only, and '
-                    'it only ever sees what you can already see.'
-                ).classes('text-muted text-caption q-mt-sm')
+                ).classes('consent-lede')
+                ui.separator().classes('consent-rule')
+                ui.label('It will be able to:').classes('consent-grants-title')
+                with ui.column().classes('consent-grants'):
+                    for icon, text in _GRANTS:
+                        with ui.row().classes('consent-grant no-wrap'):
+                            ui.icon(icon).props('size=sm').classes('consent-grant-icon')
+                            ui.label(text)
+                with ui.row().classes('consent-note consent-note--lock no-wrap'):
+                    ui.icon('lock').props('size=sm')
+                    ui.label(
+                        'It cannot change anything — this connection is read-only, '
+                        'and it only ever sees what you can already see.'
+                    )
                 ui.label(
                     'You can disconnect it at any time from your profile.'
-                ).classes('text-muted text-caption')
-                with ui.row().classes('button-row q-mt-md'):
+                ).classes('consent-note')
+                with ui.row().classes('consent-actions'):
                     ui.button('Deny', on_click=deny).props('flat')
                     ui.button('Approve', icon='check', on_click=approve).props('color=primary')
         return None

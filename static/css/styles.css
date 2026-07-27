@@ -404,6 +404,21 @@ body.body--dark {
     color: var(--wiz-gold);
 }
 
+/* "Wizzrobe · Platform" — names a tenant-less surface without competing with
+   the wordmark itself. */
+.wiz-wordmark-sub {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.75;
+    margin-left: var(--space-1);
+}
+
+/* Plain nav link inside the header bar (white on the amber/charcoal bar). */
+.wiz-header-link {
+    color: #fff;
+    gap: var(--space-1);
+}
+
 .wiz-burger .q-icon {
     font-size: 1.6rem;
 }
@@ -823,6 +838,110 @@ body.body--dark {
     font-family: var(--font-mono);
     font-size: 0.8rem;
     white-space: pre;
+}
+
+/* OAuth consent (/oauth/mcp/consent) — a single centered card on the
+   tenant-less surface, sharing the error page's proportions so the two
+   chrome-light screens read as one family. */
+.consent-page {
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 3rem 1rem;
+    align-items: center;
+}
+
+.consent-card {
+    width: 100%;
+    border-top: 3px solid var(--wiz-gold-deep);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    padding: 2rem;
+    gap: 0.5rem;
+}
+
+.body--dark .consent-card,
+.q-dark .consent-card {
+    border-top-color: var(--wiz-gold);
+}
+
+.consent-card--warn {
+    border-top-color: var(--status-pending);
+}
+
+/* Soft brand-tinted disc behind the card's leading glyph. color-mix keeps the
+   tint derived from the palette rather than hard-coding a second gold. */
+.consent-badge {
+    font-size: 1.75rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-pill);
+    color: var(--wiz-section-title);
+    background: color-mix(in srgb, var(--wiz-gold) 18%, transparent);
+    margin-bottom: 0.25rem;
+}
+
+.consent-badge--warn {
+    color: var(--status-pending);
+    background: color-mix(in srgb, var(--status-pending) 15%, transparent);
+}
+
+.consent-title {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--wiz-section-title);
+}
+
+.consent-lede {
+    font-size: 1rem;
+    max-width: 60ch;
+}
+
+.consent-rule {
+    width: 100%;
+    margin: 0.75rem 0 0.25rem;
+}
+
+.consent-grants-title {
+    font-weight: 700;
+}
+
+.consent-grants {
+    width: 100%;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0.75rem;
+}
+
+/* flex-start, not center: a grant that wraps to two lines on a phone would
+   otherwise float its glyph into the gutter between them. */
+.consent-grant {
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+
+.consent-grant-icon {
+    color: var(--wiz-link);
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.consent-note {
+    font-size: 0.85rem;
+    color: var(--status-neutral);
+    max-width: 60ch;
+}
+
+.consent-note--lock {
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.consent-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
 }
 
 /* Button & Action Styles */
