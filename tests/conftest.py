@@ -1,6 +1,9 @@
+import functools
+
 import pytest
-from tortoise import Tortoise
+from tortoise import Tortoise, connections
 from tortoise.models import Model
+from tortoise.utils import get_schema_sql
 
 import models as _models
 from application.tenant_context import require_tenant_id, set_tenant_id, reset_tenant_id
@@ -9,6 +12,18 @@ from application.tenant_context import require_tenant_id, set_tenant_id, reset_t
 # Tenant is the first row inserted into the fresh in-memory schema, its id is 1,
 # which matches the ambient context set by ``_tenant_context`` below.
 DEFAULT_TEST_TENANT_ID = 1
+
+
+@functools.cache
+def _schema_sql() -> str:
+    """The CREATE TABLE script for every model, rendered once per process.
+
+    ``Tortoise.generate_schemas()`` re-derives this DDL from model metadata on
+    every call (~18ms). The output only depends on the models, which do not
+    change during a run, so the ``db`` fixture renders it once and replays the
+    script instead — the same tables, roughly a third of the cost.
+    """
+    return get_schema_sql(connections.get('default'), safe=True)
 
 
 def _scoped_models() -> list[type[Model]]:
@@ -125,7 +140,7 @@ async def db(monkeypatch):
         db_url="sqlite://:memory:",
         modules={"models": ["models"]},
     )
-    await Tortoise.generate_schemas()
+    await connections.get('default').execute_script(_schema_sql())
 
     await _models.Tenant.create(
         id=DEFAULT_TEST_TENANT_ID, name='Default', slug='default',

@@ -7,19 +7,10 @@ Uses the function-scoped in-memory ``db`` fixture from conftest.
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-import api
 from application.services.api_token_service import ApiTokenService, _hash_token
 from models import ApiToken, User
-
-
-@pytest.fixture
-def app():
-    test_app = FastAPI()
-    test_app.include_router(api.router, prefix='/api')
-    return test_app
 
 
 async def _user(discord_id: int = 1, username: str = 'u', is_active: bool = True) -> User:
