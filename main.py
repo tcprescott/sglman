@@ -29,6 +29,11 @@ from tortoise import Tortoise
 
 import frontend
 import api
+# Safe to import at module scope: mcpserver builds its FastMCP instance inside
+# mount(), not at import time. FastMCP.__init__ calls logging.basicConfig, which
+# would otherwise win the race against the basicConfig below and strip the log
+# format for the whole process.
+import mcpserver
 from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import TORTOISE_ORM
 
@@ -161,7 +166,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # TelemetryEvent log (page views / interactions are captured separately from
     # the presentation layer). No event_types filter — record them all.
     event_bus.subscribe_async(TelemetryService().record_event)
-    yield
+    # The MCP transport's session manager owns a task group that each per-request
+    # server task is started on; entering it here (and exiting it around the
+    # yield) means /mcp stops accepting calls before the workers below tear down,
+    # rather than after.
+    async with mcpserver.session_lifespan():
+        yield
     await race_room_worker.stop()
     await speedgaming_sync_worker.stop()
     await discord_event_worker.stop()
@@ -232,6 +242,10 @@ app.include_router(
     api.router,
     prefix='/api',
 )
+
+# ORDER IS LOAD-BEARING: frontend.init() hands the app to NiceGUI, which mounts
+# itself at '/' and would swallow /mcp. Register the MCP routes first.
+mcpserver.mount(app)
 
 frontend.init(app)
 

@@ -17,7 +17,7 @@ from typing import Deque, Dict
 
 from fastapi import HTTPException, Request, status
 
-from application.services.api_token_service import TOKEN_PREFIX
+from application.services.api_token_service import BEARER_PREFIXES
 
 
 def _limit_per_minute() -> int:
@@ -89,8 +89,9 @@ def _client_key(request: Request) -> str:
         # flood of random bearer values can't get a fresh bucket each request
         # (bypass) or grow _hits without bound. Store only a hash, never the raw
         # secret, as the key.
-        if token.startswith(TOKEN_PREFIX) and len(token) >= len(TOKEN_PREFIX) + 20:
-            return f'token:{hashlib.sha256(token.encode()).hexdigest()}'
+        for prefix in BEARER_PREFIXES:
+            if token.startswith(prefix) and len(token) >= len(prefix) + 20:
+                return f'token:{hashlib.sha256(token.encode()).hexdigest()}'
     return _client_ip_key(request)
 
 
