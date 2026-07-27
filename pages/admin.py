@@ -23,6 +23,7 @@ from pages.admin_tabs.admin_webhooks import admin_webhooks_page
 from pages.admin_tabs.admin_equipment import admin_equipment_page
 from pages.admin_tabs.admin_feedback import admin_feedback_page
 from pages.admin_tabs.admin_presets import admin_presets_page
+from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
 from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
 from pages.admin_tabs.admin_racetime import admin_racetime_page
 from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
@@ -120,7 +121,7 @@ def create() -> None:
         can_crud = is_staff or is_ta_any
         tabs = []
         # Each tab carries a drawer 'group'; the list is stable-sorted by
-        # _ADMIN_GROUP_ORDER below so the 21-item drawer reads as labeled sections
+        # _ADMIN_GROUP_ORDER below so the 22-item drawer reads as labeled sections
         # instead of a flat scroll. Icons are unique per destination (no repeats).
         if is_staff or is_ta_any or is_cc_any:
             tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
@@ -132,6 +133,7 @@ def create() -> None:
             tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'group': 'Operations', 'content': admin_stream_rooms_page})
         if is_staff or is_preset_manager:
             tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
+            tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})
         if (is_staff or is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
             tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'group': 'Online play', 'content': admin_qualifiers_page})
         if (is_staff or is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:

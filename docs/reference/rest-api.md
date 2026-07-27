@@ -162,7 +162,7 @@ tenant-role-gated groups (presets, sync, qualifiers) use the coarse
 finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a
 sub-STAFF token with the right role is accepted rather than 403'd.
 
-Several groups are also **feature-flag-gated**: when the caller's tenant has not enabled the flag, the whole router **404s** (as if the feature did not exist) rather than 403'ing. This applies to race-room profiles + race rooms (`RACETIME_ROOMS`), SpeedGaming (`SPEEDGAMING_ETL`), async qualifiers + live races (`ASYNC_QUALIFIERS`), brackets (`BRACKETS`), and — in the core set — triforce texts (`TRIFORCE_TEXTS`) and volunteers (`VOLUNTEERS`); presets, seeds, racetime bots, discord events, and service health stay open. `POST /seeds` and `GET /seeds/randomizers` additionally filter/reject individual flag-gated randomizers (e.g. `dk64r`). See [features/feature-flags.md](../features/feature-flags.md).
+Several groups are also **feature-flag-gated**: when the caller's tenant has not enabled the flag, the whole router **404s** (as if the feature did not exist) rather than 403'ing. This applies to race-room profiles + race rooms (`RACETIME_ROOMS`), SpeedGaming (`SPEEDGAMING_ETL`), async qualifiers + live races (`ASYNC_QUALIFIERS`), brackets (`BRACKETS`), and — in the core set — triforce texts (`TRIFORCE_TEXTS`) and volunteers (`VOLUNTEERS`); presets, seeds, racetime bots, discord events, and service health stay open. See [features/feature-flags.md](../features/feature-flags.md). `GET /seeds/randomizers` is filtered by a different axis — the randomizer API credentials the tenant has configured, not a flag (see [seed-generation.md](seed-generation.md#per-tenant-credentials)).
 
 ### Presets (`/api/presets`)
 Tenant-authored seed presets (service gate `can_manage_presets`).
@@ -201,8 +201,8 @@ External-dependency health board (the HTTP dep is the only authz; the service do
 - `POST /service-health/refresh` — force a refresh (super-admin write; always `alert=False`, so an API call never DMs).
 
 ### Seeds (`/api/seeds`)
-- `GET /seeds/randomizers` — the available randomizers + their `supports_triforce_texts` flag.
-- `POST /seeds` (`{randomizer, preset_id?}`) — roll a seed (loads the tenant-scoped preset when given; unsupported randomizer → 400; honors `MOCK_SEEDGEN`). Generation is ungated, so the write token is the authz.
+- `GET /seeds/randomizers` — the randomizers this community can actually roll + their `supports_triforce_texts` flag. A key-gated backend (`ootr`, `smmap`, `dk64r`) appears only once the community has configured its credential.
+- `POST /seeds` (`{randomizer, preset_id?}`) — roll a seed (loads the tenant-scoped preset when given; unsupported randomizer → 400; honors `MOCK_SEEDGEN`). Generation is ungated, so the write token is the authz. A key-gated randomizer the community has not configured → **400** naming the missing credential.
 
 ### Async qualifiers (`/api/async-qualifiers`)
 Self-paced permalink-pool qualifiers (mixed auth: admin reads/writes gate

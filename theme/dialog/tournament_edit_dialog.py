@@ -5,10 +5,10 @@ from nicegui import app, ui
 from application.services import (
     AuthService,
     ChallongeService,
-    FeatureFlagService,
     PresetService,
     RaceRoomProfileService,
     RacetimeBotService,
+    RandomizerCredentialService,
     SeedGenerationService,
     TournamentService,
     get_user_from_discord_id,
@@ -63,10 +63,11 @@ class TournamentDialog:
                     value=self.tournament.description if self.tournament and self.tournament.description else '',
                 ).classes('input-full-width')
                 default_seed = self.tournament.seed_generator if self.tournament and self.tournament.seed_generator else None
-                live_flags = await FeatureFlagService().enabled_flags()
-                seed_choices = SeedGenerationService.available_randomizers(live_flags)
-                # Keep a previously-chosen (now flag-gated) generator selectable so
-                # editing an existing tournament never silently drops its value.
+                configured = await RandomizerCredentialService().configured_randomizers()
+                seed_choices = SeedGenerationService.available_randomizers(configured)
+                # Keep a previously-chosen generator selectable even when its
+                # credential is missing, so editing an existing tournament never
+                # silently drops its value.
                 if default_seed and default_seed not in seed_choices:
                     seed_choices = seed_choices + [default_seed]
                 randomizer_choices = ['None'] + seed_choices

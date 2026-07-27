@@ -42,11 +42,6 @@ class FeatureFlagSpec:
     #: The ``check_feature_flag_gating`` hook asserts each one actually guards the
     #: flag, so a new gated subsystem cannot ship with UI-only hiding.
     service_modules: Tuple[str, ...] = field(default_factory=tuple)
-    #: Set for a flag whose gated thing is one *value* inside a shared control
-    #: (e.g. ``dk64r`` among the randomizers) rather than a subsystem of its own.
-    #: Those enforce per-value at each selection surface plus each action
-    #: boundary, so the hook looks for ``gating_flag`` rather than a module guard.
-    per_value: bool = False
 
 
 def requires_feature(flag: FeatureFlag) -> Callable:
@@ -119,16 +114,6 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Online tournaments',
             service_modules=('application/services/speedgaming_sync_service.py',
                              'application/services/speedgaming_sync_worker.py'),
-        ),
-        FeatureFlagSpec(
-            FeatureFlag.DK64_RANDOMIZER,
-            'DK64 Randomizer',
-            'Roll Donkey Kong 64 Randomizer seeds via the api.dk64rando.com '
-            'service. Requires an API key issued by the DK64 Randomizer team; '
-            'availability records that this community is authorized to use it '
-            'under that key\'s usage terms.',
-            'Online tournaments',
-            per_value=True,
         ),
         FeatureFlagSpec(
             FeatureFlag.CHALLONGE,

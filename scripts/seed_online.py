@@ -6,7 +6,8 @@ connection and (for the per-tenant helper) an active ``tenant_scope``.
 
 What they cover:
 
-- **Presets** (PR 1) — a per-tenant ``Preset`` assigned to the dev tournament.
+- **Presets** (PR 1) — a per-tenant ``Preset`` assigned to the dev tournament,
+  plus placeholder ``RandomizerCredential`` rows for the keyed backends.
 - **Racetime identity** (PR 2) — two players linked to racetime handles.
 - **Racetime bots** (PR 3/4) — platform-level (no tenant FK), one connected and
   one parked in an error state so the ``/platform`` health table shows both.
@@ -16,9 +17,11 @@ What they cover:
 """
 from datetime import datetime, timedelta, timezone
 
+from application.randomizer_credentials import all_specs, credentials_for
 from models import (
     User, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
-    Preset, RacetimeBot, RacetimeBotTenant, RacetimeRoom, RaceRoomProfile,
+    Preset, RandomizerCredential,
+    RacetimeBot, RacetimeBotTenant, RacetimeRoom, RaceRoomProfile,
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
     DiscordScheduledEvent, DiscordEventSource,
     BotStatus, RaceRoomStatus,
@@ -111,7 +114,7 @@ async def seed_online_for_tenant(
     # A DK64 Randomizer preset in the canonical settings-string shape (the site's
     # own portable preset format). The value is a placeholder — dev rolls go
     # through MOCK_SEEDGEN and never send it upstream; swap in a real string from
-    # dk64randomizer.com before enabling the DK64_RANDOMIZER flag in production.
+    # dk64randomizer.com before rolling for real.
     await Preset.get_or_create(
         name="DK64 Community", tenant=tenant,
         defaults={
@@ -120,6 +123,18 @@ async def seed_online_for_tenant(
             "description": "DK64 Randomizer settings (settings-string form).",
         },
     )
+    # Placeholder randomizer credentials so the keyed backends stay *selectable*
+    # in the Presets tab and tournament dialog, and the Randomizer Keys tab is not
+    # empty in dev. The default tenant gets all three; the second tenant only the
+    # OoT key, so dev demonstrates the per-tenant filter narrowing a selector (and
+    # its dk64r preset staying editable without one). Dev rolls go through
+    # MOCK_SEEDGEN, so these are never sent upstream.
+    wanted = all_specs() if tenant.slug == 'default' else credentials_for('ootr')
+    for spec in wanted:
+        await RandomizerCredential.get_or_create(
+            tenant=tenant, randomizer=spec.randomizer, key=spec.key,
+            defaults={"value": f"placeholder-dev-{spec.randomizer}-{spec.key}"},
+        )
     alttpr_bot = bots["alttpr"]
     # Authorize the tenant to use the bot so live-race room opening (PR 10),
     # which resolves an authorized bot, has one to pick.

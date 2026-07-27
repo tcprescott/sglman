@@ -33,6 +33,17 @@ class FeatureDisabledError(NotFoundError):
     """
 
 
+class MissingCredentialError(ValueError):
+    """Raised when a roll needs a randomizer credential this tenant has not set.
+
+    A plain :class:`ValueError` (400 over REST, a UI notification on the web), and
+    a distinct type so ``MatchScheduleService.generate_seed`` can surface *this*
+    message while still hiding raw randomizer/HTTP failures behind its generic
+    "check the server logs". The distinction is safe to show: it names a
+    credential the reader is authorized to configure, never an upstream response.
+    """
+
+
 def require_found(obj: Optional[T], label: str) -> T:
     """Return ``obj`` if present, otherwise raise :class:`NotFoundError`.
 

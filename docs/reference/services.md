@@ -67,6 +67,7 @@ This table is a curated index of the primary services; the online-tournament, ev
 | `PlayerAvailabilityService` | [player_availability_service.py](../../application/services/player_availability_service.py) | Player-declared availability windows | — |
 | `availability_windows` (module) | [availability_windows.py](../../application/services/availability_windows.py) | Pure window algorithms (`covers`, `effective_segments`, `group_by_user`) shared by the player + volunteer availability services | — |
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
+| `RandomizerCredentialService` | [randomizer_credential_service.py](../../application/services/randomizer_credential_service.py) | Per-tenant randomizer API credentials | [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
 | `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours` helpers used by both Reports and Insights (so on-time % can't drift) | — |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
@@ -514,15 +515,30 @@ Collaborators: queries `Match`/`Commentator`/`Tracker`/`VolunteerShift`/`Volunte
 
 ### seedgen_service.py — SeedGenerationService
 
-Generates randomizer seeds from the presets in `presets/`. Deep dive (per-randomizer details, presets, API keys): [seed-generation.md](seed-generation.md).
+Generates randomizer seeds from the presets in `presets/`. Deep dive (per-randomizer details, presets, per-tenant credentials): [seed-generation.md](seed-generation.md).
 
 | Member | Returns | Description |
 |---|---|---|
 | `AVAILABLE_RANDOMIZERS` (class attr) | `list[str]` | Supported generator keys: `alttpr`, `ff1r`, `z1r`, `smmap`, `ootr`, `test`. Drives the tournament dialog dropdown and the `generate_seed` validity check. |
 | `generate_seed(randomizer, preset=None)` | `str` | Dispatch to the named generator; returns the seed URL/string. ALTTPR uses `preset.settings` when a `Preset` is supplied (else the built-in `casualboots` settings); other backends ignore the preset (hard-coded until PR 11). `ValueError` for unsupported keys. |
+| `available_randomizers(configured)` (classmethod) | `list[str]` | `AVAILABLE_RANDOMIZERS` minus any randomizer whose declared credential this community has not set. Pure and DB-free; the caller passes `RandomizerCredentialService.configured_randomizers()`. |
 | `generate_alttpr_for_tournament(tournament_id, balanced=True)` | `str` | ALTTPR seed with an approved community triforce text embedded — balanced selection weights every submitter equally; falls back to a plain seed when no approved texts exist. `ValueError` for unknown tournaments. |
 
-Collaborators: `TriforceTextService` (text selection), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path, passing the resolved `Preset`), `theme/dialog/tournament_edit_dialog.py` (reads `AVAILABLE_RANDOMIZERS`).
+Collaborators: `TriforceTextService` (text selection), `RandomizerCredentialService` (roll-time credential resolution — raises `MissingCredentialError` when this community has not set one), `pyz3r`/`aiohttp` for external randomizer APIs. Consumers: `MatchScheduleService.generate_seed` (the match seed-roll path, passing the resolved `Preset`), `theme/dialog/tournament_edit_dialog.py` and `api/routers/seeds.py` (selector filtering).
+
+### randomizer_credential_service.py — RandomizerCredentialService
+
+A community's own credentials for the key-gated randomizer upstreams — the per-tenant successor to the `OOTR_API_KEY` / `SMMAP_SPOILER_TOKEN` / `DK64R_API_KEY` environment variables. Deep dive: [seed-generation.md](seed-generation.md#per-tenant-credentials).
+
+| Member | Returns | Description |
+|---|---|---|
+| `list_status(actor)` | `list[dict]` | One row per declared `CredentialSpec` — `randomizer`, `key`, `label`, `help_text`, `configured`, `updated_at`. **Never the value.** |
+| `set_credential(actor, randomizer, key, value)` | `None` | Validate against the registry, strip, reject blank, upsert. Audits `randomizer_credential.set` with the credential name only. |
+| `clear_credential(actor, randomizer, key)` | `None` | Remove a stored credential; idempotent. Audits `randomizer_credential.cleared`. |
+| `configured_randomizers()` | `set[str]` | Randomizers whose *every* declared credential this tenant has supplied — one query. Feeds `SeedGenerationService.available_randomizers`. |
+| `resolve(randomizer, key)` | `str \| None` | The stored secret, unmasked. **Deliberately ungated** and the only path that returns a value: its sole caller is `SeedGenerationService` mid-roll, whose boundary already authorized the actor. Never call it from anything that renders. |
+
+Mutations and `list_status` gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). No events — a community's key rotation is not for arbitrary webhook receivers. Collaborators: `RandomizerCredentialRepository`, `AuditService`, `AuthService`, `application.randomizer_credentials` (the spec registry). Consumers: `pages/admin_tabs/admin_randomizer_keys.py`, `pages/admin_tabs/admin_presets.py`, `theme/dialog/tournament_edit_dialog.py`, `api/routers/seeds.py`, `SeedGenerationService`.
 
 ### preset_service.py — PresetService
 

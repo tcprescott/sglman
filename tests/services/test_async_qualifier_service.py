@@ -215,16 +215,16 @@ async def test_submit_and_review_publish_events(db):
     assert EventType.ASYNC_QUALIFIER_RUN_REVIEWED in seen
 
 
-async def test_roll_permalinks_blocked_when_flag_gated_randomizer_off(db):
-    # A pool whose preset uses a flag-gated randomizer (dk64r) cannot roll when
-    # the community's DK64_RANDOMIZER flag is off: the whole batch is refused up
-    # front (no keyed calls, zero permalinks created). A fresh tenant starts with
-    # every flag off, unlike the db-fixture default tenant.
+async def test_roll_permalinks_blocked_when_credential_missing(db):
+    # A pool whose preset uses a keyed randomizer (dk64r) cannot roll when this
+    # community has not configured the key: the first roll raises before any
+    # permalink row exists, so the whole batch aborts with nothing half-written.
+    # A fresh tenant is used because the db-fixture tenant would otherwise share
+    # any credential a sibling test created.
     #
-    # ASYNC_QUALIFIERS itself is turned on for this tenant so the subject under
-    # test is the DK64 gate: with every flag off, AsyncQualifierService's own
-    # feature guard would refuse create_qualifier first and the dk64 path would
-    # never be reached.
+    # ASYNC_QUALIFIERS is turned on for this tenant so the subject under test is
+    # the credential, not AsyncQualifierService's own feature guard (which would
+    # refuse create_qualifier first with every flag off).
     from application.tenant_context import tenant_scope
     from models import FeatureFlag, Preset, Tenant, TenantFeatureFlag
 
@@ -247,7 +247,7 @@ async def test_roll_permalinks_blocked_when_flag_gated_randomizer_off(db):
         )
         pool = await service.create_pool(staff, q.id, name='Pool A', preset_id=preset.id)
 
-        with pytest.raises(ValueError, match='not enabled'):
+        with pytest.raises(ValueError, match='DK64 Randomizer API key is not configured'):
             await service.roll_permalinks(staff, pool.id, count=2)
 
         assert await AsyncQualifierPermalink.filter(pool_id=pool.id).count() == 0

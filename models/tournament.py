@@ -175,6 +175,36 @@ class Preset(Model):
         unique_together = (('tenant', 'randomizer', 'name'),)
 
 
+class RandomizerCredential(Model):
+    """A community's own credential for one randomizer's key-gated upstream API.
+
+    Randomizer credentials are per tenant, not per deployment: each community
+    supplies the key it was issued and is bound by its terms, rather than every
+    community rolling on the operator's. Which credentials exist is declared in
+    ``application/randomizer_credentials.py``; ``(randomizer, key)`` points at a
+    ``CredentialSpec`` there.
+
+    ``value`` is stored in plaintext (like ``RacetimeBot.client_secret`` and
+    ``Webhook.secret``) and is **privileged**: ``RandomizerCredentialService``
+    never returns it to a caller other than seed generation, and never writes it
+    into an audit entry.
+    """
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField(
+        'models.Tenant', related_name='randomizer_credentials', on_delete=fields.CASCADE
+    )
+    randomizer = fields.CharField(max_length=32)
+    key = fields.CharField(max_length=64)
+    value = fields.TextField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'randomizercredential'
+        unique_together = (('tenant', 'randomizer', 'key'),)
+        indexes = (('tenant',),)
+
+
 class TriforceText(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='triforce_texts', on_delete=fields.CASCADE)

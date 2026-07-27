@@ -125,15 +125,14 @@ async def seed_feature_groups() -> dict:
         },
     )
     # update_or_create for the two demo tiers: migration 31 seeds 'Online
-    # Tournaments' with the flags that existed *then*, so a get_or_create leaves
-    # any flag added later (dk64_randomizer) out of the tier this claims to
+    # Tournaments' with the flags that existed *then*, so a get_or_create would
+    # leave any flag added (or retired) since out of the tier this claims to
     # define. Group contents are a super-admin's editable data in production —
     # the migration is right not to rewrite them there — but in dev the seed is
     # the fixture set and gets to be authoritative.
     online, _ = await FeatureFlagGroup.update_or_create(
         name='Online Tournaments',
-        defaults={'flags': ['async_qualifiers', 'racetime_rooms', 'speedgaming_etl',
-                            'dk64_randomizer']},
+        defaults={'flags': ['async_qualifiers', 'racetime_rooms', 'speedgaming_etl']},
     )
     full, _ = await FeatureFlagGroup.update_or_create(
         name='Full Access',

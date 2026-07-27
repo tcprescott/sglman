@@ -16,7 +16,9 @@ Tournaments for randomized games need a freshly rolled game ("seed") for every m
 | [`theme/dialog/tournament_edit_dialog.py`](../../theme/dialog/tournament_edit_dialog.py) | Seed Generator + Seed Preset selects on the tournament create/edit dialog |
 | [`pages/admin_tabs/admin_presets.py`](../../pages/admin_tabs/admin_presets.py) | Admin **Presets** tab: preset CRUD + import built-ins |
 | [`pages/admin_tabs/admin_schedule.py`](../../pages/admin_tabs/admin_schedule.py), [`theme/tables/match.py`](../../theme/tables/match.py) | The per-row **Generate** button and its `roll` event handling |
-| [`.env.example`](../../.env.example) | `OOTR_API_KEY`, `SMMAP_SPOILER_TOKEN`, `DK64R_API_KEY` (see [deployment.md](../deployment.md)) |
+| [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py) | `CredentialSpec` registry: which credential each keyed randomizer needs |
+| [`application/services/randomizer_credential_service.py`](../../application/services/randomizer_credential_service.py) | `RandomizerCredentialService`: per-tenant credential CRUD + roll-time resolution |
+| [`pages/admin_tabs/admin_randomizer_keys.py`](../../pages/admin_tabs/admin_randomizer_keys.py) | Admin **Randomizer Keys** tab: enter/clear this community's credentials |
 
 ### Selecting a randomizer per tournament
 
@@ -52,25 +54,37 @@ The seed is displayed on the home Schedule and Player tabs and in the admin matc
 AVAILABLE_RANDOMIZERS = ['alttpr', 'ff1r', 'z1r', 'smmap', 'ootr', 'mmr', 'smdash', 'dk64r', 'wwr', 'test']
 STUB_RANDOMIZERS = {'mmr', 'smdash', 'wwr'}
 PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r'}          # use preset.settings when given
-FLAG_GATED_RANDOMIZERS = {'dk64r': FeatureFlag.DK64_RANDOMIZER}
 ```
 
-`AVAILABLE_RANDOMIZERS` is the full validity set — it drives `MatchScheduleService`'s validity check and stays whole regardless of any tenant's flags. What a tenant may *select* is the narrower `SeedGenerationService.available_randomizers(live_flags)`, which drops flag-gated randomizers the tenant isn't authorized for; the tournament dialog, the Presets tab, and the REST `/seeds/randomizers` catalogue all render that filtered list. See [Flag-gated randomizers](#flag-gated-randomizers).
+`AVAILABLE_RANDOMIZERS` is the full validity set — it drives `MatchScheduleService`'s validity check and stays whole regardless of what any tenant has configured. What a tenant may *select* is the narrower `SeedGenerationService.available_randomizers(configured)`, which drops randomizers whose credential this community has not supplied; the tournament dialog, the Presets tab, and the REST `/seeds/randomizers` catalogue all render that filtered list. See [Per-tenant credentials](#per-tenant-credentials).
 
 ### Stub randomizers
 
 `mmr` (Majora's Mask), `smdash` (Super Metroid: DASH), and `wwr` (Wind Waker) are **registered stubs** (`STUB_RANDOMIZERS`): they are selectable on tournaments and appear in every UI/API surface that reads `AVAILABLE_RANDOMIZERS`, but their `_generate_*` methods are not yet wired to an upstream API and **raise `ValueError`** (the documented user-error contract). Rolling one from the schedule surfaces the generic "Seed generation failed" notification (the exception is caught in `MatchScheduleService.generate_seed`); under `MOCK_SEEDGEN` the mock short-circuit returns a fake permalink before the stub is reached, so they render normally in dev.
 
-### Flag-gated randomizers
+### Per-tenant credentials
 
-A randomizer whose upstream requires an API key is gated behind a **per-tenant feature flag** (`FLAG_GATED_RANDOMIZERS`), because the key's owner attaches usage restrictions the community must agree to; a super-admin's availability grant records that authorization. Today `dk64r` → `FeatureFlag.DK64_RANDOMIZER` (see [feature-flags.md](../features/feature-flags.md)).
+A randomizer whose upstream is key-gated needs a credential, and that credential belongs to the **community**, not the deployment: each one supplies the key it was issued and is bound by the terms attached to it. There is no process-wide fallback — the former `OOTR_API_KEY` / `SMMAP_SPOILER_TOKEN` / `DK64R_API_KEY` environment variables are gone, and with them the `DK64_RANDOMIZER` feature flag that only existed to record who was allowed to use the shared key.
 
-The gate is applied at two kinds of surface:
+Which credentials exist is declared once in [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py), so the admin form and the availability check stay generic:
 
-- **Selection** — `available_randomizers(live_flags)` filters the tournament dialog, the Presets tab randomizer select, and the REST `/seeds/randomizers` catalogue. A *stored* preset on a gated randomizer stays valid and editable (its value is re-added to its own editor).
-- **Roll boundary** — every path that actually rolls checks the flag before making the keyed call: `MatchScheduleService.generate_seed` (returns `(False, "This seed generator is not enabled for this community", None)`), the REST `POST /seeds` handler (404, mirroring `require_feature`), and `AsyncQualifierService.roll_permalinks` (raises `ValueError`). This is a deliberate authorization-style flag read at the roll boundary — the point where the usage agreement is actually consumed — not a flag read inside a low-level transaction.
+```python
+@dataclass(frozen=True)
+class CredentialSpec:
+    randomizer: str   # 'ootr'
+    key: str          # stable key persisted on RandomizerCredential.key
+    label: str        # 'OoT Randomizer API key'
+    help_text: str    # what it is / where a community obtains one
+```
 
-To promote a stub to a real backend, replace the `ValueError("… not yet implemented.")` body with an actual generator (drop a preset under `presets/<name>/` if the upstream API takes one, read any credential from an env var and raise `ValueError` when missing — see [Adding a randomizer](#adding-a-randomizer-or-preset)) and remove the name from `STUB_RANDOMIZERS`. No changes to `AVAILABLE_RANDOMIZERS` or the dispatch map are needed. `dk64r` was promoted this way — its API-key requirement also made it flag-gated (see [Flag-gated randomizers](#flag-gated-randomizers)).
+Values live in `RandomizerCredential` (`tenant`, `randomizer`, `key`, `value`), unique on `(tenant, randomizer, key)`. `value` is **plaintext at rest and guarded at the service layer** — the same contract as `RacetimeBot.client_secret`, `ChallongeConnection.access_token`, and `Webhook.secret`: `RandomizerCredentialService.list_status` reports configured-or-not and never the value, the audit entries (`randomizer_credential.set` / `.cleared`) name the credential and nothing else, and `resolve()` — the one unmasked read — is called only by `SeedGenerationService` mid-roll. Community STAFF/`PRESET_MANAGER` manage them on the admin **Randomizer Keys** tab (gated by `AuthService.can_manage_presets`); the input is write-only and a stored value is never rendered back.
+
+The credential acts at two kinds of surface:
+
+- **Selection** — `available_randomizers(configured)` filters the tournament dialog, the Presets tab randomizer select, and the REST `/seeds/randomizers` catalogue, where `configured` is `RandomizerCredentialService.configured_randomizers()` (a randomizer counts only when *every* credential it declares is set). A *stored* preset on an unconfigured randomizer stays valid and editable — its value is re-added to its own editor.
+- **Roll time** — resolution happens inside each generator, so a missing credential raises `MissingCredentialError` (a `ValueError`) naming it. There is deliberately **no boundary pre-check**: resolution sits after the `MOCK_SEEDGEN` short-circuit, so dev and CI keep rolling every backend with no credentials at all. `MatchScheduleService.generate_seed` catches `MissingCredentialError` specifically and surfaces its message (its blanket handler still hides raw upstream text); the REST `POST /seeds` answers **400** with the message; `AsyncQualifierService.roll_permalinks` lets it propagate, aborting the batch before any permalink row is written.
+
+To promote a stub to a real backend, replace the `ValueError("… not yet implemented.")` body with an actual generator (drop a preset under `presets/<name>/` if the upstream API takes one, and read any credential with `await self._credential(randomizer, key)` after registering a `CredentialSpec` — see [Adding a randomizer](#adding-a-randomizer-or-preset)) and remove the name from `STUB_RANDOMIZERS`. No changes to `AVAILABLE_RANDOMIZERS` or the dispatch map are needed. `dk64r` was promoted this way.
 
 Notes on the two Nintendo desktop tools: the Wind Waker Randomizer ([wwrando](https://github.com/LagoLunatic/wwrando)) is a desktop-only tool with no public seed-generation HTTP API, and the Majora's Mask Randomizer ([mmrandomizer.com](https://mmrandomizer.com/api/docs)) exposes a seed API whose generation endpoints require a manually-issued, heavily-scoped API key (requested via Discord). Their stubs will stay `NotImplementedError` until a usable API contract and credentials exist.
 
@@ -78,9 +92,8 @@ Notes on the two Nintendo desktop tools: the Wind Waker Randomizer ([wwrando](ht
 
 | Method | Behavior | Returns |
 |---|---|---|
-| `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Looks up `randomizer` in an internal dispatch map and awaits the matching private generator. For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). Does **not** read feature flags — the flag gate lives at each roll boundary (see [Flag-gated randomizers](#flag-gated-randomizers)). | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names. |
-| `available_randomizers(live_flags: set[FeatureFlag]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any flag-gated randomizer whose flag is not in `live_flags`. Drives the selector surfaces. | Filtered list of randomizer keys. |
-| `gating_flag(randomizer) -> Optional[FeatureFlag]` (classmethod) | The feature flag gating a randomizer (`dk64r` → `DK64_RANDOMIZER`), else `None`. Consulted by each roll boundary. | `FeatureFlag` or `None`. |
+| `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Looks up `randomizer` in an internal dispatch map and awaits the matching private generator. For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential. |
+| `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
 | `generate_alttpr_for_tournament(tournament_id: int, balanced: bool = True) -> str` | ALTTPR generation with a community triforce text embedded; see [below](#alttpr-tournament-generation-and-triforce-texts). Raises `ValueError` when the tournament does not exist. | ALTTPR permalink URL. |
 
 ### Dispatch targets (private generators)
@@ -92,7 +105,7 @@ Notes on the two Nintendo desktop tools: the Wind Waker Randomizer ([wwrando](ht
 | `_generate_z1r` | yes | Local string: random seed number + fixed flags string |
 | `_generate_smmap` | yes | HTTP POST to maprando.com with `presets/smmap/community_race_s4.json` |
 | `_generate_ootr` | yes | HTTP POST to ootrandomizer.com with `presets/ootr/sgl25.json` |
-| `_generate_dk64r` | yes | Task-queue roll against api.dk64rando.com from `preset.settings` (else `presets/dk64r/sgl.json`); flag-gated + `DK64R_API_KEY` (Donkey Kong 64) |
+| `_generate_dk64r` | yes | Task-queue roll against api.dk64rando.com from `preset.settings` (else `presets/dk64r/sgl.json`); needs the tenant's `dk64r.api_key` (Donkey Kong 64) |
 | `_generate_mmr` | yes | **Stub** — raises `ValueError` (Majora's Mask) |
 | `_generate_smdash` | yes | **Stub** — raises `ValueError` (Super Metroid: DASH) |
 | `_generate_wwr` | yes | **Stub** — raises `ValueError` (Wind Waker) |
@@ -102,7 +115,7 @@ Notes on the two Nintendo desktop tools: the Wind Waker Randomizer ([wwrando](ht
 
 `SeedGenerationService` **raises**; it never returns error tuples:
 
-- `ValueError` — unsupported randomizer name, missing `OOTR_API_KEY`, or unknown tournament id (tournament variant).
+- `ValueError` — unsupported randomizer name, or unknown tournament id (tournament variant). `MissingCredentialError` (a `ValueError`) when the tenant has not configured a credential the backend needs.
 - Network/HTTP failures propagate from `aiohttp` (the OOTR call sets `raise_for_status=True`) and from pyz3r.
 
 `MatchScheduleService.generate_seed(match_id, actor)` is the boundary that converts everything into a `(success: bool, message: str, seed_url: Optional[str])` tuple for the UI:
@@ -121,14 +134,14 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 
 ## Supported randomizers
 
-| Key | Game | Upstream | Preset file | Env var | Return shape |
+| Key | Game | Upstream | Preset file | Credential | Return shape |
 |---|---|---|---|---|---|
 | `alttpr` | A Link to the Past Randomizer | alttpr.com via [pyz3r](https://github.com/tcprescott/pyz3r) | [`presets/alttpr/casualboots.yaml`](../../presets/alttpr/casualboots.yaml) | — | `https://alttpr.com/h/<hash>` |
 | `ff1r` | Final Fantasy 1 Randomizer | none (URL built locally) | — | — | `https://4-8-6.finalfantasyrandomizer.com/?s=<seed>&f=<flags>` |
 | `z1r` | Zelda 1 Randomizer | none (string built locally) | — | — | `"<seed> - <flags>"` (not a URL) |
-| `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `SMMAP_SPOILER_TOKEN` (optional) | `https://maprando.com<seed_url>` |
-| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `OOTR_API_KEY` (required) | `https://ootrandomizer.com/seed/get?id=<id>` |
-| `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `DK64R_API_KEY` (required) | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` |
+| `smmap` | Super Metroid Map Rando | `https://maprando.com/randomize` | [`presets/smmap/community_race_s4.json`](../../presets/smmap/community_race_s4.json) | `smmap.spoiler_token` | `https://maprando.com<seed_url>` |
+| `ootr` | Ocarina of Time Randomizer | `https://ootrandomizer.com/api/sglive/seed/create` | [`presets/ootr/sgl25.json`](../../presets/ootr/sgl25.json) | `ootr.api_key` | `https://ootrandomizer.com/seed/get?id=<id>` |
+| `dk64r` | Donkey Kong 64 Randomizer | `https://api.dk64rando.com/api` (task queue) | [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json) | `dk64r.api_key` | `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>` |
 | `mmr` | Majora's Mask Randomizer | none yet (**stub**) | — | — | raises `ValueError` |
 | `smdash` | Super Metroid: DASH | none yet (**stub**) | — | — | raises `ValueError` |
 | `wwr` | Wind Waker Randomizer | none yet (**stub**) | — | — | raises `ValueError` |
@@ -148,15 +161,15 @@ The UI maps these to `ui.notify` colors and silently skips the "already in progr
 
 ### smmap
 
-`_generate_smmap` POSTs `multipart/form-data` to `https://maprando.com/randomize` with two parts: `spoiler_token` (from `SMMAP_SPOILER_TOKEN`, falling back to a built-in default literal) and `settings` (the raw JSON text of [`community_race_s4.json`](../../presets/smmap/community_race_s4.json)). The JSON response's `seed_url` path is appended to `https://maprando.com`.
+`_generate_smmap` POSTs `multipart/form-data` to `https://maprando.com/randomize` with two parts: `spoiler_token` (this tenant's `smmap.spoiler_token` credential — required, never defaulted, since a leaked token unlocks spoiler logs for race seeds) and `settings` (the raw JSON text of [`community_race_s4.json`](../../presets/smmap/community_race_s4.json)). The JSON response's `seed_url` path is appended to `https://maprando.com`.
 
 ### ootr
 
-`_generate_ootr` loads [`sgl25.json`](../../presets/ootr/sgl25.json) and POSTs it as the JSON body to `https://ootrandomizer.com/api/sglive/seed/create` with query parameters `key=<OOTR_API_KEY>`, `version=8.3.0`, and `encrypt=true` (`raise_for_status=True`). If `OOTR_API_KEY` is unset it raises `ValueError('OOTR_API_KEY is not configured.')` rather than silently sending `key=None`. The response's `id` becomes `https://ootrandomizer.com/seed/get?id=<id>`.
+`_generate_ootr` loads [`sgl25.json`](../../presets/ootr/sgl25.json) and POSTs it as the JSON body to `https://ootrandomizer.com/api/sglive/seed/create` with query parameters `key=<this tenant's ootr.api_key>`, `version=8.3.0`, and `encrypt=true` (`raise_for_status=True`). If the community has not configured the key it raises `MissingCredentialError` rather than silently sending `key=None`. The response's `id` becomes `https://ootrandomizer.com/seed/get?id=<id>`.
 
 ### dk64r
 
-`_generate_dk64r(preset=None)` rolls against the DK64 Randomizer **task queue** at `https://api.dk64rando.com/api` — the one backend with an asynchronous submit → poll → result shape. It requires `DK64R_API_KEY` (raises `ValueError('DK64R_API_KEY is not configured.')` when unset), sent as the `X-API-Key` header on every call, and `dk64r` is [flag-gated](#flag-gated-randomizers) at every roll boundary because of that key requirement.
+`_generate_dk64r(preset=None)` rolls against the DK64 Randomizer **task queue** at `https://api.dk64rando.com/api` — the one backend with an asynchronous submit → poll → result shape. It requires this tenant's `dk64r.api_key` credential (raises `MissingCredentialError` when unset), sent as the `X-API-Key` header on every call. See [Per-tenant credentials](#per-tenant-credentials).
 
 Settings resolve from `preset.settings` (else the committed [`presets/dk64r/sgl.json`](../../presets/dk64r/sgl.json)). The canonical stored shape is `{"settings_string": "<string copied from dk64randomizer.com>"}` — the site's own portable preset format; a full settings JSON dict is also accepted and submitted as-is. An optional `"_branch": "dev"` key routes calls to the `dev` branch/host (default `stable`) and is stripped before anything is sent. The flow: `POST /convert_settings` (settings-string shape only — expands it to the full settings JSON), `POST /submit-task` → `task_id`, then `GET /task-status/{task_id}` every 5 s until `finished` (bounded by a 10-min timeout; HTTP 500 / a `failed` status / timeout each raise `ValueError`). The `result.seed_number` becomes the player-facing permalink `https://dk64randomizer.com/randomizer.html?seed_id=<seed_number>`. Spoiler behavior is whatever the preset encodes (Wizzrobe trusts the preset).
 
@@ -212,9 +225,9 @@ For ALTTPR-style files the payload lives under a top-level `settings` key (with 
 ## Adding a randomizer or preset
 
 1. Drop a settings file under `presets/<randomizer>/` if the upstream API takes one (skip for purely local generators like `ff1r`/`z1r`).
-2. Add an `async def _generate_<name>(self) -> str` to [`seedgen_service.py`](../../application/services/seedgen_service.py) that loads the preset, calls the upstream service with `aiohttp` (never blocking `requests`), and returns the seed URL/string. Read any credential from an environment variable and raise `ValueError` with a clear message when it is missing (see `_generate_ootr`).
+2. Add an `async def _generate_<name>(self) -> str` to [`seedgen_service.py`](../../application/services/seedgen_service.py) that loads the preset, calls the upstream service with `aiohttp` (never blocking `requests`), and returns the seed URL/string. Read any credential with `await self._credential('<name>', '<key>')`, which raises a clear `MissingCredentialError` when the community has not set it (see `_generate_ootr`).
 3. Register the name in **both** `AVAILABLE_RANDOMIZERS` and the `generator_map` inside `generate_seed` — a method alone is unreachable.
-4. Document the new env var in [`.env.example`](../../.env.example) and [deployment.md](../deployment.md), and add it to the deployment environment.
+4. Register a `CredentialSpec` for each credential in [`application/randomizer_credentials.py`](../../application/randomizer_credentials.py) — that alone puts it on the admin **Randomizer Keys** tab and into `available_randomizers`. No environment variable, and nothing to add to the deployment.
 5. Select the new name as the tournament's Seed Generator in the tournament dialog; the admin schedule's Generate button picks it up with no further wiring. Update this page and the preset table above.
 
 To change which settings an ALTTPR tournament rolls, author or edit a `Preset` on the admin **Presets** tab and select it on the tournament — no code change. For the still-hard-coded backends, edit the path in the `_generate_*` method (and `generate_alttpr_for_tournament` for ALTTPR, which loads `casualboots.yaml` independently).

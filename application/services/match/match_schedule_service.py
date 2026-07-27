@@ -14,6 +14,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, Dict, Tuple, Optional
 
+from application.errors import MissingCredentialError
 from application.events import match_live
 from application.events import Event, EventType, event_bus
 from application.tenant_context import require_tenant_id
@@ -314,20 +315,9 @@ class MatchScheduleService(MatchNotificationMixin):
                 if randomizer not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
                     return False, f"Seed generator '{randomizer}' not found", None
 
-                # Roll-boundary feature-flag gate. A flag-gated randomizer reaches
-                # a keyed upstream whose usage terms the community must be
-                # authorized for; enforce that here (an authz-style gate at the
-                # roll boundary, which already ran the permission check) rather
-                # than trusting the config was created while the flag was on. This
-                # fires ahead of the seedgen MOCK short-circuit, so an off flag
-                # blocks the roll in dev too.
-                gate_flag = self.seedgen_service.gating_flag(randomizer)
-                if gate_flag is not None:
-                    from application.services.feature_flag_service import FeatureFlagService
-                    if not await FeatureFlagService().is_enabled(gate_flag):
-                        return False, "This seed generator is not enabled for this community", None
-
-                # Generate the seed
+                # Generate the seed. A keyed randomizer resolves this community's
+                # own credential inside the generator and raises when it is not
+                # configured; that surfaces below as "Error generating seed: …".
                 seed_url = await self.seedgen_service.generate_seed(randomizer, preset)
 
                 # Create GeneratedSeeds record
@@ -391,6 +381,10 @@ class MatchScheduleService(MatchNotificationMixin):
 
                 return True, message, seed_url
 
+            except MissingCredentialError as e:
+                # Actionable and safe to show: it names a credential this actor
+                # can go and configure, never upstream response text.
+                return False, str(e), None
             except Exception:
                 # Log the full traceback (reaches logs + Sentry) and return a
                 # generic message rather than leaking raw randomizer/HTTP error

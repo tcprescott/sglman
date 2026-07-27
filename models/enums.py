@@ -43,7 +43,6 @@ class FeatureFlag(str, Enum):
     ASYNC_QUALIFIERS = 'async_qualifiers'
     RACETIME_ROOMS = 'racetime_rooms'
     SPEEDGAMING_ETL = 'speedgaming_etl'
-    DK64_RANDOMIZER = 'dk64_randomizer'
     CHALLONGE = 'challonge'
     EQUIPMENT = 'equipment'
     VOLUNTEERS = 'volunteers'
