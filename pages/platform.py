@@ -19,6 +19,7 @@ from application.services.auth_service import AuthService
 from application.feature_flags import all_specs, spec_for
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
+from theme.chrome import render_platform_chrome
 
 _bot_service = RacetimeBotService()
 
@@ -46,26 +47,17 @@ def _render_platform_chrome() -> None:
     """Phoenix brand chrome for the standalone platform surface.
 
     /platform runs on the bare host with no tenant, so it can't reuse the
-    tenant BaseLayout (whose drawer links into /admin, /volunteer). Instead we
-    apply the same stylesheet, palette, and a minimal branded header with a link
-    back to the community picker — so the super-admin surface reads as the same
-    product, not a default-Quasar scaffold.
+    tenant BaseLayout (whose drawer links into /admin, /volunteer). It shares
+    :func:`~theme.chrome.render_platform_chrome` with the other tenant-less
+    surfaces and adds a link back to the community picker.
     """
-    dark_pref = app.storage.user.get('dark_mode')
-    ui.dark_mode(dark_pref)
-    ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
-    ui.colors(
-        primary='#9C6B12', secondary='#C24E12', accent='#E0A82E',
-        positive='#557A1F', negative='#B3362B', warning='#B45309', info='#0E7470',
-    )
-    with ui.header().classes('wiz-header items-center'):
-        ui.label('Wizzrobe').classes('wiz-wordmark')
-        ui.label('· Platform').classes('wiz-wordmark text-caption').style('opacity:0.75')
-        ui.space()
+    def _communities_link() -> None:
         with ui.link(target='/').classes('no-underline'):
-            with ui.row().classes('items-center no-wrap').style('color:#fff;gap:4px'):
+            with ui.row().classes('items-center no-wrap wiz-header-link'):
                 ui.icon('arrow_back').props('size=sm')
                 ui.label('Communities')
+
+    render_platform_chrome('Platform', right=_communities_link)
 
 
 def create() -> None:

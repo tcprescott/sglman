@@ -6,6 +6,7 @@ from nicegui import app, ui
 
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import User
+from theme.chrome import dark_mode_button
 
 logger = logging.getLogger(__name__)
 
@@ -250,17 +251,6 @@ class BaseLayout:
 
     def _render_header(self) -> None:
         """Render the header with burger menu button and user controls."""
-        dark_pref = app.storage.user.get('dark_mode')
-        dark_btn_ref = {'btn': None}
-
-        def toggle_dark_mode():
-            self.dark_mode.value = not self.dark_mode.value
-            app.storage.user['dark_mode'] = self.dark_mode.value
-            if dark_btn_ref['btn'] is not None:
-                icon = 'light_mode' if self.dark_mode.value else 'dark_mode'
-                dark_btn_ref['btn'].props(f"icon={icon}")
-                dark_btn_ref['btn'].update()
-
         with ui.header().classes(replace='row items-center no-wrap wiz-header'):
             ui.button(
                 icon='menu',
@@ -311,15 +301,7 @@ class BaseLayout:
                     ui.label('Login with Discord').classes('login-button-text')
                 login_btn.tooltip('Login with Discord')
 
-            dark_icon = (
-                'brightness_auto' if dark_pref is None
-                else 'light_mode' if dark_pref
-                else 'dark_mode'
-            )
-            dark_btn_ref['btn'] = ui.button(
-                icon=dark_icon,
-                on_click=toggle_dark_mode
-            ).props('flat color=white').tooltip('Toggle dark mode')
+            dark_mode_button(self.dark_mode)
 
     def _render_drawer(self) -> None:
         """Render the left drawer with navigation links and optional tab navigation."""

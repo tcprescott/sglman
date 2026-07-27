@@ -80,6 +80,36 @@ fixed so notifications read consistently across communities.
   against its white text. Warnings are **advisory**: saving still succeeds (with a
   warning-coloured toast), matching the app's "trust STAFF" stance.
 
+## Tenant-less chrome (`theme/chrome.py`)
+
+Two surfaces run on the bare platform host with **no tenant in scope** and so
+cannot use `BaseLayout` — its drawer links into tenant routes (`/admin`,
+`/volunteer`) and its palette is resolved from the in-scope tenant:
+
+| Surface | Subtitle | Extra header content |
+|---|---|---|
+| `/platform` ([`pages/platform.py`](../../pages/platform.py)) | `Platform` | "Communities" link back to the picker at `/` |
+| `/oauth/mcp/consent` ([`pages/mcp_consent.py`](../../pages/mcp_consent.py)) | `Authorize` | the signed-in user's name — the same identity the consent card names |
+
+**`render_platform_chrome(subtitle=None, *, right=None)`** is the subset they do
+share: the font preloads, `styles.css`, the `noindex` meta, the shipped phoenix
+palette via `ui.colors(...)` (never a tenant override — these surfaces belong to
+the platform, and an MCP grant is not scoped to one community), and the
+`wiz-header` bar with its ember→gold strip, the "Wizzrobe · *subtitle*"
+wordmark, an optional `right` callable, and the dark-mode toggle. Keeping it in
+one place is what stops the tenant-less surfaces drifting from each other and
+from the app.
+
+**`dark_mode_button(dark)`** is shared with `BaseLayout._render_header`, so the
+toggle behaves identically everywhere: `brightness_auto` until the user picks a
+side (the client is following its own system theme), then a sticky
+`app.storage.user['dark_mode']` preference.
+
+The consent screen's own card is styled by the `.consent-*` family in
+`styles.css` — deliberately sharing the error page's proportions (560px column,
+`--radius-lg` card with a brand-coloured top rule) so the two chrome-light
+screens read as one family.
+
 ## Error pages (`middleware/error_handlers.py`)
 
 Branded 40x/50x pages, all rendered through the standard `BaseLayout` chrome by **`render_error_page(...)`** in [`theme/error_page.py`](../../theme/error_page.py). The renderer is **synchronous** because NiceGUI invokes the `on_page_exception` hook without awaiting it; the only async work (loading the user to file a report) happens lazily in a button click handler.
@@ -179,7 +209,7 @@ Several further modules render **inside** the Profile tab rather than as standal
 | Module | Renders | Responsibility |
 |---|---|---|
 | [`api_tokens_section.py`](../../pages/home_tabs/api_tokens_section.py) | "API tokens & AI clients" card in Profile | Create / list / revoke personal REST API tokens via `ApiTokenService`; the plaintext token is shown once at creation. Also lists connected MCP clients (badged with the client name) and carries the copyable **MCP server URL** callout — an MCP connection is started from the client, so the URL is all this page can usefully offer |
-| [`mcp_consent.py`](../../pages/mcp_consent.py) | `/oauth/mcp/consent` | OAuth approval screen for MCP clients. A bespoke `@ui.page`, **not** `@protected_page`: every protected page is a tenant page and 404s without a tenant, but an MCP grant is platform-wide. Adds itself to `protected_routes` directly to get the sign-in redirect. See [features/mcp-server.md](../features/mcp-server.md) |
+| [`mcp_consent.py`](../../pages/mcp_consent.py) | `/oauth/mcp/consent` | OAuth approval screen for MCP clients. A bespoke `@ui.page`, **not** `@protected_page`: every protected page is a tenant page and 404s without a tenant, but an MCP grant is platform-wide. Adds itself to `protected_routes` directly to get the sign-in redirect. Styled through [`render_platform_chrome`](#tenant-less-chrome-themechromepy) + the `.consent-*` classes. See [features/mcp-server.md](../features/mcp-server.md) |
 | [`challonge_link_section.py`](../../pages/home_tabs/challonge_link_section.py) | "Challonge" card in Profile | Verify-link / unlink a Challonge account via `ChallongeService`; hides itself entirely when the integration isn't configured |
 | [`twitch_link_section.py`](../../pages/home_tabs/twitch_link_section.py) | "Twitch" card in Profile | Verify-link / unlink a Twitch identity via `TwitchService`; hides itself entirely when the integration isn't configured |
 | [`racetime_link_section.py`](../../pages/home_tabs/racetime_link_section.py) | "racetime.gg" card in Profile | Verify-link / unlink a racetime.gg identity via `RacetimeService`; hides itself entirely when the integration isn't configured |
@@ -711,6 +741,7 @@ The main stylesheet, [`static/css/styles.css`](../../static/css/styles.css), is 
 - **Tables** — parallel `.match-table*`, `.user-table*`, `.tournament-table*`, and `.equipment-table*` families: bordered cells, centered headers, zebra striping, a `.wrap` inner-cell class for wrapping long name lists, and `*-table-container` width fixes. `.match-filters-card` and `.match-filter-*` style the filter strip.
 - **Dark mode** — explicit overrides under both `.body--dark` and `.q-dark` for the table families, the `*-grid-card` mobile cards, `.match-filters-card`, and `.footer-dark-override` (light-mode cell backgrounds are hard-coded, so each themed component carries a dark counterpart).
 - **Reports** — `.chart-container`, `.chart-height`, `.control-width` size the ECharts panels and filter selects.
+- **OAuth consent** — `.consent-page` / `.consent-card` / `.consent-badge` / `.consent-grant*` / `.consent-note` / `.consent-actions` style the MCP approval screen; see [Tenant-less chrome](#tenant-less-chrome-themechromepy).
 
 ## NiceGUI patterns
 
