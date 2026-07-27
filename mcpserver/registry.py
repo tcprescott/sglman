@@ -58,7 +58,7 @@ def register(
                 return await fn(**kwargs)
             tenant = await resolve_tenant(kwargs.get('tenant'))
             with tenant_scope(tenant.id):
-                await authorize(actor, gate, feature)
+                await authorize(actor, gate, feature, slug=tenant.slug)
                 return await fn(**kwargs)
         except Exception as exc:
             raise map_service_error(exc) from exc

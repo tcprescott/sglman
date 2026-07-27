@@ -16,9 +16,17 @@ in the server instructions, rather than per field.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+# Declared once and shared, so every community-scoped tool describes its tenant
+# argument identically. The description is the only place the model learns where
+# a slug comes from, so it earns its keep in the schema of all ~20 tools.
+TenantArg = Annotated[
+    Optional[str],
+    Field(description='Community slug, as returned by list_tenants. Required.'),
+]
 
 
 class TenantInfo(BaseModel):
@@ -58,6 +66,83 @@ class TournamentSummary(BaseModel):
     event_end_date: Optional[datetime] = None
 
 
+class StreamRoomInfo(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_active: bool
+    stream_url: Optional[str] = None
+
+
+class UserSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    display_name: Optional[str] = None
+    discord_id: Optional[int] = None
+    is_active: bool = True
+
+
+class UserDetail(UserSummary):
+    """A user plus the roles they hold in the community being queried."""
+
+    roles: List[str] = Field(default_factory=list)
+    pronouns: Optional[str] = None
+    twitch_username: Optional[str] = None
+    racetime_username: Optional[str] = None
+
+
+class CrewMemberInfo(BaseModel):
+    """A crew signup, including unapproved ones — see the tool's gate."""
+
+    id: int
+    user: Optional[UserSummary] = None
+    approved: bool
+    acknowledged_at: Optional[datetime] = None
+
+
+class MatchCrew(BaseModel):
+    match_id: int
+    commentators: List[CrewMemberInfo] = Field(default_factory=list)
+    trackers: List[CrewMemberInfo] = Field(default_factory=list)
+
+
+class StreamRoomBlock(BaseModel):
+    """One stream room's slice of a day's schedule."""
+
+    stream_room: Optional[str] = None
+    matches: List['MatchSummary'] = Field(default_factory=list)
+
+
+class ShiftSummary(BaseModel):
+    """A volunteer shift and its staffing, without the full assignment rows."""
+
+    id: int
+    position: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    slots_needed: Optional[int] = None
+    filled: int = 0
+    assignees: List[str] = Field(default_factory=list)
+
+
+class AuditEntry(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    action: str
+    details: Optional[object] = None
+    created_at: datetime
+
+
+class AuditPage(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: List[AuditEntry] = Field(default_factory=list)
+
+
 class MatchSummary(BaseModel):
     """One match, at the detail level a scheduling question needs."""
 
@@ -68,3 +153,7 @@ class MatchSummary(BaseModel):
     players: List[str] = Field(default_factory=list)
     stream_room: Optional[str] = None
     restream_url: Optional[str] = None
+
+
+# StreamRoomBlock forward-references MatchSummary, which is declared after it.
+StreamRoomBlock.model_rebuild()

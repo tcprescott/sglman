@@ -92,7 +92,9 @@ async def resolve_tenant(slug: Optional[str]) -> Optional[Tenant]:
     return tenant
 
 
-async def authorize(actor: McpActor, gate: Gate, feature: Optional[FeatureFlag]) -> None:
+async def authorize(
+    actor: McpActor, gate: Gate, feature: Optional[FeatureFlag], slug: str = '',
+) -> None:
     """Run the feature gate then the role gate, in the already-bound tenant.
 
     Order matters and matches ``@protected_page``: a subsystem the community has
@@ -103,6 +105,28 @@ async def authorize(actor: McpActor, gate: Gate, feature: Optional[FeatureFlag])
     """
     if feature is not None and not await FeatureFlagService().is_enabled(feature):
         raise NotFoundError('This feature is not enabled for this community.')
+
+    # Membership floor, checked before any specific gate.
+    #
+    # A REST PAT is bound to one community, so `require_api_actor` — "any valid
+    # token" — can never reach another one. An OAuth token is platform-wide and
+    # names its community per call, so without this an ACTOR-gated tool would
+    # let any authenticated user read any community's tournaments, matches and
+    # schedule. That is a cross-community disclosure the REST surface does not
+    # permit, so the floor restores parity: a token reaches a community only
+    # where its user actually holds a role.
+    #
+    # NotFoundError, not PermissionError, and worded identically to an unknown
+    # slug: "hidden, not forbidden" is the posture used throughout the app, and
+    # a distinguishable refusal would turn error text into a directory of every
+    # community on the platform.
+    # GLOBAL tools are exempt: they name no community, and they are how a caller
+    # discovers that they have access to none. Refusing them would leave a
+    # role-less user unable to learn anything at all, including *that* fact.
+    if gate is not Gate.GLOBAL and not await AuthService.is_super_admin(actor.user):
+        if not await AuthService.get_roles(actor.user):
+            raise NotFoundError(f"No community '{slug}' is available.")
+
     if gate is Gate.ADMIN:
         await AuthService.ensure(
             await AuthService.can_view_admin(actor.user), 'Admin access required'
