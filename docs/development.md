@@ -129,12 +129,22 @@ poetry run aerich upgrade    # apply pending migrations
 ## Running tests
 
 ```bash
-poetry run pytest                                        # whole suite
+poetry run pytest                                        # whole suite (~20s, parallel)
 poetry run pytest tests/services/test_match_service.py   # one suite
 poetry run pytest -k acknowledg                          # by keyword
+poetry run pytest -n0 tests/services/test_match_service.py   # serial, for -s / pdb
 ```
 
 Pytest is configured in [`pyproject.toml`](../pyproject.toml) with `asyncio_mode = "auto"` (async test functions need no `@pytest.mark.asyncio`) and `testpaths = ["tests"]`. No PostgreSQL or Discord connection is required.
+
+**The suite runs in parallel by default** — `addopts = "-n auto --dist loadfile"` (pytest-xdist). `loadfile` keeps every test in a module on one worker, so module-level state stays as contained as it is in a serial run. Pass `-n0` to go serial when you need `-s`, a debugger, or readable live output from a single file.
+
+### Keeping it fast
+
+Wall time is dominated by **per-test fixture setup**, not by the assertions — test *count* is close to free, so do not thin out parametrized cases to save time. Two rules keep it that way:
+
+- **Never make an expensive, immutable object a function-scoped fixture.** `build_api_app()` costs ~200ms (`include_router` resolves each route's dependency graph and builds a Pydantic response model per endpoint) and is cached with `functools.cache` in [`tests/api_helpers.py`](../tests/api_helpers.py). Use the shared `app` fixture from `tests/conftest.py`; do not re-paste a local one. Rebuilding it per test once cost more than every DB query in the suite combined.
+- **Ask whether a test needs the `db` fixture at all.** It is the remaining per-test cost (~25ms: a fresh in-memory schema, the default tenant, and its feature-flag rows). Pure-function logic — bracket engines, timezone helpers, schema validation — should be tested without it; those tests run at roughly a thousand per second.
 
 Layout:
 
