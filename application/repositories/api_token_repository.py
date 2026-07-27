@@ -134,12 +134,18 @@ class ApiTokenRepository:
 
     @staticmethod
     async def get_by_hash(token_hash: str) -> Optional[ApiToken]:
-        """Return the token matching this hash, with its owning user prefetched.
+        """Return the token matching this hash, with its relations prefetched.
 
         GLOBAL by design (token_hash is globally unique) — the caller sets tenant
         context from the resolved token afterwards.
+
+        ``oauth_client`` is prefetched too: an unfetched FK is a lazy QuerySet,
+        not None, so any caller reading ``token.oauth_client.client_id`` on an
+        OAuth token would get an AttributeError rather than a value.
         """
-        return await ApiToken.get_or_none(token_hash=token_hash).prefetch_related('user')
+        return await ApiToken.get_or_none(
+            token_hash=token_hash
+        ).prefetch_related('user', 'oauth_client')
 
     @staticmethod
     async def list_for_user(user: User) -> List[ApiToken]:

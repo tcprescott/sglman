@@ -53,6 +53,11 @@ def mount(app: FastAPI) -> None:
         Route(MCP_PATH, endpoint=endpoint, methods=['POST', 'GET', 'DELETE'])
     )
     register_wellknown(app)
+    # Imported here rather than at module scope so the OAuth provider (and the
+    # service graph behind it) is only constructed when the server is enabled.
+    from mcpserver.oauth import register_oauth_routes
+
+    register_oauth_routes(app)
     logger.info('MCP server mounted at %s', MCP_PATH)
 
 

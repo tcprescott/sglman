@@ -61,6 +61,7 @@ from .match import (
     assert_sg_fields_unchanged,
 )
 from . import availability_windows
+from .mcp_auth_service import McpAuthService
 from .player_availability_service import PlayerAvailabilityService
 from . import oauth_handoff_service
 from .preset_service import PresetService
@@ -142,6 +143,7 @@ __all__ = [
     'MatchScheduleService',
     'MatchSuggestionService',
     'MatchWatcherService',
+    'McpAuthService',
     'oauth_handoff_service',
     'PlayerAvailabilityService',
     'PresetService',
