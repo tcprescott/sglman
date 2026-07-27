@@ -19,6 +19,7 @@ from application.services import web_push_service
 from application.events import event_bus
 from application.events import dispatch_queue as event_dispatch_queue
 from application.utils.easter_eggs import random_fact
+from application.utils.http_headers import header_safe
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.sentry import init_sentry
 import asyncio
@@ -218,21 +219,10 @@ app: FastAPI = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-_HEADER_TRANS = str.maketrans({
-    '–': '-',   # en-dash
-    '—': '-',   # em-dash
-    '‘': "'",   # left single quote
-    '’': "'",   # right single quote
-    '“': '"',   # left double quote
-    '”': '"',   # right double quote
-    '·': '.',   # middle dot
-})
-
-
 class FunFactMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        response.headers['X-Fun-Fact'] = random_fact().translate(_HEADER_TRANS)
+        response.headers['X-Fun-Fact'] = header_safe(random_fact())
         return response
 
 app.add_middleware(FunFactMiddleware)

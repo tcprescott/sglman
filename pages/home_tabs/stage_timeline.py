@@ -184,7 +184,7 @@ async def stage_timeline_tab():
 
         async def go_to_date():
             try:
-                new_date = datetime.strptime(date_input.value, '%Y-%m-%d').date()
+                new_date = datetime.strptime(date_input.value or '', '%Y-%m-%d').date()
                 current_date['value'] = new_date
                 await load_timeline()
             except ValueError:

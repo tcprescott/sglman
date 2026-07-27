@@ -66,6 +66,12 @@ from models import (
 
 logger = logging.getLogger(__name__)
 
+# Upper bound on a submitted finish time (7 days). The finish time is free text
+# the runner types, so without a ceiling a typo ("100:00:00" → 360,000s is fine,
+# but "1000000:00:00" is not) reaches the column as an out-of-range integer. Any
+# real qualifier run is orders of magnitude under this.
+MAX_RUN_SECONDS = 7 * 24 * 60 * 60
+
 # Terminal run states a finished/forfeit/DQ run can be in (used for slot counting).
 _TERMINAL = {
     AsyncQualifierRunStatus.FINISHED,
@@ -509,6 +515,8 @@ class AsyncQualifierService:
         run = await self._require_own_active_run(user, run_id)
         if elapsed_seconds is None or elapsed_seconds <= 0:
             raise ValueError("Finish time must be a positive number of seconds")
+        if elapsed_seconds > MAX_RUN_SECONDS:
+            raise ValueError("Finish time is longer than a week — check the value you entered.")
         run = await self.run_repository.update(
             run,
             status=AsyncQualifierRunStatus.FINISHED,
