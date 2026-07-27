@@ -36,10 +36,17 @@ ruff = "^0.9"
 mypy = "^1.14"
 aiosqlite = "^0.21.0"
 pytest-cov = "^6.0"
+pytest-xdist = "^3.8.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Run across all cores by default — the suite is ~3200 mostly-independent tests
+# and wall time is what limits how many more we can add. ``loadfile`` keeps each
+# module on a single worker, so module-level state stays as contained as it is
+# in a serial run. Override with ``-n0`` for a serial run when you need ``-s``,
+# a debugger, or readable live output from one file.
+addopts = "-n auto --dist loadfile"
 
 [tool.ruff]
 line-length = 120

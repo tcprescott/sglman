@@ -5,6 +5,7 @@ a user with a token and an authenticated httpx client. Use together with the
 function-scoped ``db`` fixture from conftest.
 """
 
+import functools
 import random
 from typing import Iterable, Optional, Tuple
 
@@ -16,7 +17,18 @@ from application.services.api_token_service import ApiTokenService
 from models import Role, User, UserRole
 
 
+@functools.cache
 def build_api_app() -> FastAPI:
+    """The full API app, built once per process and shared by every test.
+
+    ``include_router`` costs ~200ms — it resolves each route's dependency graph
+    and builds a Pydantic response model per endpoint — and the result is a pure
+    function of ``api.router``, which no test mutates (nothing in the suite
+    touches ``dependency_overrides``, ``app.state``, or adds middleware to this
+    app). Rebuilding it per test cost more than every DB query in the suite
+    combined, so it is cached. A test that genuinely needs a throwaway app
+    builds its own ``FastAPI()`` instead (see ``test_tenant_middleware.py``).
+    """
     app = FastAPI()
     app.include_router(api.router, prefix='/api')
     return app

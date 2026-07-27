@@ -9,10 +9,8 @@ lightweight and avoid the Discord bot startup.
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-import api
 from models import (
     Commentator,
     GeneratedSeeds,
@@ -23,14 +21,6 @@ from models import (
     Tracker,
     User,
 )
-
-
-@pytest.fixture
-def app():
-    """Minimal FastAPI app exposing only the matches router."""
-    test_app = FastAPI()
-    test_app.include_router(api.router, prefix='/api')
-    return test_app
 
 
 @pytest.fixture
