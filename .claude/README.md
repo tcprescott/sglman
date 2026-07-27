@@ -203,6 +203,47 @@ does — so a rule can ship the day the extraction lands instead of waiting for 
 zero baseline. Fails open on malformed payloads, unreadable files, or an Edit
 whose `old_string` doesn't match (that Edit fails anyway).
 
+### Slow test fixtures — `scripts/check_fixture_cost.py` (PreToolUse: Write|Edit)
+The test suite's wall time is dominated by per-test **fixture setup**, not by
+assertions: before commit `f0ceb4b` it was 84% of the run (166s of 197s). Two
+shapes caused it, and both are now built once per process and shared. This hook
+blocks re-introducing either one in `tests/`:
+
+| Shape | Use instead |
+|---|---|
+| mounting `api.router` on a test's own `FastAPI()` app | the `app` fixture in `tests/conftest.py` (returns the `@functools.cache`d `build_api_app()` from `tests/api_helpers.py`) |
+| `Tortoise.generate_schemas()` in a test | the `db` fixture, which replays the script rendered once by `_schema_sql()` in `tests/conftest.py` |
+
+The first rule cost ~200ms per test (`include_router` resolves every route's
+dependency graph and builds a Pydantic response model per endpoint) across ~400
+API tests — 135s of the old 207s suite, more than every DB query in it combined.
+Two modules had also re-pasted their own local copy of the `app` fixture,
+bypassing the cache.
+
+**The discriminator is mounting the router, not constructing an app.**
+`tests/test_public_bracket_access.py`, `tests/test_infra_coverage.py` and
+`tests/test_security_hardening.py` all legitimately build throwaway bare
+`FastAPI()` apps to exercise middleware and error handlers, so the rule requires
+*both* a `FastAPI(` and an `include_router(api.router` and exempts the one
+sanctioned builder (`api_helpers.py`) plus `conftest.py`. Verified: 0 violations
+across all 163 files in `tests/`, including replaying each of the three
+bare-app files (and each with an extra bare app appended) as a from-scratch write.
+
+Uses the **net-new counting** idiom from `check_dry_regressions.py` (same `Rule`
+dataclass, `_norm`/`in_tests` helpers, and Write/Edit content synthesis) even
+though both rules have a zero baseline today — so the rules keep working if a
+justified exception is ever added. It is a **separate script** rather than two
+more rows in `check_dry_regressions.py` because that file is scoped to the
+2026-07 code-quality audit's copy-paste findings; this is a performance
+invariant with its own vocabulary, and Design principle 2 (self-contained
+scripts) makes the split free. `tests/test_fixture_performance.py` is exempt —
+it names the banned shapes in its own prose (the same self-reference gotcha the
+`/.claude/` skip exists for), and its AST scan polices it instead.
+
+**This hook is the fast-feedback layer only.** `PreToolUse` never sees a human's
+IDE edit or an externally-authored PR, which is most of the risk surface; the
+load-bearing layer is `tests/test_fixture_performance.py` below.
+
 ### Syntax validity — `scripts/check_syntax.py` (PostToolUse: Write|Edit)
 `ast.parse` on the resulting `.py` file; rejects an edit that leaves it
 unparseable. This runs first among the AST hooks conceptually — the other AST
@@ -339,6 +380,22 @@ in `run_full_tests.py` at Stop *and* in CI, so they also bind human contributors
   companion test forces stale entries out, so the backlog only shrinks.
 - **`tests/test_feature_flags.py`** — registry parity: every `FeatureFlag` member
   has a `FeatureFlagSpec` (why there is no separate hook for it).
+- **`tests/test_fixture_performance.py`** — the load-bearing half of
+  `check_fixture_cost.py` above. The hook only fires when Claude Code writes a
+  file, so this module re-asserts the same invariants for every contributor:
+  (1) **cache identity** — `build_api_app() is build_api_app()` and
+  `_schema_sql() is _schema_sql()`, plus a `cache_info` check, so removing a
+  `@functools.cache` fails by name even when no new fixture is added;
+  (2) a **single AST pass** over `tests/` asserting no module but `conftest.py`
+  defines a fixture named `app` (the direct guard against the re-pasted
+  fixture), that nothing but `api_helpers.py` mounts the API router, that no
+  test calls `generate_schemas`, and that no fixture is a bare
+  `return build_api_app()` alias — the shape a local `app` fixture takes once
+  renamed. Fixtures that *assemble* a context and merely include the cached app
+  in a returned dict (`tests/api/test_speedgaming.py`) are deliberately not
+  flagged: the app is cached, so that costs nothing. Deliberately **not**
+  timing-based — a wall-clock budget is flaky on shared runners, and a flaky
+  guard gets deleted. Costs ~0.3s of a ~20s suite (AST-only, one pass, cached).
 - **conftest `_no_external_network`** — autouse socket guard: any non-loopback
   `connect` raises, so a test reaching a real host fails by name instead of
   passing online and flaking offline.

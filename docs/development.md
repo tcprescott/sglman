@@ -145,6 +145,13 @@ Wall time is dominated by **per-test fixture setup**, not by the assertions — 
 - **Never make an expensive, immutable object a function-scoped fixture.** `build_api_app()` costs ~200ms (`include_router` resolves each route's dependency graph and builds a Pydantic response model per endpoint) and is cached with `functools.cache` in [`tests/api_helpers.py`](../tests/api_helpers.py). Use the shared `app` fixture from `tests/conftest.py`; do not re-paste a local one. Rebuilding it per test once cost more than every DB query in the suite combined.
 - **Ask whether a test needs the `db` fixture at all.** It is the remaining per-test cost (~25ms: a fresh in-memory schema, the default tenant, and its feature-flag rows). Pure-function logic — bracket engines, timezone helpers, schema validation — should be tested without it; those tests run at roughly a thousand per second.
 
+Both rules are enforced mechanically, so you will hear about a regression rather than having to remember it:
+
+- [`tests/test_fixture_performance.py`](../tests/test_fixture_performance.py) runs in CI for everyone. It asserts the caches are intact (`build_api_app() is build_api_app()`, same for `_schema_sql()`) and AST-scans `tests/` for the shapes that were removed: a local fixture named `app`, mounting `api.router` on a test's own app, a `generate_schemas()` call, or a fixture that is a bare `return build_api_app()` alias. The checks are structural, never timing-based — a wall-clock budget would be flaky on shared runners.
+- [`.claude/scripts/check_fixture_cost.py`](../.claude/scripts/check_fixture_cost.py) blocks the same shapes at write time when Claude Code is the author, for faster feedback.
+
+Neither guard objects to a throwaway bare `FastAPI()` app — `test_public_bracket_access.py`, `test_infra_coverage.py` and `test_security_hardening.py` all build one to exercise middleware and error handlers. Mounting the API router on it is the part that costs ~200ms.
+
 Layout:
 
 | Path | Covers |
@@ -162,7 +169,7 @@ Layout:
 
 Fixtures from the conftests:
 
-- [`tests/conftest.py`](../tests/conftest.py) — a function-scoped `db` fixture that spins up an **in-memory SQLite** database via `Tortoise.init` + `generate_schemas`. Each test gets a fresh schema; closing the connection discards all rows. (SQLite catches logic errors but not PostgreSQL-specific query behavior.)
+- [`tests/conftest.py`](../tests/conftest.py) — a function-scoped `db` fixture that spins up an **in-memory SQLite** database via `Tortoise.init` and replays the CREATE TABLE script rendered once by `_schema_sql()`. Each test gets a fresh schema; closing the connection discards all rows. (SQLite catches logic errors but not PostgreSQL-specific query behavior.)
 - `tests/services/conftest.py` — an autouse `stub_discord_queue` fixture that monkeypatches `discord_queue.enqueue` to capture (and later close) enqueued coroutines, so tests can assert that notifications were sent without a bot connection or "never awaited" warnings.
 
 ### Coverage & known gaps
