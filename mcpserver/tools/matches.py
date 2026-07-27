@@ -13,7 +13,7 @@ tool catalogue:
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from mcp.server.fastmcp import FastMCP
 
@@ -125,7 +125,7 @@ async def match_operations_report(
     end: datetime,
     tenant: TenantArg = None,
     tournament_id: Optional[int] = None,
-) -> dict:
+) -> Dict[str, Any]:
     """Operational statistics for matches in a window: start delays, durations.
 
     Requires admin access.

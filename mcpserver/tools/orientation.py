@@ -10,7 +10,7 @@ from typing import List
 
 from mcp.server.fastmcp import FastMCP
 
-from application.services import AuthService
+from application.services import AuthService, FeatureFlagService
 from application.services.tenant_service import TenantService
 from application.tenant_context import tenant_scope
 from mcpserver.auth import Gate, current_actor
@@ -33,16 +33,23 @@ async def _tenants_for_actor() -> List[TenantInfo]:
     for tenant in await TenantService.list_tenants():
         if not tenant.is_active:
             continue
-        # Roles are per-tenant, so they have to be read inside each community's
-        # scope — the same predicate returns different answers per binding.
+        # Roles and flags are both per-tenant, so they have to be read inside
+        # each community's scope — the same predicate returns different answers
+        # per binding.
         with tenant_scope(tenant.id):
             roles = await AuthService.get_roles(actor.user)
-        if not roles and not is_super:
-            continue
+            if not roles and not is_super:
+                continue
+            # One query per community, and the reason a caller can skip a tool
+            # instead of discovering its `not_found` a round-trip later. A flag
+            # is not a permission: it is reported to everyone who can see the
+            # community, exactly as the feature's absence would be.
+            features = await FeatureFlagService().enabled_flags()
         out.append(TenantInfo(
             slug=tenant.slug,
             name=tenant.name,
             roles=sorted(role.value for role in roles),
+            features=sorted(flag.value for flag in features),
         ))
     return out
 

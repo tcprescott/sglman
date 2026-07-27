@@ -132,8 +132,13 @@ explicit check — do not restore a blanket one.
 ### Orientation
 | Tool | Gate | Notes |
 |---|---|---|
-| `whoami` | GLOBAL | Identity, plus roles per community. The cheapest way to orient. |
-| `list_tenants` | GLOBAL | The slugs every other tool needs. |
+| `whoami` | GLOBAL | Identity, roles **and enabled flags** per community. The cheapest way to orient. |
+| `list_tenants` | GLOBAL | The slugs every other tool needs, with the same roles/flags. |
+
+Both report each community's live feature flags. A flag is not a permission —
+it is reported to everyone who can see the community, exactly as the feature's
+absence would be — and reporting it is what lets a client skip a tool instead of
+discovering its `not_found` a round-trip later.
 
 ### Tournaments and matches
 | Tool | Gate | Flag |
@@ -146,9 +151,10 @@ explicit check — do not restore a blanket one.
 | Tool | Gate | Flag |
 |---|---|---|
 | `get_user` | ACTOR (self, or staff for anyone else) | — |
+| `get_player_availability` | ACTOR (self, or staff for anyone else) | — |
 | `list_users` | STAFF | — |
 | `list_match_crew`, `crew_coverage_report` | ADMIN | — |
-| `list_volunteer_shifts`, `volunteer_coverage` | ADMIN | `VOLUNTEERS` |
+| `list_volunteer_shifts`, `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
 
 The volunteer tools sit one gate **above** their REST counterparts
 (`require_api_actor`). Deliberate: the REST reads back a self-service view of
@@ -158,17 +164,73 @@ your own shift, whereas one call here returns a whole window's roster with names
 `get_match` is ACTOR — `get_match` reuses the REST serializer and inherits its
 rule that unapproved crew are never disclosed.
 
+`volunteer_hour_trends` is served by `AnalyticsService`, which carries no flag of
+its own, so the flag is declared at the tool. Without it a community with
+volunteers switched off could still read its volunteer hours here.
+
+### Reports
+| Tool | Gate |
+|---|---|
+| `capacity_forecast`, `stream_room_utilization` | ADMIN |
+| `tournament_health`, `crew_participation_trends`, `activity_trends` | ADMIN |
+| `matches_active_at` | ADMIN |
+
+ADMIN mirrors the Admin → Reports tab (`is_staff or tournament-admin or
+crew-coordinator`, which is what `can_view_admin` answers).
+
+Two are **reshaped rather than passed through**. `ReportsService` builds its
+payloads for a chart that is about to draw them, so they carry per-interval and
+per-match detail, and `stream_room_utilization`'s even contains ORM `Match` rows.
+`capacity_forecast` returns peaks and headroom instead of the full series;
+`stream_room_utilization` returns per-room totals instead of every booking.
+
+### Equipment
+| Tool | Gate | Flag |
+|---|---|---|
+| `list_equipment`, `get_equipment` | ADMIN | `EQUIPMENT` |
+
+No REST counterpart exists, so the gate of record is the Admin → Equipment tab
+(`is_staff or is_equipment_manager` — both satisfy `can_view_admin`).
+`private_notes` is deliberately not returned.
+
 ### Observability
 | Tool | Gate |
 |---|---|
 | `list_audit_log` | ADMIN |
 | `telemetry_summary`, `telemetry_top`, `get_system_config` | STAFF |
+| `list_service_health`, `list_webhooks`, `list_webhook_deliveries` | STAFF |
+| `list_feedback` | STAFF |
+
+`list_webhooks` never returns the signing secret, and `list_service_health` is
+the **tenant subset** only — the platform-wide board is a super-admin surface and
+is not exposed here.
+
+### Online play
+| Tool | Gate | Flag |
+|---|---|---|
+| `list_presets`, `get_preset` | ACTOR | — |
+| `list_race_room_profiles`, `get_race_room` | ACTOR | `RACETIME_ROOMS` |
+| `list_race_rooms` | STAFF | `RACETIME_ROOMS` |
+| `list_speedgaming_links`, `list_speedgaming_episodes` | ACTOR | `SPEEDGAMING_ETL` |
+
+Several sit at ACTOR because the *service* carries the real check
+(`can_manage_presets`, `ensure_can_manage_sync`) — mirroring the router's gate
+rather than inventing a stricter one keeps both surfaces answering the same
+question. `list_race_rooms` is the exception at STAFF, matching
+`GET /race-rooms/open`, whose service read has no gate of its own.
 
 ### Feature-gated competition
 | Tool | Gate | Flag |
 |---|---|---|
-| `list_brackets`, `get_bracket_standings` | ACTOR | `BRACKETS` |
-| `list_async_qualifiers` | ACTOR | `ASYNC_QUALIFIERS` |
+| `list_brackets`, `get_bracket`, `list_bracket_matches` | ACTOR | `BRACKETS` |
+| `list_bracket_entrants`, `get_bracket_standings` | ACTOR | `BRACKETS` |
+| `list_async_qualifiers`, `get_async_qualifier` | ACTOR | `ASYNC_QUALIFIERS` |
+| `get_async_qualifier_leaderboard` | ACTOR | `ASYNC_QUALIFIERS` |
+| `list_async_qualifier_live_races` | ACTOR | `ASYNC_QUALIFIERS` |
+
+`list_bracket_matches` resolves entry ids to entrant names from two list reads
+rather than prefetching per match: a fixed pair of queries covers the whole
+field, whatever its size.
 
 ## Response shapes
 
@@ -180,6 +242,19 @@ Two rules, in `mcpserver/schemas.py`:
 - **List reads get a compact shape.** A hundred full match records is mostly
   padding, and padding is the expensive kind of wrong for an LLM consumer: it
   buries the answer and burns the context the model needs to reason.
+
+A third rule is about the *annotation*, and it is the kind that fails silently:
+**never return a bare `dict`**. `func_metadata` derives the output schema from
+the return type, and `dict` yields **no schema at all** — the SDK then sends the
+payload as a JSON string in a text block instead of `structuredContent`, while a
+`Dict[str, Any]` tool right beside it returns a properly typed result. Nothing in
+the tool's source shows the difference, so
+`test_mcp_catalogue.py::test_every_tool_declares_an_output_schema` asserts it.
+
+Where a service payload is built for a chart rather than a reader, the tool
+reshapes it — see the reports section above. `mcpserver/tools/_args.py` holds the
+shared timestamp/limit parsing so every tool refuses a bad window in the same
+words.
 
 All datetimes are UTC as stored. Users see US/Eastern; the model is told once in
 the server instructions rather than per field.
@@ -249,8 +324,12 @@ in pydantic-settings.
 
 ## Testing
 
-- `tests/mcp/` — transport, catalogue guardrails, the authorization matrix, and
-  the full OAuth flow. The harness is `tests/mcp/conftest.py::mcp_session`, an
+- `tests/mcp/` — transport, catalogue guardrails, the authorization matrix, the
+  full OAuth flow, and `test_mcp_reads.py`, which calls every read tool against
+  seeded rows. The last one closes a real gap: the catalogue tests prove a tool
+  is *served* and *gated* but never run it, so a compact shape reading a renamed
+  relation or an un-prefetched FK would ship green. The harness is
+  `tests/mcp/conftest.py::mcp_session`, an
   async context manager used **inside** the test body: the session manager is
   single-use per instance and is an anyio cancel scope, which must be exited in
   the task that entered it, so a `yield`-style fixture cannot work.

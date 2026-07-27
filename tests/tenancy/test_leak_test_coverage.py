@@ -44,7 +44,6 @@ BACKLOG: dict[str, str] = {
     'VolunteerAvailability': _DEBT,
     'VolunteerQualification': _DEBT,
     'VolunteerShift': _DEBT,
-    'Webhook': _DEBT,
     'WebhookDelivery': _DEBT,
 }
 
