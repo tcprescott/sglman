@@ -22,8 +22,9 @@ as available+enabled for existing tenants so gating them does not make them
 vanish. New/unreleased features leave it False and ship dark.
 """
 
-from dataclasses import dataclass
-from typing import Dict, List
+import functools
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Tuple
 
 from models import FeatureFlag
 
@@ -35,6 +36,55 @@ class FeatureFlagSpec:
     description: str
     category: str
     established: bool = False
+    #: Modules that must enforce the flag at the service layer, repo-relative
+    #: (e.g. ``'application/services/bracket_service.py'``) or a package prefix
+    #: (``'application/services/volunteer/'``) when the subsystem spans files.
+    #: The ``check_feature_flag_gating`` hook asserts each one actually guards the
+    #: flag, so a new gated subsystem cannot ship with UI-only hiding.
+    service_modules: Tuple[str, ...] = field(default_factory=tuple)
+    #: Set for a flag whose gated thing is one *value* inside a shared control
+    #: (e.g. ``dk64r`` among the randomizers) rather than a subsystem of its own.
+    #: Those enforce per-value at each selection surface plus each action
+    #: boundary, so the hook looks for ``gating_flag`` rather than a module guard.
+    per_value: bool = False
+
+
+def requires_feature(flag: FeatureFlag) -> Callable:
+    """Refuse to run a service method unless ``flag`` is live for this tenant.
+
+    The service-layer half of feature gating. Entry surfaces (page decorator,
+    ``require_feature`` on routers, admin-tab conditions) *hide* a disabled
+    feature; this makes the owning service *refuse* it, so a caller that has no
+    gate — a newly added page, a Discord interaction handler, a worker, a REST
+    router someone forgot to mount behind ``require_feature`` — cannot reach
+    functionality the community has not enabled. Both halves are required; see
+    docs/features/feature-flags.md.
+
+    Raises :class:`~application.errors.FeatureDisabledError` (a ``NotFoundError``,
+    so REST answers 404 and UI ``except ValueError`` shows a notification).
+
+    Placement: the service's **public entry methods** — every mutation, plus the
+    top-level reads that return the feature's data. Not internal helpers, and
+    never inside a transaction; the check is an authorization-style gate at the
+    service boundary, and it reads a per-request cache so repeated guards in one
+    request cost a single pass.
+
+    Tolerates no tenant in scope by raising, like every other gate: a flag is
+    never live without a tenant.
+    """
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Imported lazily: this module is pure metadata that repositories and
+            # pages import freely, while FeatureFlagService pulls in services.
+            from application.services.feature_flag_service import FeatureFlagService
+
+            await FeatureFlagService().ensure_enabled(flag)
+            return await func(*args, **kwargs)
+
+        wrapper.__wizzrobe_feature__ = flag  # what the guardrail hook reads
+        return wrapper
+    return decorator
 
 
 # Declaration order is preserved (dict is ordered) and drives UI ordering.
@@ -47,6 +97,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Self-paced permalink-pool qualifiers with their own leaderboard, '
             'run review, and optional live races.',
             'Online tournaments',
+            service_modules=('application/services/async_qualifier/',),
         ),
         FeatureFlagSpec(
             FeatureFlag.RACETIME_ROOMS,
@@ -54,6 +105,11 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Automated racetime.gg race rooms driven from scheduled matches '
             '(open, attach seed, finish, record results).',
             'Online tournaments',
+            # The auto-open worker deliberately has no check of its own: every
+            # room it opens goes through RaceRoomService.auto_open_if_eligible,
+            # which enforces the flag. Declaring the worker too would only invite
+            # a redundant second read.
+            service_modules=('application/services/race_room_service.py',),
         ),
         FeatureFlagSpec(
             FeatureFlag.SPEEDGAMING_ETL,
@@ -61,6 +117,8 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             "One-way import of the SpeedGaming schedule into this community's "
             'matches.',
             'Online tournaments',
+            service_modules=('application/services/speedgaming_sync_service.py',
+                             'application/services/speedgaming_sync_worker.py'),
         ),
         FeatureFlagSpec(
             FeatureFlag.DK64_RANDOMIZER,
@@ -70,6 +128,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'availability records that this community is authorized to use it '
             'under that key\'s usage terms.',
             'Online tournaments',
+            per_value=True,
         ),
         FeatureFlagSpec(
             FeatureFlag.CHALLONGE,
@@ -78,6 +137,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'bracket matches, and push results.',
             'Community',
             established=True,
+            service_modules=('application/services/challonge_service.py',),
         ),
         FeatureFlagSpec(
             FeatureFlag.EQUIPMENT,
@@ -86,6 +146,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'codes.',
             'Community',
             established=True,
+            service_modules=('application/services/equipment_service.py',),
         ),
         FeatureFlagSpec(
             FeatureFlag.VOLUNTEERS,
@@ -94,6 +155,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'auto-scheduler, and reminders.',
             'Community',
             established=True,
+            service_modules=('application/services/volunteer/',),
         ),
         FeatureFlagSpec(
             FeatureFlag.TRIFORCE_TEXTS,
@@ -102,6 +164,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             '(ALTTPR-specific).',
             'Community',
             established=True,
+            service_modules=('application/services/triforce_text_service.py',),
         ),
         FeatureFlagSpec(
             FeatureFlag.BRACKETS,
@@ -110,6 +173,7 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'elimination, Swiss, round robin, and multi-stage chains) without '
             'the Challonge API.',
             'Online tournaments',
+            service_modules=('application/services/bracket_service.py',),
         ),
     )
 }

@@ -141,6 +141,11 @@
             "type": "command",
             "command": "python3 .claude/scripts/run_related_tests.py",
             "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/check_feature_flag_gating.py",
+            "timeout": 15
           }
         ]
       }

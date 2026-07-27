@@ -220,11 +220,20 @@ async def test_roll_permalinks_blocked_when_flag_gated_randomizer_off(db):
     # the community's DK64_RANDOMIZER flag is off: the whole batch is refused up
     # front (no keyed calls, zero permalinks created). A fresh tenant starts with
     # every flag off, unlike the db-fixture default tenant.
+    #
+    # ASYNC_QUALIFIERS itself is turned on for this tenant so the subject under
+    # test is the DK64 gate: with every flag off, AsyncQualifierService's own
+    # feature guard would refuse create_qualifier first and the dk64 path would
+    # never be reached.
     from application.tenant_context import tenant_scope
-    from models import Preset, Tenant
+    from models import FeatureFlag, Preset, Tenant, TenantFeatureFlag
 
     service = AsyncQualifierService()
     b = await Tenant.create(name='NoDK', slug='no-dk-q')
+    await TenantFeatureFlag.create(
+        tenant_id=b.id, flag=FeatureFlag.ASYNC_QUALIFIERS.value,
+        available=True, enabled=True,
+    )
     with tenant_scope(b.id):
         staff = await User.create(discord_id=900500, username='qstaff')
         await UserRole.create(user=staff, role=Role.STAFF)

@@ -21,12 +21,18 @@ def create() -> None:
         user = await get_user_from_discord_id(discord_id)
 
         roles = await AuthService.get_roles(user)
-        is_staff = Role.STAFF in roles
+        # Staff-equivalence throughout, so a platform super-admin sees the whole
+        # hub in a tenant they hold no roles in.
+        is_staff = await AuthService.is_staff(user)
         is_proctor = Role.PROCTOR in roles
         is_volunteer = Role.VOLUNTEER in roles
 
         tabs = []
-        if is_volunteer:
+        # The two self-service tabs read the *signed-in* user's own availability
+        # and shifts, so they are safe (and empty) for someone who volunteers for
+        # nothing; saving availability still requires a volunteer opt-in, which
+        # the service enforces. Home already offers My Availability to everyone.
+        if is_volunteer or is_staff:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind', 'content': my_shifts_tab})
         if is_proctor or is_staff:

@@ -171,15 +171,33 @@ async def db(monkeypatch):
 SECOND_TENANT_SLUG = 'tenant-b'
 
 
+async def enable_all_flags(tenant_id: int) -> None:
+    """Turn every feature flag fully on for ``tenant_id`` (test helper).
+
+    Mirrors what the ``db`` fixture does for the default tenant. A leak test's
+    second tenant needs this: with flags off, a guarded service raises
+    ``FeatureDisabledError`` before its tenant scoping is ever exercised, so the
+    test would pass for the wrong reason (or fail confusingly) and stop proving
+    isolation.
+    """
+    for flag in _models.FeatureFlag:
+        await _models.TenantFeatureFlag.get_or_create(
+            tenant_id=tenant_id, flag=flag.value,
+            defaults={'available': True, 'enabled': True},
+        )
+
+
 @pytest.fixture
 async def two_tenants(db):
     """The default tenant plus a second one (slug ``tenant-b``).
 
     Returns ``(tenant_a, tenant_b)``. Build tenant-scoped rows on top with
-    ``tenant_scope(tenant.id)``.
+    ``tenant_scope(tenant.id)``. Both tenants have every feature flag on, so
+    isolation tests exercise tenant scoping rather than tripping a feature gate.
     """
     tenant_a = await _models.Tenant.get(id=DEFAULT_TEST_TENANT_ID)
     tenant_b = await _models.Tenant.create(name='Tenant B', slug=SECOND_TENANT_SLUG)
+    await enable_all_flags(tenant_b.id)
     return tenant_a, tenant_b
 
 

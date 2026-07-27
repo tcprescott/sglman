@@ -196,7 +196,7 @@ For the role semantics behind these checks (what staff/proctor/stream_manager me
 |---|---|
 | `get_roles(user)` | Returns `set[Role]` of global roles (empty set for `None`) |
 | `has_role(user, role)` | User holds the given global role (`UserRole` row exists) |
-| `is_staff(user)` | Shorthand for `has_role(user, Role.STAFF)` |
+| `is_staff(user)` | Holds `Role.STAFF` in the current tenant **or** is the global `SUPER_ADMIN`. The single place the platform role becomes in-tenant authority — STAFF is the override term in nearly every `can_*` helper, so widening it here carries super-admin through the whole policy surface. Use `has_role`/`get_roles` where the literal grant matters (role-management UI). |
 | `is_proctor(user)` | Shorthand for `has_role(user, Role.PROCTOR)` |
 | `is_stream_manager(user)` | Shorthand for `has_role(user, Role.STREAM_MANAGER)` |
 | `is_tournament_admin(user, tournament_id)` | User is in that tournament's `admins` M2M |
@@ -229,12 +229,19 @@ async def admin_dashboard_page(...):
     user = await User.get_or_none(discord_id=app.storage.user.get('discord_id'))
     ...
     roles = await AuthService.get_roles(user)
-    is_staff = Role.STAFF in roles
+    # Staff-*equivalence*, not `Role.STAFF in roles`: this is the page's real
+    # authorization gate (the decorator has no `roles=`), so reading the literal
+    # grant here is what locked a platform super-admin out of every tenant they
+    # held no roles in.
+    is_staff = await AuthService.is_staff(user)
     is_stream_manager = Role.STREAM_MANAGER in roles
     is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
     is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
-    is_ta_any = await user.admin_tournaments.all().exists()
-    is_cc_any = await user.crew_coordinated_tournaments.all().exists()
+    # Tenant-filtered: these reverse relations hang off the *global* User, so
+    # unfiltered they admit a tournament admin from one community into every other.
+    tid = get_current_tenant_id()
+    is_ta_any = await user.admin_tournaments.filter(tenant_id=tid).exists()
+    is_cc_any = await user.crew_coordinated_tournaments.filter(tenant_id=tid).exists()
 
     if not (is_staff or is_stream_manager or is_equipment_manager or is_ta_any or is_cc_any):
         ...render denial page; return          # same condition as AuthService.can_view_admin

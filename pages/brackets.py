@@ -317,7 +317,7 @@ def create() -> None:
         show_admin = await AuthService.can_view_admin(user)
         is_staff = await AuthService.is_staff(user)
         await BaseLayout(
-            user=user, show_admin=show_admin, show_volunteer=user is not None,
+            user=user, show_admin=show_admin,
         ).render()
 
         service = BracketService()
@@ -366,7 +366,7 @@ def create() -> None:
         show_admin = await AuthService.can_view_admin(user)
         is_staff = await AuthService.is_staff(user)
         await BaseLayout(
-            user=user, show_admin=show_admin, show_volunteer=user is not None,
+            user=user, show_admin=show_admin,
         ).render()
         ui.add_head_html('<link rel="stylesheet" href="/static/css/brackets.css">')
         _install_hover_run()

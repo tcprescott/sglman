@@ -52,7 +52,9 @@ from application.services.async_qualifier.async_qualifier_scoring import (
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
+from application.feature_flags import requires_feature
 from models import (
+    FeatureFlag,
     AsyncQualifier,
     AsyncQualifierPermalink,
     AsyncQualifierPool,
@@ -92,15 +94,18 @@ class AsyncQualifierService:
 
     # ============================================================ management
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_qualifiers(self, actor: Optional[User]) -> List[AsyncQualifier]:
         await access.ensure_qualifier_admin(actor, message="Cannot administer qualifiers")
         return await self.repository.list_all()
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_qualifier(self, actor: Optional[User], qualifier_id: int) -> AsyncQualifier:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier)
         return qualifier
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def create_qualifier(
         self,
         actor: Optional[User],
@@ -137,6 +142,7 @@ class AsyncQualifierService:
         )
         return qualifier
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def update_qualifier(
         self,
         actor: Optional[User],
@@ -188,6 +194,7 @@ class AsyncQualifierService:
         )
         return qualifier
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def delete_qualifier(self, actor: Optional[User], qualifier_id: int) -> None:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier)
@@ -197,6 +204,7 @@ class AsyncQualifierService:
         )
         await self.repository.delete(qualifier)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def add_admin(self, actor: Optional[User], qualifier_id: int, target: User) -> None:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier)
@@ -206,6 +214,7 @@ class AsyncQualifierService:
             {'qualifier_id': qualifier.id, 'target_user_id': target.id},
         )
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def remove_admin(self, actor: Optional[User], qualifier_id: int, target: User) -> None:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier)
@@ -215,6 +224,7 @@ class AsyncQualifierService:
             {'qualifier_id': qualifier.id, 'target_user_id': target.id},
         )
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_admins(self, actor: Optional[User], qualifier_id: int) -> List[User]:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier)
@@ -222,11 +232,13 @@ class AsyncQualifierService:
 
     # ------------------------------------------------------------------ pools
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_pools(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierPool]:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier)
         return await self.pool_repository.list_for_qualifier(qualifier_id)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def create_pool(
         self,
         actor: Optional[User],
@@ -254,6 +266,7 @@ class AsyncQualifierService:
         )
         return pool
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def update_pool(
         self,
         actor: Optional[User],
@@ -284,6 +297,7 @@ class AsyncQualifierService:
         )
         return pool
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def delete_pool(self, actor: Optional[User], pool_id: int) -> None:
         pool = await self._require_pool(pool_id)
         await self._ensure_pool_admin(actor, pool)
@@ -295,6 +309,7 @@ class AsyncQualifierService:
 
     # ------------------------------------------------------------- permalinks
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def add_permalink(
         self,
         actor: Optional[User],
@@ -318,6 +333,7 @@ class AsyncQualifierService:
         )
         return permalink
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def add_permalinks_bulk(
         self, actor: Optional[User], pool_id: int, *, urls: Sequence[str]
     ) -> List[AsyncQualifierPermalink]:
@@ -337,6 +353,7 @@ class AsyncQualifierService:
             )
         return created
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def roll_permalinks(
         self, actor: Optional[User], pool_id: int, *, count: int
     ) -> List[AsyncQualifierPermalink]:
@@ -368,6 +385,7 @@ class AsyncQualifierService:
         )
         return created
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def update_permalink(
         self,
         actor: Optional[User],
@@ -396,6 +414,7 @@ class AsyncQualifierService:
         )
         return permalink
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def delete_permalink(self, actor: Optional[User], permalink_id: int) -> None:
         permalink = await self._require_permalink(permalink_id)
         await self._ensure_permalink_admin(actor, permalink)
@@ -407,16 +426,19 @@ class AsyncQualifierService:
 
     # =============================================================== player
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_open_qualifiers(self) -> List[AsyncQualifier]:
         """Active qualifiers, newest first (the player-facing list)."""
         return await self.repository.list_active()
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_qualifier_for_player(self, qualifier_id: int) -> AsyncQualifier:
         """A qualifier's public shell (name/window) for the player pages — no
         admin gate. Pools/pars/other entrants' runs stay behind the lockdown in
         the methods that return them."""
         return await self._require_qualifier(qualifier_id)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_player_pools(
         self, user: Optional[User], qualifier_id: int
     ) -> List[AsyncQualifierPool]:
@@ -435,15 +457,18 @@ class AsyncQualifierService:
                 eligible.append(pool)
         return eligible
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_user_runs(self, user: User, qualifier_id: int) -> List[AsyncQualifierRun]:
         return await self.run_repository.list_for_user(qualifier_id, user.id)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_active_run(self, user: User, qualifier_id: int) -> Optional[AsyncQualifierRun]:
         run = await self.run_repository.get_active_for_user(qualifier_id, user.id)
         if run is not None:
             await run.fetch_related('permalink__pool')
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def start_run(self, user: User, qualifier_id: int, pool_id: int) -> AsyncQualifierRun:
         """Atomically draw a permalink and open a run (reveal == start).
 
@@ -484,6 +509,7 @@ class AsyncQualifierService:
         )
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def submit_run(
         self, user: User, run_id: int, *, elapsed_seconds: int, runner_vod_url: Optional[str] = None
     ) -> AsyncQualifierRun:
@@ -507,6 +533,7 @@ class AsyncQualifierService:
         }, user))
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def forfeit_run(self, user: User, run_id: int) -> AsyncQualifierRun:
         """Forfeit is irreversible, scores zero, and blocks replay unless a
         reattempt is spent."""
@@ -524,6 +551,7 @@ class AsyncQualifierService:
         )
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def reattempt_run(self, user: User, run_id: int, *, reason: str) -> AsyncQualifierRun:
         """Void a prior terminal run so its pool slot frees up for a fresh draw.
 
@@ -559,11 +587,13 @@ class AsyncQualifierService:
 
     # =============================================================== review
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_review_queue(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierRun]:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
         return await self.run_repository.list_pending_review(qualifier_id)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def claim_run(self, actor: Optional[User], run_id: int) -> AsyncQualifierRun:
         run, qualifier = await self._require_reviewable(actor, run_id)
         if run.review_claimed_by_id and run.review_claimed_by_id != actor.id:
@@ -573,6 +603,7 @@ class AsyncQualifierService:
         )
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def release_claim(self, actor: Optional[User], run_id: int) -> AsyncQualifierRun:
         run, qualifier = await self._require_reviewable(actor, run_id)
         run = await self.run_repository.update(
@@ -580,6 +611,7 @@ class AsyncQualifierService:
         )
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def review_run(
         self, actor: Optional[User], run_id: int, *, approved: bool, note: Optional[str] = None
     ) -> AsyncQualifierRun:
@@ -616,6 +648,7 @@ class AsyncQualifierService:
         await self._notify_run_reviewed(run, approved)
         return run
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_run_notes(self, actor: Optional[User], run_id: int):
         run = await access.require_run(self.run_repository, run_id)
         qualifier = await self._require_qualifier(run.qualifier_id)

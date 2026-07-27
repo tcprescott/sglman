@@ -20,8 +20,20 @@ class AuthService:
     ``UserRole`` query to the current tenant, so a STAFF grant in one tenant does
     not carry into another. The one exception is ``SUPER_ADMIN`` — a global
     platform role whose ``UserRole`` row carries ``tenant=NULL``; it is checked
-    with :meth:`is_super_admin` (never through the tenant-scoped path) and
-    bypasses the admin-view gate.
+    with :meth:`is_super_admin` (never through the tenant-scoped path).
+
+    A super-admin has **full authority inside every tenant**, implemented once in
+    :meth:`is_staff`: STAFF is the override term in essentially every
+    ``can_*``/``ensure_*`` helper below, so widening it there carries the platform
+    role through the whole policy surface instead of scattering
+    ``is_super_admin`` across dozens of call sites. Two deliberate limits:
+
+    * ``get_roles``/``has_role`` stay literal — they answer "which grants does
+      this user hold *here*", which is what role-management UI displays and what
+      per-role (not staff-equivalent) surfaces key off.
+    * Feature flags are **not** bypassed. Authority is over what a community has
+      turned on; a flag that is off hides its subsystem from the super-admin too,
+      so they never operate a feature the tenant has not enabled.
     """
 
     # Global roles that grant access to the Admin dashboard. Excludes PROCTOR
@@ -69,6 +81,14 @@ class AuthService:
 
     @staticmethod
     async def is_staff(user: Optional[User]) -> bool:
+        """Holds STAFF in the current tenant, or is the global super-admin.
+
+        The single place the platform role becomes in-tenant authority — see the
+        class docstring. Callers that need the literal grant (role management,
+        "which roles does this user hold") must use ``has_role``/``get_roles``.
+        """
+        if await AuthService.is_super_admin(user):
+            return True
         return await AuthService.has_role(user, Role.STAFF)
 
     @staticmethod
@@ -138,6 +158,34 @@ class AuthService:
         if await admin_q.exists():
             return True
         return await cc_q.exists()
+
+    # Roles that have something to do on the Volunteer hub; mirrors the
+    # ``roles=`` list on ``@protected_tab_page('/volunteer')``.
+    _VOLUNTEER_ROLES = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
+
+    @staticmethod
+    async def can_view_volunteer(user: Optional[User]) -> bool:
+        """Whether the Volunteer hub is reachable for ``user`` in this tenant.
+
+        The nav's single source of truth, so the header link and the page gate
+        cannot drift: previously every layout offered "Volunteer" to any signed-in
+        user, which dead-ended on a 404 where the tenant had the feature off and a
+        403 where the user held none of the roles.
+
+        Reads the feature flag (lazily imported — ``FeatureFlagService`` imports
+        this module), which is a gate at an entry surface, not a service
+        transaction.
+        """
+        if user is None:
+            return False
+        from application.services.feature_flag_service import FeatureFlagService
+        from models import FeatureFlag
+
+        if not await FeatureFlagService().is_enabled(FeatureFlag.VOLUNTEERS):
+            return False
+        if await AuthService.is_super_admin(user):
+            return True
+        return bool(await AuthService.get_roles(user) & AuthService._VOLUNTEER_ROLES)
 
     @staticmethod
     async def can_edit_tournament(user: Optional[User], tournament: Tournament) -> bool:

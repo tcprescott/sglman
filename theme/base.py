@@ -32,7 +32,7 @@ class BaseLayout:
         tabs: list = None,
         user: User = None,
         show_admin: bool = False,
-        show_volunteer: bool = False,
+        show_volunteer: bool | None = None,
         wordmark: str | None = None,
         **_kwargs
     ):
@@ -69,11 +69,15 @@ class BaseLayout:
         # rewrite the URL.
         self._base_path = base_path
 
-        self.top_menu: list[dict] = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
-        if show_volunteer:
-            self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
-        if show_admin:
-            self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
+        # Nav visibility. `show_volunteer=None` (the default) means "resolve it
+        # from the user's access" in render(), which is what every tenant page
+        # wants — the link must not be offered where the tenant has the feature
+        # off or the user holds none of the volunteer roles, or it dead-ends on a
+        # 404/403. An explicit bool is honoured as-is, which keeps the synchronous
+        # render_chrome() path (the error page) working without a DB round-trip.
+        self._show_admin = show_admin
+        self._show_volunteer = show_volunteer
+        self.top_menu: list[dict] = []
 
         if tabs:
             # Sections are addressed in the URL by slug; internally everything
@@ -92,6 +96,9 @@ class BaseLayout:
         if self._wordmark is None:
             from application.services import TenantService
             self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'
+        if self._show_volunteer is None:
+            from application.services import AuthService
+            self._show_volunteer = await AuthService.can_view_volunteer(self.user)
         await self._load_theme_colors()
         self.render_chrome()
         if self.tabs:
@@ -107,6 +114,15 @@ class BaseLayout:
         from application.services import TenantThemeService
         self._theme_colors = await TenantThemeService.get_current_theme()
 
+    def _build_top_menu(self) -> None:
+        """Assemble the header/drawer nav. Deferred out of ``__init__`` so
+        ``render`` can resolve Volunteer visibility (an async access check) first."""
+        self.top_menu = [{'label': 'Home', 'icon': 'home', 'url': '/'}]
+        if self._show_volunteer:
+            self.top_menu.append({'label': 'Volunteer', 'icon': 'volunteer_activism', 'url': '/volunteer'})
+        if self._show_admin:
+            self.top_menu.append({'label': 'Admin', 'icon': 'admin_panel_settings', 'url': '/admin'})
+
     def render_chrome(self) -> None:
         """Render the synchronous page frame (palette, header, drawer, footer).
 
@@ -115,6 +131,7 @@ class BaseLayout:
         themed chrome. Tab panels (the only async part) are rendered by
         :meth:`render`.
         """
+        self._build_top_menu()
         # Per-tenant brand palette (loaded in render(); shipped defaults on the
         # synchronous error path or the tenant-less platform surface).
         from application.services.tenant_theme_service import DEFAULT_THEME
