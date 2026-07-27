@@ -96,10 +96,17 @@ from .async_qualifier import (
     AsyncQualifierReviewNote,
     AsyncQualifierRun,
 )
+from .column_guards import FieldValueError, install_column_guards
+
+# Every model is imported by now, so the column-fit guards can be attached to
+# their fields. Must stay last: it walks this module's namespace for models.
+install_column_guards(globals())
 
 __all__ = [
     # constants
     'SYSTEM_USER_DISCORD_ID',
+    # column guards
+    'FieldValueError',
     # enums
     'ApiTokenOrigin',
     'AsyncQualifierLiveRaceStatus',

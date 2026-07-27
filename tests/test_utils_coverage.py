@@ -13,6 +13,7 @@ import pytest
 from application.utils import discord_embeds as de
 from application.utils import discord_messages as dm
 from application.utils import easter_eggs, environment, qrcode_util
+from application.utils.http_headers import header_safe
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +487,17 @@ class TestEasterEggs:
             assert first == second
         finally:
             random.setstate(state)
+
+    def test_every_fact_survives_header_encoding(self):
+        """X-Fun-Fact is set on every response; an unencodable fact breaks them all."""
+        for fact in self._all_facts():
+            header_safe(fact).encode('latin-1')
+
+    def test_header_safe_neutralizes_unencodable_and_newlines(self):
+        assert header_safe('rides 🎢 fast').encode('latin-1')
+        assert '\n' not in header_safe('two\nlines')
+        assert '\r' not in header_safe('two\r\nlines')
+        assert header_safe('an — em-dash') == 'an - em-dash'
 
 
 # ---------------------------------------------------------------------------
