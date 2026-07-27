@@ -229,18 +229,22 @@ Standard checklist for a new feature:
 
 ## Claude Code hooks
 
-`.claude/hooks/` contains three shell scripts wired up in `.claude/settings.json` that enforce documentation discipline:
+`.claude/hooks/` contains the shell hooks wired up in `.claude/settings.json` that enforce documentation discipline:
 
 | Hook | Event | What it does |
 |---|---|---|
 | `session-start.sh` | `SessionStart` | Audits source directories against their reference docs; reports undocumented modules and missing `__init__.py` exports |
+| `install-deps.sh` | `SessionStart` | Runs `poetry install` in remote/web sessions so the suite is runnable from the first turn |
 | `doc-reminder.sh` | `PostToolUse` Write/Edit | Fires immediately when a tracked Python source file changes; emits the specific reference doc that needs updating |
 | `doc-check.sh` | `Stop` | After every Claude turn, diffs `git HEAD` and outputs a documentation checklist for anything that changed |
 
-**After cloning**, the executable bit must be set on all three scripts. It is stored in the git index, so a normal checkout preserves it — but if you ever re-add the files manually, re-run:
+Each one sources `_repo.sh` for `$REPO` instead of deriving it from the working directory — hooks inherit the session's shell cwd, which moves whenever a Bash call `cd`s elsewhere. `_repo.sh` is sourced, not executed, so it needs no executable bit. The same rule covers the validator scripts in `.claude/scripts/`; see [`.claude/README.md`](../.claude/README.md) for the full contract and the test that enforces it.
+
+**After cloning**, the executable bit must be set on the executable hooks. It is stored in the git index, so a normal checkout preserves it — but if you ever re-add the files manually, re-run:
 
 ```bash
 git update-index --chmod=+x .claude/hooks/session-start.sh
+git update-index --chmod=+x .claude/hooks/install-deps.sh
 git update-index --chmod=+x .claude/hooks/doc-reminder.sh
 git update-index --chmod=+x .claude/hooks/doc-check.sh
 ```

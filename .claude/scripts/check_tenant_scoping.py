@@ -39,6 +39,9 @@ import json
 import os
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 
 READ_ROOTS = {"filter", "get", "get_or_none", "all", "first", "exists"}
 WRITE_ROOTS = {"create", "get_or_create", "update_or_create"}

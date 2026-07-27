@@ -15,6 +15,10 @@ import os
 import subprocess
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 PYTEST_TIMEOUT = 270
 
 SOURCE_PREFIXES = (

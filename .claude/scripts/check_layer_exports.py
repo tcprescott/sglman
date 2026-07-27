@@ -28,6 +28,10 @@ import json
 import os
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 
 def package_for(norm: str) -> str | None:
     """Return the package dir for an eligible service/repository source path."""

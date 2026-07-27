@@ -14,6 +14,10 @@ import ast
 import json
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 
 def action_arg(call: ast.Call) -> ast.AST | None:
     for kw in call.keywords:

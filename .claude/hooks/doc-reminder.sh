@@ -3,6 +3,8 @@
 # a tracked Python source file is written or edited.
 # JSON from stdin has: tool_name, tool_input.file_path, tool_response.
 
+source "$( dirname "${BASH_SOURCE[0]}" )/_repo.sh"
+
 # Parse file_path from stdin JSON
 if command -v jq &>/dev/null; then
   INPUT=$(cat)
@@ -87,7 +89,6 @@ esac
 
 # New top-level directory heuristic: __init__.py two path components below repo root
 if [[ $REMINDED -eq 0 ]]; then
-  REPO="$(git rev-parse --show-toplevel 2>/dev/null)"
   if [[ -n "$REPO" ]]; then
     REL="${FILE_PATH#$REPO/}"
     DEPTH=$(echo "$REL" | tr -cd '/' | wc -c)

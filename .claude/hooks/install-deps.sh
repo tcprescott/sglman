@@ -11,8 +11,7 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
-REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-cd "$REPO"
+source "$( dirname "${BASH_SOURCE[0]}" )/_repo.sh"
 
 # Idempotent: poetry install is a no-op when the lockfile is already satisfied,
 # and takes advantage of the cached container state on subsequent sessions.

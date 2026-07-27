@@ -37,6 +37,10 @@ import sys
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 
 def _norm(path: str) -> str:
     return "/" + path.replace("\\", "/").lstrip("/")

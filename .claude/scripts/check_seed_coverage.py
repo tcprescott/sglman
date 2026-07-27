@@ -33,6 +33,10 @@ import re
 import subprocess
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 CLASS_RE = re.compile(r"^\s*class\s+(\w+)\s*\(([^)]*)\)")
 ADDED_CLASS_RE = re.compile(r"^\+\s*class\s+(\w+)\s*\(([^)]*)\)")
 BARE_MODEL_RE = re.compile(r"(?<![\w.])Model\b")
