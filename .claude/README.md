@@ -7,7 +7,9 @@ instead of relying on the model to remember them.
 
 Everything is wired through [`settings.json`](./settings.json). Validation
 scripts live in [`scripts/`](./scripts/); the older doc-automation hooks live in
-[`hooks/`](./hooks/).
+[`hooks/`](./hooks/). In each directory the underscore-prefixed file
+(`scripts/_hook_paths.py`, `hooks/_repo.sh`) is shared plumbing rather than a
+check — both resolve the repo root so no hook depends on the session's cwd.
 
 ---
 
@@ -39,6 +41,39 @@ shown to Claude.
   replaced fragment, which often won't parse on its own, so these read the
   finished file from disk after the write. They can't *prevent* the write, but
   exit 2 surfaces the problem immediately so the next action is a fix.
+
+### Hooks must never depend on the working directory
+
+Claude Code spawns every hook with the **session's shell cwd** — whatever
+directory the last Bash tool call `cd`'d into, not the repo root. A hook that
+resolves anything relative to cwd therefore breaks as soon as the session moves
+into a subdirectory, and it breaks *loudly in the wrong direction*: a
+`PreToolUse` script that can't be found exits non-zero, which the harness reads
+as **blocked**, so a single stray `cd` stops every `Write`, `Edit`, and `Bash`
+call in the session. The `Stop`/`PostToolUse` variants fail the other way —
+`git rev-parse --show-toplevel` returns nothing, the hook `exit 0`s, and the
+check silently stops running while still looking green.
+
+Two rules, both mechanically enforced by
+[`tests/test_hook_cwd_independence.py`](../tests/test_hook_cwd_independence.py):
+
+1. **`settings.json` invokes hooks through `$CLAUDE_PROJECT_DIR`**, never a
+   relative path:
+   `python3 "${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_foo.py"`.
+   Claude Code sets that variable to the session's project root for every hook
+   it spawns; the `:-.` fallback keeps the old behaviour under any other runner.
+2. **Each script anchors its own cwd before touching a path.** Python scripts
+   call `anchor()` from [`scripts/_hook_paths.py`](./scripts/_hook_paths.py);
+   shell hooks `source "$( dirname "${BASH_SOURCE[0]}" )/_repo.sh"`, which sets
+   `$REPO` and `cd`s there. Both resolve the root from `$CLAUDE_PROJECT_DIR`,
+   falling back to the hook file's **own location** (`<root>/.claude/…`) — so
+   they work even when the variable is unset. `git rev-parse` and cwd are
+   last-resort guesses, never the primary source.
+
+Anchoring cwd rather than rewriting every path is deliberate: the scripts are
+full of repo-relative paths (`Path("tests")`, `glob("scripts/seed_*.py")`, bare
+`git diff`), and pinning the process cwd makes all of them correct at once,
+including in any hook added later.
 
 ---
 
@@ -379,6 +414,14 @@ in `run_full_tests.py` at Stop *and* in CI, so they also bind human contributors
   companion test forces stale entries out, so the backlog only shrinks.
 - **`tests/test_feature_flags.py`** — registry parity: every `FeatureFlag` member
   has a `FeatureFlagSpec` (why there is no separate hook for it).
+- **`tests/test_hook_cwd_independence.py`** — the guardrails' own guardrail, and
+  necessarily a test rather than a hook: a hook cannot check whether hooks still
+  run, since the failure mode *is* the hook not running. It asserts every
+  `settings.json` command routes through `$CLAUDE_PROJECT_DIR` and names a file
+  that exists, every `scripts/*.py` calls `anchor()`, no `hooks/*.sh` resolves
+  the root with `git rev-parse --show-toplevel`, and — end to end — that
+  `enforce_architecture.py` still returns 2 for a violation and 0 for clean code
+  when run from an unrelated cwd, with and without `$CLAUDE_PROJECT_DIR` set.
 - **`tests/test_fixture_performance.py`** — the load-bearing half of
   `check_fixture_cost.py` above. The hook only fires when Claude Code writes a
   file, so this module re-asserts the same invariants for every contributor:
@@ -414,7 +457,8 @@ feed the same hook pipeline.
 ### Pre-existing doc automation — `hooks/*.sh`
 Not guardrails (advisory, never block): `session-start.sh` audits source-vs-doc
 coverage at session start; `doc-reminder.sh` nudges to update docs after edits;
-`doc-check.sh` runs at Stop.
+`doc-check.sh` runs at Stop. All three take `$REPO` from `hooks/_repo.sh`; being
+advisory, a bad root would have degraded them to silence rather than an error.
 
 ---
 
@@ -496,9 +540,13 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   ```
 - **New blocked command:** add a `(compiled_regex, name, fix)` row to `RULES` in
   `enforce_safe_commands.py`.
-- **Register a new hook:** add a `{ "type": "command", "command": "...",
-  "timeout": 10 }` entry under the right matcher in `settings.json`. Multiple
-  hooks per matcher all run; any exit 2 wins.
+- **Register a new hook:** add a `{ "type": "command", "command": "python3
+  \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_foo.py\"", "timeout": 10 }`
+  entry under the right matcher in `settings.json`, and start the script with
+  `from _hook_paths import anchor` / `anchor()` (see [Hooks must never depend on
+  the working directory](#hooks-must-never-depend-on-the-working-directory) —
+  both halves are enforced by a test). Multiple hooks per matcher all run; any
+  exit 2 wins.
 
 ---
 
@@ -514,6 +562,10 @@ echo '{"tool_name":"Write","tool_input":{"file_path":"pages/x.py","content":"fro
 The PostToolUse AST scripts read the file from disk, so stage a real file first
 (`printf '…' > pages/_probe.py`) and point `file_path` at it.
 
+The scripts anchor their own cwd, so the invocation above works from any
+directory — but the `.claude/scripts/…` path in the example is itself relative,
+so either run it from the repo root or spell the script path out in full.
+
 ### Gotchas we hit (self-reference)
 
 - **A content hook will flag its own example literals.** `enforce_async_safety.py`
@@ -526,6 +578,13 @@ The PostToolUse AST scripts read the file from disk, so stage a real file first
 - **Committing is a Bash command too.** A commit message describing the blocked
   patterns trips the guard. Use `git commit -F <file>` (write the message with
   the Write tool) so the literals live in a file, not on the command line.
+- **A `cd` in a Bash call used to brick the session.** The hook commands were
+  relative (`python3 .claude/scripts/…`), and the Bash tool's cwd persists
+  between calls — so one `cd pages/` made every subsequent `Write`, `Edit`, and
+  `Bash` call fail its own PreToolUse guard with `can't open file`, exit 2,
+  *blocked*. There is no way to `cd` back out, because that too is a Bash call.
+  Fixed by the two anchoring rules above; recovering a session stuck this way
+  needs a tool that isn't behind the broken matcher.
 
 ---
 

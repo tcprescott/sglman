@@ -2,7 +2,7 @@
 # session-start.sh — SessionStart hook: audit source files against reference docs.
 # Stdout is injected as context at the top of each session.
 
-REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+source "$( dirname "${BASH_SOURCE[0]}" )/_repo.sh"
 
 # Public module stems in a package. Descends one level into public subpackages
 # (application/services/match/, discord/, …) but skips private ones (_bracket/),

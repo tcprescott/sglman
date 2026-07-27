@@ -25,6 +25,10 @@ import ast
 import json
 import sys
 
+from _hook_paths import anchor
+
+anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
 
 def check_registry(tree: ast.AST) -> list[str]:
     """Consistency of the EventType class in event_types.py."""

@@ -4,7 +4,7 @@
 
 cat > /dev/null  # drain stdin
 
-REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+source "$( dirname "${BASH_SOURCE[0]}" )/_repo.sh"
 
 # Staged + unstaged changes vs HEAD, plus untracked Python files
 CHANGED=$(git -C "$REPO" diff --name-only HEAD 2>/dev/null)
