@@ -11,6 +11,7 @@ from application.services.volunteer.volunteer_profile_service import VolunteerPr
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.utils.timezone import format_eastern_date, format_eastern_time
 from models import VolunteerAvailabilityStatus
+from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
 
 _STATUS_ABBR = {
@@ -45,6 +46,10 @@ async def admin_volunteer_roster_page() -> None:
         with ui.row().classes('header-row items-center'):
             ui.label('Volunteer Roster').classes('page-title')
             ui.space()
+            ui.button('Export data', icon='download',
+                      on_click=lambda: VolunteerExportDialog().open()) \
+                .props('flat color=primary') \
+                .tooltip('Download the roster, availability and schedule as CSVs')
             ui.button(icon='refresh', on_click=lambda: load_roster()) \
                 .props('flat color=primary').tooltip('Refresh')
         ui.separator().classes('separator-spacing')

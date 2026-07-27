@@ -42,7 +42,7 @@ The application is functional and in active use. All features listed below are m
 | Personal API tokens + REST API | Stable | recent | Bearer-token auth, full read/write routers under `api/` ([rest-api.md](reference/rest-api.md)) |
 | In-app feedback | Stable | recent | Logged-in users submit feedback; staff review on admin Feedback tab |
 | Player availability | Stable | recent | Self-service availability windows; feed match-time suggestions |
-| Volunteer scheduling | Stable | recent | Opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders ([data-model.md](reference/data-model.md), [services.md](reference/services.md)) |
+| Volunteer scheduling | Stable | recent | Opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders, plus a coordinator **data export** (ZIP of CSVs: roster + opt-in notes, availability, positions, shifts, assignments, and a slot-by-slot grid with the open slots, for drafting a schedule in a spreadsheet — `VolunteerExportService`, `theme/dialog/volunteer_export_dialog.py`) ([data-model.md](reference/data-model.md), [services.md](reference/services.md)) |
 | Equipment lending | Stable | recent | Assets, checkout/check-in, loan history, QR codes; `EQUIPMENT_MANAGER` role |
 | Challonge integration | Stable | recent | Service-account OAuth, bracket mirroring, scheduling, per-player identity linking |
 | Security headers | Stable | #38 | `middleware/security_headers.py` ([deployment.md](deployment.md)) |

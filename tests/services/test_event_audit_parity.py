@@ -110,6 +110,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # A coordinator's free-text note on a volunteer profile: tenant-internal
     # staffing detail, and potentially personal — not for arbitrary receivers.
     AuditActions.VOLUNTEER_NOTE_UPDATED,
+    # Bulk copy of volunteer availability and notes out of the app. Audited so
+    # the tenant can see who took a copy; deliberately not webhooked, since
+    # announcing a PII export to arbitrary receivers is the wrong direction.
+    AuditActions.VOLUNTEER_DATA_EXPORTED,
     # Equipment catalog CRUD (checkout/checkin are candidates above).
     AuditActions.EQUIPMENT_CREATED,
     AuditActions.EQUIPMENT_UPDATED,

@@ -2,6 +2,7 @@
 
 import csv
 import io
+import zipfile
 from datetime import datetime, timezone
 from typing import Iterable, Mapping, Sequence
 
@@ -25,6 +26,26 @@ def rows_to_csv_bytes(
     for row in rows:
         writer.writerow([_csv_safe_cell(row.get(field, '')) for field in fields])
     return buffer.getvalue().encode('utf-8-sig')
+
+
+def files_to_zip_bytes(files: Mapping[str, bytes]) -> bytes:
+    """Pack ``{filename: content}`` into a single ZIP archive.
+
+    Insertion order is preserved so the archive lists its members in the order
+    the caller cares about. Members carry a fixed timestamp: a ZIP entry stores
+    a local-time date with no offset, so stamping "now" would bake an ambiguous
+    time into the archive for no benefit.
+    """
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            info = zipfile.ZipInfo(name, date_time=_ZIP_EPOCH)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, content)
+    return buffer.getvalue()
+
+
+_ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 
 
 def timestamped_filename(prefix: str, ext: str = 'csv') -> str:

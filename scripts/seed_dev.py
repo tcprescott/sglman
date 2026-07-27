@@ -487,13 +487,23 @@ async def seed_for_tenant(
             broadcast_tech.stagger_minutes = 120
             await broadcast_tech.save()
 
-        opted_in = ["proctor_user", "sm_user", "player_one", "player_two", "player_three"]
+        # Notes are the free-text preferences the volunteer data export carries;
+        # a few non-empty ones keep that column meaningful in dev.
+        opted_in = {
+            "proctor_user": "Happy to proctor all weekend. Please no Saturday morning.",
+            "sm_user": "Can lift/carry gear; prefer to pair with someone on setup.",
+            "player_one": "Available around my matches — check the schedule first.",
+            "player_two": None,
+            "player_three": "First time volunteering, would like a shadow shift.",
+        }
         now_utc = datetime.now(timezone.utc)
-        for uname in opted_in:
+        for uname, note in opted_in.items():
             profile, _ = await VolunteerProfile.get_or_create(user=users[uname], tenant=tenant)
             if profile.opted_in_at is None:
                 profile.opted_in_at = now_utc
-                await profile.save()
+            if note and not profile.note:
+                profile.note = note
+            await profile.save()
 
         qual_specs = [
             ("proctor_user", "Race Proctor"),

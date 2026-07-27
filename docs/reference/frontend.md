@@ -386,6 +386,7 @@ Two tab functions live in this module.
 
 - A `ui.table` (grid-card mode on small screens) of the assignable volunteer pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In (check/cancel icon from `opted_in_user_ids`), Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (Eastern, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
 - The manage button emits `manage_volunteer`, opening `VolunteerProfileDialog` (active positions from `VolunteerPositionService.list_active`) to view availability and edit qualifications; the table reloads on submit and via a refresh button.
+- An **Export data** button in the header opens `VolunteerExportDialog` (see below); the same button sits on the Vol. Schedule tab, since the coordinator may start from either.
 
 ### Admin volunteers (`pages/admin_tabs/admin_volunteers.py`)
 
@@ -394,6 +395,10 @@ Two tab functions live in this module.
 - A controls card: an event-day select, **Auto-fill from availability** (`VolunteerAutoscheduleService.generate_draft`), **Clear draft** (`clear_draft`), **Manage positions** (opens an inline positions dialog wiring `VolunteerPositionDialog`), and a guarded **Reset all volunteer data** dialog (type-to-confirm → `VolunteerScheduleService.reset_all_shifts`).
 - A `@ui.refreshable` `grid()` renders one card per active position (`VolunteerPositionService.list_active`), each with **Generate standard shifts** and **Add shift** (→ `VolunteerShiftDialog`) and a shift card per shift (filled/needed badge, edit/delete, and an **Assign** picker dialog).
 - The assign picker pulls the opted-in pool (`VolunteerProfileService.assignable_volunteers`) and per-volunteer availability badges (`VolunteerAvailabilityService.availability_map` / `covers`); assigning goes through `VolunteerScheduleService.assign` (surfacing returned warnings); assignment chips remove via `unassign`.
+
+### Volunteer data export (`theme/dialog/volunteer_export_dialog.py`)
+
+`VolunteerExportDialog` — the **Export data** button on both volunteer admin tabs. A start/end date pair (defaulting to `SystemConfigService.get_event_window()`, end date inclusive) drives `VolunteerExportService.build`, and `bundle_to_zip_bytes` renders the returned bundle as `README.txt` plus one CSV per sheet (`volunteers`, `availability`, `positions`, `shifts`, `assignments`, `schedule`), downloaded as one ZIP via `ui.download`. The point is to hand the coordinator every input needed to draft a schedule in a spreadsheet — including each volunteer's opt-in note and the *open* slots, which the normalized assignment table cannot show. `ValueError`/`PermissionError` from the service surface through `notify_error`.
 
 ### Admin Challonge (`pages/admin_tabs/admin_challonge.py`)
 

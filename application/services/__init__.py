@@ -38,6 +38,7 @@ from .discord import (
 from .volunteer import (
     VolunteerAutoscheduleService,
     VolunteerAvailabilityService,
+    VolunteerExportService,
     VolunteerPositionService,
     VolunteerProfileService,
     VolunteerQualificationService,
@@ -171,6 +172,7 @@ __all__ = [
     'UserService',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
+    'VolunteerExportService',
     'VolunteerQualificationService',
     'VolunteerPositionService',
     'VolunteerProfileService',
