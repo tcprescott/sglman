@@ -123,12 +123,33 @@ if await FeatureFlagService().is_enabled(FeatureFlag.ASYNC_QUALIFIERS): ...
 live = await FeatureFlagService().enabled_flags()   # set[FeatureFlag], one query
 ```
 
-Gating is an **authorization-style gate at the entry surfaces**, never a DB read
-inside a service transaction: `@protected_page(feature=FeatureFlag.X)` for pages,
-`and FeatureFlag.X in live` on admin/home tabs, `require_feature(...)` on REST
-routers, and an `is_enabled` skip in background workers. **When adding a feature,
-always ask whether it warrants a flag** (step 0 above); do not retrofit existing
-features. Detail: [docs/features/feature-flags.md](docs/features/feature-flags.md).
+Gating a subsystem is **two obligations, and UI-only gating is not gating**:
+
+1. **Hide it at the entry surfaces** — `@protected_page(feature=FeatureFlag.X)`
+   for pages, `and FeatureFlag.X in live` on admin/home tabs,
+   `require_feature(...)` on REST routers, an `is_enabled` skip in workers, and
+   `AuthService.can_view_volunteer`-style resolution for any nav link *to* a
+   gated page (never offer a link the gate will reject).
+2. **Enforce it in the owning service** — `@requires_feature(FeatureFlag.X)`
+   (from `application.feature_flags`) on the service's public entry methods:
+   every mutation, plus the top-level reads that return the feature's data. It
+   raises `FeatureDisabledError` (a `NotFoundError`, so REST 404s and UI
+   `except ValueError` notifies). Without this the UI hides the feature while
+   every other caller — a new page, a Discord handler, a worker, an un-mounted
+   router — still reaches it.
+
+Still an **authorization-style gate at the boundary**, never a DB read inside a
+transaction; the guard reads a per-request cache, so repeated checks cost one
+pass. Two deliberate carve-outs: a **soft integration point** called from an
+unrelated flow (`push_result_if_linked`, the triforce-text embed) returns a
+neutral value instead of raising, and a **worker** skips the tenant rather than
+raising. Each flag declares its owning `service_modules` in its
+`FeatureFlagSpec`; `check_feature_flag_gating.py` enforces both halves. A
+super-admin does **not** bypass a flag.
+
+**When adding a feature, always ask whether it warrants a flag** (step 0 above);
+do not retrofit existing features.
+Detail: [docs/features/feature-flags.md](docs/features/feature-flags.md).
 
 ## Authentication
 

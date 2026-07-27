@@ -30,7 +30,10 @@ from application.utils.clients.challonge_client import (
 )
 from application.utils.environment import get_base_url
 from application.utils.mocks.mock_challonge import is_mock_challonge
+from application.feature_flags import requires_feature
+from application.services.feature_flag_service import FeatureFlagService
 from models import (
+    FeatureFlag,
     ChallongeConnection,
     ChallongeMatch,
     ChallongeMatchState,
@@ -173,6 +176,7 @@ class ChallongeService:
     # ------------------------------------------------------------------
     # Connection lifecycle (called by OAuth middleware)
     # ------------------------------------------------------------------
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def save_service_connection(self, token_payload: Dict[str, Any], actor: User) -> ChallongeConnection:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -198,6 +202,7 @@ class ChallongeService:
         )
         return connection
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def disconnect(self, actor: User) -> None:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -206,6 +211,7 @@ class ChallongeService:
         await self.repository.clear_connection()
         await self.audit_service.write_log(actor, AuditActions.CHALLONGE_DISCONNECTED, {})
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def get_connection_status(self) -> Dict[str, Any]:
         connection = await self.repository.get_connection()
         usage = await self.repository.get_monthly_usage()
@@ -227,6 +233,7 @@ class ChallongeService:
     # ------------------------------------------------------------------
     # Player identity linking (called by player OAuth callback)
     # ------------------------------------------------------------------
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def record_player_link(
         self, user: User, challonge_user_id: str, challonge_username: Optional[str], actor: User,
     ) -> None:
@@ -239,6 +246,7 @@ class ChallongeService:
             {'user_id': user.id, 'challonge_user_id': challonge_user_id, 'challonge_username': challonge_username},
         )
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def participant_tournament_ids(self, user: User) -> Set[int]:
         """Tournament IDs whose mirrored Challonge bracket includes this user.
 
@@ -247,6 +255,7 @@ class ChallongeService:
         """
         return await self.repository.participant_tournament_ids_for_user(user)
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def link_player_manually(
         self,
         user: User,
@@ -280,6 +289,7 @@ class ChallongeService:
             },
         )
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def set_player_username(
         self, user: User, challonge_username: Optional[str], actor: User,
     ) -> None:
@@ -301,6 +311,7 @@ class ChallongeService:
             {'user_id': user.id, 'old_username': old_username, 'new_username': new_username},
         )
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def unlink_player(self, user: User, actor: User) -> None:
         user.challonge_user_id = None
         user.challonge_username = None
@@ -310,6 +321,7 @@ class ChallongeService:
             actor, AuditActions.CHALLONGE_PLAYER_UNLINKED, {'user_id': user.id},
         )
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def exchange_player_code(self, code: str) -> Dict[str, Any]:
         """Exchange a player's authorization code and return their identity.
 
@@ -321,6 +333,7 @@ class ChallongeService:
             raise ChallongeAPIError(f"Challonge token response missing access_token: {payload}")
         return await self._oauth_client().get_me(access)
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def exchange_service_code(self, code: str) -> Dict[str, Any]:
         """Exchange the service account's authorization code for a token payload."""
         return await self._oauth_client().exchange_code(code, _redirect_uri())
@@ -350,6 +363,7 @@ class ChallongeService:
                 return f"{subdomain}-{slug}"
         return slug or value
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def link_tournament(self, tournament_id: int, id_or_url: str, actor: User) -> Tournament:
         tournament = require_found(
             await self.tournament_repository.get_by_id(tournament_id), f"Tournament {tournament_id}"
@@ -394,6 +408,7 @@ class ChallongeService:
         await self._mirror_bracket(tournament, full['participants'], full['matches'], actor)
         return tournament
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def sync_bracket(self, tournament_id: int, actor: User, force: bool = False) -> Dict[str, int]:
         tournament = require_found(
             await self.tournament_repository.get_by_id(tournament_id), f"Tournament {tournament_id}"
@@ -494,9 +509,11 @@ class ChallongeService:
     # ------------------------------------------------------------------
     # Scheduling a bracket matchup (reuses the existing match-request flow)
     # ------------------------------------------------------------------
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def list_unscheduled_matches_for_user(self, user: User) -> List[ChallongeMatch]:
         return await self.repository.unscheduled_open_matches_for_user(user)
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def schedule_challonge_match(
         self,
         challonge_match_pk: int,
@@ -542,8 +559,17 @@ class ChallongeService:
         Returns True if a push was attempted. Used by the confirm flow so
         non-Challonge matches are silently skipped. Requires an actor for the
         audit entry; with none, the push is skipped.
+
+        Soft-gated: the match confirm/finish flow calls this for *every* match, so
+        a community without the Challonge feature must simply confirm its matches
+        — raising here would break match completion for everyone who does not use
+        Challonge. The flag is still enforced (no result leaves the tenant where
+        the feature is off) by answering "nothing pushed"; the administrative
+        entry points above raise instead.
         """
         if actor is None:
+            return False
+        if not await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE):
             return False
         cmatch = await self.repository.get_challonge_match_for_match(match)
         if cmatch is None:
@@ -551,6 +577,7 @@ class ChallongeService:
         await self.push_match_result(match, actor)
         return True
 
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def push_match_result(self, match: Match, actor: User) -> None:
         cmatch = await self.repository.get_challonge_match_for_match(match)
         if cmatch is None:

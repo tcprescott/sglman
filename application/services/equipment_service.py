@@ -12,7 +12,8 @@ from application.errors import require_found
 from application.repositories.equipment_repository import EquipmentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from models import Equipment, EquipmentLoan, EquipmentStatus, User
+from application.feature_flags import requires_feature
+from models import FeatureFlag, Equipment, EquipmentLoan, EquipmentStatus, User
 
 MAX_BULK_COUNT = 200
 
@@ -36,6 +37,7 @@ class EquipmentService:
 
     # --- Asset management (Equipment Manager / Staff) ---
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def create_asset(
         self,
         actor: User,
@@ -69,6 +71,7 @@ class EquipmentService:
         )
         return equipment
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def bulk_create_assets(
         self,
         actor: User,
@@ -112,6 +115,7 @@ class EquipmentService:
         )
         return assets
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def update_asset(
         self,
         actor: User,
@@ -151,6 +155,7 @@ class EquipmentService:
         )
         return equipment
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def delete_asset(self, actor: User, equipment_id: int) -> None:
         await AuthService.ensure(
             await AuthService.can_manage_equipment(actor),
@@ -170,6 +175,7 @@ class EquipmentService:
 
     # --- Checkout / check-in ---
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def checkout(
         self,
         actor: User,
@@ -206,6 +212,7 @@ class EquipmentService:
         )
         return loan
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def checkin(self, actor: User, equipment_id: int) -> Equipment:
         await AuthService.ensure(
             await AuthService.can_checkin_equipment(actor),
@@ -229,9 +236,11 @@ class EquipmentService:
 
     # --- Reads ---
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def list_assets(self) -> List[Equipment]:
         return await self.repository.list_all()
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def get_assets_by_ids(self, ids: List[int]) -> List[Equipment]:
         """Fetch the given assets (tenant-scoped) for bulk QR-label printing.
 
@@ -241,17 +250,21 @@ class EquipmentService:
         """
         return await self.repository.list_by_ids(ids)
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def get_asset(self, equipment_id: int) -> Optional[Equipment]:
         return await self.repository.get_by_id(equipment_id)
 
     async def current_loan(self, equipment: Equipment) -> Optional[EquipmentLoan]:
         return await self.repository.get_open_loan(equipment)
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def open_loans_by_equipment_id(self) -> dict[int, EquipmentLoan]:
         return await self.repository.open_loans_by_equipment_id()
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def loan_history(self, equipment: Equipment) -> List[EquipmentLoan]:
         return await self.repository.list_loans_for_equipment(equipment)
 
+    @requires_feature(FeatureFlag.EQUIPMENT)
     async def my_checkouts(self, user: User) -> List[EquipmentLoan]:
         return await self.repository.list_open_loans_for_user(user)

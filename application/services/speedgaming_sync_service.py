@@ -19,7 +19,8 @@ from application.repositories import (
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.speedgaming_etl_service import SpeedGamingETLService, SyncResult
-from models import SpeedGamingEpisode, SpeedGamingEventLink, User
+from application.feature_flags import requires_feature
+from models import FeatureFlag, SpeedGamingEpisode, SpeedGamingEventLink, User
 
 
 class SpeedGamingSyncService:
@@ -30,16 +31,19 @@ class SpeedGamingSyncService:
         self.episode_repository = SpeedGamingEpisodeRepository()
         self.audit_service = AuditService()
 
+    @requires_feature(FeatureFlag.SPEEDGAMING_ETL)
     async def list_links(self, actor: Optional[User]) -> List[SpeedGamingEventLink]:
         await AuthService.ensure_can_manage_sync(actor)
         return await self.repository.list_all()
 
+    @requires_feature(FeatureFlag.SPEEDGAMING_ETL)
     async def list_episodes(
         self, actor: Optional[User], event_link_id: int
     ) -> List[SpeedGamingEpisode]:
         await AuthService.ensure_can_manage_sync(actor)
         return await self.episode_repository.list_for_link(event_link_id)
 
+    @requires_feature(FeatureFlag.SPEEDGAMING_ETL)
     async def create_link(
         self,
         actor: Optional[User],
@@ -72,6 +76,7 @@ class SpeedGamingSyncService:
         )
         return link
 
+    @requires_feature(FeatureFlag.SPEEDGAMING_ETL)
     async def update_link(
         self,
         actor: Optional[User],
@@ -111,6 +116,7 @@ class SpeedGamingSyncService:
         )
         return link
 
+    @requires_feature(FeatureFlag.SPEEDGAMING_ETL)
     async def delete_link(self, actor: Optional[User], link_id: int) -> None:
         await AuthService.ensure_can_manage_sync(actor)
         link = await self._require(link_id)
@@ -120,6 +126,7 @@ class SpeedGamingSyncService:
         )
         await self.repository.delete(link)
 
+    @requires_feature(FeatureFlag.SPEEDGAMING_ETL)
     async def sync_now(self, actor: Optional[User], link_id: int) -> SyncResult:
         """Run the ETL for one link on demand.
 

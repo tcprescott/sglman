@@ -17,7 +17,9 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
 from application.tenant_context import require_tenant_id
-from models import Tournament, TriforceText, User
+from application.feature_flags import requires_feature
+from application.services.feature_flag_service import FeatureFlagService
+from models import FeatureFlag, Tournament, TriforceText, User
 
 
 # Same character set as sahasrahbot: A-Z, a-z, 0-9, space, common punctuation,
@@ -50,6 +52,7 @@ class TriforceTextService:
             raise ValueError("At least one line must contain text.")
         return cleaned
 
+    @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
     async def submit(
         self,
         tournament_id: int,
@@ -90,6 +93,7 @@ class TriforceTextService:
         )
         return created
 
+    @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
     async def list_supporting_tournaments(self) -> List[Tournament]:
         """Active tournaments whose generator can embed triforce texts."""
         return await Tournament.filter(
@@ -98,6 +102,7 @@ class TriforceTextService:
             tenant_id=require_tenant_id(),
         ).order_by('name')
 
+    @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
     async def list_user_submissions(
         self, tournament_id: int, user: User
     ) -> List[TriforceText]:
@@ -106,6 +111,7 @@ class TriforceTextService:
             return []
         return await self.repository.list_by_tournament_and_user(tournament, user)
 
+    @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
     async def list_for_moderation(
         self,
         tournament_id: int,
@@ -121,6 +127,7 @@ class TriforceTextService:
             return []
         return await self.repository.list_by_tournament(tournament, status=status)
 
+    @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
     async def moderate(
         self,
         text_id: int,
@@ -147,6 +154,7 @@ class TriforceTextService:
         )
         return updated
 
+    @requires_feature(FeatureFlag.TRIFORCE_TEXTS)
     async def delete(self, text_id: int, actor: User) -> None:
         triforce_text = await self.repository.get_by_id(text_id)
         if triforce_text is None:
@@ -173,8 +181,16 @@ class TriforceTextService:
         they have approved. Texts whose submitter has been deleted (user FK
         nulled) form their own bucket so approved content remains usable.
         Returns None if no approved texts exist.
+
+        Soft-gated: this runs inside every ALTTPR roll, so a community without the
+        Triforce Texts feature must get a seed with no custom text — not a failed
+        roll. The flag is still enforced here (nothing embeds a text where the
+        feature is off), it just answers "no text" instead of raising the way the
+        submission/moderation entry points do.
         """
         if tournament is None:
+            return None
+        if not await FeatureFlagService().is_enabled(FeatureFlag.TRIFORCE_TEXTS):
             return None
         buckets = await self.repository.list_approved_user_buckets(tournament)
         if not buckets:
@@ -186,8 +202,13 @@ class TriforceTextService:
         return random.choice(texts).text
 
     async def get_random_text(self, tournament: Tournament) -> Optional[str]:
-        """Pick a uniformly random approved text. Returns None when none exist."""
+        """Pick a uniformly random approved text. Returns None when none exist.
+
+        Soft-gated for the same reason as :meth:`get_balanced_text`.
+        """
         if tournament is None:
+            return None
+        if not await FeatureFlagService().is_enabled(FeatureFlag.TRIFORCE_TEXTS):
             return None
         texts = await self.repository.list_approved(tournament)
         if not texts:

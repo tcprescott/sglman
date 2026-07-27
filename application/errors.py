@@ -20,6 +20,19 @@ class NotFoundError(ValueError):
     """
 
 
+class FeatureDisabledError(NotFoundError):
+    """Raised when a service is asked to act on a feature the tenant lacks.
+
+    Subclasses :class:`NotFoundError` (and so ``ValueError``) deliberately: a
+    feature a community has not enabled is *hidden*, not forbidden, which is the
+    posture every other gate already takes — ``@protected_page(feature=…)`` and
+    ``require_feature`` both 404 rather than 403, so role has no bearing and an
+    unreleased feature never leaks its existence. Inheriting from
+    ``NotFoundError`` means the REST layer maps it to 404 with no new plumbing and
+    UI ``except ValueError`` handlers keep showing it as a notification.
+    """
+
+
 def require_found(obj: Optional[T], label: str) -> T:
     """Return ``obj`` if present, otherwise raise :class:`NotFoundError`.
 

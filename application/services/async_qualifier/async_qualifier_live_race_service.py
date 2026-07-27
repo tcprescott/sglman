@@ -44,7 +44,9 @@ from application.services.racetime_bot_service import RacetimeBotService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
 from application.utils.racetime_entrants import unmatched_handle
+from application.feature_flags import requires_feature
 from models import (
+    FeatureFlag,
     AsyncQualifier,
     AsyncQualifierLiveRace,
     AsyncQualifierLiveRaceStatus,
@@ -84,6 +86,7 @@ class AsyncQualifierLiveRaceService:
 
     # ============================================================ management
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_live_races(
         self, actor: Optional[User], qualifier_id: int
     ) -> List[AsyncQualifierLiveRace]:
@@ -91,14 +94,17 @@ class AsyncQualifierLiveRaceService:
         await access.ensure_qualifier_admin(actor, qualifier)
         return await self.repository.list_for_qualifier(qualifier_id)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def get_live_race(self, actor: Optional[User], live_race_id: int) -> AsyncQualifierLiveRace:
         live_race, qualifier = await self._require_live_race_admin(actor, live_race_id)
         return live_race
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def list_runs(self, actor: Optional[User], live_race_id: int) -> List[AsyncQualifierRun]:
         await self._require_live_race_admin(actor, live_race_id)
         return await self.run_repository.list_for_live_race(live_race_id)
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def create_live_race(
         self,
         actor: Optional[User],
@@ -131,6 +137,7 @@ class AsyncQualifierLiveRaceService:
         )
         return live_race
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def open_room(self, actor: Optional[User], live_race_id: int) -> AsyncQualifierLiveRace:
         """Open a racetime room for the live race, reusing the shared subsystem.
 
@@ -165,6 +172,7 @@ class AsyncQualifierLiveRaceService:
         )
         return live_race
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def cancel_live_race(self, actor: Optional[User], live_race_id: int) -> None:
         live_race, qualifier = await self._require_live_race_admin(actor, live_race_id)
         await self.audit_service.write_log(
@@ -183,6 +191,7 @@ class AsyncQualifierLiveRaceService:
             live_race, status=AsyncQualifierLiveRaceStatus.IN_PROGRESS
         )
 
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def record_finish(
         self,
         live_race: AsyncQualifierLiveRace,

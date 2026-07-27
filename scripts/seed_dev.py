@@ -46,6 +46,7 @@ from models import (
     RacetimeBot,
 )
 from application.tenant_context import tenant_scope
+from application.services.feature_flag_service import FeatureFlagService
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
@@ -718,7 +719,15 @@ async def seed_for_tenant(
         )
 
         # --- Native brackets (scripts/seed_brackets.py) ----------------------
-        await seed_brackets_for_tenant(tenant, tournament, users)
+        # Seeded through BracketService, which enforces FeatureFlag.BRACKETS, so a
+        # tenant whose tier lacks the feature gets no bracket rows — which is the
+        # coherent fixture state anyway (bracket data in a community that cannot
+        # see brackets was only ever confusing). Tenant A carries the flag, so
+        # every bracket model is still covered.
+        if await FeatureFlagService().is_enabled(FeatureFlag.BRACKETS):
+            await seed_brackets_for_tenant(tenant, tournament, users)
+        else:
+            print(f"    [{tenant.slug}] brackets skipped (feature not live)")
 
 
         # --- Webhooks + telemetry (scripts/seed_observability.py) -------------
@@ -778,8 +787,11 @@ async def seed_all() -> None:
                 tenant.config = config
                 await tenant.save()
         print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
-        await seed_for_tenant(tenant, users, bots)
+        # Tier first: the per-tenant fixtures below consult the live flags (a
+        # service that enforces a flag refuses to seed data for a tenant that
+        # lacks the feature), so availability has to be settled before seeding.
         await assign_feature_group(tenant, groups)
+        await seed_for_tenant(tenant, users, bots)
 
 
 async def seed() -> None:

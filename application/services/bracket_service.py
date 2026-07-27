@@ -33,7 +33,9 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.bracket_config import validate_bracket_config
 from application.tenant_context import require_tenant_id
+from application.feature_flags import requires_feature
 from models import (
+    FeatureFlag,
     Bracket,
     BracketEntrant,
     BracketEntrantStatus,
@@ -95,6 +97,7 @@ class BracketService(
             )
 
     # -- bracket authoring ------------------------------------------------
+    @requires_feature(FeatureFlag.BRACKETS)
     async def create_bracket(
         self,
         actor: Optional[User],
@@ -148,6 +151,7 @@ class BracketService(
         )
         return bracket
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def update_bracket(
         self,
         actor: Optional[User],
@@ -192,6 +196,7 @@ class BracketService(
             )
         return bracket
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def set_round_metadata(
         self,
         actor: Optional[User],
@@ -230,6 +235,7 @@ class BracketService(
         )
         return bracket
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def delete_bracket(self, actor: Optional[User], bracket_id: int) -> None:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -249,12 +255,15 @@ class BracketService(
         )
 
     # -- reads ------------------------------------------------------------
+    @requires_feature(FeatureFlag.BRACKETS)
     async def get_bracket(self, bracket_id: int) -> Optional[Bracket]:
         return await self.repository.get_bracket(bracket_id)
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def list_brackets(self, tournament_id: int) -> List[Bracket]:
         return await self.repository.list_for_tournament(tournament_id)
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def list_all_brackets(self) -> List[Bracket]:
         """Every stage in the tenant, tournament loaded, active tournaments first.
 
@@ -263,20 +272,25 @@ class BracketService(
         """
         return await self.repository.list_all_with_tournament()
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def list_matches(self, bracket_id: int) -> List[BracketMatch]:
         return await self.repository.list_matches(bracket_id)
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def get_match_with_games(self, match_id: int) -> Optional[BracketMatch]:
         """A bracket match with its series games loaded (for render/serialize)."""
         return await self.repository.get_match_with_games(match_id)
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def list_entries(self, bracket_id: int) -> List[BracketEntry]:
         return await self.repository.list_entries(bracket_id)
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def list_entrants(self, tournament_id: int) -> List[BracketEntrant]:
         return await self.repository.list_entrants(tournament_id)
 
     # -- roster (tournament-level entrants) -------------------------------
+    @requires_feature(FeatureFlag.BRACKETS)
     async def add_entrant(
         self,
         actor: Optional[User],
@@ -315,6 +329,7 @@ class BracketService(
         )
         return entrant
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def drop_entrant(self, actor: Optional[User], entrant_id: int) -> BracketEntrant:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -332,6 +347,7 @@ class BracketService(
         return entrant
 
     # -- enrollment (per-stage entries) -----------------------------------
+    @requires_feature(FeatureFlag.BRACKETS)
     async def enroll(
         self,
         actor: Optional[User],
@@ -375,6 +391,7 @@ class BracketService(
         )
         return entry
 
+    @requires_feature(FeatureFlag.BRACKETS)
     async def set_seeds(
         self,
         actor: Optional[User],
