@@ -27,7 +27,9 @@ from starlette.responses import RedirectResponse
 
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.challonge_service import ChallongeService
+from application.services.feature_flag_service import FeatureFlagService
 from application.utils.mocks.mock_challonge import is_mock_challonge
+from models import FeatureFlag
 from pages._oauth_link import (
     LinkHandoffProvider,
     handle_link_handoff_callback,
@@ -45,6 +47,19 @@ _PROVIDER_KEY = 'challonge'
 
 _ADMIN_RETURN = '/admin/challonge'
 _PROFILE_RETURN = '/home/profile'
+
+
+async def _challonge_live() -> bool:
+    """Whether this community has the Challonge feature.
+
+    These are bare ``@ui.page`` routes (they serve cross-host OAuth legs, so they
+    cannot use ``@protected_page``'s ``feature=`` gate), which leaves them
+    reachable by URL after the profile/admin entry points are hidden. Without
+    this the mock-mode branches would raise ``FeatureDisabledError`` out of a page
+    handler, and the real flow would send the player to Challonge's consent
+    screen only to fail on the way back.
+    """
+    return await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE)
 
 
 async def _player_handoff_exchange(code: str) -> dict:
@@ -88,6 +103,8 @@ def create() -> None:
         if user is None:
             return RedirectResponse(f'{root_path}/login')
         if not await AuthService.is_staff(user):
+            return RedirectResponse(f'{root_path}/admin')
+        if not await _challonge_live():
             return RedirectResponse(f'{root_path}/admin')
         if is_mock_challonge():
             service = ChallongeService()
@@ -134,6 +151,8 @@ def create() -> None:
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
             return RedirectResponse(f'{root_path}/login')
+        if not await _challonge_live():
+            return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
         if is_mock_challonge():
             service = ChallongeService()
             me = await service.exchange_player_code('mock')

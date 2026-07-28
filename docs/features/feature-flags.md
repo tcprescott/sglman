@@ -48,6 +48,7 @@ than 3N queries. Concretely:
 | Surface | How |
 |---|---|
 | Whole pages | `@protected_page('/path', feature=FeatureFlag.X)` → 404 when off (hidden, role-independent). Used by `/qualifiers`, `/equipment`, `/volunteer`. |
+| Bare `@ui.page` routes | An OAuth leg that cannot use `@protected_page` (it serves a cross-host callback) checks the flag in the handler and redirects back — `pages/challonge_oauth.py`'s `_challonge_live`. Hiding the entry button is not enough; the URL stays reachable. |
 | Nav links to a gated page | The nav must not offer a link the gate will reject, or it dead-ends on a 404/403. The Volunteer entry resolves through `AuthService.can_view_volunteer` (flag **and** role), which `BaseLayout` calls when `show_volunteer` is left at its `None` default — one helper shared with the page's own gate so the two cannot drift. |
 | Admin tabs | `pages/admin.py` loads `FeatureFlagService().enabled_flags()` once and `and`-s the flag into each subsystem tab's condition. |
 | Home tabs | `pages/home.py` gates the Brackets, Triforce Texts and Equipment tabs (My Availability stays ungated — it feeds crew signup too). Brackets is resolved before the signed-in branch, since it is anonymous-readable. |
