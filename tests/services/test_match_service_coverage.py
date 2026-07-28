@@ -69,8 +69,7 @@ async def make_tournament(**overrides):
 @pytest.fixture
 async def service():
     # Constructed inside the running loop: MatchService -> MatchScheduleService ->
-    # DiscordService lazily builds a discord.py Bot whose __init__ calls
-    # asyncio.get_event_loop(), which needs a live loop on Python 3.13.
+    # DiscordService lazily builds the singleton commands.Bot.
     return MatchService()
 
 

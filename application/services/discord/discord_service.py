@@ -17,6 +17,16 @@ from application.utils.mocks import mock_discord_data
 logger = logging.getLogger(__name__)
 
 
+def _description_or_missing(description: Optional[str]) -> str:
+    """Truncate a scheduled-event description, or ``MISSING`` when it is empty.
+
+    discord.py omits ``description`` from the payload only when the argument is
+    ``MISSING``; passing ``None`` puts a literal JSON ``null`` on the wire, which
+    *clears* an existing description instead of leaving it untouched.
+    """
+    return (description or '')[:1000] or discord.utils.MISSING
+
+
 def _mirror_dm_to_web_push(user_id: int, message: str) -> None:
     """Fan every outgoing DM out to the recipient's web-push devices.
 
@@ -118,7 +128,7 @@ def get_discord_bot() -> commands.Bot:
     Returns:
         The Discord bot instance
     """
-    global _bot_instance # type: ignore
+    global _bot_instance
     if _bot_instance is None:
         # Intents required for DM, guild/role visibility
         intents = discord.Intents.default()
@@ -322,7 +332,7 @@ class DiscordService:
             roles_list: List[discord.Role]
             try:
                 # Prefer explicit fetch to ensure complete/updated role list
-                roles_list = await guild.fetch_roles()  # type: ignore[attr-defined]
+                roles_list = await guild.fetch_roles()
             except Exception:
                 # Fallback to cached roles if fetch is unavailable or fails
                 roles_list = list(getattr(guild, "roles", []))
@@ -362,7 +372,7 @@ class DiscordService:
             if role is None:
                 # Ensure roles are available; try fetching full list
                 try:
-                    roles_list = await guild.fetch_roles()  # type: ignore[attr-defined]
+                    roles_list = await guild.fetch_roles()
                     role = next((r for r in roles_list if r.id == role_id), None)
                 except Exception:
                     role = None
@@ -575,7 +585,7 @@ class DiscordService:
                 name=name[:100],
                 start_time=start_time,
                 end_time=end_time,
-                description=(description or '')[:1000] or None,
+                description=_description_or_missing(description),
                 entity_type=discord.EntityType.external,
                 privacy_level=discord.PrivacyLevel.guild_only,
                 location=location[:100],
@@ -607,7 +617,7 @@ class DiscordService:
                 name=name[:100],
                 start_time=start_time,
                 end_time=end_time,
-                description=(description or '')[:1000] or None,
+                description=_description_or_missing(description),
                 entity_type=discord.EntityType.external,
                 location=location[:100],
             )

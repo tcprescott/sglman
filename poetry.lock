@@ -2687,26 +2687,6 @@ files = [
 tests = ["pytest"]
 
 [[package]]
-name = "py-cord"
-version = "2.6.1"
-description = "A Python wrapper for the Discord API"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "py_cord-2.6.1-py3-none-any.whl", hash = "sha256:e3d3b528c5e37b0e0825f5b884cbb9267860976c1e4878e28b55da8fd3af834b"},
-    {file = "py_cord-2.6.1.tar.gz", hash = "sha256:36064f225f2c7bbddfe542d5ed581f2a5744f618e039093cf7cd2659a58bc79b"},
-]
-
-[package.dependencies]
-aiohttp = ">=3.6.0,<4.0"
-
-[package.extras]
-docs = ["furo (==2023.3.23)", "myst-parser (==1.0.0)", "sphinx (==5.3.0)", "sphinx-autodoc-typehints (==1.23.0)", "sphinx-copybutton (==0.5.2)", "sphinxcontrib-trio (==1.1.2)", "sphinxcontrib-websupport (==1.2.4)", "sphinxext-opengraph (==0.9.1)"]
-speed = ["aiohttp[speedups]", "msgspec (>=0.18.6,<0.19.0)"]
-voice = ["PyNaCl (>=1.3.0,<1.6)"]
-
-[[package]]
 name = "pycparser"
 version = "3.0"
 description = "C parser in Python"
@@ -4276,4 +4256,4 @@ requests = "*"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "e3c9bb61c5164ea23cf038cf186be1bbe4010c72223bd98a52d74779281aa725"
+content-hash = "7ca39a20cdf382a51df22c80f823a6bb445552b894418feeaa817dfb1804d9d6"
