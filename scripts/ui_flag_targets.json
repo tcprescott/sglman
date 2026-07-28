@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "Surfaces that are NOT feature-gated and must therefore render for any tenant,",
+    "whatever its feature flags say — the home tabs every community gets and the",
+    "always-present admin tabs. scripts/ui_flag_sweep.sh drives this list with the",
+    "flags forced off; anything here that breaks is an ungated surface reaching into",
+    "a gated service. Gated surfaces (/qualifiers, /equipment, /volunteer, /brackets,",
+    "the Challonge/Brackets/Triforce/Volunteer admin tabs) belong in a normal",
+    "/ui-validation run, not here: with the flag off they are *supposed* to vanish.",
+    "",
+    "Tabs are addressed by URL section (/home/<slug>, /admin/<slug>, per",
+    "theme.base.tab_slug) rather than by clicking a tab label: the section route",
+    "makes that tab the page's default, so its content is built during the initial",
+    "render and a failure shows up without depending on a click landing."
+  ],
+  "targets": [
+    { "name": "home-schedule",         "path": "/home/schedule" },
+    { "name": "home-on-air",           "path": "/home/on-air" },
+    { "name": "home-profile",          "path": "/home/profile" },
+    { "name": "home-player",           "path": "/home/player" },
+    { "name": "home-availability",     "path": "/home/my-availability" },
+    { "name": "admin-schedule",        "path": "/admin/schedule" },
+    { "name": "admin-users",           "path": "/admin/users" },
+    { "name": "admin-tournaments",     "path": "/admin/tournaments" },
+    { "name": "admin-stream-rooms",    "path": "/admin/stream-rooms" },
+    { "name": "admin-presets",         "path": "/admin/presets" },
+    { "name": "admin-randomizer-keys", "path": "/admin/randomizer-keys" },
+    { "name": "admin-feedback",        "path": "/admin/feedback" },
+    { "name": "admin-discord-events",  "path": "/admin/discord-events" },
+    { "name": "admin-discord-roles",   "path": "/admin/discord-roles" },
+    { "name": "admin-webhooks",        "path": "/admin/webhooks" },
+    { "name": "admin-reports",         "path": "/admin/reports" },
+    { "name": "admin-service-health",  "path": "/admin/service-health" },
+    { "name": "admin-features",        "path": "/admin/features" },
+    { "name": "admin-settings",        "path": "/admin/settings" },
+    { "name": "admin-appearance",      "path": "/admin/appearance" }
+  ]
+}

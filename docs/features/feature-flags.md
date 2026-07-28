@@ -125,6 +125,33 @@ missing, so a flag cannot ship UI-only gated.
 
 ## Testing
 
+### The flags-off browser sweep
+
+The gap the Python suite cannot cover: a surface that is **not** flag-gated but
+calls a gated service anyway. It renders fine for a community that has the
+feature and raises `FeatureDisabledError` for one that doesn't — and since
+`pages/` has no automated coverage, the first report is a dead section in
+production (the Profile tab calling `ChallongeService.participant_tournament_ids`
+was exactly this). Drive it in a browser instead:
+
+```bash
+scripts/ui_flag_sweep.sh
+```
+
+It snapshots the dev tenant's flags, forces every flag off, walks the ungated
+home/admin surfaces listed in `scripts/ui_flag_targets.json`, repeats against the
+mixed-tier `second` tenant, restores the flags, and fails on any tab that renders
+`This section failed to load…` or logs a `FeatureDisabledError`. Details and the
+one-off knob (`scripts/set_feature_flags.py`) are in the
+[`ui-validation`](../../.claude/skills/ui-validation/SKILL.md) skill.
+
+Rule of thumb for the fix: a surface everyone gets resolves the flag itself —
+`FeatureFlag.X in await FeatureFlagService().enabled_flags()` — and skips both
+the service call and the UI it feeds. Don't drop the service guard to make the
+page work; that is the half that makes gating real.
+
+### Unit tests
+
 The `db` fixture provisions the default tenant (id 1) with every flag fully on
 (explicit `available+enabled` override rows), so the legacy suite exercises
 features as before regardless of groups. New tenants start off (the production

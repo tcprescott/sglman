@@ -20,10 +20,27 @@
  *     "tenant":  "default",              // /t/<slug> prefix for login + targets
  *     "outDir":  "/tmp/ui-smoke",        // screenshots + text dumps land here
  *     "chrome":  "/opt/pw-browsers/.../chrome",  // auto-detected if omitted
+ *     "failMarkers": ["Custom failure text"],  // added to the built-in list
  *     "targets": [
  *       { "name": "admin-schedule", "path": "/admin", "tab": "Schedule", "selector": ".match-table" }
  *     ]
  *   }
+ *
+ * Tabs: prefer addressing a tab by its **section URL** (`/admin/users`,
+ * `/home/profile` — theme.base.tab_slug derives the slug from the label) over
+ * `"tab": "Users"`. The section route makes that tab the page default, so its
+ * content is built during the initial render; clicking depends on the label
+ * being reachable, which it isn't for a grouped admin drawer or an overflowed
+ * tab bar. A requested tab that can't be clicked is reported as a failure.
+ *
+ * Failure detection: besides console/page errors (noisy — a pre-existing
+ * ui.image warning always fires), each target is checked for a *rendered*
+ * failure: a 5xx navigation, or the text a broken page/tab leaves behind (the
+ * BaseLayout tab guard renders "This section failed to load…" when a tab's
+ * build raises — e.g. an ungated surface calling a feature-gated service).
+ * Those are reported under "=== rendered failures ===" and exit the process
+ * non-zero, so the harness can drive a sweep (see scripts/ui_flag_sweep.sh).
+ * Set "failOnFailure": false to keep the old always-exit-0 behaviour.
  *
  * Multitenancy: the app serves every community under /t/<slug>/… — a bare
  * /admin 404s ("only available within a community") and a bare / is the
@@ -48,6 +65,15 @@ function findChrome(explicit) {
   } catch (_) {}
   return undefined; // let Playwright use its bundled browser
 }
+
+// Text a server-side render failure leaves on the page. The first is the tab
+// guard in theme/base.py (_build_tab catches, logs, and renders it); the rest
+// are what an unhandled page-level exception surfaces as.
+const DEFAULT_FAIL_MARKERS = [
+  'This section failed to load',
+  'Internal Server Error',
+  'Traceback (most recent call last)',
+];
 
 async function clickTab(page, name) {
   if (!name) return false;
@@ -95,11 +121,34 @@ async function clickTab(page, name) {
   await page.waitForTimeout(1500);
   console.log(`logged in as ${loginAs} -> ${page.url()}`);
 
+  const failMarkers = DEFAULT_FAIL_MARKERS.concat(cfg.failMarkers || []);
+  const failures = [];
+
   for (const t of targets) {
-    await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
+    // A navigation that never resolves (server restart mid-run, hung request) is
+    // this target's failure, not the whole sweep's — record it and keep going.
+    let resp;
+    try {
+      resp = await page.goto(`${baseUrl}${withTenant(t.path, t)}`, { waitUntil: 'networkidle' });
+    } catch (e) {
+      failures.push(`[${t.name}] navigation failed: ${e.message.split('\n')[0]}`);
+      console.log(`  [${t.name}] navigation failed: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+    if (resp && resp.status() >= 500) failures.push(`[${t.name}] HTTP ${resp.status()} on ${t.path}`);
     await page.waitForTimeout(1200);
-    if (t.tab) console.log(`  [${t.name}] tab "${t.tab}" clicked: ${await clickTab(page, t.tab)}`);
+    if (t.tab) {
+      // A tab that isn't there validates nothing — the screenshot would show
+      // whatever tab happened to be default. Report it instead of passing.
+      const clicked = await clickTab(page, t.tab);
+      console.log(`  [${t.name}] tab "${t.tab}" clicked: ${clicked}`);
+      if (!clicked) failures.push(`[${t.name}] tab "${t.tab}" not found on ${t.path}`);
+    }
     await page.waitForTimeout(1500);
+    const body = await page.evaluate(() => document.body ? document.body.innerText : '');
+    for (const marker of failMarkers) {
+      if (body.includes(marker)) failures.push(`[${t.name}] rendered failure: "${marker}" (${t.path}${t.tab ? ` › ${t.tab}` : ''})`);
+    }
     const shot = path.join(outDir, `${t.name}.png`);
     await page.screenshot({ path: shot, fullPage: true });
     const text = await page.evaluate((sel) => {
@@ -114,5 +163,8 @@ async function clickTab(page, name) {
 
   console.log('=== console/page errors ===');
   console.log(errors.length ? errors.join('\n') : '(none)');
+  console.log('=== rendered failures ===');
+  console.log(failures.length ? failures.join('\n') : '(none)');
   await browser.close();
+  if (failures.length && cfg.failOnFailure !== false) process.exit(1);
 })().catch((e) => { console.error('FATAL', e); process.exit(1); });

@@ -40,6 +40,7 @@ from enum import Enum
 from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from application.utils.timezone import to_utc_aware
+from models import FeatureFlag
 
 logger = logging.getLogger(__name__)
 
@@ -380,7 +381,13 @@ class ServiceHealthService:
                 'racetime_bots', 'Racetime bots', 'racetime', _worst(statuses), message, _now(),
             ))
 
+        # A health board over the tenant's dependencies, not a Challonge surface:
+        # a community without the feature has no connection to report, and the
+        # gated service would refuse the probe rather than answer "not connected".
         from application.services.challonge_service import ChallongeService
+        from application.services.feature_flag_service import FeatureFlagService
+        if not await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE):
+            return results
         connection = await ChallongeService().get_connection_status()
         if connection.get('connected'):
             status, message = _tenant_challonge_status(connection.get('token_expires_at'))

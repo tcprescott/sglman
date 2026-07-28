@@ -77,6 +77,67 @@ script to paste into the "Setup script" field of a Claude Code cloud environment
    template. (One pre-existing `ui.image ... startsWith` console error is
    unrelated to table/dialog changes.)
 
+## Feature-flag sweep: does it still render with the flag OFF?
+
+Gating is two-sided — an entry surface *hides* a disabled feature and the owning
+service *refuses* it (`FeatureDisabledError`). The failure that costs a page is
+an **ungated** surface that calls a gated service anyway: fine on a tenant with
+the feature, a dead section on one without. The seeded `default` tenant has every
+flag on, so a normal validation run never sees it — the crash lands on the
+community that lacks the feature.
+
+Run the sweep whenever a change touches a surface that is *not* itself
+flag-gated but talks to a gated subsystem (Challonge, brackets, equipment,
+volunteers, triforce texts, qualifiers, racetime, SpeedGaming) — and after any
+edit to the shared home/admin tabs:
+
+```bash
+scripts/ui_flag_sweep.sh          # APP_LOG=/tmp/app.log by default
+```
+
+Two passes, both against the ungated surfaces in `scripts/ui_flag_targets.json`
+(home tabs + always-present admin tabs):
+
+1. **all-off** — every flag forced off on the `default` tenant.
+2. **mixed** — the `second` tenant as seeded (online features on, community
+   features off), which catches the flag-A-on/flag-B-off crossings all-off can't.
+
+It snapshots the tenant's flags first and restores them on exit (including on
+Ctrl-C), so the dev DB is left as it was. A pass fails when a target renders
+`This section failed to load…` (the `_build_tab` guard in `theme/base.py`), 5xxs,
+or the app log grows a `Failed to build tab` / `FeatureDisabledError` /
+unhandled-UI-handler line during the run. Screenshots + per-target text land in
+`/tmp/ui-flag-sweep/<pass>/`.
+
+**Read the log half, not just the pass/fail line.** A section that loads through
+`background_tasks` (Service Health, any deferred loader) raises *after* the DOM
+check, so the page looks fine and only the server log shows it — that is exactly
+how the Service Health board's Challonge probe surfaced. `--out/app-log-slice.txt`
+holds the log for the sweep's own window.
+
+**What the sweep can't see: dialogs.** It loads pages; it does not click. A
+dialog opened from an ungated tab (the user edit dialog's Challonge fields, the
+tournament edit dialog's Challonge section) carries the same hazard and needs
+either a one-off Playwright script that opens it, or a read of the code. When a
+change adds a gated-service call inside a dialog, check it by hand.
+
+**Gated surfaces don't belong in the sweep list** — with the flag off,
+`/qualifiers`, `/equipment`, `/volunteer`, `/brackets` and the Challonge /
+Brackets / Triforce / Volunteer admin tabs are *supposed* to 404 or vanish.
+Validate those in a normal run (flags on), and add a target here only for a
+surface every community always gets.
+
+To reproduce one state by hand — e.g. to iterate on a fix — set flags directly:
+
+```bash
+poetry run python scripts/set_feature_flags.py --tenant default --show
+poetry run python scripts/set_feature_flags.py --tenant default --off challonge
+poetry run python scripts/set_feature_flags.py --tenant default --clear challonge   # back to the tier
+```
+
+The app re-resolves flags per request (the cache is a per-request contextvar), so
+no restart is needed after a change.
+
 ## Multitenancy: pages live under `/t/<slug>`
 
 The app is path-mode multitenant: every community's pages are served under
@@ -113,5 +174,12 @@ admin views, a plain `player_*` for the public/non-admin variants, and
 - `scripts/setup_env.sh` — environment prep (Postgres, tzdata, deps, `.env`).
 - `scripts/ui_smoke.js` — config-driven Playwright harness (login → visit →
   screenshot → extract text → report errors). Honors `tenant` (`/t/<slug>`
-  prefix) and per-target `platform: true`.
+  prefix) and per-target `platform: true`. Exits non-zero when a target renders
+  a failure sentinel or 5xxs (`"failOnFailure": false` opts out).
 - `scripts/seed_dev.py` — baseline fixtures.
+- `scripts/ui_flag_sweep.sh` — the flags-off sweep (snapshot → force off → drive
+  → restore), reporting rendered failures and server-side tracebacks.
+- `scripts/ui_flag_targets.json` — the ungated surfaces that must render for
+  every tenant, whatever its flags.
+- `scripts/set_feature_flags.py` — set/inspect one dev tenant's flags
+  (`--on/--off/--clear/--show/--snapshot/--restore`).
