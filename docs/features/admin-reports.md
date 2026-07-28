@@ -1,46 +1,36 @@
-# Feature: Admin Reports
+# Admin Reports
 
-_Added: PR #6 | Status: Stable_
+A multi-report framework in the admin dashboard's **Reports** tab: filterable,
+URL-driven tables with CSV export. `pages/admin_tabs/reports/__init__.py` holds
+the `_REPORT_HANDLERS` registry and the `reports_page(report, **params)`
+dispatcher (an unknown or absent `report` falls back to the dashboard); each
+report is one module beside it, and `shared.py` supplies the page shell, the
+date-range/tournament filters, the export button and the URL-param navigation.
 
-## What It Does
-
-A multi-report framework in the admin dashboard under the "Reports" tab. Reports are rendered as filterable tables with export capability.
-
-## Available Reports
-
-| Report | Module | Description |
+| Report | Module | Shows |
 |---|---|---|
 | Dashboard | `dashboard.py` | Landing page: KPI summary for the event window + cards linking to each report |
-| Insights & Trends | `insights.py` | Crew participation, volunteer hours, tournament health, and admin activity trended weekly/monthly across events (backed by `AnalyticsService`) |
+| Insights & Trends | `insights.py` | Crew participation, volunteer hours, tournament health and admin activity trended weekly/monthly across events (`AnalyticsService`) |
 | Capacity Forecast | `capacity.py` | Concurrent player count over a date range vs. configured capacity |
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
 | Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person |
 | Stream Room Utilization | `stream_rooms.py` | Per-stage scheduled hours, gaps, back-to-back transitions |
 | Volunteer Coverage | `volunteers.py` | Per-shift filled vs. needed counts over a date range, highlighting understaffed shifts |
-| Audit Log | `audit.py` | Searchable/filterable view of all admin actions (expandable detail rows, paginated) |
+| Engagement Telemetry | `telemetry.py` | Page views, interactions and the domain-event mirror over a date window — KPIs, leaderboards, filterable raw log (Staff only; see [telemetry.md](telemetry.md)) |
+| Audit Log | `audit.py` | Searchable, paginated view of every audited action with expandable detail rows (see [audit-logging.md](audit-logging.md)) |
 
-## Key Files
+Aggregation always happens in a service, never in the page: most reports call
+`ReportsService`, Insights calls `AnalyticsService`, and the three that read one
+subsystem call its owner (`VolunteerScheduleService`, `TelemetryService`,
+`AuditService`).
 
-| File | Role |
-|---|---|
-| `pages/admin_tabs/reports/__init__.py` | `_REPORT_HANDLERS` registry; `reports_page(report, **params)` dispatcher (unknown/absent report → dashboard) |
-| `pages/admin_tabs/reports/<report>.py` | One module per report (see table above) |
-| `pages/admin_tabs/reports/shared.py` | Shared helpers: page shell, date-range/tournament filters, CSV export button, URL param navigation |
-| `application/services/reports_service.py` | Data aggregation for each report type |
-| `application/services/audit_service.py` | `AuditService` + `AuditActions` constants used by all features |
+**CSV exports escape formula injection.** `application/utils/csv_export.py`
+prefixes any cell starting with `=`, `+`, `-` or `@`; numerics are left alone
+(safe and expected in CSV). Covered by `tests/test_csv_export.py`.
 
-## CSV Security
+**Adding a report:** create `reports/my_report.py` rendering inside
+`shared.report_page_shell()`, put its aggregation in `ReportsService`, then
+register the handler in `_REPORT_HANDLERS` and link it from the dashboard.
 
-All CSV exports escape formula-injection characters (`=`, `+`, `-`, `@`). Numerics are not escaped (safe and expected in CSV). The escaping is applied in `application/utils/csv_export.py` and covered by `tests/test_csv_export.py`. See PR #7 for the original security fix.
-
-## Adding a New Report
-
-1. Create `pages/admin_tabs/reports/my_report.py` with an async page coroutine that renders inside `shared.report_page_shell()`.
-2. Add aggregation logic to `application/services/reports_service.py`.
-3. Register the handler in `_REPORT_HANDLERS` in `pages/admin_tabs/reports/__init__.py` and link it from the dashboard.
-
-## Audit Log
-
-Every meaningful create/update/delete in the application writes to `AuditLog` via `AuditService.write_log(actor, action, details)`. Action strings follow `verb.object` convention — all constants live in `AuditActions`. The audit report renders the `details` dict as expandable JSON.
-
-**See also:** [reference/frontend.md](../reference/frontend.md) — the reports subsystem (handler registry, shared helpers); [reference/services.md](../reference/services.md) — ReportsService methods.
+**See also:** [frontend.md](../reference/frontend.md#reports-subsystem-pagesadmin_tabsreports) —
+the reports subsystem's UI internals.

@@ -5,8 +5,8 @@ occur. When an event is published on the [event bus](event-system.md), the
 webhook subscriber POSTs a **signed JSON body** to every enabled webhook whose
 `event_types` include that event (or `'*'`).
 
-Scope: **Staff-managed and global** — there are no per-user webhooks. All CRUD is
-staff-gated; management lives in a single admin tab.
+Scope: **Staff-managed and tenant-wide** — there are no per-user webhooks. All
+CRUD is staff-gated; management lives in a single admin tab.
 
 Source: [`application/services/webhook_service.py`](../../application/services/webhook_service.py),
 models `Webhook` / `WebhookDelivery` in [`models/webhook.py`](../../models/webhook.py),
@@ -33,9 +33,8 @@ signature is reproducible:
 `tenant_id` is the [tenant](multitenancy.md) the event occurred in, snapshotted in
 `Event.create()` from the ambient context (`null` for platform-level events). A
 webhook only ever receives events for its own tenant — `Webhook` rows are
-tenant-scoped and the subscriber delivers to just that tenant's webhooks — so the
-field is a stable label, not a filter you need to apply. It is additive to the
-wire contract; the `event_type` names are unchanged.
+tenant-scoped and the subscriber delivers to just that tenant's — so the field is
+a stable label, not a filter the receiver must apply.
 
 Headers (built by `WebhookService.build_delivery_headers` — the single source of
 truth the in-app reference also renders):
@@ -95,13 +94,12 @@ sends. Reject requests whose timestamp is too old to defend against replay.
 
 ## Events available
 
-Everything in `EventType.ALL` — match lifecycle (`match.created`, `match.updated`,
-`match.deleted`, `match.rescheduled`, `match.seated/started/finished/confirmed`,
-`match.acknowledged`, `match.result_recorded`, `match.seed_rolled`,
-`match.stage_assigned/_cleared`, `match.stations_assigned`,
-`match.stream_candidate_set/_cleared`), crew (`crew.signup_created/signup_removed/
-approval_changed/acknowledged`), and volunteer (`volunteer.assigned/unassigned/
-acknowledged`). Select `*` to receive all events. See [event-system.md](event-system.md).
+Everything in [`EventType.ALL`](../../application/events/event_types.py) — the
+`match.*`, `crew.*`, `volunteer.*`, `bracket.*`, `race_room.*`, `sg_sync.*`,
+`discord_event.*` and `async_qualifier.*` families, listed per publisher in
+[event-system.md](event-system.md). Select `*` to receive all of them. The one
+member no webhook can receive is `service_health.alert`: it is platform-level
+(no tenant), and delivery is tenant-scoped.
 
 ## Tests
 

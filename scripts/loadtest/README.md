@@ -1,7 +1,7 @@
 # Load-test harness
 
 Reproduces the capacity measurements in
-[docs/plans/single-worker-escape-plan.md](../../docs/plans/single-worker-escape-plan.md) §1.
+[docs/scaling-roadmap.md](../../docs/scaling-roadmap.md).
 
 `ws_load.py` opens **real NiceGUI websockets** — it performs the same handshake
 the bundled `nicegui.js` does (GET the page, scrape the `client_id` that render

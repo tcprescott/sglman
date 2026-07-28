@@ -2,33 +2,31 @@
 
 Wizzrobe manages tournament brackets **natively** — generating, progressing, and
 standing tournaments in-house — instead of mirroring them from the Challonge API.
-It removes the external, quota-bound dependency from the core scheduled-restream
-loop (schedule matchup → race room → result → advance) that the
-[online-tournaments](../online-tournaments/README.md) system already delivers.
-
-This is the shipped system; the design rationale and 2026-07 library-research
-record live in [brackets-plan.md](../plans/brackets-plan.md).
+It removes the external, quota-bound dependency from the scheduled-restream loop
+(schedule matchup → race room → result → advance) that
+[online tournaments](online-tournaments.md) already deliver.
 
 Scope: **Staff-managed, tenant-scoped, feature-gated, publicly readable.** A
 tournament uses a native bracket **or** a Challonge link, never both. Ships behind
 [`FeatureFlag.BRACKETS`](feature-flags.md) — dark by default.
 
-Source:
-[`models/bracket.py`](../../models/bracket.py) (four models),
-[`application/services/bracket_service.py`](../../application/services/bracket_service.py) (`BracketService`),
-[`application/services/bracket_config.py`](../../application/services/bracket_config.py) (config schema),
-[`application/services/bracket_engines/`](../../application/services/bracket_engines/) (engines + standings),
-[`application/repositories/bracket_repository.py`](../../application/repositories/bracket_repository.py),
-[`api/routers/brackets.py`](../../api/routers/brackets.py),
-[`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py) (admin),
-[`pages/brackets.py`](../../pages/brackets.py) (public, anonymous-readable),
-[`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py) (browse tab),
-[`theme/brackets/`](../../theme/brackets/) (shared renderer),
-[`static/css/brackets.css`](../../static/css/brackets.css).
+Source: [`models/bracket.py`](../../models/bracket.py),
+[`bracket_service.py`](../../application/services/bracket_service.py)
+(`BracketService`, a thin composer over the per-concern mixins in
+[`_bracket/`](../../application/services/_bracket/)) with
+[`bracket_config.py`](../../application/services/bracket_config.py) (config schema)
+and [`bracket_engines/`](../../application/services/bracket_engines/) (engines +
+standings),
+[`bracket_repository.py`](../../application/repositories/bracket_repository.py),
+[`api/routers/brackets.py`](../../api/routers/brackets.py); surfaces in
+[`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py),
+[`pages/brackets.py`](../../pages/brackets.py) (public),
+[`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py) (browse tab) and
+[`theme/brackets/`](../../theme/brackets/) + [`static/css/brackets.css`](../../static/css/brackets.css).
 
 ## Data model
 
-Four tenant-scoped models form one aggregate the lifecycle drives together (full
+Five tenant-scoped models form one aggregate the lifecycle drives together (full
 field tables in [data-model.md](../reference/data-model.md#native-brackets)):
 
 - **`Bracket`** — one **stage** of a tournament. A single-stage tournament has one
@@ -50,10 +48,14 @@ field tables in [data-model.md](../reference/data-model.md#native-brackets)):
   (win-only reporting, with null scores, stays valid). Per-round display chrome
   (scheduled time, and the default `best_of`) lives in `Bracket.config['rounds']` keyed by round
   number, not on the match.
+- **`BracketMatchGame`** — one game of a matchup's best-of-N series. `match` is a
+  nullable OneToOne (`SET_NULL`) to the scheduled `Match`; rows are created lazily
+  at schedule time and `game_number` is assigned by the service, never by a
+  caller.
 
 ## Formats and multi-stage chaining
 
-Four formats, all in v1, selected per stage via `Bracket.format`
+Four formats, selected per stage via `Bracket.format`
 ([`BracketFormat`](../reference/data-model.md#bracketformat)):
 
 - **Single elimination** — standard seeded bracket with structural byes.
@@ -86,12 +88,11 @@ invoked only at two moments:
 2. **Per Swiss round** — pair the next round from current standings.
 
 At all other times **the persisted `BracketMatch` rows are the source of truth.**
-After `start`, elimination advancement is plain **pointer-following**: recording a
-result completes the match, then pushes the winner into `winner_to` (and the loser
-into `loser_to`) at the recorded `*_to_slot`, settling downstream walkovers and
-auto-completing the stage when the final resolves. This makes advancement a graph
-walk over stored rows rather than a re-run of the engine — the engine never has to
-reproduce prior state.
+After `start`, elimination advancement is plain **pointer-following** — a graph
+walk over stored rows, never a re-run of the engine: recording a result completes
+the match, then pushes the winner into `winner_to` (and the loser into `loser_to`)
+at the recorded `*_to_slot`, settling downstream walkovers and auto-completing the
+stage when the final resolves.
 
 ### Engine composition
 
@@ -124,11 +125,9 @@ no-rematch matching is unique and reproducible.
 
 A bracket match spans `best_of` games, and **every game is its own scheduled
 `Match`** — that link is `BracketMatchGame.match`, a OneToOne, so a `Match` never
-backs more than one game. A best-of-1 is simply a series with a single game, which
-is why there is one code path rather than a special case (it replaced the old
-one-shot `BracketMatch.match` FK in migration 35). Game rows are created lazily,
-at schedule time, and `game_number` is assigned by the service — never by a
-caller. `BracketService` still mirrors the Challonge integration method-for-method:
+backs more than one game. A best-of-1 is simply a series with a single game, so
+there is one code path rather than a special case. `BracketService` mirrors the
+Challonge integration method-for-method:
 
 | Bracket (native) | Challonge (mirror) |
 |---|---|
@@ -140,18 +139,14 @@ caller. `BracketService` still mirrors the Challonge integration method-for-meth
 
 ### Cancelling or deleting a game frees its slot
 
-`BracketMatchGame.match` is `SET_NULL`, so a cancelled or deleted `Match` used to
-leave its game row behind as `SCHEDULED` with a consumed `game_number` — and
-`_has_free_game_slot` then reported the series fully booked. **A cancelled
-best-of-1 left its matchup permanently unschedulable**, invisible to the player
-dashboard and to staff alike.
-
-`MatchService._remove_match` now calls `BracketService.release_game_if_linked`
-**before** the row is deleted (after that, `SET_NULL` has fired and the game is
-unreachable from the match). Three rules:
+A cancelled or deleted `Match` hands its `game_number` back, so the matchup stays
+schedulable. `MatchService._remove_match` calls
+`BracketService.release_game_if_linked` **before** the row is deleted — after
+that, `SET_NULL` has fired and the game is unreachable from the match. Three
+rules:
 
 1. Only a **`SCHEDULED`** game is released. A `COMPLETE` game keeps its result
-   *and* its consumed slot — the bracket has already advanced on it. This is also
+   *and* its consumed slot — the bracket has already advanced on it. That is also
    what makes the method re-entrant with the clinch: `_clinch` marks its leftover
    games `CANCELLED` *first*, so a clinched Bo3 does not get game 3's slot back.
 2. Release means **deleting the row**, not marking it `CANCELLED` —
@@ -161,20 +156,18 @@ unreachable from the match). Three rules:
    match the staff asked to cancel half-cancelled.
 
 The release audits `BRACKET_GAME_RELEASED`, publishes the mirror event, and — via
-`notify_matchup_reopened` — tells both entrants to rebook. Slots stranded before
-the fix are cleared by `scripts/release_orphaned_bracket_games.py` (dry-run by
+`notify_matchup_reopened` — tells both entrants to rebook. Slots stranded by older
+code are cleared by `scripts/release_orphaned_bracket_games.py` (dry-run by
 default, `--apply` to act).
 
 ### One correction path for a settled result
 
 Once a game is `COMPLETE` the bracket has advanced on it, so re-recording the
-`Match`'s ranks would leave the series' win count, the downstream slots, and any
-completed stage holding the old answer with nothing saying so.
-`MatchService.record_match_result` therefore consults
-`match/bracket_result_guard.py` and **raises**, naming the stage and pointing
-staff at **Results → Override** (`override_result`), which re-advances properly.
-Same shape as the SpeedGaming `match_source_guard`. Auto-retract-and-re-advance
-is deliberately deferred; this block is the stand-in.
+`Match`'s ranks would leave the series' win count, the downstream slots and any
+completed stage holding the old answer. `MatchService.record_match_result`
+therefore consults `match/bracket_result_guard.py` and **raises**, naming the
+stage and pointing staff at **Results → Override** (`override_result`), which
+re-advances properly — the same shape as the SpeedGaming `match_source_guard`.
 
 ### Best-of-N series
 
@@ -248,20 +241,19 @@ That is one toggle plus two authorized callers:
   same flag.
 
 Players see their pending matchups on their dashboard
-([`pages/home_tabs/player.py`](../../pages/home_tabs/player.py)), in a card
-modelled on the Challonge one, and book them through the shared
+([`pages/home_tabs/player.py`](../../pages/home_tabs/player.py)) and book them
+through the shared
 [`BracketScheduleDialog`](../../theme/dialog/bracket_schedule_dialog.py) — the same
 dialog the staff bracket view opens, in its player mode.
 
-Going the other way, staff who scheduled a match in the ordinary editor can
-attach it to the matchup it settles: `link_match_to_bracket_match` writes the
-`BracketMatchGame` for an existing `Match`, and `unlink_match` detaches one that
-has not been played. The link validates that the match's **player set equals the
-two entrants' users** — `_winner_from_ranks` maps the winner by `user_id`, so a
-mismatched link would settle nothing and strand the series with no visible cause.
-The picker lives in the admin match dialog
-([`theme/dialog/_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py)),
-on both create and edit.
+Going the other way, staff can attach a match scheduled in the ordinary editor to
+the matchup it settles: `link_match_to_bracket_match` writes the
+`BracketMatchGame` for an existing `Match` and `unlink_match` detaches one that has
+not been played, with the picker in the admin match dialog
+([`theme/dialog/_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py)).
+The link validates that the match's **player set equals the two entrants' users**:
+`_winner_from_ranks` maps the winner by `user_id`, so a mismatched link would
+settle nothing and strand the series with no visible cause.
 
 A tournament uses a native bracket **or** a Challonge link, never both:
 `BracketService._ensure_no_challonge_link` rejects a native bracket on a
@@ -285,10 +277,8 @@ hands its slot back. Scheduling is the one write that is **not** Staff-only — 
 
 ## Notifications
 
-**One player-facing message, and series context on the rest** (design record:
-[bracket-match-integration-plan.md](../plans/bracket-match-integration-plan.md),
-D7). The rule is narrow on purpose: *a DM is sent when it asks the recipient to
-act.*
+**One player-facing message, and series context on the rest.** The rule is narrow
+on purpose: *a DM is sent when it asks the recipient to act.*
 
 - **"Your <round> matchup is ready to schedule"** — to both entrants, whenever a
   matchup becomes bookable: the `PENDING → OPEN` transition in `_settle_match`,
@@ -304,9 +294,9 @@ act.*
 - **Series context on the existing match DMs** — `Round: Semifinals · Game 2 of
   3 · Series 1-0` leads the info block of `scheduled` / `rescheduled` /
   `checked_in` / `cancelled` / `state_changed` / `seed` DMs, via
-  `BracketService.match_dm_context`. A bracket game's notification used to be
-  indistinguishable from a casual scheduled match. The cancellation DM adds the
-  release follow-through: "the matchup is open to reschedule."
+  `BracketService.match_dm_context`, so a bracket game never reads as a casual
+  scheduled match. The cancellation DM adds the release follow-through: "the
+  matchup is open to reschedule."
 
 All of it goes out on `discord_queue` (which re-binds the tenant scope), respects
 `dm_notifications`, and is best-effort — a Discord failure never blocks the
@@ -328,7 +318,7 @@ transaction:
 ## Public access — anonymous, and reachable
 
 A bracket is what a tournament shows the world, so the two view routes are
-[`public_page`](../reference/authentication.md#public_page-decorator), not
+[`public_page`](../reference/authentication.md#public_page), not
 `protected_page`: they never join `protected_routes`, so `AuthMiddleware` lets a
 signed-out request through instead of redirecting it to `/login`. Everything else
 about the gate is unchanged — the tenant must resolve, `BRACKETS` must be live for
@@ -346,27 +336,15 @@ helper, [`theme/brackets/visibility.py`](../../theme/brackets/visibility.py)
 copied into each; staff keep the unfiltered list in Admin → Brackets, which never
 goes through it.
 
-Reachability is the other half. Home is the only page a signed-out visitor lands
-on, so the **Brackets** tab
-([`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py)) is the browse
-path: one card per tournament that has stages — active tournaments first — each
-stage row opening its bracket view, with an **All stages** link to the stage index
-for multi-stage tournaments. The tab is added whenever `BRACKETS` is live,
-**signed in or not**, which is why `pages/home.py` resolves the live flag set
-before it assembles the tab list rather than inside its signed-in branch. It reads
-once through `BracketService.list_all_brackets` (tournament prefetched, so
-grouping costs no query per row) and groups with the pure `group_by_tournament`.
-
-The other way in is the **schedule**: every game of a bracket match is an
-ordinary `Match`, so a row whose match was scheduled by a bracket carries a
-"<stage name> · Game N" link into that bracket's view — on the public schedule,
-the admin schedule, and the player dashboard alike, since all three are one
-`MatchTableView`. The row field is `MatchDisplayService._bracket_ref`, hydrated
-by a batched `bracket_match_game__bracket_match__bracket` prefetch (a fixed few
-queries, not one per row) and rendered by the Tournament cell slot plus its
-mobile-card twin. The link **emits** rather than carrying an `href`, because
-`ui.navigate.to` is what prepends the tenant's `root_path` under path-mode
-multitenancy.
+Reachability is the other half, and there are two ways in. Home is the only page a
+signed-out visitor lands on, so the **Brackets** tab is the browse path — added
+whenever `BRACKETS` is live, **signed in or not**, which is why `pages/home.py`
+resolves the live flag set before assembling the tab list rather than inside its
+signed-in branch. The **schedule** is the other: every game is an ordinary
+`Match`, so a bracket-scheduled row carries a "<stage name> · Game N" link into
+the bracket view on the public schedule, the admin schedule and the player
+dashboard alike (they are one `MatchTableView`). Both are detailed in
+[frontend.md](../reference/frontend.md).
 
 Neither surface is published to search engines: the app serves a blanket
 `robots.txt` (`frontend.py`) and `BaseLayout` stamps a `noindex, nofollow` meta.
@@ -374,159 +352,69 @@ Signed-out means shareable by link, not indexed. Page routes are **not** rate
 limited (`api/rate_limit.py` is mounted on the REST router only) — a known gap
 that predates public brackets, since the schedule was already anonymous.
 
-## Presentation — the redesigned bracket view
+## Presentation
 
-The public and admin surfaces share one in-house renderer,
-[`theme/brackets/`](../../theme/brackets/) (design record:
-[bracket-ui-plan.md](../plans/bracket-ui-plan.md)), that draws the canonical
-Challonge/start.gg/Liquipedia grammar — connector-lined match cards with seeds,
-initial-letter avatar discs, a right-aligned score cell (winner accented via the
-app `--q-primary` through `--bracket-*` CSS variables, loser dimmed, "FF" for a
-forfeit), sticky round headers with best-of/time chrome, and byes / "Winner of 7"
-placeholder hints. The pieces:
+The public page and the admin Results dialog share one in-house renderer,
+[`theme/brackets/`](../../theme/brackets/), drawing the canonical
+Challonge/start.gg/Liquipedia grammar: connector-lined match cards, seeds, a
+right-aligned score cell (winner accented, loser dimmed, "FF" for a forfeit),
+sticky round headers, and bye / "Winner of 7" placeholders. Module-by-module
+detail — the pure layout walker, the cards/tables/dialog/live modules, and the
+`--bracket-*` CSS variables — is in
+[frontend.md](../reference/frontend.md#bracket-renderer-themebrackets).
 
-- `layout.py` — a **pure, ORM-free layout walker**: a depth-first pass over the
-  winner-link tree assigns leaves sequential vertical slots and centers every
-  parent on its children (Toornament's algorithm), mapping round → column and
-  slot → absolute pixels. Robust to byes and the irregular double-elim losers
-  bracket. Also computes elbow connectors and stable match numbers. Round *names*
-  moved out to `application/services/bracket_engines/round_names.py` (and are
-  re-exported here) so a service or a Discord DM can say "Semifinals" too.
-  Unit-tested in [`tests/theme/test_bracket_layout.py`](../../tests/theme/) and
-  against real engine graphs in `tests/services/test_bracket_render_layout.py`.
-- `cards.py` — the absolute-positioned match card + section renderer (sticky
-  headers, connectors); `render_mobile_card` is the flow variant for the phone
-  accordion (positioned `relative`, so its match-number badge gets a containing
-  block instead of stacking with every other round's).
-- `tables.py` — Swiss / group data tables (standings with the tiebreaker chain +
-  advancement tint + cut line, per-round pairings, per-group crosstable), built
-  from NiceGUI elements (never `ui.html` — entrant names are user-controlled).
-- `render.py` — whole-bracket helpers (`render_elimination`,
-  `render_elimination_mobile`, `build_context`, `detect_finals`) shared by the
-  public page and the admin embed; `dialog.py` — the shared match detail +
-  staff report/override dialog; `live.py` — an event-bus subscription that
-  refreshes the view on `BRACKET_*` **and `MATCH_*`** events.
+The bracket-domain rules that renderer enforces:
 
-### Live match state on the cards
-
-A bracket is most watched during the hours between "scheduled" and "confirmed",
-and it used to show none of them: the card rendered the game's stored
-`SCHEDULED / COMPLETE / CANCELLED` badge and nothing repainted it when a match
-started or finished. Now every card carries the **derived status** from
-[`application/services/match/match_status.py`](../../application/services/match/match_status.py)
-— one vocabulary shared by the schedule table, the bracket, the REST payloads,
-and the Discord embeds, so a card can no longer say "Scheduled" for a match the
-schedule is calling "In Progress".
-
-- **Data.** `BracketService.matchup_live_state(matches)` resolves the status and
-  a watch link per matchup. The games and their `Match` rows arrive prefetched
-  from `BracketRepository.list_matches`, and the racetime rooms are read in **one
-  batched query** for the whole field — never one per card.
-- **Statuses.** `LIVE` (accent border + a pulsing "LIVE" pill linking to the
-  stream, else the racetime room), `CHECKED_IN`, `AWAITING_RESULT` (played, no
-  winner yet — so a reader knows the bracket is not stuck), and
-  `NEEDS_RESCHEDULE` (an underway series with nothing booked). The quiet
-  statuses leave the matchup's own state class alone.
-- **Repaint.** `live.py` subscribes to the `MATCH_*` lifecycle events as well.
-  Their payloads carry no `bracket_id` and the subscriber is *sync and
-  non-blocking* (it runs inside `publish`), so it filters on **`tournament_id`**,
-  which every `MATCH_*` payload does carry. A slightly wider net than
-  `bracket_id`, absorbed by the page's existing debounce — the alternative is a
-  query in a sync callback.
-- **Public.** Anonymous viewers see all of it, watch link included: the schedule
-  already exposes the stream and the room signed out, so the bracket becomes the
-  link you send a viewer rather than a dead end.
-
-**Round time vs game time.** `Bracket.config['rounds'][N]['scheduled_at']` is the
-*planned* time for a round; `Match.scheduled_at` is when a specific game actually
-happens. They are allowed to differ, so the round header reads "Round time: …"
-and the card and dialog carry the game's own time.
-
-Interactions: click a match → detail dialog (staff get inline report/override
-with scores + forfeit), hover-run highlight across a participant's matches, a
-zoom toolbar, and live auto-refresh. Staff set per-round best-of/time through a
-per-round editor in the admin Manage dialog (`BracketService.set_round_metadata`),
-and report results by clicking cards in the bracket embedded in the admin Results
-dialog. Styling lives in [`static/css/brackets.css`](../../static/css/brackets.css).
-
-**Responsive rule — exactly one view renders at a time.** The 2-D bracket and the
-per-round accordion draw the same graph, so the CSS shows one or the other, never
-both: at `lt.md` and up the 2-D view; below it the accordion, with a **List /
-Bracket toggle** in the toolbar opting into the horizontally-scrolling 2-D view
-(plan decision 6). The toggle is CSS-hidden on desktop, the zoom controls hide in
-list mode (they scale the 2-D canvas only), and the chosen view is held per client
-outside the `@ui.refreshable` so a live `BRACKET_*` rebuild does not snap the
-reader back to the list. The accordion carries the round's best-of/scheduled time
-in its panel, standing in for the 2-D sticky round header. The admin Results
-dialog embeds the same pair and so inherits the rule — its scroll box is
-`.bracket-embed-scroll`, whose `flex: 0 0 auto` is load-bearing (a bare
-`overflow: auto` flex item collapses to zero height and the bracket vanishes).
-
-The `--bracket-*` custom properties are declared on **`body`**, not `:root`:
-`theme/base.py`'s `ui.colors()` writes the tenant palette's `--q-primary` onto
-`body` while Quasar's stock blue sits on `:root`, so a `:root` declaration would
-resolve the winner accent against the stock colour and ignore tenant theming.
-
-### Admin dialogs
-
-Every bracket dialog — Create, Manage, Results, Advance, and the shared match
-report/override — goes through the house dialog chrome
-([`theme/dialog/_helpers.py`](../../theme/dialog/_helpers.py)): `form_dialog`
-(or `mobile_sheet` + a `.dialog-header` row) for a full-screen sheet with a
-sticky title on phones, and `dialog_actions()` for the sticky bottom bar.
-Hand-rolled `ui.dialog()` + `ui.card()` is what left **Start bracket** and
-**Close** 1,200–4,400px below the fold on a phone. Two further rules follow from
-the same surfaces:
-
-- In the Results dialog the flat **Open / Completed** lists are a *fallback*
-  wherever the visual bracket embed renders (elimination formats), so they sit in
-  default-closed expansions — a 32-match stage otherwise buried the dialog's own
-  actions under ~3,000px of scroll. Swiss and round robin have no embed, so there
-  the lists stay open: they are the only surface.
-- **`complete_stage` asks first.** It writes every entry's `final_rank` and locks
-  the stage with no un-complete, and it fires from one of four adjacent 44px icon
-  buttons on a phone card, so it routes through
-  [`ConfirmationDialog`](../../theme/dialog/confirmation_dialog.py).
+- **Live match state on the cards.** Every card carries the *derived* status from
+  [`match_status.py`](../../application/services/match/match_status.py) — the
+  vocabulary the schedule table, REST payloads and Discord embeds share, so a card
+  can never say "Scheduled" for a match the schedule calls "In Progress".
+  `BracketService.matchup_live_state(matches)` resolves it plus a watch link per
+  matchup, reading the racetime rooms for the whole field in **one batched query**.
+  The statuses are `LIVE` (accent border + a pulsing pill linking to the stream,
+  else the room), `CHECKED_IN`, `AWAITING_RESULT` (played, no winner yet — so a
+  reader knows the bracket is not stuck) and `NEEDS_RESCHEDULE` (an underway series
+  with nothing booked). Anonymous viewers see all of it, watch link included.
+- **Repaint filters on `tournament_id`.** `live.py` also subscribes to the
+  `MATCH_*` lifecycle events; their payloads carry no `bracket_id` and the
+  subscriber is sync and non-blocking (it runs inside `publish`), so it filters on
+  the `tournament_id` every `MATCH_*` payload does carry. The wider net is absorbed
+  by the page's debounce — the alternative is a query in a sync callback.
+- **Round time vs game time.** `Bracket.config['rounds'][N]['scheduled_at']` is the
+  *planned* time for a round; `Match.scheduled_at` is when a specific game happens.
+  They may differ, so the round header reads "Round time: …" while the card and
+  dialog carry the game's own time.
+- **Exactly one view renders at a time.** The 2-D bracket and the per-round
+  accordion draw the same graph, so CSS shows one or the other: the 2-D view from
+  `md` up, the accordion below it with a **List / Bracket** toggle opting into the
+  horizontally-scrolling 2-D view. The chosen view is held per client *outside* the
+  `@ui.refreshable`, so a live `BRACKET_*` rebuild does not snap the reader back to
+  the list.
+- **Results-dialog lists are a fallback.** Wherever the visual embed renders
+  (elimination formats) the flat Open / Completed lists sit in default-closed
+  expansions — a 32-match stage otherwise buries the dialog's own actions. Swiss and
+  round robin have no embed, so there the lists stay open: they are the only surface.
+- **`complete_stage` asks first** ([`ConfirmationDialog`](../../theme/dialog/confirmation_dialog.py)):
+  it writes every entry's `final_rank` and locks the stage with no un-complete.
 
 ## Correctness harness
 
-Because pairing/progression is correctness-critical, the engines carry a dedicated
-test harness under [`tests/services/`](../../tests/services/):
-
-- **`_bracket_sim.py`** — a reusable, engine-agnostic simulation harness (not a
-  test module): `validate_graph` asserts a generated graph is internally
-  consistent (unique `(round, position)`, every pointer targets an existing match
-  with a valid slot, no seed in both slots), and `simulate_*` helpers play a graph
-  to a champion.
-- **Engine invariants** — `test_bracket_engine_invariants.py`,
-  `test_bracket_engine_double_elim.py`, `test_bracket_engine_round_robin.py` check
-  structural invariants across field sizes.
-- **Swiss cross-validation** — `test_bracket_swiss_crossvalidation.py`
-  cross-validates the Swiss engine against **bbpPairings** (a FIDE-grade Dutch
-  engine) at the level of hard constraints (no rematch, ≤1 bye, everyone paired):
-  each scenario is serialized to TRF(x) and, when `BBPPAIRINGS_BIN` points at a
-  built binary, fed to the real parser.
-- **Standings, advancement, multi-stage** — `test_bracket_standings.py`,
-  `test_bracket_advancement.py`, `test_bracket_multistage.py`.
-- **Tenant isolation** — `test_bracket_tenant_isolation.py` (leak test);
-  **REST** — `test_api_brackets.py` (lifecycle happy path + auth matrix) and
-  `test_api_brackets_management.py` (editing, seeds, drop, result override,
-  standings, advance dry run).
+Pairing and progression are correctness-critical, so the engines carry a
+dedicated harness under [`tests/services/`](../../tests/services/): `_bracket_sim.py`
+(a reusable, engine-agnostic simulator — `validate_graph` asserts a generated
+graph is internally consistent, `simulate_*` plays it to a champion), structural
+invariant tests per engine, standings/advancement/multi-stage coverage, a tenant
+leak test, and REST lifecycle + auth-matrix tests. Swiss is additionally
+**cross-validated against bbpPairings** (a FIDE-grade Dutch engine) on the hard
+constraints — no rematch, ≤1 bye, everyone paired — by serializing each scenario
+to TRF(x) and feeding it to the real parser when `BBPPAIRINGS_BIN` is set.
 
 ## Dev seed
 
 [`scripts/seed_brackets.py`](../../scripts/seed_brackets.py) creates, per tenant, a
-dedicated **"Bracket Demo"** tournament per format in a mid-play state (some
-matches complete, some open, standings partially formed; the double-elim demo has
-an open losers-bracket round; the Swiss demo a mid-round state with a dropped
-entrant; the round-robin demo two groups partway) plus a two-stage
-groups→playoff tournament mid-chain (stage 0 complete with `final_rank`, stage 1
-seeded by advancement and started). It drives the real `BracketService` so the
-persisted graph is internally consistent, and both placeholder and linked entrants
-are represented. Demos live on their own tournaments, never the Challonge-mirrored
-one (the exclusivity guard forbids it).
-
-It also leaves the **live** states the card renderer needs — a game in progress,
-one finished-awaiting-confirmation, and a matchup left open and unbooked — in the
-double-elim demo, plus a Bo3 mid-series at 1-0 in the single-elim one. A state the
-seed never creates is a state no one can review in `/ui-validation`.
+"Bracket Demo" tournament per format in a mid-play state plus a two-stage
+groups→playoff tournament mid-chain. It drives the real `BracketService`, so the
+persisted graph is internally consistent, and leaves the live states the card
+renderer needs (a game in progress, one awaiting confirmation, an unbooked
+matchup, a Bo3 at 1-0). Demos live on their own tournaments, never the
+Challonge-mirrored one — the exclusivity guard forbids it.

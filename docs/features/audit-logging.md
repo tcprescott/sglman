@@ -1,78 +1,65 @@
-# Feature: Audit Logging
+# Audit Logging
 
-_Added: PRs #11 (coverage pass) | Status: Stable_
+Every significant admin action is recorded in `AuditLog` as an accountability
+trail — who changed what, when. The writing conventions (`verb.object` naming, an
+`AuditActions` constant per action, an explicit `actor`, a plain-dict `details`)
+are in CLAUDE.md; this doc covers the model, the call, the coverage, and where to
+read the trail.
 
-## What It Does
-
-Records all significant admin actions to an `AuditLog` table viewable in the admin Reports tab. Provides an accountability trail for match changes, user role grants, tournament edits, and crew decisions.
+Source: [`models/audit.py`](../../models/audit.py),
+[`application/services/audit_service.py`](../../application/services/audit_service.py)
+(`AuditService` + the `AuditActions` registry), report at
+[`pages/admin_tabs/reports/audit.py`](../../pages/admin_tabs/reports/audit.py).
 
 ## Model
 
+`AuditLog` is append-only. Both FKs are **nullable with `SET_NULL`** so the trail
+survives a deletion: `tenant` NULL marks a platform-level row (super-admin tenant
+CRUD, feature-group edits), and `user` NULL means the actor was deleted — their
+identity is snapshotted into `details` at write time. `details` is a `TextField`
+holding a JSON-encoded string, not a native JSON column: `write_log` serializes
+the dict you pass and the report decodes it for display. Field table:
+[data-model.md](../reference/data-model.md#auditlog).
+
+## Writing an entry
+
+`AuditService` is instantiated per service (`self.audit_service = AuditService()`).
+The default call is **`write_and_publish`** — it writes the row and fires the
+matching [event](event-system.md) in one step, which is what `check_dry_regressions.py`
+requires instead of a hand-rolled `write_log` + `event_bus.publish` pair:
+
 ```python
-# models.py
-class AuditLog(Model):
-    user = ForeignKeyField('models.User', related_name='audit_logs')  # the actor
-    action = CharField(max_length=255)  # namespaced verb.object
-    details = TextField(null=True)      # JSON string (encoded dict); rendered expandable in UI
-    created_at = DatetimeField(auto_now_add=True)
-```
-
-`details` is a `TextField` holding a JSON-encoded string, not a native dict/JSON column. `write_log` serializes the dict you pass before storing it, and the Reports UI decodes it back for display.
-
-## Writing an Audit Log Entry
-
-`write_log` is an **instance method** — instantiate `AuditService` (services typically hold `self.audit_service = AuditService()` and reuse it):
-
-```python
-from application.services.audit_service import AuditService, AuditActions
-
-audit_service = AuditService()
-await audit_service.write_log(
-    actor=current_user,
-    action=AuditActions.MATCH_CREATED,
-    details={'match_id': match.id, 'tournament': tournament.name}
+await self.audit_service.write_and_publish(
+    actor, AuditActions.MATCH_CREATED, {'match_id': match.id},
+    EventType.MATCH_CREATED,
+    event_extra={'tournament_id': match.tournament_id},  # event-only routing keys
 )
+
+# Narrow case: an audited action with no matching EventType.
+await self.audit_service.write_log(actor, AuditActions.SYSTEM_CONFIG_UPDATED, details)
 ```
 
-**`actor` must not be `None`** — `write_log` raises `ValueError` if it is. Do not guard with `if actor:`. The `actor` argument is stored on the `AuditLog.user` field.
-
-## Action String Conventions
-
-All action constants live in `AuditActions` (in `application/services/audit_service.py`). Pattern: `verb.object`.
-
-Examples:
-- `match.created`, `match.updated`, `match.deleted`
-- `match.seated`, `match.started`, `match.finished`
-- `user.role_granted`, `user.role_revoked`
-- `tournament.created`, `tournament.updated`
-- `crew.signup_created`, `crew.signup_removed`, `crew.approval_changed`
-- `triforce_text.approved`, `triforce_text.deleted`
-- `system_config.updated`
-
-When adding a new action, add a constant to `AuditActions` rather than using a literal string.
-
-## Viewing the Audit Log
-
-Admin dashboard → Reports tab → Audit Log report. Supports:
-- Filter by user, action prefix, date range.
-- Expand row to see the decoded JSON `details`.
-- Pagination (newest first).
+Both raise `ValueError` when `actor` is `None` — a missing actor is a caller bug,
+not a reason to skip the audit.
 
 ## Coverage
 
-Audit entries are written for all major create/update/delete operations across these `AuditActions` namespaces:
-- Matches (all lifecycle transitions, seed rolls, stage/station assignment, stream candidates, watchers)
-- Users (creation, login provisioning, role grants/revokes, profile updates, activation, tournament enrollment)
-- Tournaments (create/update/delete, admin/crew-coordinator membership)
-- Crew (signup created/removed, approval changed, acknowledged)
-- Triforce texts (submit/approve/reject/delete)
-- Stream rooms (create/update/delete)
-- Discord role mappings & role sync grants/revokes
-- API tokens (create/revoke)
-- In-app feedback (submit/review)
-- Equipment lending (create/update/delete, check-out/check-in)
-- Player & volunteer availability, volunteer positions/shifts/assignments and draft scheduling
-- Challonge integration (connect, player/tournament linking, bracket sync, result push, webhooks)
-- System configuration changes
+`AuditActions` namespaces, one per audited domain:
 
-**See also:** [reference/services.md](../reference/services.md) — AuditService API and AuditActions namespaces.
+| Area | Namespaces |
+|---|---|
+| Scheduling | `match.*` (lifecycle, seeds, stages, stations, stream candidates, watchers), `crew.*`, `tournament.*`, `stream_room.*` |
+| People | `user.*` (creation, login provisioning, role grants, profile, activation, enrollment), `role.*` (Discord-sourced grants), `discord_role.*`, `player.availability_updated` |
+| Volunteers & equipment | `volunteer.*` (positions, shifts, assignments, draft scheduling), `equipment.*` (lending, check-out/in) |
+| Online play | `bracket.*`, `challonge.*`, `race_room.*`, `race_room_profile.*`, `racetime.*`, `racetime_bot.*`, `sg_sync.*`, `async_qualifier.*`, `preset.*`, `randomizer_credential.*` |
+| Community content | `triforce_text.*`, `feedback.*` |
+| Integrations & platform | `discord.*` (server link), `discord_event.*`, `webhook.*`, `apitoken.*`, `web_push.*`, `twitch.*`, `system_config.*`, `theme.updated`, `feature_flag.*`, `feature_group.*`, `tenant.*`, `platform.super_admin_*` |
+
+Platform-level rows (`tenant.*`, `platform.*`, feature-group and availability
+grants) carry `tenant=NULL`; everything else is stamped with the acting tenant.
+
+## Viewing the log
+
+Admin dashboard → **Reports → Audit Log**: server-paginated newest-first, with a
+date range, a user filter (click through from another report), a substring match
+on the action name, and expandable decoded `details`.

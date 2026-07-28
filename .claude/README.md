@@ -216,8 +216,7 @@ bug itself; `check_slot_context.py`'s doc literal is skipped by the `/.claude/` 
 
 ### DRY regressions — `scripts/check_dry_regressions.py` (PreToolUse: Write|Edit)
 Blocks re-introduction of the copy-paste shapes the 2026-07 code-quality audit
-(`docs/reviews/2026-07-code-quality-audit.md`) removed, each message naming the
-shared primitive that replaced the shape:
+removed, each message naming the shared primitive that replaced the shape:
 
 | Shape | Use instead | Audit |
 |---|---|---|
@@ -502,12 +501,13 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   providers), error contract incl. the toast convention, NiceGUI shared-state
   pitfalls, missing leak tests/seed rows. Use after a cross-layer feature or
   before committing; it reports, never edits.
-- **`commands/code-quality-audit.md`** — `/code-quality-audit` re-runs the
-  whole-codebase DRY & engineering-practices audit that produced
-  `docs/reviews/2026-07-code-quality-audit.md`: fan-out per-section reviewers,
-  adversarial reconciliation, a report in `docs/reviews/`, leverage-ordered
-  remediation waves, and recurring mechanical classes fed back into hooks
-  (`check_dry_regressions.py` is that loop's output).
+- **`commands/code-quality-audit.md`** — `/code-quality-audit` runs a
+  whole-codebase DRY & engineering-practices audit: fan-out per-section
+  reviewers, adversarial reconciliation, a report in `docs/reviews/`,
+  leverage-ordered remediation waves, and recurring mechanical classes fed back
+  into hooks (`check_dry_regressions.py` is that loop's output). Past reports
+  are not retained once remediated — they go stale by design and git history
+  keeps them.
 
 ---
 

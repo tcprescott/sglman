@@ -29,7 +29,11 @@ This file is the lean, always-loaded guide: the behavioral rules to follow on ev
 | Multitenancy (tenant context, `/t/<slug>`, query scoping, `/platform`) | [docs/features/multitenancy.md](docs/features/multitenancy.md) |
 | Per-tenant feature flags (two-tier availability + enable, gating) | [docs/features/feature-flags.md](docs/features/feature-flags.md) |
 | Engagement telemetry (page views, interactions, event mirror) | [docs/features/telemetry.md](docs/features/telemetry.md) |
-| Per-feature docs (auth, crew, notifications, etc.) | [docs/features/](docs/features/) |
+| Discord bot, notifications, role sync, mock mode | [docs/features/discord.md](docs/features/discord.md) |
+| Crew signup, match acknowledgment, watching | [docs/features/match-participation.md](docs/features/match-participation.md) |
+| Online tournaments (presets, race rooms, qualifiers, SG sync) | [docs/features/online-tournaments.md](docs/features/online-tournaments.md) |
+| Single-worker constraint and the way out of it | [docs/scaling-roadmap.md](docs/scaling-roadmap.md) |
+| Remaining per-feature docs | [docs/features/](docs/features/) |
 
 ## Architecture: three-layer pattern
 
@@ -42,7 +46,7 @@ Presentation (pages/, theme/)  →  Service (application/services/)  →  Reposi
 - **Presentation** renders NiceGUI, handles interaction, calls services, catches their errors and shows `ui.notify()`. No business logic; no ORM *writes*. Read-only ORM lookups for simple display are acceptable but repositories are preferred.
 - **Service** enforces rules/validation, coordinates repositories, writes audit logs, sends Discord notifications. Raises `ValueError` for user-facing errors. Must not import NiceGUI.
 - **Repository** is pure data access (CRUD, queries, `prefetch_related`). No business logic, audit, or notifications.
-- **Entry surfaces** — `api/` (REST routers), `discordbot/` (Discord interaction handlers) and `mcpserver/` (MCP tools) are peers of the web UI presentation layer: they call services and may do read-only *load-or-404* model lookups (the sanctioned shape is `Tournament.get_or_none(...)` in `api/routers/tournament_actions.py`), but must **not** import `application.repositories` or reach through `service.repository.*`. Route reads through a service method (e.g. `get_user_from_discord_id`, `UserService.get_user_by_id`, `MatchService.get_by_id`). `enforce_architecture.py` classifies both as presentation and enforces this.
+- **Entry surfaces** — `api/` (REST routers), `discordbot/` (Discord interaction handlers) and `mcpserver/` (MCP tools) are peers of the web UI presentation layer: they call services and may do read-only *load-or-404* model lookups (the sanctioned shape is `Tournament.get_or_none(...)` in `api/routers/tournament_actions.py`), but must **not** import `application.repositories` or reach through `service.repository.*`. Route reads through a service method (e.g. `get_user_from_discord_id`, `UserService.get_user_by_id`, `MatchService.get_by_id`). `enforce_architecture.py` classifies all three as presentation and enforces this.
 
 See [docs/refactoring-guide.md](docs/refactoring-guide.md) for the full pattern and examples.
 
@@ -81,23 +85,11 @@ Use bare `event_bus.publish(Event.create(EventType.X, {...}, actor))` (`from app
 
 ## Timezone handling
 
-**All datetimes are stored in UTC; all user-facing times are US/Eastern.** Never store localized datetimes; never display raw UTC. Use `application/utils/timezone.py`:
-
-```python
-from application.utils.timezone import (
-    parse_eastern_datetime,   # (date_str, time_str) → UTC datetime
-    format_eastern_time,      # UTC → "HH:MM"
-    format_eastern_date,      # UTC → "YYYY-MM-DD"
-    format_eastern_display,   # UTC → "YYYY-MM-DD HH:MM EST"
-    now_eastern, to_eastern,
-)
-```
-
-Detail: [docs/timezone-handling.md](docs/timezone-handling.md).
+**All datetimes are stored in UTC; all user-facing times are US/Eastern.** Never store localized datetimes; never display raw UTC. Every conversion goes through `application/utils/timezone.py` (`parse_eastern_datetime`, `format_eastern_time`/`_date`/`_display`, `now_eastern`, `to_eastern`, `to_utc_aware`, …) — full table and DST/storage notes: [docs/timezone-handling.md](docs/timezone-handling.md).
 
 ## Multitenancy
 
-The app is **logically multitenant**: one DB, a `tenant` FK on ~33 models, tenant resolved per request from `/t/<slug>`. **Identity (`User`) is global; almost everything a community owns is tenant-scoped.** There is **no auto-scoping manager** — scoping is explicit:
+The app is **logically multitenant**: one DB, a `tenant` FK on nearly every model a community owns, tenant resolved per request from `/t/<slug>`. **Identity (`User`) is global; almost everything a community owns is tenant-scoped.** There is **no auto-scoping manager** — scoping is explicit:
 
 - **Repositories** scope reads and stamp writes via `application/repositories/_tenant.py`: `scoped(Match.filter(...))` for reads, `Match.create(..., tenant_id=current_tenant_id())` for writes. A direct model read in presentation/service code hand-scopes: `Tournament.get_or_none(id=x, tenant_id=require_tenant_id())`.
 - `require_tenant_id()` **raises** when no tenant is in scope — that loud failure is the safety net, not a bug to swallow. Any bot/worker/`background_tasks` path that touches scoped data must wrap it in `tenant_scope(tenant_id)` (`from application.tenant_context import tenant_scope`).
@@ -154,7 +146,7 @@ Detail: [docs/features/feature-flags.md](docs/features/feature-flags.md).
 
 ## Authentication
 
-Role-based via the `UserRole` junction table — there is **no** `permission` field on `User`. The `Role` enum has eleven members: the seven per-tenant community roles `STAFF`, `PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `VOLUNTEER_COORDINATOR`, `EQUIPMENT_MANAGER`, `VOLUNTEER`; three per-tenant online-tournament admin roles `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN` (each gates a management surface/worker the way STAFF gates the rest); and the one global platform role `SUPER_ADMIN` (its `UserRole` row carries `tenant=NULL`, checked via `AuthService.is_super_admin`, and bypasses the per-tenant role gate). Canonical list: `models.Role` / [docs/features/role-based-auth.md](docs/features/role-based-auth.md). Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
+Role-based via the `UserRole` junction table — there is **no** `permission` field on `User`. The `Role` enum has eleven members: the seven per-tenant community roles `STAFF`, `PROCTOR`, `STREAM_MANAGER`, `TRIFORCE_SUBMITTER`, `VOLUNTEER_COORDINATOR`, `EQUIPMENT_MANAGER`, `VOLUNTEER`; three per-tenant online-tournament admin roles `PRESET_MANAGER`, `SYNC_ADMIN`, `QUALIFIER_ADMIN` (each gates a management surface/worker the way STAFF gates the rest); and the one global platform role `SUPER_ADMIN` (its `UserRole` row carries `tenant=NULL`, checked via `AuthService.is_super_admin`, and bypasses the per-tenant role gate). Canonical list: `models.Role` / [docs/reference/authentication.md](docs/reference/authentication.md#roles). Identity lives in `app.storage.user` (`discord_id`). Use `AuthService`:
 
 ```python
 from application.services import AuthService, get_user_from_discord_id
@@ -166,7 +158,7 @@ await AuthService.get_roles(user)                   # set[Role]
 await AuthService.can_view_admin(user)              # any admin role / membership
 ```
 
-Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views). Detail: [docs/reference/authentication.md](docs/reference/authentication.md), [docs/features/role-based-auth.md](docs/features/role-based-auth.md).
+Protect routes with `@protected_page('/path', roles=[Role.STAFF])` (the `roles=` kwarg is optional). A spectator surface that must work signed out uses `@public_page('/path')` instead — same tenant resolution and feature gate, but the route never joins `protected_routes`, so `AuthMiddleware` does not redirect to `/login`; the page body must tolerate `user is None` and everything it renders is world-readable (currently the bracket views). Detail: [docs/reference/authentication.md](docs/reference/authentication.md).
 
 ## NiceGUI patterns
 

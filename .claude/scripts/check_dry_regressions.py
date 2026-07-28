@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PreToolUse hook: block re-introduction of copy-paste patterns the 2026-07
-code-quality audit removed (docs/reviews/2026-07-code-quality-audit.md).
+code-quality audit removed.
 
 Each rule names a shared primitive that replaced a repeated shape; writing the
 shape again is drift back toward the audited debt. Because a few legacy

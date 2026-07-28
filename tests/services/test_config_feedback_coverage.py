@@ -14,7 +14,6 @@ import pytest
 from application.services.audit_service import AuditActions
 from application.services.feedback_service import FeedbackService, PAGE_URL_MAX_LENGTH
 from application.services.system_config_service import (
-    KEY_DISCORD_SYNC_GUILD_ID,
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,
     KEY_MAX_CONCURRENT_PLAYERS,
@@ -58,7 +57,7 @@ async def set_config(name: str, value: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# get_int / get_discord_sync_guild_id
+# get_int
 # ---------------------------------------------------------------------------
 
 
@@ -81,19 +80,6 @@ class TestGetInt:
     async def test_default_when_unparseable(self, db):
         await set_config('n', 'not-a-number')
         assert await SystemConfigService.get_int('n', default=5) == 5
-
-
-class TestGetDiscordSyncGuildId:
-    async def test_returns_configured_id(self, db):
-        await set_config(KEY_DISCORD_SYNC_GUILD_ID, '123456789')
-        assert await SystemConfigService.get_discord_sync_guild_id() == 123456789
-
-    async def test_returns_none_when_unset(self, db):
-        assert await SystemConfigService.get_discord_sync_guild_id() is None
-
-    async def test_returns_none_when_unparseable(self, db):
-        await set_config(KEY_DISCORD_SYNC_GUILD_ID, 'guild-abc')
-        assert await SystemConfigService.get_discord_sync_guild_id() is None
 
 
 # ---------------------------------------------------------------------------

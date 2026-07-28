@@ -59,8 +59,8 @@ Discord displays it** — the copy and button styles are fully determined by cod
 | `application/services/match/match_schedule_service.py`, `crew_service.py`, `volunteer_schedule_service.py`, `volunteer_reminder.py` | Where each embed is **built and threaded** into the send call (titles, colours, descriptions per notification) |
 | `docs/reference/discord-integration.md` | The map: flows, `custom_id` grammar, recipient fan-out, queue |
 
-Behavior docs: `docs/features/discord-notifications.md`, `match-acknowledgment.md`,
-`crew-management.md`, `tournament-notifications.md`, `match-watcher.md`.
+Behavior docs: `docs/features/discord.md` (notifications, role sync, mock mode) and
+`docs/features/match-participation.md` (crew signup, acknowledgment, watching).
 
 ## Step 1 — render the real surface
 

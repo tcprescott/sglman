@@ -3,9 +3,7 @@ description: Run a whole-codebase DRY & engineering-practices audit — fan-out 
 ---
 
 Audit the codebase for quality drift — DRY violations, convention divergence,
-correctness bugs the drift exposes — using the process that produced
-[docs/reviews/2026-07-code-quality-audit.md](../../docs/reviews/2026-07-code-quality-audit.md)
-(read it first: it is the reference for structure, tone, and rigor).
+correctness bugs the drift exposes.
 
 This is a **report-only** command: no code changes. Remediation is delegated to
 follow-up work, ordered by leverage at the end of the report.
@@ -48,9 +46,8 @@ and confirmed.
 
 ## 4. Write the report
 
-`docs/reviews/YYYY-MM-<topic>.md`, indexed from
-[docs/README.md](../../docs/README.md) § Reviews. Structure (mirror the
-2026-07 report):
+`docs/reviews/YYYY-MM-<topic>.md` (create the directory if it does not exist).
+Structure:
 
 1. header: date, audited commit, scope, status, reconciliation summary
 2. executive summary table (theme / severity / age / where)

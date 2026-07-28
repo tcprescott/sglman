@@ -38,12 +38,11 @@ disconnect a client from the same list.
 ### Why not personal access tokens
 
 A PAT presented to `/mcp` gets **401** with
-`WWW-Authenticate: Bearer resource_metadata="…"`, not 403. 403 would be accurate
-but leaves the client with nowhere to go; the 401 plus the challenge is what
-lets a compliant client discover the authorization server and start the flow.
-
-The refusal is mutual: an OAuth token presented to `/api` is refused too. A
-credential minted for one surface can never be replayed against the other.
+`WWW-Authenticate: Bearer resource_metadata="…"`, not 403 — the challenge is what
+lets a compliant client discover the authorization server and start the flow,
+where an accurate 403 would leave it nowhere to go. The refusal is mutual: an
+OAuth token presented to `/api` is refused too, so a credential minted for one
+surface can never be replayed against the other.
 
 ### The two token kinds
 
@@ -72,20 +71,18 @@ would register them inside the FastMCP sub-app, where no client looks, so
 ### Consent
 
 `pages/mcp_consent.py` at `/oauth/mcp/consent` is a bespoke `@ui.page`, not a
-`@protected_page`. Every `@protected_page` is a *tenant* page and 404s when
-reached without a tenant, but an MCP grant is deliberately platform-wide — it
-authenticates a person, not a membership. It registers itself in
-`protected_routes` directly to get the sign-in redirect.
-
-There is **no community picker**. The token carries no community; asking would
-imply a scoping it does not have.
+`@protected_page`: every `@protected_page` is a *tenant* page and 404s without a
+tenant, but an MCP grant is platform-wide — it authenticates a person, not a
+membership. It registers itself in `protected_routes` directly to get the
+sign-in redirect. There is **no community picker**; the token carries no
+community, so asking would imply a scoping it does not have.
 
 It still reads as Wizzrobe: the page applies
 [`render_platform_chrome('Authorize')`](../reference/frontend.md#tenant-less-chrome-themechromepy)
 — the shared tenant-less header, stylesheet, phoenix palette and dark mode — and
 its card, grant list and expired-transaction notice use the `.consent-*` classes
-in `styles.css`. The palette is the shipped default rather than a tenant
-override, because the credential being granted is not scoped to a community.
+in `styles.css`. The palette is the shipped default, not a tenant override,
+because the credential is not scoped to a community.
 
 ## Choosing a community
 
@@ -93,10 +90,8 @@ Every tool except `whoami` and `list_tenants` takes a required `tenant` argument
 — a community slug. `list_tenants` returns the slugs the caller may use.
 
 **Membership floor.** A tool reaches a community only where its user actually
-holds a role (super admins excepted). This is not decoration: a REST token is
-bound to one community and can never address another, so without the floor an
-`ACTOR`-gated tool would let any signed-in user read every other community's
-tournaments and schedule. The floor restores parity with the REST surface.
+holds a role (super admins excepted) — parity with the REST surface, where a
+token is bound to one community and can never address another.
 
 An unknown slug and an entitled-elsewhere slug produce **byte-identical**
 `not_found` errors, so error text cannot be diffed into a directory of the
@@ -117,13 +112,13 @@ agree.
 | `ADMIN` | `AuthService.can_view_admin` | `require_admin` |
 
 The feature flag is checked **before** the role, matching `@protected_page`: a
-subsystem the community has not enabled is hidden from everyone, staff included.
-A `forbidden` there would confirm the feature exists.
+subsystem the community has not enabled is hidden from everyone, staff included,
+and answers `not_found` — a `forbidden` would confirm the feature exists.
 
 **Read-only tokens are never rejected.** Every OAuth token is minted
-`read_only=True` because the surface performs no writes, so a rejection would
-refuse every legitimate caller. If a write tool is ever added it needs its own
-explicit check — do not restore a blanket one.
+`read_only=True` because the surface performs no writes, so a blanket rejection
+would refuse every legitimate caller. A write tool, if ever added, needs its own
+explicit check.
 
 ## Tool catalogue
 
@@ -135,10 +130,9 @@ explicit check — do not restore a blanket one.
 | `whoami` | GLOBAL | Identity, roles **and enabled flags** per community. The cheapest way to orient. |
 | `list_tenants` | GLOBAL | The slugs every other tool needs, with the same roles/flags. |
 
-Both report each community's live feature flags. A flag is not a permission —
-it is reported to everyone who can see the community, exactly as the feature's
-absence would be — and reporting it is what lets a client skip a tool instead of
-discovering its `not_found` a round-trip later.
+Both report each community's live feature flags. A flag is not a permission, so
+it goes to everyone who can see the community — and reporting it lets a client
+skip a tool instead of discovering its `not_found` a round-trip later.
 
 ### Tournaments and matches
 | Tool | Gate | Flag |
@@ -157,16 +151,15 @@ discovering its `not_found` a round-trip later.
 | `list_volunteer_shifts`, `volunteer_coverage`, `volunteer_hour_trends` | ADMIN | `VOLUNTEERS` |
 
 The volunteer tools sit one gate **above** their REST counterparts
-(`require_api_actor`). Deliberate: the REST reads back a self-service view of
-your own shift, whereas one call here returns a whole window's roster with names.
+(`require_api_actor`), deliberately: REST reads back a self-service view of your
+own shift, whereas one call here returns a whole window's roster with names.
+`volunteer_hour_trends` is served by `AnalyticsService`, which carries no flag of
+its own, so `VOLUNTEERS` is declared at the tool — without it a community with
+volunteers off could still read its volunteer hours here.
 
 `list_match_crew` includes **unapproved** signups, which is why it is ADMIN while
 `get_match` is ACTOR — `get_match` reuses the REST serializer and inherits its
 rule that unapproved crew are never disclosed.
-
-`volunteer_hour_trends` is served by `AnalyticsService`, which carries no flag of
-its own, so the flag is declared at the tool. Without it a community with
-volunteers switched off could still read its volunteer hours here.
 
 ### Reports
 | Tool | Gate |
@@ -178,11 +171,11 @@ volunteers switched off could still read its volunteer hours here.
 ADMIN mirrors the Admin → Reports tab (`is_staff or tournament-admin or
 crew-coordinator`, which is what `can_view_admin` answers).
 
-Two are **reshaped rather than passed through**. `ReportsService` builds its
-payloads for a chart that is about to draw them, so they carry per-interval and
-per-match detail, and `stream_room_utilization`'s even contains ORM `Match` rows.
-`capacity_forecast` returns peaks and headroom instead of the full series;
-`stream_room_utilization` returns per-room totals instead of every booking.
+Two are **reshaped rather than passed through**, because `ReportsService` builds
+its payloads for a chart (per-interval and per-match detail; `stream_room_utilization`'s
+even contains ORM `Match` rows): `capacity_forecast` returns peaks and headroom
+instead of the full series, `stream_room_utilization` per-room totals instead of
+every booking.
 
 ### Equipment
 | Tool | Gate | Flag |
@@ -214,7 +207,7 @@ is not exposed here.
 | `list_speedgaming_links`, `list_speedgaming_episodes` | ACTOR | `SPEEDGAMING_ETL` |
 
 Several sit at ACTOR because the *service* carries the real check
-(`can_manage_presets`, `ensure_can_manage_sync`) — mirroring the router's gate
+(`can_manage_presets`, `ensure_can_manage_sync`); mirroring the router's gate
 rather than inventing a stricter one keeps both surfaces answering the same
 question. `list_race_rooms` is the exception at STAFF, matching
 `GET /race-rooms/open`, whose service read has no gate of its own.
@@ -240,15 +233,14 @@ Two rules, in `mcpserver/schemas.py`:
   `api/_match_view.serialize_match`, so rules baked into it cannot drift between
   the two surfaces.
 - **List reads get a compact shape.** A hundred full match records is mostly
-  padding, and padding is the expensive kind of wrong for an LLM consumer: it
-  buries the answer and burns the context the model needs to reason.
+  padding, which buries the answer and burns the model's context.
 
-A third rule is about the *annotation*, and it is the kind that fails silently:
-**never return a bare `dict`**. `func_metadata` derives the output schema from
-the return type, and `dict` yields **no schema at all** — the SDK then sends the
-payload as a JSON string in a text block instead of `structuredContent`, while a
-`Dict[str, Any]` tool right beside it returns a properly typed result. Nothing in
-the tool's source shows the difference, so
+A third rule is about the *annotation*, and it fails silently: **never return a
+bare `dict`**. `func_metadata` derives the output schema from the return type,
+and `dict` yields **no schema at all** — the SDK then sends the payload as a JSON
+string in a text block instead of `structuredContent`, while a `Dict[str, Any]`
+tool right beside it returns a properly typed result. Nothing in the tool's
+source shows the difference, so
 `test_mcp_catalogue.py::test_every_tool_declares_an_output_schema` asserts it.
 
 Where a service payload is built for a chart rather than a reader, the tool
@@ -283,7 +275,7 @@ non-OAuth token, **403** deactivated account, **405** wrong method, **406** bad
 
 ## Implementation notes
 
-Three settings in `mcpserver/server.py` are load-bearing and non-obvious. Each is
+Four settings in `mcpserver/server.py` are load-bearing and non-obvious. Each is
 pinned by a test.
 
 - **`stateless_http=True` is a correctness requirement, not a scaling knob.** In
@@ -294,6 +286,9 @@ pinned by a test.
 - **`json_response=True`** — the app's `BaseHTTPMiddleware` stack wraps `/mcp`,
   and `BaseHTTPMiddleware` around long-lived SSE is a known source of hangs on
   client disconnect.
+- **`streamable_http_path='/'`** — the path is served from
+  `mcpserver/__init__.py`; the SDK default would nest the real endpoint at
+  `/mcp/mcp`.
 - **DNS-rebinding protection is off explicitly.** It auto-enables when the
   configured host is loopback (the default) and would 421 every production
   request — failing in exactly the environment local testing cannot reveal.
@@ -302,7 +297,8 @@ Two more, elsewhere:
 
 - **A `Route`, not a `Mount`.** Starlette compiles a mount to
   `^/mcp/(?P<path>.*)$`, so bare `POST /mcp` — what every client sends — would
-  only reach it via a 307, and clients do not follow redirects by default.
+  only reach it via a 307, and clients do not follow redirects by default. This
+  is why `streamable_http_path` is `'/'`.
 - **`mcpserver.mount(app)` must run before `frontend.init(app)`** in `main.py`.
   NiceGUI mounts itself at `/` and would swallow `/mcp`.
 
@@ -326,17 +322,15 @@ in pydantic-settings.
 
 - `tests/mcp/` — transport, catalogue guardrails, the authorization matrix, the
   full OAuth flow, and `test_mcp_reads.py`, which calls every read tool against
-  seeded rows. The last one closes a real gap: the catalogue tests prove a tool
-  is *served* and *gated* but never run it, so a compact shape reading a renamed
-  relation or an un-prefetched FK would ship green. The harness is
-  `tests/mcp/conftest.py::mcp_session`, an
+  seeded rows (the catalogue tests prove a tool is *served* and *gated* but never
+  run it, so a compact shape reading a renamed relation or an un-prefetched FK
+  would ship green). The harness is `tests/mcp/conftest.py::mcp_session`, an
   async context manager used **inside** the test body: the session manager is
   single-use per instance and is an anyio cancel scope, which must be exited in
   the task that entered it, so a `yield`-style fixture cannot work.
 - `tests/tenancy/test_mcp_tenant_isolation.py` — scoping plus context hygiene.
-  The interleaving test is the one a single-call test cannot make: a binding set
-  without a matching reset passes every one-call-at-a-time test and fails there,
-  which is also how it would fail in production.
+  Its interleaving test catches what a single-call test cannot: a binding set
+  without a matching reset passes every one-call-at-a-time test.
 
 Dev fixtures: `scripts/seed_dev.py` seeds a registered client and a deterministic
 OAuth bearer (`wizzrobe_mcp_devseed_local_only_do_not_use`) so `/mcp` can be
