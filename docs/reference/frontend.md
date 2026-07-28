@@ -411,7 +411,7 @@ All colour/size routes through `--bracket-*` custom properties in [`static/css/b
 
 `admin_discord_roles_page()` — Discord-role → app-role mappings for sign-in role sync.
 
-- Requires a configured sync guild (`SystemConfigService.get_discord_sync_guild_id`); otherwise points the admin at the Settings tab.
+- Requires the tenant to have a connected Discord server (`Tenant.discord_guild_id`); otherwise the tab offers the "Connect Discord server" flow instead of the mapping table.
 - A hand-rolled `ui.table` of mappings (`DiscordRoleMappingService.list_mappings`), each with a delete button (`remove_mapping`). **Add Mapping** (gated on `AuthService.can_grant_roles`) opens a dialog whose Discord-role select is populated from `DiscordService.list_guild_roles`, persisting via `add_mapping`.
 - Refreshes on tab entry via `wire_tab_refresh('Discord Roles', …)`.
 
@@ -610,12 +610,14 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 - Slots: clickable Username (emits `edit_user` → `AdminUserDialog`), Active icon, truncated Discord ID, linked Challonge account, and Roles rendered as `q-chip`s.
 - `refresh()` orders by username and prefetches `roles`, `admin_tournaments`, `crew_coordinated_tournaments`; `_format_user_row` title-cases role names and appends `TA(n)` / `CC(n)` markers for tournament-scoped roles. Timestamps format through `format_eastern_display`.
 
-### Shared kits (`admin_crud.py`, `equipment.py`)
+### Shared kit (`admin_crud.py`)
 
-Two extracted-but-not-yet-fully-adopted kits live alongside the view classes. Prefer them over hand-rolling when touching those surfaces.
+Two helpers every service-backed admin tab uses:
 
-- **`admin_crud.py`** — `ServiceTableView` (columns + `fetch` + `to_row` + handlers → a whole admin table, including the toolbar, actions slot and tab-refresh wiring) plus `admin_page_container`, `refresh_icon_button`, `action_button`, `actions_slot`, and `current_actor`. Of these only **`wire_tab_refresh`** is wired today — every service-backed admin tab imports it, and it is the piece with a correctness reason to exist: it captures the tenant during the page build and rebinds it around the refresh, because `selected_tab` is a client event whose handler has lost the contextvar.
-- **`equipment.py`** — the status labels (`status_label`, `status_badge_color`), badge and action-button snippets (`view_btn`, `actions_slot`), grid card (`grid_field_row`, `grid_card`), `equipment_rows(assets, open_loans, …)`, and the checkout/checkin wiring (`wire_checkout_checkin`, `make_checkout_handler`, `make_checkin_handler`). The three equipment surfaces still carry their own copies of these.
+- **`wire_tab_refresh(tab_name, refresh)`** — the piece with a correctness reason to exist. It captures the tenant during the page build and rebinds it around the refresh, because `selected_tab` is a client event whose handler runs in a detached background task that has lost the contextvar; without the rebind a scoped read raises `require_tenant_id()` (swallowed) and the tab never repaints.
+- **`current_actor()`** — the logged-in `User`, or `None`.
+
+The module previously also carried a `ServiceTableView` generic plus page-container, toolbar and actions-slot helpers, and a sibling `equipment.py` kit. Both were extracted in anticipation of adoption that never happened — after two audits recommending it, neither had a single importer — so they were deleted rather than left as an optional style choice. Recover them from git history if a genuine second caller appears.
 
 ### Responsive tables — the mobile grid rule
 

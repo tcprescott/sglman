@@ -64,10 +64,10 @@ Grouped by domain (tag). See `/api/docs` for parameters, request/response schema
 
 One module per group under [`api/routers/`](../../api/routers/), named after the group, with a matching module under [`api/schemas/`](../../api/schemas/). The cross-cutting pieces are `dependencies.py` (auth deps + `tenant_context_scope` + `require_feature` + `ServiceErrorRoute`), `rate_limit.py`, `_helpers.py` (shared load-or-404), and `_match_view.py` (match serialization).
 
-### Health (`/api/health`)
+### Health (`/api/health`) · `health.py`
 - `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
 
-### Matches (`/api/matches`)
+### Matches (`/api/matches`) · `matches.py`, `match_actions.py`
 - `GET /matches` — list with filters (`match_id`, `stream_room_id`, `tournament_id`, `start_date`, `end_date`, `limit`); only approved crew are exposed.
 - `GET /matches/{id}` — single match.
 - `POST /matches` — create (Staff/TA). `POST /matches/request` — player-initiated request.
@@ -77,28 +77,28 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.
 - Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
 
-### Crew (`/api/crew`)
+### Crew (`/api/crew`) · `crew.py`
 - `POST /crew/{crew_type}/{crew_id}/approval` — approve/reject (Staff/TA/Crew Coordinator).
 - `POST /crew/{crew_type}/{crew_id}/acknowledge` — crew member acknowledges their own approved assignment.
 
-### Tournaments (`/api/tournaments`)
+### Tournaments (`/api/tournaments`) · `tournaments.py`, `tournament_actions.py`
 - `GET /tournaments?active_only=` (`active_only` returns only active tournaments, default `false`) · `GET /tournaments/{id}`.
 - `POST` · `PATCH /{id}` · `DELETE /{id}`. `POST`/`PATCH` accept an optional per-tournament **tournament-days** override — `event_start_date`, `event_end_date` (`YYYY-MM-DD`), and `tournament_hours` (`{"YYYY-MM-DD": ["HH:MM open", "HH:MM close"]}`); each is nullable and falls back to the community setting when omitted (on `PATCH`, sending `null` clears an override back to inherit). An end before start, or a close not after open, returns `400`.
 - `POST/DELETE /{id}/admins` and `/{id}/crew-coordinators` (Staff).
 - `GET /tournaments/{id}/match-suggestion?player_ids=` — suggested UTC start time for the given players (400 if no slot fits).
 
-### Stream rooms (`/api/stream-rooms`)
+### Stream rooms (`/api/stream-rooms`) · `stream_rooms.py`, `stream_room_actions.py`
 - `GET /stream-rooms?active_only=` (`active_only` returns only active rooms, default `false`) · `GET /stream-rooms/{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
 
-### Users & roles (`/api/users`)
+### Users & roles (`/api/users`) · `users.py`
 - `GET /users?role=` (Staff; `role` optionally filters to users holding that role **in the token's tenant**) · `GET /users/me` · `GET /users/{id}` (self or Staff).
 - `POST /users` (Staff) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments`.
 - `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff) — grant/revoke a role. Roles are per-tenant except `SUPER_ADMIN`; see [authentication.md § Roles](authentication.md#roles). (The Swagger `summary` strings still say "global role" — a stale docstring, not a different behaviour.)
 
-### Player availability (`/api/users/me/availability`)
+### Player availability (`/api/users/me/availability`) · `player_availability.py`
 - `GET` (own windows) · `PUT` (replace all windows) · `DELETE` (clear). Self-service for any authenticated user; windows feed match-time suggestions.
 
-### Volunteers (`/api/volunteers`)
+### Volunteers (`/api/volunteers`) · `volunteers.py`
 Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes are self-service. All routes require an authenticated actor; writes use a non-read-only token.
 - **Positions:** `GET /volunteers/positions?active_only=` (list; `active_only` limits to active positions, default `false`) · `POST /volunteers/positions` (create) · `PATCH /volunteers/positions/{id}` · `DELETE /volunteers/positions/{id}`.
 - **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
@@ -106,26 +106,26 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 - **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
 - **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`).
 
-### Triforce texts (`/api/triforce-texts`)
+### Triforce texts (`/api/triforce-texts`) · `triforce.py`
 - `GET /mine?tournament_id=` (own; `tournament_id` required) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
 - `POST` (submit) · `POST /{id}/moderate` · `DELETE /{id}` (Staff/TA).
 
-### Notifications (`/api/notifications`)
+### Notifications (`/api/notifications`) · `notifications.py`
 - `GET /preferences` · `PUT /preferences`.
 
-### Audit (`/api/audit-logs`)
+### Audit (`/api/audit-logs`) · `audit.py`
 - `GET /audit-logs` — paginated, admin only. Filters: `start`/`end` (UTC time bounds), `user_id`, `action_contains` (substring match on the action string); paginate with `limit` (1–500, default 100) and `offset` (default 0). Response includes the matching-entry `total`.
 
-### System config (`/api/config`)
+### System config (`/api/config`) · `system_config.py`
 - `GET /config` · `GET /config/{key}` · `PUT /config/{key}` (Staff).
 
-### Webhooks (`/api/webhooks`)
+### Webhooks (`/api/webhooks`) · `webhooks.py`
 - `GET /webhooks` (Staff) · `POST /webhooks` (Staff-write; response includes the signing `secret` once) · `GET/PUT/DELETE /webhooks/{id}` · `POST /webhooks/{id}/regenerate-secret` (returns a new secret once) · `GET /webhooks/{id}/deliveries`. Staff-managed outbound webhooks; see [webhooks.md](../features/webhooks.md).
 
-### API tokens (`/api/tokens`)
+### API tokens (`/api/tokens`) · `tokens.py`
 - `GET /tokens` · `POST /tokens` · `DELETE /tokens/{id}` — manage your own tokens.
 
-### Discord role mappings (`/api/discord-role-mappings`)
+### Discord role mappings (`/api/discord-role-mappings`) · `discord_role_mappings.py`
 - `GET /discord-role-mappings?guild_id=` (list, optionally per guild) · `POST` (create) · `DELETE /{id}` — manage Discord-guild-role → app-role mappings (Staff).
 
 ## Feature-flag gating
@@ -147,47 +147,47 @@ Every other group stays open, including presets, seeds, racetime bots, discord e
 
 Two of these groups are **global / platform** resources gated by `require_super_admin` / `require_super_admin_write` ([`api/dependencies.py`](../../api/dependencies.py)), which check the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`) rather than tenant STAFF. The tenant-role-gated groups (presets, sync, qualifiers) use the coarse `require_api_actor` / `require_write_actor` HTTP dep and let the service enforce the finer role (`PRESET_MANAGER` / `SYNC_ADMIN` / `QUALIFIER_ADMIN` beyond STAFF), so a sub-STAFF token with the right role is accepted rather than 403'd.
 
-### Presets (`/api/presets`)
+### Presets (`/api/presets`) · `presets.py`
 Tenant-authored seed presets (service gate `can_manage_presets`).
 - `GET /presets` (opt `?randomizer=`) · `GET /presets/selectable` · `GET /presets/{id}`.
 - `POST /presets` · `PATCH /presets/{id}` · `DELETE /presets/{id}` · `POST /presets/import-builtins` (import the built-in preset files).
 
-### Race room profiles (`/api/race-room-profiles`)
+### Race room profiles (`/api/race-room-profiles`) · `race_room_profiles.py`
 Reusable racetime room settings (service gate `can_manage_sync`).
 - `GET /race-room-profiles` · `/selectable` · `/{id}`; `POST` · `PATCH /{id}` · `DELETE /{id}`.
 
-### Racetime bots (`/api/racetime-bots`) — **super-admin, global**
+### Racetime bots (`/api/racetime-bots`) — **super-admin, global** · `racetime_bots.py`
 Platform-managed racetime bots (no tenant FK). Responses are the secret-free
 `RacetimeBotService.serialize(bot)` projection — `client_secret` is never returned.
 - `GET /racetime-bots` · `/active` · `/{id}` (super-admin).
 - `POST` · `PATCH /{id}` · `DELETE /{id}` (super-admin write).
 - `GET /racetime-bots/{id}/grants` · `POST /{id}/grants` (`{tenant_id}`) · `DELETE /{id}/grants/{tenant_id}` — tenant authorization grants.
 
-### Race rooms (`/api/race-rooms`)
+### Race rooms (`/api/race-rooms`) · `race_rooms.py`
 - `GET /race-rooms/open` (Staff; filtered to your tenant) · `GET /race-rooms/by-match/{match_id}`.
 - `POST /race-rooms` (`{match_id}`, manual create) · `POST /{id}/cancel` (`{reason?}`) · `PATCH /{id}/status` (`{status}`). Cancel/status add an explicit `can_manage_sync` gate (the service transitions are system-path/ungated). System internals (`get_by_slug`, `record_finish`, websocket event dispatch, auto-create) are **not** exposed.
 
-### SpeedGaming (`/api/speedgaming`)
+### SpeedGaming (`/api/speedgaming`) · `speedgaming.py`
 SpeedGaming schedule ETL event links (service gate `can_manage_sync`).
 - `GET /speedgaming/links` · `GET /links/{id}/episodes` (episode `payload` blob omitted).
 - `POST /links` · `PATCH /links/{id}` · `DELETE /links/{id}` · `POST /links/{id}/sync` (returns the `SyncResult` tallies).
 
-### Discord events (`/api/discord-events`)
+### Discord events (`/api/discord-events`) · `discord_events.py`
 Discord Scheduled Events mirror (service gate `can_manage_sync`).
 - `GET /discord-events/tournaments` (per-tournament opt-in settings) · `GET /discord-events/events` (mirrored events).
 - `PATCH /discord-events/tournaments/{id}` (settings) · `POST /discord-events/reconcile` (returns the `ReconcileResult` tallies).
 
-### Service health (`/api/service-health`)
+### Service health (`/api/service-health`) · `service_health.py`
 External-dependency health board (the HTTP dep is the only authz; the service does not re-gate).
 - `GET /service-health` — tenant subset (Staff).
 - `GET /service-health/board` — full snapshot (super-admin).
 - `POST /service-health/refresh` — force a refresh (super-admin write; always `alert=False`, so an API call never DMs).
 
-### Seeds (`/api/seeds`)
+### Seeds (`/api/seeds`) · `seeds.py`
 - `GET /seeds/randomizers` — the randomizers this community can actually roll + their `supports_triforce_texts` flag. A key-gated backend (`ootr`, `smmap`, `dk64r`) appears only once the community has configured its credential.
 - `POST /seeds` (`{randomizer, preset_id?}`) — roll a seed (loads the tenant-scoped preset when given; unsupported randomizer → 400; honors `MOCK_SEEDGEN`). Generation is ungated, so the write token is the authz. A key-gated randomizer the community has not configured → **400** naming the missing credential.
 
-### Async qualifiers (`/api/async-qualifiers`)
+### Async qualifiers (`/api/async-qualifiers`) · `async_qualifiers.py`
 Self-paced permalink-pool qualifiers (mixed auth: admin reads/writes gate
 `can_admin_qualifier`; player run methods enforce ownership; `/open` and `/{id}/public`
 are public-but-authenticated; the leaderboard is hidden while the window is open for non-admins).
@@ -196,12 +196,12 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 - **Player run lifecycle:** `POST /{id}/runs` (start) · `POST /runs/{run_id}/submit|forfeit|reattempt`.
 - **Review:** `POST /runs/{run_id}/claim|release|review`.
 
-### Async qualifier live races (`/api/async-qualifiers/live-races`)
+### Async qualifier live races (`/api/async-qualifiers/live-races`) · `async_qualifier_live_races.py`
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).
 - `GET /async-qualifiers/live-races?qualifier_id=` · `/{id}` · `/{id}/runs`.
 - `POST /async-qualifiers/live-races` (create) · `POST /{id}/open-room` · `DELETE /{id}` (cancel). Inbound racetime capture (`mark_in_progress`, `record_finish`) is **not** exposed.
 
-### Brackets (`/api/brackets`)
+### Brackets (`/api/brackets`) · `brackets.py`
 Native tournament brackets. Reads take any token and are tenant-scoped in-service; writes reject read-only tokens at the HTTP layer and re-gate in `BracketService` — **Staff** everywhere except `POST /matches/{id}/games`, which also accepts the tournament's admins and the matchup's own two entrants (in a bracket-run tournament the bracket is the only way a player schedules at all). Thin wrappers over the service; schemas in [`api/schemas/brackets.py`](../../api/schemas/brackets.py). Behaviour — formats, advancement, roster rules, series semantics, who may schedule — is documented in [brackets.md](../features/brackets.md).
 - **Reads:** `GET /brackets?tournament_id=` (stages) · `/brackets/entrants?tournament_id=` (roster) · `/brackets/{id}` · `/brackets/{id}/matches` · `/brackets/{id}/open-matches` · `/brackets/{id}/entries` · `/brackets/matches/{match_id}` (one matchup with its `games`) · `/brackets/my-open-matches?tournament_id=` (the **caller's** OPEN matchups with a free game slot and both entrants user-linked — the peer of the Challonge unscheduled-match list) · `/brackets/{id}/standings` · `/brackets/advancing-preview?tournament_id=&from_stage_order=` (dry run of the advance, writing nothing).
 - **Authoring / roster:** `POST /brackets` · `PATCH /brackets/{id}` (`{name?, stage_order?, config?}`, DRAFT-only, omitted fields left alone) · `DELETE /brackets/{id}` (204, DRAFT-only) · `PUT /brackets/{id}/rounds` (`{rounds}` — the per-round `{best_of, scheduled_at}` display metadata, or null to clear; the one definition edit allowed **after** a stage starts, since round chrome never touches the graph) · `PATCH /brackets/{id}/seeds` (`{seeds: {entry_id: seed|null}}`, DRAFT-only; the whole resulting seeding is validated before any write, so a duplicate or `<1` seed changes nothing, and the new entry order is returned) · `POST /brackets/entrants` · `POST /brackets/entrants/{entrant_id}/drop` · `POST /brackets/{id}/entries`.

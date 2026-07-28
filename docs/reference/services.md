@@ -296,7 +296,7 @@ CRUD for `DiscordRoleMapping` plus the login-time sync that maps a user's Discor
 | `remove_mapping(mapping_id, actor)` | `None` | Staff-only; `ValueError` if missing; audits `discord_role.mapping_removed`. |
 | `sync_user_roles(user)` | `dict` | Full-syncs the user's Discord-sourced roles. **Never raises** — fails open on any error so login is never blocked. Grants mapped roles the user lacks (`source=discord`), revokes Discord-sourced roles no longer present, and never touches `source=manual` rows. Returns a `{'granted', 'revoked', 'skipped'}` summary. |
 
-Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `SystemConfigService.get_discord_sync_guild_id`, `AuthService`, `AuditService`.
+Collaborators: `DiscordRoleMappingRepository`, `UserRoleRepository`, `DiscordService.get_member_role_ids`, `TenantService.list_tenants` (the per-tenant `discord_guild_id` is the routing key), `AuthService`, `AuditService`.
 
 ### discord_queue.py — module functions
 
@@ -604,13 +604,12 @@ Collaborators: `StreamRoomRepository`, `AuditService`. Match↔room assignment l
 
 ### system_config_service.py — SystemConfigService
 
-Typed, static accessors over the `SystemConfiguration` key/value table. Module constants name the known keys: `KEY_EVENT_START_DATE`, `KEY_EVENT_END_DATE`, `KEY_MAX_CONCURRENT_PLAYERS`, `KEY_MAX_CONCURRENT_STAGES`, `KEY_VOLUNTEER_REMINDER_LEAD_MINUTES`, `KEY_TOURNAMENT_HOURS`, `KEY_DISCORD_SYNC_GUILD_ID`, `KEY_STATION_FORMAT`.
+Typed, static accessors over the `SystemConfiguration` key/value table. Module constants name the known keys: `KEY_EVENT_START_DATE`, `KEY_EVENT_END_DATE`, `KEY_MAX_CONCURRENT_PLAYERS`, `KEY_MAX_CONCURRENT_STAGES`, `KEY_VOLUNTEER_REMINDER_LEAD_MINUTES`, `KEY_TOURNAMENT_HOURS`, `KEY_STATION_FORMAT`.
 
 | Method | Returns | Description |
 |---|---|---|
 | `get_raw(key)` / `get_int(key, default=None)` / `get_date(key, default=None)` | `str` / `int` / `date`, or `None` | Typed reads of one key, falling back on a missing or unparseable value. |
 | `set_raw(key, value, actor)` | `SystemConfiguration` | Upsert; Staff-only (`ensure`); audits `system_config.updated` with old/new values. |
-| `get_discord_sync_guild_id()` | `int \| None` | Discord guild id used for login-time role sync (read by `DiscordRoleMappingService`). |
 | `get_event_window()` | `(date, date)` | Event start/end. Falls back to min/max `Match.scheduled_at`, then to today; clamps end ≥ start. |
 | `get_max_concurrent_players(default=60)` | `int` | Configured player capacity, or default when unset/non-positive. |
 | `get_max_concurrent_stages(default=None)` | `int` | Configured stage capacity; falls back to the given default, then to the count of active stream rooms. |
