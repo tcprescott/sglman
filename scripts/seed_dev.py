@@ -41,9 +41,7 @@ from models import (
     Feedback, FeedbackCategory, FeedbackStatus,
     Equipment, EquipmentLoan, EquipmentStatus,
     AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
-    VolunteerPosition, VolunteerProfile, VolunteerShift,
-    VolunteerAssignment, VolunteerQualification,
-    VolunteerAvailability, VolunteerAvailabilityStatus,
+    VolunteerAvailabilityStatus,
     RacetimeBot,
 )
 from application.tenant_context import tenant_scope
