@@ -16,9 +16,8 @@ tortoise-orm = {extras = ["asyncpg"], version = "^0.24.0"}
 aerich = {extras = ["toml"], version = "^0.8.1"}
 cryptography = "^48.0.0"
 zenora = "^0.0.3.post1"
-py-cord = "^2.6.1"
 python-dotenv = "^1.1.1"
-discord-py = "^2.6.3"
+discord-py = "^2.7.1"
 pyz3r = "^6.1.0"
 sentry-sdk = {extras = ["fastapi"], version = "^2.62.0"}
 qrcode = {extras = ["pil"], version = "^8.2"}

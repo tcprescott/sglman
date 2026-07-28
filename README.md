@@ -46,7 +46,7 @@ Built with FastAPI + NiceGUI, backed by PostgreSQL, integrated with Discord for 
 | ORM | Tortoise ORM ≥0.24 (asyncpg) |
 | Migrations | Aerich ≥0.8 |
 | Database | PostgreSQL 16 |
-| Discord bot | py-cord ≥2.6 |
+| Discord bot | discord.py ≥2.7 |
 | Discord OAuth | zenora |
 | Seed generation | pyz3r (ALTTPR) + HTTP APIs for other randomizers |
 | Package manager | Poetry |
