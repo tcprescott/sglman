@@ -17,7 +17,7 @@ Versions come from [`pyproject.toml`](../pyproject.toml) (Poetry); only major/mi
 | ORM | Tortoise ORM ≥0.24 (asyncpg driver) |
 | Migrations | Aerich ≥0.8 |
 | Database | PostgreSQL (16-alpine in docker-compose) |
-| Discord bot | py-cord / discord.py ≥2.6 |
+| Discord bot | discord.py ≥2.7 |
 | Discord OAuth | zenora |
 | Seed generation | pyz3r (ALTTPR) + HTTP APIs for other randomizers |
 | Testing | pytest ≥9, pytest-asyncio (`asyncio_mode = "auto"`), aiosqlite (in-memory test DB) |
@@ -33,7 +33,7 @@ The full inventory of what that constraint holds up, and the proposed way out of
 
 1. **Lifespan startup**
    1. `init_db()` — runs Aerich `upgrade()` (pending migrations are applied automatically on boot), then `Tortoise.init()` with the config from [`migrations/tortoise_config.py`](../migrations/tortoise_config.py).
-   2. `init_discord_bot()` — starts the py-cord bot as an asyncio task using `DISCORD_TOKEN`. Skipped entirely under `MOCK_DISCORD`; logs a warning and continues if the token is unset (Discord features simply won't work).
+   2. `init_discord_bot()` — starts the discord.py bot as an asyncio task using `DISCORD_TOKEN`. Skipped entirely under `MOCK_DISCORD`; logs a warning and continues if the token is unset (Discord features simply won't work).
    3. `discord_queue.start()` — starts the background worker that serializes outbound Discord DMs (see [reference/discord-integration.md](reference/discord-integration.md)).
 2. **Lifespan shutdown** — reverse order: `discord_queue.stop()` → `close_discord_bot()` → `Tortoise.close_connections()`.
 
@@ -79,7 +79,7 @@ flowchart LR
         REPO["application/repositories/<br/>(data access)"]
         API["api/ routers<br/>REST API (token auth)"]
         AUTH["middleware/auth.py<br/>Discord OAuth"]
-        BOT["Discord bot (py-cord)<br/>+ discordbot/ handlers"]
+        BOT["Discord bot (discord.py)<br/>+ discordbot/ handlers"]
         Q["discord_queue<br/>(async DM worker)"]
     end
     PG[(PostgreSQL)]

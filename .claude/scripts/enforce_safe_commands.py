@@ -82,6 +82,12 @@ RULES = [
         "printing .env",
         "don't dump .env to the transcript — it exposes secrets. Read individual values via os.environ in code instead.",
     ),
+    (
+        re.compile(r"\bpoetry\s+add\b[^\n]*?\bpy-?cord\b", re.IGNORECASE),
+        "poetry add py-cord",
+        "py-cord and discord.py are forks that both install into the same `discord/` package "
+        "and silently overwrite each other — this project uses discord.py only.",
+    ),
 ]
 
 
