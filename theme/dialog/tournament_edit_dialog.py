@@ -5,6 +5,7 @@ from nicegui import app, ui
 from application.services import (
     AuthService,
     ChallongeService,
+    FeatureFlagService,
     PresetService,
     RaceRoomProfileService,
     RacetimeBotService,
@@ -14,6 +15,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.tenant_context import require_tenant_id
+from models import FeatureFlag
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -41,6 +43,12 @@ class TournamentDialog:
         title = 'Add Tournament' if is_create else 'Edit Tournament'
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         can_sync = await AuthService.can_manage_sync(actor)
+        # This dialog opens from the (ungated) Tournaments tab, so its Challonge
+        # section has to check the flag itself — link_tournament refuses without it.
+        challonge_live = (
+            self.challonge_service.is_configured()
+            and await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE)
+        )
         # Racetime room automation is only offered to sync managers, and only the
         # bot categories this tenant is authorized for are selectable.
         rt = {}
@@ -211,7 +219,7 @@ class TournamentDialog:
                 event_start_input.on('update:model-value', lambda: render_hours.refresh())
                 event_end_input.on('update:model-value', lambda: render_hours.refresh())
 
-                if self.tournament and self.challonge_service.is_configured():
+                if self.tournament and challonge_live:
                     ui.separator()
                     ui.label('Challonge').classes('text-bold')
                     challonge_status = ui.label().classes('text-caption text-muted')

@@ -48,6 +48,7 @@ than 3N queries. Concretely:
 | Surface | How |
 |---|---|
 | Whole pages | `@protected_page('/path', feature=FeatureFlag.X)` → 404 when off (hidden, role-independent). Used by `/qualifiers`, `/equipment`, `/volunteer`. |
+| Bare `@ui.page` routes | An OAuth leg that cannot use `@protected_page` (it serves a cross-host callback) checks the flag in the handler and redirects back — `pages/challonge_oauth.py`'s `_challonge_live`. Hiding the entry button is not enough; the URL stays reachable. |
 | Nav links to a gated page | The nav must not offer a link the gate will reject, or it dead-ends on a 404/403. The Volunteer entry resolves through `AuthService.can_view_volunteer` (flag **and** role), which `BaseLayout` calls when `show_volunteer` is left at its `None` default — one helper shared with the page's own gate so the two cannot drift. |
 | Admin tabs | `pages/admin.py` loads `FeatureFlagService().enabled_flags()` once and `and`-s the flag into each subsystem tab's condition. |
 | Home tabs | `pages/home.py` gates the Brackets, Triforce Texts and Equipment tabs (My Availability stays ungated — it feeds crew signup too). Brackets is resolved before the signed-in branch, since it is anonymous-readable. |
@@ -124,6 +125,33 @@ first** (see CLAUDE.md). When you do:
 missing, so a flag cannot ship UI-only gated.
 
 ## Testing
+
+### The flags-off browser sweep
+
+The gap the Python suite cannot cover: a surface that is **not** flag-gated but
+calls a gated service anyway. It renders fine for a community that has the
+feature and raises `FeatureDisabledError` for one that doesn't — and since
+`pages/` has no automated coverage, the first report is a dead section in
+production (the Profile tab calling `ChallongeService.participant_tournament_ids`
+was exactly this). Drive it in a browser instead:
+
+```bash
+scripts/ui_flag_sweep.sh
+```
+
+It snapshots the dev tenant's flags, forces every flag off, walks the ungated
+home/admin surfaces listed in `scripts/ui_flag_targets.json`, repeats against the
+mixed-tier `second` tenant, restores the flags, and fails on any tab that renders
+`This section failed to load…` or logs a `FeatureDisabledError`. Details and the
+one-off knob (`scripts/set_feature_flags.py`) are in the
+[`ui-validation`](../../.claude/skills/ui-validation/SKILL.md) skill.
+
+Rule of thumb for the fix: a surface everyone gets resolves the flag itself —
+`FeatureFlag.X in await FeatureFlagService().enabled_flags()` — and skips both
+the service call and the UI it feeds. Don't drop the service guard to make the
+page work; that is the half that makes gating real.
+
+### Unit tests
 
 The `db` fixture provisions the default tenant (id 1) with every flag fully on
 (explicit `available+enabled` override rows), so the legacy suite exercises

@@ -60,7 +60,11 @@ async def render_player_dashboard():
         # Challonge: upcoming bracket matches the player can schedule in a few clicks.
         @ui.refreshable
         async def challonge_section():
+            # Credentials *and* the community's flag: the service refuses the
+            # listing below without the feature, and this tab isn't flag-gated.
             if not challonge_service.is_configured():
+                return
+            if not await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE):
                 return
             user = await get_user_from_discord_id(discord_id)
             if user is None:

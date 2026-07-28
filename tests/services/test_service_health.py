@@ -23,7 +23,17 @@ from application.services.service_health_service import (
 )
 from application.services.racetime_bot_service import RacetimeBotService
 from application.tenant_context import tenant_scope
-from models import BotStatus, ChallongeConnection, Role, Tenant, User, UserRole
+from application.services.feature_flag_service import reset_flag_cache
+from models import (
+    BotStatus,
+    ChallongeConnection,
+    FeatureFlag,
+    Role,
+    Tenant,
+    TenantFeatureFlag,
+    User,
+    UserRole,
+)
 
 
 def _result(key, status, *, label='X', category='core', message='') -> ProbeResult:
@@ -158,3 +168,23 @@ class TestTenantSubset:
         with tenant_scope(tenant.id):
             subset = await ServiceHealthService().tenant_subset(tenant.id)
         assert subset == []
+
+    async def test_subset_skips_challonge_when_the_feature_is_off(self, db):
+        """The board is read from the (ungated) admin Service Health tab, so a
+        community without Challonge must get a report, not a FeatureDisabledError
+        from the probe."""
+        tenant = await Tenant.get(id=1)
+        await TenantFeatureFlag.filter(
+            tenant_id=tenant.id, flag=FeatureFlag.CHALLONGE.value,
+        ).update(available=False, enabled=False)
+        reset_flag_cache()
+
+        with tenant_scope(tenant.id):
+            await ChallongeConnection.create(
+                tenant=tenant, access_token='a', refresh_token='r',
+                challonge_username='svc',
+                token_expires_at=datetime.now(timezone.utc) + timedelta(days=90),
+            )
+            subset = await ServiceHealthService().tenant_subset(tenant.id)
+
+        assert [r.key for r in subset] == []

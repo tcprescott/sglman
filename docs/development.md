@@ -147,7 +147,7 @@ Fixtures from the conftests:
 Still not covered (intentionally — each needs live infra the SQLite suite can't provide):
 
 - Discord bot interaction handlers (`discordbot/`) — require a live Discord connection.
-- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests (see the `ui-validation` skill for driving these in a real browser).
+- NiceGUI UI rendering (`pages/`, `theme/`) — no headless browser tests (see the `ui-validation` skill for driving these in a real browser). That skill's `scripts/ui_flag_sweep.sh` also covers the rendering gap the flag system leaves: an ungated page or tab that calls a feature-gated service and dies for a community without the feature.
 - OAuth flow (`middleware/auth.py`) — requires live Discord OAuth.
 - The network-backed clients — `application/utils/clients/challonge_client.py`, `twitch_client.py`, and the HTTP randomizer paths in `seedgen_service.py` (`_generate_alttpr`/`_generate_smmap`/`_generate_ootr`) — hit real external APIs; only their local/mocked paths are covered.
 - Most of `discord_service.py` — the parts that talk to a live bot connection.

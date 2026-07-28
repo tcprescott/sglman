@@ -3,11 +3,12 @@ from nicegui import app, ui
 from application.services import (
     AuthService,
     ChallongeService,
+    FeatureFlagService,
     TournamentService,
     UserService,
     get_user_from_discord_id,
 )
-from models import Role, User
+from models import FeatureFlag, Role, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.dialog.send_message_dialog import SendMessageDialog
 from theme.notify import notify_error
@@ -151,7 +152,14 @@ class AdminUserDialog(BaseUserDialog):
                 ).classes('input-full-width')
                 challonge_username_input = None
                 challonge_id_input = None
-                if self.user and ChallongeService.is_configured():
+                # Credentials alone aren't enough: the identity is global but the
+                # feature is per-tenant, so a user linked in another community
+                # would otherwise get these fields here and the save would raise.
+                challonge_live = (
+                    ChallongeService.is_configured()
+                    and await FeatureFlagService().is_enabled(FeatureFlag.CHALLONGE)
+                )
+                if self.user and challonge_live:
                     if self.user.challonge_user_id:
                         challonge_username_input = ui.input(
                             'Challonge username',
