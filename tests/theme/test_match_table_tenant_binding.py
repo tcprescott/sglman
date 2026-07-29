@@ -14,9 +14,12 @@ from theme.tables.match import MatchTableView
 
 # Events whose handlers reach tenant-scoped data and which are NOT given a
 # client context to run inside. These must go through ``_bg``.
+# Note the hyphens in 'edit-stream-room' — that is the name the template emits.
+# An entry naming an event that is never registered would make the check below
+# pass vacuously, which is why test_listed_events_are_actually_registered exists.
 TENANT_BOUND_EVENTS = [
-    'roll', 'seat', 'start', 'finish', 'confirm', 'assign_stations',
-    'edit_stream_room',
+    'roll', 'seat', 'start', 'finish', 'confirm', 'edit_result',
+    'assign_stations', 'edit-stream-room',
 ]
 
 
@@ -40,6 +43,23 @@ def test_bg_rebinds_the_captured_tenant():
     assert 'tenant_scope(self._tenant_id)' in src
 
 
+def test_listed_events_are_actually_registered():
+    """Without this, a typo in the list above silently disables its own check.
+
+    ``test_tenant_bound_events_are_scheduled_through_bg`` scans registration
+    lines for each listed event; an event that is never registered has no line
+    to offend, so it passes for the wrong reason. ``'edit_stream_room'`` sat in
+    the list for exactly that reason until the real name turned out to be
+    ``'edit-stream-room'``.
+    """
+    src = _setup_source()
+    missing = [e for e in TENANT_BOUND_EVENTS if f"self.table.on('{e}'" not in src]
+    assert not missing, (
+        f"listed as tenant-bound but never registered: {missing}. Either the "
+        f"event was renamed and the list was not, or the registration was lost."
+    )
+
+
 def test_tenant_bound_events_are_scheduled_through_bg():
     src = _setup_source()
     offenders = []
@@ -60,7 +80,7 @@ def test_tenant_bound_events_are_scheduled_through_bg():
 def test_every_registered_event_is_either_bg_or_given_a_client():
     """Catch a *new* handler wired the broken way, not just the known list."""
     for reg in _registrations():
-        m = re.search(r"self\.table\.on\('([a-z_]+)'", reg)
+        m = re.search(r"self\.table\.on\('([a-z_-]+)'", reg)
         if not m or 'background_tasks.create' not in reg:
             continue
         # A bare background task is only acceptable when the handler is handed

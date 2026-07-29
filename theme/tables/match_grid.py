@@ -32,6 +32,7 @@ depend on — do not change):
     signup_/undo_commentator|tracker -> props.row
     acknowledge_/edit_commentator|tracker -> { row: props.row, idx }
     seat/start/finish/confirm      -> { key: props.row.id }
+    edit_result                    -> { key: props.row.id }
     roll                           -> { key: props.row.id }   (+ _generating_seed)
     edit-stream-room               -> { key: props.row.id }
     assign_stations                -> { row: props.row }
@@ -186,7 +187,9 @@ _COMMENT_DETAIL = '''
         </div>'''
 
 
-# --- Actions row: lifecycle button + Assign Stations + watch toggle --------
+# --- Actions row: lifecycle button + Change Winner + Assign Stations + watch --
+# "Change Winner" mirrors the desktop pencil, but labelled: an icon-only button
+# whose meaning lives in a tooltip is unreadable on a touch screen.
 
 _ACTIONS = '''
         <div class="__ACTCLS__" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length) || __WATCH__">
@@ -205,6 +208,9 @@ _ACTIONS = '''
                    @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
             <span v-else-if="__IA__ && props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
                 <q-icon name="flag" size="14px" />Awaiting confirmation</span>
+            <q-btn v-if="__IA__ && __CC__ && props.row.state === 'Finished'"
+                   icon="edit" color="primary" size="md" outline
+                   @click="$parent.$emit('edit_result', { key: props.row.id })">Change Winner</q-btn>
             <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
                    icon="switch_access_shortcut" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>

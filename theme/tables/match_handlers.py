@@ -226,6 +226,11 @@ class MatchTableHandlersMixin:
         if match_id is not None and self.on_confirm:
             await self.on_confirm(match_id)
 
+    async def _handle_edit_result(self, event):
+        match_id = self._event_match_id(event)
+        if match_id is not None and self.on_edit_result:
+            await self.on_edit_result(match_id)
+
     async def _handle_assign_stations(self, event):
         match_id = self._event_match_id(event)
         if match_id is not None and self.on_assign_stations:

@@ -510,6 +510,72 @@ class TestRecordMatchResult:
         assert all(p.finish_rank is None for p in players)
 
 
+class TestReRecordMatchResult:
+    """An admin correcting a result the proctor already recorded (T4.2).
+
+    The pencil on a Finished row reaches ``record_match_result`` a second time;
+    nothing else in the service changes, so what these pin is that a second call
+    is *allowed* and fully rewrites the ranks.
+    """
+
+    @pytest.fixture
+    async def actor(self, db):
+        return await make_user(discord_id=9102, username='correcting-staff')
+
+    async def test_result_can_be_re_recorded_for_a_non_bracket_match(self, db, actor):
+        match, players = await _make_onsite_match(finished=True)
+        service = MatchService()
+        await service.record_match_result(match.id, winner_id=players[0].id, actor=actor)
+
+        await service.record_match_result(match.id, winner_id=players[0].id, actor=actor)
+
+        for player in players:
+            await player.refresh_from_db()
+        assert players[0].finish_rank == 1
+        assert players[1].finish_rank == 2
+
+    async def test_re_recording_swaps_the_ranks(self, db, actor):
+        match, players = await _make_onsite_match(finished=True)
+        service = MatchService()
+        await service.record_match_result(match.id, winner_id=players[0].id, actor=actor)
+
+        await service.record_match_result(match.id, winner_id=players[1].id, actor=actor)
+
+        for player in players:
+            await player.refresh_from_db()
+        assert players[1].finish_rank == 1
+        assert players[0].finish_rank == 2
+
+    async def test_re_recording_a_settled_bracket_game_raises(self, db, actor):
+        """The amber toast the UI shows instead of changing the winner.
+
+        ``test_bracket_match_integration`` proves the guard fires off a real
+        settled series; this pins that ``record_match_result`` still consults it
+        and leaves the recorded ranks alone, since the correction pencil is the
+        caller that now hits it most.
+        """
+        from models import BracketMatchGameState
+
+        match, players = await _make_onsite_match(finished=True)
+        service = MatchService()
+        await service.record_match_result(match.id, winner_id=players[0].id, actor=actor)
+
+        settled = SimpleNamespace(state=BracketMatchGameState.COMPLETE, bracket_match=None)
+        with patch(
+            'application.services.bracket_service.BracketService.get_game_for_match',
+            AsyncMock(return_value=settled),
+        ):
+            with pytest.raises(ValueError, match='Correct it from the bracket'):
+                await service.record_match_result(
+                    match.id, winner_id=players[1].id, actor=actor,
+                )
+
+        for player in players:
+            await player.refresh_from_db()
+        assert players[0].finish_rank == 1
+        assert players[1].finish_rank == 2
+
+
 class TestStationAssignmentValidation:
     """The ``assign_stations`` ladder: duplicate → format → pool → occupancy."""
 

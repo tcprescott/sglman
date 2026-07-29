@@ -54,6 +54,7 @@ class MatchLifecycleHandlers:
         if self.can_crud:
             cb['on_edit'] = self.on_edit
             cb['on_confirm'] = self.on_confirm
+            cb['on_edit_result'] = self.on_edit_result
             cb['on_edit_stream_room'] = self.on_edit_stream_room
         return cb
 
@@ -184,6 +185,27 @@ class MatchLifecycleHandlers:
         except (PermissionError, ValueError) as e:
             with self.page_container:
                 notify_error(e)
+
+    async def on_edit_result(self, match_id: int):
+        """Correct the winner already recorded on a finished match.
+
+        Deliberately has no ``finish_match`` step: the match is already
+        finished, and re-finishing it would rewrite ``finished_at`` and fire a
+        second round of notifications for a match nobody just played. Recording
+        the result is the whole of the change. A settled bracket game is
+        refused by the service, which is the one correction path that
+        re-advances the bracket.
+        """
+        match = await Match.get(
+            id=match_id, tenant_id=require_tenant_id(),
+        ).prefetch_related('players', 'players__user')
+
+        async def after_edit(_):
+            await self.table_view.update_row_by_id(match_id)
+
+        with self.page_container:
+            dialog = MatchResultDialog(match=match, on_submit=after_edit, mode='edit')
+            await dialog.open()
 
     async def on_edit_stream_room(self, match_id: int):
         match = await Match.get(id=match_id, tenant_id=require_tenant_id())

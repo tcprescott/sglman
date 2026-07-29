@@ -30,7 +30,8 @@ class MatchTableView(MatchTableHandlersMixin):
 
     def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
-                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None, grid_breakpoint='lt.md',
+                 on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
+                 player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None):
         self.columns = columns
@@ -62,6 +63,10 @@ class MatchTableView(MatchTableHandlersMixin):
         self.on_start = on_start
         self.on_finish = on_finish
         self.on_confirm = on_confirm
+        # Correcting an already-recorded result: the admin's half of "the proctor
+        # records their best guess". Reaches the same service as on_finish's
+        # dialog, but must never re-finish the match.
+        self.on_edit_result = on_edit_result
         self.on_edit_stream_room = on_edit_stream_room
         self.on_assign_stations = on_assign_stations
         self.table = None
@@ -310,6 +315,7 @@ class MatchTableView(MatchTableHandlersMixin):
             want_state_slot=self.admin_controls and (
                 self.on_seat is not None or self.on_start is not None
                 or self.on_finish is not None or self.on_confirm is not None
+                or self.on_edit_result is not None
             ),
             want_stream_room_admin=self.admin_controls and self.on_edit_stream_room is not None,
             want_stream_room_readonly=self.on_edit_stream_room is None,
@@ -361,7 +367,8 @@ class MatchTableView(MatchTableHandlersMixin):
             if self.on_generate_seed is not None:
                 self.table.on('roll', lambda event: self._bg(self._handle_roll(event)))
             if (self.on_seat is not None or self.on_start is not None
-                    or self.on_finish is not None or self.on_confirm is not None):
+                    or self.on_finish is not None or self.on_confirm is not None
+                    or self.on_edit_result is not None):
                 if self.on_seat is not None:
                     self.table.on('seat', lambda event: self._bg(self._handle_seat(event)))
                 if self.on_start is not None:
@@ -370,6 +377,8 @@ class MatchTableView(MatchTableHandlersMixin):
                     self.table.on('finish', lambda event: self._bg(self._handle_finish(event)))
                 if self.on_confirm is not None:
                     self.table.on('confirm', lambda event: self._bg(self._handle_confirm(event)))
+                if self.on_edit_result is not None:
+                    self.table.on('edit_result', lambda event: self._bg(self._handle_edit_result(event)))
             if self.on_edit_stream_room is not None:
                 self.table.on('edit-stream-room', lambda event: self._bg(self._handle_edit_stream_room(event)))
 

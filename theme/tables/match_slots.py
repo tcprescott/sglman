@@ -139,12 +139,20 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
         </div>
     </div>
 
-    <!-- Finished: Confirm for staff/TA; everyone else sees it is awaiting review -->
+    <!-- Finished: Confirm (+ correct the winner) for staff/TA; everyone else
+         sees it is awaiting review. Correcting a result is the admin's call,
+         so the pencil is crud-only — a proctor records, they do not amend. -->
     <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-        <q-btn v-if="__CC__" @click="$parent.$emit('confirm', props)"
-               icon="check_circle" color="primary" size="sm">
-            Confirm
-        </q-btn>
+        <div v-if="__CC__" style="display: flex; align-items: center; gap: 4px;">
+            <q-btn @click="$parent.$emit('confirm', props)"
+                   icon="check_circle" color="primary" size="sm">
+                Confirm
+            </q-btn>
+            <q-btn @click="$parent.$emit('edit_result', props)"
+                   icon="edit" size="sm" flat dense round color="primary">
+                <q-tooltip>Change the recorded winner</q-tooltip>
+            </q-btn>
+        </div>
         <span v-else class="wiz-chip wiz-chip--pending">
             <q-icon name="flag" size="14px" />Awaiting confirmation
             <q-tooltip>Recorded. An admin confirms the result.</q-tooltip>

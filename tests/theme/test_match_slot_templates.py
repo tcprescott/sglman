@@ -96,6 +96,54 @@ def test_grid_actions_row_stays_last_by_default():
     assert 'class="mgc-actions row items-center"' in tpl
 
 
+EDIT_RESULT_EMIT = "$parent.$emit('edit_result'"
+
+
+def _guard_on(template: str, emit: str) -> str:
+    """The ``v-if`` expression the given emit sits under, post-substitution.
+
+    The server bakes ``__CC__`` down to ``true``/``false`` rather than dropping
+    the markup, so "is this control crud-only?" cannot be answered by asking
+    whether the string is present — only by reading the guard it hangs from.
+    """
+    head = template[:template.index(emit)]
+    start = head.rindex('v-if="') + len('v-if="')
+    return head[start:head.index('"', start)]
+
+
+def _state_and_grid_slots(can_crud):
+    cells = FakeTable()
+    register_body_slots(
+        cells, admin_controls=True, can_crud=can_crud, discord_id='1',
+        want_state_slot=True,
+    )
+    grid = FakeTable()
+    render_grid_slot(
+        grid, ADMIN_COLUMNS, admin_controls=True, can_crud=can_crud,
+        discord_id='1', has_edit=True,
+    )
+    return cells.slots['body-cell-state'], grid.slots['item']
+
+
+def test_both_layouts_offer_to_change_a_recorded_winner():
+    """A desktop-only control is invisible to every phone on the floor."""
+    state_cell, card = _state_and_grid_slots(can_crud=True)
+    assert EDIT_RESULT_EMIT in state_cell
+    assert EDIT_RESULT_EMIT in card
+    # The mobile mirror must be readable without a hover, so it is labelled.
+    assert 'Change Winner' in card
+
+
+@pytest.mark.parametrize('can_crud', [True, False])
+def test_changing_a_recorded_winner_is_crud_only(can_crud):
+    """A proctor records the result; correcting it is the admin's call."""
+    for template in _state_and_grid_slots(can_crud):
+        guard = _guard_on(template, EDIT_RESULT_EMIT)
+        assert ('false' in guard) != can_crud, (
+            f'edit_result is guarded by {guard!r} at can_crud={can_crud}'
+        )
+
+
 def test_overdue_emphasis_is_mirrored_on_the_mobile_headline():
     """A desktop cell change without its card mirror is the classic regression."""
     table = FakeTable()
