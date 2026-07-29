@@ -365,7 +365,7 @@ class MatchScheduleService(MatchNotificationMixin):
 
                 # Create GeneratedSeeds record
                 match.generated_seed = await GeneratedSeeds.create(
-                    tournament=match.tournament,
+                    tenant_id=require_tenant_id(),
                     seed_url=seed_url,
                     seed_info=f"Generated seed for match {match.id}"
                 )
