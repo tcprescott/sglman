@@ -3,8 +3,9 @@
 Peer of ``test_api_brackets.py``, which covers the create → start → report →
 complete happy path and the auth matrix. This module covers the management and
 correction surface layered on top: editing a DRAFT bracket, round metadata,
-reseeding, dropping an entrant, overriding a reported result, the single-match
-read, a player's own open matchups, live standings and the advance dry run.
+reseeding, overriding a reported result, the single-match read, a player's own
+open matchups, live standings and the advance dry run. The tournament-level
+roster lives next door in ``test_brackets_roster.py``.
 """
 
 from application.services.api_token_service import ApiTokenService
@@ -87,6 +88,24 @@ class TestBracketEditing:
 
             r = await c.patch(f'/api/brackets/{bracket_id}', json={'name': 'Nope'})
             assert r.status_code == 400
+
+    async def test_update_changes_format_while_draft(self, db, app):
+        """A DRAFT stage has no match graph, so the format is still a decision."""
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await _draft(c, t)
+            r = await c.patch(f'/api/brackets/{bracket_id}', json={'format': 'swiss'})
+            assert r.status_code == 200
+            assert r.json()['format'] == 'swiss'
+
+    async def test_update_rejects_unknown_format(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await _draft(c, t)
+            r = await c.patch(f'/api/brackets/{bracket_id}', json={'format': 'ladder'})
+            assert r.status_code == 422
 
     async def test_update_rejects_taken_stage_order(self, db, app):
         _, staff = await _staff_token()
@@ -238,56 +257,6 @@ class TestSeeds:
             r = await c.patch(f'/api/brackets/{bracket_id}/seeds', json={
                 'seeds': {str(entry_id): 1},
             })
-            assert r.status_code == 403
-
-
-# --- roster ---------------------------------------------------------------
-
-
-class TestEntrantDrop:
-    async def _entrant(self, c, tournament, name='Alice'):
-        return (await c.post('/api/brackets/entrants', json={
-            'tournament_id': tournament.id, 'display_name': name,
-        })).json()
-
-    async def test_drop_entrant(self, db, app):
-        _, staff = await _staff_token()
-        t = await _tournament()
-        async with client_for(app, staff) as c:
-            entrant = await self._entrant(c, t)
-            assert entrant['status'] == 'active'
-
-            r = await c.post(f"/api/brackets/entrants/{entrant['id']}/drop")
-            assert r.status_code == 200
-            assert r.json()['status'] == 'dropped'
-
-            listed = (await c.get(f'/api/brackets/entrants?tournament_id={t.id}')).json()
-            assert [e['status'] for e in listed] == ['dropped']
-
-    async def test_drop_missing_entrant_404(self, db, app):
-        _, staff = await _staff_token()
-        async with client_for(app, staff) as c:
-            assert (await c.post('/api/brackets/entrants/999999/drop')).status_code == 404
-
-    async def test_add_entrant_unknown_user_404s(self, db, app):
-        """Not a 500: the unresolved FK used to escape as an IntegrityError,
-        which both broke the error contract and oracled which user ids exist."""
-        _, staff = await _staff_token()
-        t = await _tournament()
-        async with client_for(app, staff) as c:
-            r = await c.post('/api/brackets/entrants', json={
-                'tournament_id': t.id, 'display_name': 'Ghost', 'user_id': 999999,
-            })
-            assert r.status_code == 404
-
-    async def test_drop_role_less_forbidden(self, db, app):
-        _, staff = await _staff_token()
-        t = await _tournament()
-        async with client_for(app, staff) as c:
-            entrant = await self._entrant(c, t)
-        _, plain = await create_user_token(username='plain')
-        async with client_for(app, plain) as c:
-            r = await c.post(f"/api/brackets/entrants/{entrant['id']}/drop")
             assert r.status_code == 403
 
 
@@ -709,3 +678,95 @@ class TestAdvancingPreview:
                 f'?tournament_id={t.id}&from_stage_order=0'
             )
             assert r.status_code == 404
+
+
+# --- stage close-out and entry removal ------------------------------------
+
+
+class TestCancelAndEntryRemoval:
+    async def _started(self, c, tournament, names=('Alice', 'Bob')):
+        bracket_id = await _draft(c, tournament)
+        entry_ids = await _enroll(c, bracket_id, tournament, names)
+        await c.post(f'/api/brackets/{bracket_id}/start')
+        return bracket_id, entry_ids
+
+    async def test_cancel_an_active_stage(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await _draft(c, t)
+            await _enroll(c, bracket_id, t, ('Alice', 'Bob', 'Cara'))
+            await c.post(f'/api/brackets/{bracket_id}/start')
+
+            r = await c.post(f'/api/brackets/{bracket_id}/cancel')
+            assert r.status_code == 200
+            assert r.json()['state'] == 'cancelled'
+
+            # And the slot comes back — a cancelled stage is deletable.
+            assert (await c.delete(f'/api/brackets/{bracket_id}')).status_code == 204
+
+    async def test_cancel_read_only_forbidden(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await _draft(c, t)
+        _, ro = await create_user_token(username='ro-cancel', roles=[Role.STAFF], read_only=True)
+        async with client_for(app, ro) as c:
+            assert (await c.post(f'/api/brackets/{bracket_id}/cancel')).status_code == 403
+
+    async def test_unenroll_while_draft_then_refused_once_started(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = await _draft(c, t)
+            entry_ids = await _enroll(c, bracket_id, t, ('Alice', 'Bob', 'Cara'))
+
+            assert (await c.delete(f'/api/brackets/entries/{entry_ids[0]}')).status_code == 204
+            assert len((await c.get(f'/api/brackets/{bracket_id}/entries')).json()) == 2
+
+            await c.post(f'/api/brackets/{bracket_id}/start')
+            assert (await c.delete(f'/api/brackets/entries/{entry_ids[1]}')).status_code == 400
+
+    async def test_retire_an_entry_mid_stage(self, db, app):
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id, entry_ids = await self._started(c, t, ('Alice', 'Bob', 'Cara'))
+            r = await c.post(f'/api/brackets/entries/{entry_ids[0]}/retire')
+            assert r.status_code == 200
+            assert r.json()['status'] == 'dropped'
+            # Not idempotent by design — a second retire is a mistake worth saying.
+            assert (await c.post(
+                f'/api/brackets/entries/{entry_ids[0]}/retire'
+            )).status_code == 400
+
+    async def test_retire_missing_entry_404(self, db, app):
+        _, staff = await _staff_token()
+        async with client_for(app, staff) as c:
+            assert (await c.post('/api/brackets/entries/999999/retire')).status_code == 404
+
+    async def test_complete_accepts_tie_breaks(self, db, app):
+        """The argument the service always took and no caller ever passed."""
+        _, staff = await _staff_token()
+        t = await _tournament()
+        async with client_for(app, staff) as c:
+            bracket_id = (await c.post('/api/brackets', json={
+                'tournament_id': t.id, 'name': 'Swiss', 'format': 'round_robin',
+            })).json()['id']
+            entry_ids = await _enroll(c, bracket_id, t, ('Alice', 'Bob'))
+            await c.post(f'/api/brackets/{bracket_id}/start')
+            match = (await c.get(f'/api/brackets/{bracket_id}/matches')).json()[0]
+            await c.post(f"/api/brackets/matches/{match['id']}/result",
+                         json={'winner_entry_id': match['entry1_id']})
+
+            r = await c.post(
+                f'/api/brackets/{bracket_id}/complete',
+                json={'tie_breaks': {str(entry_ids[1]): 1, str(entry_ids[0]): 2}},
+            )
+            assert r.status_code == 200
+            ranks = {
+                row['id']: row['final_rank']
+                for row in (await c.get(f'/api/brackets/{bracket_id}/entries')).json()
+            }
+            assert ranks[entry_ids[1]] == 1
+            assert ranks[entry_ids[0]] == 2

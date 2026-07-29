@@ -193,6 +193,19 @@ class BracketUpdateRequest(BaseModel):
     name: Optional[str] = None
     stage_order: Optional[int] = None
     config: Optional[Dict[str, Any]] = None
+    format: Optional[BracketFormat] = None
+
+
+class EntrantUserRequest(BaseModel):
+    """Link a roster entrant to a user account (null unlinks)."""
+
+    user_id: Optional[int] = None
+
+
+class RosterImportRequest(BaseModel):
+    """Import a tournament's enrolled players as linked entrants."""
+
+    tournament_id: int
 
 
 class RoundMetadataRequest(BaseModel):
@@ -228,6 +241,15 @@ class AdvanceStageRequest(BaseModel):
     from_stage_order: int
 
 
+class CompleteStageRequest(BaseModel):
+    """Optional tie resolutions applied while writing ``final_rank``.
+
+    ``{entry_id: rank}`` for entries the standings pass left sharing a rank.
+    """
+
+    tie_breaks: Optional[Dict[int, int]] = None
+
+
 __all__ = [
     'BracketResponse',
     'BracketEntrantResponse',
@@ -239,10 +261,13 @@ __all__ = [
     'ScheduleGameRequest',
     'SetBestOfRequest',
     'BracketCreateRequest',
+    'CompleteStageRequest',
     'BracketUpdateRequest',
     'RoundMetadataRequest',
     'SetSeedsRequest',
     'EntrantCreateRequest',
+    'EntrantUserRequest',
+    'RosterImportRequest',
     'EnrollRequest',
     'ReportResultRequest',
     'AdvanceStageRequest',

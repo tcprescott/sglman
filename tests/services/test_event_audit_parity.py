@@ -44,6 +44,10 @@ _EVENT_CANDIDATES = frozenset({
     # tournament-level roster *does* emit BRACKET_ENTRANT_ADDED — that one is not
     # gated on DRAFT and survives the stage.)
     AuditActions.BRACKET_ENTRY_ADDED,
+    # Un-enrolling is DRAFT-only by the same reasoning as enrolling: the field a
+    # subscriber cares about is the one BRACKET_STARTED announces. (Retiring an
+    # entry mid-stage *is* emitted — it changes a running field.)
+    AuditActions.BRACKET_ENTRY_REMOVED,
     # The venue's station pool — the same reasoning as the stream rooms below:
     # community-owned venue configuration, with no subscriber interest in the
     # seats themselves (the assignment of a player to one already emits
@@ -134,6 +138,7 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.CHALLONGE_PLAYER_UNLINKED,
     AuditActions.CHALLONGE_PLAYER_USERNAME_UPDATED,
     AuditActions.CHALLONGE_TOURNAMENT_LINKED,
+    AuditActions.CHALLONGE_TOURNAMENT_UNLINKED,
     AuditActions.CHALLONGE_BRACKET_SYNCED,
     AuditActions.CHALLONGE_RESULT_PUSHED,
     AuditActions.CHALLONGE_WEBHOOK_SYNCED,

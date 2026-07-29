@@ -43,7 +43,13 @@ class SeriesMixin:
     # -- best-of resolution ------------------------------------------------
     @staticmethod
     def resolve_best_of(bracket: Bracket, bracket_match: BracketMatch) -> int:
-        """The series length for one matchup: override → round config → 1.
+        """The series length for one matchup: override → round → stage → 1.
+
+        The stage-wide ``default_best_of`` sits between the per-round value and
+        the bare fallback because the per-round editor is derived from the
+        generated graph and so cannot be filled in before Start — without a
+        stage-wide default, every stage is unavoidably Bo1 for the window in
+        which its opening round is announced.
 
         ``Bracket.config`` is stored raw JSON and predates its schema, so every
         access is ``.get``-defensive rather than trusting the validated shape.
@@ -51,9 +57,10 @@ class SeriesMixin:
         """
         if bracket_match.best_of is not None:
             return bracket_match.best_of
-        rounds = (bracket.config or {}).get('rounds') or {}
+        config = bracket.config or {}
+        rounds = config.get('rounds') or {}
         entry = rounds.get(str(bracket_match.round)) or {}
-        return entry.get('best_of') or 1
+        return entry.get('best_of') or config.get('default_best_of') or 1
 
     @staticmethod
     def wins_needed(best_of: int) -> int:

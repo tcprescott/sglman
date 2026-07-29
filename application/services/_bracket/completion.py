@@ -250,7 +250,7 @@ class CompletionMixin:
         if bracket.format in self._ELIM_FORMATS:
             await self._rank_elimination(bracket, matches, entries)
         elif bracket.format == BracketFormat.ROUND_ROBIN:
-            await self._rank_round_robin(bracket, matches, entries)
+            await self._rank_round_robin(bracket, matches, entries, tie_breaks)
         else:
             await self._rank_swiss(bracket, matches, entries, tie_breaks)
 
@@ -361,6 +361,7 @@ class CompletionMixin:
         bracket: Bracket,
         matches: List[BracketMatch],
         entries: List[BracketEntry],
+        tie_breaks: Optional[Dict[int, int]] = None,
     ) -> None:
         # Each entry's group derives from the matches it played (the engine stamps
         # group_number on matches, not entries); stamp it back onto the entry so a
@@ -388,6 +389,12 @@ class CompletionMixin:
                 [e.id for e in group_entries], results, config
             )
             rank_by_ref = {s.ref: s.rank for s in standings}
+            # A group tie decides who advances just as a Swiss tie does, so the
+            # staff ruling applies here too — it used to be honoured on Swiss
+            # only, which made it silently inert on the grouped format where the
+            # cut line is per group and therefore tightest.
+            if tie_breaks:
+                rank_by_ref.update(tie_breaks)
             for entry in group_entries:
                 entry.final_rank = rank_by_ref.get(entry.id)
                 entry.group_number = group

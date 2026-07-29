@@ -16,7 +16,7 @@ Everything listed is **stable in production** unless marked otherwise.
 |---|---|---|
 | **Match operations** | scheduling and lifecycle, stream-room assignment, player dashboard, acknowledgment, watching, crew signup + approval, player availability, match suggestions | [match-participation](features/match-participation.md) |
 | **Tournaments** | tournaments, enrollment, per-tournament admins and crew coordinators, triforce texts, notification preferences | [triforce-texts](features/triforce-texts.md) |
-| **Brackets** | single/double elimination, Swiss, round robin, multi-stage chains, best-of-N series, public bracket views. **Behind `FeatureFlag.BRACKETS` — ships dark** | [brackets](features/brackets.md) |
+| **Brackets** | single/double elimination, Swiss, round robin, multi-stage chains, best-of-N series, draw preview before start, standings + staff tie-breaks, stage cancellation, public bracket views. **Behind `FeatureFlag.BRACKETS` — ships dark** | [brackets](features/brackets.md) |
 | **Online tournaments** | user-managed seed presets, racetime.gg room lifecycle + bot runtime, async qualifiers (incl. live races), SpeedGaming schedule ETL, Discord Events sync, per-tenant randomizer credentials | [online-tournaments](features/online-tournaments.md), [seed-generation](reference/seed-generation.md) |
 | **Volunteering** | opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders, coordinator data export | [services](reference/services.md) |
 | **Equipment** | assets, checkout/check-in, loan history, QR codes | [services](reference/services.md) |
@@ -39,7 +39,7 @@ Recorded so they read as decisions rather than gaps:
 - **No persisted `MatchState` column.** State stays derived from the five nullable timestamps via `match/match_status.py`. Worth revisiting only when the schedule needs to *filter* by state at scale — a stored column becomes a second source of truth needing reconciliation.
 - **Bracket fullscreen / venue mode** — a toggle expanding the bracket at larger scale for projectors and stream layouts. Groundwork exists (the toolbar reserves space; the renderer themes through `--bracket-*` variables); no model or data change needed.
 - **Team entrants and ladder formats.** The nullable-user `BracketEntrant` indirection is the prepared hook for teams; `openskill` is the noted candidate for rating-based formats.
-- **Challonge retirement is an open decision**, not inertia — the integration stays until native brackets are proven in production.
+- **Challonge retirement is an open decision**, not inertia — the integration stays until native brackets are proven in production. The migration path exists either way: `ChallongeService.unlink_tournament` (**Unlink** on the Challonge tab) detaches a tournament and drops its mirror, which is what makes it eligible for a native bracket.
 - **Notification centralization, phase 2.** The event bus is additive: services publish domain events for webhooks, but Discord DM fan-out still runs directly through `discord_queue`. Migrating it would let one `publish` drive all channels, but the fan-out is deeply audience-specific (players/crew/watchers/subscribers, different button variants). See [event-system](features/event-system.md).
 
 ## Architecture at a glance
