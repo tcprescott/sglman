@@ -211,10 +211,13 @@ def test_confirm_is_offered_only_when_a_winner_is_recorded():
 
 
 def test_a_result_less_finished_match_leads_with_recording_one():
-    """The pencil is the control that fixes it, so it stops being a bare icon."""
-    state_cell, card = _state_and_grid_slots(can_crud=True)
-    assert 'Record winner' in state_cell
-    assert 'Record Winner' in card
+    """The pencil is the control that fixes it, so it stops being a bare icon.
+
+    Same label on both layouts — a desktop/mobile wording split is a drift the
+    mirrors have no reason to carry.
+    """
+    for template in _state_and_grid_slots(can_crud=True):
+        assert 'Record Winner' in template
 
 
 def test_a_seed_can_only_be_rolled_while_it_can_still_help():

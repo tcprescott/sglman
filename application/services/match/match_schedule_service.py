@@ -33,6 +33,7 @@ from application.services.match._match_recipients import (  # noqa: F401  (re-ex
     collect_match_recipients,
 )
 from application.services.match._schedule_notifications import MatchNotificationMixin
+from application.services.match.match_status import has_recorded_result
 from application.services.seedgen_service import SeedGenerationService
 from application.utils.discord_embeds import (
     COLOR_CHECKED_IN,
@@ -246,7 +247,7 @@ class MatchScheduleService(MatchNotificationMixin):
                 raise ValueError("Match must be finished before confirming")
             if match.confirmed_at:
                 raise ValueError("Match is already confirmed")
-            if not any(p.finish_rank for p in match.players):
+            if not has_recorded_result(match.players):
                 raise ValueError(
                     "No result has been recorded for this match — record the "
                     "winner before confirming."
@@ -357,6 +358,18 @@ class MatchScheduleService(MatchNotificationMixin):
 
                 if randomizer not in self.seedgen_service.AVAILABLE_RANDOMIZERS:
                     return False, f"Seed generator '{randomizer}' not found", None
+
+                # Last precondition, because it is about this match rather than
+                # the tournament's setup: a match can only be seeded once and the
+                # seed reaches the players by DM, so rolling before they exist
+                # spends the single roll on nobody and leaves the real players
+                # unable to get another. Enforced here and not only in the
+                # table's Generate button, because REST and MCP reach this too.
+                if not match.players:
+                    return False, (
+                        "This match has no players yet — a seed can only be rolled "
+                        "once, and its DM would reach nobody"
+                    ), None
 
                 # Generate the seed. A keyed randomizer resolves this community's
                 # own credential inside the generator and raises when it is not

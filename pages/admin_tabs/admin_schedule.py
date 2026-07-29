@@ -66,6 +66,12 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             # first: a disputed result needs a decision, an unflagged one only
             # needs a click.
             flagged = [r for r in pending if r.get('needs_review')]
+            # Finished with nobody recorded is a third thing again: it cannot be
+            # confirmed at all (``confirm_match`` refuses it), so counting it as
+            # "awaiting confirmation" overstates the one-click pile the admin is
+            # planning their queue from.
+            resultless = [r for r in pending if not r.get('has_result')]
+            confirmable = [r for r in pending if r.get('has_result')]
             with ui.row().classes('items-center gap-2 q-mb-sm'):
                 # ui.element + ui.label rather than ui.html: NiceGUI's raw-HTML
                 # sinks are reserved for static literals (check_markdown_xss).
@@ -73,9 +79,13 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                     with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
                         ui.icon('report_problem', size='14px')
                         ui.label(f'Flagged for review: {len(flagged)}')
+                if resultless:
+                    with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
+                        ui.icon('report_problem', size='14px')
+                        ui.label(f'No result recorded: {len(resultless)}')
                 with ui.element('span').classes('wiz-chip wiz-chip--pending'):
                     ui.icon('flag', size='14px')
-                    ui.label(f'Awaiting confirmation: {len(pending)}')
+                    ui.label(f'Awaiting confirmation: {len(confirmable)}')
                 ui.button(
                     'Show only these', icon='filter_alt', on_click=lambda: _only_finished(),
                 ).props('flat dense color=primary')

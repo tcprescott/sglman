@@ -162,6 +162,7 @@ class MatchLifecycleHandlers:
             await self.confirm_starting(match)
         with self.page_container:
             dialog = ConfirmationDialog(
+                title=f'Start match #{match.id}',
                 message=f'Start match #{match.id}?\n\n{player_names}',
                 confirm_text='Start match',
                 tone='primary',

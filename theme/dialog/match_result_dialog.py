@@ -200,8 +200,9 @@ class MatchResultDialog:
 
             with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
-                # On the two-player path tapping a name *is* the submit, so there
-                # is nothing left for a Submit button to do.
+                # The two-player path submits from its own step-two button, which
+                # is where the winner it is about to record is named; a footer
+                # Submit would be a second, less specific way to do the same thing.
                 if self.winner_select is not None:
                     ui.button(
                         'Save result' if self.is_edit else 'Submit Results',
@@ -224,44 +225,47 @@ class MatchResultDialog:
     async def _submit_winner(self, winner_id: int):
         """Record ``winner_id`` (a ``MatchPlayers`` row id) as the winner.
 
-        Both paths land here. Tapping a name is now a single interaction, so an
-        impatient double-tap would otherwise fire the service twice.
+        Both paths land here — step two of the two-player picker, and the select
+        path's Submit. The guard is released only on the ways *out* that leave the
+        dialog usable: once a result is recorded the dialog is closing, and a tap
+        landing during that transition would write a second audit row and fire a
+        second ``match.result_recorded`` event for the same match.
         """
         if self._submitting:
             return
         self._submitting = True
-        try:
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-            if actor is None:
-                ui.notify('You must be logged in to record match results.', color='negative')
-                return
 
-            try:
-                self.match = await self.match_service.record_match_result(
-                    match_id=self.match.id,
-                    winner_id=winner_id,
-                    actor=actor,
-                )
-            except (ValueError, PermissionError) as e:
-                notify_error(e)
-                return
-
-            winner = next((p for p in self.match.players if p.id == winner_id), None)
-            winner_name = self._player_name(winner) if winner else 'Unknown'
-            ui.notify(
-                f'Result changed: {winner_name} wins.' if self.is_edit
-                else f'Match results saved: {winner_name} wins!',
-                color='positive',
-            )
-
-            if self.on_submit:
-                await self.on_submit(self.match)
-
-            await self._flag_if_requested(actor)
-
-            self.dialog.close()
-        finally:
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+        if actor is None:
+            ui.notify('You must be logged in to record match results.', color='negative')
             self._submitting = False
+            return
+
+        try:
+            self.match = await self.match_service.record_match_result(
+                match_id=self.match.id,
+                winner_id=winner_id,
+                actor=actor,
+            )
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            self._submitting = False
+            return
+
+        winner = next((p for p in self.match.players if p.id == winner_id), None)
+        winner_name = self._player_name(winner) if winner else 'Unknown'
+        ui.notify(
+            f'Result changed: {winner_name} wins.' if self.is_edit
+            else f'Match results saved: {winner_name} wins!',
+            color='positive',
+        )
+
+        if self.on_submit:
+            await self.on_submit(self.match)
+
+        await self._flag_if_requested(actor)
+
+        self.dialog.close()
 
     async def _flag_if_requested(self, actor) -> None:
         """Raise the dispute flag, if the proctor ticked it.

@@ -179,7 +179,7 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
                    :flat="props.row.has_result" :round="props.row.has_result"
                    :outline="!props.row.has_result" :no-caps="!props.row.has_result"
                    size="sm" dense color="primary">
-                <template v-if="!props.row.has_result">Record winner</template>
+                <template v-if="!props.row.has_result">Record Winner</template>
                 <q-tooltip v-else>Change the recorded winner</q-tooltip>
             </q-btn>
         </div>

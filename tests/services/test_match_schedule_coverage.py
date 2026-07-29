@@ -115,6 +115,7 @@ class TestGenerateSeed:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
+        await MatchPlayers.create(match=m, user=await make_user(3, name="alice"))
         service.seedgen_service.generate_seed = AsyncMock(return_value="https://alttpr.com/h/xyz")
 
         passed = {}
@@ -129,6 +130,26 @@ class TestGenerateSeed:
 
         assert ok is True
         assert passed.get('tenant_id') == 1
+
+    async def test_refuses_a_match_with_no_players(self, service, db):
+        """One roll per match, and the seed reaches the players by DM.
+
+        Rolling before they exist spends the single roll on nobody and leaves the
+        real players unable to get another. The table hides the button, but REST
+        and MCP reach this too, so the rule lives here.
+        """
+        staff = await make_staff()
+        t = await Tournament.create(name="T", seed_generator="alttpr")
+        m = await Match.create(tournament=t)
+        service.seedgen_service.generate_seed = AsyncMock(return_value="url")
+
+        ok, message, url = await service.generate_seed(m.id, staff)
+
+        assert ok is False
+        assert url is None
+        assert "no players yet" in message
+        service.seedgen_service.generate_seed.assert_not_awaited()
+        assert await GeneratedSeeds.all().count() == 0
 
     async def test_returns_permission_error_for_non_privileged_actor(self, service, db):
         actor = await make_user(2, name="nobody")
@@ -184,6 +205,9 @@ class TestGenerateSeed:
         staff = await make_staff(discord_id=9100)
         t = await Tournament.create(name="T", seed_generator="dk64r")
         m = await Match.create(tournament=t)
+        # A player, because the roll is gated on having someone to DM the seed to
+        # and this test is about what happens once generation is actually reached.
+        await MatchPlayers.create(match=m, user=await make_user(4, name="alice"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
@@ -227,6 +251,7 @@ class TestGenerateSeed:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t)
+        await MatchPlayers.create(match=m, user=await make_user(5, name="alice"))
         service.seedgen_service.generate_seed = AsyncMock(side_effect=RuntimeError("boom"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
