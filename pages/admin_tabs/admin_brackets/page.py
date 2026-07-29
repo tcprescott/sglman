@@ -257,7 +257,17 @@ async def admin_brackets_page() -> None:
                         })
             table.rows = rows
             table.update()
-            empty_hint.set_visibility(tid is not None and not rows)
+            # An empty table is replaced outright rather than left to Quasar's
+            # "No data available", which is the same sentence for "you have not
+            # chosen a tournament yet" and "this one has no stages" — the two
+            # states a first-time organizer most needs told apart.
+            table.set_visibility(bool(rows))
+            empty_hint.set_visibility(not rows)
+            empty_hint.set_text(
+                'Pick a tournament above to see its bracket stages.' if tid is None
+                else 'No stages yet. "Create stage" builds the first one — a '
+                     'single-elimination stage 0 is the usual starting point.'
+            )
 
         def on_tournament_change(e) -> None:
             state['tournament_id'] = e.value
@@ -448,10 +458,7 @@ async def admin_brackets_page() -> None:
                     ),
                 },
             )
-            empty_hint = ui.label(
-                'No stages yet. "Create stage" builds the first one — a '
-                'single-elimination stage 0 is the usual starting point.'
-            ).classes('text-caption text-grey')
+            empty_hint = ui.label('').classes('text-caption text-grey q-pa-sm')
             empty_hint.set_visibility(False)
 
             def _open_public(row) -> None:
