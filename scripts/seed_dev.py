@@ -264,6 +264,18 @@ async def seed_for_tenant(
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
 
+        # The general-purpose fixture tournament is deliberately **on-premises**:
+        # its matches are the proctor-lifecycle fixtures, and attaching a
+        # racetime.gg bot hides every on-site control on them (and drops them
+        # from the Proctor Station board). Racetime lives on its own tournament
+        # now (scripts/seed_online.py), so a dev database seeded before the split
+        # gets that wiring cleared here.
+        if tournament.racetime_bot_id is not None or tournament.discord_events_enabled:
+            tournament.racetime_bot = None
+            tournament.racetime_auto_create_rooms = False
+            tournament.discord_events_enabled = False
+            await tournament.save()
+
         players = [users[k] for k in ("player_one", "player_two", "player_three", "player_four")]
         for p in players:
             await TournamentPlayers.get_or_create(tournament=tournament, user=p, tenant=tenant)
@@ -430,16 +442,15 @@ async def seed_for_tenant(
         )
         print(f"    [{tenant.slug}] match extras ok")
 
-        # --- Online tournaments: presets, racetime config & rooms -----------
-        # This wires ``tournament`` to a racetime.gg bot, so its matches now hide
-        # the on-site check-in / station-assignment controls.
-        await seed_online_for_tenant(
-            tenant, tournament, scheduled_match, finished_match, bots
-        )
+        # --- Online tournament (scripts/seed_online.py) ----------------------
+        # Its own racetime.gg-managed tournament with its own matches, kept apart
+        # from the tournament above: a racetime bot hides every on-site control
+        # on the matches it owns, so the two fixtures cannot share a tournament.
+        await seed_online_for_tenant(tenant, staff, players, bots)
 
-        # --- On-site tournament (no racetime.gg) ----------------------------
-        # The racetime-enabled tournament above hides every proctor control, so
-        # the Proctor Station board needs on-site matches to demonstrate.
+        # --- Second on-site tournament (scripts/seed_onsite.py) --------------
+        # A distinct venue event with its own "tournament days" override and one
+        # match per step of the proctor's workflow.
         await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
         print(f"    [{tenant.slug}] on-site tournament ok")
 

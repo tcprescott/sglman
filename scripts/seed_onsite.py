@@ -1,14 +1,15 @@
-"""Dev seed for the on-site (non-racetime) tournament.
+"""Dev seed for the second on-site (non-racetime) tournament — "Wizzrobe Cup".
 
 Split out of ``seed_dev.py`` for length, the way the volunteer and bracket
 fixtures already are.
 
-The main dev tournament is racetime-enabled, which hides every proctor control
-— check-in, stations, start, finish. Without an on-site tournament the Proctor
-Station board has nothing to demonstrate: no ordering to show, no summary counts,
-and no recorded result to hand to an admin's review queue. So this seeds one
-match per step of the proctor's workflow, plus the two states the admin's half
-of the loop needs.
+A venue event distinct from the general-purpose "Wizzrobe Dev Tournament": it
+carries its own per-tournament "tournament days" override, and it walks the
+proctor's board through the workflow in order — one match per step, plus the two
+states the admin's half of the loop needs (a recorded result awaiting review, and
+a finished match with no winner recorded). Deliberately never racetime-enabled:
+a racetime bot hides check-in, stations, start and finish, which is exactly what
+this fixture exists to exercise.
 """
 
 from datetime import date, datetime, timedelta
