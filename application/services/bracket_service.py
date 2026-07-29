@@ -118,7 +118,7 @@ class BracketService(
             raise ValueError("Bracket name is required")
 
         fmt = self._coerce_format(format)
-        config = validate_bracket_config(config)
+        config = validate_bracket_config(config, fmt=fmt, stage_order=stage_order)
 
         if await self.repository.get_stage(tournament_id, stage_order) is not None:
             raise ValueError(f"A bracket stage already exists at stage_order {stage_order}")
@@ -186,7 +186,14 @@ class BracketService(
                 )
             update_data['stage_order'] = stage_order
         if config is not None:
-            update_data['config'] = validate_bracket_config(config)
+            # Validated against the stage as it will be *after* this edit, so
+            # changing the format and its format-specific keys in one call is
+            # checked against the new format rather than the old one.
+            update_data['config'] = validate_bracket_config(
+                config,
+                fmt=update_data.get('format', bracket.format),
+                stage_order=update_data.get('stage_order', bracket.stage_order),
+            )
 
         if update_data:
             bracket = await self.repository.update(bracket, **update_data)
@@ -226,6 +233,10 @@ class BracketService(
             merged['rounds'] = rounds
         else:
             merged.pop('rounds', None)
+        # Shape-checked only: the cross-field checks belong to the authoring
+        # path, where the operator can act on them. This one is the single edit
+        # allowed after a stage starts, and it must not start refusing over a key
+        # it is not touching and the caller can no longer reach.
         validated = validate_bracket_config(merged)
         bracket = await self.repository.update(bracket, config=validated)
         await self.audit_service.write_log(
@@ -241,14 +252,49 @@ class BracketService(
         return bracket
 
     @requires_feature(FeatureFlag.BRACKETS)
+    async def cancel_stage(self, actor: Optional[User], bracket_id: int) -> Bracket:
+        """Abandon a stage: terminal, but no ``final_rank`` and no champion.
+
+        The close-out for a stage that was started and then called off. Without
+        it the only way to finish one is to invent a winner for every remaining
+        match, which writes a false result into the public bracket and into every
+        entrant's record. A CANCELLED stage keeps its played results as history,
+        disappears from the public views, and cannot be advanced from — there is
+        no ranking to draw a field out of. It can be deleted afterwards if the
+        stage slot is wanted back.
+        """
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can manage brackets",
+        )
+        bracket = await self._require_bracket(bracket_id)
+        if bracket.state == BracketState.CANCELLED:
+            raise ValueError("Bracket is already cancelled")
+        if bracket.state == BracketState.COMPLETE:
+            raise ValueError(
+                "A completed stage cannot be cancelled — its results are final "
+                "and a later stage may already have drawn from them"
+            )
+        bracket = await self.repository.update(bracket, state=BracketState.CANCELLED)
+        details = {
+            'bracket_id': bracket.id,
+            'tournament_id': bracket.tournament_id,
+            'name': bracket.name,
+        }
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_CANCELLED, details, EventType.BRACKET_CANCELLED,
+        )
+        return bracket
+
+    @requires_feature(FeatureFlag.BRACKETS)
     async def delete_bracket(self, actor: Optional[User], bracket_id: int) -> None:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
             "Only Staff can manage brackets",
         )
         bracket = await self._require_bracket(bracket_id)
-        if bracket.state != BracketState.DRAFT:
-            raise ValueError("Only a DRAFT bracket can be deleted")
+        if bracket.state not in (BracketState.DRAFT, BracketState.CANCELLED):
+            raise ValueError("Only a DRAFT or CANCELLED bracket can be deleted")
         details = {
             'bracket_id': bracket.id,
             'tournament_id': bracket.tournament_id,
@@ -483,6 +529,70 @@ class BracketService(
                 'entrant_id': entrant_id,
                 'seed': seed,
             },
+        )
+        return entry
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def unenroll(self, actor: Optional[User], entry_id: int) -> None:
+        """Remove an entry from a DRAFT stage outright.
+
+        The inverse of :meth:`enroll`, and DRAFT-only for the same reason: no
+        match graph references the entry yet, so it can leave without a trace.
+        Once a stage has started, use :meth:`retire_entry` instead — the played
+        matches must keep pointing at something.
+        """
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can manage brackets",
+        )
+        entry = require_found(await self.repository.get_entry(entry_id), "Entry")
+        bracket = await self._require_bracket(entry.bracket_id)
+        if bracket.state != BracketState.DRAFT:
+            raise ValueError(
+                "Only a DRAFT stage can be un-enrolled from — retire the entry "
+                "instead once the stage has started"
+            )
+        details = {
+            'entry_id': entry.id,
+            'bracket_id': bracket.id,
+            'tournament_id': bracket.tournament_id,
+            'entrant_id': entry.entrant_id,
+        }
+        await self.repository.delete_entry(entry)
+        await self.audit_service.write_log(
+            actor, AuditActions.BRACKET_ENTRY_REMOVED, details,
+        )
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def retire_entry(self, actor: Optional[User], entry_id: int) -> BracketEntry:
+        """Mark a stage entry ``DROPPED`` — the mid-stage withdrawal.
+
+        Allowed in any state. Their played results stand and keep counting for
+        everyone else's standings; what changes is that Swiss stops pairing them
+        and stage advancement skips them. Distinct from
+        :meth:`drop_entrant`, which retires the entrant from the *tournament
+        roster* and deliberately does not cascade into any stage entry.
+        """
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can manage brackets",
+        )
+        entry = require_found(await self.repository.get_entry(entry_id), "Entry")
+        if entry.status == BracketEntryStatus.DROPPED:
+            raise ValueError("This entry is already retired")
+        bracket = await self._require_bracket(entry.bracket_id)
+        entry = await self.repository.update_entry(
+            entry, status=BracketEntryStatus.DROPPED,
+        )
+        details = {
+            'entry_id': entry.id,
+            'bracket_id': bracket.id,
+            'tournament_id': bracket.tournament_id,
+            'entrant_id': entry.entrant_id,
+        }
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.BRACKET_ENTRY_RETIRED, details,
+            EventType.BRACKET_ENTRY_RETIRED,
         )
         return entry
 

@@ -86,6 +86,10 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         """Persist field changes on one stage entry. See :meth:`update_entrant`."""
         return await self.update(entry, **fields)
 
+    async def delete_entry(self, entry: BracketEntry) -> None:
+        """Remove one stage entry outright (DRAFT un-enrollment)."""
+        await entry.delete()
+
     async def set_entry_seeds(self, seeds: dict) -> None:
         """Apply ``{entry_id: seed}`` in one statement per distinct seed value.
 

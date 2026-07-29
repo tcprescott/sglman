@@ -671,6 +671,23 @@ itself. This alone removes most of the clunky feeling, because clunky is mostly
 
 ### Wave 2 — Make the flow verifiable (medium effort, removes the guessing)
 
+> **Status: shipped.** All seven items are implemented. Three notes where the plan
+> turned out to be wrong or incomplete:
+>
+> - **Item 12** claimed "no service change required". It needed one:
+>   `tie_breaks` was honoured in `_rank_swiss` only, so on round robin — where the
+>   cut line is *per group* and therefore tightest — a staff ruling was silently
+>   inert. `_rank_round_robin` now applies it too.
+> - **Item 11** is backed by a real service method (`preview_draw`) rather than
+>   presentation code calling the engine: the seeding rule and the bye
+>   materialization are business logic, and a preview that reimplemented them
+>   would drift from the Start it is meant to rehearse. A test asserts the
+>   projected graph equals the persisted one.
+> - **Item 17** also revealed that the *table* was offering Advance on a chain
+>   whose successor had already started. `can_advance` now checks every guard the
+>   advance enforces, not just that a successor exists.
+
+
 11. **Draw preview for a DRAFT stage** (P5). Run
     `get_bracket_engine(fmt)().generate(len(entries), config)` in-memory over the
     current seeding, map each `GeneratedMatch` to an unsaved `BracketMatch` with
@@ -714,6 +731,28 @@ committing, "who actually won the group?" before finalizing, and "what did I
 configure?" at any time. The feature stops being a form you submit into the dark.
 
 ### Wave 3 — Make it teach (larger or lower-frequency)
+
+> **Status: shipped.** All seven items are implemented. Decisions worth recording:
+>
+> - **Item 18** could not be a pydantic `model_validator`: `BracketConfig` never
+>   sees the format it belongs to. `validate_bracket_config(config, fmt=,
+>   stage_order=)` carries the cross-field checks instead, so REST is covered by
+>   the same guard as the UI. A key sitting at its schema *default* is tolerated —
+>   the normalizer injects every non-None default, so a stage's own stored blob is
+>   re-submitted carrying keys nobody typed, and rejecting those would make every
+>   edit fail.
+> - **Item 20** took the `CANCELLED` route rather than the ACTIVE→DRAFT reset: the
+>   finding was about *abandonment*, and a reset erases the fact that the stage was
+>   ever run. A cancelled stage keeps its played results, is hidden from the public
+>   views by `is_visible`, cannot be advanced out of, and can be deleted — which
+>   returns the `stage_order` slot a replacement needs.
+> - **Item 24**'s overflow menu replaced the row's icon strip entirely rather than
+>   demoting "the remaining actions": with a computed primary button, an icon that
+>   is sometimes present and sometimes not is harder to aim at than a menu that is
+>   always in the same place — which was half of P7's phone complaint.
+> - **Item 19**'s "Seed from qualifier" is gated on the `ASYNC_QUALIFIERS` flag
+>   being live, since it calls a flag-gated service.
+
 
 18. **Format-reactive Create dialog + the unexposed knobs** (P12). Bind an
     `@ui.refreshable` panel to `fmt_in`; double-elim gets `grand_final_reset`;

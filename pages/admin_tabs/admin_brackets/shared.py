@@ -7,8 +7,10 @@ and the entry-id → display-name map the results and advance dialogs both need.
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from application.services.bracket_engines.round_names import round_label
 from application.utils.timezone import parse_eastern_datetime, to_eastern
 from models import BracketFormat, BracketMatch
+from theme.brackets import detect_finals
 
 ELIM_FORMATS = (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM)
 
@@ -41,10 +43,58 @@ def distinct_rounds(matches: List[BracketMatch]) -> List[int]:
     return positive + negative
 
 
-def round_editor_label(round_number: int) -> str:
-    if round_number < 0:
-        return f'Losers Round {abs(round_number)}'
-    return f'Round {round_number}'
+def round_display_names(
+    matches: List[BracketMatch], fmt: BracketFormat
+) -> Dict[int, str]:
+    """``round number → the name the public bracket gives that round``.
+
+    The admin used to label these "Round 1 / Round 2 / Round 3" while the headers
+    they configure render "Quarterfinals / Semifinals / Final" — the same rounds
+    under two vocabularies, in one product. This routes both through
+    ``round_label``, which is where the naming rule already lived.
+    """
+    rounds = distinct_rounds(matches)
+    if not rounds:
+        return {}
+    double = fmt == BracketFormat.DOUBLE_ELIM
+    grand_final, reset = detect_finals(matches) if double else (None, None)
+    gf_round = grand_final.round if grand_final is not None else None
+    reset_round = reset.round if reset is not None else None
+    finals = {r for r in (gf_round, reset_round) if r is not None}
+    max_winners = max(
+        (r for r in rounds if r > 0 and r not in finals), default=None,
+    )
+    max_losers = max((abs(r) for r in rounds if r < 0), default=None)
+    if fmt not in (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM):
+        # Swiss and round robin have flat, numbered rounds — "Final" would be a
+        # lie about a round everyone plays simultaneously.
+        return {r: f'Round {r}' for r in rounds}
+    return {
+        r: round_label(
+            r,
+            is_grand_final=r == gf_round,
+            is_reset=r == reset_round,
+            max_winners_round=max_winners,
+            max_losers_magnitude=max_losers,
+            double_elim=double,
+        )
+        for r in rounds
+    }
+
+
+def match_label(match: BracketMatch, round_names: Dict[int, str]) -> str:
+    """One matchup's human coordinates: its round name, group and board.
+
+    Never the raw ``position``: round-robin positions are offset by group to keep
+    the uniqueness constraint, so group 2 board 1 is stored as ``100001`` and
+    printing it reads as data corruption to the one surface — round robin — that
+    has no visual bracket to fall back on.
+    """
+    name = round_names.get(match.round, f'Round {match.round}')
+    if match.group_number:
+        board = match.position - (match.group_number - 1) * 100000
+        return f'Group {match.group_number} · {name} · Board {board}'
+    return f'{name} · Match {match.position}'
 
 
 async def entry_name_map(service, bracket_id: int, tournament_id: int) -> Dict[int, str]:

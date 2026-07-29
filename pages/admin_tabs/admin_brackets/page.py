@@ -3,13 +3,15 @@
 Staff-facing surface over :class:`~application.services.bracket_service.BracketService`:
 pick a tournament, author its bracket stages (create/edit/delete while DRAFT),
 manage the tournament roster and per-stage enrollment/seeding, start a stage,
-record results (with overrides), complete a stage, and advance the field into the
-next stage.
+record results (with corrections), complete or cancel a stage, and advance the
+field into the next.
 
 This module owns the layout — the tournament selector, the stage table and its
-row-action dispatch; the three dialogs live beside it in this package. Every row
-action is ``v-if``-gated on the row's own state, so the table never offers a
-transition the service would refuse.
+row-action dispatch; the dialogs live beside it in this package. Each row carries
+its own readiness ("Seed & start (0/16 enrolled)", "7/15 reported") and one
+primary next step, with the rest of the actions in an overflow menu, so the table
+answers *what do I do next* rather than offering four verbs and letting the
+service explain which of them was legal.
 
 Presentation-only: renders NiceGUI, calls the service for every write, and shows
 service ``ValueError`` / ``PermissionError`` as toasts. Read-only ``Tournament``
@@ -19,14 +21,20 @@ tournament selector fire from detached client events that have lost the tenant
 contextvar.
 """
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
-from nicegui import background_tasks, context, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import BracketService
 from application.tenant_context import require_tenant_id, tenant_scope
-from models import BracketState, Tournament
-from theme.brackets import FORMAT_OPTIONS
+from models import BracketMatchState, BracketState, Tournament
+from theme.brackets import (
+    config_summary,
+    format_label,
+    stage_label,
+    state_color,
+    state_label,
+)
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
@@ -36,43 +44,111 @@ from theme.tables.mobile_grid import enable_mobile_grid
 from .manage import open_manage
 from .results import open_results
 from .shared import ELIM_FORMATS, entry_name_map
-from .stage_form import confirm_delete_stage, open_stage_form
+from .stage_form import confirm_cancel_stage, confirm_delete_stage, open_stage_form
 
-# Every action is `v-if`-gated on the row's own state: the service guards each
-# transition anyway, so an ungated button could only ever produce a toast
-# explaining why it was never going to work. The one exception is the disabled
-# `flag` on an elimination stage — that one is present to say *why* completing is
-# not something staff do there, rather than to be clicked.
+_TOURNAMENT_KEY = 'admin_brackets_tournament_id'
+
+# One primary button per row — the step that stage is actually up to — plus an
+# overflow menu for everything else that is legal on it. Every entry is `v-if`ed
+# on the row's own state: the service guards each transition anyway, so an
+# ungated button could only ever produce a toast explaining why it was never
+# going to work.
 _ROW_ACTIONS = '''
-    <q-btn v-if="props.row.state !== 'complete'" flat round dense icon="tune" color="primary"
-           @click="$parent.$emit('manage', props.row)">
-        <q-tooltip>{{ props.row.state === 'draft' ? 'Entrants, seeding & start' : 'Entrants & round settings' }}</q-tooltip>
+    <q-btn v-if="props.row.primary" flat dense no-caps color="primary"
+           :icon="props.row.primary_icon"
+           :label="props.row.primary"
+           @click="$parent.$emit(props.row.primary_event, props.row)">
     </q-btn>
-    <q-btn v-if="props.row.state !== 'draft'" flat round dense icon="scoreboard" color="primary"
-           @click="$parent.$emit('results', props.row)">
-        <q-tooltip>Results</q-tooltip>
-    </q-btn>
-    <q-btn v-if="props.row.can_complete" flat round dense icon="flag" color="secondary"
-           @click="$parent.$emit('complete', props.row)">
-        <q-tooltip>Complete stage</q-tooltip>
-    </q-btn>
-    <q-btn v-if="props.row.state === 'active' && props.row.is_elim" flat round dense
-           icon="flag" color="grey" disable>
-        <q-tooltip>Completes itself when the final resolves</q-tooltip>
-    </q-btn>
-    <q-btn v-if="props.row.can_advance" flat round dense icon="fast_forward" color="secondary"
-           @click="$parent.$emit('advance', props.row)">
-        <q-tooltip>Advance the field into the next stage</q-tooltip>
-    </q-btn>
-    <q-btn v-if="props.row.state === 'draft'" flat round dense icon="edit" color="primary"
-           @click="$parent.$emit('edit', props.row)">
-        <q-tooltip>Edit stage</q-tooltip>
-    </q-btn>
-    <q-btn v-if="props.row.state === 'draft'" flat round dense icon="delete" color="negative"
-           @click="$parent.$emit('remove', props.row)">
-        <q-tooltip>Delete stage</q-tooltip>
+    <q-btn flat round dense icon="more_vert" color="grey-7">
+        <q-menu auto-close>
+            <q-list style="min-width: 190px">
+                <q-item v-if="props.row.state !== 'complete' && props.row.state !== 'cancelled'"
+                        clickable @click="$parent.$emit('manage', props.row)">
+                    <q-item-section avatar><q-icon name="tune"/></q-item-section>
+                    <q-item-section>Entrants &amp; seeding</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.state !== 'draft'" clickable
+                        @click="$parent.$emit('results', props.row)">
+                    <q-item-section avatar><q-icon name="scoreboard"/></q-item-section>
+                    <q-item-section>Results</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.can_complete" clickable
+                        @click="$parent.$emit('complete', props.row)">
+                    <q-item-section avatar><q-icon name="flag"/></q-item-section>
+                    <q-item-section>Complete stage</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.can_advance" clickable
+                        @click="$parent.$emit('advance', props.row)">
+                    <q-item-section avatar><q-icon name="fast_forward"/></q-item-section>
+                    <q-item-section>Advance into next stage</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.state !== 'draft'" clickable
+                        @click="$parent.$emit('view', props.row)">
+                    <q-item-section avatar><q-icon name="open_in_new"/></q-item-section>
+                    <q-item-section>Open public bracket</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.state === 'draft'" clickable
+                        @click="$parent.$emit('edit', props.row)">
+                    <q-item-section avatar><q-icon name="edit"/></q-item-section>
+                    <q-item-section>Edit stage</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.state === 'active'" clickable
+                        @click="$parent.$emit('cancel', props.row)">
+                    <q-item-section avatar><q-icon name="block" color="negative"/></q-item-section>
+                    <q-item-section>Cancel stage</q-item-section>
+                </q-item>
+                <q-item v-if="props.row.state === 'draft' || props.row.state === 'cancelled'"
+                        clickable @click="$parent.$emit('remove', props.row)">
+                    <q-item-section avatar><q-icon name="delete" color="negative"/></q-item-section>
+                    <q-item-section>Delete stage</q-item-section>
+                </q-item>
+            </q-list>
+        </q-menu>
+        <q-tooltip>More actions</q-tooltip>
     </q-btn>
 '''
+
+_STATE_CELL = '''
+    <q-td :props="props">
+        <q-badge :color="props.row.state_color">{{ props.row.state_label }}</q-badge>
+        <div class="text-caption text-grey">{{ props.row.readiness }}</div>
+    </q-td>
+'''
+
+
+def _next_step(bracket, entry_count: int, matches) -> tuple:
+    """The one thing this stage is up to, as ``(label, icon, event)``.
+
+    A stage is only ever at one step, and which one is derivable from what it
+    already has: a DRAFT with nobody in it needs entrants, a DRAFT with a field
+    needs starting, an ACTIVE stage needs results, and a COMPLETE stage with a
+    successor needs advancing.
+    """
+    if bracket.state == BracketState.DRAFT:
+        if entry_count < 2:
+            return 'Add entrants', 'group_add', 'manage'
+        return 'Seed & start', 'play_arrow', 'manage'
+    if bracket.state == BracketState.ACTIVE:
+        open_now = sum(1 for m in matches if m.state == BracketMatchState.OPEN)
+        if open_now:
+            return 'Report results', 'scoreboard', 'results'
+        if bracket.format in ELIM_FORMATS:
+            return 'Results', 'scoreboard', 'results'
+        return 'Complete stage', 'flag', 'complete'
+    return '', '', ''
+
+
+def _readiness(bracket, entry_count: int, matches, champion: Optional[str]) -> str:
+    """The counts behind the next step, so the row states its own progress."""
+    if bracket.state == BracketState.DRAFT:
+        return f'{entry_count} enrolled'
+    if bracket.state == BracketState.CANCELLED:
+        return 'Abandoned — results kept, nobody ranked'
+    played = sum(1 for m in matches if m.state == BracketMatchState.COMPLETE)
+    total = len(matches)
+    if bracket.state == BracketState.ACTIVE:
+        return f'{played}/{total} matches reported'
+    return f'Won by {champion}' if champion else f'{total} matches played'
 
 
 async def admin_brackets_page() -> None:
@@ -89,12 +165,6 @@ async def admin_brackets_page() -> None:
             ui.label('Brackets').classes('page-title')
         ui.separator().classes('separator-spacing')
 
-        ui.label(
-            'Native tournament brackets. Pick a tournament, author its stages, '
-            'manage the roster and seeding, then start, record results, complete '
-            'a stage, and advance into the next.'
-        ).classes('text-caption text-grey')
-
         # Challonge-linked tournaments are excluded, not just sorted down: a
         # tournament uses a native bracket or a Challonge link and never both, so
         # every one of them could only ever answer "Create bracket" with an error.
@@ -109,11 +179,11 @@ async def admin_brackets_page() -> None:
         }
 
         columns = [
-            {'name': 'id', 'label': 'ID', 'field': 'id', 'hidden': True},
-            {'name': 'stage_order', 'label': 'Stage', 'field': 'stage_order', 'sortable': True},
+            {'name': 'stage', 'label': 'Stage', 'field': 'stage', 'sortable': True},
             {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
             {'name': 'format', 'label': 'Format', 'field': 'format'},
-            {'name': 'state', 'label': 'State', 'field': 'state'},
+            {'name': 'state', 'label': 'State', 'field': 'state_label'},
+            {'name': 'config', 'label': 'Setup', 'field': 'config'},
             {'name': 'actions', 'label': '', 'field': 'actions'},
         ]
 
@@ -121,38 +191,79 @@ async def admin_brackets_page() -> None:
 
         # --- brackets table refresh --------------------------------------
         async def refresh_table() -> None:
+            tid = state['tournament_id']
+            rows: List[dict] = []
             with tenant_scope(tenant_id):
-                tid = state['tournament_id']
-                if tid is None:
-                    table.rows = []
-                    table.update()
-                    return
-                brackets = await service.list_brackets(tid)
-            stage_orders = {b.stage_order for b in brackets}
-            table.rows = [
-                {
-                    'id': b.id,
-                    'stage_order': b.stage_order,
-                    'name': b.name,
-                    'format': FORMAT_OPTIONS.get(b.format.value, b.format.value),
-                    'state': b.state.value,
-                    'is_elim': b.format in ELIM_FORMATS,
-                    # Elimination completes itself when the final resolves, so the
-                    # explicit finalizer is a Swiss / round-robin action only.
-                    'can_complete': (
-                        b.state == BracketState.ACTIVE and b.format not in ELIM_FORMATS
-                    ),
-                    'can_advance': (
-                        b.state == BracketState.COMPLETE
-                        and (b.stage_order + 1) in stage_orders
-                    ),
-                }
-                for b in brackets
-            ]
+                if tid is not None:
+                    brackets = await service.list_brackets(tid)
+                    loaded = {
+                        b.stage_order: (b, await service.list_entries(b.id))
+                        for b in brackets
+                    }
+
+                    def can_advance_from(bracket) -> bool:
+                        """Every guard the advance itself enforces, checked here.
+
+                        Offering the action and letting the service explain why it
+                        was never going to work is what the row gating exists to
+                        stop — and a successor that is already running or already
+                        seeded is the common case on a chain mid-event.
+                        """
+                        if bracket.state != BracketState.COMPLETE:
+                            return False
+                        successor = loaded.get(bracket.stage_order + 1)
+                        if successor is None:
+                            return False
+                        next_stage, next_entries = successor
+                        return (
+                            next_stage.state == BracketState.DRAFT
+                            and not next_entries
+                            and bool((next_stage.config or {}).get('advancement'))
+                        )
+
+                    for bracket in brackets:
+                        entries = loaded[bracket.stage_order][1]
+                        matches = await service.list_matches(bracket.id)
+                        champion = None
+                        if bracket.state == BracketState.COMPLETE:
+                            winner = next(
+                                (e for e in entries if e.final_rank == 1), None,
+                            )
+                            if winner is not None:
+                                names = await entry_name_map(service, bracket.id, tid)
+                                champion = names.get(winner.id)
+                        label, icon, event = _next_step(bracket, len(entries), matches)
+                        rows.append({
+                            'id': bracket.id,
+                            'stage': stage_label(bracket.stage_order),
+                            'stage_order': bracket.stage_order,
+                            'name': bracket.name,
+                            'format': format_label(bracket.format),
+                            'state': bracket.state.value,
+                            'state_label': state_label(bracket.state),
+                            'state_color': state_color(bracket.state),
+                            'config': ' · '.join(config_summary(bracket)) or '—',
+                            'readiness': _readiness(
+                                bracket, len(entries), matches, champion,
+                            ),
+                            'primary': label,
+                            'primary_icon': icon,
+                            'primary_event': event,
+                            'can_complete': (
+                                bracket.state == BracketState.ACTIVE
+                                and bracket.format not in ELIM_FORMATS
+                            ),
+                            'can_advance': can_advance_from(bracket),
+                        })
+            table.rows = rows
             table.update()
+            empty_hint.set_visibility(tid is not None and not rows)
 
         def on_tournament_change(e) -> None:
             state['tournament_id'] = e.value
+            # Remembered per user: staff work one tournament for weeks, and the
+            # page opened on a blank selector every single time.
+            app.storage.user[_TOURNAMENT_KEY] = e.value
             background_tasks.create(refresh_table())
 
         def next_stage_order() -> int:
@@ -165,9 +276,9 @@ async def admin_brackets_page() -> None:
         async def complete_stage(row, client) -> None:
             """Confirm, then finalize the stage.
 
-            ``complete_stage`` writes every entry's ``final_rank`` and locks the
-            stage — there is no un-complete — and this fires from one of several
-            adjacent 44px icon buttons on a phone card, so it asks first.
+            The tie-resolving path is in the Results dialog, next to the
+            standings it rules on; this is the quick one for a stage with no
+            ties to settle.
             """
             with client:
                 async def do_complete() -> None:
@@ -184,13 +295,15 @@ async def admin_brackets_page() -> None:
 
                 confirm = ConfirmationDialog(
                     f"Complete “{row['name']}”? This writes every entrant's final "
-                    'rank and locks the stage — it cannot be undone.',
+                    'rank from the current standings and locks the stage — it '
+                    'cannot be undone. To rule on a tie first, use Results → '
+                    'Standings.',
                     on_confirm=do_complete,
                     confirm_text='Complete stage',
                 )
                 confirm.open()
 
-        # --- advance stage (preview + confirm) ---------------------------
+        # --- advance stage (plan + confirm) ------------------------------
         async def open_advance(row, client) -> None:
             tid = state['tournament_id']
             from_stage_order = row['stage_order']
@@ -198,20 +311,40 @@ async def admin_brackets_page() -> None:
                 actor = await current_actor()
                 with tenant_scope(tenant_id):
                     try:
-                        preview = await service.get_advancing_preview(tid, from_stage_order)
+                        plan = await service.advancement_plan(tid, from_stage_order)
                         names = await entry_name_map(service, row['id'], tid)
                     except (ValueError, PermissionError) as ex:
                         notify_error(ex)
                         return
 
-                with form_dialog(f"Advance from stage {from_stage_order}") as dialog:
-                    ui.label(
-                        f'{len(preview)} entrant(s) would advance into the next stage:'
-                    ).classes('text-caption text-grey')
-                    for e in preview:
+                title = (
+                    f'{stage_label(from_stage_order)} → '
+                    f'{stage_label(plan.destination.stage_order)}'
+                )
+                with form_dialog(f'Advance — {title}') as dialog:
+                    if plan.already_seeded:
                         ui.label(
-                            f'#{e.final_rank} — {names.get(e.id, f"Entry {e.id}")}'
-                        ).classes('ellipsis w-full')
+                            f'“{plan.destination.name}” has already been seeded from '
+                            'this stage. Nothing further to do here — un-enroll its '
+                            'entries from Manage if you need to redraw it.'
+                        ).classes('text-caption text-warning')
+                    else:
+                        rule = plan.advancement
+                        scope = 'per group' if rule.per_group else 'overall'
+                        ui.label(
+                            f'Top {rule.count} {scope} carry into '
+                            f'“{plan.destination.name}”'
+                            + (f' ({rule.seeding} seeding)' if rule.per_group else '')
+                        ).classes('text-caption text-grey')
+                        for entry, seed, group in plan.rows:
+                            origin = (
+                                f'was #{entry.final_rank}'
+                                + (f', Group {group}' if group is not None else '')
+                            )
+                            ui.label(
+                                f'Seed {seed} — {names.get(entry.id, f"Entry {entry.id}")}'
+                                f'  ({origin})'
+                            ).classes('ellipsis w-full')
 
                     async def do_advance() -> None:
                         with tenant_scope(tenant_id):
@@ -219,6 +352,10 @@ async def admin_brackets_page() -> None:
                                 await service.advance_stage(actor, tid, from_stage_order)
                             except (ValueError, PermissionError) as ex:
                                 notify_error(ex)
+                                # Terminal: the guard that refused will refuse the
+                                # same way on a second click, so the dialog closes
+                                # instead of staying open and clickable.
+                                dialog.close()
                                 return
                         ui.notify('Field advanced into next stage', color='positive')
                         dialog.close()
@@ -226,7 +363,10 @@ async def admin_brackets_page() -> None:
 
                     with dialog_actions().classes('justify-end'):
                         ui.button('Cancel', on_click=dialog.close).props('flat')
-                        ui.button('Advance', icon='fast_forward', on_click=do_advance).props('color=primary')
+                        if not plan.already_seeded:
+                            ui.button(
+                                'Advance', icon='fast_forward', on_click=do_advance,
+                            ).props('color=primary')
                 dialog.open()
 
         # --- dialog dispatch ---------------------------------------------
@@ -248,8 +388,26 @@ async def admin_brackets_page() -> None:
 
         # --- layout ------------------------------------------------------
         with page_container:
+            ui.label(
+                'Native tournament brackets: author a stage, build its field, '
+                'preview the draw, then start it. Each row shows the one step it '
+                'is up to.'
+            ).classes('text-caption text-grey')
+
+            # Resolved before the widget exists: assigning `.value` afterwards
+            # loads the table but leaves a `with_input` select displaying nothing,
+            # so the page looks unselected while showing a tournament's stages.
+            remembered = app.storage.user.get(_TOURNAMENT_KEY)
+            # One choice is not a choice: pick it rather than making the first
+            # thing anyone does on this page be confirming the obvious.
+            initial = (
+                remembered if remembered in options
+                else (next(iter(options)) if len(options) == 1 else None)
+            )
+            state['tournament_id'] = initial
+
             selector = ui.select(
-                options, label='Tournament', with_input=True,
+                options, label='Tournament', with_input=True, value=initial,
                 on_change=on_tournament_change,
             ).classes('w-full max-w-md').props('outlined')
             selector.add_slot('no-option', '''
@@ -261,18 +419,13 @@ async def admin_brackets_page() -> None:
                 ui.label(
                     'No tournament is eligible for a native bracket — every one in '
                     'this community is linked to a Challonge bracket, which a '
-                    'native bracket cannot coexist with.'
+                    'native bracket cannot coexist with. Unlink one from the '
+                    'Challonge tab to move it across.'
                 ).classes('text-caption text-warning')
-            elif len(options) == 1:
-                # One choice is not a choice: pick it rather than making the first
-                # thing anyone does on this page be confirming the obvious.
-                only_id = next(iter(options))
-                selector.value = only_id
-                state['tournament_id'] = only_id
 
             with ui.row().classes('full-width q-mt-sm'):
                 ui.button(
-                    'Create bracket', icon='add',
+                    'Create stage', icon='add',
                     on_click=lambda: background_tasks.create(create_stage(context.client))
                     if state['tournament_id'] else
                     ui.notify('Select a tournament first', color='warning'),
@@ -284,18 +437,43 @@ async def admin_brackets_page() -> None:
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
-            enable_mobile_grid(table, columns, actions=_ROW_ACTIONS)
+            table.add_slot('body-cell-state', _STATE_CELL)
+            enable_mobile_grid(
+                table, columns, actions=_ROW_ACTIONS,
+                field_slots={
+                    'state': (
+                        '<q-badge :color="props.row.state_color">'
+                        '{{ props.row.state_label }}</q-badge>'
+                        '<div class="text-caption text-grey">{{ props.row.readiness }}</div>'
+                    ),
+                },
+            )
+            empty_hint = ui.label(
+                'No stages yet. "Create stage" builds the first one — a '
+                'single-elimination stage 0 is the usual starting point.'
+            ).classes('text-caption text-grey')
+            empty_hint.set_visibility(False)
+
+            def _open_public(row) -> None:
+                ui.navigate.to(f"/brackets/{row['id']}", new_tab=True)
 
             table.on('manage', lambda e: background_tasks.create(
                 open_manage(e.args, context.client, **_dialog_kwargs())))
             table.on('results', lambda e: background_tasks.create(
                 open_results(e.args, context.client, **_dialog_kwargs())))
-            table.on('complete', lambda e: background_tasks.create(complete_stage(e.args, context.client)))
-            table.on('advance', lambda e: background_tasks.create(open_advance(e.args, context.client)))
-            table.on('edit', lambda e: background_tasks.create(edit_stage(e.args, context.client)))
+            table.on('complete', lambda e: background_tasks.create(
+                complete_stage(e.args, context.client)))
+            table.on('advance', lambda e: background_tasks.create(
+                open_advance(e.args, context.client)))
+            table.on('edit', lambda e: background_tasks.create(
+                edit_stage(e.args, context.client)))
+            table.on('cancel', lambda e: background_tasks.create(confirm_cancel_stage(
+                e.args, context.client, service=service, tenant_id=tenant_id,
+                on_change=refresh_table)))
             table.on('remove', lambda e: background_tasks.create(confirm_delete_stage(
                 e.args, context.client, service=service, tenant_id=tenant_id,
                 on_change=refresh_table)))
+            table.on('view', lambda e: _open_public(e.args))
 
         wire_tab_refresh('Brackets', refresh_table)
         background_tasks.create(refresh_table())

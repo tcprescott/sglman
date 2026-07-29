@@ -6,7 +6,9 @@ methods reach siblings, ``self.repository`` and ``self.audit_service`` through
 that composed class.
 """
 
-from typing import Any, Dict, List, Optional
+import math
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 from application.events import EventType
 from application.services.audit_service import AuditActions
@@ -24,7 +26,224 @@ from models import (
 )
 
 
+@dataclass(frozen=True)
+class DrawPreview:
+    """What Start *would* produce, computed without writing anything.
+
+    ``matches`` are unsaved :class:`BracketMatch` instances carrying synthetic
+    negative ids, shaped exactly like the rows generation would persist so the
+    ordinary renderer can draw them. ``error`` is set when the field cannot start
+    at all (an inconsistent seeding), in which case ``matches`` is empty —
+    the preview reports the problem instead of the caller discovering it at Start.
+    """
+
+    entry_count: int
+    seed_of: Dict[int, Optional[int]] = field(default_factory=dict)
+    matches: List[BracketMatch] = field(default_factory=list)
+    summary: List[str] = field(default_factory=list)
+    error: Optional[str] = None
+
+
 class GenerationMixin:
+    # -- draw preview (pure: the engine over the current seeding, no writes) ---
+    async def preview_draw(self, bracket_id: int) -> DrawPreview:
+        """Run the engine over the current seeding and return the projected draw.
+
+        The read-only twin of :meth:`start_bracket`: the same engine, the same
+        seeding rule, the same bye materialization — but in memory, so an
+        organizer can see the first round before committing to it. Start is the
+        draw, the publish and the notification at once, so without this the only
+        way to find out what the seeding produces is to publish it.
+        """
+        bracket = await self._require_bracket(bracket_id)
+        entries = await self.repository.list_active_entries(bracket_id)
+        seed_of, error = self._projected_seeding(entries)
+        if error is not None:
+            return DrawPreview(entry_count=len(entries), seed_of=seed_of, error=error)
+        if len(entries) < 2:
+            return DrawPreview(
+                entry_count=len(entries), seed_of=seed_of,
+                summary=['Enroll at least 2 entrants to draw this stage.'],
+            )
+
+        seed_to_entry = {seed_of[e.id]: e for e in entries}
+        config = dict(bracket.config or {})
+        engine = get_bracket_engine(bracket.format.value)()
+        try:
+            if bracket.format == BracketFormat.SWISS:
+                matches = self._preview_swiss(bracket, entries, engine, config)
+            else:
+                matches = self._preview_generative(
+                    bracket, len(entries), seed_to_entry, engine, config,
+                )
+        except ValueError as exc:
+            return DrawPreview(
+                entry_count=len(entries), seed_of=seed_of, error=str(exc),
+            )
+        return DrawPreview(
+            entry_count=len(entries),
+            seed_of=seed_of,
+            matches=matches,
+            summary=self._preview_summary(bracket, len(entries), matches, config),
+        )
+
+    def _preview_generative(
+        self,
+        bracket: Bracket,
+        num_entries: int,
+        seed_to_entry: Dict[int, BracketEntry],
+        engine: Any,
+        config: Dict[str, Any],
+    ) -> List[BracketMatch]:
+        """The generated graph as unsaved rows, byes already resolved.
+
+        Mirrors :meth:`_start_generative`'s three passes — shell rows, pointer
+        resolution, bye propagation + the OPEN/PENDING state pass — against
+        in-memory objects. Synthetic ids are negative so they can never collide
+        with a persisted id if one of these ever reaches a lookup by accident.
+        """
+        graph = engine.generate(num_entries, config)
+
+        by_coord: Dict[tuple, tuple] = {}
+        rows: List[BracketMatch] = []
+        for index, gm in enumerate(graph):
+            position = gm.position
+            if gm.group_number:
+                position += (gm.group_number - 1) * 100000
+            entry1 = seed_to_entry.get(gm.entry1_seed)
+            entry2 = seed_to_entry.get(gm.entry2_seed)
+            row = BracketMatch(
+                id=-(index + 1),
+                bracket_id=bracket.id,
+                round=gm.round,
+                position=position,
+                group_number=gm.group_number,
+                entry1_id=entry1.id if entry1 is not None else None,
+                entry2_id=entry2.id if entry2 is not None else None,
+                state=BracketMatchState.PENDING,
+            )
+            rows.append(row)
+            by_coord[(gm.round, gm.position, gm.group_number)] = (row, gm)
+
+        for row, gm in by_coord.values():
+            if gm.winner_to is not None:
+                target = by_coord[
+                    (gm.winner_to.round, gm.winner_to.position, gm.group_number)
+                ][0]
+                row.winner_to_id = target.id
+                row.winner_to_slot = gm.winner_to.slot
+            if gm.loser_to is not None:
+                target = by_coord[
+                    (gm.loser_to.round, gm.loser_to.position, gm.group_number)
+                ][0]
+                row.loser_to_id = target.id
+                row.loser_to_slot = gm.loser_to.slot
+
+        by_id = {row.id: row for row in rows}
+        processed: set = set()
+        changed = True
+        while changed:
+            changed = False
+            for row, gm in by_coord.values():
+                if not gm.is_bye or row.id in processed:
+                    continue
+                winner = (
+                    seed_to_entry.get(gm.entry1_seed) or seed_to_entry.get(gm.entry2_seed)
+                )
+                processed.add(row.id)
+                if winner is None:
+                    continue
+                row.winner_id = winner.id
+                row.state = BracketMatchState.COMPLETE
+                target = by_id.get(row.winner_to_id) if row.winner_to_id else None
+                if target is not None:
+                    if row.winner_to_slot == 1:
+                        target.entry1_id = winner.id
+                    else:
+                        target.entry2_id = winner.id
+                changed = True
+
+        for row in rows:
+            if row.state == BracketMatchState.COMPLETE:
+                continue
+            row.state = (
+                BracketMatchState.OPEN
+                if row.entry1_id is not None and row.entry2_id is not None
+                else BracketMatchState.PENDING
+            )
+        return rows
+
+    def _preview_swiss(
+        self,
+        bracket: Bracket,
+        entries: List[BracketEntry],
+        engine: Any,
+        config: Dict[str, Any],
+    ) -> List[BracketMatch]:
+        """Swiss round 1 as unsaved rows. Later rounds depend on results."""
+        entry_by_id = {e.id: e for e in entries}
+        pairings = engine.pair_round([PairingPlayer(ref=e.id) for e in entries], config)
+        rows: List[BracketMatch] = []
+        for position, (ref1, ref2) in enumerate(pairings, start=1):
+            bye = ref2 is None
+            rows.append(BracketMatch(
+                id=-position,
+                bracket_id=bracket.id,
+                round=1,
+                position=position,
+                entry1_id=entry_by_id[ref1].id,
+                entry2_id=None if bye else entry_by_id[ref2].id,
+                winner_id=entry_by_id[ref1].id if bye else None,
+                state=BracketMatchState.COMPLETE if bye else BracketMatchState.OPEN,
+            ))
+        return rows
+
+    def _preview_summary(
+        self,
+        bracket: Bracket,
+        num_entries: int,
+        matches: List[BracketMatch],
+        config: Dict[str, Any],
+    ) -> List[str]:
+        """Plain-language lines describing the projected draw."""
+        lines: List[str] = [f'{num_entries} entrants']
+        byes = sum(
+            1 for m in matches
+            if m.round == min((x.round for x in matches), default=1)
+            and (m.entry1_id is None or m.entry2_id is None)
+        )
+        if bracket.format in self._ELIM_FORMATS:
+            rounds = len({m.round for m in matches if m.round > 0})
+            lines.append(f'{len(matches)} matches across {rounds} winners round(s)')
+            if bracket.format == BracketFormat.DOUBLE_ELIM:
+                losers = len({m.round for m in matches if m.round < 0})
+                lines.append(f'{losers} losers round(s)')
+                lines.append(
+                    'Grand final reset enabled'
+                    if config.get('grand_final_reset', True)
+                    else 'No grand final reset — one grand final decides it'
+                )
+            if byes:
+                lines.append(f'{byes} first-round bye(s)')
+        elif bracket.format == BracketFormat.ROUND_ROBIN:
+            groups = {m.group_number for m in matches}
+            per_group = num_entries // max(1, len(groups))
+            lines.append(
+                f'{len(groups)} group(s) of about {per_group} · {len(matches)} matches'
+            )
+        else:
+            target = config.get('swiss_rounds')
+            derived = max(1, math.ceil(math.log2(num_entries))) if num_entries > 1 else 1
+            lines.append(
+                f'{target} rounds'
+                if target
+                else f'{derived} rounds (derived from the field size — set it explicitly to fix it)'
+            )
+            lines.append(f'{len(matches)} pairings in round 1')
+            if byes:
+                lines.append(f'{byes} bye(s) per round')
+        return lines
+
     # -- start (generate + persist the match graph) -----------------------
     async def start_bracket(self, actor: Optional[User], bracket_id: int) -> Bracket:
         await AuthService.ensure(
@@ -78,35 +297,54 @@ class GenerationMixin:
         await self.notify_open_matchups(bracket)
         return bracket
 
-    async def _assign_seeds(self, entries: List[BracketEntry]) -> Dict[int, BracketEntry]:
-        """Ensure every active entry has a contiguous 1..N seed.
+    @staticmethod
+    def _projected_seeding(
+        entries: List[BracketEntry],
+    ) -> Tuple[Dict[int, Optional[int]], Optional[str]]:
+        """The seeding a field *would* resolve to, and why it would not. Pure.
 
         Existing seeds are kept; missing seeds are filled from the unused values
         in ``1..N``, assigned to seed-less entries in entry-id order — so the
         result is deterministic and independent of insertion timing.
 
-        Safety net: after filling, the resulting seed set must be exactly the
-        contiguous ``1..N`` with no duplicates. Inconsistent manual seeds (a
-        duplicate or out-of-range value) would otherwise collapse or strand an
-        engine slot and silently drop an entrant, leaving matches stuck PENDING —
-        so this raises a clear ``ValueError`` instead.
+        The result must be exactly the contiguous ``1..N`` with no duplicates: a
+        duplicate or out-of-range value would otherwise collapse or strand an
+        engine slot and silently drop an entrant, leaving matches stuck PENDING.
+        Returned rather than raised so the DRAFT preview can *show* the problem
+        while :meth:`_assign_seeds` still refuses to start on it.
         """
         n = len(entries)
         used = {e.seed for e in entries if e.seed is not None}
         available = [s for s in range(1, n + 1) if s not in used]
         missing = sorted((e for e in entries if e.seed is None), key=lambda e: e.id)
-        for entry, seed in zip(missing, available):
-            entry.seed = seed
-            await entry.save()
+        filled = dict(zip((e.id for e in missing), available))
+        seed_of: Dict[int, Optional[int]] = {
+            e.id: (e.seed if e.seed is not None else filled.get(e.id)) for e in entries
+        }
 
-        assigned = sorted(e.seed for e in entries if e.seed is not None)
-        if assigned != list(range(1, n + 1)):
-            raise ValueError(
-                "Bracket seeds must be a contiguous 1.."
-                f"{n} with no duplicates, but the current seeding is "
-                f"{sorted((e.seed for e in entries), key=lambda s: (s is None, s))}. "
-                "Fix the duplicate or out-of-range seeds before starting."
-            )
+        assigned = sorted(s for s in seed_of.values() if s is not None)
+        if assigned == list(range(1, n + 1)):
+            return seed_of, None
+        shown = sorted(seed_of.values(), key=lambda s: (s is None, s))
+        return seed_of, (
+            f"Bracket seeds must be a contiguous 1..{n} with no duplicates, but "
+            f"the current seeding is {shown}. Fix the duplicate or out-of-range "
+            "seeds before starting."
+        )
+
+    async def _assign_seeds(self, entries: List[BracketEntry]) -> Dict[int, BracketEntry]:
+        """Persist the projected seeding onto the field, or refuse.
+
+        Validates before writing, so a field that cannot start is left exactly as
+        the operator left it rather than half-renumbered.
+        """
+        seed_of, error = self._projected_seeding(entries)
+        if error is not None:
+            raise ValueError(error)
+        for entry in entries:
+            if entry.seed != seed_of[entry.id]:
+                entry.seed = seed_of[entry.id]
+                await entry.save()
         return {e.seed: e for e in entries}
 
     async def _start_generative(

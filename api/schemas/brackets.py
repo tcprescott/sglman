@@ -241,6 +241,15 @@ class AdvanceStageRequest(BaseModel):
     from_stage_order: int
 
 
+class CompleteStageRequest(BaseModel):
+    """Optional tie resolutions applied while writing ``final_rank``.
+
+    ``{entry_id: rank}`` for entries the standings pass left sharing a rank.
+    """
+
+    tie_breaks: Optional[Dict[int, int]] = None
+
+
 __all__ = [
     'BracketResponse',
     'BracketEntrantResponse',
@@ -252,6 +261,7 @@ __all__ = [
     'ScheduleGameRequest',
     'SetBestOfRequest',
     'BracketCreateRequest',
+    'CompleteStageRequest',
     'BracketUpdateRequest',
     'RoundMetadataRequest',
     'SetSeedsRequest',

@@ -109,6 +109,10 @@ class EventType:
     # A subscriber mirroring the roster goes stale without it — the link is what
     # makes an entrant addressable at all.
     BRACKET_ENTRANT_UPDATED = 'bracket.entrant_updated'
+    # A field shrinking mid-stage, and a stage abandoned outright — both change
+    # what a subscriber should expect to be played, so both are announced.
+    BRACKET_ENTRY_RETIRED = 'bracket.entry_retired'
+    BRACKET_CANCELLED = 'bracket.cancelled'
 
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
@@ -130,6 +134,7 @@ class EventType:
         BRACKET_CREATED, BRACKET_STARTED, BRACKET_MATCH_COMPLETED,
         BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,
         BRACKET_ENTRANT_ADDED, BRACKET_ENTRANT_DROPPED, BRACKET_ENTRANT_UPDATED,
+        BRACKET_ENTRY_RETIRED, BRACKET_CANCELLED,
         BRACKET_GAME_SCHEDULED, BRACKET_GAME_COMPLETED, BRACKET_GAME_CANCELLED,
         BRACKET_GAME_LINKED, BRACKET_GAME_UNLINKED, BRACKET_GAME_RELEASED,
     })

@@ -128,6 +128,7 @@ class AuditActions:
     CHALLONGE_PLAYER_UNLINKED = 'challonge.player_unlinked'
     CHALLONGE_PLAYER_USERNAME_UPDATED = 'challonge.player_username_updated'
     CHALLONGE_TOURNAMENT_LINKED = 'challonge.tournament_linked'
+    CHALLONGE_TOURNAMENT_UNLINKED = 'challonge.tournament_unlinked'
     CHALLONGE_BRACKET_SYNCED = 'challonge.bracket_synced'
     CHALLONGE_RESULT_PUSHED = 'challonge.result_pushed'
     CHALLONGE_WEBHOOK_SYNCED = 'challonge.webhook_synced'
@@ -275,6 +276,11 @@ class AuditActions:
     # Per-stage participation, distinct from the tournament-level roster above:
     # who is enrolled in a stage decides who the generated graph contains.
     BRACKET_ENTRY_ADDED = 'bracket.entry_added'
+    BRACKET_ENTRY_REMOVED = 'bracket.entry_removed'
+    # Retiring an entry mid-stage is a different fact from un-enrolling one while
+    # DRAFT: the played results stand and the field shrinks under way.
+    BRACKET_ENTRY_RETIRED = 'bracket.entry_retired'
+    BRACKET_CANCELLED = 'bracket.cancelled'
 
     # Webhooks
     WEBHOOK_CREATED = 'webhook.created'

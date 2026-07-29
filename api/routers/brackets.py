@@ -25,6 +25,7 @@ from api.schemas.brackets import (
     BracketMatchResponse,
     BracketResponse,
     BracketUpdateRequest,
+    CompleteStageRequest,
     EnrollRequest,
     EntrantCreateRequest,
     EntrantUserRequest,
@@ -420,8 +421,58 @@ async def set_best_of(
 
 
 @router.post("/{bracket_id}/complete", response_model=BracketResponse, summary="Complete a bracket stage")
-async def complete_stage(bracket_id: int, actor: User = Depends(require_write_actor)):
-    return await BracketService().complete_stage(actor, bracket_id)
+async def complete_stage(
+    bracket_id: int,
+    body: Optional[CompleteStageRequest] = None,
+    actor: User = Depends(require_write_actor),
+):
+    """Finalize a stage, writing every entry's ``final_rank``.
+
+    ``tie_breaks`` (``{entry_id: rank}``) resolves entries the standings pass
+    left sharing a rank — the point of the staff-triggered finalizer on a Swiss
+    stage, where an unresolved tie for the last advancing slot otherwise decides
+    itself.
+    """
+    return await BracketService().complete_stage(
+        actor, bracket_id, body.tie_breaks if body else None,
+    )
+
+
+@router.post("/{bracket_id}/cancel", response_model=BracketResponse, summary="Cancel (abandon) a bracket stage")
+async def cancel_stage(bracket_id: int, actor: User = Depends(require_write_actor)):
+    """Abandon a stage: terminal, but no ``final_rank`` and no champion.
+
+    For a stage that was started and then called off. Its played results stay as
+    history, it disappears from the public views, and nothing can advance out of
+    it — there is no ranking to draw from. Rejected on a COMPLETE stage.
+    """
+    return await BracketService().cancel_stage(actor, bracket_id)
+
+
+@router.delete(
+    "/entries/{entry_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Un-enroll an entry from a DRAFT bracket",
+)
+async def unenroll(entry_id: int, actor: User = Depends(require_write_actor)):
+    """Remove an entry outright. DRAFT-only — retire it instead once started."""
+    await BracketService().unenroll(actor, entry_id)
+
+
+@router.post(
+    "/entries/{entry_id}/retire",
+    response_model=BracketEntryResponse,
+    summary="Retire an entry from a running stage",
+)
+async def retire_entry(entry_id: int, actor: User = Depends(require_write_actor)):
+    """Mark the entry DROPPED. Allowed in any state.
+
+    Their played results stand and keep counting for everyone else; Swiss stops
+    pairing them and stage advancement skips them. The peer of
+    ``/entrants/{id}/drop``, which retires them from the tournament roster
+    instead and deliberately does not cascade here.
+    """
+    return await BracketService().retire_entry(actor, entry_id)
 
 
 @router.post("/advance-stage", response_model=BracketResponse, summary="Advance into the next stage")

@@ -16,7 +16,9 @@ from nicegui import app, ui
 
 from application.services import AuthService, BracketService, get_user_from_discord_id
 from models import Bracket
-from theme.brackets import format_label, state_color, visible_stages
+from theme.brackets import (
+    format_label, stage_label, state_color, state_label, visible_stages,
+)
 
 
 def group_by_tournament(
@@ -44,10 +46,10 @@ def _render_stage(bracket: Bracket) -> None:
         with ui.column().classes('gap-0'):
             ui.label(bracket.name).classes('text-body2 text-bold')
             ui.label(
-                f'Stage {bracket.stage_order + 1} · {format_label(bracket.format)}'
+                f'{stage_label(bracket.stage_order)} · {format_label(bracket.format)}'
             ).classes('text-caption')
         with ui.row().classes('items-center gap-2 no-wrap'):
-            ui.badge(bracket.state.value.title(), color=state_color(bracket.state))
+            ui.badge(state_label(bracket.state), color=state_color(bracket.state))
             ui.button(
                 'View', icon='visibility',
                 on_click=lambda bid=bracket.id: ui.navigate.to(f'/brackets/{bid}'),
