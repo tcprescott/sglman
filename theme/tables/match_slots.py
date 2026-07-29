@@ -53,8 +53,14 @@ TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
     </a>
 </q-td>'''
 
+# ``is_overdue`` (set by MatchDisplayService) means the scheduled time has passed
+# and nobody has checked the match in — the proctor board leans on it, every
+# other board simply never sees a truthy value.
 SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <span class="cell-time">{{ props.value }}</span>
+    <span class="cell-time" :class="props.row.is_overdue ? 'st-pending' : ''">{{ props.value }}</span>
+    <q-icon v-if="props.row.is_overdue" name="schedule" class="st-pending q-ml-xs" size="xs">
+        <q-tooltip>Past its scheduled time and not checked in</q-tooltip>
+    </q-icon>
 </q-td>'''
 
 WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
@@ -274,18 +280,20 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
             <template v-for="(player, idx) in props.value">
                 <div style="display: flex; align-items: center; gap: 4px;">
                     <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
-                            name="check_circle" class="st-ok" size="xs">
-                        <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
+                            name="how_to_reg" class="st-ok" size="xs">
+                        <q-tooltip>Confirmed they're playing{{ props.row.acknowledgments[idx].ts ? ' — ' + props.row.acknowledgments[idx].ts : '' }}. Not a check-in.</q-tooltip>
                     </q-icon>
                     <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
-                            name="schedule" class="st-pending" size="xs">
-                        <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                            name="person_outline" class="st-pending" size="xs">
+                        <q-tooltip>Hasn't confirmed they're playing</q-tooltip>
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
                         {{ player.name }}
                         <span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
                             <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
+                    <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">
+                        <q-icon name="emoji_events" size="12px" />Winner</span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
                     <q-btn v-if="!__IA__ && props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == __DID__"

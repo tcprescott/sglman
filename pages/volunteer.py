@@ -6,9 +6,9 @@ from middleware.auth import protected_tab_page
 
 from application.services import AuthService, TenantService, get_user_from_discord_id
 from models import FeatureFlag, Role
-from pages.admin_tabs.admin_schedule import admin_schedule_page
 from pages.volunteer_tabs.availability import availability_tab
 from pages.volunteer_tabs.my_shifts import my_shifts_tab
+from pages.volunteer_tabs.proctor_station import proctor_station_tab
 from theme.base import BaseLayout
 
 
@@ -36,8 +36,8 @@ def create() -> None:
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
             tabs.append({'label': 'My Shifts', 'icon': 'assignment_ind', 'content': my_shifts_tab})
         if is_proctor or is_staff:
-            tabs.append({'label': 'Proctor Station', 'icon': 'schedule',
-                         'content': (admin_schedule_page, (), {'can_crud': is_staff})})
+            tabs.append({'label': 'Proctor Station', 'icon': 'sports_esports',
+                         'content': proctor_station_tab})
         show_admin = await AuthService.can_view_admin(user)
         base_path = f"{request.scope.get('root_path', '')}/volunteer" if request else '/volunteer'
         await BaseLayout(

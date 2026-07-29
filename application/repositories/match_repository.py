@@ -103,18 +103,20 @@ class MatchRepository:
         stream_room_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
         user_discord_id: Optional[str] = None,
+        exclude_racetime: bool = False,
         prefetch_relations: bool = True
     ) -> List[Match]:
         """
         Get matches with optional filters.
-        
+
         Args:
             tournament_ids: Filter by tournament IDs
             stream_room_ids: Filter by stream room IDs
             only_upcoming: Only return matches that haven't finished
             user_discord_id: Filter matches where user is a player
+            exclude_racetime: Drop matches whose tournament runs on racetime.gg
             prefetch_relations: Whether to prefetch related objects
-            
+
         Returns:
             List of Match objects
         """
@@ -122,7 +124,12 @@ class MatchRepository:
 
         if only_upcoming:
             query = query.filter(finished_at__isnull=True)
-        
+
+        if exclude_racetime:
+            # ``Tournament.is_racetime_enabled`` is a Python property over the
+            # ``racetime_bot`` FK, so the DB-side test is the FK being unset.
+            query = query.filter(tournament__racetime_bot_id__isnull=True)
+
         if tournament_ids:
             query = query.filter(tournament_id__in=tournament_ids)
         

@@ -30,13 +30,23 @@ class MatchTableView(MatchTableHandlersMixin):
 
     def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
-                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None, grid_breakpoint='lt.md'):
+                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None, grid_breakpoint='lt.md',
+                 row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False):
         self.columns = columns
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
         self.can_crud = can_crud
         self.player_discord_id = player_discord_id
+        # Board-shaping hooks. ``row_sort`` reorders the fetched rows (the
+        # proctor board sorts by what needs doing next rather than by clock),
+        # ``exclude_racetime`` drops rows no on-site proctor can act on,
+        # ``on_rows_changed`` lets a caller mirror the row set (a summary strip),
+        # and ``actions_first`` hoists the mobile card's action row.
+        self.row_sort = row_sort
+        self.exclude_racetime = exclude_racetime
+        self.on_rows_changed = on_rows_changed
+        self.actions_first = actions_first
         self.extra_slots = extra_slots
         self.submit_match_callback = submit_match_callback
         # Optional callbacks for admin actions
@@ -278,6 +288,7 @@ class MatchTableView(MatchTableHandlersMixin):
             self.table, self.columns,
             admin_controls=self.admin_controls, can_crud=self.can_crud, discord_id=discord_id,
             has_edit=self.on_edit is not None,
+            actions_first=self.actions_first,
         )
 
         # --- Event wiring (handler bodies live in MatchTableHandlersMixin) ---
@@ -370,7 +381,8 @@ class MatchTableView(MatchTableHandlersMixin):
             tournament_ids=tournament_ids,
             stream_room_ids=stream_room_ids,
             only_upcoming=only_upcoming,
-            user_discord_id=self.player_discord_id
+            user_discord_id=self.player_discord_id,
+            exclude_racetime=self.exclude_racetime,
         )
 
         # Client-side filter by state (narrows within the fetched set)
@@ -381,8 +393,17 @@ class MatchTableView(MatchTableHandlersMixin):
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
 
+        if self.row_sort is not None:
+            rows = self.row_sort(rows)
+
         self.table.rows = rows
         self.table.update()
+        self._notify_rows_changed()
+
+    def _notify_rows_changed(self) -> None:
+        """Tell the caller the visible row set changed (drives a summary strip)."""
+        if self.on_rows_changed is not None:
+            self.on_rows_changed(self.table.rows)
 
     async def _fetch_watched_ids(self) -> set:
         discord_id = app.storage.user.get('discord_id', None)
@@ -415,6 +436,7 @@ class MatchTableView(MatchTableHandlersMixin):
             # Match not found, delete the row from the table
             del self.table.rows[idx]
             self.table.update()
+            self._notify_rows_changed()
             return
 
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
@@ -422,6 +444,7 @@ class MatchTableView(MatchTableHandlersMixin):
             match_data['_flash'] = True
         self.table.rows[idx] = match_data
         self.table.update()
+        self._notify_rows_changed()
         if flash:
             self._schedule_flash_clear(match_id)
 

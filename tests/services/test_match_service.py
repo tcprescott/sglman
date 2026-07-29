@@ -472,6 +472,44 @@ async def _make_onsite_match(*, seated=False, finished=False, stations=()):
     return match, players
 
 
+# ---------------------------------------------------------------------------
+# record_match_result — real DB, so the ranks are asserted as persisted.
+
+
+class TestRecordMatchResult:
+    """The contract the one-tap winner buttons in ``MatchResultDialog`` rest on:
+    the dialog sends a ``MatchPlayers`` row id and nothing else."""
+
+    @pytest.fixture
+    async def actor(self, db):
+        return await make_user(discord_id=9101, username='result-staff')
+
+    async def test_record_result_sets_rank_one_and_two_for_two_players(self, db, actor):
+        match, players = await _make_onsite_match(seated=True)
+
+        await MatchService().record_match_result(
+            match.id, winner_id=players[1].id, actor=actor,
+        )
+
+        for player in players:
+            await player.refresh_from_db()
+        assert players[1].finish_rank == 1
+        assert players[0].finish_rank == 2
+
+    async def test_record_result_rejects_a_non_participant_winner(self, db, actor):
+        match, players = await _make_onsite_match(seated=True)
+        _, other_players = await _make_onsite_match()
+
+        with pytest.raises(ValueError, match='not a player'):
+            await MatchService().record_match_result(
+                match.id, winner_id=other_players[0].id, actor=actor,
+            )
+
+        for player in players:
+            await player.refresh_from_db()
+        assert all(p.finish_rank is None for p in players)
+
+
 class TestStationAssignmentValidation:
     """The ``assign_stations`` ladder: duplicate → format → pool → occupancy."""
 

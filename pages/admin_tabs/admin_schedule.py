@@ -1,29 +1,23 @@
 """Admin Schedule Management Page"""
 
 
-from nicegui import app, ui
+from nicegui import ui
 
-from application.services import MatchScheduleService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
 from models import Match
-from theme.dialog import ConfirmationDialog, StationAssignmentDialog, MatchResultDialog
 from theme.dialog.match_dialog import AdminMatchDialog
-from theme.dialog.stream_room_dialog import StreamRoomDialog
-from theme.notify import notify_error
 from theme.tables.match import MatchTableView
+from theme.tables.match_lifecycle import MatchLifecycleHandlers
 
 
 def admin_schedule_page(can_crud: bool = True) -> None:
-    # Initialize services
-    match_schedule_service = MatchScheduleService()
-    
     with ui.column().classes('page-container-wide') as page_container:
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Schedule Management').classes('page-title')
-        
+
         ui.separator().classes('separator-spacing')
-        
+
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament',
@@ -45,147 +39,9 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         def get_query():
             return Match.filter(tenant_id=require_tenant_id())
-        
-        async def on_edit(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id())
-            async def after_edit(_):
-                await table_view.update_row_by_id(match_id)
-            with page_container:
-                dialog = AdminMatchDialog(match=match, on_submit=after_edit)
-                await dialog.open()
 
-        async def on_generate_seed(match_id: int):
-            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-            success, message, _ = await match_schedule_service.generate_seed(match_id, actor=actor)
-            
-            with page_container:
-                if success:
-                    ui.notify(message, color='positive')
-                else:
-                    # Check if it's just "already in progress" (not an error per se)
-                    if "already in progress" in message.lower():
-                        pass  # Skip notification, just refresh
-                    else:
-                        ui.notify(message, color='warning' if "already been generated" in message else 'negative')
-            
-            # Always refresh the row to clear spinner
-            await table_view.update_row_by_id(match_id)
-
-        async def on_seat(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
-
-            async def handle_confirm(_):
-                dialog.dialog.close()
-                await confirm_seating(match)
-            with page_container:
-                dialog = StationAssignmentDialog(
-                    match=match,
-                    on_submit=handle_confirm,
-                    purpose='checkin',
-                )
-                await dialog.open()
-
-        async def confirm_seating(match: Match):
-            try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                await match_schedule_service.seat_match(match, actor=actor)
-                await table_view.update_row_by_id(match.id)
-                with page_container:
-                    ui.notify(f'Match #{match.id} checked in.', color='positive')
-            except (PermissionError, ValueError) as e:
-                with page_container:
-                    notify_error(e)
-
-        async def on_start(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
-            player_names = ', '.join(
-                [p.user.preferred_name for p in match.players])
-
-            async def handle_confirm(_):
-                dialog.dialog.close()
-                await confirm_starting(match)
-            with page_container:
-                dialog = ConfirmationDialog(
-                    message=f'Start match #{match.id}?\n\n{player_names}',
-                    confirm_text='Start match',
-                    tone='primary',
-                    on_confirm=handle_confirm,
-                )
-                dialog.open()
-
-        async def confirm_starting(match: Match):
-            try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                await match_schedule_service.start_match(match, actor=actor)
-                await table_view.update_row_by_id(match.id)
-            except (PermissionError, ValueError) as e:
-                with page_container:
-                    notify_error(e)
-
-        async def on_finish(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
-
-            async def handle_confirm(_):
-                dialog.dialog.close()
-                await confirm_finishing(match)
-            with page_container:
-                dialog = MatchResultDialog(
-                    match=match,
-                    on_submit=handle_confirm
-                )
-                await dialog.open()
-
-        async def confirm_finishing(match: Match):
-            try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                await match_schedule_service.finish_match(match, actor=actor)
-                await table_view.update_row_by_id(match.id)
-            except (PermissionError, ValueError) as e:
-                with page_container:
-                    notify_error(e)
-
-        async def on_confirm(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
-            player_names = ', '.join(
-                [p.user.preferred_name for p in match.players])
-
-            async def handle_confirm(_):
-                dialog.dialog.close()
-                await confirm_confirming(match)
-            with page_container:
-                dialog = ConfirmationDialog(
-                    message=f'Confirm the recorded result for match #{match.id}?\n\n{player_names}',
-                    confirm_text='Confirm result',
-                    tone='primary',
-                    on_confirm=handle_confirm,
-                )
-                dialog.open()
-
-        async def confirm_confirming(match: Match):
-            try:
-                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                await match_schedule_service.confirm_match(match, actor=actor)
-                await table_view.update_row_by_id(match.id)
-            except (PermissionError, ValueError) as e:
-                with page_container:
-                    notify_error(e)
-
-        async def on_edit_stream_room(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id())
-            async def after_edit(_):
-                await table_view.update_row_by_id(match_id)
-            with page_container:
-                dialog = StreamRoomDialog(match=match, on_submit=after_edit)
-                await dialog.open()
-
-        async def on_assign_stations(match_id: int):
-            match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
-            async def after_assign(_):
-                await table_view.update_row_by_id(match_id)
-            with page_container:
-                dialog = StationAssignmentDialog(match=match, on_submit=after_assign, purpose='stations')
-                await dialog.open()
-
+        # Creating a match is a scheduling action, not a lifecycle one, so it
+        # stays here rather than moving into MatchLifecycleHandlers.
         async def submit_admin_match():
             async def after_submit():
                 await table_view.refresh()
@@ -195,22 +51,17 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         extra_slots = {}
 
+        handlers = MatchLifecycleHandlers(page_container, can_crud=can_crud)
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,
             admin_controls=True,
             can_crud=can_crud,
             submit_match_callback=submit_admin_match if can_crud else None,
-            on_edit=on_edit if can_crud else None,
-            on_generate_seed=on_generate_seed,
-            on_seat=on_seat,
-            on_start=on_start,
-            on_finish=on_finish,
-            on_confirm=on_confirm if can_crud else None,
-            on_edit_stream_room=on_edit_stream_room if can_crud else None,
-            on_assign_stations=on_assign_stations,
             extra_slots=extra_slots,
+            **handlers.callbacks(),
         )
+        handlers.table_view = table_view
 
         # Route through the view's _bg so the tab-switch refresh rebinds the
         # tenant (the selected_tab handler runs in a detached task that lost it).

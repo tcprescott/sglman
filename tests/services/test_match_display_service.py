@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from application.services.match.match_display_service import MatchDisplayService
 from application.utils.timezone import format_eastern_datetime
+from models import Match, RacetimeBot, Tournament
 
 
 @pytest.fixture
@@ -211,6 +212,94 @@ class TestFormatMatchForDisplay:
         match = make_match(scheduled_at=None)
         result = display_service._format_match_for_display(match)
         assert result["scheduled_at"] == ""
+
+
+# ---------------------------------------------------------------------------
+# _format_match_for_display — proctor-board sort key and overdue flag
+# ---------------------------------------------------------------------------
+
+
+class TestFormatMatchOverdue:
+    """``is_overdue`` drives the proctor board's top bucket and amber time.
+
+    Overdue means: the scheduled time has passed and nobody has checked the
+    match in (and it did not simply finish). The comparison is aware-UTC on
+    both sides — ``scheduled_at`` is stored aware in production; a naive value
+    is interpreted as UTC by ``to_utc_aware``.
+    """
+
+    def test_display_marks_an_unchecked_past_match_overdue(self, display_service):
+        match = make_match(scheduled_at=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc))
+        assert display_service._format_match_for_display(match)["is_overdue"] is True
+
+    def test_display_does_not_mark_a_seated_past_match_overdue(self, display_service):
+        match = make_match(
+            scheduled_at=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc),
+            seated_at=datetime(2020, 1, 1, 12, 5, tzinfo=timezone.utc),
+        )
+        assert display_service._format_match_for_display(match)["is_overdue"] is False
+
+    def test_display_does_not_mark_a_finished_past_match_overdue(self, display_service):
+        match = make_match(
+            scheduled_at=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2020, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
+        assert display_service._format_match_for_display(match)["is_overdue"] is False
+
+    def test_display_does_not_mark_a_future_match_overdue(self, display_service):
+        match = make_match(scheduled_at=datetime(2999, 1, 1, 12, 0, tzinfo=timezone.utc))
+        assert display_service._format_match_for_display(match)["is_overdue"] is False
+
+    def test_unscheduled_match_is_not_overdue_and_has_no_sort_key(self, display_service):
+        result = display_service._format_match_for_display(make_match(scheduled_at=None))
+        assert result["is_overdue"] is False
+        assert result["scheduled_ts"] is None
+
+    def test_scheduled_ts_is_the_utc_epoch_seconds(self, display_service):
+        when = datetime(2025, 1, 15, 19, 30, tzinfo=timezone.utc)
+        match = make_match(scheduled_at=when)
+        assert display_service._format_match_for_display(match)["scheduled_ts"] == when.timestamp()
+
+    def test_naive_scheduled_at_is_read_as_utc(self, display_service):
+        """A stripped tzinfo must not raise on the comparison."""
+        match = make_match(scheduled_at=datetime(2020, 1, 1, 12, 0))
+        result = display_service._format_match_for_display(match)
+        assert result["is_overdue"] is True
+        assert result["scheduled_ts"] == datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc).timestamp()
+
+
+# ---------------------------------------------------------------------------
+# get_matches_for_display — exclude_racetime
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestExcludeRacetime:
+    async def test_exclude_racetime_omits_racetime_tournament_matches(self, db, display_service):
+        bot = await RacetimeBot.create(
+            name='Bot', category='alttp', client_id='cid', client_secret='sec',
+        )
+        onsite = await Tournament.create(name='On Site')
+        online = await Tournament.create(name='Online', racetime_bot=bot)
+        onsite_match = await Match.create(tournament=onsite)
+        await Match.create(tournament=online)
+
+        rows = await display_service.get_matches_for_display(exclude_racetime=True)
+
+        assert [r['id'] for r in rows] == [onsite_match.id]
+
+    async def test_default_still_includes_racetime_matches(self, db, display_service):
+        bot = await RacetimeBot.create(
+            name='Bot', category='alttp', client_id='cid', client_secret='sec',
+        )
+        onsite = await Tournament.create(name='On Site')
+        online = await Tournament.create(name='Online', racetime_bot=bot)
+        onsite_match = await Match.create(tournament=onsite)
+        online_match = await Match.create(tournament=online)
+
+        rows = await display_service.get_matches_for_display()
+
+        assert {r['id'] for r in rows} == {onsite_match.id, online_match.id}
 
 
 # ---------------------------------------------------------------------------

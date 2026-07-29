@@ -9,6 +9,7 @@ keeps only lifecycle logic.
 Read-only: no writes, no audit, no Discord notifications.
 """
 
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
 from models import Match, MatchAcknowledgment
@@ -23,6 +24,7 @@ from application.utils.timezone import (
     format_eastern_datetime,
     format_eastern_display,
     format_eastern_time,
+    to_utc_aware,
 )
 
 
@@ -61,7 +63,8 @@ class MatchDisplayService:
         tournament_ids: Optional[List[int]] = None,
         stream_room_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
-        user_discord_id: Optional[str] = None
+        user_discord_id: Optional[str] = None,
+        exclude_racetime: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get matches formatted for table display.
@@ -71,6 +74,8 @@ class MatchDisplayService:
             stream_room_ids: Filter by stream room IDs
             only_upcoming: Only return unfinished matches
             user_discord_id: Filter by player discord ID
+            exclude_racetime: Drop matches run by a racetime.gg tournament — the
+                proctor board's rows are the ones a proctor can actually act on
 
         Returns:
             List of formatted match dictionaries
@@ -80,6 +85,7 @@ class MatchDisplayService:
             stream_room_ids=stream_room_ids,
             only_upcoming=only_upcoming,
             user_discord_id=user_discord_id,
+            exclude_racetime=exclude_racetime,
             prefetch_relations=True
         )
 
@@ -230,6 +236,15 @@ class MatchDisplayService:
             # link into the (publicly readable) bracket view.
             'bracket': self._bracket_ref(match),
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
+            # Sort key and urgency flag for the proctor board. The formatted
+            # ``scheduled_at`` string is display-only and does not sort.
+            'scheduled_ts': to_utc_aware(match.scheduled_at).timestamp() if match.scheduled_at else None,
+            'is_overdue': bool(
+                match.scheduled_at
+                and match.seated_at is None
+                and match.finished_at is None
+                and to_utc_aware(match.scheduled_at) < datetime.now(timezone.utc)
+            ),
             'state': state,
             'state_timestamp': state_timestamp,
             'state_time': format_eastern_time(state_changed_at),

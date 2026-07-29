@@ -414,8 +414,8 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL, and `is_racetime` — true when the tournament is racetime.gg-enabled, which hides on-site controls). |
-| `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. |
+| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL, `is_racetime` — true when the tournament is racetime.gg-enabled, which hides on-site controls — plus `scheduled_ts`, an epoch sort key, and `is_overdue`, true when the aware-UTC scheduled time has passed with no check-in and no finish). |
+| `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None, exclude_racetime=False)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. `exclude_racetime` drops matches in racetime.gg tournaments at the query (the proctor board's rows are the ones an on-site proctor can act on). |
 | `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
 | `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
