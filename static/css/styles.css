@@ -717,10 +717,14 @@ body.body--dark {
 
 /* The card is align-items:flex-start, so children size to content and the sticky
    header/action bars (narrow button rows) don't span the width — leaving content
-   peeking past their edge. Stretch ONLY those two bars (not arbitrary dialog
-   content) so they fill the card and their negative margins bleed to the edges. */
-.q-dialog__inner--maximized > .dialog-card > .dialog-header,
-.q-dialog__inner--maximized > .dialog-card > .dialog-actions {
+   peeking past their edge and drawing their 1px borders as stubs two-thirds
+   across the card. Stretch ONLY those two bars (not arbitrary dialog content) so
+   they fill the card and their negative margins bleed to the edges. Applies at
+   every width: the centered desktop card has the same flex-start parent as the
+   maximized mobile sheet, so scoping this to --maximized left every desktop
+   dialog with a stubbed rule and a footer that masked only its own width. */
+.dialog-card > .dialog-header,
+.dialog-card > .dialog-actions {
     align-self: stretch;
 }
 

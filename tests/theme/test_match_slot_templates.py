@@ -179,6 +179,88 @@ def test_the_dispute_flag_is_not_crud_gated():
             assert guard.group(1) == 'props.row.needs_review'
 
 
+CONFIRM_EMIT = "$parent.$emit('confirm'"
+
+
+def _own_guard(template: str, emit: str) -> str:
+    """The ``v-if`` *or* ``v-else-if`` on the element carrying ``emit``.
+
+    ``_guard_on`` only finds a plain ``v-if``: the grid's action row chains its
+    lifecycle buttons with ``v-else-if``, which does not contain the substring
+    ``v-if="``, so searching for that walks back past the whole chain.
+    """
+    head = template[:template.index(emit)]
+    start = max(head.rfind('v-if="'), head.rfind('v-else-if="'))
+    assert start != -1, f'no guard precedes {emit!r}'
+    start = head.index('"', start) + 1
+    return head[start:head.index('"', start)]
+
+
+def test_confirm_is_offered_only_when_a_winner_is_recorded():
+    """A Finished match with no result cannot be confirmed — the service refuses it.
+
+    Offering the button anyway teaches the admin to click it and read an error,
+    so both layouts gate it on ``has_result`` and say what is missing instead.
+    """
+    for template in _state_and_grid_slots(can_crud=True):
+        guard = _own_guard(template, CONFIRM_EMIT)
+        assert 'props.row.has_result' in guard, (
+            f'confirm is guarded by {guard!r}, which ignores whether a result exists'
+        )
+        assert 'No result' in template
+
+
+def test_a_result_less_finished_match_leads_with_recording_one():
+    """The pencil is the control that fixes it, so it stops being a bare icon."""
+    state_cell, card = _state_and_grid_slots(can_crud=True)
+    assert 'Record winner' in state_cell
+    assert 'Record Winner' in card
+
+
+def test_a_seed_can_only_be_rolled_while_it_can_still_help():
+    """One roll per match: burning it early or after the finish is not recoverable.
+
+    A bracket row with no players yet would DM the seed to nobody and leave the
+    real players unable to roll another; past Finished there is nothing to seed.
+    """
+    cells = FakeTable()
+    register_body_slots(
+        cells, admin_controls=True, can_crud=True, discord_id='1', want_seed_slot=True,
+    )
+    grid = FakeTable()
+    render_grid_slot(
+        grid, ADMIN_COLUMNS, admin_controls=True, can_crud=True,
+        discord_id='1', has_edit=True,
+    )
+    for template in (cells.slots['body-cell-generated_seed'], grid.slots['item']):
+        guard = _guard_on(template, "$parent.$emit('roll'")
+        assert 'props.row.players.length' in guard, f'roll is guarded by {guard!r}'
+        assert "'Finished', 'Confirmed'" in guard, f'roll is guarded by {guard!r}'
+
+
+def test_assigning_stations_is_labelled_on_both_layouts():
+    """The proctor board is read on a tablet, where a tooltip never opens."""
+    cells = FakeTable()
+    register_body_slots(
+        cells, admin_controls=True, can_crud=True, discord_id='1',
+    )
+    grid = FakeTable()
+    render_grid_slot(
+        grid, ADMIN_COLUMNS, admin_controls=True, can_crud=True,
+        discord_id='1', has_edit=True,
+    )
+    players_cell = cells.slots['body-cell-players']
+    # The button's own markup, so the comment above it explaining the icon it
+    # replaced doesn't satisfy the assertion.
+    btn_start = players_cell.rindex('<q-btn', 0, players_cell.index("$emit('assign_stations'"))
+    stations_btn = players_cell[btn_start:]
+    stations_btn = stations_btn[:stations_btn.index('</q-btn>')]
+    assert 'switch_access_shortcut' not in stations_btn
+    assert 'icon="chair"' in stations_btn
+    assert 'Stations' in stations_btn
+    assert 'Assign Stations' in grid.slots['item']
+
+
 def test_overdue_emphasis_is_mirrored_on_the_mobile_headline():
     """A desktop cell change without its card mirror is the classic regression."""
     table = FakeTable()

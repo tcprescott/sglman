@@ -72,8 +72,17 @@ WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
     </q-btn>
 </q-td>'''
 
+# The Generate button's own gate, shared with the mobile grid's seed detail.
+# A seed can only be rolled once, so offering the button where it cannot help is
+# not merely noise: on a bracket row with no players yet it burns the one roll on
+# a match whose players don't exist, and the DM reaches nobody. Past the finish
+# there is nothing left to seed.
+SEED_ROLLABLE = ("props.row.tournament_seed_generator && !props.row.is_racetime"
+                 " && props.row.players && props.row.players.length"
+                 " && !['Finished', 'Confirmed'].includes(props.row.state)")
+
 SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <q-btn v-if="props.row.tournament_seed_generator && !props.value && !props.row.is_racetime"
+    <q-btn v-if="__ROLLABLE__ && !props.value"
            :loading="props.row._generating_seed"
            :disabled="props.row._generating_seed"
            @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
@@ -92,7 +101,7 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
             <q-tooltip>Can't receive a Discord DM: {{ props.row.seed_dm_blocked.join(', ') }} — hand them the seed. Shows who is unreachable, not whether a DM arrived.</q-tooltip>
         </q-icon>
     </span>
-</q-td>'''
+</q-td>'''.replace('__ROLLABLE__', SEED_ROLLABLE)
 
 # Carries __CC__ — must be registered through ``_fill``, not raw.
 STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
@@ -150,13 +159,28 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
             <q-tooltip v-if="props.row.review_note">{{ props.row.review_note }}</q-tooltip>
         </span>
         <div v-if="__CC__" style="display: flex; align-items: center; gap: 4px;">
-            <q-btn @click="$parent.$emit('confirm', props)"
+            <!-- No winner on the board: confirming is refused by the service, so
+                 say what is missing and lead with the pencil, which is the
+                 control that fixes it. Offering Confirm here only teaches the
+                 admin to click it and read an error. -->
+            <span v-if="!props.row.has_result" class="wiz-chip wiz-chip--pending">
+                <q-icon name="report_problem" size="14px" />No result
+                <q-tooltip>Nobody is recorded as the winner. Record one before confirming.</q-tooltip>
+            </span>
+            <q-btn v-else @click="$parent.$emit('confirm', props)"
                    icon="check_circle" color="primary" size="sm">
                 Confirm
             </q-btn>
-            <q-btn @click="$parent.$emit('edit_result', props)"
-                   icon="edit" size="sm" flat dense round color="primary">
-                <q-tooltip>Change the recorded winner</q-tooltip>
+            <!-- Carries __CC__ itself, not just via the wrapping div: correcting
+                 a result is the admin's call, and that gate belongs on the
+                 control so it cannot be lost by re-nesting the markup. -->
+            <q-btn v-if="__CC__" @click="$parent.$emit('edit_result', props)"
+                   :icon="props.row.has_result ? 'edit' : 'emoji_events'"
+                   :flat="props.row.has_result" :round="props.row.has_result"
+                   :outline="!props.row.has_result" :no-caps="!props.row.has_result"
+                   size="sm" dense color="primary">
+                <template v-if="!props.row.has_result">Record winner</template>
+                <q-tooltip v-else>Change the recorded winner</q-tooltip>
             </q-btn>
         </div>
         <span v-else class="wiz-chip wiz-chip--pending">
@@ -322,10 +346,15 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                 </div>
             </template>
         </div>
+        <!-- Labelled, not icon-only: the proctor reads this board on a tablet,
+             where a tooltip never opens, and `switch_access_shortcut` at size xs
+             read as an unidentifiable squiggle. `chair` is the same icon the
+             station chips above use, so the button and what it sets match. -->
         <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
                @click="$parent.$emit('assign_stations', props)"
-               icon="switch_access_shortcut" color="primary" size="xs" flat round>
-            <q-tooltip>Assign stations</q-tooltip>
+               icon="chair" color="primary" size="sm" dense flat no-caps>
+            Stations
+            <q-tooltip>Set which station each player is sitting at</q-tooltip>
         </q-btn>
     </div>
 </q-td>'''

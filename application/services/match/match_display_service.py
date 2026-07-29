@@ -251,6 +251,11 @@ class MatchDisplayService:
             # independent — a row can carry a note with needs_review False.
             'needs_review': match.needs_review,
             'review_note': match.review_note or '',
+            # Whether a winner is actually on the board. A match can be Finished
+            # with nothing recorded, and ``confirm_match`` refuses that — so the
+            # surfaces gate the Confirm control on this rather than on the state
+            # alone, instead of offering a button whose only outcome is a refusal.
+            'has_result': any(p.finish_rank == 1 for p in match.players),
             'state_timestamp': state_timestamp,
             'state_time': format_eastern_time(state_changed_at),
             'players': [
