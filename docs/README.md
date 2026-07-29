@@ -69,8 +69,6 @@ feature docs become the truth.
 
 | Doc | What it is |
 |---|---|
-| [reviews/2026-07-proctor-workflow-ux-audit.md](reviews/2026-07-proctor-workflow-ux-audit.md) | UX audit of the proctor's on-site match workflow and the admin result-verification step that follows it. 18 findings, evidence from a live browser pass |
-| [plans/proctor-ux/](plans/proctor-ux/README.md) | Implementation plan for that audit — four dependency-ordered waves, written to be executed task-by-task |
 | [plans/match-runner/](plans/match-runner/README.md) | Making "how a match is run" a first-class type instead of a scattered `is_racetime` boolean, so a third race-management system can be added without touching sixteen call sites |
 
 ## Conventions for this directory
