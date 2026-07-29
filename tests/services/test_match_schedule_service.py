@@ -81,6 +81,14 @@ class MockMatch:
         self.fetch_related = AsyncMock()
 
 
+def mock_players(*names):
+    """MatchPlayers stand-ins — only ``user.preferred_name`` is read by the DM builders."""
+    return [
+        SimpleNamespace(user=SimpleNamespace(preferred_name=n))
+        for n in (names or ("Alice", "Bob"))
+    ]
+
+
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 
 
@@ -99,21 +107,29 @@ def service():
 
 class TestSeatMatch:
     async def test_sets_seated_at(self, service):
-        match = MockMatch()
+        match = MockMatch(players=mock_players())
         await service.seat_match(match)
         assert match.seated_at is not None
 
     async def test_persists_the_change(self, service):
-        match = MockMatch()
+        match = MockMatch(players=mock_players())
         await service.seat_match(match)
         match.save.assert_awaited_once()
 
     async def test_seated_at_is_recent(self, service):
-        match = MockMatch()
+        match = MockMatch(players=mock_players())
         before = datetime.now(timezone.utc)
         await service.seat_match(match)
         after = datetime.now(timezone.utc)
         assert before <= match.seated_at <= after
+
+    async def test_raises_if_the_match_has_no_players(self, service):
+        """Bracket-scheduled matches whose entrants are unresolved must not seat."""
+        match = MockMatch(players=[])
+        with pytest.raises(ValueError, match="no players"):
+            await service.seat_match(match)
+        assert match.seated_at is None
+        match.save.assert_not_awaited()
 
     async def test_raises_if_already_seated(self, service):
         match = MockMatch(seated_at=datetime.now())
@@ -227,7 +243,7 @@ class TestConfirmMatch:
 
 class TestFullLifecycle:
     async def test_seat_start_finish_confirm_in_order(self, service):
-        match = MockMatch()
+        match = MockMatch(players=mock_players())
         await service.seat_match(match)
         await service.start_match(match)
         await service.finish_match(match)

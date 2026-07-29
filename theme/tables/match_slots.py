@@ -67,7 +67,7 @@ WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
 </q-td>'''
 
 SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <q-btn v-if="props.row.tournament_seed_generator && !props.value"
+    <q-btn v-if="props.row.tournament_seed_generator && !props.value && !props.row.is_racetime"
            :loading="props.row._generating_seed"
            :disabled="props.row._generating_seed"
            @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
@@ -84,14 +84,21 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
     </span>
 </q-td>'''
 
+# Carries __CC__ — must be registered through ``_fill``, not raw.
 STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <!-- Scheduled state: show Check In button (on-site only; racetime rooms
-         drive the lifecycle, so racetime matches show a note instead) -->
+    <!-- Scheduled state: show Check In button (on-site only, and only once the
+         match has players; racetime rooms drive the lifecycle, so racetime
+         matches show a note instead) -->
     <div v-if="props.value === 'Scheduled'" style="display: flex; justify-content: center;">
-        <q-btn v-if="!props.row.is_racetime" @click="$parent.$emit('seat', props)"
+        <q-btn v-if="!props.row.is_racetime && props.row.players && props.row.players.length"
+               @click="$parent.$emit('seat', props)"
                icon="chair" color="primary" size="sm">
             Check In
         </q-btn>
+        <span v-else-if="!props.row.is_racetime" class="st-neutral italic-note">
+            awaiting players
+            <q-tooltip>This match has no players yet</q-tooltip>
+        </span>
         <span v-else class="st-neutral italic-note">
             racetime.gg
             <q-tooltip>Managed by the racetime.gg room</q-tooltip>
@@ -122,12 +129,16 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
         </div>
     </div>
 
-    <!-- Finished: show Confirm button and timestamp -->
+    <!-- Finished: Confirm for staff/TA; everyone else sees it is awaiting review -->
     <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-        <q-btn @click="$parent.$emit('confirm', props)"
+        <q-btn v-if="__CC__" @click="$parent.$emit('confirm', props)"
                icon="check_circle" color="primary" size="sm">
             Confirm
         </q-btn>
+        <span v-else class="wiz-chip wiz-chip--pending">
+            <q-icon name="flag" size="14px" />Awaiting confirmation
+            <q-tooltip>Recorded. An admin confirms the result.</q-tooltip>
+        </span>
         <div style="display: flex; align-items: center; gap: 4px;">
             <q-icon name="flag" class="st-pending" size="xs" />
             <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
@@ -371,7 +382,10 @@ def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_
     if want_seed_slot:
         table.add_slot('body-cell-generated_seed', SEED_SLOT)
     if want_state_slot:
-        table.add_slot('body-cell-state', STATE_SLOT)
+        table.add_slot('body-cell-state', _fill(
+            STATE_SLOT, admin_controls=admin_controls, can_crud=can_crud,
+            discord_id_js=discord_id_js,
+        ))
     if want_stream_room_admin:
         table.add_slot('body-cell-stream_room', STREAM_ROOM_ADMIN_SLOT)
     if want_stream_room_readonly:

@@ -564,7 +564,7 @@ class MatchService(CancellationMixin, MatchRequestMixin):
         match = await self._require_match(match_id)
 
         await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
+            await AuthService.can_run_match(actor, match),
             f"User cannot assign stations for match {match_id}",
         )
 
@@ -642,7 +642,7 @@ class MatchService(CancellationMixin, MatchRequestMixin):
         match = await self._require_match(match_id)
 
         await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
+            await AuthService.can_run_match(actor, match),
             f"User cannot record results for match {match_id}",
         )
 

@@ -200,9 +200,26 @@ class AuthService:
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 
     @staticmethod
-    async def can_transition_match(user: Optional[User], match: Match) -> bool:
-        """Seat/start/finish/confirm/roll seeds and assign stations."""
+    async def can_run_match(user: Optional[User], match: Match) -> bool:
+        """Run a match on the floor: seat, start, finish, record the result,
+        roll its seed, assign stations.
+
+        Admits PROCTOR — this is the proctor's whole job. Confirming is
+        deliberately *not* here; see ``can_confirm_match``.
+        """
         if await AuthService.is_staff(user) or await AuthService.is_proctor(user):
+            return True
+        return await AuthService.is_tournament_admin(user, match.tournament_id)
+
+    @staticmethod
+    async def can_confirm_match(user: Optional[User], match: Match) -> bool:
+        """Officially record a result — staff or the tournament's admin only.
+
+        Excludes PROCTOR by design: confirming advances the native bracket and
+        pushes to Challonge, which is the admin's verification step. A proctor's
+        workflow ends at recording the winner.
+        """
+        if await AuthService.is_staff(user):
             return True
         return await AuthService.is_tournament_admin(user, match.tournament_id)
 

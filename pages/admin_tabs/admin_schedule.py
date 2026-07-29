@@ -98,15 +98,17 @@ def admin_schedule_page(can_crud: bool = True) -> None:
         async def on_start(match_id: int):
             match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
             player_names = ', '.join(
-                [p.user.username for p in match.players])
+                [p.user.preferred_name for p in match.players])
 
             async def handle_confirm(_):
                 dialog.dialog.close()
                 await confirm_starting(match)
             with page_container:
                 dialog = ConfirmationDialog(
-                    message=f'Are you sure you want to start match ID {match.id}?\n\n{player_names}',
-                    on_confirm=handle_confirm
+                    message=f'Start match #{match.id}?\n\n{player_names}',
+                    confirm_text='Start match',
+                    tone='primary',
+                    on_confirm=handle_confirm,
                 )
                 dialog.open()
 
@@ -150,15 +152,17 @@ def admin_schedule_page(can_crud: bool = True) -> None:
         async def on_confirm(match_id: int):
             match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
             player_names = ', '.join(
-                [p.user.username for p in match.players])
+                [p.user.preferred_name for p in match.players])
 
             async def handle_confirm(_):
                 dialog.dialog.close()
                 await confirm_confirming(match)
             with page_container:
                 dialog = ConfirmationDialog(
-                    message=f'Are you sure you want to confirm match ID {match.id}?\n\n{player_names}',
-                    on_confirm=handle_confirm
+                    message=f'Confirm the recorded result for match #{match.id}?\n\n{player_names}',
+                    confirm_text='Confirm result',
+                    tone='primary',
+                    on_confirm=handle_confirm,
                 )
                 dialog.open()
 
@@ -210,7 +214,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             on_seat=on_seat,
             on_start=on_start,
             on_finish=on_finish,
-            on_confirm=on_confirm,
+            on_confirm=on_confirm if can_crud else None,
             on_edit_stream_room=on_edit_stream_room if can_crud else None,
             on_assign_stations=on_assign_stations,
             extra_slots=extra_slots,

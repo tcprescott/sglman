@@ -19,7 +19,7 @@ Defined in [`models/enums.py`](../../models/enums.py) as `Role(str, Enum)` — e
 | Role | Who has it | Grants |
 |---|---|---|
 | `staff` | Tournament organizers | Full admin dashboard; all CRUD; grant/revoke roles |
-| `proctor` | Race monitors | Race/schedule workflow on `/volunteer`; seat/start/finish/confirm/seed (no Admin access) |
+| `proctor` | Race monitors | Race/schedule workflow on `/volunteer`; seat/start/finish, record the result, roll seeds, assign stations (`can_run_match`) — **not** confirming a result, which is the admin's step (`can_confirm_match`). No Admin access |
 | `stream_manager` | Stream desk | Admin dashboard; stage assignment; stream-candidate flag; CRUD on stream rooms |
 | `triforce_submitter` | Paid submitters | Submit Triforce texts on active tournaments whose generator supports them (no Admin access) |
 | `volunteer_coordinator` | Volunteer leads | Admin dashboard; manage volunteer positions, shifts, assignments |
@@ -229,7 +229,8 @@ The `MOCK_DISCORD` production refusal is **not** part of `validate_security_conf
 | `can_view_volunteer(user)` | The `VOLUNTEERS` flag is live **and** (super-admin or one of `VOLUNTEER`/`PROCTOR`/`STAFF`). The nav's single source of truth, so the header link and `@protected_tab_page('/volunteer')` cannot drift into offering a link that 404s or 403s |
 | `can_edit_tournament(user, tournament)` | Staff, or TA of that tournament |
 | `can_crud_match(user, match)` | Staff, or TA of the match's tournament |
-| `can_transition_match(user, match)` | Staff, proctor, or TA of the match's tournament — seat/start/finish/confirm, seed rolls, station assignment |
+| `can_run_match(user, match)` | Staff, **proctor**, or TA of the match's tournament — running a match on the floor: seat/start/finish, recording the result, seed rolls, station assignment. Deliberately **not** confirming |
+| `can_confirm_match(user, match)` | Staff, or TA of the match's tournament. **Excludes `PROCTOR` by design**: confirming advances the native bracket and pushes the result to Challonge, which is the admin's verification step — a proctor's workflow ends at recording the winner. `MatchScheduleService._transition` defaults to `can_run_match` and only `confirm_match` passes `authorize=can_confirm_match` |
 | `can_approve_crew(user, match)` | Staff, TA, or CC of the match's tournament |
 | `can_submit_triforce_text(user, tournament)` | The tournament is active, its generator is in `SeedGenerationService.TRIFORCE_TEXT_RANDOMIZERS`, and the user is staff or `TRIFORCE_SUBMITTER` |
 | `can_manage_stream_rooms(user)` | Staff or stream manager — CRUD on `StreamRoom` records themselves |

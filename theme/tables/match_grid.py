@@ -142,11 +142,12 @@ _STREAM_DETAIL = '''
 # Generated seed. Admin with a configured generator and no seed gets a Generate
 # button (emitting { key: props.row.id } and flagging _generating_seed); once a
 # seed exists everyone gets a truncated link. Empty for non-admins -> nothing.
+# A racetime.gg room owns its own seed, so no Generate button there.
 _SEED_DETAIL = '''
-        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && props.row.tournament_seed_generator)">
+        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && props.row.tournament_seed_generator && !props.row.is_racetime)">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed"
+                <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed && !props.row.is_racetime"
                        :loading="props.row._generating_seed" :disabled="props.row._generating_seed"
                        icon="casino" color="primary" size="sm" dense outline
                        @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
@@ -172,16 +173,21 @@ _COMMENT_DETAIL = '''
 
 _ACTIONS = '''
         <div class="mgc-actions row items-center" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && __CC__) || __WATCH__">
-            <q-btn v-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime" icon="chair" color="primary" size="md"
+            <q-btn v-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime && props.row.players && props.row.players.length"
+                   icon="chair" color="primary" size="md"
                    @click="$parent.$emit('seat', { key: props.row.id })">Check In</q-btn>
+            <div v-else-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime" class="st-neutral italic-note">
+                Awaiting players</div>
             <div v-else-if="__IA__ && props.row.state === 'Scheduled' && props.row.is_racetime" class="st-neutral italic-note">
                 Managed by racetime.gg</div>
             <q-btn v-else-if="__IA__ && props.row.state === 'Checked In'" icon="play_arrow" color="primary" size="md"
                    @click="$parent.$emit('start', { key: props.row.id })">Start</q-btn>
             <q-btn v-else-if="__IA__ && props.row.state === 'Started'" icon="sports_score" color="primary" size="md"
                    @click="$parent.$emit('finish', { key: props.row.id })">Finish</q-btn>
-            <q-btn v-else-if="__IA__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
+            <q-btn v-else-if="__IA__ && __CC__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
                    @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
+            <span v-else-if="__IA__ && props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
+                <q-icon name="flag" size="14px" />Awaiting confirmation</span>
             <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" icon="switch_access_shortcut" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />

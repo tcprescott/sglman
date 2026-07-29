@@ -138,6 +138,7 @@ class MatchScheduleService(MatchNotificationMixin):
         audit_action: str,
         event_type: str,
         build_message: Callable[[Match, str, str], tuple],
+        authorize: Optional[Callable] = None,
     ) -> None:
         """Shared match lifecycle transition: authorize, validate, stamp, audit, notify.
 
@@ -146,9 +147,14 @@ class MatchScheduleService(MatchNotificationMixin):
         ``(text, embed)`` — all three are resolved after the relations are
         fetched, in this request's tenant context, because the queue worker that
         sends the DM has neither the relations nor the tenant.
+
+        ``authorize`` defaults to ``AuthService.can_run_match`` — the gate for
+        the floor transitions a proctor owns. ``confirm_match`` overrides it with
+        ``AuthService.can_confirm_match``, which excludes PROCTOR.
         """
+        gate = authorize or AuthService.can_run_match
         await AuthService.ensure(
-            await AuthService.can_transition_match(actor, match),
+            await gate(actor, match),
             f"User cannot {action_verb} match {match.id}",
         )
         check()
@@ -172,7 +178,9 @@ class MatchScheduleService(MatchNotificationMixin):
         }, actor))
 
     async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
-        await match.fetch_related('tournament')
+        # ``check`` below is synchronous and runs before ``_transition`` fetches
+        # relations, so the players have to be loaded here for it to see them.
+        await match.fetch_related('tournament', 'players')
         if match.tournament and match.tournament.is_racetime_enabled:
             raise ValueError(
                 "Check-in is disabled for racetime.gg tournaments — the race "
@@ -182,6 +190,10 @@ class MatchScheduleService(MatchNotificationMixin):
         def check() -> None:
             if match.seated_at:
                 raise ValueError("Match is already checked in")
+            if not match.players:
+                raise ValueError(
+                    "This match has no players yet — nothing to check in."
+                )
         await self._transition(
             match, actor,
             action_verb="seat",
@@ -238,6 +250,7 @@ class MatchScheduleService(MatchNotificationMixin):
             audit_action=AuditActions.MATCH_CONFIRMED,
             event_type=EventType.MATCH_CONFIRMED,
             build_message=lambda m, c, b: _state_notification(m, c, "Confirmed", b),
+            authorize=AuthService.can_confirm_match,
         )
 
         # Push the confirmed result to Challonge when this match mirrors a
@@ -296,7 +309,7 @@ class MatchScheduleService(MatchNotificationMixin):
                     'tournament', 'tournament__preset', 'players', 'players__user', 'stream_room'
                 )
 
-                if not await AuthService.can_transition_match(actor, match):
+                if not await AuthService.can_run_match(actor, match):
                     return False, "You do not have permission to roll a seed for this match", None
 
                 # Check if seed already exists
