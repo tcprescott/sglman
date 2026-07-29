@@ -591,6 +591,8 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 | `finished_at` | `DatetimeField` | null, indexed | |
 | `confirmed_at` | `DatetimeField` | null | Post-finish results confirmation |
 | `comment` | `TextField` | null | |
+| `needs_review` | `BooleanField` | default `False` | The proctor's dispute flag: "an admin should look at this before confirming". Not a state — the match stays `Finished`. **Confirming clears it** (`confirm_match`), as does `MatchService.clear_review` |
+| `review_note` | `TextField` | null | The proctor's own words for *why*. Deliberately **outlives the flag**: clearing or confirming leaves it, so a confirmed match can carry a note with `needs_review` false |
 | `is_stream_candidate` | `BooleanField` | default `False` | |
 | `title` | `CharField(255)` | null | |
 | `generated_seed` | FK → `GeneratedSeeds` | null, `SET_NULL` | `related_name='matches'` |
@@ -1359,7 +1361,17 @@ stateDiagram-v2
 Two further timestamps sit outside this state machine:
 
 - **`scheduled_at`** — the planned start time (UTC), set at creation via `MatchRepository.create` and used for ordering and schedule display. It does not affect `current_state`; a match is "Scheduled" until `seated_at` is set regardless of whether `scheduled_at` has passed.
-- **`confirmed_at`** — results confirmation *after* the match finishes. `MatchScheduleService.confirm_match` rejects confirmation unless `finished_at` is set, then stamps `confirmed_at`. It is surfaced via the `is_confirmed` property and shown as a distinct "Confirmed" state in some service-layer displays, but `current_state` itself never returns it.
+- **`confirmed_at`** — results confirmation *after* the match finishes. `MatchScheduleService.confirm_match` rejects confirmation unless `finished_at` is set **and** some player carries a `finish_rank`, then stamps `confirmed_at`. It is surfaced via the `is_confirmed` property and shown as a distinct "Confirmed" state in some service-layer displays, but `current_state` itself never returns it.
+
+`needs_review` sits outside the state machine too, and deliberately so: a
+contested result is a *flag on* a Finished match, not a state between Finished
+and Confirmed. A proctor raises it (`MatchService.flag_for_review`, gated on
+`can_run_match`); confirming the match clears it, because an admin confirming
+**is** the review. `MatchService.clear_review` (gated on `can_confirm_match`)
+drops the flag without confirming, for "looked at it, nothing to fix, not
+confirming yet". Both write audit rows and publish
+`match.flagged_for_review` / `match.review_cleared`. `review_note` is never
+cleared by either.
 
 ## Repository layer
 

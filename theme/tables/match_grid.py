@@ -7,10 +7,11 @@ current user's discord id the column slots use (``match_slots.py``).
 
 The card is deliberately bespoke (not a generic ``label: value`` loop): a
 headline row (scheduled time + compact state chip), a players line (ack icons,
-``(auto)`` markers, winner emphasis, admin stations, self-ack), a muted caption
-(tournament + ``#id`` edit link), ``v-if``-gated detail rows that render nothing
-when empty (commentators, trackers, stage, seed, comment), and a single
-top-bordered actions row (lifecycle button, Assign Stations, watch toggle).
+``(auto)`` markers, winner emphasis, admin stations, self-ack), the dispute flag
+with the proctor's note as text, a muted caption (tournament + ``#id`` edit
+link), ``v-if``-gated detail rows that render nothing when empty (commentators,
+trackers, stage, seed, comment), and a single top-bordered actions row
+(lifecycle button, Assign Stations, watch toggle).
 
 Two orders exist. By default the actions row is last, below every detail —
 right for a board that is read more than it is acted on. With
@@ -86,6 +87,24 @@ _PLAYERS = '''
                     </q-btn>
                 </div>
             </template>
+        </div>'''
+
+
+# --- Dispute flag ----------------------------------------------------------
+
+# Mirrors the "Needs review" chip in the desktop State cell — but renders the
+# proctor's note as **text**. The desktop hangs it on a q-tooltip, and a tooltip
+# is unreachable on a touch screen, which is where most of this board is read.
+# Sits directly under the player names: "an admin should look at this" outranks
+# every other line on the card.
+_REVIEW_DETAIL = '''
+        <div class="mgc-detail" v-if="props.row.needs_review">
+            <span class="mgc-label">Review</span>
+            <span class="mgc-detail-value">
+                <span class="wiz-chip wiz-chip--pending">
+                    <q-icon name="report_problem" size="14px" />Needs review</span>
+                <span v-if="props.row.review_note" class="st-pending" style="flex-basis: 100%;">{{ props.row.review_note }}</span>
+            </span>
         </div>'''
 
 
@@ -259,8 +278,9 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
         + '\n        </div>'
     )
 
-    # Players line
+    # Players line, then the dispute flag (only when the row carries one).
     players = _PLAYERS if 'players' in present else ''
+    review = _REVIEW_DETAIL if 'state' in present else ''
 
     # Caption (tournament + #id edit link)
     caption_inner = ''
@@ -311,9 +331,9 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
                else 'mgc-actions row items-center')
 
     template = (
-        _CARD_OPEN + headline + players + actions + caption + details + _CARD_CLOSE
+        _CARD_OPEN + headline + players + review + actions + caption + details + _CARD_CLOSE
         if actions_first else
-        _CARD_OPEN + headline + players + caption + details + actions + _CARD_CLOSE
+        _CARD_OPEN + headline + players + review + caption + details + actions + _CARD_CLOSE
     )
 
     template = (

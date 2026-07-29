@@ -383,6 +383,17 @@ async def seed_for_tenant(
             disputed_match.generated_seed = disputed_seed
             await disputed_match.save()
 
+        # The dispute flag itself, so the admin's review queue has a contested
+        # row out of the box — this match has claimed to be disputed since the
+        # first seed script and only now actually is.
+        if not disputed_match.needs_review:
+            disputed_match.needs_review = True
+            disputed_match.review_note = (
+                "Player Two says the timer was still running when Player Three "
+                "raised their hand. Needs an admin to look at the VOD."
+            )
+            await disputed_match.save()
+
         # Match acknowledgments — the checked-in match's players have both confirmed.
         for player in (players[0], players[1]):
             await MatchAcknowledgment.get_or_create(

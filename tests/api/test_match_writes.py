@@ -210,6 +210,101 @@ class TestProctorLifecycleBoundary:
             assert 'permission' not in resp.json()['detail'].lower()
 
 
+class TestReviewFlag:
+    """``POST /matches/{id}/review`` — the dispute flag over REST.
+
+    Both directions on one route, but two different gates: flagging is the
+    proctor's own action, clearing is the admin's.
+    """
+
+    async def _finished(self, client, match):
+        await client.post(f'/api/matches/{match.id}/seat')
+        await client.post(f'/api/matches/{match.id}/start')
+        await client.post(f'/api/matches/{match.id}/finish')
+        winner = await MatchPlayers.filter(match_id=match.id).first()
+        await client.post(f'/api/matches/{match.id}/result', json={'winner_id': winner.id})
+
+    async def test_flag_round_trips_onto_the_match_response(self, db, app):
+        _, raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        match = await _seeded_match()
+        async with client_for(app, raw) as c:
+            await self._finished(c, match)
+
+            resp = await c.post(
+                f'/api/matches/{match.id}/review',
+                json={'needs_review': True, 'note': 'Timer was still running.'},
+            )
+            assert resp.status_code == 200
+            assert resp.json()['needs_review'] is True
+
+            fetched = await c.get(f'/api/matches/{match.id}')
+            assert fetched.json()['needs_review'] is True
+            assert fetched.json()['review_note'] == 'Timer was still running.'
+
+    async def test_flagging_an_unfinished_match_is_400(self, db, app):
+        _, raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        match = await _seeded_match()
+        async with client_for(app, raw) as c:
+            resp = await c.post(
+                f'/api/matches/{match.id}/review', json={'needs_review': True},
+            )
+            assert resp.status_code == 400
+            assert 'Only a finished match' in resp.json()['detail']
+
+    async def test_proctor_cannot_clear_the_flag(self, db, app):
+        _, proc_raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        match = await _seeded_match()
+        async with client_for(app, proc_raw) as c:
+            await self._finished(c, match)
+            await c.post(
+                f'/api/matches/{match.id}/review', json={'needs_review': True, 'note': 'x'},
+            )
+
+            resp = await c.post(
+                f'/api/matches/{match.id}/review', json={'needs_review': False},
+            )
+            assert resp.status_code == 403
+
+        await match.refresh_from_db()
+        assert match.needs_review is True
+
+    async def test_staff_clears_the_flag_and_keeps_the_note(self, db, app):
+        _, proc_raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        match = await _seeded_match()
+        async with client_for(app, proc_raw) as c:
+            await self._finished(c, match)
+            await c.post(
+                f'/api/matches/{match.id}/review',
+                json={'needs_review': True, 'note': 'Timer was still running.'},
+            )
+
+        async with client_for(app, staff_raw) as c:
+            resp = await c.post(
+                f'/api/matches/{match.id}/review', json={'needs_review': False},
+            )
+            assert resp.status_code == 200
+            assert resp.json()['needs_review'] is False
+            assert resp.json()['review_note'] == 'Timer was still running.'
+
+    async def test_confirming_clears_the_flag_over_rest(self, db, app):
+        _, proc_raw = await create_user_token(username='proc', roles=[Role.PROCTOR])
+        _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        match = await _seeded_match()
+        async with client_for(app, proc_raw) as c:
+            await self._finished(c, match)
+            await c.post(
+                f'/api/matches/{match.id}/review',
+                json={'needs_review': True, 'note': 'Timer was still running.'},
+            )
+
+        async with client_for(app, staff_raw) as c:
+            assert (await c.post(f'/api/matches/{match.id}/confirm')).status_code == 200
+            body = (await c.get(f'/api/matches/{match.id}')).json()
+            assert body['needs_review'] is False
+            assert body['review_note'] == 'Timer was still running.'
+
+
 class TestCrewAndAck:
     async def test_signup_approve_acknowledge(self, db, app):
         _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])

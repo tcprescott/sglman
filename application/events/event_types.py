@@ -30,6 +30,11 @@ class EventType:
     MATCH_STATIONS_ASSIGNED = 'match.stations_assigned'
     MATCH_STREAM_CANDIDATE_SET = 'match.stream_candidate_set'
     MATCH_STREAM_CANDIDATE_CLEARED = 'match.stream_candidate_cleared'
+    # A contested result is precisely what an alerting subscriber wants to hear
+    # about, and the clear tells it the contest is over — so both are emitted,
+    # unlike the tenant-internal station/venue actions.
+    MATCH_FLAGGED_FOR_REVIEW = 'match.flagged_for_review'
+    MATCH_REVIEW_CLEARED = 'match.review_cleared'
 
     # Crew
     CREW_SIGNUP_CREATED = 'crew.signup_created'
@@ -121,6 +126,7 @@ class EventType:
         MATCH_ACKNOWLEDGED, MATCH_RESULT_RECORDED, MATCH_SEED_ROLLED,
         MATCH_STAGE_ASSIGNED, MATCH_STAGE_CLEARED, MATCH_STATIONS_ASSIGNED,
         MATCH_STREAM_CANDIDATE_SET, MATCH_STREAM_CANDIDATE_CLEARED,
+        MATCH_FLAGGED_FOR_REVIEW, MATCH_REVIEW_CLEARED,
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,

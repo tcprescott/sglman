@@ -105,6 +105,51 @@ never block each other.
 There is **no pairing rule**: which two stations a proctor picks is their
 judgment, and the app neither computes nor suggests opposite-side pairs.
 
+## Disputed results
+
+The agreed model is *the proctor records their best guess and the admin
+overrides during confirmation*. The dispute signal that makes that workable is
+**a flag plus a note, not a workflow** — there is no dispute state, no
+assignment, no thread, and no notification beyond the domain event.
+
+Two columns on `Match` carry it: `needs_review` (bool) and `review_note` (text).
+The match stays `Finished` throughout; nothing about the state machine changes.
+
+**Raising it.** The proctor ticks *Flag for admin review* in the result dialog
+(`theme/dialog/match_result_dialog.py`) when they record the winner, and types
+what happened. The checkbox exists only in the dialog's `record` mode — the
+admin reaching the same dialog in `edit` mode to correct a winner *is* the
+review, so offering them the flag would let them raise a dispute with
+themselves. The dialog calls `MatchService.flag_for_review` **after** its
+`on_submit` finishes the match, because a match that is not finished yet cannot
+be flagged (`ValueError`). Gate: `can_run_match` — this is the proctor's own
+action, and they are the one in the room who saw the disagreement.
+
+**Seeing it.** `MatchDisplayService` puts `needs_review` / `review_note` on
+every table row. The desktop State cell shows a "Needs review" chip above the
+Confirm button with the note on a tooltip; the mobile card renders the same chip
+**and the note as text**, because a tooltip is unreachable on a touch screen.
+The admin Schedule tab's review-queue strip counts flagged matches separately
+from merely-unconfirmed ones, since a contested result needs a decision and an
+uncontested one needs a click.
+
+**Resolving it.** *Confirming the match is the resolution* — an admin
+confirming has, by definition, looked at it, so `confirm_match` clears
+`needs_review` and writes a second `match.review_cleared` audit row carrying the
+note (`resolved_by: 'confirmation'`). `MatchService.clear_review` drops the flag
+without confirming, for "looked at it, nothing to fix, not confirming yet";
+it is gated on `can_confirm_match`, so a proctor cannot unflag their own
+dispute. **Neither clears `review_note`** — the note is the record of *why* the
+result was contested, and a resolved dispute still happened.
+
+Both directions are also reachable over REST as `POST /matches/{id}/review`
+(`{needs_review, note?}`), with the same split gates. Both emit domain events
+(`match.flagged_for_review`, `match.review_cleared`): a contested result is
+exactly what an alerting webhook subscriber wants to hear about.
+
+The dispute flag has **no per-tenant feature flag** — like the station pool it
+self-gates, since a community that never ticks the box never sees it.
+
 ## Models
 
 | Model | Holds |

@@ -141,8 +141,14 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
 
     <!-- Finished: Confirm (+ correct the winner) for staff/TA; everyone else
          sees it is awaiting review. Correcting a result is the admin's call,
-         so the pencil is crud-only — a proctor records, they do not amend. -->
+         so the pencil is crud-only — a proctor records, they do not amend.
+         The dispute chip sits above both, since "an admin should look at this"
+         is the first thing to read about a recorded result. -->
     <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+        <span v-if="props.row.needs_review" class="wiz-chip wiz-chip--pending">
+            <q-icon name="report_problem" size="14px" />Needs review
+            <q-tooltip v-if="props.row.review_note">{{ props.row.review_note }}</q-tooltip>
+        </span>
         <div v-if="__CC__" style="display: flex; align-items: center; gap: 4px;">
             <q-btn @click="$parent.$emit('confirm', props)"
                    icon="check_circle" color="primary" size="sm">

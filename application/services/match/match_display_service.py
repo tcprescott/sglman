@@ -246,6 +246,11 @@ class MatchDisplayService:
                 and to_utc_aware(match.scheduled_at) < datetime.now(timezone.utc)
             ),
             'state': state,
+            # The proctor's dispute flag and their own words. The note outlives
+            # the flag (confirming clears only the flag), so the two are
+            # independent — a row can carry a note with needs_review False.
+            'needs_review': match.needs_review,
+            'review_note': match.review_note or '',
             'state_timestamp': state_timestamp,
             'state_time': format_eastern_time(state_changed_at),
             'players': [

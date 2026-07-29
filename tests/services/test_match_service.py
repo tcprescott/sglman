@@ -576,6 +576,74 @@ class TestReRecordMatchResult:
         assert players[1].finish_rank == 2
 
 
+class TestFlagForReview:
+    """The dispute flag (T4.4): a proctor's "an admin should look at this".
+
+    A flag plus a note, never a state — the match stays Finished throughout, and
+    these pin the two things that make it trustworthy: it refuses a match that
+    was never played out, and it keeps the proctor's own words verbatim.
+    """
+
+    @pytest.fixture
+    async def actor(self, db):
+        return await make_user(discord_id=9103, username='flagging-proctor')
+
+    async def test_flag_for_review_requires_a_finished_match(self, db, actor):
+        match, _ = await _make_onsite_match(seated=True)
+
+        with pytest.raises(ValueError, match='Only a finished match'):
+            await MatchService().flag_for_review(match.id, 'they disagree', actor)
+
+        await match.refresh_from_db()
+        assert match.needs_review is False
+
+    async def test_flag_for_review_stores_the_note(self, db, actor):
+        match, _ = await _make_onsite_match(finished=True)
+
+        await MatchService().flag_for_review(
+            match.id, '  Timer was still running.  ', actor,
+        )
+
+        await match.refresh_from_db()
+        assert match.needs_review is True
+        assert match.review_note == 'Timer was still running.'
+
+    async def test_flag_for_review_without_a_note_stores_none(self, db, actor):
+        """An empty box is no note, not an empty one — the chip renders bare."""
+        match, _ = await _make_onsite_match(finished=True)
+
+        await MatchService().flag_for_review(match.id, '   ', actor)
+
+        await match.refresh_from_db()
+        assert match.needs_review is True
+        assert match.review_note is None
+
+    async def test_flagging_publishes_the_event(self, db, actor, captured_events):
+        from application.events import EventType
+
+        match, _ = await _make_onsite_match(finished=True)
+
+        await MatchService().flag_for_review(match.id, 'contested', actor)
+
+        flagged = [e for e in captured_events
+                   if e.event_type == EventType.MATCH_FLAGGED_FOR_REVIEW]
+        assert len(flagged) == 1
+        assert flagged[0].payload['match_id'] == match.id
+        assert flagged[0].payload['note'] == 'contested'
+        assert flagged[0].payload['tournament_id'] == match.tournament_id
+
+    async def test_clear_review_keeps_the_note(self, db, actor):
+        match, _ = await _make_onsite_match(finished=True)
+        service = MatchService()
+        await service.flag_for_review(match.id, 'Timer was still running.', actor)
+
+        await service.clear_review(match.id, actor)
+
+        await match.refresh_from_db()
+        assert match.needs_review is False
+        assert match.review_note == 'Timer was still running.'
+
+
 class TestStationAssignmentValidation:
     """The ``assign_stations`` ladder: duplicate → format → pool → occupancy."""
 

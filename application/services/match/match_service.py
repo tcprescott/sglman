@@ -40,6 +40,7 @@ from application.services.discord import discord_queue
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_request import MatchRequestMixin
+from application.services.match.match_review import MatchReviewMixin
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
@@ -49,7 +50,7 @@ from application.utils.timezone import (
     to_eastern,
 )
 
-class MatchService(CancellationMixin, MatchRequestMixin):
+class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
     """Service for match-related business operations."""
 
     def __init__(self) -> None:

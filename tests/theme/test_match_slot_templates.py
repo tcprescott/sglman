@@ -144,6 +144,41 @@ def test_changing_a_recorded_winner_is_crud_only(can_crud):
         )
 
 
+def test_both_layouts_show_the_dispute_flag():
+    """The whole point of the flag is that an admin notices it on any device."""
+    state_cell, card = _state_and_grid_slots(can_crud=True)
+    for template in (state_cell, card):
+        assert 'props.row.needs_review' in template
+        assert 'Needs review' in template
+
+
+def test_the_review_note_is_text_on_mobile_and_a_tooltip_on_desktop():
+    """A tooltip needs a hover, and a phone has no pointer to hover with."""
+    state_cell, card = _state_and_grid_slots(can_crud=True)
+
+    note_cell = state_cell[state_cell.index('needs_review'):]
+    assert '<q-tooltip v-if="props.row.review_note">' in note_cell
+
+    review_block = card[card.index('needs_review'):]
+    review_block = review_block[:review_block.index('</div>')]
+    assert '{{ props.row.review_note }}' in review_block
+    assert 'q-tooltip' not in review_block
+
+
+def test_the_dispute_flag_is_not_crud_gated():
+    """A proctor set it; they must be able to see that they did.
+
+    Reading the guard rather than the presence of the markup, for the reason
+    ``_guard_on`` documents: ``__CC__`` bakes down to a literal, so a crud-gated
+    control is still *there* in the template for everyone.
+    """
+    for can_crud in (True, False):
+        for template in _state_and_grid_slots(can_crud):
+            guard = re.search(r'v-if="([^"]*needs_review[^"]*)"', template)
+            assert guard is not None
+            assert guard.group(1) == 'props.row.needs_review'
+
+
 def test_overdue_emphasis_is_mirrored_on_the_mobile_headline():
     """A desktop cell change without its card mirror is the classic regression."""
     table = FakeTable()

@@ -31,6 +31,13 @@ class Match(Model):
     speedgaming_episode = fields.OneToOneField(
         'models.SpeedGamingEpisode', related_name='match', null=True, on_delete=fields.SET_NULL
     )
+    # Proctor-set "an admin should look at this before confirming" flag, with the
+    # proctor's own words. Cleared when the admin confirms — confirming *is* the
+    # resolution. Deliberately not a state: the match is still Finished.
+    needs_review = fields.BooleanField(default=False)
+    # Survives the flag being cleared: the note is the record of *why* it was
+    # contested, and a confirmed match keeps it.
+    review_note = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

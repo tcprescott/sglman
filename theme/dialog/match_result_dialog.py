@@ -42,6 +42,9 @@ class MatchResultDialog:
         # Only set on the fallback path; the two-player path has no select, so
         # everything that dereferences it must stay guarded.
         self.winner_select = None
+        # The dispute flag, built only in 'record' mode — see open().
+        self.review_flag = None
+        self.review_note = None
         self._submitting = False
         self.match_service = MatchService()
 
@@ -128,6 +131,20 @@ class MatchResultDialog:
                             with_input=True
                         ).props('outlined required').classes('full-width')
 
+                    if not self.is_edit:
+                        # Record mode only. This is the proctor saying "I wrote
+                        # down my best guess and an admin should look at it" —
+                        # the admin correcting a result in edit mode is already
+                        # the review, so offering the flag there would let them
+                        # raise a dispute with themselves. Clearing it is the
+                        # admin's own action (confirming, or the REST route).
+                        ui.separator()
+                        self.review_flag = ui.checkbox('Flag for admin review')
+                        self.review_note = ui.textarea(
+                            label='What happened?',
+                        ).props('outlined dense autogrow').classes('full-width')
+                        self.review_note.bind_visibility_from(self.review_flag, 'value')
+
             with dialog_actions():
                 ui.button('Cancel', on_click=self.dialog.close).props('flat')
                 # On the two-player path tapping a name *is* the submit, so there
@@ -187,6 +204,26 @@ class MatchResultDialog:
             if self.on_submit:
                 await self.on_submit(self.match)
 
+            await self._flag_if_requested(actor)
+
             self.dialog.close()
         finally:
             self._submitting = False
+
+    async def _flag_if_requested(self, actor) -> None:
+        """Raise the dispute flag, if the proctor ticked it.
+
+        Runs *after* ``on_submit`` on purpose: in record mode that callback is
+        what marks the match finished, and ``flag_for_review`` refuses a match
+        that is not finished yet. The result is already recorded by this point,
+        so a failure here is reported and swallowed rather than unwound.
+        """
+        if self.review_flag is None or not self.review_flag.value:
+            return
+        note = self.review_note.value if self.review_note is not None else None
+        try:
+            await self.match_service.flag_for_review(self.match.id, note, actor)
+        except (ValueError, PermissionError) as e:
+            notify_error(e)
+            return
+        ui.notify('Flagged for admin review.', color='warning')

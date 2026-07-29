@@ -262,6 +262,27 @@ class MatchScheduleService(MatchNotificationMixin):
             authorize=AuthService.can_confirm_match,
         )
 
+        # Confirming a flagged result *is* the resolution — the admin has now
+        # looked at it, which is all the flag ever asked for. The note stays:
+        # it is the record of why the result was contested. A separate
+        # MATCH_REVIEW_CLEARED row (rather than extra keys on the confirm audit)
+        # keeps ``_transition``'s shared detail shape untouched and makes the
+        # trail read record → flag → clear → confirm.
+        if match.needs_review:
+            match.needs_review = False
+            await match.save()
+            await self.audit_service.write_and_publish(
+                actor,
+                AuditActions.MATCH_REVIEW_CLEARED,
+                {
+                    'match_id': match.id,
+                    'note': match.review_note,
+                    'resolved_by': 'confirmation',
+                },
+                EventType.MATCH_REVIEW_CLEARED,
+                event_extra={'tournament_id': match.tournament_id},
+            )
+
         # Push the confirmed result to Challonge when this match mirrors a
         # bracket match. Fire-and-forget so a Challonge outage never blocks
         # confirmation; failures are visible via audit and the manual re-push.
