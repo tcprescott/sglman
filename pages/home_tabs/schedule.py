@@ -114,6 +114,7 @@ def schedule():
             extra_slots=extra_slots,
             on_edit=on_edit if discord_id else None,
             grid_breakpoint='lt.lg',
+            storage_key='home_schedule',
         )
 
         # The view loads itself once its filters are restored (MatchTableView

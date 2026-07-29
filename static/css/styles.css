@@ -1543,6 +1543,16 @@ body.body--dark {
     border-top: 1px solid var(--border-subtle);
 }
 
+/* Actions hoisted above the caption/details (proctor board): the divider that
+   separates them from the rest of the card belongs below the row, not above it.
+   Declared after .mgc-actions so it wins at equal specificity. */
+.mgc-actions--first {
+    padding-top: 0;
+    padding-bottom: var(--space-2);
+    border-top: none;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
 .mgc-actions .q-btn {
     min-height: 44px;
 }

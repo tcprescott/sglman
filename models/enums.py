@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 
 
@@ -174,6 +175,18 @@ class StationFormat(str, Enum):
     NUMERIC = 'numeric'
     STRUCTURED = 'structured'
     ALPHANUMERIC = 'alphanumeric'
+
+
+# The pattern each StationFormat enforces on a station label. Lives beside the
+# enum as the single definition: both the service that validates an assignment
+# and the dialog that pre-validates the field need it, and they are on opposite
+# sides of the presentation/service boundary.
+STATION_REGEXES = {
+    StationFormat.FREE:         re.compile(r'^.{0,50}$'),
+    StationFormat.NUMERIC:      re.compile(r'^\d+$'),
+    StationFormat.STRUCTURED:   re.compile(r'^[A-Za-z][0-9]{1,2}$'),
+    StationFormat.ALPHANUMERIC: re.compile(r'^[A-Za-z0-9\-\s]{1,20}$'),
+}
 
 
 class MatchNotificationLevel(str, Enum):

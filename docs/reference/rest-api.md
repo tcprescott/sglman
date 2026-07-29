@@ -69,11 +69,12 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 
 ### Matches (`/api/matches`) · `matches.py`, `match_actions.py`
 - `GET /matches` — list with filters (`match_id`, `stream_room_id`, `tournament_id`, `start_date`, `end_date`, `limit`); only approved crew are exposed.
-- `GET /matches/{id}` — single match.
+- `GET /matches/{id}` — single match. Alongside the lifecycle timestamps the response carries `needs_review` (the proctor's dispute flag) and `review_note` (their words for why). Confirming clears the flag and leaves the note, so a confirmed match can return a note with `needs_review: false`.
 - `POST /matches` — create (Staff/TA). `POST /matches/request` — player-initiated request.
 - `PATCH /matches/{id}` · `DELETE /matches/{id}`.
 - `POST /matches/{id}/stream-candidate` · `/stage` · `/stations`.
-- Lifecycle: `POST /matches/{id}/seat` · `/start` · `/finish` · `/confirm` · `/result` · `/seed`.
+- Lifecycle: `POST /matches/{id}/seat` · `/start` · `/finish` · `/confirm` · `/result` · `/seed`. `/confirm` returns `400` unless the match is finished **and** a winner has been recorded.
+- `POST /matches/{id}/review` — `{needs_review, note?}`. Raises or drops the dispute flag on a recorded result, returning the updated match. The two directions gate differently: flagging is `can_run_match` (the proctor's own call, and `400` unless the match is finished), clearing is `can_confirm_match` (`403` for a proctor). Clearing never touches `review_note`, and `/confirm` clears the flag on its own — see [match-participation.md](../features/match-participation.md#disputed-results).
 - Self-actions: `POST /matches/{id}/crew` (sign up) · `DELETE /matches/{id}/crew/{role}` · `POST /matches/{id}/acknowledge`.
 - Watching: `GET /matches/watching` (matches you watch) · `POST /matches/{id}/watch` · `DELETE /matches/{id}/watch`.
 

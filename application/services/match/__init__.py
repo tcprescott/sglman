@@ -5,7 +5,8 @@ finish) via its ``_transition`` template; ``MatchService`` owns CRUD and crew
 signup; the rest are the pieces they compose — participant resolution, row
 formatting for the tables, the derived status vocabulary, the SpeedGaming field
 guard, the settled-bracket-result guard, the bracket-run scheduling guard,
-player-initiated requests, cancellation, watchers, and time suggestion.
+player-initiated requests, cancellation, the dispute flag, watchers, and time
+suggestion.
 """
 
 from application.services.match.bracket_result_guard import (
@@ -16,6 +17,7 @@ from application.services.match.match_display_service import MatchDisplayService
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_request_guard import assert_player_requests_allowed
+from application.services.match.match_review import MatchReviewMixin
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.services.match.match_service import MatchService
 from application.services.match.match_source_guard import assert_sg_fields_unchanged
@@ -28,6 +30,7 @@ __all__ = [
     'MatchDisplayService',
     'MatchParticipants',
     'MatchRequestMixin',
+    'MatchReviewMixin',
     'MatchScheduleService',
     'MatchService',
     'MatchStatus',

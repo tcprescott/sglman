@@ -1,19 +1,28 @@
-"""Dev-seed fixtures for the online-tournament features (PRs 1-6).
+"""Dev-seed fixtures for the online-tournament features (PRs 1-10).
 
 Split out of ``seed_dev.py`` to keep that file under the length guideline. These
 functions are called from ``seed_dev.py`` — they assume an open Tortoise
 connection and (for the per-tenant helper) an active ``tenant_scope``.
 
+The per-tenant helper owns a **dedicated racetime.gg-managed tournament** rather
+than wiring the general-purpose "Wizzrobe Dev Tournament" to a bot. Attaching a
+bot flips ``Tournament.is_racetime_enabled``, which hides every on-site proctor
+control (check-in, stations, start, finish) on that tournament's matches and
+drops them from the Proctor Station board — so a tournament cannot be both the
+racetime fixture and the proctor-lifecycle fixture.
+
 What they cover:
 
-- **Presets** (PR 1) — a per-tenant ``Preset`` assigned to the dev tournament,
-  plus placeholder ``RandomizerCredential`` rows for the keyed backends.
+- **Presets** (PR 1) — per-tenant ``Preset`` rows, one assigned to the online
+  tournament, plus placeholder ``RandomizerCredential`` rows for keyed backends.
 - **Racetime identity** (PR 2) — two players linked to racetime handles.
 - **Racetime bots** (PR 3/4) — platform-level (no tenant FK), one connected and
   one parked in an error state so the ``/platform`` health table shows both.
-- **Racetime config + rooms** (PR 3/4/6) — the tournament's bot + auto-open
-  config, a room profile, an open room on the scheduled match, and finish times
-  on the finished match's players.
+- **Racetime config + rooms** (PR 3/4/6) — the online tournament's bot +
+  auto-open config, its own matches, a room profile, and one race room per room
+  lifecycle state.
+- **SpeedGaming ETL** (PR 7), **Discord Events mirror** (PR 8) and **async
+  qualifiers** (PR 9/10), all hanging off the same online tournament.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -30,6 +39,8 @@ from models import (
     AsyncQualifierLiveRace, AsyncQualifierLiveRaceStatus,
 )
 from application.utils.timezone import now_eastern
+
+ONLINE_TOURNAMENT_NAME = "Wizzrobe Online Series"
 
 
 async def link_racetime_identities(users: dict[str, User]) -> None:
@@ -94,15 +105,35 @@ async def seed_racetime_bots() -> dict[str, RacetimeBot]:
 
 async def seed_online_for_tenant(
     tenant: Tenant,
-    tournament: Tournament,
-    scheduled_match: Match,
-    finished_match: Match,
+    staff: User,
+    players: list[User],
     bots: dict[str, RacetimeBot],
-) -> None:
-    """Seed preset (PR 1), racetime config (PR 3), and a room profile + open
-    room + finish times (PR 4/6) for one tenant. Must run inside that tenant's
-    ``tenant_scope``."""
-    now = now_eastern()
+) -> Tournament:
+    """Seed one tenant's racetime.gg-managed tournament and every online fixture
+    hanging off it. Must run inside that tenant's ``tenant_scope``.
+
+    Returns the tournament it created so the caller can report/extend it.
+    """
+    preset = await _seed_presets(tenant)
+    tournament = await _seed_online_tournament(
+        tenant, staff, players, preset, bots["alttpr"],
+    )
+    scheduled, in_progress, finished = await _seed_online_matches(
+        tenant, tournament, players,
+    )
+    await _seed_rooms(tenant, bots["alttpr"], scheduled, in_progress, finished)
+    await _seed_speedgaming(tenant, tournament, scheduled)
+    await _seed_discord_events(tenant, tournament, scheduled)
+    await _seed_qualifiers(tenant, preset)
+    print(f"    [{tenant.slug}] online tournament ok")
+    return tournament
+
+
+async def _seed_presets(tenant: Tenant) -> Preset:
+    """Seed-rolling presets (PR 1) plus placeholder randomizer credentials.
+
+    Returns the ALTTPR preset, which the online tournament and the qualifier's
+    standard pool both point at."""
     preset, _ = await Preset.get_or_create(
         name="ALTTPR Open", tenant=tenant,
         defaults={
@@ -135,20 +166,112 @@ async def seed_online_for_tenant(
             tenant=tenant, randomizer=spec.randomizer, key=spec.key,
             defaults={"value": f"placeholder-dev-{spec.randomizer}-{spec.key}"},
         )
-    alttpr_bot = bots["alttpr"]
+    return preset
+
+
+async def _seed_online_tournament(
+    tenant: Tenant,
+    staff: User,
+    players: list[User],
+    preset: Preset,
+    bot: RacetimeBot,
+) -> Tournament:
+    """The racetime.gg-managed fixture tournament (PR 3) — the only seeded
+    tournament with a ``racetime_bot``."""
     # Authorize the tenant to use the bot so live-race room opening (PR 10),
     # which resolves an authorized bot, has one to pick.
     await RacetimeBotTenant.get_or_create(
-        bot=alttpr_bot, tenant=tenant, defaults={"is_active": True},
+        bot=bot, tenant=tenant, defaults={"is_active": True},
     )
+    tournament, _ = await Tournament.get_or_create(
+        name=ONLINE_TOURNAMENT_NAME, tenant=tenant,
+        defaults={
+            "description": "Online fixture — races run in racetime.gg rooms.",
+            "is_active": True,
+            "players_per_match": 2,
+            "staff_administered": False,
+        },
+    )
+    await tournament.admins.add(staff)
+    for p in players:
+        await TournamentPlayers.get_or_create(
+            tournament=tournament, user=p, tenant=tenant,
+        )
     if tournament.preset_id is None:
         tournament.preset = preset
-    tournament.racetime_bot = alttpr_bot
+    tournament.racetime_bot = bot
     tournament.racetime_auto_create_rooms = True
     tournament.room_open_minutes_before = 15
     tournament.racetime_default_goal = "Beat the game"
     await tournament.save()
+    return tournament
 
+
+async def _seed_online_matches(
+    tenant: Tenant, tournament: Tournament, players: list[User],
+) -> tuple[Match, Match, Match]:
+    """One match per online lifecycle state, with its own roster.
+
+    Never stamps ``seated_at``: an online race is not checked in at a station —
+    the race room drives the lifecycle, which is exactly why these matches live
+    apart from the on-site ones.
+    """
+    now = now_eastern()
+
+    async def make_match(
+        title: str,
+        offset_hours: float,
+        p1: User,
+        p2: User,
+        *,
+        started: bool = False,
+        finished: bool = False,
+    ) -> Match:
+        scheduled_at = now + timedelta(hours=offset_hours)
+        match, created = await Match.get_or_create(
+            title=title, tournament=tournament, tenant=tenant,
+            defaults={"scheduled_at": scheduled_at, "is_stream_candidate": True},
+        )
+        if not created:
+            return match
+        if started or finished:
+            match.started_at = scheduled_at
+        if finished:
+            match.finished_at = scheduled_at + timedelta(hours=1, minutes=36)
+            match.confirmed_at = match.finished_at + timedelta(minutes=5)
+        await match.save()
+        for rank, player in enumerate([p1, p2], 1):
+            await MatchPlayers.get_or_create(
+                match=match, user=player, tenant=tenant,
+                defaults={"finish_rank": rank if finished else None},
+            )
+        return match
+
+    scheduled = await make_match("Online Scheduled Race", 2, players[0], players[1])
+    in_progress = await make_match(
+        "Online Race In Progress", -1, players[2], players[3], started=True,
+    )
+    finished = await make_match(
+        "Online Race Finished", -3, players[0], players[2], started=True, finished=True,
+    )
+    return scheduled, in_progress, finished
+
+
+async def _seed_rooms(
+    tenant: Tenant,
+    bot: RacetimeBot,
+    scheduled: Match,
+    in_progress: Match,
+    finished: Match,
+) -> None:
+    """A reusable room profile plus one race room per room state (PR 4/6), and
+    finish times on the finished race's players.
+
+    Keyed on the globally-unique slug with ``update_or_create``: the open room's
+    slug predates the tournament split, when it hung off the general-purpose
+    tournament's match, so a dev database seeded before the split is re-pointed
+    at the online match rather than left dangling on an on-site one.
+    """
     await RaceRoomProfile.get_or_create(
         name="Bracket Match", tenant=tenant,
         defaults={
@@ -166,29 +289,35 @@ async def seed_online_for_tenant(
         },
     )
 
-    await RacetimeRoom.get_or_create(
-        slug=f"alttpr/dev-room-{tenant.slug}", tenant=tenant,
-        defaults={
-            "bot": alttpr_bot,
-            "category": "alttpr",
-            "room_name": "Scheduled Match — Bracket",
-            "status": RaceRoomStatus.OPEN,
-            "match": scheduled_match,
-            "opened_at": now,
-        },
-    )
+    room_specs = [
+        ("dev-room", "Scheduled Race — Bracket", RaceRoomStatus.OPEN, scheduled),
+        ("dev-room-live", "Race In Progress — Bracket", RaceRoomStatus.IN_PROGRESS, in_progress),
+        ("dev-room-done", "Finished Race — Bracket", RaceRoomStatus.FINISHED, finished),
+    ]
+    for suffix, room_name, status, match in room_specs:
+        await RacetimeRoom.update_or_create(
+            slug=f"alttpr/{suffix}-{tenant.slug}",
+            defaults={
+                "tenant": tenant,
+                "bot": bot,
+                "category": "alttpr",
+                "room_name": room_name,
+                "status": status,
+                "match": match,
+                "opened_at": (
+                    match.scheduled_at - timedelta(minutes=15)
+                    if match.scheduled_at else None
+                ),
+            },
+        )
+
     for mp, secs in zip(
-        await MatchPlayers.filter(match=finished_match).order_by("finish_rank"),
+        await MatchPlayers.filter(match=finished).order_by("finish_rank"),
         (5400, 5760),
     ):
         if mp.finish_time is None:
             mp.finish_time = secs
             await mp.save()
-
-    await _seed_speedgaming(tenant, tournament, scheduled_match)
-    await _seed_discord_events(tenant, tournament, scheduled_match)
-    await _seed_qualifiers(tenant, preset)
-    print(f"    [{tenant.slug}] online tournaments ok")
 
 
 async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
@@ -307,12 +436,19 @@ async def _seed_speedgaming(
     sourced match with a mixed real+placeholder roster so the admin SpeedGaming
     tab shows sync health and the schedule shows a match with the read-only
     'Synced from SpeedGaming' badge. Placeholder ``speedgaming_id`` is namespaced
-    per tenant (it is globally unique)."""
+    per tenant (it is globally unique).
+
+    The link is keyed on ``(tenant, event_slug)`` with ``update_or_create``, and
+    an already-materialized sourced match is re-pointed, so a dev database seeded
+    before the online tournament existed moves its SG fixtures across instead of
+    leaving them on the on-site tournament.
+    """
     now = datetime.now(timezone.utc)
 
-    link, _ = await SpeedGamingEventLink.get_or_create(
-        tournament=tournament, event_slug=f"wiz-{tenant.slug}", tenant=tenant,
+    link, _ = await SpeedGamingEventLink.update_or_create(
+        event_slug=f"wiz-{tenant.slug}", tenant=tenant,
         defaults={
+            "tournament": tournament,
             "content_type": None,
             "active": True,
             "sync_interval_minutes": 15,
@@ -343,6 +479,9 @@ async def _seed_speedgaming(
             title="Synced Bracket — Round 1",
             speedgaming_episode=episode,
         )
+    elif sourced_match.tournament_id != tournament.id:
+        sourced_match.tournament = tournament
+        await sourced_match.save()
 
     placeholder, _ = await User.get_or_create(
         speedgaming_id=f"sg_dev_{tenant.slug}",
@@ -375,7 +514,13 @@ async def _seed_discord_events(
     match, so the admin Discord Events tab shows an opted-in tournament and a
     non-empty mirrored-events table. ``discord_event_id`` is namespaced per tenant
     (it is globally unique). Requires the tenant to have a linked guild (seed_dev
-    sets one)."""
+    sets one).
+
+    Keyed on that globally-unique ``discord_event_id`` rather than the source
+    match: a dev database seeded before the tournament split already holds this
+    id against the on-site tournament's match, and re-using it under a new
+    ``source_id`` would collide.
+    """
     if not tournament.discord_events_enabled:
         tournament.discord_events_enabled = True
         tournament.discord_event_duration_minutes = 90
@@ -387,14 +532,14 @@ async def _seed_discord_events(
 
     # A stable synthetic Discord event id per tenant (well outside real snowflakes).
     discord_event_id = 3900000000000000000 + tenant.id
-    await DiscordScheduledEvent.get_or_create(
-        tenant=tenant,
-        source_type=DiscordEventSource.MATCH,
-        source_id=scheduled_match.id,
+    await DiscordScheduledEvent.update_or_create(
+        discord_event_id=discord_event_id,
         defaults={
+            "tenant": tenant,
             "guild_id": guild_id,
-            "discord_event_id": discord_event_id,
-            "title": scheduled_match.title or "Scheduled Match — Bracket",
+            "source_type": DiscordEventSource.MATCH,
+            "source_id": scheduled_match.id,
+            "title": scheduled_match.title or "Online Scheduled Race",
             "scheduled_at": scheduled_match.scheduled_at,
             "content_hash": "devseedhash",
             "synced_at": datetime.now(timezone.utc),

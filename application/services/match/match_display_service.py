@@ -9,6 +9,7 @@ keeps only lifecycle logic.
 Read-only: no writes, no audit, no Discord notifications.
 """
 
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
 from models import Match, MatchAcknowledgment
@@ -23,6 +24,7 @@ from application.utils.timezone import (
     format_eastern_datetime,
     format_eastern_display,
     format_eastern_time,
+    to_utc_aware,
 )
 
 
@@ -61,7 +63,8 @@ class MatchDisplayService:
         tournament_ids: Optional[List[int]] = None,
         stream_room_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
-        user_discord_id: Optional[str] = None
+        user_discord_id: Optional[str] = None,
+        exclude_racetime: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get matches formatted for table display.
@@ -71,6 +74,8 @@ class MatchDisplayService:
             stream_room_ids: Filter by stream room IDs
             only_upcoming: Only return unfinished matches
             user_discord_id: Filter by player discord ID
+            exclude_racetime: Drop matches run by a racetime.gg tournament — the
+                proctor board's rows are the ones a proctor can actually act on
 
         Returns:
             List of formatted match dictionaries
@@ -80,6 +85,7 @@ class MatchDisplayService:
             stream_room_ids=stream_room_ids,
             only_upcoming=only_upcoming,
             user_discord_id=user_discord_id,
+            exclude_racetime=exclude_racetime,
             prefetch_relations=True
         )
 
@@ -230,7 +236,21 @@ class MatchDisplayService:
             # link into the (publicly readable) bracket view.
             'bracket': self._bracket_ref(match),
             'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
+            # Sort key and urgency flag for the proctor board. The formatted
+            # ``scheduled_at`` string is display-only and does not sort.
+            'scheduled_ts': to_utc_aware(match.scheduled_at).timestamp() if match.scheduled_at else None,
+            'is_overdue': bool(
+                match.scheduled_at
+                and match.seated_at is None
+                and match.finished_at is None
+                and to_utc_aware(match.scheduled_at) < datetime.now(timezone.utc)
+            ),
             'state': state,
+            # The proctor's dispute flag and their own words. The note outlives
+            # the flag (confirming clears only the flag), so the two are
+            # independent — a row can carry a note with needs_review False.
+            'needs_review': match.needs_review,
+            'review_note': match.review_note or '',
             'state_timestamp': state_timestamp,
             'state_time': format_eastern_time(state_changed_at),
             'players': [
@@ -257,6 +277,15 @@ class MatchDisplayService:
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
+            # Players the seed DM cannot reach — no linked Discord account, or
+            # DMs opted out. This is deliverability, not delivery: it mirrors the
+            # skip condition in ``_send_seed_dms`` and says nothing about whether
+            # any DM was actually sent or read. ``players__user`` is already
+            # prefetched, so this costs no extra query.
+            'seed_dm_blocked': [
+                p.user.preferred_name for p in match.players
+                if not (p.user.discord_id and p.user.dm_notifications)
+            ],
             'commentators': [
                 {
                     'name': c.user.preferred_name,

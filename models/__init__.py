@@ -32,6 +32,7 @@ from .enums import (
     RaceRoomStatus,
     Role,
     RoleSource,
+    STATION_REGEXES,
     StationFormat,
     SyncStatus,
     VolunteerAvailabilityStatus,
@@ -55,6 +56,7 @@ from .match import (
     MatchAcknowledgment,
     MatchPlayers,
     MatchWatcher,
+    Station,
     StreamRoom,
     Tracker,
 )
@@ -129,6 +131,7 @@ __all__ = [
     'RaceRoomStatus',
     'Role',
     'RoleSource',
+    'STATION_REGEXES',
     'StationFormat',
     'SyncStatus',
     'VolunteerAvailabilityStatus',
@@ -160,6 +163,7 @@ __all__ = [
     'MatchAcknowledgment',
     'MatchPlayers',
     'MatchWatcher',
+    'Station',
     'StreamRoom',
     'Tracker',
     # brackets

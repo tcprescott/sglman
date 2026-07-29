@@ -37,7 +37,8 @@ community owns or produces is tenant-scoped.**
 | **Tenant-scoped** — `tenant` FK, NOT NULL, `CASCADE` | every other model | The default (see conventions above) |
 
 **Per-tenant uniqueness** — formerly-global uniques are composite with `tenant`:
-`StreamRoom.name`, `VolunteerPosition.name`, `SystemConfiguration.name`,
+`StreamRoom.name`, `Station.name`, `VolunteerPosition.name`,
+`SystemConfiguration.name`,
 `RaceRoomProfile.name` → `(tenant, name)`; `Equipment.asset_number` →
 `(tenant, asset_number)`; `TenantFeatureFlag.flag` → `(tenant, flag)`;
 `ChallongeApiUsage.period` → `(tenant, period)`; `VolunteerProfile` →
@@ -84,6 +85,7 @@ erDiagram
 
     Tournament ||--o{ Match : "tournament"
     StreamRoom |o--o{ Match : "stream_room"
+    Tenant ||--o{ Station : "tenant"
     GeneratedSeeds |o--o{ Match : "generated_seed"
     Match ||--o{ MatchPlayers : "match"
     User ||--o{ MatchPlayers : "user"
@@ -589,6 +591,8 @@ Core scheduling unit. Lifecycle is derived from nullable timestamps rather than 
 | `finished_at` | `DatetimeField` | null, indexed | |
 | `confirmed_at` | `DatetimeField` | null | Post-finish results confirmation |
 | `comment` | `TextField` | null | |
+| `needs_review` | `BooleanField` | default `False` | The proctor's dispute flag: "an admin should look at this before confirming". Not a state — the match stays `Finished`. **Confirming clears it** (`confirm_match`), as does `MatchService.clear_review` |
+| `review_note` | `TextField` | null | The proctor's own words for *why*. Deliberately **outlives the flag**: clearing or confirming leaves it, so a confirmed match can carry a note with `needs_review` false |
 | `is_stream_candidate` | `BooleanField` | default `False` | |
 | `title` | `CharField(255)` | null | |
 | `generated_seed` | FK → `GeneratedSeeds` | null, `SET_NULL` | `related_name='matches'` |
@@ -608,7 +612,7 @@ Players assigned to a match, with result and station assignment.
 | `user` | FK → `User` | not null, `CASCADE` | `related_name='match_players'` |
 | `finish_rank` | `IntField` | null | Final placement (1 = winner) |
 | `finish_time` | `IntField` | null | Elapsed finish time in whole seconds, captured from a racetime room result; null for non-finishers and non-racetime matches |
-| `assigned_station` | `CharField(50)` | null | Physical/stream station label |
+| `assigned_station` | `CharField(50)` | null | Physical station **label**, not an FK to [`Station`](#station) — see that model for why |
 
 Constraint: `unique_together (('match', 'user'),)`.
 
@@ -701,6 +705,34 @@ Item/map tracker operator signup for a match. Structurally identical to `Comment
 Constraint: `unique_together (('match', 'user'),)`.
 
 ### Infrastructure
+
+#### `Station`
+
+A physical seat/setup in the venue a match player can be assigned to — the pool a
+proctor picks from at check-in.
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `name` | `CharField(50)` | not null | The label ("1", "A3") |
+| `section` | `CharField(50)` | null | Free-text grouping ("North wall"); a display label only, it carries no pairing semantics |
+| `sort_order` | `IntField` | default `0` | Display order in the picker and the admin list |
+| `is_active` | `BooleanField` | default `True` | Retired stations stay for history but are not assignable |
+
+Constraint: `unique_together (('tenant', 'name'),)`.
+
+**`MatchPlayers.assigned_station` stores the label, not an FK to this table.**
+That keeps every existing row, the REST contract and the MCP contract unchanged,
+and — crucially — makes the pool *advisory until it exists*: a community with
+zero `Station` rows keeps the historical free-text + `StationFormat` regex
+behaviour, so the feature ships without a per-tenant feature flag and without
+breaking communities that never define a pool. Once a community has any station,
+`MatchService.assign_stations` rejects a label outside the pool.
+
+**Occupancy is derived, never stored**: a station is in use when some match that
+is *seated and not finished* has a player assigned to it
+(`MatchRepository.occupied_stations`). It frees up when the match finishes, not
+when an admin confirms it. That lookup is tenant-scoped — two communities both
+naming a station "1" must not block each other.
 
 #### `StreamRoom`
 
@@ -1329,7 +1361,17 @@ stateDiagram-v2
 Two further timestamps sit outside this state machine:
 
 - **`scheduled_at`** — the planned start time (UTC), set at creation via `MatchRepository.create` and used for ordering and schedule display. It does not affect `current_state`; a match is "Scheduled" until `seated_at` is set regardless of whether `scheduled_at` has passed.
-- **`confirmed_at`** — results confirmation *after* the match finishes. `MatchScheduleService.confirm_match` rejects confirmation unless `finished_at` is set, then stamps `confirmed_at`. It is surfaced via the `is_confirmed` property and shown as a distinct "Confirmed" state in some service-layer displays, but `current_state` itself never returns it.
+- **`confirmed_at`** — results confirmation *after* the match finishes. `MatchScheduleService.confirm_match` rejects confirmation unless `finished_at` is set **and** some player carries a `finish_rank`, then stamps `confirmed_at`. It is surfaced via the `is_confirmed` property and shown as a distinct "Confirmed" state in some service-layer displays, but `current_state` itself never returns it.
+
+`needs_review` sits outside the state machine too, and deliberately so: a
+contested result is a *flag on* a Finished match, not a state between Finished
+and Confirmed. A proctor raises it (`MatchService.flag_for_review`, gated on
+`can_run_match`); confirming the match clears it, because an admin confirming
+**is** the review. `MatchService.clear_review` (gated on `can_confirm_match`)
+drops the flag without confirming, for "looked at it, nothing to fix, not
+confirming yet". Both write audit rows and publish
+`match.flagged_for_review` / `match.review_cleared`. `review_note` is never
+cleared by either.
 
 ## Repository layer
 
@@ -1360,6 +1402,7 @@ Consult the source for full signatures.
 | `MatchAcknowledgmentRepository` | [`match_acknowledgment_repository.py`](../../application/repositories/match_acknowledgment_repository.py) | `MatchAcknowledgment` | `list_for_match`, `list_for_matches` (one query for many matches, grouped by id; every requested id gets a possibly-empty list), `get`, `upsert`, `delete_for_match`, `delete_for_user` |
 | `MatchRepository` | [`match_repository.py`](../../application/repositories/match_repository.py) | `Match`, `MatchPlayers` | `get_by_id`, `get_all` (filters by tournaments, stream rooms, upcoming-only = `finished_at IS NULL`, or the matches one user plays in; ordered by `scheduled_at`), `create`, `update`, `delete`, `add_player`, `remove_player`, `get_players`. Both getters prefetch `tournament`, `players(+user)`, `stream_room`, `generated_seed`, `commentators(+user)`, `trackers(+user)` unless asked not to |
 | `MatchWatcherRepository` | [`match_watcher_repository.py`](../../application/repositories/match_watcher_repository.py) | `MatchWatcher` | `get_by_id`, `get_by_match`, `get_by_match_and_user`, `get_by_user`, `get_match_ids_for_user`, `is_watching`, `get_or_create` (idempotent watch), `delete`, `delete_by_match_and_user` |
+| `StationRepository` | [`station_repository.py`](../../application/repositories/station_repository.py) | `Station` | `get_all`, `get_active`, `active_names` (the assignable labels; empty = no pool defined), plus the `TenantScopedRepository` CRUD quartet |
 | `StreamRoomRepository` | [`stream_room_repository.py`](../../application/repositories/stream_room_repository.py) | `StreamRoom` | `get_by_id`, `get_all`, `get_all_as_dict` (id → name for select options), `create`, `update`, `delete` |
 | `TournamentRepository` | [`tournament_repository.py`](../../application/repositories/tournament_repository.py) | `Tournament`, `TournamentPlayers` | `get_by_id`, `get_by_ids`, `get_all`, `get_all_as_dict`, `create`, `update`, `delete`; enrollment `enroll_player`, `enroll_player_by_id`, `unenroll_player`, `get_enrolled_players`, `get_enrolled_players_by_user`, `get_enrolled_players_by_tournament_id`, `is_player_enrolled`, `is_player_enrolled_by_id` |
 | `TournamentNotificationRepository` | [`tournament_notification_repository.py`](../../application/repositories/tournament_notification_repository.py) | `TournamentNotificationPreference` | `get_by_user_and_tournament`, `get_all_for_user`, `upsert`, `get_match_notification_subscribers` (`ALL` always; `STREAMED`/`STREAMED_AND_CANDIDATES` only when a stream room is assigned; drops users without `discord_id` or with `dm_notifications` off), `get_stream_candidate_subscribers` (same DM-ability filter) |
@@ -1416,7 +1459,7 @@ src_folder = "./."
 
 **Migration history.** The history was squashed into a single init migration, [`migrations/models/0_20260608213149_init.py`](../../migrations/models/0_20260608213149_init.py), with migrations 1–19 adding the equipment, volunteering, availability, Challonge, API-token, feedback, web-push, and Twitch-linking tables/columns plus the FK-hotpath indexes (below). Together they create all model tables, the two M2M through tables (`"TournamentAdmins"`, `"TournamentCrewCoordinators"` with unique `(tournament_id, user_id)` indexes), and the `aerich` bookkeeping table. Its `downgrade()` returns empty SQL, so the init migration is not reversible.
 
-**Multitenancy onward (migrations 20 to head).** The head is **migration 39**. In order: **20** — the additive multitenancy migration (adds `Tenant`/`TenantMembership` and a `tenant` FK across the scoped models: nullable FK → `default`-tenant backfill → `SET NOT NULL`; see [features/multitenancy.md](../features/multitenancy.md)); **21** — online-tournament foundations (system user, the `PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN` roles, the hybrid-config substrate); **22** — user-managed `Preset`; **23** — racetime identity fields on `User`; **24** — `RacetimeBot`/`RacetimeBotTenant`/`RaceRoomProfile`/`RacetimeRoom`; **25** — `matchplayers.finish_time`; **26** — SpeedGaming ETL (placeholder `User`, `SpeedGamingEventLink`/`Episode`, the `Match` source marker); **27** — `DiscordScheduledEvent`; **28** — the `AsyncQualifier*` tables; **29** — `AsyncQualifierLiveRace`; **30–31** — per-tenant feature flags (`TenantFeatureFlag`, then `FeatureFlagGroup` + `Tenant.feature_group`; see [features/feature-flags.md](../features/feature-flags.md)); **32** — per-tournament event days/hours; **33–35** — native brackets (tables, then match scores/forfeit, then the `BracketMatchGame` series seam); **36** — `Tournament.allow_player_match_requests` (backfilled off for Challonge-linked and bracket-run tournaments); **37** — `RandomizerCredential`; **38** — retires the `dk64_randomizer` flag rows that per-tenant credentials replaced; **39** — MCP OAuth (`McpOAuthClient`, `McpAuthorizationCode`, the `ApiToken` OAuth columns).
+**Multitenancy onward (migrations 20 to head).** The head is **migration 40**. In order: **20** — the additive multitenancy migration (adds `Tenant`/`TenantMembership` and a `tenant` FK across the scoped models: nullable FK → `default`-tenant backfill → `SET NOT NULL`; see [features/multitenancy.md](../features/multitenancy.md)); **21** — online-tournament foundations (system user, the `PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN` roles, the hybrid-config substrate); **22** — user-managed `Preset`; **23** — racetime identity fields on `User`; **24** — `RacetimeBot`/`RacetimeBotTenant`/`RaceRoomProfile`/`RacetimeRoom`; **25** — `matchplayers.finish_time`; **26** — SpeedGaming ETL (placeholder `User`, `SpeedGamingEventLink`/`Episode`, the `Match` source marker); **27** — `DiscordScheduledEvent`; **28** — the `AsyncQualifier*` tables; **29** — `AsyncQualifierLiveRace`; **30–31** — per-tenant feature flags (`TenantFeatureFlag`, then `FeatureFlagGroup` + `Tenant.feature_group`; see [features/feature-flags.md](../features/feature-flags.md)); **32** — per-tournament event days/hours; **33–35** — native brackets (tables, then match scores/forfeit, then the `BracketMatchGame` series seam); **36** — `Tournament.allow_player_match_requests` (backfilled off for Challonge-linked and bracket-run tournaments); **37** — `RandomizerCredential`; **38** — retires the `dk64_randomizer` flag rows that per-tenant credentials replaced; **39** — MCP OAuth (`McpOAuthClient`, `McpAuthorizationCode`, the `ApiToken` OAuth columns); **40** — the venue `Station` pool.
 
 **Foreign-key / reverse-lookup indexes (migration 19).** Tortoise does not index FK columns on Postgres, and a `unique_together` composite only serves lookups on its *leftmost* column — so single-column reverse-relation reads (e.g. `matchwatcher` by `match_id`, `tournamentplayers` by `user_id`) previously sequential-scanned. [`migrations/models/19_20260711000000_add_fk_hotpath_indexes.py`](../../migrations/models/19_20260711000000_add_fk_hotpath_indexes.py) adds single-column indexes on the hot FK/reverse-lookup columns of the growing tables (`match.tournament_id`/`stream_room_id`, `matchplayers.user_id`, `matchwatcher.match_id`, `tournamentplayers.user_id`, `tournamentnotificationpreference.tournament_id`, `equipmentloan.equipment_id`/`borrower_id`, `challongematch.match_id`/`participant1_id`/`participant2_id`, `challongeparticipant.user_id`, `volunteerassignment.user_id`, `volunteerqualification.position_id`, `volunteershift.position_id`, `volunteeravailability.user_id`, `playeravailability.user_id`, `userrole.role`, `feedback.created_at`) plus a composite `triforcetext(tournament_id, user_id)`. Each is mirrored by a `Meta.indexes` (or field-level `index=True`) declaration in the `models/` package so `generate_schemas()` builds the same schema in tests.
 

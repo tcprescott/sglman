@@ -173,10 +173,10 @@ class TestStaffOverride:
         match = make_match(tournament_id=999)
         assert await AuthService.can_crud_match(make_user(), match) is True
 
-    async def test_staff_can_transition_any_match(self, patch_roles, patch_tournament_membership):
+    async def test_staff_can_run_any_match(self, patch_roles, patch_tournament_membership):
         patch_roles({Role.STAFF})
         patch_tournament_membership()
-        assert await AuthService.can_transition_match(make_user(), make_match()) is True
+        assert await AuthService.can_run_match(make_user(), make_match()) is True
 
     async def test_staff_can_approve_any_crew(self, patch_roles, patch_tournament_membership):
         patch_roles({Role.STAFF})
@@ -198,23 +198,23 @@ class TestStaffOverride:
 
 
 # ---------------------------------------------------------------------------
-# can_crud_match vs can_transition_match — Proctor distinction
+# can_crud_match vs can_run_match — Proctor distinction
 # ---------------------------------------------------------------------------
 
 
-class TestCrudVsTransition:
-    async def test_proctor_can_transition_but_not_crud(self, patch_roles, patch_tournament_membership):
+class TestRunVsCrud:
+    async def test_proctor_can_run_but_not_crud(self, patch_roles, patch_tournament_membership):
         patch_roles({Role.PROCTOR})
         patch_tournament_membership()  # not TA of anything
         match = make_match()
-        assert await AuthService.can_transition_match(make_user(), match) is True
+        assert await AuthService.can_run_match(make_user(), match) is True
         assert await AuthService.can_crud_match(make_user(), match) is False
 
     async def test_ta_can_both_for_own_tournament(self, patch_roles, patch_tournament_membership):
         patch_roles(set())
         patch_tournament_membership(admin_of={100})
         match = make_match(tournament_id=100)
-        assert await AuthService.can_transition_match(make_user(), match) is True
+        assert await AuthService.can_run_match(make_user(), match) is True
         assert await AuthService.can_crud_match(make_user(), match) is True
 
     async def test_ta_cannot_crud_other_tournament(self, patch_roles, patch_tournament_membership):
@@ -222,14 +222,52 @@ class TestCrudVsTransition:
         patch_tournament_membership(admin_of={100})
         match = make_match(tournament_id=200)
         assert await AuthService.can_crud_match(make_user(), match) is False
-        assert await AuthService.can_transition_match(make_user(), match) is False
+        assert await AuthService.can_run_match(make_user(), match) is False
 
-    async def test_regular_user_cannot_transition_or_crud(self, patch_roles, patch_tournament_membership):
+    async def test_regular_user_cannot_run_or_crud(self, patch_roles, patch_tournament_membership):
         patch_roles(set())
         patch_tournament_membership()
         match = make_match()
-        assert await AuthService.can_transition_match(make_user(), match) is False
+        assert await AuthService.can_run_match(make_user(), match) is False
         assert await AuthService.can_crud_match(make_user(), match) is False
+
+
+# ---------------------------------------------------------------------------
+# can_run_match vs can_confirm_match — confirming is the admin's step
+# ---------------------------------------------------------------------------
+
+
+class TestRunVsConfirm:
+    """A proctor runs matches; only staff / the tournament's admin confirms."""
+
+    async def test_proctor_can_run_but_not_confirm(self, patch_roles, patch_tournament_membership):
+        patch_roles({Role.PROCTOR})
+        patch_tournament_membership()  # not TA of anything
+        match = make_match()
+        assert await AuthService.can_run_match(make_user(), match) is True
+        assert await AuthService.can_confirm_match(make_user(), match) is False
+
+    async def test_staff_can_confirm(self, patch_roles, patch_tournament_membership):
+        patch_roles({Role.STAFF})
+        patch_tournament_membership()
+        assert await AuthService.can_confirm_match(make_user(), make_match()) is True
+
+    async def test_ta_can_confirm_own_tournament(self, patch_roles, patch_tournament_membership):
+        patch_roles(set())
+        patch_tournament_membership(admin_of={100})
+        assert await AuthService.can_confirm_match(
+            make_user(), make_match(tournament_id=100)) is True
+
+    async def test_ta_cannot_confirm_other_tournament(self, patch_roles, patch_tournament_membership):
+        patch_roles(set())
+        patch_tournament_membership(admin_of={100})
+        assert await AuthService.can_confirm_match(
+            make_user(), make_match(tournament_id=200)) is False
+
+    async def test_regular_user_cannot_confirm(self, patch_roles, patch_tournament_membership):
+        patch_roles(set())
+        patch_tournament_membership()
+        assert await AuthService.can_confirm_match(make_user(), make_match()) is False
 
 
 # ---------------------------------------------------------------------------

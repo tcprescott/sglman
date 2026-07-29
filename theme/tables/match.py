@@ -30,13 +30,30 @@ class MatchTableView(MatchTableHandlersMixin):
 
     def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
-                 on_edit_stream_room=None, on_assign_stations=None, player_discord_id=None, grid_breakpoint='lt.md'):
+                 on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
+                 player_discord_id=None, grid_breakpoint='lt.md',
+                 row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
+                 storage_key='match', default_state_filter=None):
         self.columns = columns
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
         self.can_crud = can_crud
         self.player_discord_id = player_discord_id
+        # Every board gets its own filter namespace and its own default state
+        # set — see _skey. Pass a distinct storage_key from each construction
+        # site; the fallback exists only so a bare view still works.
+        self.storage_key = storage_key
+        self.default_state_filter = default_state_filter
+        # Board-shaping hooks. ``row_sort`` reorders the fetched rows (the
+        # proctor board sorts by what needs doing next rather than by clock),
+        # ``exclude_racetime`` drops rows no on-site proctor can act on,
+        # ``on_rows_changed`` lets a caller mirror the row set (a summary strip),
+        # and ``actions_first`` hoists the mobile card's action row.
+        self.row_sort = row_sort
+        self.exclude_racetime = exclude_racetime
+        self.on_rows_changed = on_rows_changed
+        self.actions_first = actions_first
         self.extra_slots = extra_slots
         self.submit_match_callback = submit_match_callback
         # Optional callbacks for admin actions
@@ -46,6 +63,10 @@ class MatchTableView(MatchTableHandlersMixin):
         self.on_start = on_start
         self.on_finish = on_finish
         self.on_confirm = on_confirm
+        # Correcting an already-recorded result: the admin's half of "the proctor
+        # records their best guess". Reaches the same service as on_finish's
+        # dialog, but must never re-finish the match.
+        self.on_edit_result = on_edit_result
         self.on_edit_stream_room = on_edit_stream_room
         self.on_assign_stations = on_assign_stations
         self.table = None
@@ -81,6 +102,27 @@ class MatchTableView(MatchTableHandlersMixin):
                 await coro
         background_tasks.create(_run())
 
+    def _skey(self, name: str) -> str:
+        """Session key for one of this view's filters.
+
+        Namespaced per view: four boards share one session, and before this a
+        filter change on the admin Schedule tab silently retargeted the home
+        schedule board and the proctor station too.
+        """
+        return f'{self.storage_key}:{name}'
+
+    def _stored_or_default_states(self) -> list:
+        """This board's opening State selection.
+
+        A stored choice wins; otherwise the board's own default (the admin
+        board needs ``Finished`` — that set is its work). Split out of
+        ``_setup_ui`` so the precedence is testable without a slot context.
+        """
+        return tenant_session_get(
+            self._skey('state_filter'),
+            list(self.default_state_filter or DEFAULT_STATE_FILTER),
+        )
+
     def _refresh_unless_initializing(self) -> None:
         """Reload the table for a *user's* filter change.
 
@@ -96,19 +138,19 @@ class MatchTableView(MatchTableHandlersMixin):
 
     def _on_state_filter_change(self, *_args, **_kwargs):
         # Tenant-scoped: a filter is meaningful only within its own community.
-        tenant_session_set('state_filter', self.state_filter.value)
+        tenant_session_set(self._skey('state_filter'), self.state_filter.value)
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value (namespaced by tenant — ids are global).
-        tenant_session_set('tournament_filter', self.tournament_filter.value)
+        tenant_session_set(self._skey('tournament_filter'), self.tournament_filter.value)
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
     def _on_stream_room_filter_change(self, *_args, **_kwargs):
         # Store the stream room ID value (namespaced by tenant — ids are global).
-        tenant_session_set('stream_room_filter', self.stream_room_filter.value)
+        tenant_session_set(self._skey('stream_room_filter'), self.stream_room_filter.value)
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
@@ -136,13 +178,19 @@ class MatchTableView(MatchTableHandlersMixin):
             self.filters_card.classes(remove='wiz-filters-open')
 
     def _active_filter_count(self) -> int:
-        """Number of the three filters set away from their default (state's default is Scheduled/Checked In/Started)."""
+        """Number of the three filters set away from this board's own default.
+
+        Compared against ``default_state_filter`` rather than the module
+        constant, so a board that legitimately defaults to a different state
+        set does not permanently claim its own default is a custom filter.
+        """
         count = 0
         if self.tournament_filter and self.tournament_filter.value:
             count += 1
         if self.stream_room_filter and self.stream_room_filter.value:
             count += 1
-        if self.state_filter and set(self.state_filter.value or []) != set(DEFAULT_STATE_FILTER):
+        default_states = set(self.default_state_filter or DEFAULT_STATE_FILTER)
+        if self.state_filter and set(self.state_filter.value or []) != default_states:
             count += 1
         return count
 
@@ -158,7 +206,7 @@ class MatchTableView(MatchTableHandlersMixin):
         """Load all tournament names for the filter using service layer."""
         self.tournaments_list = await self.display_service.get_tournaments_for_filter()
         # Set initial value from storage or default to None (All Tournaments)
-        default_tournament_id = tenant_session_get('tournament_filter', None)
+        default_tournament_id = tenant_session_get(self._skey('tournament_filter'), None)
         if self.tournament_filter:
             self.tournament_filter.options = self.tournaments_list
             self.tournament_filter.value = default_tournament_id
@@ -169,7 +217,7 @@ class MatchTableView(MatchTableHandlersMixin):
         """Load all stream room names for the filter using service layer."""
         self.stream_rooms_list = await self.display_service.get_stream_rooms_for_filter()
         # Set initial value from storage or default to None (All Stages)
-        default_stream_room_id = tenant_session_get('stream_room_filter', None)
+        default_stream_room_id = tenant_session_get(self._skey('stream_room_filter'), None)
         if self.stream_room_filter:
             self.stream_room_filter.options = self.stream_rooms_list
             self.stream_room_filter.value = default_stream_room_id
@@ -222,8 +270,7 @@ class MatchTableView(MatchTableHandlersMixin):
                 # State filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('State').classes('match-filter-label')
-                    # Default to showing Scheduled, Checked In, and Started
-                    default_states = tenant_session_get('state_filter', list(DEFAULT_STATE_FILTER))
+                    default_states = self._stored_or_default_states()
                     self.state_filter = ui.select(
                         options=list(ALL_MATCH_STATES),
                         value=default_states,
@@ -268,6 +315,7 @@ class MatchTableView(MatchTableHandlersMixin):
             want_state_slot=self.admin_controls and (
                 self.on_seat is not None or self.on_start is not None
                 or self.on_finish is not None or self.on_confirm is not None
+                or self.on_edit_result is not None
             ),
             want_stream_room_admin=self.admin_controls and self.on_edit_stream_room is not None,
             want_stream_room_readonly=self.on_edit_stream_room is None,
@@ -278,6 +326,7 @@ class MatchTableView(MatchTableHandlersMixin):
             self.table, self.columns,
             admin_controls=self.admin_controls, can_crud=self.can_crud, discord_id=discord_id,
             has_edit=self.on_edit is not None,
+            actions_first=self.actions_first,
         )
 
         # --- Event wiring (handler bodies live in MatchTableHandlersMixin) ---
@@ -290,7 +339,7 @@ class MatchTableView(MatchTableHandlersMixin):
             self.table.on(f"edit_{role}", lambda event, r=role: self._handle_approve_role(r, event))
 
         if self.on_assign_stations is not None:
-            self.table.on('assign_stations', lambda event: background_tasks.create(self._handle_assign_stations(event)))
+            self.table.on('assign_stations', lambda event: self._bg(self._handle_assign_stations(event)))
 
         self.table.on('signup_commentator', lambda event: self._handle_signup_or_undo_role('signup', 'commentator', event.args))
         self.table.on('signup_tracker', lambda event: self._handle_signup_or_undo_role('signup', 'tracker', event.args))
@@ -318,7 +367,8 @@ class MatchTableView(MatchTableHandlersMixin):
             if self.on_generate_seed is not None:
                 self.table.on('roll', lambda event: self._bg(self._handle_roll(event)))
             if (self.on_seat is not None or self.on_start is not None
-                    or self.on_finish is not None or self.on_confirm is not None):
+                    or self.on_finish is not None or self.on_confirm is not None
+                    or self.on_edit_result is not None):
                 if self.on_seat is not None:
                     self.table.on('seat', lambda event: self._bg(self._handle_seat(event)))
                 if self.on_start is not None:
@@ -327,6 +377,8 @@ class MatchTableView(MatchTableHandlersMixin):
                     self.table.on('finish', lambda event: self._bg(self._handle_finish(event)))
                 if self.on_confirm is not None:
                     self.table.on('confirm', lambda event: self._bg(self._handle_confirm(event)))
+                if self.on_edit_result is not None:
+                    self.table.on('edit_result', lambda event: self._bg(self._handle_edit_result(event)))
             if self.on_edit_stream_room is not None:
                 self.table.on('edit-stream-room', lambda event: self._bg(self._handle_edit_stream_room(event)))
 
@@ -370,7 +422,8 @@ class MatchTableView(MatchTableHandlersMixin):
             tournament_ids=tournament_ids,
             stream_room_ids=stream_room_ids,
             only_upcoming=only_upcoming,
-            user_discord_id=self.player_discord_id
+            user_discord_id=self.player_discord_id,
+            exclude_racetime=self.exclude_racetime,
         )
 
         # Client-side filter by state (narrows within the fetched set)
@@ -381,8 +434,17 @@ class MatchTableView(MatchTableHandlersMixin):
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
 
+        if self.row_sort is not None:
+            rows = self.row_sort(rows)
+
         self.table.rows = rows
         self.table.update()
+        self._notify_rows_changed()
+
+    def _notify_rows_changed(self) -> None:
+        """Tell the caller the visible row set changed (drives a summary strip)."""
+        if self.on_rows_changed is not None:
+            self.on_rows_changed(self.table.rows)
 
     async def _fetch_watched_ids(self) -> set:
         discord_id = app.storage.user.get('discord_id', None)
@@ -415,6 +477,7 @@ class MatchTableView(MatchTableHandlersMixin):
             # Match not found, delete the row from the table
             del self.table.rows[idx]
             self.table.update()
+            self._notify_rows_changed()
             return
 
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
@@ -422,6 +485,7 @@ class MatchTableView(MatchTableHandlersMixin):
             match_data['_flash'] = True
         self.table.rows[idx] = match_data
         self.table.update()
+        self._notify_rows_changed()
         if flash:
             self._schedule_flash_clear(match_id)
 

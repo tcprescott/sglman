@@ -53,8 +53,14 @@ TOURNAMENT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-fl
     </a>
 </q-td>'''
 
+# ``is_overdue`` (set by MatchDisplayService) means the scheduled time has passed
+# and nobody has checked the match in — the proctor board leans on it, every
+# other board simply never sees a truthy value.
 SCHEDULED_AT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <span class="cell-time">{{ props.value }}</span>
+    <span class="cell-time" :class="props.row.is_overdue ? 'st-pending' : ''">{{ props.value }}</span>
+    <q-icon v-if="props.row.is_overdue" name="schedule" class="st-pending q-ml-xs" size="xs">
+        <q-tooltip>Past its scheduled time and not checked in</q-tooltip>
+    </q-icon>
 </q-td>'''
 
 WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
@@ -67,7 +73,7 @@ WATCH_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
 </q-td>'''
 
 SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <q-btn v-if="props.row.tournament_seed_generator && !props.value"
+    <q-btn v-if="props.row.tournament_seed_generator && !props.value && !props.row.is_racetime"
            :loading="props.row._generating_seed"
            :disabled="props.row._generating_seed"
            @click="(props.row._generating_seed = true, $parent.$emit('roll', props))"
@@ -81,17 +87,28 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
             </a>
         </template>
         <template v-else>{{ props.value }}</template>
+        <q-icon v-if="props.row.seed_dm_blocked && props.row.seed_dm_blocked.length"
+                name="notifications_off" class="st-pending q-ml-xs" size="xs">
+            <q-tooltip>Can't receive a Discord DM: {{ props.row.seed_dm_blocked.join(', ') }} — hand them the seed. Shows who is unreachable, not whether a DM arrived.</q-tooltip>
+        </q-icon>
     </span>
 </q-td>'''
 
+# Carries __CC__ — must be registered through ``_fill``, not raw.
 STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <!-- Scheduled state: show Check In button (on-site only; racetime rooms
-         drive the lifecycle, so racetime matches show a note instead) -->
+    <!-- Scheduled state: show Check In button (on-site only, and only once the
+         match has players; racetime rooms drive the lifecycle, so racetime
+         matches show a note instead) -->
     <div v-if="props.value === 'Scheduled'" style="display: flex; justify-content: center;">
-        <q-btn v-if="!props.row.is_racetime" @click="$parent.$emit('seat', props)"
+        <q-btn v-if="!props.row.is_racetime && props.row.players && props.row.players.length"
+               @click="$parent.$emit('seat', props)"
                icon="chair" color="primary" size="sm">
             Check In
         </q-btn>
+        <span v-else-if="!props.row.is_racetime" class="st-neutral italic-note">
+            awaiting players
+            <q-tooltip>This match has no players yet</q-tooltip>
+        </span>
         <span v-else class="st-neutral italic-note">
             racetime.gg
             <q-tooltip>Managed by the racetime.gg room</q-tooltip>
@@ -122,12 +139,30 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
         </div>
     </div>
 
-    <!-- Finished: show Confirm button and timestamp -->
+    <!-- Finished: Confirm (+ correct the winner) for staff/TA; everyone else
+         sees it is awaiting review. Correcting a result is the admin's call,
+         so the pencil is crud-only — a proctor records, they do not amend.
+         The dispute chip sits above both, since "an admin should look at this"
+         is the first thing to read about a recorded result. -->
     <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-        <q-btn @click="$parent.$emit('confirm', props)"
-               icon="check_circle" color="primary" size="sm">
-            Confirm
-        </q-btn>
+        <span v-if="props.row.needs_review" class="wiz-chip wiz-chip--pending">
+            <q-icon name="report_problem" size="14px" />Needs review
+            <q-tooltip v-if="props.row.review_note">{{ props.row.review_note }}</q-tooltip>
+        </span>
+        <div v-if="__CC__" style="display: flex; align-items: center; gap: 4px;">
+            <q-btn @click="$parent.$emit('confirm', props)"
+                   icon="check_circle" color="primary" size="sm">
+                Confirm
+            </q-btn>
+            <q-btn @click="$parent.$emit('edit_result', props)"
+                   icon="edit" size="sm" flat dense round color="primary">
+                <q-tooltip>Change the recorded winner</q-tooltip>
+            </q-btn>
+        </div>
+        <span v-else class="wiz-chip wiz-chip--pending">
+            <q-icon name="flag" size="14px" />Awaiting confirmation
+            <q-tooltip>Recorded. An admin confirms the result.</q-tooltip>
+        </span>
         <div style="display: flex; align-items: center; gap: 4px;">
             <q-icon name="flag" class="st-pending" size="xs" />
             <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
@@ -263,17 +298,20 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
             <template v-for="(player, idx) in props.value">
                 <div style="display: flex; align-items: center; gap: 4px;">
                     <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
-                            name="check_circle" class="st-ok" size="xs">
-                        <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
+                            name="how_to_reg" class="st-ok" size="xs">
+                        <q-tooltip>Confirmed they're playing{{ props.row.acknowledgments[idx].ts ? ' — ' + props.row.acknowledgments[idx].ts : '' }}. Not a check-in.</q-tooltip>
                     </q-icon>
                     <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
-                            name="schedule" class="st-pending" size="xs">
-                        <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                            name="person_outline" class="st-pending" size="xs">
+                        <q-tooltip>Hasn't confirmed they're playing</q-tooltip>
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
                         {{ player.name }}
-                        <span v-if="__IA__ && player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
+                        <span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
+                            <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
+                    <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">
+                        <q-icon name="emoji_events" size="12px" />Winner</span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
                     <q-btn v-if="!__IA__ && props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == __DID__"
@@ -284,9 +322,10 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                 </div>
             </template>
         </div>
-        <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" @click="$parent.$emit('assign_stations', props)"
+        <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
+               @click="$parent.$emit('assign_stations', props)"
                icon="switch_access_shortcut" color="primary" size="xs" flat round>
-            <q-tooltip>Assign Stations</q-tooltip>
+            <q-tooltip>Assign stations</q-tooltip>
         </q-btn>
     </div>
 </q-td>'''
@@ -371,7 +410,10 @@ def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_
     if want_seed_slot:
         table.add_slot('body-cell-generated_seed', SEED_SLOT)
     if want_state_slot:
-        table.add_slot('body-cell-state', STATE_SLOT)
+        table.add_slot('body-cell-state', _fill(
+            STATE_SLOT, admin_controls=admin_controls, can_crud=can_crud,
+            discord_id_js=discord_id_js,
+        ))
     if want_stream_room_admin:
         table.add_slot('body-cell-stream_room', STREAM_ROOM_ADMIN_SLOT)
     if want_stream_room_readonly:

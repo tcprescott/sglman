@@ -36,7 +36,7 @@ from models import (
     Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
     Commentator, Tracker, GeneratedSeeds,
     TournamentNotificationPreference, MatchNotificationLevel,
-    StreamRoom, SystemConfiguration,
+    Station, StreamRoom, SystemConfiguration,
     ApiToken, ApiTokenOrigin, McpOAuthClient,
     Feedback, FeedbackCategory, FeedbackStatus,
     Equipment, EquipmentLoan, EquipmentStatus,
@@ -50,6 +50,7 @@ from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
+from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 from scripts.seed_online import (
     link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
@@ -218,6 +219,23 @@ async def seed_for_tenant(
             )
         print(f"    [{tenant.slug}] stream rooms ok")
 
+        # Venue station pool — two banks facing into the middle of the room.
+        # Only tenant A defines one: a community with no stations keeps the
+        # historical free-text station field, and tenant B is the fixture for
+        # that fallback path.
+        if tenant.slug == "default":
+            for idx, (station_name, section) in enumerate(
+                [(f"{n}", "North wall") for n in range(1, 5)]
+                + [(f"{n}", "South wall") for n in range(5, 9)]
+            ):
+                await Station.get_or_create(
+                    name=station_name, tenant=tenant,
+                    defaults={"section": section, "sort_order": idx},
+                )
+            print(f"    [{tenant.slug}] stations ok")
+        else:
+            print(f"    [{tenant.slug}] stations skipped (free-text fallback fixture)")
+
         # System configuration
         today = now_eastern().date()
         for key, val in [
@@ -245,6 +263,18 @@ async def seed_for_tenant(
         )
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
+
+        # The general-purpose fixture tournament is deliberately **on-premises**:
+        # its matches are the proctor-lifecycle fixtures, and attaching a
+        # racetime.gg bot hides every on-site control on them (and drops them
+        # from the Proctor Station board). Racetime lives on its own tournament
+        # now (scripts/seed_online.py), so a dev database seeded before the split
+        # gets that wiring cleared here.
+        if tournament.racetime_bot_id is not None or tournament.discord_events_enabled:
+            tournament.racetime_bot = None
+            tournament.racetime_auto_create_rooms = False
+            tournament.discord_events_enabled = False
+            await tournament.save()
 
         players = [users[k] for k in ("player_one", "player_two", "player_three", "player_four")]
         for p in players:
@@ -328,6 +358,22 @@ async def seed_for_tenant(
         await make_match(
             "TBD Match", None, p1=players[3], p2=players[0], stream_candidate=False,
         )
+        # Seat the two matches that are checked in but not finished at real
+        # stations, so the schedule shows stations out of the box and the
+        # occupancy check has something to trip on: 1/2/5/6 read as in use when
+        # a proctor opens the picker on any other match.
+        for seated_match, labels in (
+            (checked_in_match, ("1", "5")),
+            (in_progress_match, ("2", "6")),
+        ):
+            seated_players = await MatchPlayers.filter(
+                match=seated_match, tenant=tenant,
+            ).order_by("id")
+            for seated_player, label in zip(seated_players, labels):
+                if seated_player.assigned_station is None and tenant.slug == "default":
+                    seated_player.assigned_station = label
+                    await seated_player.save()
+
         print(f"    [{tenant.slug}] matches ok")
 
         # Generated seeds, attached to matches that have already been rolled.
@@ -347,6 +393,17 @@ async def seed_for_tenant(
         )
         if disputed_match.generated_seed_id is None:
             disputed_match.generated_seed = disputed_seed
+            await disputed_match.save()
+
+        # The dispute flag itself, so the admin's review queue has a contested
+        # row out of the box — this match has claimed to be disputed since the
+        # first seed script and only now actually is.
+        if not disputed_match.needs_review:
+            disputed_match.needs_review = True
+            disputed_match.review_note = (
+                "Player Two says the timer was still running when Player Three "
+                "raised their hand. Needs an admin to look at the VOD."
+            )
             await disputed_match.save()
 
         # Match acknowledgments — the checked-in match's players have both confirmed.
@@ -385,50 +442,16 @@ async def seed_for_tenant(
         )
         print(f"    [{tenant.slug}] match extras ok")
 
-        # --- Online tournaments: presets, racetime config & rooms -----------
-        # This wires ``tournament`` to a racetime.gg bot, so its matches now hide
-        # the on-site check-in / station-assignment controls.
-        await seed_online_for_tenant(
-            tenant, tournament, scheduled_match, finished_match, bots
-        )
+        # --- Online tournament (scripts/seed_online.py) ----------------------
+        # Its own racetime.gg-managed tournament with its own matches, kept apart
+        # from the tournament above: a racetime bot hides every on-site control
+        # on the matches it owns, so the two fixtures cannot share a tournament.
+        await seed_online_for_tenant(tenant, staff, players, bots)
 
-        # --- On-site tournament (no racetime.gg) ----------------------------
-        # A deliberately on-site tournament so the schedule keeps demonstrating
-        # the check-in and station-assignment controls that the racetime-enabled
-        # tournament above now hides.
-        onsite, _ = await Tournament.get_or_create(
-            name="Wizzrobe Cup", tenant=tenant,
-            defaults={
-                "description": "On-site fixture — no racetime.gg integration.",
-                "seed_generator": "alttpr",
-                "is_active": True,
-                "players_per_match": 2,
-                "staff_administered": False,
-                # Per-tournament "tournament days" override: its own event window
-                # and per-day hours, distinct from the tenant default above.
-                "event_start_date": today,
-                "event_end_date": today + timedelta(days=3),
-                "tournament_hours": {
-                    today.isoformat(): {"open": "09:00", "close": "23:59"},
-                    (today + timedelta(days=1)).isoformat(): {"open": "12:00", "close": "23:59"},
-                },
-            },
-        )
-        await onsite.admins.add(staff)
-        for p in (players[0], players[1]):
-            await TournamentPlayers.get_or_create(tournament=onsite, user=p, tenant=tenant)
-
-        onsite_match, onsite_created = await Match.get_or_create(
-            title="On-Site Scheduled", tournament=onsite, tenant=tenant,
-            defaults={
-                "scheduled_at": now + timedelta(hours=2),
-                "stream_room": stage1,
-                "is_stream_candidate": True,
-            },
-        )
-        if onsite_created:
-            for p in (players[0], players[1]):
-                await MatchPlayers.get_or_create(match=onsite_match, user=p, tenant=tenant)
+        # --- Second on-site tournament (scripts/seed_onsite.py) --------------
+        # A distinct venue event with its own "tournament days" override and one
+        # match per step of the proctor's workflow.
+        await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
         print(f"    [{tenant.slug}] on-site tournament ok")
 
         # --- Crew signups (commentators / trackers) -------------------------

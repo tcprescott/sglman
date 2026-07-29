@@ -18,6 +18,7 @@ from api.schemas.match_actions import (
     MatchUpdateRequest,
     RecordResultRequest,
     SeedResultResponse,
+    SetReviewRequest,
     StreamCandidateRequest,
 )
 from api.schemas.matches import MatchResponse
@@ -145,6 +146,21 @@ async def confirm_match(match_id: int, actor: User = Depends(require_write_actor
 @router.post("/{match_id}/result", response_model=MatchResponse, summary="Record a match result")
 async def record_result(match_id: int, body: RecordResultRequest, actor: User = Depends(require_write_actor)):
     await MatchService().record_match_result(match_id, body.winner_id, actor=actor)
+    return await load_match_response(match_id)
+
+
+@router.post("/{match_id}/review", response_model=MatchResponse, summary="Flag or clear a result review")
+async def set_review(match_id: int, body: SetReviewRequest, actor: User = Depends(require_write_actor)):
+    """Raise or drop the dispute flag on a recorded result.
+
+    The two directions are deliberately gated differently: flagging is the
+    proctor's (``can_run_match``), clearing is the admin's (``can_confirm_match``).
+    """
+    service = MatchService()
+    if body.needs_review:
+        await service.flag_for_review(match_id, body.note, actor=actor)
+    else:
+        await service.clear_review(match_id, actor=actor)
     return await load_match_response(match_id)
 
 

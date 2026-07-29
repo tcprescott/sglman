@@ -124,7 +124,7 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | Outcome | Tuple |
 |---|---|
 | Concurrent click (per-match `asyncio.Lock` in class-level `_seed_locks` already held) | `(False, "Seed generation already in progress for this match", None)` |
-| Actor fails `AuthService.can_transition_match` | `(False, "You do not have permission to roll a seed for this match", None)` |
+| Actor fails `AuthService.can_run_match` | `(False, "You do not have permission to roll a seed for this match", None)` |
 | Match already has a seed | `(False, "A seed has already been generated for this match", None)` |
 | Neither `tournament.preset` nor `tournament.seed_generator` is set | `(False, "No seed generator configured for this tournament", None)` |
 | Generator not in `AVAILABLE_RANDOMIZERS` | `(False, "Seed generator '…' not found", None)` |

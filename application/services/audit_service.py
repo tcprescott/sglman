@@ -39,6 +39,10 @@ class AuditActions:
     MATCH_STATIONS_ASSIGNED = 'match.stations_assigned'
     MATCH_STREAM_CANDIDATE_SET = 'match.stream_candidate_set'
     MATCH_STREAM_CANDIDATE_CLEARED = 'match.stream_candidate_cleared'
+    # A proctor flagging a recorded result as contested, and the flag being
+    # resolved (explicitly, or implicitly by the admin confirming the match).
+    MATCH_FLAGGED_FOR_REVIEW = 'match.flagged_for_review'
+    MATCH_REVIEW_CLEARED = 'match.review_cleared'
     MATCH_WATCHER_ADDED = 'match.watcher_added'
     MATCH_WATCHER_REMOVED = 'match.watcher_removed'
 
@@ -87,6 +91,11 @@ class AuditActions:
     DISCORD_EVENT_SYNC_COMPLETED = 'discord_event.sync_completed'
     DISCORD_EVENT_SYNC_FAILED = 'discord_event.sync_failed'
     DISCORD_EVENT_SETTINGS_UPDATED = 'discord_event.settings_updated'
+
+    # Station pool (the venue's physical seats)
+    STATION_CREATED = 'station.created'
+    STATION_UPDATED = 'station.updated'
+    STATION_DELETED = 'station.deleted'
 
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'

@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
 
 from application.services.match.match_display_service import MatchDisplayService
 from application.utils.timezone import format_eastern_datetime
+from models import Match, RacetimeBot, Tournament
 
 
 @pytest.fixture
@@ -30,12 +31,32 @@ def make_match(**overrides):
         stream_room_id=None,
         generated_seed=None,
         is_stream_candidate=False,
+        needs_review=False,
+        review_note=None,
         players=[],
         commentators=[],
         trackers=[],
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
+
+
+def make_player(name, *, discord_id="111", dm_notifications=True,
+                finish_rank=None, station=None):
+    """A ``MatchPlayers``-shaped fake, including the two DM-reachability fields.
+
+    ``discord_id=None`` / ``dm_notifications=False`` are the two ways a player
+    ends up in ``seed_dm_blocked``.
+    """
+    return SimpleNamespace(
+        user=SimpleNamespace(
+            preferred_name=name,
+            discord_id=discord_id,
+            dm_notifications=dm_notifications,
+        ),
+        finish_rank=finish_rank,
+        assigned_station=station,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -131,11 +152,7 @@ class TestFormatMatchForDisplay:
         assert result["tournament"] == ""
 
     def test_players_formatted_as_dicts(self, display_service):
-        player = SimpleNamespace(
-            user=SimpleNamespace(preferred_name="Alice", discord_id="111"),
-            finish_rank=1,
-            assigned_station="A",
-        )
+        player = make_player("Alice", discord_id="111", finish_rank=1, station="A")
         result = display_service._format_match_for_display(make_match(players=[player]))
         assert result["players"] == [
             {"name": "Alice", "finish_rank": 1, "station": "A", "discord_id": "111"}
@@ -143,8 +160,8 @@ class TestFormatMatchForDisplay:
 
     def test_multiple_players_all_included(self, display_service):
         players = [
-            SimpleNamespace(user=SimpleNamespace(preferred_name="Alice", discord_id="111"), finish_rank=1, assigned_station="A"),
-            SimpleNamespace(user=SimpleNamespace(preferred_name="Bob", discord_id="222"), finish_rank=2, assigned_station="B"),
+            make_player("Alice", discord_id="111", finish_rank=1, station="A"),
+            make_player("Bob", discord_id="222", finish_rank=2, station="B"),
         ]
         result = display_service._format_match_for_display(make_match(players=players))
         assert len(result["players"]) == 2
@@ -214,6 +231,94 @@ class TestFormatMatchForDisplay:
 
 
 # ---------------------------------------------------------------------------
+# _format_match_for_display — proctor-board sort key and overdue flag
+# ---------------------------------------------------------------------------
+
+
+class TestFormatMatchOverdue:
+    """``is_overdue`` drives the proctor board's top bucket and amber time.
+
+    Overdue means: the scheduled time has passed and nobody has checked the
+    match in (and it did not simply finish). The comparison is aware-UTC on
+    both sides — ``scheduled_at`` is stored aware in production; a naive value
+    is interpreted as UTC by ``to_utc_aware``.
+    """
+
+    def test_display_marks_an_unchecked_past_match_overdue(self, display_service):
+        match = make_match(scheduled_at=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc))
+        assert display_service._format_match_for_display(match)["is_overdue"] is True
+
+    def test_display_does_not_mark_a_seated_past_match_overdue(self, display_service):
+        match = make_match(
+            scheduled_at=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc),
+            seated_at=datetime(2020, 1, 1, 12, 5, tzinfo=timezone.utc),
+        )
+        assert display_service._format_match_for_display(match)["is_overdue"] is False
+
+    def test_display_does_not_mark_a_finished_past_match_overdue(self, display_service):
+        match = make_match(
+            scheduled_at=datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2020, 1, 1, 13, 0, tzinfo=timezone.utc),
+        )
+        assert display_service._format_match_for_display(match)["is_overdue"] is False
+
+    def test_display_does_not_mark_a_future_match_overdue(self, display_service):
+        match = make_match(scheduled_at=datetime(2999, 1, 1, 12, 0, tzinfo=timezone.utc))
+        assert display_service._format_match_for_display(match)["is_overdue"] is False
+
+    def test_unscheduled_match_is_not_overdue_and_has_no_sort_key(self, display_service):
+        result = display_service._format_match_for_display(make_match(scheduled_at=None))
+        assert result["is_overdue"] is False
+        assert result["scheduled_ts"] is None
+
+    def test_scheduled_ts_is_the_utc_epoch_seconds(self, display_service):
+        when = datetime(2025, 1, 15, 19, 30, tzinfo=timezone.utc)
+        match = make_match(scheduled_at=when)
+        assert display_service._format_match_for_display(match)["scheduled_ts"] == when.timestamp()
+
+    def test_naive_scheduled_at_is_read_as_utc(self, display_service):
+        """A stripped tzinfo must not raise on the comparison."""
+        match = make_match(scheduled_at=datetime(2020, 1, 1, 12, 0))
+        result = display_service._format_match_for_display(match)
+        assert result["is_overdue"] is True
+        assert result["scheduled_ts"] == datetime(2020, 1, 1, 12, 0, tzinfo=timezone.utc).timestamp()
+
+
+# ---------------------------------------------------------------------------
+# get_matches_for_display — exclude_racetime
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestExcludeRacetime:
+    async def test_exclude_racetime_omits_racetime_tournament_matches(self, db, display_service):
+        bot = await RacetimeBot.create(
+            name='Bot', category='alttp', client_id='cid', client_secret='sec',
+        )
+        onsite = await Tournament.create(name='On Site')
+        online = await Tournament.create(name='Online', racetime_bot=bot)
+        onsite_match = await Match.create(tournament=onsite)
+        await Match.create(tournament=online)
+
+        rows = await display_service.get_matches_for_display(exclude_racetime=True)
+
+        assert [r['id'] for r in rows] == [onsite_match.id]
+
+    async def test_default_still_includes_racetime_matches(self, db, display_service):
+        bot = await RacetimeBot.create(
+            name='Bot', category='alttp', client_id='cid', client_secret='sec',
+        )
+        onsite = await Tournament.create(name='On Site')
+        online = await Tournament.create(name='Online', racetime_bot=bot)
+        onsite_match = await Match.create(tournament=onsite)
+        online_match = await Match.create(tournament=online)
+
+        rows = await display_service.get_matches_for_display()
+
+        assert {r['id'] for r in rows} == {onsite_match.id, online_match.id}
+
+
+# ---------------------------------------------------------------------------
 # _format_match_for_display — is_stream_candidate field
 # ---------------------------------------------------------------------------
 
@@ -241,6 +346,58 @@ class TestFormatMatchIsRacetime:
         )
         result = display_service._format_match_for_display(match)
         assert result["is_racetime"] is True
+
+
+class TestFormatMatchSeedDmBlocked:
+    """``seed_dm_blocked`` names the players a seed DM cannot reach.
+
+    Deliverability, not delivery: it is derived purely from ``User.discord_id``
+    and ``User.dm_notifications`` — the same two fields ``_send_seed_dms`` skips
+    on — and says nothing about whether a DM was sent or arrived.
+    """
+
+    def test_seed_dm_blocked_lists_a_player_with_dms_off(self, display_service):
+        players = [
+            make_player("Alice", discord_id="111", dm_notifications=True),
+            make_player("Bob", discord_id="222", dm_notifications=False),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == ["Bob"]
+
+    def test_seed_dm_blocked_lists_a_player_with_no_discord_id(self, display_service):
+        players = [
+            make_player("Alice", discord_id="111"),
+            make_player("Carol", discord_id=None),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == ["Carol"]
+
+    def test_seed_dm_blocked_is_empty_when_everyone_is_reachable(self, display_service):
+        players = [
+            make_player("Alice", discord_id="111"),
+            make_player("Bob", discord_id="222"),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == []
+
+    def test_seed_dm_blocked_lists_both_players_in_row_order(self, display_service):
+        players = [
+            make_player("Carol", discord_id=None),
+            make_player("Bob", discord_id="222", dm_notifications=False),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == ["Carol", "Bob"]
+
+    def test_seed_dm_blocked_is_empty_for_a_match_with_no_players(self, display_service):
+        result = display_service._format_match_for_display(make_match(players=[]))
+        assert result["seed_dm_blocked"] == []
+
+    def test_an_empty_string_discord_id_counts_as_unreachable(self, display_service):
+        """A blank link is as undeliverable as a missing one."""
+        result = display_service._format_match_for_display(
+            make_match(players=[make_player("Dana", discord_id="")])
+        )
+        assert result["seed_dm_blocked"] == ["Dana"]
 
 
 class TestFormatMatchBracket:

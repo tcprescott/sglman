@@ -61,6 +61,15 @@ class RecordResultRequest(BaseModel):
     winner_id: int = Field(..., description="The MatchPlayers row id of the winner")
 
 
+class SetReviewRequest(BaseModel):
+    needs_review: bool = Field(
+        ..., description="True to flag the recorded result for admin review, false to clear it"
+    )
+    note: Optional[str] = Field(
+        None, description="Why the result is contested; ignored when clearing"
+    )
+
+
 class CrewSignupRequest(BaseModel):
     role: str = Field(..., description="'commentator' or 'tracker'")
 

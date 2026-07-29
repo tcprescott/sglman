@@ -7,17 +7,24 @@ current user's discord id the column slots use (``match_slots.py``).
 
 The card is deliberately bespoke (not a generic ``label: value`` loop): a
 headline row (scheduled time + compact state chip), a players line (ack icons,
-``(auto)`` markers, winner emphasis, admin stations, self-ack), a muted caption
-(tournament + ``#id`` edit link), ``v-if``-gated detail rows that render nothing
-when empty (commentators, trackers, stage, seed, comment), and a single
-top-bordered actions row (lifecycle button, Assign Stations, watch toggle).
+``(auto)`` markers, winner emphasis, admin stations, self-ack), the dispute flag
+with the proctor's note as text, a muted caption (tournament + ``#id`` edit
+link), ``v-if``-gated detail rows that render nothing when empty (commentators,
+trackers, stage, seed, comment), and a single top-bordered actions row
+(lifecycle button, Assign Stations, watch toggle).
+
+Two orders exist. By default the actions row is last, below every detail —
+right for a board that is read more than it is acted on. With
+``actions_first=True`` (the proctor board) it sits directly under the player
+names so the next action is reachable without scrolling past the metadata, and
+carries ``mgc-actions--first`` to move its divider from top to bottom.
 
 Styling lives entirely in ``.match-grid-card`` / ``.mgc-*`` (``styles.css``) so
 light/dark parity is automatic — no inline colors here. The template is
-assembled from plain (non-f) string fragments; the four server booleans are
-substituted via ``__IA__`` / ``__CC__`` / ``__DID__`` / ``__WATCH__`` placeholders
-(the same technique ``match_slots.py`` uses), which keeps every literal Vue
-``{{ }}`` unescaped and the braces valid.
+assembled from plain (non-f) string fragments; the server-side values are
+substituted via ``__IA__`` / ``__CC__`` / ``__DID__`` / ``__WATCH__`` /
+``__ACTCLS__`` placeholders (the same technique ``match_slots.py`` uses), which
+keeps every literal Vue ``{{ }}`` unescaped and the braces valid.
 
 Frozen event contract (payload shapes the handlers in ``match_handlers.py``
 depend on — do not change):
@@ -26,6 +33,7 @@ depend on — do not change):
     signup_/undo_commentator|tracker -> props.row
     acknowledge_/edit_commentator|tracker -> { row: props.row, idx }
     seat/start/finish/confirm      -> { key: props.row.id }
+    edit_result                    -> { key: props.row.id }
     roll                           -> { key: props.row.id }   (+ _generating_seed)
     edit-stream-room               -> { key: props.row.id }
     assign_stations                -> { row: props.row }
@@ -57,16 +65,19 @@ _PLAYERS = '''
             <template v-for="(player, idx) in props.row.players">
                 <div class="mgc-player">
                     <q-icon v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged"
-                            name="check_circle" class="st-ok" size="xs">
-                        <q-tooltip v-if="props.row.acknowledgments[idx].ts">Acknowledged {{ props.row.acknowledgments[idx].ts }}</q-tooltip>
+                            name="how_to_reg" class="st-ok" size="xs">
+                        <q-tooltip>Confirmed they're playing{{ props.row.acknowledgments[idx].ts ? ' — ' + props.row.acknowledgments[idx].ts : '' }}. Not a check-in.</q-tooltip>
                     </q-icon>
                     <q-icon v-else-if="props.row.acknowledgments && props.row.acknowledgments[idx]"
-                            name="schedule" class="st-pending" size="xs">
-                        <q-tooltip>Awaiting acknowledgment</q-tooltip>
+                            name="person_outline" class="st-pending" size="xs">
+                        <q-tooltip>Hasn't confirmed they're playing</q-tooltip>
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
-                        {{ player.name }}<span v-if="__IA__ && player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
+                        {{ player.name }}<span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
+                            <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
+                    <span v-if="player.finish_rank === 1" class="wiz-chip wiz-chip--ok q-ml-xs">
+                        <q-icon name="emoji_events" size="12px" />Winner</span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note"> (auto)</span>
                     <q-btn v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && !props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].discord_id && props.row.acknowledgments[idx].discord_id == __DID__"
@@ -76,6 +87,24 @@ _PLAYERS = '''
                     </q-btn>
                 </div>
             </template>
+        </div>'''
+
+
+# --- Dispute flag ----------------------------------------------------------
+
+# Mirrors the "Needs review" chip in the desktop State cell — but renders the
+# proctor's note as **text**. The desktop hangs it on a q-tooltip, and a tooltip
+# is unreachable on a touch screen, which is where most of this board is read.
+# Sits directly under the player names: "an admin should look at this" outranks
+# every other line on the card.
+_REVIEW_DETAIL = '''
+        <div class="mgc-detail" v-if="props.row.needs_review">
+            <span class="mgc-label">Review</span>
+            <span class="mgc-detail-value">
+                <span class="wiz-chip wiz-chip--pending">
+                    <q-icon name="report_problem" size="14px" />Needs review</span>
+                <span v-if="props.row.review_note" class="st-pending" style="flex-basis: 100%;">{{ props.row.review_note }}</span>
+            </span>
         </div>'''
 
 
@@ -142,11 +171,12 @@ _STREAM_DETAIL = '''
 # Generated seed. Admin with a configured generator and no seed gets a Generate
 # button (emitting { key: props.row.id } and flagging _generating_seed); once a
 # seed exists everyone gets a truncated link. Empty for non-admins -> nothing.
+# A racetime.gg room owns its own seed, so no Generate button there.
 _SEED_DETAIL = '''
-        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && props.row.tournament_seed_generator)">
+        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && props.row.tournament_seed_generator && !props.row.is_racetime)">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed"
+                <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed && !props.row.is_racetime"
                        :loading="props.row._generating_seed" :disabled="props.row._generating_seed"
                        icon="casino" color="primary" size="sm" dense outline
                        @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
@@ -156,6 +186,14 @@ _SEED_DETAIL = '''
                     <a v-if="props.row.generated_seed.startsWith('https://') || props.row.generated_seed.startsWith('http://')"
                        :href="props.row.generated_seed" target="_blank" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>
                     <span v-else>{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</span>
+                </template>
+                <template v-if="props.row.generated_seed && props.row.seed_dm_blocked && props.row.seed_dm_blocked.length">
+                    <span class="st-pending" style="flex-basis: 100%;">
+                        <q-icon name="notifications_off" size="14px" class="q-mr-xs" />Can't receive a Discord DM: {{ props.row.seed_dm_blocked.join(', ') }} — hand them the seed.
+                    </span>
+                    <span class="st-neutral italic-note" style="flex-basis: 100%;">
+                        Shows who is unreachable, not whether a DM arrived.
+                    </span>
                 </template>
             </span>
         </div>'''
@@ -168,21 +206,32 @@ _COMMENT_DETAIL = '''
         </div>'''
 
 
-# --- Actions row: lifecycle button + Assign Stations + watch toggle --------
+# --- Actions row: lifecycle button + Change Winner + Assign Stations + watch --
+# "Change Winner" mirrors the desktop pencil, but labelled: an icon-only button
+# whose meaning lives in a tooltip is unreadable on a touch screen.
 
 _ACTIONS = '''
-        <div class="mgc-actions row items-center" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && __CC__) || __WATCH__">
-            <q-btn v-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime" icon="chair" color="primary" size="md"
+        <div class="__ACTCLS__" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length) || __WATCH__">
+            <q-btn v-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime && props.row.players && props.row.players.length"
+                   icon="chair" color="primary" size="md"
                    @click="$parent.$emit('seat', { key: props.row.id })">Check In</q-btn>
+            <div v-else-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime" class="st-neutral italic-note">
+                Awaiting players</div>
             <div v-else-if="__IA__ && props.row.state === 'Scheduled' && props.row.is_racetime" class="st-neutral italic-note">
                 Managed by racetime.gg</div>
             <q-btn v-else-if="__IA__ && props.row.state === 'Checked In'" icon="play_arrow" color="primary" size="md"
                    @click="$parent.$emit('start', { key: props.row.id })">Start</q-btn>
             <q-btn v-else-if="__IA__ && props.row.state === 'Started'" icon="sports_score" color="primary" size="md"
                    @click="$parent.$emit('finish', { key: props.row.id })">Finish</q-btn>
-            <q-btn v-else-if="__IA__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
+            <q-btn v-else-if="__IA__ && __CC__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
                    @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
-            <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" icon="switch_access_shortcut" color="primary" size="md" outline
+            <span v-else-if="__IA__ && props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
+                <q-icon name="flag" size="14px" />Awaiting confirmation</span>
+            <q-btn v-if="__IA__ && __CC__ && props.row.state === 'Finished'"
+                   icon="edit" color="primary" size="md" outline
+                   @click="$parent.$emit('edit_result', { key: props.row.id })">Change Winner</q-btn>
+            <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
+                   icon="switch_access_shortcut" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"
@@ -199,14 +248,15 @@ _CARD_CLOSE = '''
 
 
 def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, discord_id,
-                     has_edit: bool = True) -> None:
+                     has_edit: bool = True, actions_first: bool = False) -> None:
     """Register the purpose-built grid ``item`` slot on ``table``.
 
     Only fields that appear as (non-hidden) columns are rendered, preserving
     parity with the desktop table on each page. The four server-side flags are
     baked into the template so client-side branches collapse to constants.
     ``has_edit`` mirrors the caller's edit callback: without one the caption id
-    renders as plain text instead of a dead link.
+    renders as plain text instead of a dead link. ``actions_first`` lifts the
+    lifecycle row directly under the player names (the proctor board's order).
     """
     present = {c.get('name', '') for c in columns if not c.get('hidden')}
     labels = {c.get('name', ''): c.get('label', c.get('name', '')) for c in columns}
@@ -219,13 +269,18 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
     # Headline (scheduled time + optional state chip)
     headline = (
         '\n        <div class="mgc-headline">'
-        '<span class="mgc-time">{{ props.row.scheduled_at }}</span>'
+        # Mirrors the desktop scheduled_at cell's overdue emphasis (match_slots).
+        '<span class="mgc-time" :class="props.row.is_overdue ? \'st-pending\' : \'\'">{{ props.row.scheduled_at }}'
+        '<q-icon v-if="props.row.is_overdue" name="schedule" class="st-pending q-ml-xs" size="xs">'
+        '<q-tooltip>Past its scheduled time and not checked in</q-tooltip>'
+        '</q-icon></span>'
         + (_STATE_CHIP if 'state' in present else '')
         + '\n        </div>'
     )
 
-    # Players line
+    # Players line, then the dispute flag (only when the row carries one).
     players = _PLAYERS if 'players' in present else ''
+    review = _REVIEW_DETAIL if 'state' in present else ''
 
     # Caption (tournament + #id edit link)
     caption_inner = ''
@@ -268,10 +323,18 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
         details += _SEED_DETAIL.replace('__LABEL__', 'Seed')
     details += _COMMENT_DETAIL.replace('__LABEL__', labels.get('comment', 'Comment'))
 
-    # Actions (only worth emitting when an admin or the watch toggle is in play)
+    # Actions (only worth emitting when an admin or the watch toggle is in play).
+    # Hoisted above the caption/detail rows when the caller asked for it, with a
+    # sibling class that flips the row's divider from top to bottom.
     actions = _ACTIONS if (admin_controls or 'watch' in present) else ''
+    act_cls = ('mgc-actions mgc-actions--first row items-center' if actions_first
+               else 'mgc-actions row items-center')
 
-    template = _CARD_OPEN + headline + players + caption + details + actions + _CARD_CLOSE
+    template = (
+        _CARD_OPEN + headline + players + review + actions + caption + details + _CARD_CLOSE
+        if actions_first else
+        _CARD_OPEN + headline + players + review + caption + details + actions + _CARD_CLOSE
+    )
 
     template = (
         template
@@ -279,6 +342,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
         .replace('__CC__', cc)
         .replace('__WATCH__', watch_js)
         .replace('__DID__', did)
+        .replace('__ACTCLS__', act_cls)
     )
 
     table.add_slot('item', template)

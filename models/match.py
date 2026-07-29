@@ -31,6 +31,13 @@ class Match(Model):
     speedgaming_episode = fields.OneToOneField(
         'models.SpeedGamingEpisode', related_name='match', null=True, on_delete=fields.SET_NULL
     )
+    # Proctor-set "an admin should look at this before confirming" flag, with the
+    # proctor's own words. Cleared when the admin confirms — confirming *is* the
+    # resolution. Deliberately not a state: the match is still Finished.
+    needs_review = fields.BooleanField(default=False)
+    # Survives the flag being cleared: the note is the record of *why* it was
+    # contested, and a confirmed match keeps it.
+    review_note = fields.TextField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -117,6 +124,31 @@ class StreamRoom(Model):
 
     class Meta:
         table = 'streamroom'
+        unique_together = (('tenant', 'name'),)
+
+
+class Station(Model):
+    """A physical seat/setup in the venue a match player can be assigned to.
+
+    The pool a proctor picks from. ``MatchPlayers.assigned_station`` stores the
+    *label*, not an FK: the pool is a picker and a validation source, and a
+    community that has defined no stations keeps the historical free-text
+    behaviour.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='stations', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=50)
+    # Free-text grouping ("North wall", "Row A") shown beside the name in the
+    # picker. Purely a label — it carries no pairing semantics.
+    section = fields.CharField(max_length=50, null=True)
+    sort_order = fields.IntField(default=0)
+    is_active = fields.BooleanField(default=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'station'
         unique_together = (('tenant', 'name'),)
 
 

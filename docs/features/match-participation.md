@@ -60,6 +60,96 @@ itself is web-only — there is no Watch button on Discord, only Unwatch.
 Someone who is both a player and a watcher gets one DM per event, not two; dedup
 happens in `MatchScheduleService` before the send loop.
 
+## Check-in and the station pool
+
+Check-in is **per match**, not per player: a proctor checks a match in once both
+players are in the room, which stamps the single match-level `Match.seated_at`.
+The same flow seats each player at a numbered station.
+
+### The station pool
+
+`Station` is the venue's fixed pool of physical seats — managed by STAFF on
+**Admin → Settings → Station Pool** (`StationService`), beneath the
+`StationFormat` control it belongs with. A station has a `name` (the label), an
+optional free-text `section` ("North wall") that is display-only, a `sort_order`,
+and an `is_active` flag. Names are unique per tenant.
+
+`MatchPlayers.assigned_station` stores the **label**, not an FK. Two consequences
+follow, and both are deliberate:
+
+- **The pool is advisory until it exists.** A community with zero `Station` rows
+  keeps the historical free-text field validated only by the `StationFormat`
+  regex. This is why the station pool has no per-tenant feature flag — it
+  self-gates.
+- **Deleting a station does not rewrite history.** Past matches keep their text.
+  Deactivate rather than delete.
+
+### Double-booking
+
+`MatchService.assign_stations` runs one validation ladder, reporting the most
+specific problem first:
+
+1. the same station assigned to both players of this match;
+2. the label fails the tenant's `StationFormat` regex;
+3. the label is not in the pool — *only* once the pool is non-empty;
+4. the station is already in use by another match in play.
+
+**Occupancy is derived, never stored.** A station is in use when some match that
+is **seated and not finished** has a player assigned to it. It frees up when that
+match *finishes*, not when an admin confirms it — the seat is physically empty at
+that point. The lookup (`MatchRepository.occupied_stations`) excludes the match
+being edited, so re-assigning a match to the station it already occupies is
+allowed, and it is tenant-scoped, so two communities that both call a station "1"
+never block each other.
+
+There is **no pairing rule**: which two stations a proctor picks is their
+judgment, and the app neither computes nor suggests opposite-side pairs.
+
+## Disputed results
+
+The agreed model is *the proctor records their best guess and the admin
+overrides during confirmation*. The dispute signal that makes that workable is
+**a flag plus a note, not a workflow** — there is no dispute state, no
+assignment, no thread, and no notification beyond the domain event.
+
+Two columns on `Match` carry it: `needs_review` (bool) and `review_note` (text).
+The match stays `Finished` throughout; nothing about the state machine changes.
+
+**Raising it.** The proctor ticks *Flag for admin review* in the result dialog
+(`theme/dialog/match_result_dialog.py`) when they record the winner, and types
+what happened. The checkbox exists only in the dialog's `record` mode — the
+admin reaching the same dialog in `edit` mode to correct a winner *is* the
+review, so offering them the flag would let them raise a dispute with
+themselves. The dialog calls `MatchService.flag_for_review` **after** its
+`on_submit` finishes the match, because a match that is not finished yet cannot
+be flagged (`ValueError`). Gate: `can_run_match` — this is the proctor's own
+action, and they are the one in the room who saw the disagreement.
+
+**Seeing it.** `MatchDisplayService` puts `needs_review` / `review_note` on
+every table row. The desktop State cell shows a "Needs review" chip above the
+Confirm button with the note on a tooltip; the mobile card renders the same chip
+**and the note as text**, because a tooltip is unreachable on a touch screen.
+The admin Schedule tab's review-queue strip counts flagged matches separately
+from merely-unconfirmed ones, since a contested result needs a decision and an
+uncontested one needs a click.
+
+**Resolving it.** *Confirming the match is the resolution* — an admin
+confirming has, by definition, looked at it, so `confirm_match` clears
+`needs_review` and writes a second `match.review_cleared` audit row carrying the
+note (`resolved_by: 'confirmation'`). `MatchService.clear_review` drops the flag
+without confirming, for "looked at it, nothing to fix, not confirming yet";
+it is gated on `can_confirm_match`, so a proctor cannot unflag their own
+dispute. **Neither clears `review_note`** — the note is the record of *why* the
+result was contested, and a resolved dispute still happened.
+
+Both directions are also reachable over REST as `POST /matches/{id}/review`
+(`{needs_review, note?}`), with the same split gates. Both emit domain events
+(`match.flagged_for_review`, `match.review_cleared`): a contested result is
+exactly what an alerting webhook subscriber wants to hear about.
+
+The dispute flag has **no per-tenant feature flag** — like the station pool it
+self-gates, since a community that never ticks the box never sees it.
+
 ## Models
 
 | Model | Holds |
@@ -67,5 +157,6 @@ happens in `MatchScheduleService` before the send loop.
 | `Commentator`, `Tracker` | crew signups; `approved` bool, `acknowledged_at` timestamp |
 | `MatchAcknowledgment` | per-player acknowledgment state per match |
 | `MatchWatcher` | user × match watch subscriptions |
+| `Station` | the venue's pool of physical seats (per tenant; label-referenced) |
 
 Field-level detail: [reference/data-model.md](../reference/data-model.md).
