@@ -62,6 +62,16 @@ instead — **volunteering**, **equipment lending**, **Challonge**, **API tokens
 [data-model](reference/data-model.md), [services](reference/services.md),
 [frontend](reference/frontend.md) and [rest-api](reference/rest-api.md).
 
+## Work in flight (`plans/`, `reviews/`)
+
+Transient by the convention below — each is deleted once its work ships, and the
+feature docs become the truth.
+
+| Doc | What it is |
+|---|---|
+| [reviews/2026-07-proctor-workflow-ux-audit.md](reviews/2026-07-proctor-workflow-ux-audit.md) | UX audit of the proctor's on-site match workflow and the admin result-verification step that follows it. 18 findings, evidence from a live browser pass |
+| [plans/proctor-ux/](plans/proctor-ux/README.md) | Implementation plan for that audit — four dependency-ordered waves, written to be executed task-by-task |
+
 ## Conventions for this directory
 
 - **CLAUDE.md is canonical for rules.** A doc here explains mechanism and gives examples; it should not restate a rule CLAUDE.md already states — that is how the two drift apart.
