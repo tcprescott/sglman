@@ -19,7 +19,7 @@ and [`bracket_engines/`](../../application/services/bracket_engines/) (engines +
 standings),
 [`bracket_repository.py`](../../application/repositories/bracket_repository.py),
 [`api/routers/brackets.py`](../../api/routers/brackets.py); surfaces in
-[`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py),
+[`pages/admin_tabs/admin_brackets/`](../../pages/admin_tabs/admin_brackets/),
 [`pages/brackets.py`](../../pages/brackets.py) (public),
 [`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py) (browse tab) and
 [`theme/brackets/`](../../theme/brackets/) + [`static/css/brackets.css`](../../static/css/brackets.css).
@@ -267,7 +267,8 @@ Every write is Staff-gated (`AuthService.is_staff`), audits an
 the [event bus](event-system.md): `BRACKET_CREATED`, `BRACKET_STARTED`,
 `BRACKET_MATCH_COMPLETED`, `BRACKET_ADVANCED` (next Swiss round),
 `BRACKET_COMPLETED`, `BRACKET_STAGE_ADVANCED`, `BRACKET_ENTRANT_ADDED`,
-`BRACKET_ENTRANT_DROPPED`, and the per-game `BRACKET_GAME_SCHEDULED` /
+`BRACKET_ENTRANT_DROPPED`, `BRACKET_ENTRANT_UPDATED` (the entrant's user link — the
+third roster mutation beside add and drop), and the per-game `BRACKET_GAME_SCHEDULED` /
 `BRACKET_GAME_COMPLETED` / `BRACKET_GAME_CANCELLED` plus
 `BRACKET_GAME_LINKED` / `BRACKET_GAME_UNLINKED` for the staff link/unlink of an
 existing `Match`, and `BRACKET_GAME_RELEASED` when a cancelled or deleted `Match`
@@ -412,7 +413,9 @@ to TRF(x) and feeding it to the real parser when `BBPPAIRINGS_BIN` is set.
 ## Dev seed
 
 [`scripts/seed_brackets.py`](../../scripts/seed_brackets.py) creates, per tenant, a
-"Bracket Demo" tournament per format in a mid-play state plus a two-stage
+"Bracket Demo" tournament per format in a mid-play state, a **DRAFT** stage still
+being authored (with unrostered `TournamentPlayers` so the admin's roster import
+and link-user controls have something to act on), plus a two-stage
 groups→playoff tournament mid-chain. It drives the real `BracketService`, so the
 persisted graph is internally consistent, and leaves the live states the card
 renderer needs (a game in progress, one awaiting confirmation, an unbooked

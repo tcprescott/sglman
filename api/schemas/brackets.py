@@ -193,6 +193,19 @@ class BracketUpdateRequest(BaseModel):
     name: Optional[str] = None
     stage_order: Optional[int] = None
     config: Optional[Dict[str, Any]] = None
+    format: Optional[BracketFormat] = None
+
+
+class EntrantUserRequest(BaseModel):
+    """Link a roster entrant to a user account (null unlinks)."""
+
+    user_id: Optional[int] = None
+
+
+class RosterImportRequest(BaseModel):
+    """Import a tournament's enrolled players as linked entrants."""
+
+    tournament_id: int
 
 
 class RoundMetadataRequest(BaseModel):
@@ -243,6 +256,8 @@ __all__ = [
     'RoundMetadataRequest',
     'SetSeedsRequest',
     'EntrantCreateRequest',
+    'EntrantUserRequest',
+    'RosterImportRequest',
     'EnrollRequest',
     'ReportResultRequest',
     'AdvanceStageRequest',

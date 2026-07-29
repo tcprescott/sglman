@@ -604,6 +604,27 @@ This is not a rewrite. Several things here are better than the commercial tools.
 
 ### Wave 1 — Make mistakes survivable (small effort, removes every blocker's sharpest edge)
 
+> **Status: shipped.** All ten items are implemented; the page is now the package
+> `pages/admin_tabs/admin_brackets/` (it crossed the 800-line budget mid-change).
+> Two deliberate departures from the plan below, both narrowing it:
+>
+> - **Item 8** filters Challonge-linked tournaments out of the selector but keeps
+>   inactive ones (sorted last, suffixed `(inactive)`). Filtering on `is_active`
+>   would have made an old tournament's existing stages unreachable — the finding
+>   was clutter, and the fix should not cost access.
+> - **Item 9** disables the seeding controls outside DRAFT but leaves the
+>   Add-entrant form live. Adding to the roster genuinely works in any state
+>   (`add_entrant` has no state check) and is useful for a later stage; only
+>   *enrollment* and *seeding* are DRAFT-only, and those are what is now disabled,
+>   under a caption that says so.
+>
+> Two things came along because the change made them cheap and their absence was
+> a live defect: the roster import and the entrant link are exposed over REST too
+> (`POST /brackets/entrants/import`, `PATCH /brackets/entrants/{id}/user`) rather
+> than being UI-only, and `scripts/seed_dev.py` now seeds a DRAFT stage — without
+> one, every new control in this wave was invisible to the browser-validation
+> loop and to anyone running the dev app.
+
 1. **Edit + Delete row actions**, `v-if`-gated on `props.row.state === 'draft'`
    (P1). Refactor `open_create()` into `open_form(existing=None)` prefilling from
    the row and calling `update_bracket`; route delete through the

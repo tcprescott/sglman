@@ -236,12 +236,14 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 | Method | Returns | Description |
 |---|---|---|
 | `create_bracket(actor, tournament_id, name, format, stage_order=0, config=None)` | `Bracket` | Create a DRAFT stage; rejects a Challonge-linked tournament, a duplicate `stage_order`, and (via `validate_bracket_config`) a bad config. Audits/events `BRACKET_CREATED`. |
-| `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None)` | `Bracket` | Edit a DRAFT stage's name / order / config. Audits `BRACKET_UPDATED`. |
+| `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None, format=None)` | `Bracket` | Edit a DRAFT stage's name / order / config / **format** — the format is safe to change precisely because a DRAFT stage has no match graph and nothing but `start_bracket` reads it. Audits `BRACKET_UPDATED`. |
 | `set_round_metadata(actor, bracket_id, rounds)` | `Bracket` | Replace the per-round display metadata (`{round: {best_of, scheduled_at}}`), allowed in **any** state since round chrome never touches the graph. Audits `BRACKET_UPDATED`. |
 | `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. Audits `BRACKET_DELETED`. |
 | `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. |
 | `list_all_brackets()` | `list[Bracket]` | Every stage in the tenant with its tournament prefetched, active tournaments first then name then `stage_order` — the one read behind the anonymous home **Brackets** tab, which groups the rows rather than querying per tournament. |
 | `add_entrant(actor, tournament_id, display_name, user_id=None)` | `BracketEntrant` | Add a roster entrant — placeholder (`user_id=None`) or linked. Audits/events `BRACKET_ENTRANT_ADDED`. |
+| `set_entrant_user(actor, entrant_id, user_id)` | `BracketEntrant` | Link a roster entrant to a user account (`None` unlinks) — the only way to resolve a placeholder after creation, and what makes its matchups schedulable, DM-able and race-room-joinable. Allowed in **any** state: it names who the entrant *is*. Audits/events `BRACKET_ENTRANT_UPDATED`. |
+| `import_entrants_from_roster(actor, tournament_id)` | `list[BracketEntrant]` | Create a linked entrant per enrolled player not already rostered (matched on `user_id`), returning only the new ones. Idempotent, so it can be re-run after late signups. Audits/events `BRACKET_ENTRANT_ADDED` per entrant, as `add_entrant` does. |
 | `drop_entrant(actor, entrant_id)` | `BracketEntrant` | Mark an entrant `DROPPED`. Audits/events `BRACKET_ENTRANT_DROPPED`. |
 | `enroll(actor, bracket_id, entrant_id, seed=None, group_number=None)` | `BracketEntry` | Enroll a roster entrant into a DRAFT stage (once per stage). |
 | `set_seeds(actor, bracket_id, seeds)` | `None` | Bulk-set per-entry seeds (`entry_id → seed`, `None` clears), DRAFT only. The whole resulting seeding is validated before any write, so a duplicate or `<1` seed changes nothing. Audits `BRACKET_UPDATED`. |

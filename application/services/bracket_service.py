@@ -159,6 +159,7 @@ class BracketService(
         name: Optional[str] = None,
         stage_order: Optional[int] = None,
         config: Optional[Dict[str, Any]] = None,
+        format: Optional[Union[str, BracketFormat]] = None,
     ) -> Bracket:
         await AuthService.ensure(
             await AuthService.is_staff(actor),
@@ -173,6 +174,10 @@ class BracketService(
             if not name.strip():
                 raise ValueError("Bracket name cannot be empty")
             update_data['name'] = name.strip()
+        if format is not None:
+            # Safe while DRAFT precisely because no match graph exists yet: the
+            # format is only read by ``start_bracket`` when it picks an engine.
+            update_data['format'] = self._coerce_format(format)
         if stage_order is not None and stage_order != bracket.stage_order:
             existing = await self.repository.get_stage(bracket.tournament_id, stage_order)
             if existing is not None and existing.id != bracket.id:
@@ -328,6 +333,96 @@ class BracketService(
             EventType.BRACKET_ENTRANT_ADDED,
         )
         return entrant
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def set_entrant_user(
+        self,
+        actor: Optional[User],
+        entrant_id: int,
+        user_id: Optional[int],
+    ) -> BracketEntrant:
+        """Link a roster entrant to a user account (``None`` unlinks).
+
+        The link is what makes a matchup schedulable, DM-able and joinable to a
+        race room, and :meth:`add_entrant` is the only other place it can be set —
+        so a placeholder seeded before signups closed would otherwise be stuck
+        unlinked for the life of the tournament. Editable in any bracket state:
+        it names who the entrant *is*, and identity does not become wrong the
+        moment a stage starts.
+        """
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can manage brackets",
+        )
+        entrant = require_found(await self.repository.get_entrant(entrant_id), "Entrant")
+        if user_id is not None:
+            require_found(await UserRepository.get_by_id(user_id), f"User {user_id}")
+        entrant = await self.repository.update_entrant(entrant, user_id=user_id)
+        await self.audit_service.write_and_publish(
+            actor,
+            AuditActions.BRACKET_ENTRANT_UPDATED,
+            {
+                'entrant_id': entrant.id,
+                'tournament_id': entrant.tournament_id,
+                'changed': ['user_id'],
+                'user_id': user_id,
+            },
+            EventType.BRACKET_ENTRANT_UPDATED,
+        )
+        return entrant
+
+    @requires_feature(FeatureFlag.BRACKETS)
+    async def import_entrants_from_roster(
+        self, actor: Optional[User], tournament_id: int
+    ) -> List[BracketEntrant]:
+        """Create a linked entrant for every enrolled player not already rostered.
+
+        The tournament's own signup list is the roster staff already collected,
+        so importing it is both the fast path to a field and the only one that
+        links every entrant by construction. Idempotent: a player who already has
+        an entrant (matched on ``user_id``) is skipped, so it can be re-run after
+        late signups.
+        """
+        await AuthService.ensure(
+            await AuthService.is_staff(actor),
+            "Only Staff can manage brackets",
+        )
+        await self._require_tournament(tournament_id)
+
+        existing = await self.repository.list_entrants(tournament_id)
+        already_linked = {en.user_id for en in existing if en.user_id is not None}
+        enrolled = await TournamentRepository.get_enrolled_players_by_tournament_id(
+            tournament_id
+        )
+
+        created: List[BracketEntrant] = []
+        for tp in enrolled:
+            user = tp.user
+            if user is None or user.id in already_linked:
+                continue
+            already_linked.add(user.id)
+            entrant = await self.repository.create_entrant(
+                tournament_id=tournament_id,
+                display_name=user.preferred_name or user.username,
+                user_id=user.id,
+                status=BracketEntrantStatus.ACTIVE,
+            )
+            created.append(entrant)
+            # The same per-entrant audit + event ``add_entrant`` writes: a
+            # subscriber tracking the roster must not go blind on a bulk import.
+            await self.audit_service.write_and_publish(
+                actor,
+                AuditActions.BRACKET_ENTRANT_ADDED,
+                {
+                    'entrant_id': entrant.id,
+                    'tournament_id': tournament_id,
+                    'display_name': entrant.display_name,
+                    'user_id': user.id,
+                    'source': 'roster_import',
+                },
+                EventType.BRACKET_ENTRANT_ADDED,
+            )
+        return created
 
     @requires_feature(FeatureFlag.BRACKETS)
     async def drop_entrant(self, actor: Optional[User], entrant_id: int) -> BracketEntrant:

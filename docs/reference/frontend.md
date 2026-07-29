@@ -287,7 +287,7 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 | [`admin_features.py`](../../pages/admin_tabs/admin_features.py) | Features | Per-tenant feature-flag enable/disable (STAFF) — see [feature-flags.md](../features/feature-flags.md) |
 | [`admin_theme.py`](../../pages/admin_tabs/admin_theme.py) | Appearance | Per-tenant brand colours (STAFF); see [per-tenant theme](#per-tenant-theme-colours) |
 | [`admin_challonge.py`](../../pages/admin_tabs/admin_challonge.py) | Challonge | Manage the shared Challonge connection and per-tournament bracket sync |
-| [`admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py) | Brackets | Native bracket authoring, roster/seeding, start, results/overrides, complete & advance (STAFF, `BRACKETS` flag) — see [Admin brackets](#admin-brackets-pagesadmin_tabsadmin_bracketspy) |
+| [`admin_brackets/`](../../pages/admin_tabs/admin_brackets/) | Brackets | Native bracket authoring, roster/seeding, start, results/overrides, complete & advance (STAFF, `BRACKETS` flag) — see [Admin brackets](#admin-brackets-pagesadmin_tabsadmin_bracketspy) |
 | [`admin_discord_roles.py`](../../pages/admin_tabs/admin_discord_roles.py) | Discord Roles | Map Discord roles to application roles for sign-in role sync |
 | [`admin_webhooks.py`](../../pages/admin_tabs/admin_webhooks.py) | Webhooks | Staff-managed outbound webhooks: add/edit (URL, event multiselect, active), regenerate secret, recent deliveries, delete — see [../features/webhooks.md](../features/webhooks.md) |
 | [`admin_equipment.py`](../../pages/admin_tabs/admin_equipment.py) | Equipment | Asset CRUD, checkout/checkin, and QR-page links |
@@ -367,17 +367,23 @@ Two tab functions live in this module.
 - A `@ui.refreshable` connection card from `ChallongeService.get_connection_status` (configured/connected state, username, scopes, token expiry, monthly request quota) with **Connect** (→ `/challonge/connect`) / **Disconnect** for staff.
 - A `@ui.refreshable` "Linked tournaments" list (`Tournament.filter(challonge_tournament_id__isnull=False)`) with last-synced timestamps and a per-tournament **Sync** button (`ChallongeService.sync_bracket(..., force=True)`).
 
-### Admin brackets (`pages/admin_tabs/admin_brackets.py`)
+### Admin brackets (`pages/admin_tabs/admin_brackets/`)
 
-`admin_brackets_page()` — the staff surface over `BracketService`. A tournament selector drives a `ui.table` of that tournament's stages (Stage, Name, Format, State) with a `body-cell-actions` slot + `enable_mobile_grid`. Because row-action handlers fire from detached client events that have lost the tenant contextvar, every scoped call is wrapped in `tenant_scope(tenant_id)` captured while the request context was live, and `context.client` is captured and re-entered for each dialog. All dialogs use the house chrome (`form_dialog` + `dialog_actions`) so their actions stay reachable on a phone. `wire_tab_refresh('Brackets', …)` refreshes the table on tab entry; handlers catch service `ValueError`/`PermissionError` and surface them via `notify_error`.
+`admin_brackets_page()` — the staff surface over `BracketService`, a package: `page.py` (selector, table, row dispatch), `stage_form.py` (create/edit/delete), `manage.py`, `results.py` and `shared.py`. A tournament selector drives a `ui.table` of that tournament's stages (Stage, Name, Format, State) with a `body-cell-actions` slot + `enable_mobile_grid`. Because row-action handlers fire from detached client events that have lost the tenant contextvar, every scoped call is wrapped in `tenant_scope(tenant_id)` captured while the request context was live, and `context.client` is captured and re-entered for each dialog. All dialogs use the house chrome (`form_dialog` + `dialog_actions`) so their actions stay reachable on a phone. `wire_tab_refresh('Brackets', …)` refreshes the table on tab entry; handlers catch service `ValueError`/`PermissionError` and surface them via `notify_error`.
 
-| Row action | Dialog | Service calls |
-|---|---|---|
-| **Create bracket** | name, format, stage order + a "Format / advancement options" expansion (Swiss rounds, round-robin group count, advancement rule) | `create_bracket` |
-| **Manage** (`tune`) | roster / enroll / seed / start, plus a per-round best-of + scheduled-time editor | `add_entrant`, `enroll`, `set_seeds`, `set_round_metadata`, `start_bracket` (+ `list_entrants`/`list_entries` reads) |
-| **Results** (`scoreboard`) | open + completed matches; for elimination formats it **embeds the shared bracket renderer** so staff report/override through the same visual dialog the public page uses (`build_match_dialog`) | `report_result`, `override_result` |
-| **Complete stage** (`flag`) | confirm before locking | `complete_stage` |
-| **Advance** (`fast_forward`) | preview + confirm | `get_advancing_preview`, then `advance_stage` |
+The selector lists only tournaments with no Challonge link (a native bracket cannot coexist with one, so the rest could only ever answer "Create bracket" with an error), sorts inactive ones last with an `(inactive)` suffix, and auto-selects when there is exactly one.
+
+Every row action is `v-if`-gated on the row's own state, so the table never offers a transition the service would refuse:
+
+| Row action | Shown when | Dialog | Service calls |
+|---|---|---|---|
+| **Create bracket** | always (toolbar) | name, format, stage order (defaulting to `max + 1`) + a "Format / advancement options" expansion (Swiss rounds, round-robin group count, advancement rule) | `create_bracket` |
+| **Edit** (`edit`) | DRAFT | the same form, prefilled — including the **format**, which a DRAFT stage can still change because it has no match graph. Config keys the form does not own (round chrome) are carried through untouched | `update_bracket` |
+| **Delete** (`delete`) | DRAFT | `ConfirmationDialog` | `delete_bracket` |
+| **Manage** (`tune`) | DRAFT / ACTIVE | roster / enroll / seed / start, plus a per-round best-of + scheduled-time editor. **Import roster** creates a linked entrant per enrolled player; a per-entrant `link`/`link_off` button picks the user by preferred name (never a raw id); enrollment and seeding controls disable outside DRAFT; **Start** confirms, naming the publish, the DM count and any unlinked entrants | `import_entrants_from_roster`, `add_entrant`, `set_entrant_user`, `enroll`, `set_seeds`, `set_round_metadata`, `start_bracket` (+ `list_entrants`/`list_entries` reads) |
+| **Results** (`scoreboard`) | ACTIVE / COMPLETE | open + completed matches; for elimination formats it **embeds the shared bracket renderer** so staff report/override through the same visual dialog the public page uses (`build_match_dialog`). An override from the flat list carries the recorded scoreline and forfeit flag through, swapping the scores when the correction flips which slot won | `report_result`, `override_result` |
+| **Complete stage** (`flag`) | ACTIVE, non-elimination — elimination shows a disabled `flag` reading "Completes itself when the final resolves" | confirm before locking | `complete_stage` |
+| **Advance** (`fast_forward`) | COMPLETE with a stage at `stage_order + 1` | preview + confirm | `get_advancing_preview`, then `advance_stage` |
 
 Dialog chrome detail: [brackets.md → Admin dialogs](../features/brackets.md#admin-dialogs).
 

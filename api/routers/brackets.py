@@ -27,8 +27,10 @@ from api.schemas.brackets import (
     BracketUpdateRequest,
     EnrollRequest,
     EntrantCreateRequest,
+    EntrantUserRequest,
     LinkGameRequest,
     ReportResultRequest,
+    RosterImportRequest,
     RoundMetadataRequest,
     ScheduleGameRequest,
     SetBestOfRequest,
@@ -229,6 +231,37 @@ async def add_entrant(body: EntrantCreateRequest, actor: User = Depends(require_
         display_name=body.display_name,
         user_id=body.user_id,
     )
+
+
+@router.post(
+    "/entrants/import",
+    response_model=List[BracketEntrantResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Import a tournament's enrolled players as entrants",
+)
+async def import_entrants(body: RosterImportRequest, actor: User = Depends(require_write_actor)):
+    """Create a linked entrant per enrolled player. Returns only the new ones.
+
+    Idempotent — a player who already has an entrant is skipped — so it is safe
+    to re-run after late signups.
+    """
+    return await BracketService().import_entrants_from_roster(actor, body.tournament_id)
+
+
+@router.patch(
+    "/entrants/{entrant_id}/user",
+    response_model=BracketEntrantResponse,
+    summary="Link (or unlink) an entrant's user account",
+)
+async def set_entrant_user(
+    entrant_id: int, body: EntrantUserRequest, actor: User = Depends(require_write_actor)
+):
+    """Attach a user to a placeholder entrant, or null to detach.
+
+    The link is what makes the entrant's matchups schedulable and notifiable, so
+    it stays editable after a stage has started.
+    """
+    return await BracketService().set_entrant_user(actor, entrant_id, body.user_id)
 
 
 @router.post(

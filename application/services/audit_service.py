@@ -271,6 +271,7 @@ class AuditActions:
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
     BRACKET_ENTRANT_ADDED = 'bracket.entrant_added'
     BRACKET_ENTRANT_DROPPED = 'bracket.entrant_dropped'
+    BRACKET_ENTRANT_UPDATED = 'bracket.entrant_updated'
     # Per-stage participation, distinct from the tournament-level roster above:
     # who is enrolled in a stage decides who the generated graph contains.
     BRACKET_ENTRY_ADDED = 'bracket.entry_added'
