@@ -120,6 +120,31 @@ class StreamRoom(Model):
         unique_together = (('tenant', 'name'),)
 
 
+class Station(Model):
+    """A physical seat/setup in the venue a match player can be assigned to.
+
+    The pool a proctor picks from. ``MatchPlayers.assigned_station`` stores the
+    *label*, not an FK: the pool is a picker and a validation source, and a
+    community that has defined no stations keeps the historical free-text
+    behaviour.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='stations', on_delete=fields.CASCADE)
+    name = fields.CharField(max_length=50)
+    # Free-text grouping ("North wall", "Row A") shown beside the name in the
+    # picker. Purely a label — it carries no pairing semantics.
+    section = fields.CharField(max_length=50, null=True)
+    sort_order = fields.IntField(default=0)
+    is_active = fields.BooleanField(default=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'station'
+        unique_together = (('tenant', 'name'),)
+
+
 class Commentator(Model):
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='commentators', on_delete=fields.CASCADE)

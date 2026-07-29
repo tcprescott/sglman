@@ -36,7 +36,7 @@ from models import (
     Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
     Commentator, Tracker, GeneratedSeeds,
     TournamentNotificationPreference, MatchNotificationLevel,
-    StreamRoom, SystemConfiguration,
+    Station, StreamRoom, SystemConfiguration,
     ApiToken, ApiTokenOrigin, McpOAuthClient,
     Feedback, FeedbackCategory, FeedbackStatus,
     Equipment, EquipmentLoan, EquipmentStatus,
@@ -218,6 +218,23 @@ async def seed_for_tenant(
             )
         print(f"    [{tenant.slug}] stream rooms ok")
 
+        # Venue station pool — two banks facing into the middle of the room.
+        # Only tenant A defines one: a community with no stations keeps the
+        # historical free-text station field, and tenant B is the fixture for
+        # that fallback path.
+        if tenant.slug == "default":
+            for idx, (station_name, section) in enumerate(
+                [(f"{n}", "North wall") for n in range(1, 5)]
+                + [(f"{n}", "South wall") for n in range(5, 9)]
+            ):
+                await Station.get_or_create(
+                    name=station_name, tenant=tenant,
+                    defaults={"section": section, "sort_order": idx},
+                )
+            print(f"    [{tenant.slug}] stations ok")
+        else:
+            print(f"    [{tenant.slug}] stations skipped (free-text fallback fixture)")
+
         # System configuration
         today = now_eastern().date()
         for key, val in [
@@ -328,6 +345,22 @@ async def seed_for_tenant(
         await make_match(
             "TBD Match", None, p1=players[3], p2=players[0], stream_candidate=False,
         )
+        # Seat the two matches that are checked in but not finished at real
+        # stations, so the schedule shows stations out of the box and the
+        # occupancy check has something to trip on: 1/2/5/6 read as in use when
+        # a proctor opens the picker on any other match.
+        for seated_match, labels in (
+            (checked_in_match, ("1", "5")),
+            (in_progress_match, ("2", "6")),
+        ):
+            seated_players = await MatchPlayers.filter(
+                match=seated_match, tenant=tenant,
+            ).order_by("id")
+            for seated_player, label in zip(seated_players, labels):
+                if seated_player.assigned_station is None and tenant.slug == "default":
+                    seated_player.assigned_station = label
+                    await seated_player.save()
+
         print(f"    [{tenant.slug}] matches ok")
 
         # Generated seeds, attached to matches that have already been rolled.

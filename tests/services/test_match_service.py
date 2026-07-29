@@ -1,3 +1,4 @@
+import itertools
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -5,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.match.match_service import MatchService
+from tests.factories import make_user
 
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -35,6 +37,9 @@ def service():
     svc = object.__new__(MatchService)
     svc.repository = MagicMock()
     svc.repository.get_players = AsyncMock(return_value=[])
+    svc.repository.occupied_stations = AsyncMock(return_value={})
+    svc.station_repository = MagicMock()
+    svc.station_repository.active_names = AsyncMock(return_value=set())
     svc.stream_room_repository = MagicMock()
     svc.tournament_repository = MagicMock()
     svc.user_repository = MagicMock()
@@ -436,3 +441,97 @@ class TestMatchLifecycleEvents:
         assert captured_events[0].payload == {
             'match_id': 1, 'tournament_id': 9, 'assignments': {'10': 'A1'},
         }
+
+
+# ---------------------------------------------------------------------------
+# station pool validation (T2.3) — real DB, since the ladder reads the station
+# pool and derives occupancy from other matches.
+
+
+_station_seq = itertools.count(1)
+
+
+async def _make_onsite_match(*, seated=False, finished=False, stations=()):
+    """A two-player on-site match, optionally seated/finished with stations set."""
+    from models import Match, MatchPlayers, Tournament
+
+    n = next(_station_seq)
+    tournament = await Tournament.create(name=f'Station Cup {n}')
+    match = await Match.create(
+        tournament=tournament,
+        seated_at=datetime(2025, 1, 15, 19, 0) if (seated or finished) else None,
+        finished_at=datetime(2025, 1, 15, 20, 0) if finished else None,
+    )
+    players = []
+    for slot in (1, 2):
+        user = await make_user(discord_id=n * 10 + slot, username=f'station-{n}-{slot}')
+        players.append(await MatchPlayers.create(match=match, user=user))
+    for player, station in zip(players, stations):
+        player.assigned_station = station
+        await player.save()
+    return match, players
+
+
+class TestStationAssignmentValidation:
+    """The ``assign_stations`` ladder: duplicate → format → pool → occupancy."""
+
+    @pytest.fixture
+    async def actor(self, db):
+        return await make_user(discord_id=9001, username='station-staff')
+
+    async def test_rejects_same_station_twice_in_one_match(self, db, actor):
+        match, players = await _make_onsite_match()
+        with pytest.raises(ValueError, match='more than one player'):
+            await MatchService().assign_stations(
+                match.id, {players[0].id: '3', players[1].id: '3'}, actor=actor,
+            )
+
+    async def test_rejects_station_outside_the_pool(self, db, actor):
+        from models import Station
+
+        await Station.create(name='1')
+        match, players = await _make_onsite_match()
+        with pytest.raises(ValueError, match='not one of'):
+            await MatchService().assign_stations(match.id, {players[0].id: '99'}, actor=actor)
+
+    async def test_allows_free_text_when_pool_is_empty(self, db, actor):
+        # No Station rows -> historical behaviour, format regex only.
+        match, players = await _make_onsite_match()
+        await MatchService().assign_stations(match.id, {players[0].id: 'anything'}, actor=actor)
+        await players[0].refresh_from_db()
+        assert players[0].assigned_station == 'anything'
+
+    async def test_rejects_station_in_use_by_a_live_match(self, db, actor):
+        from models import Station
+
+        await Station.create(name='4')
+        other, _ = await _make_onsite_match(seated=True, stations=('4',))
+        match, players = await _make_onsite_match()
+        with pytest.raises(ValueError, match=f'match #{other.id}'):
+            await MatchService().assign_stations(match.id, {players[0].id: '4'}, actor=actor)
+
+    async def test_frees_the_station_once_the_other_match_finishes(self, db, actor):
+        from models import Station
+
+        await Station.create(name='4')
+        await _make_onsite_match(seated=True, finished=True, stations=('4',))
+        match, players = await _make_onsite_match()
+        await MatchService().assign_stations(match.id, {players[0].id: '4'}, actor=actor)
+        await players[0].refresh_from_db()
+        assert players[0].assigned_station == '4'
+
+    async def test_reassigning_a_match_to_its_own_station_is_allowed(self, db, actor):
+        # exclude_match_id must not make a match collide with itself.
+        from models import Station
+
+        for name in ('4', '5'):
+            await Station.create(name=name)
+        match, players = await _make_onsite_match()
+        match.seated_at = datetime(2025, 1, 15, 19, 0)
+        await match.save()
+        await MatchService().assign_stations(match.id, {players[0].id: '4'}, actor=actor)
+        await MatchService().assign_stations(
+            match.id, {players[0].id: '4', players[1].id: '5'}, actor=actor,
+        )
+        await players[1].refresh_from_db()
+        assert players[1].assigned_station == '5'

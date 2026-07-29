@@ -262,6 +262,23 @@ class MatchRepository:
         return await scoped(MatchPlayers.filter(match_id=match_id)).prefetch_related('user')
 
     @staticmethod
+    async def occupied_stations(exclude_match_id: Optional[int] = None) -> dict:
+        """``{station label: match id}`` for matches in play right now.
+
+        "In play" is seated-and-not-finished: a station frees up when the match
+        at it finishes, not when it is confirmed.
+        """
+        query = scoped(MatchPlayers.filter(
+            assigned_station__isnull=False,
+            match__seated_at__isnull=False,
+            match__finished_at__isnull=True,
+        ))
+        if exclude_match_id is not None:
+            query = query.exclude(match_id=exclude_match_id)
+        rows = await query.values('assigned_station', 'match_id')
+        return {r['assigned_station']: r['match_id'] for r in rows if r['assigned_station']}
+
+    @staticmethod
     async def get_all_for_schedule() -> List[Match]:
         """
         Get all matches for the public schedule view, ordered by scheduled time.

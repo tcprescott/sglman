@@ -70,6 +70,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours` helpers used by both Reports and Insights (so on-time % can't drift) | — |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `ServiceHealthService` | [service_health_service.py](../../application/services/service_health_service.py) | Platform external-service health probes (computed + cached, no model) | — |
+| `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
 | `StreamRoomService` | [stream_room_service.py](../../application/services/stream_room_service.py) | Stream room (stage) CRUD | — |
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
@@ -452,7 +453,8 @@ Match CRUD with full notification fan-out, schedule queries, station/stage assig
 | `submit_match_request(tournament_id, scheduled_date, scheduled_time, player_ids, actor, comment=None, *, title=None, from_bracket=False)` | `Match` | Player-initiated creation: the actor must be one of the players (`PermissionError` otherwise) — bypasses the TA/Staff gate without granting other powers. Refuses a tournament whose `allow_player_match_requests` is off (`assert_player_requests_allowed`), since a bracket-run tournament schedules only its own matchups; `from_bracket=True` skips that check and is set **only** by `BracketService.schedule_bracket_match` / `ChallongeService.schedule_challonge_match`, never from a request body. Audits `match.requested` and runs the same acknowledgment/notification fan-out as `create_match`. Lives in `match/match_request.py` (`MatchRequestMixin`). |
 | `set_stream_candidate(match_id, flag, actor=None)` | `Match` | Toggle `is_stream_candidate`; gated by `can_assign_match_stream`; notifies stream-candidate subscribers on a false→true transition. |
 | `assign_stage(match_id, stream_room_id, actor=None)` | `Match` | Assign or clear (`None`) the match's stream room; gated by `can_assign_match_stream`; audits assigned/cleared variants. |
-| `assign_stations(match_id, assignments, actor=None)` | `Match` | Set `MatchPlayers.assigned_station` from a `{match_player_id: station}` mapping; gated by `can_run_match`; rejected for racetime.gg tournaments (on-site-only — players race remotely). |
+| `assign_stations(match_id, assignments, actor=None)` | `Match` | Set `MatchPlayers.assigned_station` from a `{match_player_id: station}` mapping; gated by `can_run_match`; rejected for racetime.gg tournaments (on-site-only — players race remotely). Validation ladder, most specific first: **(1)** the same station twice in one match, **(2)** the `StationFormat` regex, **(3)** a label outside the tenant's `Station` pool *once that pool is non-empty*, **(4)** a station already in use by another seated-and-unfinished match. Each raises `ValueError`. |
+| `occupied_stations_for_dialog(match_id)` | `dict[str, int]` | `{station label: match id}` for stations in play, excluding this match — the read-through the station picker uses so presentation never touches `MatchRepository`. |
 | `ensure_players_enrolled(tournament_id, player_ids)` | `None` | Enroll any of the given users not yet in the tournament (`ValueError` on unknown id). |
 | `delete_match(match_id, actor=None)` | `None` | Delete; gated by `can_crud_match`; audits `match.deleted`. Notifies nobody — the silent "this shouldn't exist" path. |
 | `cancel_match(match_id, actor=None, *, reason='')` | `None` | Call a real match off: DMs players + crew, cancels any live racetime room, audits/emits `match.cancelled`, then deletes (so `match.deleted` still fires). Gated by `can_crud_match`; the un-gated `_cancel_match` is what a clinched best-of-N series calls as the system user. Lives in [match_cancellation.py](../../application/services/match/match_cancellation.py) (`CancellationMixin`). |
@@ -588,6 +590,27 @@ Tenant-authored seed-rolling presets (a named `randomizer` + `settings` blob). D
 | `import_builtins(actor)` | `list[Preset]` | Import the committed `presets/` files as rows, idempotent by `(randomizer, name)`. Audits `preset.imported`. |
 
 All mutations gated by `AuthService.can_manage_presets` (STAFF / `PRESET_MANAGER` / super-admin / system). Collaborators: `PresetRepository`, `AuditService`, `AuthService`, `SeedGenerationService` (randomizer validity).
+
+### station_service.py — StationService
+
+CRUD for the venue's `Station` pool — the physical seats a proctor assigns
+players to. Staff-only (`AuthService.is_staff`), audited under `station.*`, and
+deliberately **not** feature-flagged: a community with no stations keeps the
+historical free-text station field, so an empty pool is a valid steady state
+rather than a setup step.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_stations(active_only=False)` | `list[Station]` | The pool in `(sort_order, name)` order; `active_only` drops retired stations. |
+| `get_station(station_id)` | `Station` | Load or raise `NotFoundError`. |
+| `create_station(name, actor, *, section=None, sort_order=0)` | `Station` | Trims inputs; non-empty, tenant-unique name required (`ValueError`). Audits `station.created`. |
+| `update_station(station_id, actor, *, name=None, section=None, sort_order=None, is_active=None)` | `Station` | Partial update; rejects blanking or colliding the name. Audits `station.updated` with the changed field names. |
+| `delete_station(station_id, actor)` | `None` | Delete and audit `station.deleted`. Historical `MatchPlayers.assigned_station` rows are untouched — the assignment stores the label, not an FK — so past matches keep showing where they were played. Prefer deactivating. |
+
+Collaborators: `StationRepository`, `AuditService`, `AuthService`. Assigning a
+player *to* a station is `MatchService.assign_stations`, not here; it validates
+against this pool and against live occupancy
+(`MatchService.occupied_stations_for_dialog` is the picker's read-through).
 
 ### stream_room_service.py — StreamRoomService
 

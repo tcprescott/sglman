@@ -44,6 +44,13 @@ _EVENT_CANDIDATES = frozenset({
     # tournament-level roster *does* emit BRACKET_ENTRANT_ADDED — that one is not
     # gated on DRAFT and survives the stage.)
     AuditActions.BRACKET_ENTRY_ADDED,
+    # The venue's station pool — the same reasoning as the stream rooms below:
+    # community-owned venue configuration, with no subscriber interest in the
+    # seats themselves (the assignment of a player to one already emits
+    # MATCH_STATIONS_ASSIGNED).
+    AuditActions.STATION_CREATED,
+    AuditActions.STATION_UPDATED,
+    AuditActions.STATION_DELETED,
     AuditActions.STREAM_ROOM_CREATED,
     AuditActions.STREAM_ROOM_UPDATED,
     AuditActions.STREAM_ROOM_DELETED,

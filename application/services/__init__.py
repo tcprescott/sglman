@@ -79,6 +79,7 @@ from .seedgen_service import SeedGenerationService
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
 from . import speedgaming_sync_worker
+from .station_service import StationService
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
 from .tenant_service import TenantService
@@ -160,6 +161,7 @@ __all__ = [
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
     'speedgaming_sync_worker',
+    'StationService',
     'StreamRoomService',
     'SystemConfigService',
     'TenantService',

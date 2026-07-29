@@ -9,6 +9,7 @@ from models import Match
 from theme.dialog import ConfirmationDialog, StationAssignmentDialog, MatchResultDialog
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
+from theme.notify import notify_error
 from theme.tables.match import MatchTableView
 
 
@@ -79,7 +80,8 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             with page_container:
                 dialog = StationAssignmentDialog(
                     match=match,
-                    on_submit=handle_confirm
+                    on_submit=handle_confirm,
+                    purpose='checkin',
                 )
                 await dialog.open()
 
@@ -88,12 +90,11 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.seat_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
-            except PermissionError as e:
                 with page_container:
-                    ui.notify(str(e), color='negative')
-            except ValueError as e:
+                    ui.notify(f'Match #{match.id} checked in.', color='positive')
+            except (PermissionError, ValueError) as e:
                 with page_container:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
         async def on_start(match_id: int):
             match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
@@ -117,12 +118,9 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.start_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
-            except PermissionError as e:
+            except (PermissionError, ValueError) as e:
                 with page_container:
-                    ui.notify(str(e), color='negative')
-            except ValueError as e:
-                with page_container:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
         async def on_finish(match_id: int):
             match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
@@ -142,12 +140,9 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.finish_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
-            except PermissionError as e:
+            except (PermissionError, ValueError) as e:
                 with page_container:
-                    ui.notify(str(e), color='negative')
-            except ValueError as e:
-                with page_container:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
         async def on_confirm(match_id: int):
             match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
@@ -171,12 +166,9 @@ def admin_schedule_page(can_crud: bool = True) -> None:
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 await match_schedule_service.confirm_match(match, actor=actor)
                 await table_view.update_row_by_id(match.id)
-            except PermissionError as e:
+            except (PermissionError, ValueError) as e:
                 with page_container:
-                    ui.notify(str(e), color='negative')
-            except ValueError as e:
-                with page_container:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
 
         async def on_edit_stream_room(match_id: int):
             match = await Match.get(id=match_id, tenant_id=require_tenant_id())
@@ -191,7 +183,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             async def after_assign(_):
                 await table_view.update_row_by_id(match_id)
             with page_container:
-                dialog = StationAssignmentDialog(match=match, on_submit=after_assign)
+                dialog = StationAssignmentDialog(match=match, on_submit=after_assign, purpose='stations')
                 await dialog.open()
 
         async def submit_admin_match():

@@ -65,7 +65,8 @@ _PLAYERS = '''
                         <q-tooltip>Awaiting acknowledgment</q-tooltip>
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
-                        {{ player.name }}<span v-if="__IA__ && player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
+                        {{ player.name }}<span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
+                            <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note"> (auto)</span>
@@ -172,7 +173,7 @@ _COMMENT_DETAIL = '''
 # --- Actions row: lifecycle button + Assign Stations + watch toggle --------
 
 _ACTIONS = '''
-        <div class="mgc-actions row items-center" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && __CC__) || __WATCH__">
+        <div class="mgc-actions row items-center" v-if="(__IA__ && ['Scheduled', 'Checked In', 'Started', 'Finished'].includes(props.row.state)) || (__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length) || __WATCH__">
             <q-btn v-if="__IA__ && props.row.state === 'Scheduled' && !props.row.is_racetime && props.row.players && props.row.players.length"
                    icon="chair" color="primary" size="md"
                    @click="$parent.$emit('seat', { key: props.row.id })">Check In</q-btn>
@@ -188,7 +189,8 @@ _ACTIONS = '''
                    @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
             <span v-else-if="__IA__ && props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
                 <q-icon name="flag" size="14px" />Awaiting confirmation</span>
-            <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" icon="switch_access_shortcut" color="primary" size="md" outline
+            <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
+                   icon="switch_access_shortcut" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"

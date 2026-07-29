@@ -88,6 +88,11 @@ class AuditActions:
     DISCORD_EVENT_SYNC_FAILED = 'discord_event.sync_failed'
     DISCORD_EVENT_SETTINGS_UPDATED = 'discord_event.settings_updated'
 
+    # Station pool (the venue's physical seats)
+    STATION_CREATED = 'station.created'
+    STATION_UPDATED = 'station.updated'
+    STATION_DELETED = 'station.deleted'
+
     # Stream room
     STREAM_ROOM_CREATED = 'stream_room.created'
     STREAM_ROOM_UPDATED = 'stream_room.updated'

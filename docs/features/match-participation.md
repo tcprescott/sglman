@@ -60,6 +60,51 @@ itself is web-only — there is no Watch button on Discord, only Unwatch.
 Someone who is both a player and a watcher gets one DM per event, not two; dedup
 happens in `MatchScheduleService` before the send loop.
 
+## Check-in and the station pool
+
+Check-in is **per match**, not per player: a proctor checks a match in once both
+players are in the room, which stamps the single match-level `Match.seated_at`.
+The same flow seats each player at a numbered station.
+
+### The station pool
+
+`Station` is the venue's fixed pool of physical seats — managed by STAFF on
+**Admin → Settings → Station Pool** (`StationService`), beneath the
+`StationFormat` control it belongs with. A station has a `name` (the label), an
+optional free-text `section` ("North wall") that is display-only, a `sort_order`,
+and an `is_active` flag. Names are unique per tenant.
+
+`MatchPlayers.assigned_station` stores the **label**, not an FK. Two consequences
+follow, and both are deliberate:
+
+- **The pool is advisory until it exists.** A community with zero `Station` rows
+  keeps the historical free-text field validated only by the `StationFormat`
+  regex. This is why the station pool has no per-tenant feature flag — it
+  self-gates.
+- **Deleting a station does not rewrite history.** Past matches keep their text.
+  Deactivate rather than delete.
+
+### Double-booking
+
+`MatchService.assign_stations` runs one validation ladder, reporting the most
+specific problem first:
+
+1. the same station assigned to both players of this match;
+2. the label fails the tenant's `StationFormat` regex;
+3. the label is not in the pool — *only* once the pool is non-empty;
+4. the station is already in use by another match in play.
+
+**Occupancy is derived, never stored.** A station is in use when some match that
+is **seated and not finished** has a player assigned to it. It frees up when that
+match *finishes*, not when an admin confirms it — the seat is physically empty at
+that point. The lookup (`MatchRepository.occupied_stations`) excludes the match
+being edited, so re-assigning a match to the station it already occupies is
+allowed, and it is tenant-scoped, so two communities that both call a station "1"
+never block each other.
+
+There is **no pairing rule**: which two stations a proctor picks is their
+judgment, and the app neither computes nor suggests opposite-side pairs.
+
 ## Models
 
 | Model | Holds |
@@ -67,5 +112,6 @@ happens in `MatchScheduleService` before the send loop.
 | `Commentator`, `Tracker` | crew signups; `approved` bool, `acknowledged_at` timestamp |
 | `MatchAcknowledgment` | per-player acknowledgment state per match |
 | `MatchWatcher` | user × match watch subscriptions |
+| `Station` | the venue's pool of physical seats (per tenant; label-referenced) |
 
 Field-level detail: [reference/data-model.md](../reference/data-model.md).

@@ -36,6 +36,7 @@ from .racetime_bot_repository import RacetimeBotRepository
 from .racetime_room_repository import RacetimeRoomRepository
 from .speedgaming_episode_repository import SpeedGamingEpisodeRepository
 from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
+from .station_repository import StationRepository
 from .stream_room_repository import StreamRoomRepository
 from .tenant_repository import TenantRepository
 from .tenant_membership_repository import TenantMembershipRepository
@@ -86,6 +87,7 @@ __all__ = [
     'RacetimeRoomRepository',
     'SpeedGamingEpisodeRepository',
     'SpeedGamingEventLinkRepository',
+    'StationRepository',
     'StreamRoomRepository',
     'TenantRepository',
     'TenantMembershipRepository',

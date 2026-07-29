@@ -5,17 +5,25 @@ Coordinates match-related operations, enforces business rules,
 and orchestrates between repositories.
 """
 
-import re
 from datetime import datetime, date
 from typing import List, Optional, Dict, Any, Tuple
 
-from models import Match, MatchAcknowledgment, MatchPlayers, StationFormat, Tournament, User, StreamRoom
+from models import (
+    STATION_REGEXES,
+    Match,
+    MatchAcknowledgment,
+    MatchPlayers,
+    Tournament,
+    User,
+    StreamRoom,
+)
 from application.events import match_live
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
+    StationRepository,
     StreamRoomRepository,
     TournamentRepository,
     UserRepository,
@@ -41,19 +49,12 @@ from application.utils.timezone import (
     to_eastern,
 )
 
-_STATION_REGEXES = {
-    StationFormat.FREE:         re.compile(r'^.{0,50}$'),
-    StationFormat.NUMERIC:      re.compile(r'^\d+$'),
-    StationFormat.STRUCTURED:   re.compile(r'^[A-Za-z][0-9]{1,2}$'),
-    StationFormat.ALPHANUMERIC: re.compile(r'^[A-Za-z0-9\-\s]{1,20}$'),
-}
-
-
 class MatchService(CancellationMixin, MatchRequestMixin):
     """Service for match-related business operations."""
 
     def __init__(self) -> None:
         self.repository = MatchRepository()
+        self.station_repository = StationRepository()
         self.stream_room_repository = StreamRoomRepository()
         self.tournament_repository = TournamentRepository()
         self.user_repository = UserRepository()
@@ -575,11 +576,36 @@ class MatchService(CancellationMixin, MatchRequestMixin):
             )
 
         fmt = await SystemConfigService.get_station_format()
-        pattern = _STATION_REGEXES[fmt]
-        for player_id, station in assignments.items():
-            if station and not pattern.fullmatch(station):
+        pattern = STATION_REGEXES[fmt]
+        pool = await self.station_repository.active_names()
+        occupied = await self.repository.occupied_stations(exclude_match_id=match.id)
+
+        requested = [s for s in assignments.values() if s]
+
+        # 1. Two players of the same match cannot share a station.
+        duplicates = {s for s in requested if requested.count(s) > 1}
+        if duplicates:
+            raise ValueError(
+                f"Station {sorted(duplicates)[0]} is assigned to more than one "
+                "player in this match."
+            )
+
+        for station in requested:
+            # 2. Format (unchanged behaviour, and the only check when no pool
+            #    is defined).
+            if not pattern.fullmatch(station):
                 raise ValueError(
                     f"Station '{station}' does not match the required format ({fmt.value})"
+                )
+            # 3. Must be a real station, once this community has defined any.
+            if pool and station not in pool:
+                raise ValueError(
+                    f"'{station}' is not one of this community's stations."
+                )
+            # 4. Not already in use by another match in play.
+            if station in occupied:
+                raise ValueError(
+                    f"Station {station} is in use by match #{occupied[station]}."
                 )
 
         for player in match.players:
@@ -604,6 +630,15 @@ class MatchService(CancellationMixin, MatchRequestMixin):
         }, actor))
 
         return match
+
+    async def occupied_stations_for_dialog(self, match_id: int) -> dict:
+        """``{label: match id}`` for stations in play, excluding this match.
+
+        The read-through the station picker needs: presentation must not reach a
+        repository directly, and the dialog has to label an occupied station
+        without offering this match's own stations as taken.
+        """
+        return await self.repository.occupied_stations(exclude_match_id=match_id)
 
     async def ensure_players_enrolled(
         self,

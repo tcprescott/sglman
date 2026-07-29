@@ -283,7 +283,8 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                     </q-icon>
                     <span :class="player.finish_rank === 1 ? 'st-ok-strong' : ''">
                         {{ player.name }}
-                        <span v-if="__IA__ && player.station" class="st-neutral italic-note"> ({{ player.station }})</span>
+                        <span v-if="__IA__ && player.station" class="wiz-chip wiz-chip--neutral q-ml-xs">
+                            <q-icon name="chair" size="12px" />{{ player.station }}</span>
                     </span>
                     <span v-if="props.row.acknowledgments && props.row.acknowledgments[idx] && props.row.acknowledgments[idx].acknowledged && props.row.acknowledgments[idx].auto"
                           class="st-neutral italic-note" style="font-size: 0.85em;"> (auto)</span>
@@ -295,9 +296,10 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
                 </div>
             </template>
         </div>
-        <q-btn v-if="__IA__ && __CC__ && !props.row.is_racetime" @click="$parent.$emit('assign_stations', props)"
+        <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
+               @click="$parent.$emit('assign_stations', props)"
                icon="switch_access_shortcut" color="primary" size="xs" flat round>
-            <q-tooltip>Assign Stations</q-tooltip>
+            <q-tooltip>Assign stations</q-tooltip>
         </q-btn>
     </div>
 </q-td>'''

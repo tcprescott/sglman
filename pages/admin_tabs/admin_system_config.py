@@ -6,6 +6,7 @@ from nicegui import app, ui
 
 from application.services import (
     AuthService,
+    StationService,
     SystemConfigService,
     get_user_from_discord_id,
 )
@@ -19,11 +20,97 @@ from application.services.system_config_service import (
 )
 from models import StationFormat
 from theme.dialog._helpers import native_date_input
+from theme.notify import notify_error
 
 
 def _date_field(label: str, value: str):
     # Native date picker (YYYY-MM-DD) — OS calendar on mobile, shared recipe.
     return native_date_input(label, value, clearable=True)
+
+
+async def _station_pool_section(can_edit: bool) -> None:
+    """The venue's station pool, beneath the format control it belongs with.
+
+    A community with no stations keeps the historical free-text station field, so
+    an empty pool is a valid state rather than a setup step.
+    """
+    service = StationService()
+
+    async def _actor():
+        return await get_user_from_discord_id(app.storage.user.get('discord_id'))
+
+    @ui.refreshable
+    async def station_list() -> None:
+        stations = await service.list_stations()
+        if not stations:
+            ui.label(
+                'No stations defined. Proctors type the station by hand; add '
+                'stations here to pick from a list and block double-booking.'
+            ).classes('text-caption text-grey')
+            return
+        for station in stations:
+            with ui.row().classes('items-center gap-3 q-mb-xs full-width'):
+                ui.label(station.name).classes('w-16 text-weight-medium')
+                ui.label(station.section or '—').classes('col text-caption text-grey')
+
+                async def toggle(_e, s=station) -> None:
+                    try:
+                        await service.update_station(
+                            s.id, await _actor(), is_active=not s.is_active,
+                        )
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
+                    station_list.refresh()
+
+                async def remove(_e, s=station) -> None:
+                    try:
+                        await service.delete_station(s.id, await _actor())
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
+                    station_list.refresh()
+
+                ui.switch(
+                    'Active', value=station.is_active, on_change=toggle,
+                ).props('dense').set_enabled(can_edit)
+                ui.button(icon='delete', on_click=remove).props(
+                    'flat dense color=negative'
+                ).set_enabled(can_edit)
+
+    ui.separator().classes('separator-spacing')
+    ui.label('Station Pool').classes('section-title q-mt-md')
+    ui.label(
+        'The physical stations in your venue. Once any station exists, proctors '
+        'pick from this list and a station in use by a live match cannot be '
+        'assigned again. Deactivate rather than delete to keep past matches readable.'
+    ).classes('text-caption text-grey')
+
+    with ui.column().classes('gap-1 full-width q-mt-sm'):
+        await station_list()
+
+    if not can_edit:
+        return
+
+    with ui.row().classes('items-center gap-3 q-mt-sm'):
+        name_input = ui.input('Name').props('outlined dense maxlength=50').classes('w-32')
+        section_input = ui.input('Section').props('outlined dense maxlength=50').classes('w-40')
+        order_input = ui.number('Order', value=0, format='%d').props('outlined dense').classes('w-24')
+
+        async def add() -> None:
+            try:
+                await service.create_station(
+                    name_input.value or '',
+                    await _actor(),
+                    section=section_input.value or None,
+                    sort_order=int(order_input.value or 0),
+                )
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+                return
+            name_input.value = ''
+            section_input.value = ''
+            station_list.refresh()
+
+        ui.button('Add Station', icon='add', on_click=add).props('color=primary')
 
 
 async def admin_system_config_page() -> None:
@@ -76,6 +163,8 @@ async def admin_system_config_page() -> None:
                 label='Station Assignment Format',
             ).classes('w-full')
             ui.label('Controls the format enforced when assigning stations to match players.').classes('text-caption text-grey')
+
+        await _station_pool_section(can_edit)
 
         # --- Per-day tournament hours ---
         from datetime import timedelta
