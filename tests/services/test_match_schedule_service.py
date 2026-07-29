@@ -81,11 +81,18 @@ class MockMatch:
         self.fetch_related = AsyncMock()
 
 
-def mock_players(*names):
-    """MatchPlayers stand-ins — only ``user.preferred_name`` is read by the DM builders."""
+def mock_players(*names, ranks=None):
+    """MatchPlayers stand-ins.
+
+    The DM builders read ``user.preferred_name``; ``confirm_match`` reads
+    ``finish_rank`` to decide whether a result was ever recorded, so both are
+    present. ``ranks=None`` means no result recorded yet.
+    """
+    names = names or ("Alice", "Bob")
+    ranks = ranks if ranks is not None else [None] * len(names)
     return [
-        SimpleNamespace(user=SimpleNamespace(preferred_name=n))
-        for n in (names or ("Alice", "Bob"))
+        SimpleNamespace(user=SimpleNamespace(preferred_name=n), finish_rank=r)
+        for n, r in zip(names, ranks)
     ]
 
 
@@ -217,15 +224,22 @@ class TestFinishMatch:
 
 
 class TestConfirmMatch:
-    async def test_sets_confirmed_at(self, service):
+    @staticmethod
+    def _played_out(**stamps):
+        """A finished match whose winner has been recorded."""
         now = datetime.now()
-        match = MockMatch(seated_at=now, started_at=now, finished_at=now)
+        return MockMatch(
+            seated_at=now, started_at=now, finished_at=now,
+            players=mock_players(ranks=[1, 2]), **stamps,
+        )
+
+    async def test_sets_confirmed_at(self, service):
+        match = self._played_out()
         await service.confirm_match(match)
         assert match.confirmed_at is not None
 
     async def test_persists_the_change(self, service):
-        now = datetime.now()
-        match = MockMatch(seated_at=now, started_at=now, finished_at=now)
+        match = self._played_out()
         await service.confirm_match(match)
         match.save.assert_awaited_once()
 
@@ -235,8 +249,35 @@ class TestConfirmMatch:
             await service.confirm_match(match)
 
     async def test_raises_if_already_confirmed(self, service):
+        match = self._played_out(confirmed_at=datetime.now())
+        with pytest.raises(ValueError, match="already confirmed"):
+            await service.confirm_match(match)
+
+    async def test_raises_if_no_result_recorded(self, service):
+        """Confirming advances the bracket, so an empty result must not pass."""
         now = datetime.now()
-        match = MockMatch(seated_at=now, started_at=now, finished_at=now, confirmed_at=now)
+        match = MockMatch(
+            seated_at=now, started_at=now, finished_at=now, players=mock_players(),
+        )
+        with pytest.raises(ValueError, match="No result has been recorded"):
+            await service.confirm_match(match)
+        assert match.confirmed_at is None
+        match.save.assert_not_awaited()
+
+    async def test_raises_if_the_match_has_no_players(self, service):
+        now = datetime.now()
+        match = MockMatch(seated_at=now, started_at=now, finished_at=now, players=[])
+        with pytest.raises(ValueError, match="No result has been recorded"):
+            await service.confirm_match(match)
+        assert match.confirmed_at is None
+
+    async def test_already_confirmed_wins_over_the_missing_result(self, service):
+        """The clearer message for an operator who double-clicked Confirm."""
+        now = datetime.now()
+        match = MockMatch(
+            seated_at=now, started_at=now, finished_at=now, confirmed_at=now,
+            players=mock_players(),
+        )
         with pytest.raises(ValueError, match="already confirmed"):
             await service.confirm_match(match)
 
@@ -247,6 +288,10 @@ class TestFullLifecycle:
         await service.seat_match(match)
         await service.start_match(match)
         await service.finish_match(match)
+        # Recording the winner sits between finishing and confirming; without it
+        # confirm_match refuses (see TestConfirmMatch).
+        match.players[0].finish_rank = 1
+        match.players[1].finish_rank = 2
         await service.confirm_match(match)
         assert match.confirmed_at is not None
         assert match.save.await_count == 4

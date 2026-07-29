@@ -272,6 +272,15 @@ class MatchDisplayService:
             'seed': match.generated_seed.seed_url if match.generated_seed else '',
             'generated_seed': match.generated_seed.seed_url if match.generated_seed else '',
             'tournament_seed_generator': match.tournament.seed_generator if match.tournament else None,
+            # Players the seed DM cannot reach — no linked Discord account, or
+            # DMs opted out. This is deliverability, not delivery: it mirrors the
+            # skip condition in ``_send_seed_dms`` and says nothing about whether
+            # any DM was actually sent or read. ``players__user`` is already
+            # prefetched, so this costs no extra query.
+            'seed_dm_blocked': [
+                p.user.preferred_name for p in match.players
+                if not (p.user.discord_id and p.user.dm_notifications)
+            ],
             'commentators': [
                 {
                     'name': c.user.preferred_name,

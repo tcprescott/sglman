@@ -249,7 +249,8 @@ async def render_player_dashboard():
             admin_controls=False,
             submit_match_callback=submit_match,
             extra_slots=extra_slots,
-            player_discord_id=discord_id
+            player_discord_id=discord_id,
+            storage_key='player_dashboard',
         )
         await challonge_section()
         await bracket_section()

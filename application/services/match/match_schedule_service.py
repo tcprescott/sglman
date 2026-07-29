@@ -237,11 +237,20 @@ class MatchScheduleService(MatchNotificationMixin):
         )
 
     async def confirm_match(self, match: Match, actor: Optional[User] = None) -> None:
+        # ``check`` below is synchronous and runs before ``_transition`` fetches
+        # relations, so the players have to be loaded here for it to see them.
+        await match.fetch_related('players')
+
         def check() -> None:
             if not match.finished_at:
                 raise ValueError("Match must be finished before confirming")
             if match.confirmed_at:
                 raise ValueError("Match is already confirmed")
+            if not any(p.finish_rank for p in match.players):
+                raise ValueError(
+                    "No result has been recorded for this match — record the "
+                    "winner before confirming."
+                )
         await self._transition(
             match, actor,
             action_verb="confirm",

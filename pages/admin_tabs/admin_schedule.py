@@ -51,6 +51,34 @@ def admin_schedule_page(can_crud: bool = True) -> None:
 
         extra_slots = {}
 
+        table_view = None
+
+        # Built before the view so the view can be handed a callback that
+        # refreshes it; guarded because the view's first load can land before
+        # the local name is bound.
+        @ui.refreshable
+        def review_queue() -> None:
+            rows = table_view.table.rows if table_view else []
+            pending = [r for r in rows if r.get('state') == 'Finished']
+            if not pending:
+                return
+            with ui.row().classes('items-center gap-2 q-mb-sm'):
+                # ui.element + ui.label rather than ui.html: NiceGUI's raw-HTML
+                # sinks are reserved for static literals (check_markdown_xss).
+                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+                    ui.icon('flag', size='14px')
+                    ui.label(f'Awaiting confirmation: {len(pending)}')
+                ui.button(
+                    'Show only these', icon='filter_alt', on_click=lambda: _only_finished(),
+                ).props('flat dense color=primary')
+
+        def _only_finished() -> None:
+            # Assigning the select's value fires _on_state_filter_change, which
+            # stores the choice and reloads the table.
+            table_view.state_filter.value = ['Finished']
+
+        review_queue()
+
         handlers = MatchLifecycleHandlers(page_container, can_crud=can_crud)
         table_view = MatchTableView(
             columns=columns,
@@ -59,6 +87,11 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             can_crud=can_crud,
             submit_match_callback=submit_admin_match if can_crud else None,
             extra_slots=extra_slots,
+            storage_key='admin_schedule',
+            # The admin's job *is* the Finished-not-yet-Confirmed set, so it
+            # must be on screen without them discovering the State filter.
+            default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
+            on_rows_changed=lambda _rows: review_queue.refresh(),
             **handlers.callbacks(),
         )
         handlers.table_view = table_view

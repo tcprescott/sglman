@@ -39,6 +39,24 @@ def make_match(**overrides):
     return SimpleNamespace(**defaults)
 
 
+def make_player(name, *, discord_id="111", dm_notifications=True,
+                finish_rank=None, station=None):
+    """A ``MatchPlayers``-shaped fake, including the two DM-reachability fields.
+
+    ``discord_id=None`` / ``dm_notifications=False`` are the two ways a player
+    ends up in ``seed_dm_blocked``.
+    """
+    return SimpleNamespace(
+        user=SimpleNamespace(
+            preferred_name=name,
+            discord_id=discord_id,
+            dm_notifications=dm_notifications,
+        ),
+        finish_rank=finish_rank,
+        assigned_station=station,
+    )
+
+
 # ---------------------------------------------------------------------------
 # _get_match_state
 # ---------------------------------------------------------------------------
@@ -132,11 +150,7 @@ class TestFormatMatchForDisplay:
         assert result["tournament"] == ""
 
     def test_players_formatted_as_dicts(self, display_service):
-        player = SimpleNamespace(
-            user=SimpleNamespace(preferred_name="Alice", discord_id="111"),
-            finish_rank=1,
-            assigned_station="A",
-        )
+        player = make_player("Alice", discord_id="111", finish_rank=1, station="A")
         result = display_service._format_match_for_display(make_match(players=[player]))
         assert result["players"] == [
             {"name": "Alice", "finish_rank": 1, "station": "A", "discord_id": "111"}
@@ -144,8 +158,8 @@ class TestFormatMatchForDisplay:
 
     def test_multiple_players_all_included(self, display_service):
         players = [
-            SimpleNamespace(user=SimpleNamespace(preferred_name="Alice", discord_id="111"), finish_rank=1, assigned_station="A"),
-            SimpleNamespace(user=SimpleNamespace(preferred_name="Bob", discord_id="222"), finish_rank=2, assigned_station="B"),
+            make_player("Alice", discord_id="111", finish_rank=1, station="A"),
+            make_player("Bob", discord_id="222", finish_rank=2, station="B"),
         ]
         result = display_service._format_match_for_display(make_match(players=players))
         assert len(result["players"]) == 2
@@ -330,6 +344,58 @@ class TestFormatMatchIsRacetime:
         )
         result = display_service._format_match_for_display(match)
         assert result["is_racetime"] is True
+
+
+class TestFormatMatchSeedDmBlocked:
+    """``seed_dm_blocked`` names the players a seed DM cannot reach.
+
+    Deliverability, not delivery: it is derived purely from ``User.discord_id``
+    and ``User.dm_notifications`` — the same two fields ``_send_seed_dms`` skips
+    on — and says nothing about whether a DM was sent or arrived.
+    """
+
+    def test_seed_dm_blocked_lists_a_player_with_dms_off(self, display_service):
+        players = [
+            make_player("Alice", discord_id="111", dm_notifications=True),
+            make_player("Bob", discord_id="222", dm_notifications=False),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == ["Bob"]
+
+    def test_seed_dm_blocked_lists_a_player_with_no_discord_id(self, display_service):
+        players = [
+            make_player("Alice", discord_id="111"),
+            make_player("Carol", discord_id=None),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == ["Carol"]
+
+    def test_seed_dm_blocked_is_empty_when_everyone_is_reachable(self, display_service):
+        players = [
+            make_player("Alice", discord_id="111"),
+            make_player("Bob", discord_id="222"),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == []
+
+    def test_seed_dm_blocked_lists_both_players_in_row_order(self, display_service):
+        players = [
+            make_player("Carol", discord_id=None),
+            make_player("Bob", discord_id="222", dm_notifications=False),
+        ]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["seed_dm_blocked"] == ["Carol", "Bob"]
+
+    def test_seed_dm_blocked_is_empty_for_a_match_with_no_players(self, display_service):
+        result = display_service._format_match_for_display(make_match(players=[]))
+        assert result["seed_dm_blocked"] == []
+
+    def test_an_empty_string_discord_id_counts_as_unreachable(self, display_service):
+        """A blank link is as undeliverable as a missing one."""
+        result = display_service._format_match_for_display(
+            make_match(players=[make_player("Dana", discord_id="")])
+        )
+        assert result["seed_dm_blocked"] == ["Dana"]
 
 
 class TestFormatMatchBracket:

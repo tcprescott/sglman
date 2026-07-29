@@ -80,7 +80,31 @@ class TestLifecycle:
             finished = await c.post(f'/api/matches/{mid}/finish')
             assert finished.status_code == 200
             assert finished.json()['finished_at'] is not None
+
+            # /finish does not record a winner, and confirming advances the
+            # bracket, so the result has to be posted before /confirm will pass.
+            winner = await MatchPlayers.filter(match_id=mid).first()
+            assert (await c.post(
+                f'/api/matches/{mid}/result', json={'winner_id': winner.id},
+            )).status_code == 200
             assert (await c.post(f'/api/matches/{mid}/confirm')).status_code == 200
+
+    async def test_confirm_without_a_recorded_result_is_400(self, db, app):
+        """Regression: confirming used to check only ``finished_at``, so this
+        path advanced the bracket on an empty result."""
+        _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
+        t, p1, p2 = await _tournament_and_players()
+        async with client_for(app, raw) as c:
+            mid = (await _create_match(c, t, p1, p2)).json()['id']
+            await c.post(f'/api/matches/{mid}/seat')
+            await c.post(f'/api/matches/{mid}/start')
+            assert (await c.post(f'/api/matches/{mid}/finish')).status_code == 200
+
+            resp = await c.post(f'/api/matches/{mid}/confirm')
+            assert resp.status_code == 400
+            assert 'No result has been recorded' in resp.json()['detail']
+
+        assert (await Match.get(id=mid)).confirmed_at is None
 
     async def test_finish_before_start_is_400(self, db, app):
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
@@ -136,6 +160,12 @@ class TestProctorLifecycleBoundary:
             await c.post(f'/api/matches/{match.id}/seat')
             await c.post(f'/api/matches/{match.id}/start')
             assert (await c.post(f'/api/matches/{match.id}/finish')).status_code == 200
+            # Recorded, so the 403 below is about the role and not the missing
+            # result the confirm guard would otherwise reject first.
+            winner = await MatchPlayers.filter(match_id=match.id).first()
+            assert (await c.post(
+                f'/api/matches/{match.id}/result', json={'winner_id': winner.id},
+            )).status_code == 200
 
             resp = await c.post(f'/api/matches/{match.id}/confirm')
             assert resp.status_code == 403

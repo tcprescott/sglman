@@ -90,6 +90,7 @@ async def proctor_station_tab() -> None:
             get_query=get_query,
             admin_controls=True,
             can_crud=False,
+            storage_key='proctor',
             exclude_racetime=True,
             row_sort=proctor_row_order,
             actions_first=True,

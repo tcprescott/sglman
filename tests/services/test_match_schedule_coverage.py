@@ -59,6 +59,13 @@ async def make_proctor(discord_id=9001):
     return user
 
 
+async def record_winner(player: MatchPlayers):
+    """Stamp the winning rank ``confirm_match`` insists on having seen."""
+    player.finish_rank = 1
+    await player.save()
+    return player
+
+
 @pytest.fixture
 def service():
     """A MatchScheduleService with real repositories/audit but a stubbed
@@ -228,6 +235,7 @@ class TestConfirmMatchChallongePush:
         t = await Tournament.create(name="T")
         now = datetime.now(UTC)
         m = await Match.create(tournament=t, seated_at=now, started_at=now, finished_at=now)
+        await MatchPlayers.create(match=m, user=await make_user(1, name="w"), finish_rank=1)
         stub = MagicMock()
         stub.push_result_if_linked = AsyncMock(return_value=True)
         monkeypatch.setattr("application.services.challonge_service.ChallongeService", lambda: stub)
@@ -243,6 +251,7 @@ class TestConfirmMatchChallongePush:
         t = await Tournament.create(name="T")
         now = datetime.now(UTC)
         m = await Match.create(tournament=t, seated_at=now, started_at=now, finished_at=now)
+        await MatchPlayers.create(match=m, user=await make_user(2, name="w"), finish_rank=1)
         stub = MagicMock()
         stub.push_result_if_linked = AsyncMock(side_effect=RuntimeError("challonge down"))
         monkeypatch.setattr("application.services.challonge_service.ChallongeService", lambda: stub)
@@ -474,11 +483,12 @@ class TestLifecycleTransitions:
         staff = await make_staff()
         t = await Tournament.create(name="T")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
-        await MatchPlayers.create(match=m, user=await make_user(1, name="p"))
+        player = await MatchPlayers.create(match=m, user=await make_user(1, name="p"))
 
         await service.seat_match(m, staff)
         await service.start_match(m, staff)
         await service.finish_match(m, staff)
+        await record_winner(player)
         await service.confirm_match(m, staff)
 
         refreshed = await Match.get(id=m.id)
@@ -573,6 +583,8 @@ class TestConfirmIsAdminOnly:
         await service.seat_match(m, proctor)
         await service.start_match(m, proctor)
         await service.finish_match(m, proctor)
+        # Recorded, so the refusal below is unambiguously about the role.
+        await record_winner(await MatchPlayers.filter(match_id=m.id).first())
 
         with pytest.raises(PermissionError):
             await service.confirm_match(m, proctor)
@@ -599,6 +611,7 @@ class TestConfirmIsAdminOnly:
         await service.seat_match(m, staff)
         await service.start_match(m, staff)
         await service.finish_match(m, staff)
+        await record_winner(await MatchPlayers.filter(match_id=m.id).first())
 
         await service.confirm_match(m, staff)
 

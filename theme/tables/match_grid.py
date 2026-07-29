@@ -167,6 +167,14 @@ _SEED_DETAIL = '''
                        :href="props.row.generated_seed" target="_blank" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</a>
                     <span v-else>{{ props.row.generated_seed.length > 40 ? props.row.generated_seed.substring(0, 40) + '...' : props.row.generated_seed }}</span>
                 </template>
+                <template v-if="props.row.generated_seed && props.row.seed_dm_blocked && props.row.seed_dm_blocked.length">
+                    <span class="st-pending" style="flex-basis: 100%;">
+                        <q-icon name="notifications_off" size="14px" class="q-mr-xs" />Can't receive a Discord DM: {{ props.row.seed_dm_blocked.join(', ') }} — hand them the seed.
+                    </span>
+                    <span class="st-neutral italic-note" style="flex-basis: 100%;">
+                        Shows who is unreachable, not whether a DM arrived.
+                    </span>
+                </template>
             </span>
         </div>'''
 

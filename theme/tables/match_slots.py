@@ -87,6 +87,10 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
             </a>
         </template>
         <template v-else>{{ props.value }}</template>
+        <q-icon v-if="props.row.seed_dm_blocked && props.row.seed_dm_blocked.length"
+                name="notifications_off" class="st-pending q-ml-xs" size="xs">
+            <q-tooltip>Can't receive a Discord DM: {{ props.row.seed_dm_blocked.join(', ') }} — hand them the seed. Shows who is unreachable, not whether a DM arrived.</q-tooltip>
+        </q-icon>
     </span>
 </q-td>'''
 

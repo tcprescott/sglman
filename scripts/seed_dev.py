@@ -50,6 +50,7 @@ from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
+from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 from scripts.seed_online import (
     link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
@@ -426,42 +427,9 @@ async def seed_for_tenant(
         )
 
         # --- On-site tournament (no racetime.gg) ----------------------------
-        # A deliberately on-site tournament so the schedule keeps demonstrating
-        # the check-in and station-assignment controls that the racetime-enabled
-        # tournament above now hides.
-        onsite, _ = await Tournament.get_or_create(
-            name="Wizzrobe Cup", tenant=tenant,
-            defaults={
-                "description": "On-site fixture — no racetime.gg integration.",
-                "seed_generator": "alttpr",
-                "is_active": True,
-                "players_per_match": 2,
-                "staff_administered": False,
-                # Per-tournament "tournament days" override: its own event window
-                # and per-day hours, distinct from the tenant default above.
-                "event_start_date": today,
-                "event_end_date": today + timedelta(days=3),
-                "tournament_hours": {
-                    today.isoformat(): {"open": "09:00", "close": "23:59"},
-                    (today + timedelta(days=1)).isoformat(): {"open": "12:00", "close": "23:59"},
-                },
-            },
-        )
-        await onsite.admins.add(staff)
-        for p in (players[0], players[1]):
-            await TournamentPlayers.get_or_create(tournament=onsite, user=p, tenant=tenant)
-
-        onsite_match, onsite_created = await Match.get_or_create(
-            title="On-Site Scheduled", tournament=onsite, tenant=tenant,
-            defaults={
-                "scheduled_at": now + timedelta(hours=2),
-                "stream_room": stage1,
-                "is_stream_candidate": True,
-            },
-        )
-        if onsite_created:
-            for p in (players[0], players[1]):
-                await MatchPlayers.get_or_create(match=onsite_match, user=p, tenant=tenant)
+        # The racetime-enabled tournament above hides every proctor control, so
+        # the Proctor Station board needs on-site matches to demonstrate.
+        await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
         print(f"    [{tenant.slug}] on-site tournament ok")
 
         # --- Crew signups (commentators / trackers) -------------------------
