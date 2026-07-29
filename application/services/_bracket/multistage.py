@@ -8,6 +8,7 @@ class.
 """
 
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from application.errors import require_found
@@ -24,6 +25,24 @@ from models import (
     BracketState,
     User,
 )
+
+
+@dataclass(frozen=True)
+class AdvancementPlan:
+    """The resolved advance: source, destination, rule, and the seeded field.
+
+    ``rows`` are ``(entry, new seed, source group)`` for the entries that would
+    be drawn — the same tuples :meth:`_seed_advancers` hands the writer, so the
+    confirmation shows the seeding that will actually be applied rather than the
+    rank order it came from (snake and preserve differ materially, and only this
+    tells them apart). Empty when ``already_seeded``.
+    """
+
+    source: Bracket
+    destination: Bracket
+    advancement: AdvancementConfig
+    rows: List[Tuple[BracketEntry, int, Optional[int]]]
+    already_seeded: bool
 
 
 class MultiStageMixin:
@@ -50,12 +69,10 @@ class MultiStageMixin:
         )
         await self._require_tournament(tournament_id)
 
-        source, next_stage, advancement = await self._advancement_context(
+        source, next_stage, advancement, already_seeded = await self._advancement_context(
             tournament_id, from_stage_order
         )
-
-        existing = await self.repository.list_entries(next_stage.id)
-        if existing:
+        if already_seeded:
             raise ValueError("The next stage has already been seeded")
 
         advancers = await self._compute_advancers(source, advancement)
@@ -89,35 +106,76 @@ class MultiStageMixin:
         """Source-stage entries that would advance, in advancement order.
 
         Read helper for the UI/tests — same selection :meth:`advance_stage`
-        performs, without writing anything. Raises the same guards.
+        performs, without writing anything, and raising every guard it raises.
+        A caller that also needs the resulting seeds, the destination stage or
+        whether the draw has already been run wants :meth:`advancement_plan`.
         """
-        source, _next_stage, advancement = await self._advancement_context(
+        source, _next_stage, advancement, _seeded = await self._advancement_context(
             tournament_id, from_stage_order
         )
         return await self._compute_advancers(source, advancement)
 
+    async def advancement_plan(
+        self, tournament_id: int, from_stage_order: int
+    ) -> AdvancementPlan:
+        """The whole projected advance: who, into what, at which seed.
+
+        Everything :meth:`advance_stage` is about to do, resolved once so the
+        confirmation can state it. ``already_seeded`` is reported rather than
+        raised: a chain that has already been advanced is a fact worth showing,
+        not an error to discover after clicking through a confident list.
+        """
+        source, destination, advancement, already_seeded = (
+            await self._advancement_context(tournament_id, from_stage_order)
+        )
+        rows: List[Tuple[BracketEntry, int, Optional[int]]] = []
+        if not already_seeded:
+            advancers = await self._compute_advancers(source, advancement)
+            rows = self._seed_advancers(advancers, advancement)
+        return AdvancementPlan(
+            source=source,
+            destination=destination,
+            advancement=advancement,
+            rows=rows,
+            already_seeded=already_seeded,
+        )
+
     async def _advancement_context(
         self, tournament_id: int, from_stage_order: int
-    ) -> Tuple[Bracket, Bracket, AdvancementConfig]:
-        """Resolve and validate (source, next stage, advancement rule)."""
+    ) -> Tuple[Bracket, Bracket, AdvancementConfig, bool]:
+        """Resolve and validate (source, next stage, rule, already-seeded).
+
+        Guard order is deliberate: the *destination* is checked before the
+        source's state, because "there is no next stage" is both the likelier
+        mistake and the one the operator can act on — the previous order answered
+        a question about a stage they had not thought about yet.
+        """
         source = await self.repository.get_stage(tournament_id, from_stage_order)
         source = require_found(source, "Stage")
-        if source.state != BracketState.COMPLETE:
-            raise ValueError("The predecessor stage must complete first")
 
         next_stage = await self.repository.get_stage(
             tournament_id, from_stage_order + 1
         )
         if next_stage is None:
-            raise ValueError("There is no next stage to advance into")
+            raise ValueError(
+                "There is no next stage to advance into — create the stage that "
+                "follows this one first"
+            )
         if next_stage.state != BracketState.DRAFT:
             raise ValueError("The next stage must be DRAFT to seed it")
 
         raw = (next_stage.config or {}).get('advancement')
         if not raw:
-            raise ValueError("The next stage has no advancement rule configured")
+            raise ValueError(
+                f"“{next_stage.name}” has no advancement rule — edit that stage "
+                "and set how many entrants it draws in from this one"
+            )
+        if source.state != BracketState.COMPLETE:
+            raise ValueError("The predecessor stage must complete first")
+
         advancement = AdvancementConfig.model_validate(raw)
-        return source, next_stage, advancement
+        already_seeded = bool(await self.repository.list_entries(next_stage.id))
+        return source, next_stage, advancement, already_seeded
 
     async def _compute_advancers(
         self, source: Bracket, advancement: AdvancementConfig

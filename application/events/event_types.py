@@ -105,6 +105,14 @@ class EventType:
     BRACKET_STAGE_ADVANCED = 'bracket.stage_advanced'
     BRACKET_ENTRANT_ADDED = 'bracket.entrant_added'
     BRACKET_ENTRANT_DROPPED = 'bracket.entrant_dropped'
+    # The third roster mutation beside add/drop: which account an entrant *is*.
+    # A subscriber mirroring the roster goes stale without it — the link is what
+    # makes an entrant addressable at all.
+    BRACKET_ENTRANT_UPDATED = 'bracket.entrant_updated'
+    # A field shrinking mid-stage, and a stage abandoned outright — both change
+    # what a subscriber should expect to be played, so both are announced.
+    BRACKET_ENTRY_RETIRED = 'bracket.entry_retired'
+    BRACKET_CANCELLED = 'bracket.cancelled'
 
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
@@ -125,7 +133,8 @@ class EventType:
         ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
         BRACKET_CREATED, BRACKET_STARTED, BRACKET_MATCH_COMPLETED,
         BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,
-        BRACKET_ENTRANT_ADDED, BRACKET_ENTRANT_DROPPED,
+        BRACKET_ENTRANT_ADDED, BRACKET_ENTRANT_DROPPED, BRACKET_ENTRANT_UPDATED,
+        BRACKET_ENTRY_RETIRED, BRACKET_CANCELLED,
         BRACKET_GAME_SCHEDULED, BRACKET_GAME_COMPLETED, BRACKET_GAME_CANCELLED,
         BRACKET_GAME_LINKED, BRACKET_GAME_UNLINKED, BRACKET_GAME_RELEASED,
     })

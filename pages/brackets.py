@@ -52,6 +52,7 @@ from theme.brackets import (
     assign_match_numbers,
     build_context,
     build_match_dialog,
+    config_summary,
     entry_records,
     format_label,
     is_visible,
@@ -59,7 +60,9 @@ from theme.brackets import (
     register_bracket_view,
     render_elimination,
     render_elimination_mobile,
+    stage_label,
     state_color,
+    state_label,
     visible_stages,
 )
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
@@ -345,11 +348,15 @@ def create() -> None:
                         with ui.column().classes('gap-0'):
                             ui.label(bracket.name).classes('text-subtitle1 text-bold')
                             ui.label(
-                                f'Stage {bracket.stage_order + 1} · {format_label(bracket.format)}'
+                                f'{stage_label(bracket.stage_order)} · '
+                                f'{format_label(bracket.format)}'
                             ).classes('text-caption')
+                            setup = config_summary(bracket)
+                            if setup:
+                                ui.label(' · '.join(setup)).classes('text-caption text-grey')
                         with ui.row().classes('items-center gap-2'):
                             ui.badge(
-                                bracket.state.value.title(),
+                                state_label(bracket.state),
                                 color=state_color(bracket.state),
                             )
                             ui.button(
@@ -467,10 +474,14 @@ def create() -> None:
                     with ui.column().classes('gap-0'):
                         ui.label(bracket.name).classes('page-title')
                         ui.label(
-                            f'Stage {bracket.stage_order + 1} · {format_label(bracket.format)}'
+                            f'{stage_label(bracket.stage_order)} · '
+                            f'{format_label(bracket.format)}'
                         ).classes('text-caption')
+                        setup = config_summary(bracket)
+                        if setup:
+                            ui.label(' · '.join(setup)).classes('text-caption text-grey')
                     ui.badge(
-                        bracket.state.value.title(),
+                        state_label(bracket.state),
                         color=state_color(bracket.state),
                     )
                 ui.button(

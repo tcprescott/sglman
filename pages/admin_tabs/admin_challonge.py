@@ -10,6 +10,7 @@ from application.services import AuthService, ChallongeService, get_user_from_di
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import format_eastern_display
 from models import Tournament
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 
 
@@ -100,6 +101,44 @@ async def admin_challonge_page() -> None:
                         # refresh calls in sync_one would raise and be lost.
                         on_click=lambda _=None, tid=t.id: sync_one(tid),
                     ).props('flat color=primary')
+                    if is_staff:
+                        ui.button(
+                            'Unlink', icon='link_off',
+                            on_click=lambda _=None, row=t: confirm_unlink(row),
+                        ).props('flat color=negative').tooltip(
+                            'Detach from Challonge so this tournament can run on a '
+                            'native bracket'
+                        )
+
+        def confirm_unlink(tournament) -> None:
+            """The migration path off Challonge, which had no control at all.
+
+            A tournament uses a native bracket or a Challonge link and never both,
+            and nothing else in the product clears the link — so a community
+            moving onto native brackets had to abandon the tournament and build a
+            duplicate.
+            """
+            async def do_unlink() -> None:
+                confirm.dialog.close()
+                try:
+                    await service.unlink_tournament(tournament.id, actor)
+                    ui.notify(
+                        f'{tournament.name} unlinked from Challonge.', color='positive',
+                    )
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                await linked_tournaments.refresh()
+
+            confirm = ConfirmationDialog(
+                f'Unlink “{tournament.name}” from Challonge? Its mirrored '
+                'participants and bracket matches are removed here — the bracket on '
+                'Challonge itself is untouched, and re-linking re-imports it. '
+                'Scheduled matches stay exactly as they are, and the tournament '
+                'becomes eligible for a native bracket.',
+                on_confirm=do_unlink,
+                confirm_text='Unlink',
+            )
+            confirm.open()
 
         async def sync_one(tournament_id: int) -> None:
             try:

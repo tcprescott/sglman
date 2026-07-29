@@ -409,6 +409,44 @@ class ChallongeService:
         return tournament
 
     @requires_feature(FeatureFlag.CHALLONGE)
+    async def unlink_tournament(self, tournament_id: int, actor: User) -> Tournament:
+        """Detach a tournament from Challonge and drop its mirrored bracket.
+
+        The migration path off Challonge. Without it a community that wants to
+        move an existing tournament onto a native bracket cannot: the exclusivity
+        guard refuses the native bracket while the link stands, and no surface
+        clears ``challonge_tournament_id`` (the tournament editor refuses a blank
+        one). Nothing is deleted on Challonge's side — this only detaches the
+        local mirror, so re-linking re-imports it.
+        """
+        tournament = require_found(
+            await self.tournament_repository.get_by_id(tournament_id), f"Tournament {tournament_id}"
+        )
+        await AuthService.ensure(
+            await AuthService.can_edit_tournament(actor, tournament),
+            "You do not have permission to unlink this tournament",
+        )
+        if not tournament.challonge_tournament_id:
+            raise ValueError("This tournament is not linked to a Challonge bracket")
+
+        participants, matches = await self.repository.delete_mirror(tournament)
+        details = {
+            'tournament_id': tournament.id,
+            'challonge_tournament_id': tournament.challonge_tournament_id,
+            'participants_removed': participants,
+            'matches_removed': matches,
+        }
+        tournament.challonge_tournament_id = None
+        tournament.challonge_tournament_url = None
+        tournament.challonge_last_synced_at = None
+        await tournament.save()
+
+        await self.audit_service.write_log(
+            actor, AuditActions.CHALLONGE_TOURNAMENT_UNLINKED, details,
+        )
+        return tournament
+
+    @requires_feature(FeatureFlag.CHALLONGE)
     async def sync_bracket(self, tournament_id: int, actor: User, force: bool = False) -> Dict[str, int]:
         tournament = require_found(
             await self.tournament_repository.get_by_id(tournament_id), f"Tournament {tournament_id}"

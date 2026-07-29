@@ -31,6 +31,7 @@ from models import (
     Match,
     Tenant,
     Tournament,
+    TournamentPlayers,
     User,
 )
 
@@ -150,6 +151,70 @@ async def _single_elim(
     await _report_earliest_open_round(service, actor, bracket.id, best_of=1)
 
 
+async def _draft_stage(
+    service: BracketService, actor: User, tenant: Tenant, users: dict[str, User]
+) -> None:
+    """A stage still being authored — the one state every other demo skips past.
+
+    DRAFT is where the admin's edit, delete, reseed, link-user and import-roster
+    controls live, and a started stage shows none of them. The tournament also
+    carries ``TournamentPlayers`` rows that are deliberately *not* all rostered,
+    so "Import from tournament roster" has something to import.
+    """
+    tournament = await _demo_tournament(tenant, "Bracket Demo — Draft")
+    if await _already_built(service, tournament.id):
+        return
+    for key in ("player_one", "player_two", "player_three", "player_four"):
+        await TournamentPlayers.get_or_create(
+            tournament=tournament, user=users[key], tenant=tenant,
+        )
+    bracket = await service.create_bracket(
+        actor, tournament.id, "Round 1", BracketFormat.SINGLE_ELIM,
+    )
+    entrants = await _add_entrants(
+        service, actor, tournament.id, users,
+        [
+            ("Player One", "player_one"),
+            ("Player Two", "player_two"),
+            # Unlinked on purpose: the state the admin warns about before Start,
+            # and the one the link picker exists to resolve.
+            ("Late Signup", None),
+        ],
+    )
+    await _enroll_seeded(service, actor, bracket.id, entrants)
+
+
+async def _cancelled_stage(
+    service: BracketService, actor: User, tenant: Tenant, users: dict[str, User]
+) -> None:
+    """A stage started, part-played, then abandoned — the CANCELLED close-out.
+
+    The one terminal state that writes no ranking. Seeded so the admin's cancelled
+    row (and its absence from every public view) is visible without anyone having
+    to abandon a demo bracket by hand.
+    """
+    tournament = await _demo_tournament(tenant, "Bracket Demo — Cancelled")
+    if await _already_built(service, tournament.id):
+        return
+    bracket = await service.create_bracket(
+        actor, tournament.id, "Abandoned Bracket", BracketFormat.SINGLE_ELIM,
+        config={"default_best_of": 3},
+    )
+    entrants = await _add_entrants(
+        service, actor, tournament.id, users,
+        [
+            ("Player One", "player_one"),
+            ("Player Two", "player_two"),
+            ("Player Three", "player_three"),
+            ("Player Four", "player_four"),
+        ],
+    )
+    await _enroll_seeded(service, actor, bracket.id, entrants)
+    await service.start_bracket(actor, bracket.id)
+    await _report_earliest_open_round(service, actor, bracket.id, best_of=3)
+    await service.cancel_stage(actor, bracket.id)
+
+
 async def _double_elim(
     service: BracketService, actor: User, tenant: Tenant, users: dict[str, User]
 ) -> None:
@@ -240,8 +305,7 @@ async def _swiss(
         entry = entries.get(bye.entry1_id)
         if entry is not None and entry.status == BracketEntryStatus.ACTIVE:
             await service.drop_entrant(actor, entry.entrant_id)
-            entry.status = BracketEntryStatus.DROPPED
-            await entry.save()
+            await service.retire_entry(actor, entry.id)
 
 
 async def _round_robin(
@@ -438,6 +502,8 @@ async def seed_brackets_for_tenant(
     actor = users["staff_user"]
 
     await _single_elim(service, actor, tenant, users)
+    await _draft_stage(service, actor, tenant, users)
+    await _cancelled_stage(service, actor, tenant, users)
     await _double_elim(service, actor, tenant, users)
     await _swiss(service, actor, tenant, users)
     await _round_robin(service, actor, tenant, users)

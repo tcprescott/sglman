@@ -33,5 +33,25 @@ def validate_config_blob(
     try:
         model = model_cls.model_validate(config)
     except ValidationError as exc:
-        raise ValueError(f"Invalid {label} config: {exc}") from exc
+        raise ValueError(f"Invalid {label} config: {_readable(exc)}") from exc
     return model.model_dump(exclude_none=True)
+
+
+def _readable(exc: ValidationError) -> str:
+    """One short sentence per bad field, in place of pydantic's own rendering.
+
+    ``str(ValidationError)`` is four lines per error including a docs URL and the
+    input repr — 268 characters for a single even best-of, into a toast. The
+    fields are what the operator needs: which key, and what is wrong with it.
+    """
+    parts = []
+    for err in exc.errors():
+        location = '.'.join(str(p) for p in err.get('loc', ())) or 'config'
+        message = err.get('msg', 'is invalid')
+        # Pydantic prefixes messages raised by a field validator; the prefix
+        # reads as noise once the field is already named.
+        for prefix in ('Value error, ', 'Assertion failed, '):
+            if message.startswith(prefix):
+                message = message[len(prefix):]
+        parts.append(f'{location}: {message}')
+    return '; '.join(parts)

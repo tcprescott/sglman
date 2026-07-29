@@ -19,7 +19,7 @@ and [`bracket_engines/`](../../application/services/bracket_engines/) (engines +
 standings),
 [`bracket_repository.py`](../../application/repositories/bracket_repository.py),
 [`api/routers/brackets.py`](../../api/routers/brackets.py); surfaces in
-[`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py),
+[`pages/admin_tabs/admin_brackets/`](../../pages/admin_tabs/admin_brackets/),
 [`pages/brackets.py`](../../pages/brackets.py) (public),
 [`pages/home_tabs/brackets.py`](../../pages/home_tabs/brackets.py) (browse tab) and
 [`theme/brackets/`](../../theme/brackets/) + [`static/css/brackets.css`](../../static/css/brackets.css).
@@ -31,8 +31,8 @@ field tables in [data-model.md](../reference/data-model.md#native-brackets)):
 
 - **`Bracket`** — one **stage** of a tournament. A single-stage tournament has one
   row; a multi-stage tournament has several, ordered by `stage_order`. Carries the
-  `format`, the `state` (`DRAFT` → `ACTIVE` → `COMPLETE`), and a schema-validated
-  `config` blob.
+  `format`, the `state` (`DRAFT` → `ACTIVE` → `COMPLETE`, or `CANCELLED` for a
+  stage abandoned after it started), and a schema-validated `config` blob.
 - **`BracketEntrant`** — the tournament-level roster row that carries an entrant's
   identity across every stage. Placeholder-friendly: a `display_name` now, a
   linked `user` later (one link fixes the entrant in every stage). The indirection
@@ -69,12 +69,53 @@ Four formats, selected per stage via `Bracket.format`
 
 **Multi-stage tournaments** chain stages within one tournament (e.g. round-robin
 groups → single-elimination playoff). Stage 0 runs to completion, writing each
-entry's `final_rank`; a later stage carries an `advancement` rule in its config
-and is seeded from the prior stage's ranks by `advance_stage` — drawing the top
+entry's `final_rank`; a later stage carries an `advancement` rule in its config —
+on the stage being drawn **into**, never the one drawn from, which
+`validate_bracket_config` enforces by rejecting the key on stage 0 — and is seeded
+from the prior stage's ranks by `advance_stage`, drawing the top
 `count` (per source group or overall), skipping dropped entries, and laying out
 seeds by the `snake` (default) or `preserve` policy. Advancement enrolls **fresh
 `BracketEntry` rows pointing at the same `BracketEntrant`**, so identity carries
 across stages.
+
+## Config: what a stage is allowed to be asked
+
+`Bracket.config` is a closed `extra='forbid'` blob
+([`bracket_config.py`](../../application/services/bracket_config.py)) — but a
+blob cannot see the stage it belongs to, so `validate_bracket_config` takes the
+`fmt` and `stage_order` from the service and adds the checks the schema cannot
+make:
+
+- **`swiss_rounds` / `group_count` / `grand_final_reset` only on their own
+  format.** A key stored against another format is not merely useless — it reads
+  back as a setting the organizer believes is in force. A key sitting at its
+  schema *default* passes, because the normalizer (`model_dump(exclude_none=True)`)
+  injects every non-None default, so a stage's own stored blob is re-submitted
+  carrying keys nobody typed.
+- **No `advancement` on stage 0** — both readers look backwards from it, so a
+  rule there is read by nobody, forever and silently.
+
+`default_best_of` is the stage-wide series length, consulted by `resolve_best_of`
+between the per-round value and the bare `1` fallback. It exists because the
+per-round editor is derived from the generated match graph and so cannot be
+filled in *before* Start — without it, every stage is unavoidably Bo1 for the
+window in which its opening round is generated and announced.
+
+`set_round_metadata` deliberately validates the **shape only** (no `fmt`, no
+`stage_order`): it is the single edit allowed after a stage starts, and must not
+start refusing over a key it is not touching and the caller can no longer reach.
+
+## Previewing the draw
+
+`preview_draw(bracket_id)` is the read-only twin of `start_bracket` — the same
+engine, the same seeding rule, the same bye materialization, run in memory. It
+returns unsaved `BracketMatch` rows carrying synthetic **negative** ids, shaped
+exactly like the ones generation would persist, so the ordinary renderer draws
+them and what an organizer approves is what they get. Start is the draw, the
+publish and the notification at once; without this the only way to find out what
+a seeding produces is to publish it. A seeding that could not start is *reported*
+(`DrawPreview.error`) rather than raised, so the preview explains the problem the
+Start would have hit.
 
 ## Architecture: generate-then-persist
 
@@ -224,7 +265,11 @@ That is one toggle plus two authorized callers:
 
 - **`Tournament.allow_player_match_requests`** (default `True`) is turned off
   automatically by `BracketService.create_bracket` (stage 0 only, so a later stage
-  cannot undo a staff re-open) and by `ChallongeService.link_tournament`. While it
+  cannot undo a staff re-open) and by `ChallongeService.link_tournament`. The way *out* is
+`ChallongeService.unlink_tournament`, exposed as **Unlink** on the Challonge
+admin tab: it clears the link and drops the local mirror (the remote bracket and
+the community's scheduled `Match` rows are untouched), which is what makes moving
+an existing tournament onto a native bracket possible at all. While it
   is off, `MatchService.submit_match_request` refuses the tournament —
   `assert_player_requests_allowed` in
   [`match_request_guard.py`](../../application/services/match/match_request_guard.py)
@@ -267,7 +312,11 @@ Every write is Staff-gated (`AuthService.is_staff`), audits an
 the [event bus](event-system.md): `BRACKET_CREATED`, `BRACKET_STARTED`,
 `BRACKET_MATCH_COMPLETED`, `BRACKET_ADVANCED` (next Swiss round),
 `BRACKET_COMPLETED`, `BRACKET_STAGE_ADVANCED`, `BRACKET_ENTRANT_ADDED`,
-`BRACKET_ENTRANT_DROPPED`, and the per-game `BRACKET_GAME_SCHEDULED` /
+`BRACKET_ENTRANT_DROPPED`, `BRACKET_ENTRANT_UPDATED` (the entrant's user link — the
+third roster mutation beside add and drop), `BRACKET_ENTRY_RETIRED` (a field
+shrinking mid-stage), `BRACKET_CANCELLED` (a stage abandoned outright — terminal,
+but with no ranking and no champion, so nothing can advance out of it), and the
+per-game `BRACKET_GAME_SCHEDULED` /
 `BRACKET_GAME_COMPLETED` / `BRACKET_GAME_CANCELLED` plus
 `BRACKET_GAME_LINKED` / `BRACKET_GAME_UNLINKED` for the staff link/unlink of an
 existing `Match`, and `BRACKET_GAME_RELEASED` when a cancelled or deleted `Match`
@@ -412,7 +461,10 @@ to TRF(x) and feeding it to the real parser when `BBPPAIRINGS_BIN` is set.
 ## Dev seed
 
 [`scripts/seed_brackets.py`](../../scripts/seed_brackets.py) creates, per tenant, a
-"Bracket Demo" tournament per format in a mid-play state plus a two-stage
+"Bracket Demo" tournament per format in a mid-play state, a **DRAFT** stage still
+being authored (with unrostered `TournamentPlayers` so the admin's roster import
+and link-user controls have something to act on), a **CANCELLED** stage part-played
+and then abandoned, plus a two-stage
 groups→playoff tournament mid-chain. It drives the real `BracketService`, so the
 persisted graph is internally consistent, and leaves the live states the card
 renderer needs (a game in progress, one awaiting confirmation, an unbooked

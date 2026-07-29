@@ -117,6 +117,10 @@ class BracketConfig(BaseModel):
     # Double elimination: persist and activate the grand-final reset match only
     # when the losers-bracket entrant wins the first grand final.
     grand_final_reset: bool = True
+    # The series length for every round without its own ``rounds`` entry. Set
+    # before a stage starts — the per-round editor cannot be, because it is
+    # derived from the generated match graph, which does not exist until Start.
+    default_best_of: Optional[int] = None
     # Swiss: number of rounds to run (None = derived by a later unit).
     swiss_rounds: Optional[int] = None
     # Round robin: how many balanced groups to split the field into.
@@ -138,6 +142,11 @@ class BracketConfig(BaseModel):
     # display chrome for the redesigned bracket view; set by staff through the
     # admin per-round editor. See docs/plans/bracket-ui-plan.md.
     rounds: Optional[Dict[str, RoundConfig]] = None
+
+    @field_validator('default_best_of')
+    @classmethod
+    def _default_best_of_positive_odd(cls, v: Optional[int]) -> Optional[int]:
+        return validate_best_of(v)
 
     @field_validator('tiebreakers')
     @classmethod
@@ -176,8 +185,28 @@ class BracketConfig(BaseModel):
         return v
 
 
+# Config keys only one format can act on. A key stored against another format is
+# not merely useless — it reads back as a setting the organizer believes is in
+# force, which is how a Swiss stage ends up "configured" for 5 rounds that the
+# round-robin engine will never run.
+_FORMAT_ONLY_KEYS: Dict[str, str] = {
+    'swiss_rounds': 'swiss',
+    'group_count': 'round_robin',
+    'grand_final_reset': 'double_elim',
+}
+
+_FORMAT_KEY_HINT: Dict[str, str] = {
+    'swiss_rounds': 'Swiss',
+    'group_count': 'round-robin',
+    'grand_final_reset': 'double-elimination',
+}
+
+
 def validate_bracket_config(
     config: Optional[Dict[str, Any]],
+    *,
+    fmt: Optional[Any] = None,
+    stage_order: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """Validate and normalize a ``Bracket.config`` blob.
 
@@ -185,5 +214,40 @@ def validate_bracket_config(
     against :class:`BracketConfig` and returns the normalized dict with unset
     keys dropped. Raises :class:`ValueError` on any unknown key or bad value, so
     the service layer can surface it the same as every other user error.
+
+    ``fmt`` and ``stage_order`` enable the cross-field checks the schema itself
+    cannot make — it never sees the stage they belong to. Both are optional so a
+    caller validating a bare blob (a test, a migration) still gets the shape
+    check; the service always passes them, which is what keeps a dead key out of
+    the blob over REST as well as through the UI.
     """
-    return validate_config_blob(config, BracketConfig, "bracket")
+    validated = validate_config_blob(config, BracketConfig, "bracket")
+    if validated is None:
+        return None
+
+    fmt_value = getattr(fmt, 'value', fmt)
+    if fmt_value is not None:
+        for key, owner in _FORMAT_ONLY_KEYS.items():
+            if owner == fmt_value:
+                continue
+            value = validated.get(key)
+            # A key at its schema default carries no intent and must pass: the
+            # normalizer injects every non-None default, so a stage's own stored
+            # blob is re-submitted carrying keys nobody typed.
+            if value is None or value == BracketConfig.model_fields[key].default:
+                continue
+            raise ValueError(
+                f"{key!r} only applies to a {_FORMAT_KEY_HINT[key]} bracket"
+            )
+
+    # The advancement rule describes the field a stage *draws in*, so it belongs
+    # to the destination — both readers look backwards from it. On the first
+    # stage there is nothing behind to draw from, and a rule stored there is read
+    # by nobody, forever and silently.
+    if stage_order == 0 and 'advancement' in validated:
+        raise ValueError(
+            "An advancement rule belongs on the stage being drawn INTO, so the "
+            "first stage cannot carry one — set it on the stage that follows this "
+            "one"
+        )
+    return validated

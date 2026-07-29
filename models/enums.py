@@ -71,11 +71,16 @@ class BracketState(str, Enum):
     ``DRAFT`` while entrants are enrolled/seeded (the engine has not run yet);
     ``ACTIVE`` once ``start`` generates and persists the match graph;
     ``COMPLETE`` once every match is resolved and ``final_rank`` is written.
+    ``CANCELLED`` is the close-out for a stage that was started and then
+    abandoned — without it the only way to finish such a stage is to fabricate a
+    winner for every remaining match. It is terminal like ``COMPLETE`` but writes
+    no ``final_rank``, so nothing downstream can draw a field from it.
     """
 
     DRAFT = 'draft'
     ACTIVE = 'active'
     COMPLETE = 'complete'
+    CANCELLED = 'cancelled'
 
 
 class BracketMatchState(str, Enum):

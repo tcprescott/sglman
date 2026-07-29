@@ -210,6 +210,19 @@ class ChallongeRepository:
         return await scoped(ChallongeMatch.filter(tournament=tournament)).count()
 
     @staticmethod
+    async def delete_mirror(tournament: Tournament) -> tuple:
+        """Drop a tournament's mirrored participants and matches. Returns counts.
+
+        The scheduled ``Match`` rows a ``ChallongeMatch`` pointed at are NOT
+        touched — they are the community's own schedule and outlive the mirror.
+        """
+        matches = await scoped(ChallongeMatch.filter(tournament=tournament)).delete()
+        participants = await scoped(
+            ChallongeParticipant.filter(tournament=tournament)
+        ).delete()
+        return participants, matches
+
+    @staticmethod
     async def set_last_synced_at(tournament: Tournament, when: datetime) -> None:
         tournament.challonge_last_synced_at = when
         await tournament.save(update_fields=['challonge_last_synced_at'])
