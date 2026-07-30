@@ -34,6 +34,7 @@ from .render import (
     match_nodes,
     render_elimination,
     render_elimination_mobile,
+    results_from_matches,
 )
 from .layout import (
     CARD_HEIGHT,
@@ -62,6 +63,7 @@ __all__ = [
     'entry_records',
     'match_nodes',
     'register_bracket_view',
+    'results_from_matches',
     'FORMAT_LABELS',
     'FORMAT_OPTIONS',
     'STATE_COLORS',

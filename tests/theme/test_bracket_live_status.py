@@ -14,7 +14,7 @@ import pytest
 
 from application.services.match.match_status import MatchStatus
 from models import BracketMatchState
-from theme.brackets.cards import BracketContext, _card_classes
+from theme.brackets.cards import BracketContext, card_state_class
 
 CSS_PATH = Path(__file__).resolve().parents[2] / 'static' / 'css' / 'brackets.css'
 
@@ -35,11 +35,11 @@ def _match(match_id: int = 1, state=BracketMatchState.OPEN):
 class TestCardClasses:
     def test_without_live_state_the_card_is_exactly_what_it_was(self):
         """A caller that didn't resolve live state renders the pre-U2 card."""
-        assert _card_classes(_match(), _ctx()) == 'is-open'
-        assert _card_classes(
+        assert card_state_class(_match(), _ctx()) == 'is-open'
+        assert card_state_class(
             _match(state=BracketMatchState.PENDING), _ctx(),
         ) == 'is-pending'
-        assert _card_classes(
+        assert card_state_class(
             _match(state=BracketMatchState.COMPLETE), _ctx(),
         ) == 'is-complete'
 
@@ -51,7 +51,7 @@ class TestCardClasses:
     ])
     def test_a_live_status_overrides_the_matchup_state(self, status, expected):
         ctx = _ctx({1: {'status': status}})
-        assert _card_classes(_match(), ctx) == expected
+        assert card_state_class(_match(), ctx) == expected
 
     @pytest.mark.parametrize('status', [
         MatchStatus.SCHEDULED, MatchStatus.UNSCHEDULED,
@@ -61,11 +61,11 @@ class TestCardClasses:
         """These say nothing the matchup state doesn't; a card that shouted about
         every status would stop drawing the eye to the one being played."""
         ctx = _ctx({1: {'status': status}})
-        assert _card_classes(_match(), ctx) == 'is-open'
+        assert card_state_class(_match(), ctx) == 'is-open'
 
     def test_another_matchups_live_state_is_not_applied(self):
         ctx = _ctx({2: {'status': MatchStatus.LIVE}})
-        assert _card_classes(_match(match_id=1), ctx) == 'is-open'
+        assert card_state_class(_match(match_id=1), ctx) == 'is-open'
 
 
 class TestStylesheet:

@@ -14,6 +14,7 @@ from nicegui import app, ui
 from application.utils.environment import get_platform_host, is_production, validate_security_config
 from middleware.auth import AuthMiddleware
 from middleware.error_handlers import register_error_handlers
+from middleware.public_cache import PublicCacheMiddleware
 from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware
 from pages import (
     admin,
@@ -27,6 +28,7 @@ from pages import (
     platform,
     qualifiers,
     racetime_oauth,
+    static_brackets,
     twitch_oauth,
     volunteer,
 )
@@ -167,6 +169,9 @@ def init(fastapi_app: FastAPI) -> None:
     equipment_labels.create()
     equipment.create()
     brackets.create()
+    # Registered before ui.run_with so the cached, socket-free spectator views
+    # sit on the same app (and behind the same tenant middleware) as the pages.
+    static_brackets.create()
     platform.create()
     qualifiers.create()
     ui.run_with(
@@ -183,4 +188,8 @@ def init(fastapi_app: FastAPI) -> None:
         # development so local http:// keeps working.
         session_middleware_kwargs={'https_only': is_production(), 'same_site': 'lax'},
     )
+    # Installed on the wrapping app, so it sits *outside* the session middleware
+    # ui.run_with just added — that is the only place a Set-Cookie can be taken
+    # back off the publicly-cacheable spectator responses.
+    fastapi_app.add_middleware(PublicCacheMiddleware)
     register_error_handlers(fastapi_app)

@@ -23,6 +23,13 @@ Measured admission ceiling is **~10 tabs/second**, with the cliff between 10 and
 500 tabs connect cleanly at 3.3/s, 6.7/s and 10/s; at 16/s only 92/500 connect with
 p50 render latency of 4 s. Reproduce with `scripts/loadtest/`.
 
+**Spectators need not be tabs at all.** The cheapest socket is the one never
+opened: the bracket views have static, server-rendered, cached twins under
+`/live/…` (no NiceGUI, no socket, ~1 request per reader per minute) — see
+[brackets.md](features/brackets.md#static-spectator-views--the-link-you-send-a-stream).
+Where a read-only surface is what a crowd actually wants, that pattern moves the
+whole crowd out of the admission budget above.
+
 Sizing: **~0.85 MB RSS per connected tab** plus a ~145 MB baseline, so 500 tabs ≈
 560 MB. Replica count sizes from the arrival burst, not the steady-state count:
 `replicas ≈ ceil(peak_arrivals_per_sec / admissions_per_sec_per_replica)`.

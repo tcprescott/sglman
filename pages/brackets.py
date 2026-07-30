@@ -31,7 +31,6 @@ from middleware.auth import public_page
 
 from application.services import AuthService, BracketService, get_user_from_discord_id
 from application.services.bracket_engines.standings import (
-    ResultRow,
     compute_standings,
     standings_config_from,
 )
@@ -60,31 +59,13 @@ from theme.brackets import (
     register_bracket_view,
     render_elimination,
     render_elimination_mobile,
+    results_from_matches,
     stage_label,
     state_color,
     state_label,
     visible_stages,
 )
 from theme.brackets.tables import render_crosstable, render_pairings, render_standings
-
-
-def _results_from_matches(matches: List[BracketMatch]) -> List[ResultRow]:
-    """Completed matches as opaque-ref result rows for standings computation."""
-    rows: List[ResultRow] = []
-    for m in matches:
-        if m.state != BracketMatchState.COMPLETE:
-            continue
-        if m.entry1_id is None and m.entry2_id is None:
-            continue
-        if m.entry2_id is None:
-            rows.append(ResultRow(ref1=m.entry1_id, winner=m.entry1_id))
-        elif m.entry1_id is None:
-            rows.append(ResultRow(ref1=m.entry2_id, winner=m.entry2_id))
-        else:
-            rows.append(
-                ResultRow(ref1=m.entry1_id, ref2=m.entry2_id, winner=m.winner_id)
-            )
-    return rows
 
 
 def _slot_label(
@@ -249,7 +230,7 @@ def _render_round_robin(
                     continue
                 standings = compute_standings(
                     group_entry_ids,
-                    _results_from_matches(group_matches),
+                    results_from_matches(group_matches),
                     standings_config_from(config),
                 )
                 render_standings(
@@ -282,7 +263,7 @@ def _render_swiss(
         ui.label('No entrants yet.').classes('italic-note')
         return
     standings = compute_standings(
-        [e.id for e in entries], _results_from_matches(matches), standings_config_from(config)
+        [e.id for e in entries], results_from_matches(matches), standings_config_from(config)
     )
     swiss_cut = advancement.get('count') if advancement else None
     render_standings(
@@ -312,6 +293,21 @@ def _render_swiss(
                 )
 
 
+def _static_view_link(path: str) -> None:
+    """Offer the cached, socket-free twin of this page (pages/static_brackets.py).
+
+    ``path`` is tenant-relative: ``ui.link`` prepends the page's ``root_path``,
+    so passing a ``/t/<slug>``-qualified path here would double the prefix.
+
+    The interactive page holds a websocket for as long as the tab is open, which
+    is the wrong trade for a spectator link posted to a stream or a Discord
+    channel — so the page that costs a socket is also where the one that doesn't
+    is advertised.
+    """
+    ui.link('Shareable spectator view', path).classes('text-caption') \
+        .tooltip('A static, cached page for followers — no live connection')
+
+
 def create() -> None:
     @public_page('/tournament/{tournament_id}/brackets', feature=FeatureFlag.BRACKETS)
     async def bracket_index(tournament_id: int) -> None:
@@ -338,6 +334,7 @@ def create() -> None:
 
         with ui.card().classes('page-container-narrow w-full q-pa-lg q-mt-md column'):
             ui.label(f'{tournament.name} — Brackets').classes('page-title')
+            _static_view_link(f'/live/tournament/{tournament_id}/brackets')
             ui.separator().classes('separator-spacing')
             if not brackets:
                 ui.label('No brackets have been published for this tournament.').classes('italic-note')
@@ -484,12 +481,14 @@ def create() -> None:
                         state_label(bracket.state),
                         color=state_color(bracket.state),
                     )
-                ui.button(
-                    'All stages', icon='list',
-                    on_click=lambda: ui.navigate.to(
-                        f'/tournament/{bracket.tournament_id}/brackets'
-                    ),
-                ).props('flat dense')
+                with ui.row().classes('items-center gap-3'):
+                    ui.button(
+                        'All stages', icon='list',
+                        on_click=lambda: ui.navigate.to(
+                            f'/tournament/{bracket.tournament_id}/brackets'
+                        ),
+                    ).props('flat dense')
+                    _static_view_link(f'/live/brackets/{bracket_id}')
                 ui.separator().classes('separator-spacing')
 
                 if bracket.state == BracketState.DRAFT or not matches:

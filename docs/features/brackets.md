@@ -401,6 +401,76 @@ Signed-out means shareable by link, not indexed. Page routes are **not** rate
 limited (`api/rate_limit.py` is mounted on the REST router only) — a known gap
 that predates public brackets, since the schedule was already anonymous.
 
+### Static spectator views — the link you send a stream
+
+The two `public_page` routes above are NiceGUI, which means **one websocket per
+open tab** for as long as it stays open, on an app that runs a single worker
+([scaling-roadmap.md](../scaling-roadmap.md)). That is the right trade for the
+people running the tournament and the wrong one for a bracket link posted to a
+stream or a Discord announcement, where the readers outnumber the staff by
+three orders of magnitude and none of them need a dialog.
+
+So each view has a **static twin**: the same bracket, rendered server-side into a
+plain HTML document with no client framework, no socket, and nothing to keep
+alive.
+
+| Static route | Interactive twin |
+|---|---|
+| `/live/tournament/{tournament_id}/brackets` | `/tournament/{tournament_id}/brackets` |
+| `/live/brackets/{bracket_id}` | `/brackets/{bracket_id}` |
+
+They are plain FastAPI routes in
+[`pages/static_brackets.py`](../../pages/static_brackets.py) — a `@public_page`
+would mint the very client this exists to avoid — and each interactive page links
+to its twin ("Shareable spectator view"), with the static page linking back.
+Everything `public_page` does that still applies is done explicitly: the tenant
+comes from `TenantMiddleware` (so `/t/<slug>/live/…` works, and a tenant-less
+path 404s), `BRACKETS` must be live, and `is_visible(..., is_staff=False)` keeps
+DRAFT and CANCELLED stages off the surface. Page-view telemetry is deliberately
+**not** recorded: a DB write per spectator is exactly the cost being avoided, and
+the interactive pages still report.
+
+**Rendering** lives in
+[`theme/brackets/static_view/`](../../theme/brackets/static_view/) and is pure —
+`markup.py` (cards/sections), `data_tables.py` (standings/pairings/crosstables),
+`document.py` (shell + the two page renderers). It emits the *same* class names
+and DOM shape as the interactive renderer, so `static/css/brackets.css` styles
+both and the desktop/phone split is the stylesheet's existing media query rather
+than JavaScript; it consumes the *same* pure inputs (`layout_section`,
+`build_context`, `compute_standings`, `results_from_matches`), so geometry, match
+numbering, placeholders and standings cannot drift between the two views. What is
+gone is everything interactive: no match dialog, no zoom, no view toggle, no live
+subscription. Tabs and expansion panels become `<details>`; the single inline
+script is the hover-run highlight plus the dark-mode class. This is the one
+bracket renderer that builds markup by hand instead of through `ui.label`, so
+**every user-controlled string goes through `html.escape`** — asserted in
+`tests/theme/test_static_bracket_view.py`.
+
+**Caching** is two layers over one render:
+
+* *In-process* ([`HtmlPageCache`](../../application/utils/html_cache.py)), keyed
+  by tenant + page. Invalidated by a sync event-bus subscriber on every
+  `bracket.*` and `match.*` event for that tenant — a version bump, not a scan,
+  because the callback runs inside `publish`. A 30s TTL is the backstop for state
+  no event announces (a card whose derived status turns "imminent" as the clock
+  moves). A tenant-less event clears the cache outright rather than guessing.
+* *HTTP* — `Cache-Control: public, max-age=30, stale-while-revalidate=300` plus a
+  strong `ETag`, so the page's own 60s meta-refresh usually costs a 304 with no
+  body, and a CDN can absorb a burst without touching the app.
+
+`public` caching and NiceGUI's session cookie are incompatible, and NiceGUI mints
+one on every request that reaches the app — so
+[`middleware/public_cache.py`](../../middleware/public_cache.py) strips
+`Set-Cookie` from exactly these responses. It is installed on the *wrapping*
+FastAPI app in `frontend.init` because that is the only place outside the session
+middleware `ui.run_with` adds. Nothing is lost: these pages never read the
+session.
+
+Verified end to end against the running app: zero websockets, five to six
+requests per page load (the document plus cached CSS/fonts), a 304 on
+revalidation, no `Set-Cookie`, and a reported result changing the ETag on the
+next request.
+
 ## Presentation
 
 The public page and the admin Results dialog share one in-house renderer,
