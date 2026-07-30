@@ -35,6 +35,30 @@ from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
 
 
+def enrolment_preview(names: list, tournament_name: str) -> str:
+    """The sentence naming who scheduling this match will enrol.
+
+    Empty when everyone chosen is already an entrant, so it says nothing on the
+    common path — the point is to surface a side effect, not to add noise.
+    """
+    if not names:
+        return ''
+    if len(names) == 1:
+        return f'{names[0]} will be enrolled in {tournament_name}.'
+    listed = ', '.join(names[:-1]) + f' and {names[-1]}'
+    return f'{listed} will be enrolled in {tournament_name}.'
+
+
+def enrolment_report(names: list, tournament_name: str) -> str:
+    """The same fact in the past tense, for the success notification."""
+    if not names:
+        return ''
+    if len(names) == 1:
+        return f'{names[0]} was enrolled in {tournament_name}.'
+    listed = ', '.join(names[:-1]) + f' and {names[-1]}'
+    return f'{listed} were enrolled in {tournament_name}.'
+
+
 class BaseMatchDialog:
     """Base class for match dialogs with common functionality."""
 
@@ -241,6 +265,10 @@ class BaseMatchDialog:
             with dialog:
                 notify_error(e)
 
+    async def _tournament_name(self, tournament_id) -> str:
+        tournament = await self.tournament_service.get_tournament_by_id(tournament_id)
+        return tournament.name if tournament else 'this tournament'
+
     async def _run_submit(
         self,
         dialog,
@@ -270,7 +298,9 @@ class BaseMatchDialog:
             return
 
         try:
-            await self.match_service.ensure_players_enrolled(tournament_id, player_ids)
+            newly_enrolled = await self.match_service.ensure_players_enrolled(
+                tournament_id, player_ids,
+            )
         except ValueError as e:
             with self.dialog:
                 notify_error(e)
@@ -297,7 +327,16 @@ class BaseMatchDialog:
             try:
                 await do_create()
                 with self.dialog:
-                    ui.notify(create_success_message, color='positive')
+                    # Say what scheduling the match did besides schedule it.
+                    report = enrolment_report(
+                        [u.preferred_name for u in newly_enrolled],
+                        await self._tournament_name(tournament_id),
+                    )
+                    ui.notify(
+                        f'{create_success_message} — {report}' if report
+                        else create_success_message,
+                        color='positive',
+                    )
                     dialog.close()
                 if self.on_submit:
                     await self.on_submit()

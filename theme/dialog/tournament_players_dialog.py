@@ -1,27 +1,115 @@
-from nicegui import ui
+"""The tournament's entrants, managed from the tournament.
 
-from application.services import TournamentService
+The Tournaments tab invites the user to "click a player count to manage
+entrants" and this dialog used to be a read-only list plus Close. It is
+read-write now, over the community's members — which is what makes it safe to
+write to at all: before membership scoping an "add entrant" picker would have
+offered every account on the platform.
+"""
+
+from nicegui import app, ui
+
+from application.services import TournamentService, UserService, get_user_from_discord_id
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
 
 class TournamentPlayersDialog:
-    def __init__(self, tournament):
+    def __init__(self, tournament, on_change=None):
         self.tournament = tournament
         self.dialog = None
+        self.on_change = on_change
 
     async def open(self):
+        service = TournamentService()
+        actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog
             mobile_sheet(dialog)
             dialog_header(f'Players — {self.tournament.name}', dialog)
-            with ui.column().classes('q-pa-md'):
-                players = await TournamentService().get_enrolled_players(self.tournament)
-                if not players:
-                    ui.label('No players enrolled.').classes('text-grey-7')
-                else:
+
+            with ui.column().classes('q-pa-md w-full gap-2'):
+
+                @ui.refreshable
+                async def roster() -> None:
+                    players = await service.get_enrolled_players(self.tournament)
+                    if not players:
+                        ui.label(
+                            'No players enrolled yet — a match can only be '
+                            'scheduled between entrants.'
+                        ).classes('text-grey-7')
+                        return
                     for tp in players:
                         user = tp.user
-                        ui.label(f'{user.display_name or user.username} (Discord: {user.discord_id})')
+                        with ui.row().classes('items-center justify-between no-wrap w-full'):
+                            ui.label(f'{user.display_name or user.username} '
+                                     f'(Discord: {user.discord_id})')
+                            ui.button(
+                                'Remove', icon='person_remove',
+                                on_click=lambda _=None, u=user: remove(u),
+                            ).props('flat dense color=negative')
+
+                async def remove(user) -> None:
+                    try:
+                        await service.unenroll_player(self.tournament, user, actor)
+                    except (ValueError, PermissionError) as e:
+                        ui.notify(str(e), color='warning')
+                        return
+                    ui.notify(f'{user.display_name or user.username} removed',
+                              color='positive')
+                    # Refresh the caller's table *before* rebuilding the roster.
+                    # Measured: with `roster.refresh()` first, the player-count
+                    # column kept the pre-removal number — an async
+                    # @ui.refreshable's rebuild does not reliably let what
+                    # follows it in the same handler run.
+                    if self.on_change:
+                        await self.on_change()
+                    await refresh_candidates()
+                    roster.refresh()
+
+                async def add() -> None:
+                    if not add_select.value:
+                        ui.notify('Choose someone to enrol', color='warning')
+                        return
+                    user = await UserService().get_user_by_id(add_select.value)
+                    if user is None:
+                        ui.notify('That account no longer exists', color='negative')
+                        return
+                    try:
+                        await service.enroll_player(self.tournament, user, actor)
+                    except (ValueError, PermissionError) as e:
+                        ui.notify(str(e), color='warning')
+                        return
+                    ui.notify(f'{user.display_name or user.username} enrolled',
+                              color='positive')
+                    add_select.value = None
+                    if self.on_change:
+                        await self.on_change()
+                    await refresh_candidates()
+                    roster.refresh()
+
+                async def refresh_candidates() -> None:
+                    enrolled = {
+                        tp.user_id
+                        for tp in await service.get_enrolled_players(self.tournament)
+                    }
+                    members = await UserService().get_community_users()
+                    add_select.options = {
+                        u.id: (u.display_name or u.username)
+                        for u in members if u.id not in enrolled
+                    }
+                    add_select.update()
+
+                await roster()
+
+                ui.separator()
+                with ui.row().classes('items-center no-wrap w-full gap-2'):
+                    add_select = ui.select(
+                        options={}, label='Enrol a member', with_input=True,
+                    ).classes('grow')
+                    ui.button('Enrol', icon='person_add', on_click=add).props('color=primary')
+                await refresh_candidates()
+
             with dialog_actions().classes('justify-end'):
                 ui.button('Close', on_click=dialog.close).props('flat')
             dialog.open()

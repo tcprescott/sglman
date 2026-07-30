@@ -123,8 +123,10 @@ async def test_the_fledgling_seed_tenant_is_not_setup_complete(db):
     steps = _by_key(await TenantSetupService.status_for(fledgling.id))
 
     assert steps['staff'].done is True
-    assert steps['tournament'].done is False
+    # A tournament with no entrants: the state the entrants dialog is for.
+    assert steps['tournament'].done is True
     assert steps['enrolment'].done is False
+    assert steps['stream_room'].done is False
     assert TenantSetupService.is_ready(list(steps.values())) is False
 
     # The fully-provisioned seed tenants are the contrast: the panel must be

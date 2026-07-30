@@ -16,7 +16,7 @@ from theme.dialog._helpers import (
     mobile_sheet,
 )
 from theme.dialog import _match_bracket_link as bracket_link
-from theme.dialog.match_dialog_base import BaseMatchDialog
+from theme.dialog.match_dialog_base import BaseMatchDialog, enrolment_preview
 
 # The empty-Tournament hints differ by audience: an admin can go and make one, a
 # player requesting a match cannot.
@@ -155,6 +155,31 @@ class AdminMatchDialog(BaseMatchDialog):
                         'Include players not enrolled in this tournament', value=False,
                     )
 
+                # Scheduling someone into a tournament they are not in does enrol
+                # them, which is right — it was just invisible. Name it before the
+                # save, and again in the success notification. No confirmation
+                # dialog: enrolment is reversible from the tournament's own
+                # entrants dialog.
+                enrolment_note = ui.label('').classes('text-caption text-grey')
+
+                async def update_enrolment_note():
+                    tournament_id = selected_tournament.value
+                    chosen = selected_players.value or []
+                    if not tournament_id or not chosen:
+                        enrolment_note.text = ''
+                        return
+                    enrolled = {u.id for u in await get_opted_in_users(tournament_id)}
+                    by_id = {u.id: u for u in users}
+                    names = [
+                        by_id[uid].preferred_name
+                        for uid in chosen if uid in by_id and uid not in enrolled
+                    ]
+                    with tenant_scope(tenant_id):
+                        tournament = await self.tournament_service.get_tournament_by_id(tournament_id)
+                    enrolment_note.text = enrolment_preview(
+                        names, tournament.name if tournament else 'this tournament',
+                    )
+
                 with ui.row().classes('items-start gap-2 flex-wrap'):
                     selected_commentators = ui.select(
                         label='Commentators',
@@ -187,9 +212,14 @@ class AdminMatchDialog(BaseMatchDialog):
                         selected_players.options = {}
                         selected_players.disable()
 
-                await update_selection_options()
-                selected_tournament.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
-                choose_any_players.on('update:model-value', lambda: background_tasks.create(update_selection_options()))
+                async def refresh_selection_and_note():
+                    await update_selection_options()
+                    await update_enrolment_note()
+
+                await refresh_selection_and_note()
+                selected_tournament.on('update:model-value', lambda: background_tasks.create(refresh_selection_and_note()))
+                choose_any_players.on('update:model-value', lambda: background_tasks.create(refresh_selection_and_note()))
+                selected_players.on('update:model-value', lambda: background_tasks.create(update_enrolment_note()))
 
                 date, time = self._render_date_time_inputs(defaults['date'], defaults['time'])
 

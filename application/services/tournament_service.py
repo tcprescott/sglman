@@ -17,6 +17,7 @@ from application.repositories import (
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.system_config_service import SystemConfigService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tournament_config import validate_tournament_config
 from application.tenant_context import require_tenant_id
 from models import Tournament, User
@@ -393,6 +394,56 @@ class TournamentService:
 
     async def get_enrolled_players(self, tournament: Tournament) -> list:
         return await self.repository.get_enrolled_players(tournament)
+
+    async def enroll_player(self, tournament: Tournament, target: User, actor: User) -> None:
+        """Enrol one player in one tournament, from the tournament's own screen.
+
+        Refuses a non-member: the picker is scoped to the community, but UI-only
+        gating is not gating — a Discord handler or a future page reaching this
+        method must hit the same wall.
+        """
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            'Only Staff can manage tournament entrants',
+        )
+        if not await TenantMembershipService().is_member(target):
+            raise ValueError(
+                f'{target.display_name or target.username} is not a member of this '
+                'community — add them on the Users tab first.'
+            )
+        if await self.repository.is_player_enrolled(tournament, target):
+            raise ValueError(
+                f'{target.display_name or target.username} is already enrolled.'
+            )
+        await self.repository.enroll_player(tournament, target)
+        # Deliberately the same action as the per-user edit dialog and the match
+        # dialog: one fact reached from three screens. A parallel action would
+        # make the log unanswerable.
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
+            {
+                'target_user_id': target.id,
+                'added_tournament_ids': [tournament.id],
+                'removed_tournament_ids': [],
+            },
+        )
+
+    async def unenroll_player(self, tournament: Tournament, target: User, actor: User) -> None:
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            'Only Staff can manage tournament entrants',
+        )
+        await self.repository.unenroll_player(tournament, target)
+        await self.audit_service.write_log(
+            actor,
+            AuditActions.USER_TOURNAMENT_ENROLLMENT_UPDATED,
+            {
+                'target_user_id': target.id,
+                'added_tournament_ids': [],
+                'removed_tournament_ids': [tournament.id],
+            },
+        )
 
     async def get_enrolled_players_by_user(self, user: User) -> list:
         return await self.repository.get_enrolled_players_by_user(user)

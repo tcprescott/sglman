@@ -749,8 +749,19 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `add_crew_coordinator(tournament, target, actor=None)` | `None` | Grant Crew Coordinator. |
 | `remove_crew_coordinator(tournament, target, actor=None)` | `None` | Revoke Crew Coordinator. |
 | `get_all_tournaments(active_only=False)` / `get_tournament_by_id(id)` | reads | Tournament list (optionally active only); one tournament by id. |
+| `enroll_player(tournament, target, actor)` / `unenroll_player(tournament, target, actor)` | `None` | Entrant management from the tournament's own screen (`can_grant_roles` gated). `enroll_player` refuses a non-member of the community and a duplicate — the picker being member-scoped is a convenience, not the gate. |
 
-Collaborators: `TournamentRepository`, `AuditService`.
+**Enrolment has three entry points** — the per-user edit dialog
+(`UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`),
+the tournament's own entrants dialog (above), and the match dialog's create path
+(`MatchService.ensure_players_enrolled`, which returns the users it enrolled so
+the UI can report the side effect instead of hiding it). All three write the
+**same** audit action, `user.tournament_enrollment_updated`: one fact reached
+from three screens, and a parallel action per screen is how an audit log stops
+being answerable. All three write through `TournamentRepository`, which is what
+stamps the non-null tenant FK.
+
+Collaborators: `TournamentRepository`, `TenantMembershipService`, `AuditService`.
 
 ### tournament_config.py + tournament_strategies/ — hybrid-config substrate
 

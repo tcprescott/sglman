@@ -24,9 +24,6 @@ from pathlib import Path
 # Ensure project root is on the path when run as a script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dotenv import load_dotenv
-load_dotenv()
-
 from tortoise import Tortoise
 from tortoise.functions import Max
 from models import (
@@ -49,6 +46,7 @@ from application.services.feature_flag_service import FeatureFlagService
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
+from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
@@ -710,30 +708,6 @@ async def seed_mcp_oauth(users: dict[str, User]) -> None:
 # and consumed seconds later; a seeded one would always be stale/expired.
 
 
-async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
-    """A third tenant deliberately stopped part-way through setup.
-
-    The other two are fully provisioned, so the setup checklist is complete in
-    both and the panel would be invisible in dev. This one has a staff member
-    and nothing else: ``staff`` done, ``tournament`` / ``enrolment`` /
-    ``stream_room`` outstanding — the mixed state the checklist, ``/platform``'s
-    "1 of 3" and the disabled Tournament select all need in one login.
-    """
-    tenant, created = await Tenant.get_or_create(
-        slug='fledgling',
-        defaults={'name': 'Fledgling Community', 'discord_guild_id': 1000000000000000003},
-    )
-    tenant.feature_group = groups['default']
-    await tenant.save()
-    with tenant_scope(tenant.id):
-        await TenantMembership.get_or_create(user=users['staff_user'], tenant=tenant)
-        await UserRole.get_or_create(
-            user=users['staff_user'], role=Role.STAFF, tenant=tenant,
-            defaults={'granted_by': None},
-        )
-    print(f"  tenant 'fledgling' ({'created' if created else 'exists'}, id={tenant.id}) — setup deliberately incomplete")
-
-
 async def seed_all() -> None:
     """Seed everything into the already-initialized ORM connection.
 
@@ -781,8 +755,14 @@ async def seed_all() -> None:
 
 
 async def seed() -> None:
-    # Lazy: building TORTOISE_ORM requires DB_* env vars, and importing this
-    # module must stay env-free so tests can import seed_all.
+    # Lazy, both of them: building TORTOISE_ORM requires DB_* env vars, and
+    # importing this module must stay env-free so tests can import seed_all.
+    # load_dotenv() at import time was not env-free — it pushed the dev .env
+    # (MOCK_DISCORD, MOCK_SEEDGEN) into os.environ for the whole pytest worker,
+    # so any later test on that worker silently ran in mock mode.
+    from dotenv import load_dotenv
+    load_dotenv()
+
     from migrations.tortoise_config import TORTOISE_ORM
 
     await Tortoise.init(config=TORTOISE_ORM)

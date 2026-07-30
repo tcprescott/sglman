@@ -1,0 +1,42 @@
+"""Seed the half-provisioned ``fledgling`` tenant.
+
+A sibling of the other ``seed_*`` fixture modules, called from
+``seed_dev.seed_all`` — the same split that keeps ``seed_dev.py`` under the
+800-line budget.
+"""
+
+from application.tenant_context import tenant_scope
+from models import Role, Tenant, TenantMembership, Tournament, User, UserRole
+
+
+async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
+    """A third tenant deliberately stopped part-way through setup.
+
+    The other two are fully provisioned, so the setup checklist is complete in
+    both and the panel would be invisible in dev. This one has a staff member
+    and one **empty tournament**: ``staff`` and ``tournament`` done, ``enrolment``
+    and ``stream_room`` outstanding — the mixed state the checklist,
+    ``/platform``'s readiness column and the empty entrants dialog all need in
+    one login.
+    """
+    tenant, created = await Tenant.get_or_create(
+        slug='fledgling',
+        defaults={'name': 'Fledgling Community', 'discord_guild_id': 1000000000000000003},
+    )
+    tenant.feature_group = groups['default']
+    await tenant.save()
+    with tenant_scope(tenant.id):
+        await TenantMembership.get_or_create(user=users['staff_user'], tenant=tenant)
+        await UserRole.get_or_create(
+            user=users['staff_user'], role=Role.STAFF, tenant=tenant,
+            defaults={'granted_by': None},
+        )
+        # A tournament with **no entrants**: the state the entrants dialog is
+        # for, and the one the checklist's `enrolment` step reports outstanding.
+        # The populated tenants keep their rosters, so one seed run gives a
+        # reviewer both the empty and the full dialog.
+        await Tournament.get_or_create(
+            name='First Tournament', tenant=tenant,
+            defaults={'is_active': True, 'staff_administered': True},
+        )
+    print(f"  tenant 'fledgling' ({'created' if created else 'exists'}, id={tenant.id}) — setup deliberately incomplete")

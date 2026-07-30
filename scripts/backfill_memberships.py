@@ -21,12 +21,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dotenv import load_dotenv
-load_dotenv()
-
 from tortoise import Tortoise
 
-from migrations.tortoise_config import TORTOISE_ORM
 from models import Role, TenantMembership, UserRole
 
 
@@ -64,6 +60,13 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true', help='report without writing')
     args = parser.parse_args()
+
+    # Lazy, so importing this module stays env-free: load_dotenv() at import
+    # time pushes the dev .env into os.environ for whatever process imports it.
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    from migrations.tortoise_config import TORTOISE_ORM
 
     await Tortoise.init(config=TORTOISE_ORM)
     try:
