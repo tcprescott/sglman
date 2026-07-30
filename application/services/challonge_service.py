@@ -233,17 +233,53 @@ class ChallongeService:
     # ------------------------------------------------------------------
     # Player identity linking (called by player OAuth callback)
     # ------------------------------------------------------------------
+    async def _write_player_link(
+        self,
+        user: User,
+        challonge_user_id: str,
+        challonge_username: Optional[str],
+        actor: User,
+        *,
+        manual: bool,
+    ) -> None:
+        """Validate and record a player's Challonge identity, then audit it.
+
+        ``User.challonge_user_id`` is ``unique=True`` (participant matching has to
+        resolve one user per Challonge id), so the collision is checked up front:
+        reaching the index instead raises ``IntegrityError``, which the OAuth
+        callback turns into "Please try again." — advice that fails identically
+        every time it is followed. The remaining race (two users linking the same
+        id in the same instant) still lands on the index, and the generic message
+        is correct for that.
+        """
+        cuid = (challonge_user_id or '').strip()
+        if not cuid:
+            raise ValueError('A Challonge account id is required to link this user.')
+        existing = await User.filter(challonge_user_id=cuid).exclude(id=user.id).first()
+        if existing is not None:
+            raise ValueError(f'That Challonge account is already linked to {existing.username}.')
+        user.challonge_user_id = cuid
+        user.challonge_username = (challonge_username or '').strip() or None
+        user.challonge_linked_at = datetime.now(timezone.utc)
+        await user.save()
+        details = {
+            'user_id': user.id,
+            'challonge_user_id': cuid,
+            'challonge_username': user.challonge_username,
+        }
+        if manual:
+            details['manual'] = True
+        await self.audit_service.write_log(
+            actor, AuditActions.CHALLONGE_PLAYER_LINKED, details,
+        )
+
     @requires_feature(FeatureFlag.CHALLONGE)
     async def record_player_link(
         self, user: User, challonge_user_id: str, challonge_username: Optional[str], actor: User,
     ) -> None:
-        user.challonge_user_id = challonge_user_id
-        user.challonge_username = challonge_username
-        user.challonge_linked_at = datetime.now(timezone.utc)
-        await user.save()
-        await self.audit_service.write_log(
-            actor, AuditActions.CHALLONGE_PLAYER_LINKED,
-            {'user_id': user.id, 'challonge_user_id': challonge_user_id, 'challonge_username': challonge_username},
+        """Record a player's verified Challonge identity (the OAuth callback path)."""
+        await self._write_player_link(
+            user, challonge_user_id, challonge_username, actor, manual=False,
         )
 
     @requires_feature(FeatureFlag.CHALLONGE)
@@ -266,27 +302,11 @@ class ChallongeService:
         """Staff override to link a user to a Challonge account by id.
 
         Mirrors the OAuth ``record_player_link`` but is initiated by Staff (e.g.
-        for a player who can't complete the OAuth flow). The id must be unique
-        since participant matching resolves a single user per Challonge id.
+        for a player who can't complete the OAuth flow) — the audit row carries
+        ``manual`` to tell the two apart.
         """
-        cuid = (challonge_user_id or '').strip()
-        if not cuid:
-            raise ValueError('A Challonge account id is required to link this user.')
-        existing = await User.filter(challonge_user_id=cuid).exclude(id=user.id).first()
-        if existing is not None:
-            raise ValueError(f'That Challonge account is already linked to {existing.username}.')
-        user.challonge_user_id = cuid
-        user.challonge_username = (challonge_username or '').strip() or None
-        user.challonge_linked_at = datetime.now(timezone.utc)
-        await user.save()
-        await self.audit_service.write_log(
-            actor, AuditActions.CHALLONGE_PLAYER_LINKED,
-            {
-                'user_id': user.id,
-                'challonge_user_id': cuid,
-                'challonge_username': user.challonge_username,
-                'manual': True,
-            },
+        await self._write_player_link(
+            user, challonge_user_id, challonge_username, actor, manual=True,
         )
 
     @requires_feature(FeatureFlag.CHALLONGE)

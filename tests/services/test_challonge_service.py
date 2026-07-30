@@ -371,6 +371,59 @@ class TestPlayerLink:
         await user.refresh_from_db()
         assert user.challonge_user_id is None
 
+    async def test_challonge_oauth_link_rejects_an_id_another_user_holds(self, db):
+        # The OAuth path was the only one of the three link paths with no
+        # pre-check against a unique=True column: it hit the index, raised
+        # IntegrityError, and the callback answered "Please try again." — advice
+        # that fails identically every time it is followed.
+        await make_user(2, 'alice', challonge_user_id='4004')
+        user = await make_user(3, 'bob')
+        with pytest.raises(ValueError, match='already linked to alice'):
+            await make_service().record_player_link(user, '4004', 'bob_c', actor=user)
+        await user.refresh_from_db()
+        assert user.challonge_user_id is None
+
+    async def test_challonge_oauth_link_rejects_a_blank_id(self, db):
+        user = await make_user(2, 'bob')
+        with pytest.raises(ValueError, match='required'):
+            await make_service().record_player_link(user, '   ', 'bob_c', actor=user)
+
+    async def test_challonge_oauth_link_normalizes_like_the_staff_override(self, db):
+        user = await make_user(2, 'bob')
+        await make_service().record_player_link(user, ' 5005 ', '  bob_c  ', actor=user)
+        await user.refresh_from_db()
+        assert user.challonge_user_id == '5005'
+        assert user.challonge_username == 'bob_c'
+
+    async def test_relinking_the_same_id_to_the_same_user_is_allowed(self, db):
+        # The pre-check excludes the user themselves, so re-linking (a rebind to
+        # the identity already held) is not a collision with oneself.
+        user = await make_user(2, 'bob', challonge_user_id='6006')
+        await make_service().record_player_link(user, '6006', 'bob_renamed', actor=user)
+        await user.refresh_from_db()
+        assert user.challonge_username == 'bob_renamed'
+
+    async def test_only_the_staff_override_audits_manual(self, db):
+        # Both paths now share one private helper; `manual` is the only thing that
+        # distinguishes their audit rows, so it has to survive the extraction.
+        import json
+
+        from application.services.audit_service import AuditActions
+        from models import AuditLog
+        admin = await make_user(1, 'admin')
+        oauth_user = await make_user(2, 'bob')
+        manual_user = await make_user(3, 'carol')
+        service = make_service()
+        await service.record_player_link(oauth_user, '7007', None, actor=oauth_user)
+        await service.link_player_manually(manual_user, '7008', None, actor=admin)
+
+        by_user = {}
+        for row in await AuditLog.filter(action=AuditActions.CHALLONGE_PLAYER_LINKED):
+            details = row.details if isinstance(row.details, dict) else json.loads(row.details)
+            by_user[details['user_id']] = details
+        assert 'manual' not in by_user[oauth_user.id]
+        assert by_user[manual_user.id]['manual'] is True
+
 
 class TestParticipantTournamentIds:
     async def test_returns_only_tournaments_user_participates_in(self, db):
