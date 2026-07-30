@@ -8,13 +8,13 @@ import json
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
-from urllib.parse import urlencode
 
 from nicegui import ui
 
 from application.services import SystemConfigService, TournamentService
 from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
 from application.utils.timezone import EASTERN_TZ
+from pages.admin_tabs.links import REPORTS, SCHEDULE, VOL_SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 
 
@@ -65,17 +65,7 @@ def reports_url(report: Optional[str] = None, **params) -> str:
 
     The Reports section is a path segment (``/admin/reports``); the report name
     and its filters stay query params, since they are orthogonal report state."""
-    payload: dict = {}
-    if report:
-        payload['report'] = report
-    for key, value in params.items():
-        if value is None or value == '':
-            continue
-        if isinstance(value, (date, datetime)):
-            payload[key] = value.isoformat()
-        else:
-            payload[key] = value
-    return '/admin/reports?' + urlencode(payload) if payload else '/admin/reports'
+    return admin_url(REPORTS, report=report, **params)
 
 
 def parse_date(value: Optional[str]) -> Optional[date]:

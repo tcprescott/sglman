@@ -32,7 +32,7 @@ STANDARD_BLOCKS = [
 ]
 
 
-async def admin_volunteers_page() -> None:
+async def admin_volunteers_page(day: str = None) -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if not await AuthService.can_manage_volunteers(actor):
         ui.label('You do not have permission to manage volunteers.').classes('text-error')
@@ -51,7 +51,11 @@ async def admin_volunteers_page() -> None:
     while d <= event_end:
         day_options.append(d.isoformat())
         d += timedelta(days=1)
-    state = {'day': day_options[0] if day_options else event_start.isoformat()}
+    # A deep link (`?day=`) opens on the day it names, but only when that day is
+    # one this event actually has — an out-of-window or malformed date falls back
+    # to the default rather than showing an empty grid for a day that isn't real.
+    default_day = day_options[0] if day_options else event_start.isoformat()
+    state = {'day': day if day in day_options else default_day}
 
     def _day_window(day_str: str):
         start = parse_eastern_datetime(day_str, '00:00')

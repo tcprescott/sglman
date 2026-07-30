@@ -64,7 +64,8 @@ class MatchDisplayService:
         stream_room_ids: Optional[List[int]] = None,
         only_upcoming: bool = False,
         user_discord_id: Optional[str] = None,
-        exclude_racetime: bool = False
+        exclude_racetime: bool = False,
+        match_ids: Optional[List[int]] = None
     ) -> List[Dict[str, Any]]:
         """
         Get matches formatted for table display.
@@ -76,6 +77,7 @@ class MatchDisplayService:
             user_discord_id: Filter by player discord ID
             exclude_racetime: Drop matches run by a racetime.gg tournament — the
                 proctor board's rows are the ones a proctor can actually act on
+            match_ids: Restrict to these match IDs (a deep-linked board)
 
         Returns:
             List of formatted match dictionaries
@@ -86,6 +88,7 @@ class MatchDisplayService:
             only_upcoming=only_upcoming,
             user_discord_id=user_discord_id,
             exclude_racetime=exclude_racetime,
+            match_ids=match_ids,
             prefetch_relations=True
         )
 

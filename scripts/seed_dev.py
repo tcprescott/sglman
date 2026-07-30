@@ -83,6 +83,12 @@ async def seed_users() -> dict[str, User]:
         # what /platform and the super-admin's in-tenant access need to be
         # exercised against.
         ("100000000000000008", "super_admin",  "Platform Owner"),
+        # Two single-capability operators. Every other seeded admin is staff, and
+        # staff satisfies every predicate in the admin area — so a surface that
+        # gates on staff-ness where it means to gate on a capability looks
+        # correct until one of these logs in.
+        ("100000000000000009", "cc_user",      "Crew Coordinator"),
+        ("100000000000000010", "vc_user",      "Volunteer Coordinator"),
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
@@ -201,6 +207,10 @@ async def seed_for_tenant(
             ("player_one", Role.VOLUNTEER),
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
+            # Deliberately the only grant vc_user gets: a coordinator with no
+            # staff role. cc_user gets no role row at all — crew coordination is
+            # a per-tournament relation, granted below.
+            ("vc_user", Role.VOLUNTEER_COORDINATOR),
         ]
         for uname, role in role_grants:
             await UserRole.get_or_create(
@@ -263,6 +273,7 @@ async def seed_for_tenant(
         )
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
+        await tournament.crew_coordinators.add(users["cc_user"])
 
         # The general-purpose fixture tournament is deliberately **on-premises**:
         # its matches are the proctor-lifecycle fixtures, and attaching a

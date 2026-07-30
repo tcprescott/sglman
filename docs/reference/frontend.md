@@ -268,7 +268,15 @@ Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** 
 
 `can_crud = staff or tournament-admin-of-any` is passed into the Schedule tab; crew coordinators get a read-mostly Schedule — lifecycle buttons but no create/edit/stage-assign (see [Admin schedule](#admin-schedule-pagesadmin_tabsadmin_schedulepy)). Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
 
-**Deep-link query params.** Besides the `section` path segment, the page accepts `report`, `start`, `end`, `bucket`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, `category`, and `page`, all forwarded as a kwargs dict into the Reports tab. Every report filter change navigates to a new `/admin/reports?report=...` URL, so report state is fully URL-driven and shareable.
+**Deep-link query params.** Besides the `section` path segment, the page declares every tab's params in one signature and forwards each as a kwargs dict to the tab that owns it:
+
+| Tab | Params |
+|---|---|
+| Reports | `report`, `start`, `end`, `bucket`, `tournament_id`, `user_id`, `stream_room_id`, `state`, `approval`, `action`, `focus`, `category`, `page` |
+| Schedule | `match_id` — focuses the board on one match (suspending its State filter) with a chip back to the full board |
+| Vol. Schedule | `day` — opens on that event day, ignored unless it is one of them |
+
+Every report filter change navigates to a new `/admin/reports?report=...` URL, so report state is fully URL-driven and shareable. [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py) is the only place these URLs are built — `admin_url(section, **params)` owns the slug constants and the empty-param/date normalisation, and `reports_url` is a thin wrapper over it. Params are named per destination: `state` is the Reports tab's filter and is deliberately not reused for the board's.
 
 Triforce texts has no standalone route: player submission lives in the home **Triforce Texts** tab and admin moderation in the admin **Triforce Texts** tab — behavior doc: [../features/triforce-texts.md](../features/triforce-texts.md).
 
@@ -486,7 +494,7 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 | `REPORT_KEYS` | Tuple of report keys — currently unreferenced; the dashboard cards are driven by `dashboard.REPORT_CARDS` |
 | `CHART_GOLD` / `CHART_TEAL` / `CHART_RED` / `CHART_NEUTRAL` / `CHART_TEXT` / `CHART_GRID` | The chart palette. Fixed mid-tone steps chosen to clear 3:1 on **both** the light and dark card surfaces; colours are assigned **by role** (primary series, secondary series, threshold, idle), never per chart |
 | `themed_chart_option(option)` | Overlay the mode-neutral chrome colours onto an ECharts option without clobbering what the chart already sets |
-| `reports_url(report=None, **params)` | Build `/admin/reports[?report=…]` URLs; drops empty params, ISO-formats dates |
+| `reports_url(report=None, **params)` | Build `/admin/reports[?report=…]` URLs — `admin_url('reports', …)` from [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py), which drops empty params and ISO-formats dates |
 | `parse_date(value)` / `parse_int(value)` | Lenient parsing; `None` on garbage |
 | `eastern_bounds(start_d, end_d)` | Eastern date range → half-open aware datetime bounds (end clamped ≥ start) |
 | `async default_date_range(start_param, end_param)` | The URL dates if both parse, else `SystemConfigService.get_event_window()` |

@@ -19,6 +19,13 @@ date-range/tournament filters, the export button and the URL-param navigation.
 | Engagement Telemetry | `telemetry.py` | Page views, interactions and the domain-event mirror over a date window — KPIs, leaderboards, filterable raw log (Staff only; see [telemetry.md](telemetry.md)) |
 | Audit Log | `audit.py` | Searchable, paginated view of every audited action with expandable detail rows (see [audit-logging.md](audit-logging.md)) |
 
+**Reports link out; they never act.** A report row carries an id to the surface
+that already owns the action, with that surface's own authorization, rather than
+duplicating a mutation into a read-only page. The admin tabs a report can link
+to take their focus as a query param — Schedule `?match_id=`, Vol. Schedule
+`?day=` — and every URL is built by `admin_url` in
+[`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py).
+
 Aggregation always happens in a service, never in the page: most reports call
 `ReportsService`, Insights calls `AnalyticsService`, and the three that read one
 subsystem call its owner (`VolunteerScheduleService`, `TelemetryService`,

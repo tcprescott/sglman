@@ -104,6 +104,7 @@ class MatchRepository:
         only_upcoming: bool = False,
         user_discord_id: Optional[str] = None,
         exclude_racetime: bool = False,
+        match_ids: Optional[List[int]] = None,
         prefetch_relations: bool = True
     ) -> List[Match]:
         """
@@ -115,12 +116,18 @@ class MatchRepository:
             only_upcoming: Only return matches that haven't finished
             user_discord_id: Filter matches where user is a player
             exclude_racetime: Drop matches whose tournament runs on racetime.gg
+            match_ids: Restrict to these IDs. Still tenant-scoped, so an ID from
+                another community narrows the result to nothing rather than
+                leaking a row.
             prefetch_relations: Whether to prefetch related objects
 
         Returns:
             List of Match objects
         """
         query = scoped(Match.all())
+
+        if match_ids:
+            query = query.filter(id__in=match_ids)
 
         if only_upcoming:
             query = query.filter(finished_at__isnull=True)
