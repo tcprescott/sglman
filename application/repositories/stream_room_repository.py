@@ -27,6 +27,11 @@ class StreamRoomRepository(TenantScopedRepository[StreamRoom]):
         return await scoped(StreamRoom.all()).order_by('name')
     
     @staticmethod
+    async def any_exists() -> bool:
+        """Whether this tenant has any stream room at all."""
+        return await scoped(StreamRoom.all()).exists()
+
+    @staticmethod
     async def get_all_as_dict() -> dict[int, str]:
         """
         Get all stream rooms as a dict mapping ID to name.

@@ -154,3 +154,36 @@ async def test_slug_cache_is_bounded(db):
         assert await TenantService.get_by_slug(f'nope{i}') is None
     assert len(ts._cache_by_slug) <= ts._CACHE_MAX
     ts._clear_cache()
+
+
+# --- list_staff: the /platform read behind the first-admin dialog -------------
+
+
+async def test_list_staff_reads_the_named_tenant_not_the_ambient_one(super_admin, db):
+    # The ambient tenant is the default one; asking for tenant B's staff must
+    # not return A's. Written against the ambient tenant this returns A's staff.
+    b = await Tenant.create(name='B', slug='b')
+    staffer = await User.create(discord_id=3100, username='a_staff')
+    await UserRoleRepository.add(staffer, Role.STAFF)  # in the ambient tenant A
+
+    assert await TenantService.list_staff(super_admin, b.id) == []
+    in_a = await TenantService.list_staff(super_admin, 1)
+    assert [u.id for u in in_a] == [staffer.id]
+
+
+async def test_list_staff_requires_super_admin(db):
+    nobody = await User.create(discord_id=3101, username='nobody2')
+    with pytest.raises(PermissionError):
+        await TenantService.list_staff(nobody, 1)
+
+
+async def test_list_staff_is_empty_for_a_fresh_tenant(super_admin, db):
+    fresh = await TenantService.create_tenant(super_admin, name='Fresh', slug='fresh')
+    assert await TenantService.list_staff(super_admin, fresh.id) == []
+
+
+async def test_bootstrap_staff_is_what_list_staff_then_reports(super_admin, db):
+    fresh = await TenantService.create_tenant(super_admin, name='New', slug='new-one')
+    operator = await User.create(discord_id=3102, username='operator')
+    await TenantService.bootstrap_staff(super_admin, fresh.id, operator)
+    assert [u.id for u in await TenantService.list_staff(super_admin, fresh.id)] == [operator.id]

@@ -75,6 +75,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
+| `TenantSetupService` | [tenant_setup_service.py](../../application/services/tenant_setup_service.py) | The derived new-community setup checklist (`SetupStep`); nothing stored | [multitenancy.md](../features/multitenancy.md#provisioning-a-community) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
@@ -672,10 +673,26 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `is_member(user_id, tenant_id)` | `bool` | Membership check (`TenantMembership` lookup; used by `/platform` membership management). |
 | `add_member(actor, user, tenant_id)` / `list_members(tenant_id)` / `list_memberships_for_user(user)` | — / `list` / `list` | Membership management. |
 | `grant_super_admin(actor, user)` / `revoke_super_admin(actor, user)` | `None` | Super-admin gated; grant/revoke the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`); audited `super_admin.*`. |
-| `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. |
+| `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. Wired to `/platform`'s **Admins** row action and offered at the end of tenant creation. |
+| `list_staff(actor, tenant_id)` | `list[User]` | Who holds STAFF in a named tenant, read from `/platform`. Wraps `tenant_scope` because the role tables are scoped and the platform surface has no ambient tenant. |
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
 Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`.
+
+### tenant_setup_service.py — TenantSetupService
+
+Whether a community has what it needs to run, **derived on every read** — there is no `setup_complete` column, no dismissal flag and no per-step state, so a tenant that deletes its last tournament becomes un-set-up again and the checklist says so. Read-only: it takes no `actor` and writes no audit row. Five `.exists()` calls against `UserRoleRepository`, `TournamentRepository` and `StreamRoomRepository` plus the event-window config keys. Feature doc: [multitenancy.md § Provisioning a community](../features/multitenancy.md#provisioning-a-community).
+
+| Method | Returns | Description |
+|---|---|---|
+| `status()` | `list[SetupStep]` | The checklist for the tenant in scope. |
+| `status_for(tenant_id)` | `list[SetupStep]` | The same derivation inside `tenant_scope(tenant_id)` — the `/platform` caller, which has no ambient tenant. |
+| `is_ready(steps)` | `bool` | Every **required** step done. The advisory ones never block. |
+| `outstanding(steps)` | `list[SetupStep]` | The required steps still undone (the `/platform` tooltip). |
+
+`SetupStep` is a frozen dataclass: `key`, `label`, `done`, `hint`, `tab` (which admin tab completes it) and `required`. Required: `staff`, `tournament`, `enrolment`. Advisory: `stream_room`, `event_window` — a match schedules without a stream room, and Settings' own copy says the window is derivable from match times, so marking either required would put the UI at odds with the service.
+
+Rendered by `theme/setup_checklist.py` (the `Setup` admin tab) and `pages/platform.py`'s Setup column.
 
 ### tenant_theme_service.py — TenantThemeService
 

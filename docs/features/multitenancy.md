@@ -175,11 +175,38 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
   community.
 - **`/platform`** — [`pages/platform.py`](../../pages/platform.py), gated on
   *no tenant context* **and** `is_super_admin`. Tenant CRUD (name, slug, domain,
-  guild id, active) **and Racetime Bot CRUD + per-tenant authorization grants**
-  (`RacetimeBotService`; client secrets are write-only and never shown). Its
-  queries pass explicit ids (intended cross-tenant capability), backed by
-  `TenantService` / `RacetimeBotService`, whose CRUD/grant methods are
-  super-admin-gated and audited as platform-level rows (`tenant=NULL`).
+  guild id, active), the **first-admin grant** (below), a **Setup** column, **and
+  Racetime Bot CRUD + per-tenant authorization grants** (`RacetimeBotService`;
+  client secrets are write-only and never shown). Its queries pass explicit ids
+  (intended cross-tenant capability), backed by `TenantService` /
+  `RacetimeBotService`, whose CRUD/grant methods are super-admin-gated and
+  audited as platform-level rows (`tenant=NULL`).
+
+## Provisioning a community
+
+Creating a tenant writes exactly one row — no starter tournament, no stream
+room. What it needs next is a *first admin* and an order to work in:
+
+| Step | Where |
+|---|---|
+| Grant the first `STAFF` + `TenantMembership` | `/platform` → a tenant's **Admins** action (`TenantService.bootstrap_staff`), offered automatically at the end of creation. `scripts/seed_tenant.py --operator-discord-id` does the same from a shell. |
+| Everything after that | The **Setup** tab on the community's `/admin` |
+
+`TenantSetupService` derives the checklist on every read — five existence
+checks, nothing stored. Three steps are **required** (a staff member, a
+tournament, an enrolled player: a match cannot be scheduled without all three);
+a stream room and an event window are shown but advisory, because a match
+schedules without either. A community that deletes its last tournament becomes
+un-set-up again and the checklist says so.
+
+While a community is not ready, `build_admin_tabs`
+([`pages/admin.py`](../../pages/admin.py)) prepends a `Setup` tab, which
+`BaseLayout` then makes the landing view; once the required steps are done the
+tab is not built at all. The same derivation feeds `/platform`'s Setup column
+(`Ready`, or `1 of 3` with a tooltip naming what is outstanding) via
+`TenantSetupService.status_for(tenant_id)`, which wraps `tenant_scope` because
+the platform surface has no ambient tenant — the same shape as
+`TenantService.list_staff`.
 
 ## Discord: one bot, many guilds
 
@@ -253,8 +280,10 @@ updated, a `TenantMembership` per existing user), then constraint-tighten
 
 Bootstrap and ongoing tenant management run through `scripts/grant_super_admin.py`,
 `scripts/seed_tenant.py` and `scripts/grant_staff.py` — invocations in
-[deployment.md](../deployment.md#tenant-and-role-bootstrap). `scripts/seed_dev.py`
-seeds **two** tenants of fixtures for local dev.
+[deployment.md](../deployment.md#tenant-and-role-bootstrap) — though the first
+STAFF grant is now reachable from `/platform` itself. `scripts/seed_dev.py` seeds
+two fully-provisioned tenants plus `fledgling`, deliberately stopped after its
+staff grant so the setup checklist is visible in a half-done state.
 
 ## Testing and avoiding leaks
 

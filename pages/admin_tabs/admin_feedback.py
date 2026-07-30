@@ -1,6 +1,7 @@
 """Admin Feedback Review Page"""
 
 from nicegui import app, background_tasks, ui
+from theme.empty_state import no_data_slot
 from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 
@@ -75,6 +76,9 @@ async def admin_feedback_page() -> None:
             table = ui.table(columns=_COLUMNS, rows=rows, row_key='id').classes('w-full wiz-table')
             table.add_slot('body-cell-status', f'<q-td :props="props">{_STATUS_BADGE}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
+            # Terminal on purpose — staff cannot manufacture feedback, so there
+            # is nothing to offer here beyond saying the queue is empty.
+            table.add_slot('no-data', no_data_slot('No feedback submitted yet.', icon='feedback'))
             enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS,
                                field_slots={'status': _STATUS_BADGE})
 

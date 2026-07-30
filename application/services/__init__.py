@@ -83,6 +83,7 @@ from .station_service import StationService
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
 from .tenant_service import TenantService
+from .tenant_setup_service import SetupStep, TenantSetupService
 from .tenant_theme_service import TenantThemeService
 from .telemetry_service import TelemetryService
 from .tournament_notification_service import TournamentNotificationService
@@ -165,6 +166,8 @@ __all__ = [
     'StreamRoomService',
     'SystemConfigService',
     'TenantService',
+    'SetupStep',
+    'TenantSetupService',
     'TenantThemeService',
     'TelemetryService',
     'TournamentNotificationService',

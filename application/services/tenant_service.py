@@ -278,6 +278,20 @@ class TenantService:
         )
 
     @staticmethod
+    async def list_staff(actor: User, tenant_id: int) -> List[User]:
+        """Who holds STAFF in a tenant, read from the platform surface.
+
+        Wraps ``tenant_scope`` because the role tables are scoped and
+        ``/platform`` has no ambient tenant — the same reason
+        ``bootstrap_staff`` does.
+        """
+        from application.tenant_context import tenant_scope
+
+        await AuthService.ensure_super_admin(actor)
+        with tenant_scope(tenant_id):
+            return await UserRoleRepository.list_users_with_role(Role.STAFF)
+
+    @staticmethod
     async def bootstrap_staff(actor: User, tenant_id: int, user: User) -> None:
         """Grant the first STAFF role in a tenant + membership, from /platform.
 

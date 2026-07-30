@@ -702,6 +702,30 @@ async def seed_mcp_oauth(users: dict[str, User]) -> None:
 # and consumed seconds later; a seeded one would always be stale/expired.
 
 
+async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
+    """A third tenant deliberately stopped part-way through setup.
+
+    The other two are fully provisioned, so the setup checklist is complete in
+    both and the panel would be invisible in dev. This one has a staff member
+    and nothing else: ``staff`` done, ``tournament`` / ``enrolment`` /
+    ``stream_room`` outstanding — the mixed state the checklist, ``/platform``'s
+    "1 of 3" and the disabled Tournament select all need in one login.
+    """
+    tenant, created = await Tenant.get_or_create(
+        slug='fledgling',
+        defaults={'name': 'Fledgling Community', 'discord_guild_id': 1000000000000000003},
+    )
+    tenant.feature_group = groups['default']
+    await tenant.save()
+    with tenant_scope(tenant.id):
+        await TenantMembership.get_or_create(user=users['staff_user'], tenant=tenant)
+        await UserRole.get_or_create(
+            user=users['staff_user'], role=Role.STAFF, tenant=tenant,
+            defaults={'granted_by': None},
+        )
+    print(f"  tenant 'fledgling' ({'created' if created else 'exists'}, id={tenant.id}) — setup deliberately incomplete")
+
+
 async def seed_all() -> None:
     """Seed everything into the already-initialized ORM connection.
 
@@ -745,6 +769,7 @@ async def seed_all() -> None:
         # lacks the feature), so availability has to be settled before seeding.
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
+    await seed_fledgling_tenant(users, groups)
 
 
 async def seed() -> None:
