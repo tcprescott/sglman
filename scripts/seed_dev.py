@@ -88,6 +88,11 @@ async def seed_users() -> dict[str, User]:
         # staff_user holds both, so nothing else proves the manager path works
         # on its own — three audits had to grant a role like this by hand.
         ("100000000000000009", "equip_manager", "Equipment Manager"),
+        # Granted a role in the 'default' tenant only (see seed_for_tenant), and
+        # enrolled in nothing: the fixture that makes per-community people
+        # scoping visible in the dev loop. They must appear in tenant A's
+        # borrower/owner pickers and in neither of tenant B's.
+        ("100000000000000010", "local_only",   "Local Only"),
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
@@ -207,10 +212,20 @@ async def seed_for_tenant(
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
         ]
+        if tenant.slug == "default":
+            # Deliberately one tenant only — the per-community people read
+            # derives membership from grants like this one, so a user who holds
+            # nothing in tenant B must be absent from tenant B's pickers.
+            role_grants.append(("local_only", Role.VOLUNTEER))
         for uname, role in role_grants:
             await UserRole.get_or_create(
                 user=users[uname], role=role, tenant=tenant, defaults={"granted_by": None},
             )
+        print(
+            f"    [{tenant.slug}] roles ok"
+            + (" (local_only is a VOLUNTEER here and nowhere else)"
+               if tenant.slug == "default" else " (local_only holds nothing here)")
+        )
 
         # Stream rooms
         for name, url in [

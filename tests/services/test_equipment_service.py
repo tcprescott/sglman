@@ -227,3 +227,61 @@ class TestLoanHistoryBound:
     async def test_a_limit_larger_than_the_history_is_fine(self, db, service):
         asset, _, _ = await self._asset_with_loans(service, 2)
         assert len(await service.loan_history(asset, limit=50)) == 2
+
+
+class TestBorrowerRules:
+    """What the *service* refuses, versus what the picker merely narrows.
+
+    Two exclusions are rules and belong here, because this is the only place
+    every caller passes through. Community membership is **not** one of them:
+    the picker defaults to this community and offers an opt-in to widen,
+    precisely so an asset can be lent to someone who just walked into the venue.
+    """
+
+    async def test_the_system_account_cannot_borrow(self, db, service):
+        from models import SYSTEM_USER_DISCORD_ID
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        system = await User.create(discord_id=SYSTEM_USER_DISCORD_ID, username='System')
+        asset = await service.create_asset(manager, name='Console')
+
+        with pytest.raises(ValueError, match='cannot borrow'):
+            await service.checkout(manager, asset.id, borrower_id=system.id)
+
+    async def test_a_deactivated_account_cannot_borrow(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        gone = await _user(2, 'gone', Role.VOLUNTEER)
+        gone.is_active = False
+        await gone.save()
+        asset = await service.create_asset(manager, name='Console')
+
+        with pytest.raises(ValueError, match='cannot borrow'):
+            await service.checkout(manager, asset.id, borrower_id=gone.id)
+
+    async def test_a_refused_borrower_leaves_the_asset_available(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        gone = await _user(2, 'gone', Role.VOLUNTEER)
+        gone.is_active = False
+        await gone.save()
+        asset = await service.create_asset(manager, name='Console')
+
+        with pytest.raises(ValueError):
+            await service.checkout(manager, asset.id, borrower_id=gone.id)
+
+        refreshed = await service.get_asset(asset.id)
+        assert refreshed.status == EquipmentStatus.AVAILABLE
+        assert await service.current_loan(refreshed) is None
+
+    async def test_someone_outside_the_community_can_still_be_lent_to(self, db, service):
+        # This test documents the decision, not an accident: the picker narrows
+        # by default and can be widened, and the service must honour the widened
+        # choice. Hard-rejecting a non-member would break the venue case the
+        # whole feature exists for.
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        walk_in = await User.create(discord_id=99, username='walk_in')  # no role, no tournament
+        asset = await service.create_asset(manager, name='Console')
+
+        loan = await service.checkout(manager, asset.id, borrower_id=walk_in.id)
+
+        assert loan.borrower_id == walk_in.id
+        refreshed = await service.get_asset(asset.id)
+        assert refreshed.status == EquipmentStatus.CHECKED_OUT

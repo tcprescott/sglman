@@ -47,14 +47,17 @@ Findings that recur across the audits, worth fixing once rather than nine times:
 - **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
   `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
   reachable from no surface.
-- **The global `User` table leaks into per-community pickers.** The Users tab, the
-  match dialog's "Choose any players", and the equipment borrower select all offer
-  every user on the platform, `System` included
+- **The global `User` table leaks into per-community pickers.** The Users tab and
+  the match dialog's "Choose any players" still offer every user on the platform,
+  `System` included
   ([onboarding F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform)).
+  The equipment borrower and owner selects were the first to be fixed;
+  `UserService.get_community_people` is the read the other two want next.
 - **The dev seed cannot produce the roles that expose the worst bugs.** A
-  coordinator-only, stream-manager-only or equipment-manager-only user has to be
-  granted by hand; three audits needed one
+  coordinator-only or stream-manager-only user has to be granted by hand; three
+  audits needed one
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
+  The equipment-manager-only case now seeds (`equip_manager`).
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
   forfeiting a qualifier run, revoking an approval and arming five lifecycle-clear
   buttons get none.

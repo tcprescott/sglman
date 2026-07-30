@@ -13,7 +13,9 @@ from application.repositories.equipment_repository import EquipmentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.feature_flags import requires_feature
-from models import FeatureFlag, Equipment, EquipmentLoan, EquipmentStatus, User
+from models import (
+    SYSTEM_USER_DISCORD_ID, FeatureFlag, Equipment, EquipmentLoan, EquipmentStatus, User,
+)
 
 MAX_BULK_COUNT = 200
 
@@ -192,6 +194,15 @@ class EquipmentService:
             borrower = await User.get_or_none(id=borrower_id)
             if borrower is None:
                 raise ValueError("Selected borrower was not found.")
+            # The two hard rules, enforced here because this is the only place
+            # every caller passes through — the dialog, the MCP surface, a future
+            # REST router, a Discord handler. Deliberately *not* enforced: that
+            # the borrower belongs to this community. The picker narrows to that
+            # by default and offers an opt-in to widen, because lending to
+            # someone who just walked into the venue is the case this serves;
+            # hard-rejecting a non-member would break it.
+            if str(borrower.discord_id) == str(SYSTEM_USER_DISCORD_ID) or not borrower.is_active:
+                raise ValueError("That account cannot borrow equipment.")
         else:
             borrower = actor
 
