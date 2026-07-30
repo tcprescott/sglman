@@ -342,7 +342,8 @@ class MatchTableView(MatchTableHandlersMixin):
         for role in ['player']:
             self.table.on(f'edit_{role}', lambda event, r=role: self._handle_edit_role(r, event))
         for role in ['commentator', 'tracker']:
-            self.table.on(f"edit_{role}", lambda event, r=role: self._handle_approve_role(r, event))
+            self.table.on(f"view_{role}", lambda event, r=role: self._handle_edit_role(r, event))
+            self.table.on(f"toggle_{role}", lambda event, r=role: self._handle_toggle_approval(r, event))
 
         if self.on_assign_stations is not None:
             self.table.on('assign_stations', lambda event: self._bg(self._handle_assign_stations(event)))

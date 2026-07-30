@@ -10,6 +10,7 @@ view's injected instances / lazy imports, never repositories.
 from nicegui import app, ui
 
 from theme.dialog import ConfirmationDialog, UserDialog
+from theme.notify import notify_error
 
 
 class MatchTableHandlersMixin:
@@ -73,18 +74,18 @@ class MatchTableHandlersMixin:
             dialog = UserDialog(user)
             await dialog.open()
 
-    async def _handle_approve_role(self, role, event):
+    async def _handle_toggle_approval(self, role, event):
+        from application.services import CrewService, get_user_from_discord_id
+
         row = event.args['row']
         idx = event.args['idx']
         match_id = row['id']
         match_query = self.get_query()
         prefetch_map = {
-            'player': ('players', 'players__user'),
             'commentator': ('commentators', 'commentators__user'),
             'tracker': ('trackers', 'trackers__user'),
         }
         attr_map = {
-            'player': 'players',
             'commentator': 'commentators',
             'tracker': 'trackers',
         }
@@ -96,11 +97,50 @@ class MatchTableHandlersMixin:
         if not m or idx >= len(items):
             ui.notify(f'{role.capitalize()} not found.', color='warning')
             return
-        from theme.dialog import ApproveCrewDialog
+
         crew_member = items[idx]
+        name = crew_member.user.preferred_name
+        approving = not crew_member.approved
+
+        async def apply():
+            try:
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                await CrewService().update_crew_approval(
+                    crew_member=crew_member,
+                    crew_type=role,
+                    approved=approving,
+                    actor=actor,
+                )
+                ui.notify(
+                    f'{name} {"approved as" if approving else "un-approved as"} {role} for match ID {match_id}.',
+                    color='positive',
+                )
+                await self.update_row_by_id(match_id)
+            except (ValueError, PermissionError) as e:
+                notify_error(e)
+            finally:
+                dialog.dialog.close()
+
+        if approving:
+            message = (f'Approve {name} as {role} for match ID {match_id}?\n\n'
+                       "They'll get a Discord message asking them to acknowledge the assignment.")
+            title, confirm_text, tone = f'Approve {role}', 'Approve', 'primary'
+        else:
+            message = (f'Remove approval for {name} as {role} for match ID {match_id}?\n\n'
+                       "This also clears their acknowledgment. They'll get a Discord message "
+                       'letting them know.')
+            title, confirm_text, tone = f'Un-approve {role}', 'Un-approve', 'negative'
+
         with self.table_container:
-            dialog = ApproveCrewDialog(crew_member, role, on_approve=lambda: self.update_row_by_id(match_id))
-            await dialog.open()
+            dialog = ConfirmationDialog(
+                message,
+                title=title,
+                confirm_text=confirm_text,
+                cancel_text='Cancel',
+                tone=tone,
+                on_confirm=apply,
+            )
+            dialog.open()
 
     async def _handle_signup_or_undo_role(self, action, role, row):
         """Handle crew signup/undo using service layer."""
