@@ -11,7 +11,9 @@ from typing import Dict, List, Optional, Tuple
 from application.services.reporting_shared import (
     DEFAULT_MATCH_DURATION_MIN,
     ON_TIME_THRESHOLD_MIN,
+    crew_requirement,
     eastern,
+    is_crew_covered,
     window_hours,
 )
 from application.services.system_config_service import SystemConfigService
@@ -293,6 +295,7 @@ class ReportsService:
             comm_approved = sum(1 for c in match.commentators if c.approved)
             trk_total = len(match.trackers)
             trk_approved = sum(1 for t in match.trackers if t.approved)
+            need_commentators, need_trackers = crew_requirement(match.tournament)
 
             include_match = True
             if user_id is not None:
@@ -311,7 +314,11 @@ class ReportsService:
                     'commentators_total': comm_total,
                     'trackers_approved': trk_approved,
                     'trackers_total': trk_total,
-                    'coverage_gap': match.is_stream_candidate and (comm_approved == 0 or trk_approved == 0),
+                    'commentators_required': need_commentators,
+                    'trackers_required': need_trackers,
+                    'coverage_gap': match.is_stream_candidate and not is_crew_covered(
+                        match.tournament, comm_approved, trk_approved
+                    ),
                 })
 
             duration_hours = 0.0

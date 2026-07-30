@@ -207,6 +207,52 @@ class TestTournamentDays:
 
 
 # ---------------------------------------------------------------------------
+# stream-crew requirement
+# ---------------------------------------------------------------------------
+
+
+class TestCrewRequirement:
+    async def test_create_defaults_to_one_of_each(self, service):
+        service.repository.create = AsyncMock(return_value=make_tournament())
+        await service.create_tournament(name='X', actor=make_user())
+        kw = service.repository.create.await_args.kwargs
+        assert kw['required_commentators'] == 1
+        assert kw['required_trackers'] == 1
+
+    async def test_create_coerces_the_uis_floats(self, service):
+        service.repository.create = AsyncMock(return_value=make_tournament())
+        await service.create_tournament(
+            name='X', required_commentators=2.0, required_trackers=0.0, actor=make_user(),
+        )
+        kw = service.repository.create.await_args.kwargs
+        assert kw['required_commentators'] == 2
+        assert kw['required_trackers'] == 0
+
+    async def test_negative_requirement_rejected(self, service):
+        # A negative would make every stream candidate permanently covered — the
+        # mirror image of the false gap this setting exists to fix.
+        with pytest.raises(ValueError, match='cannot be negative'):
+            await service.create_tournament(
+                name='X', required_trackers=-1, actor=make_user(),
+            )
+
+    async def test_update_sets_only_what_was_passed(self, service):
+        tournament = make_tournament()
+        await service.update_tournament(
+            tournament, required_trackers=0, actor=make_user(),
+        )
+        kw = service.repository.update.await_args.kwargs
+        assert kw['required_trackers'] == 0
+        assert 'required_commentators' not in kw
+
+    async def test_update_rejects_a_negative_requirement(self, service):
+        with pytest.raises(ValueError, match='cannot be negative'):
+            await service.update_tournament(
+                make_tournament(), required_commentators=-2, actor=make_user(),
+            )
+
+
+# ---------------------------------------------------------------------------
 # config substrate (hybrid config validation)
 # ---------------------------------------------------------------------------
 

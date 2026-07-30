@@ -204,6 +204,26 @@ class TournamentDialog:
                         value=self.tournament.tournament_format if self.tournament and self.tournament.tournament_format else '',
                     ).classes('input-full-width')
 
+                    ui.separator()
+                    ui.label('Stream crew').classes('text-bold')
+                    ui.label(
+                        'How much approved crew a streamed match needs before the coverage '
+                        'reports count it as covered. Set a role to 0 if this tournament '
+                        'does not use it — otherwise every streamed match shows a gap. '
+                        'This does not restrict who may sign up.'
+                    ).classes('text-caption text-grey')
+                    with ui.row().classes('gap-2'):
+                        required_commentators_input = ui.number(
+                            'Commentators needed',
+                            value=self.tournament.required_commentators if self.tournament else 1,
+                            min=0, max=20,
+                        ).props('inputmode=numeric')
+                        required_trackers_input = ui.number(
+                            'Trackers needed',
+                            value=self.tournament.required_trackers if self.tournament else 1,
+                            min=0, max=20,
+                        ).props('inputmode=numeric')
+
                 with ui.expansion(
                     'Seeds & randomizer', icon='casino', value=sections_open,
                 ).classes('w-full').props('dense'):
@@ -371,6 +391,8 @@ class TournamentDialog:
                                 is_active=is_active_checkbox.value,
                                 players_per_match=players_per_match_input.value,
                                 team_size=team_size_input.value,
+                                required_commentators=required_commentators_input.value,
+                                required_trackers=required_trackers_input.value,
                                 staff_administered=staff_administered_checkbox.value,
                                 allow_player_match_requests=allow_requests_checkbox.value,
                                 preset_id=(preset_input.value or None),
@@ -396,6 +418,8 @@ class TournamentDialog:
                             is_active=is_active_checkbox.value,
                             players_per_match=players_per_match_input.value,
                             team_size=team_size_input.value,
+                            required_commentators=required_commentators_input.value,
+                            required_trackers=required_trackers_input.value,
                             staff_administered=staff_administered_checkbox.value,
                             allow_player_match_requests=allow_requests_checkbox.value,
                             preset_id=(preset_input.value or None),

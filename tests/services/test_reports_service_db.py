@@ -377,6 +377,59 @@ class TestCrewCoverage:
         assert {r['match_id'] for r in out['coverage_rows']} == {m1.id}
         assert contrib_hours(out, u.id) == 2.0  # only the t1 signup
 
+    async def test_tournament_that_uses_no_trackers_has_no_gap(self, db):
+        # The reports used to assume every streamed match needs a tracker, which
+        # gave a commentary-only tournament a permanent false gap.
+        t = await Tournament.create(
+            name='Comms only', average_match_duration=60,
+            required_commentators=1, required_trackers=0,
+        )
+        alice = await _user(1, 'Alice')
+        match = await Match.create(
+            tournament=t, scheduled_at=utc(2025, 10, 23, 18, 0), is_stream_candidate=True,
+        )
+        await Commentator.create(user=alice, match=match, approved=True)
+
+        row = (await ReportsService().crew_coverage(DAY_START, DAY_END))['coverage_rows'][0]
+        assert row['trackers_approved'] == 0
+        assert row['trackers_required'] == 0
+        assert row['commentators_required'] == 1
+        assert row['coverage_gap'] is False
+
+    async def test_requirement_above_one_is_enforced(self, db):
+        t = await Tournament.create(
+            name='Two comms', average_match_duration=60,
+            required_commentators=2, required_trackers=0,
+        )
+        alice = await _user(1, 'Alice')
+        bob = await _user(2, 'Bob')
+        one = await Match.create(
+            tournament=t, scheduled_at=utc(2025, 10, 23, 18, 0), is_stream_candidate=True,
+        )
+        two = await Match.create(
+            tournament=t, scheduled_at=utc(2025, 10, 23, 20, 0), is_stream_candidate=True,
+        )
+        await Commentator.create(user=alice, match=one, approved=True)
+        await Commentator.create(user=alice, match=two, approved=True)
+        await Commentator.create(user=bob, match=two, approved=True)
+
+        rows = {r['match_id']: r for r in
+                (await ReportsService().crew_coverage(DAY_START, DAY_END))['coverage_rows']}
+        assert rows[one.id]['coverage_gap'] is True   # one approved, two needed
+        assert rows[two.id]['coverage_gap'] is False
+
+    async def test_requiring_no_crew_at_all_covers_a_bare_candidate(self, db):
+        t = await Tournament.create(
+            name='Unstaffed', average_match_duration=60,
+            required_commentators=0, required_trackers=0,
+        )
+        match = await Match.create(
+            tournament=t, scheduled_at=utc(2025, 10, 23, 18, 0), is_stream_candidate=True,
+        )
+        row = (await ReportsService().crew_coverage(DAY_START, DAY_END))['coverage_rows'][0]
+        assert row['match_id'] == match.id
+        assert row['coverage_gap'] is False
+
 
 def contrib_hours(out, user_id):
     for c in out['contribution_rows']:

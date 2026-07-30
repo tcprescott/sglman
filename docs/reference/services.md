@@ -67,7 +67,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `RandomizerCredentialService` | [randomizer_credential_service.py](../../application/services/randomizer_credential_service.py) | Per-tenant randomizer API credentials | [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
-| `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours` helpers used by both Reports and Insights (so on-time % can't drift) | — |
+| `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours`/`crew_requirement`/`is_crew_covered` helpers used by both Reports and Insights (so on-time % and crew coverage can't drift) | — |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `ServiceHealthService` | [service_health_service.py](../../application/services/service_health_service.py) | Platform external-service health probes (computed + cached, no model) | — |
 | `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
@@ -538,7 +538,7 @@ Aggregation queries behind the admin Reports tabs. All time math runs in US/East
 | `peak_times(intervals, counts, top_n=5)` (static) | `list[(datetime, int)]` | Top-N busiest sampled instants from a forecast. |
 | `matches_active_at(instant, tournament_id=None)` | `list[Match]` | Matches whose estimated window covers the instant (drill-down for forecast points). |
 | `match_operations(start, end, tournament_id=None)` | `dict` | Per-match rows (start delay, duration, confirmation lag) and per-tournament aggregates (averages, on-time % within ±5 min). |
-| `crew_coverage(start, end, tournament_id=None, user_id=None, approved_only=False)` | `dict` | Per-match crew slot coverage (flagging stream candidates with zero approved commentators or trackers) and per-user contribution rows with covered hours. |
+| `crew_coverage(start, end, tournament_id=None, user_id=None, approved_only=False)` | `dict` | Per-match crew slot coverage (flagging stream candidates whose approved crew falls short of the tournament's `required_commentators`/`required_trackers`, via `reporting_shared.is_crew_covered`) and per-user contribution rows with covered hours. |
 | `stream_room_utilization(start, end, tournament_id=None, stream_room_id=None)` | `dict` | Per-room scheduled hours, back-to-back counts (<15 min gaps), idle gap hours, plus unplaced stream-candidate matches. |
 
 **Module-level helper:** `event_day_bounds(d) -> (datetime, datetime)` — midnight-to-midnight Eastern-aware bounds for a date.
@@ -553,7 +553,7 @@ Longitudinal / cross-event analytics behind the admin Reports → **Insights & T
 |---|---|---|
 | `crew_participation_trends(start, end, bucket='week', tournament_id=None)` | `dict` | Per-bucket commentator/tracker signups & approvals and unique-people counts (bucketed by match `scheduled_at`), plus top-15 contributors and window totals. |
 | `volunteer_hour_trends(start, end, bucket='week')` | `dict` | Per-bucket scheduled vs checked-in volunteer-hours, needed-hours and fill-rate %, a per-position breakdown, and top-15 volunteers (bucketed by shift `starts_at`). |
-| `tournament_health(start, end)` | `dict` | Per-tournament scorecards: completion % (past matches only), on-time %, crew coverage %, avg duration vs expected, and a composite 0–100 `health_score`. |
+| `tournament_health(start, end)` | `dict` | Per-tournament scorecards: completion % (past matches only), on-time %, crew coverage % (against the tournament's own crew requirement — same `is_crew_covered` the crew report uses), avg duration vs expected, and a composite 0–100 `health_score`. |
 | `activity_trends(start, end, bucket='week')` | `dict` | Per-bucket audit-log volume grouped by action namespace (the `verb.object` prefix). |
 | `activity_extent(tournament_id=None)` | `(date \| None, date \| None)` | Earliest and latest **Eastern dates** with any activity the four trends above read, so the page can open on a window that has data in it. `(None, None)` for a community with no history. A `tournament_id` narrows it to the tournament-scoped sources only — shifts and audit logs carry no tournament, so including them would widen the "narrowed" window back out. |
 

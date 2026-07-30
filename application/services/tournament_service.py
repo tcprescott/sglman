@@ -111,6 +111,19 @@ class TournamentService:
             return None
         return SystemConfigService.validate_hours_mapping(tournament_hours) or None
 
+    @staticmethod
+    def _crew_requirement(value: Any, role: str) -> int:
+        """Coerce a crew-requirement count, rejecting negatives.
+
+        The UI hands these over as floats from ``ui.number``, and a negative
+        would make a stream candidate permanently covered — the mirror image of
+        the false gap this setting exists to fix.
+        """
+        count = int(value or 0)
+        if count < 0:
+            raise ValueError(f"Required {role} cannot be negative")
+        return count
+
     async def create_tournament(
         self,
         name: str,
@@ -125,6 +138,8 @@ class TournamentService:
         is_active: bool = True,
         players_per_match: int = 2,
         team_size: int = 1,
+        required_commentators: int = 1,
+        required_trackers: int = 1,
         staff_administered: bool = False,
         allow_player_match_requests: bool = True,
         config: Optional[Dict[str, Any]] = None,
@@ -173,6 +188,8 @@ class TournamentService:
             is_active=is_active,
             players_per_match=players_per_match,
             team_size=team_size,
+            required_commentators=self._crew_requirement(required_commentators, 'commentators'),
+            required_trackers=self._crew_requirement(required_trackers, 'trackers'),
             staff_administered=staff_administered,
             allow_player_match_requests=allow_player_match_requests,
             config=config,
@@ -211,6 +228,8 @@ class TournamentService:
         is_active: Optional[bool] = None,
         players_per_match: Optional[int] = None,
         team_size: Optional[int] = None,
+        required_commentators: Optional[int] = None,
+        required_trackers: Optional[int] = None,
         staff_administered: Optional[bool] = None,
         allow_player_match_requests: Optional[bool] = None,
         config: Optional[Dict[str, Any]] = None,
@@ -264,6 +283,14 @@ class TournamentService:
             update_data['players_per_match'] = players_per_match
         if team_size is not None:
             update_data['team_size'] = team_size
+        if required_commentators is not None:
+            update_data['required_commentators'] = self._crew_requirement(
+                required_commentators, 'commentators'
+            )
+        if required_trackers is not None:
+            update_data['required_trackers'] = self._crew_requirement(
+                required_trackers, 'trackers'
+            )
         if staff_administered is not None:
             update_data['staff_administered'] = staff_administered
         if allow_player_match_requests is not None:

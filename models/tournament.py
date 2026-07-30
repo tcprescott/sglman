@@ -78,6 +78,16 @@ class Tournament(Model):
         related_name='crew_coordinated_tournaments',
         through='TournamentCrewCoordinators',
     )
+    # How much approved crew a *stream candidate* needs before the coverage
+    # reports call it covered. Not every tournament runs the same crew shape —
+    # plenty stream with commentary and no tracker — and without this the
+    # reports assumed one of each and showed those tournaments a permanent
+    # false gap and a depressed health score. ``0`` means the role is not used
+    # here; the defaults reproduce the old assumption for existing rows. Read by
+    # ``ReportsService.crew_coverage`` and ``AnalyticsService.tournament_health``;
+    # signup itself is unrestricted, so this measures rather than gates.
+    required_commentators = fields.IntField(default=1)
+    required_trackers = fields.IntField(default=1)
     staff_administered = fields.BooleanField(default=False)
     # Whether players may schedule matches themselves outside a bracket
     # (``MatchService.submit_match_request``). Turned off automatically when a

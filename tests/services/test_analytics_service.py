@@ -418,6 +418,26 @@ class TestTournamentHealthDB:
         # completion 1.0, on-time 0.5, coverage 0.5, adherence 1-1/90 → 74.8
         assert row['health_score'] == pytest.approx(74.8, abs=0.1)
 
+    async def test_coverage_follows_the_tournament_crew_requirement(self, db):
+        # Health used to require an approved tracker on every stream candidate,
+        # so a commentary-only tournament carried a permanently depressed score.
+        t = await Tournament.create(
+            name='Comms only', average_match_duration=90,
+            required_commentators=1, required_trackers=0,
+        )
+        u1 = await _user(1, 'Alice')
+        for day in (8, 9):
+            match = await Match.create(
+                tournament=t, scheduled_at=utc(2025, 10, day, 16),
+                started_at=utc(2025, 10, day, 16), finished_at=utc(2025, 10, day, 17, 30),
+                is_stream_candidate=True,
+            )
+            await Commentator.create(user=u1, match=match, approved=True)
+
+        out = await AnalyticsService().tournament_health(WINDOW_START, WINDOW_END)
+        row = next(r for r in out['rows'] if r['tournament_id'] == t.id)
+        assert row['coverage_pct'] == 100.0
+
     async def test_future_finished_match_does_not_inflate_completion(self, db):
         # A match with finished_at set but scheduled far in the future must not
         # push completion above 100% (it is not counted as a past match).
