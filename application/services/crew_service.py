@@ -18,8 +18,8 @@ from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
-from application.utils.discord_embeds import COLOR_CREW, notification_embed, time_field
-from application.utils.discord_messages import crew_assignment_dm
+from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CREW, notification_embed, time_field
+from application.utils.discord_messages import crew_approval_withdrawn_dm, crew_assignment_dm
 from application.utils.timezone import format_eastern_display
 from models import Commentator, Tracker, User
 
@@ -219,6 +219,8 @@ class CrewService:
 
         if approved:
             await self._request_crew_acknowledgment(crew_member, crew_type)
+        else:
+            await self._notify_crew_approval_withdrawn(crew_member, crew_type)
 
         match_live.publish(crew_member.match.id)
         event_bus.publish(Event.create(EventType.CREW_APPROVAL_CHANGED, {
@@ -290,6 +292,34 @@ class CrewService:
 
         return crew_member
 
+    async def _crew_dm_parts(self, crew_member: Union[Commentator, Tracker]):
+        """Shared DM ingredients for the approve / withdraw crew notifications.
+
+        Returns the message-builder kwargs and the embed field list — both
+        notifications describe the same assignment, so they identify it from the
+        same fields.
+        """
+        match = crew_member.match
+        players = await match.players.all().prefetch_related('user')
+        player_names = [p.user.preferred_name for p in players] if players else []
+        message_kwargs = {
+            'match_title': match.title or None,
+            'scheduled_at_display': format_eastern_display(match.scheduled_at) if match.scheduled_at else '',
+            'stream_room_name': match.stream_room.name if match.stream_room else None,
+            'player_names': player_names or None,
+        }
+
+        players_str = (
+            ' vs '.join(player_names) if len(player_names) == 2 else ', '.join(player_names)
+        )
+        fields = [('Match', match.title or players_str, False)]
+        if match.title and players_str:
+            fields.append(('Players', players_str, True))
+        fields.append(('Time', time_field(match.scheduled_at), False))
+        if match.stream_room:
+            fields.append(('Stage', match.stream_room.name, True))
+        return message_kwargs, fields
+
     async def _request_crew_acknowledgment(
         self,
         crew_member: Union[Commentator, Tracker],
@@ -305,26 +335,8 @@ class CrewService:
         if not discord_id:
             return
 
-        match = crew_member.match
-        players = await match.players.all().prefetch_related('user')
-        player_names = [p.user.preferred_name for p in players] if players else []
-        message = crew_assignment_dm(
-            crew_type=crew_type,
-            match_title=match.title or None,
-            scheduled_at_display=format_eastern_display(match.scheduled_at) if match.scheduled_at else '',
-            stream_room_name=match.stream_room.name if match.stream_room else None,
-            player_names=player_names or None,
-        )
-
-        players_str = (
-            ' vs '.join(player_names) if len(player_names) == 2 else ', '.join(player_names)
-        )
-        fields = [('Match', match.title or players_str, False)]
-        if match.title and players_str:
-            fields.append(('Players', players_str, True))
-        fields.append(('Time', time_field(match.scheduled_at), False))
-        if match.stream_room:
-            fields.append(('Stage', match.stream_room.name, True))
+        message_kwargs, fields = await self._crew_dm_parts(crew_member)
+        message = crew_assignment_dm(crew_type=crew_type, **message_kwargs)
         embed = notification_embed(
             title=f'🎙️ {crew_type.capitalize()} assignment',
             color=COLOR_CREW,
@@ -337,4 +349,34 @@ class CrewService:
             self.discord_service.send_dm_with_crew_acknowledgment_button(
                 int(discord_id), message, crew_type, crew_member.id, embed=embed,
             )
+        )
+
+    async def _notify_crew_approval_withdrawn(
+        self,
+        crew_member: Union[Commentator, Tracker],
+        crew_type: str,
+    ) -> None:
+        """Tell a crew member their approval was withdrawn.
+
+        The counterpart to :meth:`_request_crew_acknowledgment`: withdrawing also
+        clears any acknowledgment, so without this the person who confirmed they
+        would cover a match is silently dropped from it. Best-effort on the same
+        terms — a failed DM never blocks the withdrawal.
+        """
+        discord_id = getattr(crew_member.user, 'discord_id', None)
+        if not discord_id:
+            return
+
+        message_kwargs, fields = await self._crew_dm_parts(crew_member)
+        message = crew_approval_withdrawn_dm(crew_type=crew_type, **message_kwargs)
+        embed = notification_embed(
+            title=f'🎙️ {crew_type.capitalize()} assignment withdrawn',
+            color=COLOR_CANCELLED,
+            community_name=await TenantService.current_community_name(),
+            description="You're no longer on the crew for this match.",
+            fields=fields,
+        )
+
+        discord_queue.enqueue(
+            self.discord_service.send_dm(int(discord_id), message, embed=embed)
         )

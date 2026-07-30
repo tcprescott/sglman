@@ -31,7 +31,7 @@ depend on — do not change):
     edit_match                     -> { row: props.row }
     acknowledge_match              -> props.row
     signup_/undo_commentator|tracker -> props.row
-    acknowledge_/edit_commentator|tracker -> { row: props.row, idx }
+    acknowledge_/view_/toggle_commentator|tracker -> { row: props.row, idx }
     seat/start/finish/confirm      -> { key: props.row.id }
     edit_result                    -> { key: props.row.id }
     roll                           -> { key: props.row.id }   (+ _generating_seed)
@@ -115,22 +115,35 @@ _REVIEW_DETAIL = '''
 # Commentators / trackers. Row shows when the list is non-empty, or (non-admin
 # only) when a signup is still possible — so an empty admin crew line collapses
 # but a volunteer can still sign up. Emits props.row for signup/undo and
-# { row, idx } for edit/acknowledge.
+# { row, idx } for view/toggle/acknowledge.
 _CREW_DETAIL = '''
         <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (!__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <template v-for="(item, idx) in props.row.__KEY__">
                     <span class="mgc-crew-item">
-                        <q-icon v-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
+                        <q-btn v-if="__IA__ && __CC__" dense flat size="xs" class="wiz-crew-approve"
+                               :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
+                               :color="item.approved ? 'positive' : 'grey-7'"
+                               @click="$parent.$emit('toggle___SING__', { row: props.row, idx })">
+                            <q-tooltip>{{ item.approved ? 'Approved — tap to un-approve' : 'Not approved — tap to approve' }}</q-tooltip>
+                        </q-btn>
+                        <q-icon v-else-if="item.approved && item.acknowledged" name="check_circle" class="st-ok" size="xs">
                             <q-tooltip v-if="item.ack_ts">Acknowledged {{ item.ack_ts }}</q-tooltip>
                         </q-icon>
                         <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                             <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                         </q-icon>
-                        <a v-if="__IA__ && __CC__" href="#" @click="$parent.$emit('edit___SING__', { row: props.row, idx })"
-                           :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="text-decoration: underline;">{{ item.name }}{{ idx < props.row.__KEY__.length - 1 ? ', ' : '' }}</a>
+                        <a v-if="__IA__ && __CC__" href="#" @click="$parent.$emit('view___SING__', { row: props.row, idx })"
+                           class="table-link">{{ item.name }}</a>
                         <span v-else :class="item.approved ? 'st-ok-strong' : 'st-pending'">{{ item.name }}{{ idx < props.row.__KEY__.length - 1 ? ', ' : '' }}</span>
+                        <q-icon v-if="__IA__ && __CC__ && item.approved && item.acknowledged" name="how_to_reg" class="st-ok" size="xs">
+                            <q-tooltip>Acknowledged{{ item.ack_ts ? ' ' + item.ack_ts : '' }}</q-tooltip>
+                        </q-icon>
+                        <q-icon v-if="__IA__ && __CC__ && item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
+                            <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
+                        </q-icon>
+                        <span v-if="__IA__ && __CC__ && idx < props.row.__KEY__.length - 1">,</span>
                         <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
                                icon="check" color="primary" size="xs" dense flat
                                @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">

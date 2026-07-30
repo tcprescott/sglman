@@ -545,7 +545,7 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 
 ## Dialog catalog (`theme/dialog/`)
 
-All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row with a close button, a body, and an action row; most submit on Enter via a `keydown` handler and report errors with `ui.notify` (`PermissionError` → negative, `ValueError` → warning/negative). [`theme/dialog/__init__.py`](../../theme/dialog/__init__.py) re-exports `ApproveCrewDialog`, `CatFactDialog`, `CheckoutDialog` (plus `open_checkout` / `quick_checkin`), `ConfirmationDialog`, `EquipmentDialog`, `FeedbackDialog`, `MatchResultDialog`, `QrLabelDialog`, `SendMessageDialog`, `StationAssignmentDialog`, `TournamentDialog`, `UserDialog`, and `AdminUserDialog`; the rest are imported by module path.
+All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row with a close button, a body, and an action row; most submit on Enter via a `keydown` handler and report errors with `ui.notify` (`PermissionError` → negative, `ValueError` → warning/negative). [`theme/dialog/__init__.py`](../../theme/dialog/__init__.py) re-exports `CatFactDialog`, `CheckoutDialog` (plus `open_checkout` / `quick_checkin`), `ConfirmationDialog`, `EquipmentDialog`, `FeedbackDialog`, `MatchResultDialog`, `QrLabelDialog`, `SendMessageDialog`, `StationAssignmentDialog`, `TournamentDialog`, `UserDialog`, and `AdminUserDialog`; the rest are imported by module path.
 
 | File | Class(es) | Purpose | Opened from |
 |---|---|---|---|
@@ -553,8 +553,7 @@ All dialogs follow the same shape: a `ui.dialog` + `.dialog-card`, a title row w
 | [`match_dialog.py`](../../theme/dialog/match_dialog.py) | `BaseMatchDialog`, `AdminMatchDialog`, `UserMatchDialog` | Create/edit matches | Admin schedule; home Schedule & Player tabs |
 | [`_match_bracket_link.py`](../../theme/dialog/_match_bracket_link.py) | `render_select`, `render_matchup_panel`, `apply_link`, `matchup_label`, `linked_matchup_id` | The admin editor's bracket-matchup panel + picker | `AdminMatchDialog` |
 | [`bracket_schedule_dialog.py`](../../theme/dialog/bracket_schedule_dialog.py) | `BracketScheduleDialog` | Schedule one game of a native-bracket matchup | Home Player tab (player mode); bracket match dialog (staff mode) |
-| [`confirmation_dialog.py`](../../theme/dialog/confirmation_dialog.py) | `ConfirmationDialog` | Generic confirm/cancel; the negative-styled confirm button runs the caller's `on_confirm`. `title=` names what is being confirmed (default `'Confirm'`), and the body renders `white-space: pre-line`, so `'\n\n'`-separated paragraphs survive | Start/Confirm actions, crew signup/undo, match/triforce-text/equipment/shift deletes |
-| [`approve_crew_dialog.py`](../../theme/dialog/approve_crew_dialog.py) | `ApproveCrewDialog` | Toggle commentator/tracker approval via `CrewService.update_crew_approval` | Crew name click in admin match table |
+| [`confirmation_dialog.py`](../../theme/dialog/confirmation_dialog.py) | `ConfirmationDialog` | Generic confirm/cancel; the negative-styled confirm button runs the caller's `on_confirm`. `title=` names what is being confirmed (default `'Confirm'`), and the body renders `white-space: pre-line`, so `'\n\n'`-separated paragraphs survive | Start/Confirm actions, crew signup/undo, crew approve/un-approve, match/triforce-text/equipment/shift deletes |
 | [`match_result_dialog.py`](../../theme/dialog/match_result_dialog.py) | `MatchResultDialog` | Pick a winner → `MatchService.record_match_result`; the Finish callback then calls `MatchScheduleService.finish_match`. Two players (the common case) get one big button each, then a **second step** naming the pick before it commits — recording a winner settles the match and a proctor cannot undo it; three or more get a required Winner select and a Submit button | Admin schedule & proctor board Finish button |
 | [`station_assignment_dialog.py`](../../theme/dialog/station_assignment_dialog.py) | `StationAssignmentDialog` | One Station input per player (≤50 chars, blank clears); submits the full `{player_id: station}` map to `MatchService.assign_stations` | Admin schedule Check In flow & players-column button |
 | [`stream_room_dialog.py`](../../theme/dialog/stream_room_dialog.py) | `StreamRoomDialog` | Assign a match to a stage + stream-candidate flag; subclasses `BaseMatchDialog` to reuse its wiring | Admin schedule Stage column |
@@ -644,7 +643,8 @@ The largest UI component, used by the home Schedule and Player tabs and the admi
 | `edit-stream-room` | Stage Assign button | `on_edit_stream_room(match_id)` |
 | `assign_stations` | Players-column button (admin + crud) | `on_assign_stations(match_id)` |
 | `edit_player` | Player name link | opens `UserDialog` for that player |
-| `edit_commentator` / `edit_tracker` | Crew name link (admin + crud) | opens `ApproveCrewDialog`, row refresh on approve |
+| `view_commentator` / `view_tracker` | Crew name link (admin + crud) | opens `UserDialog` for that crew member |
+| `toggle_commentator` / `toggle_tracker` | Crew approval toggle icon (admin + crud) | `ConfirmationDialog` (both directions) → `CrewService.update_crew_approval`, row refresh |
 | `signup_commentator` / `signup_tracker` | Sign Up button (non-admin) | `ConfirmationDialog` → `CrewService.signup_crew` |
 | `undo_commentator` / `undo_tracker` | Undo button (non-admin) | `ConfirmationDialog` → `CrewService.undo_crew_signup` |
 | `acknowledge_match` | Player's own Acknowledge button | `MatchService.acknowledge_match` (client captured via `context.client`, restored with `with client:`) |

@@ -254,6 +254,7 @@ Message text comes from **public functions** in [`discord_messages.py`](../../ap
 | `stream_candidate_dm` | Stream-candidate alert | Flag announcement + scheduled time + "Use the buttons below to sign up as crew." |
 | `seed_dm` | Seed generation | Greeting, match/tournament, seed URL |
 | `crew_assignment_dm` | Crew approval DM | Crew type, match title, players, scheduled time, stage; ends with "Please click below to acknowledge your assignment." |
+| `crew_approval_withdrawn_dm` | Crew approval withdrawn | Same detail block as the approval DM; opens with the withdrawal and ends with "Check with an admin if this looks wrong." No buttons |
 | `volunteer_assignment_dm` / `volunteer_reminder_dm` | Volunteer shift assigned / reminder | Position, label, shift start/end |
 | `volunteer_unassigned_dm` | Coordinator took a volunteer off a shift | Position, label, start/end; no acknowledgment button — there is nothing to confirm |
 | `volunteer_shift_changed_dm` | A shift a volunteer is on moved in time | Both windows (was → now), then "Tap **Acknowledge** to confirm you can still cover it." |

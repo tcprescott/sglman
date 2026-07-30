@@ -12,8 +12,13 @@ member approves them. Signup works from the web or from Discord DM buttons — b
 land in the same service, so the rules and audit trail are identical.
 
 1. Signup inserts a `Commentator` or `Tracker` row with `approved=False`, either from the web UI or from the buttons on a stream-candidate DM (`discordbot/crew_signup.py`).
-2. A staff member approves in the match dialog.
+2. A staff member approves from the approval toggle beside the crew member's name in the match table (both directions confirm first).
 3. The approved crew member acknowledges — web UI or DM button.
+
+Both directions DM the crew member: approving sends the assignment DM with the
+Acknowledge button, and withdrawing approval sends a withdrawal notice — a
+withdrawal also clears `acknowledged_at`, so without it someone who confirmed
+they would cover a match is dropped from it silently.
 
 ```python
 from application.services import CrewService

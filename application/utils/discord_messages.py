@@ -348,6 +348,36 @@ def crew_assignment_dm(
     return "\n\n".join(blocks)
 
 
+def crew_approval_withdrawn_dm(
+    crew_type: str,
+    match_title: Optional[str],
+    scheduled_at_display: str,
+    stream_room_name: Optional[str],
+    player_names: Optional[list[str]],
+) -> str:
+    """DM sent when an admin withdraws a crew member's approval.
+
+    Same detail block and suppression rules as :func:`crew_assignment_dm` — the
+    recipient is being told about the same assignment, so it has to be
+    identifiable from the same fields.
+    """
+    players = _players_label(player_names)
+    details: list[str] = []
+    if match_title and match_title != players:
+        details.append(f"**Match:** {match_title}")
+    if players:
+        details.append(f"**Players:** {players}")
+    if scheduled_at_display:
+        details.append(f"**Scheduled:** {scheduled_at_display}")
+    if stream_room_name:
+        details.append(f"**Stage:** {stream_room_name}")
+    blocks = [f"Your approval as {crew_type} has been withdrawn — you're no longer on the crew for this match."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Check with an admin if this looks wrong.")
+    return "\n\n".join(blocks)
+
+
 # ---------------------------------------------------------------------------
 # Volunteer scheduling
 # ---------------------------------------------------------------------------

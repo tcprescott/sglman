@@ -45,6 +45,7 @@ def service(monkeypatch):
     svc.discord_service.send_dm_with_crew_acknowledgment_button = AsyncMock(
         return_value=(True, 'sent')
     )
+    svc.discord_service.send_dm = AsyncMock(return_value=(True, 'sent'))
     return svc
 
 
@@ -188,6 +189,26 @@ class TestUpdateCrewApproval:
         details = service.audit_service.write_log.await_args.args[2]
         assert details['approved'] is False
         assert details['previously_acknowledged'] is True
+
+    async def test_unapprove_notifies_the_crew_member(self, service):
+        user = make_user(discord_id='99887766')
+        crew = make_crew(user=user, match=make_match(), approved=True)
+
+        await service.update_crew_approval(crew, 'commentator', approved=False, actor=user)
+
+        service.discord_service.send_dm.assert_called_once()
+        args = service.discord_service.send_dm.call_args.args
+        assert args[0] == 99887766
+        assert 'withdrawn' in args[1]
+
+    async def test_unapprove_without_discord_id_sends_nothing(self, service):
+        user = make_user(discord_id=None)
+        crew = make_crew(user=user, match=make_match(), approved=True)
+
+        await service.update_crew_approval(crew, 'commentator', approved=False, actor=user)
+
+        assert crew.approved is False
+        service.discord_service.send_dm.assert_not_called()
 
     async def test_idempotent_when_state_unchanged(self, service):
         user = make_user()
