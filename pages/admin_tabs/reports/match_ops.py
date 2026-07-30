@@ -6,18 +6,21 @@ plus per-tournament aggregates.
 
 from typing import Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import ReportsService
+from application.services import AuthService, ReportsService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
+from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     csv_export_button,
     date_range_filter,
     default_date_range,
     eastern_bounds,
+    enable_drill_link,
     navigate_with_params,
     report_page_shell,
+    reports_url,
     tournament_filter,
 )
 
@@ -34,6 +37,8 @@ async def match_ops_page(
 ) -> None:
     start_d, end_d = await default_date_range(start, end)
     selected_state = state if state in STATE_OPTIONS else 'All'
+    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    can_open_board = await AuthService.can_view_schedule_board(viewer)
 
     with report_page_shell('Match Operations'):
         with ui.card().classes('full-width q-pa-md'):
@@ -99,7 +104,20 @@ async def match_ops_page(
                     rows=ops['aggregates'],
                     row_key='tournament_id',
                 ).classes('full-width')
-                enable_mobile_grid(agg_table, agg_columns)
+                # The board takes no tournament param, so this aggregate drills
+                # *within* reports — re-filtering this report to the tournament
+                # whose number the operator just read.
+                agg_actions = enable_drill_link(
+                    agg_table, agg_columns, ops['aggregates'],
+                    lambda r: reports_url(
+                        'match_ops',
+                        start=start_d, end=end_d,
+                        tournament_id=r['tournament_id'],
+                        state=None if selected_state == 'All' else selected_state,
+                    ),
+                    hint='Show only this tournament',
+                )
+                enable_mobile_grid(agg_table, agg_columns, actions=agg_actions)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
@@ -133,4 +151,12 @@ async def match_ops_page(
                 pagination=25,
                 row_key='match_id',
             ).classes('full-width')
-            enable_mobile_grid(detail_table, detail_columns)
+            # A Finished match with no result is found here and confirmed on the
+            # board, whose review queue is already built for exactly that pile.
+            detail_actions = enable_drill_link(
+                detail_table, detail_columns, detail_rows,
+                lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
+                enabled=can_open_board,
+                hint='Open on the schedule board',
+            )
+            enable_mobile_grid(detail_table, detail_columns, actions=detail_actions)

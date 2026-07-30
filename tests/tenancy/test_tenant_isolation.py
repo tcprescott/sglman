@@ -85,6 +85,12 @@ async def test_match_reads_are_isolated(tenants):
     with tenant_scope(b.id):
         assert [m.id for m in await MatchRepository.get_all_for_schedule()] == [mb.id]
 
+    # A deep link carries a raw match id in the URL, so the focused board's
+    # filter has to stay inside the tenant that asked for it.
+    with tenant_scope(a.id):
+        assert [m.id for m in await MatchRepository.get_all(match_ids=[ma.id])] == [ma.id]
+        assert await MatchRepository.get_all(match_ids=[mb.id]) == []
+
 
 async def test_stream_room_reads_are_isolated(tenants):
     a, b = tenants

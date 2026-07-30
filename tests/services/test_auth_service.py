@@ -449,6 +449,46 @@ class TestViewAdmin:
 
 
 # ---------------------------------------------------------------------------
+# can_view_schedule_board — the predicate the reports resolve their drill-out
+# links against, so a link is never offered to someone the board would refuse.
+# ---------------------------------------------------------------------------
+
+
+def make_cc_user(user_id: int = 1):
+    """User whose crew_coordinated_tournaments…exists() resolves True."""
+    user = make_user(user_id)
+    user.crew_coordinated_tournaments = SimpleNamespace(all=lambda: _ExistsQS(True))
+    return user
+
+
+class TestViewScheduleBoard:
+    async def test_none_user_cannot(self):
+        assert await AuthService.can_view_schedule_board(None) is False
+
+    async def test_staff_can(self, patch_roles):
+        patch_roles({Role.STAFF})
+        assert await AuthService.can_view_schedule_board(make_user()) is True
+
+    async def test_tournament_admin_can(self, patch_roles):
+        patch_roles(set())
+        assert await AuthService.can_view_schedule_board(make_ta_user()) is True
+
+    async def test_crew_coordinator_can(self, patch_roles):
+        patch_roles(set())
+        assert await AuthService.can_view_schedule_board(make_cc_user()) is True
+
+    async def test_volunteer_coordinator_alone_cannot(self, patch_roles):
+        """Reaches Vol. Schedule, not the match board — and so gets the
+        volunteer report's links and none of the board ones."""
+        patch_roles({Role.VOLUNTEER_COORDINATOR})
+        assert await AuthService.can_view_schedule_board(make_user()) is False
+
+    async def test_proctor_alone_cannot(self, patch_roles):
+        patch_roles({Role.PROCTOR})
+        assert await AuthService.can_view_schedule_board(make_user()) is False
+
+
+# ---------------------------------------------------------------------------
 # Online-tournament foundation roles (PR 0)
 # ---------------------------------------------------------------------------
 

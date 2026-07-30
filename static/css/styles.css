@@ -1073,6 +1073,53 @@ body.body--dark {
     font-style: italic;
 }
 
+/* Filter-change acknowledgment on the reports pages (shared.show_navigating).
+   A filter change is a real navigation costing seconds; without this the page
+   sits there stale and a second click queues a second navigation. */
+.wiz-report-busy {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.25);
+    /* Held invisible for the first 250ms: a navigation that completes quickly
+       must not flash an overlay, and one that does not is where this earns its
+       place. Standard delayed-spinner behaviour. */
+    animation: wiz-report-busy-in 150ms ease-out 250ms both;
+}
+
+@keyframes wiz-report-busy-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.wiz-report-busy__box {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    padding: 1em 1.5em;
+    border-radius: 8px;
+    background: #fff;
+    color: #17120D;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    font-size: 0.95rem;
+}
+
+.body--dark .wiz-report-busy__box,
+.q-dark .wiz-report-busy__box {
+    background: var(--wiz-dark-surface);
+    color: var(--wiz-dark-muted);
+}
+
+/* A report table whose row click *filters* (as opposed to navigating). The
+   drill-out control in its own cell is what navigates; this says the rest of
+   the row does something too. */
+.wiz-rowclick tbody tr {
+    cursor: pointer;
+}
+
 /* Timeline/Schedule Specific Styles */
 .timeline-container {
     width: 100%;

@@ -51,6 +51,8 @@ def create() -> None:
         focus: str = None,
         category: str = None,
         page: int = None,
+        match_id: int = None,
+        day: str = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
@@ -119,12 +121,16 @@ def create() -> None:
         }
 
         can_crud = is_staff or is_ta_any
+        # Each tab that can be deep-linked gets its own params. `state` above is
+        # the Reports tab's own filter and deliberately not reused for the
+        # board's state filter — one param must not mean two things.
+        schedule_kwargs = {'can_crud': can_crud, 'match_id': match_id}
         tabs = []
         # Each tab carries a drawer 'group'; the list is stable-sorted by
         # _ADMIN_GROUP_ORDER below so the 22-item drawer reads as labeled sections
         # instead of a flat scroll. Icons are unique per destination (no repeats).
         if is_staff or is_ta_any or is_cc_any:
-            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
+            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
         if is_staff:
             tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
         if is_staff or is_ta_any:
@@ -148,7 +154,7 @@ def create() -> None:
             tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
         if (is_staff or is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
             tabs.append({'label': 'Vol. Roster', 'icon': 'groups', 'group': 'Community', 'content': admin_volunteer_roster_page})
-            tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': admin_volunteers_page})
+            tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
         if (is_staff or is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
             tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
         if is_staff:

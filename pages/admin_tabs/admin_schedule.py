@@ -5,18 +5,31 @@ from nicegui import ui
 
 from application.tenant_context import require_tenant_id
 from models import Match
+from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.tables.match import MatchTableView
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
 
 
-def admin_schedule_page(can_crud: bool = True) -> None:
+def admin_schedule_page(can_crud: bool = True, match_id: int = None) -> None:
     with ui.column().classes('page-container-wide') as page_container:
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Schedule Management').classes('page-title')
 
         ui.separator().classes('separator-spacing')
+
+        # A report linked here naming one match. Say so and offer the way out —
+        # a one-row board with no explanation reads as a broken board.
+        if match_id:
+            with ui.row().classes('items-center gap-2 q-mb-sm'):
+                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+                    ui.icon('filter_alt', size='14px')
+                    ui.label(f'Showing match #{match_id} only')
+                ui.button(
+                    'Show all matches', icon='clear',
+                    on_click=lambda: ui.navigate.to(admin_url(SCHEDULE)),
+                ).props('flat dense color=primary')
 
         columns = [
             {'name': 'id', 'label': 'ID', 'field': 'id'},
@@ -109,6 +122,7 @@ def admin_schedule_page(can_crud: bool = True) -> None:
             # The admin's job *is* the Finished-not-yet-Confirmed set, so it
             # must be on screen without them discovering the State filter.
             default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
+            match_ids=[match_id] if match_id else None,
             on_rows_changed=lambda _rows: review_queue.refresh(),
             **handlers.callbacks(),
         )

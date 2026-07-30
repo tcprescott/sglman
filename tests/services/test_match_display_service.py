@@ -351,6 +351,42 @@ class TestExcludeRacetime:
 
 
 # ---------------------------------------------------------------------------
+# get_matches_for_display — match_ids (the deep-linked board)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestMatchIdsFilter:
+    async def test_match_ids_narrows_to_those_matches(self, db, display_service):
+        tournament = await Tournament.create(name='T')
+        wanted = await Match.create(tournament=tournament)
+        await Match.create(tournament=tournament)
+
+        rows = await display_service.get_matches_for_display(match_ids=[wanted.id])
+
+        assert [r['id'] for r in rows] == [wanted.id]
+
+    async def test_unknown_match_id_returns_nothing_rather_than_everything(
+        self, db, display_service,
+    ):
+        tournament = await Tournament.create(name='T')
+        await Match.create(tournament=tournament)
+
+        rows = await display_service.get_matches_for_display(match_ids=[999999])
+
+        assert rows == []
+
+    async def test_no_match_ids_is_unfiltered(self, db, display_service):
+        tournament = await Tournament.create(name='T')
+        one = await Match.create(tournament=tournament)
+        two = await Match.create(tournament=tournament)
+
+        rows = await display_service.get_matches_for_display(match_ids=None)
+
+        assert {r['id'] for r in rows} == {one.id, two.id}
+
+
+# ---------------------------------------------------------------------------
 # _format_match_for_display — is_stream_candidate field
 # ---------------------------------------------------------------------------
 

@@ -8,13 +8,13 @@ import json
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
-from urllib.parse import urlencode
 
-from nicegui import ui
+from nicegui import context, ui
 
 from application.services import SystemConfigService, TournamentService
 from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
 from application.utils.timezone import EASTERN_TZ
+from pages.admin_tabs.links import REPORTS, SCHEDULE, VOL_SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 
 
@@ -65,17 +65,7 @@ def reports_url(report: Optional[str] = None, **params) -> str:
 
     The Reports section is a path segment (``/admin/reports``); the report name
     and its filters stay query params, since they are orthogonal report state."""
-    payload: dict = {}
-    if report:
-        payload['report'] = report
-    for key, value in params.items():
-        if value is None or value == '':
-            continue
-        if isinstance(value, (date, datetime)):
-            payload[key] = value.isoformat()
-        else:
-            payload[key] = value
-    return '/admin/reports?' + urlencode(payload) if payload else '/admin/reports'
+    return admin_url(REPORTS, report=report, **params)
 
 
 def parse_date(value: Optional[str]) -> Optional[date]:
@@ -217,8 +207,35 @@ def csv_export_button(
     return ui.button(label, icon='download', on_click=_click).props('flat dense')
 
 
+def show_navigating() -> None:
+    """Acknowledge a click that is about to cost a full page navigation.
+
+    A measured filter change costs ~4.4 s; without this the page sits stale and
+    a second click queues a second navigation. Built as a NiceGUI element rather
+    than ``ui.run_javascript``, which is deliberate: the outbox emits element
+    *updates* before *messages* in a batch, so an element created here reaches
+    the browser ahead of the ``open`` that navigates — a fire-and-forget
+    ``run_javascript`` is deferred to a background task and loses that race.
+
+    The overlay dies with the page, which is what is wanted: the next page
+    renders fresh. Flagged on the client so a fast double-change is a no-op
+    rather than a second overlay (never module state — one module is shared by
+    every operator in every tenant).
+    """
+    client = context.client
+    if getattr(client, '_wiz_report_navigating', False):
+        return
+    client._wiz_report_navigating = True
+    with client.content:
+        with ui.element('div').classes('wiz-report-busy'):
+            with ui.element('div').classes('wiz-report-busy__box'):
+                ui.spinner(size='sm')
+                ui.label('Updating report…')
+
+
 def navigate_with_params(report: Optional[str] = None, **params) -> None:
     """Reload the admin page with new query params (used for filter changes)."""
+    show_navigating()
     ui.navigate.to(reports_url(report=report, **params))
 
 
@@ -247,12 +264,104 @@ def kpi_card(
     subtitle: str,
     color: str = 'primary',
     min_width: int = 220,
+    href: Optional[str] = None,
+    href_label: str = 'See the detail →',
 ) -> None:
-    """A single flex KPI tile (title / big value / subtitle) for report strips."""
+    """A single flex KPI tile (title / big value / subtitle) for report strips.
+
+    ``href`` turns the tile into a route to the report that explains the number
+    — it must carry the same window the number was computed over, or the
+    destination contradicts the tile it came from.
+    """
     with ui.card().classes('q-pa-md').style(f'flex: 1 1 {min_width}px; min-width: {min_width}px;'):
         ui.label(title).classes('text-caption text-grey-7')
         ui.label(value).classes('text-h4').style(f'color: var(--q-{color});')
         ui.label(subtitle).classes('text-caption')
+        if href:
+            ui.link(href_label, href).classes('text-caption q-mt-xs')
+
+
+# Per-row drill-out. Reports identify work; the surface that fixes it lives
+# elsewhere, so a row carries an id there rather than growing its own mutation.
+DRILL_FIELD = 'drill_url'
+DRILL_HINT_FIELD = 'drill_hint'
+
+# Both halves are static Vue: the destination arrives as row *data*
+# (``props.row.drill_url``), never as markup templated into the slot. The button
+# emits rather than rendering an ``<a href>`` — NiceGUI prepends the client's
+# path prefix to a navigate target, so an anchor built in a template would drop
+# the ``/t/<slug>`` in path-mode tenancy and 404.
+_DRILL_CELL = r'''
+        <q-td :props="props" class="text-right" @click.stop>
+            <q-btn v-if="props.row.drill_url" flat dense round
+                   icon="open_in_new" color="primary"
+                   @click.stop="$parent.$emit('drill', props.row)">
+                <q-tooltip>{{ props.row.drill_hint }}</q-tooltip>
+            </q-btn>
+        </q-td>
+'''
+# The card mirror. enable_mobile_grid builds its card body from the columns and
+# skips the actions column entirely, so a cell slot alone is invisible on a
+# phone — this is what makes the control exist there.
+_DRILL_ACTION = r'''
+            <q-btn v-if="props.row.drill_url" flat dense
+                   icon="open_in_new" color="primary"
+                   :label="props.row.drill_hint"
+                   @click.stop="$parent.$emit('drill', props.row)" />
+'''
+
+
+def enable_drill_link(
+    table: ui.table,
+    columns: Sequence[Mapping],
+    rows: Sequence[dict],
+    url_for: Callable[[Mapping], Optional[str]],
+    *,
+    enabled: bool = True,
+    hint: str = 'Open on the schedule board',
+) -> str:
+    """Add a per-row navigating control to ``table``; return its card mirror.
+
+    Call after building the table and pass the return value as
+    ``enable_mobile_grid(..., actions=…)`` — the desktop cell and the card
+    footer are one call so they cannot be shipped apart.
+
+    ``url_for`` returns the destination for a row, or ``None`` for a row with
+    nowhere to go (its cell stays empty). ``enabled`` is the destination's own
+    authorization predicate: when it is false the column is not rendered at all
+    rather than rendered disabled, because a control that is present and
+    refuses is worse than one that was never offered.
+
+    The caller's ``columns`` list is left untouched, so a CSV export built from
+    it does not grow a URL column.
+    """
+    if not enabled:
+        return ''
+
+    for row in rows:
+        row[DRILL_FIELD] = url_for(row) or ''
+        row[DRILL_HINT_FIELD] = hint
+
+    table.columns = [
+        *columns,
+        {'name': 'drill', 'label': '', 'field': DRILL_FIELD, 'align': 'right'},
+    ]
+    # Re-assign, don't rely on the mutation above reaching the client: NiceGUI
+    # copies rows into ObservableDicts when the table is built, so the caller's
+    # dicts and ``table.rows`` are different objects from that point on.
+    table.rows = rows
+    table.add_slot('body-cell-drill', _DRILL_CELL)
+    table.on('drill', _follow_drill)
+    return _DRILL_ACTION
+
+
+def _follow_drill(e) -> None:
+    url = clicked_row(e).get(DRILL_FIELD)
+    if url:
+        # Same acknowledgment a filter change gets: this is a full navigation
+        # to another admin tab, not an in-page update.
+        show_navigating()
+        ui.navigate.to(url)
 
 
 def clicked_row(e) -> dict:
@@ -294,6 +403,24 @@ _EVENT_LOG_BODY_ROWCLICK = (
 _EVENT_LOG_BODY_PLAIN = r'<q-tr :props="props">' + _EVENT_LOG_DETAILS_CELL + '</q-tr>'
 
 
+def _page_range_label(total: int, page: int, page_size: int, noun: str) -> str:
+    """``Showing 51–100 of 124 entries`` — or just ``124 entries`` on one page.
+
+    The header used to be handed a pre-formatted count, so it read ``124
+    entries`` above a table paginated to 50. Both numbers were true and together
+    they were misleading: what you are reading is a page, and nothing said so.
+    """
+    if total <= page_size:
+        return f'{total:,} {noun}'
+    first = (page - 1) * page_size + 1
+    if first > total:
+        # A hand-edited ``?page=`` past the end. Saying "Showing 101–95" would
+        # be worse than saying nothing about the range.
+        return f'{total:,} {noun} — page {page} is past the end'
+    last = min(page * page_size, total)
+    return f'Showing {first:,}–{last:,} of {total:,} {noun}'
+
+
 def paginated_event_log(
     *,
     columns: Sequence[Mapping],
@@ -304,7 +431,7 @@ def paginated_event_log(
     page_size: int,
     on_page: Callable[[int], None],
     csv_filename_prefix: str,
-    count_label: str,
+    count_noun: str,
     note: str,
     on_row_click: Optional[Callable[[dict], None]] = None,
     card_classes: str = 'full-width q-pa-md',
@@ -317,7 +444,7 @@ def paginated_event_log(
     """
     with ui.card().classes(card_classes):
         with ui.row().classes('items-center justify-between full-width'):
-            ui.label(count_label).classes('text-h6')
+            ui.label(_page_range_label(total, page, page_size, count_noun)).classes('text-h6')
             csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
 
         table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')

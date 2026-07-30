@@ -33,7 +33,7 @@ class MatchTableView(MatchTableHandlersMixin):
                  on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
-                 storage_key='match', default_state_filter=None):
+                 storage_key='match', default_state_filter=None, match_ids=None):
         self.columns = columns
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
@@ -51,6 +51,12 @@ class MatchTableView(MatchTableHandlersMixin):
         # ``on_rows_changed`` lets a caller mirror the row set (a summary strip),
         # and ``actions_first`` hoists the mobile card's action row.
         self.row_sort = row_sort
+        # A deep link focuses the board on specific matches. It narrows the query
+        # and suspends the State filter — a link to a Confirmed match must not
+        # land on an empty board because the board's default set hides it — but
+        # it never writes to the stored filters, so leaving the focus restores
+        # whatever the operator had chosen.
+        self.match_ids = list(match_ids) if match_ids else None
         self.exclude_racetime = exclude_racetime
         self.on_rows_changed = on_rows_changed
         self.actions_first = actions_first
@@ -416,6 +422,8 @@ class MatchTableView(MatchTableHandlersMixin):
         # filters — making this a behavior-preserving fast path for the default
         # Scheduled/Checked In/Started view (the highest-traffic schedule tab).
         state_filter = self.state_filter.value if self.state_filter else []
+        if self.match_ids:
+            state_filter = []
         only_upcoming = bool(state_filter) and not ({'Finished', 'Confirmed'} & set(state_filter))
 
         rows = await self.display_service.get_matches_for_display(
@@ -424,6 +432,7 @@ class MatchTableView(MatchTableHandlersMixin):
             only_upcoming=only_upcoming,
             user_discord_id=self.player_discord_id,
             exclude_racetime=self.exclude_racetime,
+            match_ids=self.match_ids,
         )
 
         # Client-side filter by state (narrows within the fetched set)

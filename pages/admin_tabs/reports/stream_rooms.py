@@ -6,10 +6,11 @@ stream-candidate count, plus a stacked-bar timeline.
 
 from typing import Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import ReportsService
+from application.services import AuthService, ReportsService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
+from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     CHART_GOLD,
@@ -19,6 +20,7 @@ from .shared import (
     date_range_filter,
     default_date_range,
     eastern_bounds,
+    enable_drill_link,
     navigate_with_params,
     parse_int,
     report_page_shell,
@@ -36,6 +38,8 @@ async def stream_rooms_page(
 ) -> None:
     start_d, end_d = await default_date_range(start, end)
     stream_room_id_int = parse_int(stream_room_id)
+    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    can_open_board = await AuthService.can_view_schedule_board(viewer)
 
     with report_page_shell('Stream Room Utilization'):
         with ui.card().classes('full-width q-pa-md'):
@@ -128,11 +132,11 @@ async def stream_rooms_page(
                 columns=summary_columns,
                 rows=summary_rows,
                 row_key='stream_room_id',
-            ).classes('full-width')
+            ).classes('full-width wiz-rowclick')
             summary_table.on('row-click', _row_clicked)
             enable_mobile_grid(summary_table, summary_columns, row_click_event='row-click')
             if stream_room_id_int is None:
-                ui.label('Click a row to drill into a single stream room.').classes('italic-note')
+                ui.label('Click a row to filter to a single stream room.').classes('italic-note')
 
         if stream_room_id_int is not None and rooms:
             with ui.card().classes('full-width q-pa-md'):
@@ -160,7 +164,13 @@ async def stream_rooms_page(
                     pagination=25,
                     row_key='match_id',
                 ).classes('full-width')
-                enable_mobile_grid(match_table, match_columns)
+                match_actions = enable_drill_link(
+                    match_table, match_columns, match_rows,
+                    lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
+                    enabled=can_open_board,
+                    hint='Open on the schedule board',
+                )
+                enable_mobile_grid(match_table, match_columns, actions=match_actions)
 
 
 def _render_utilization_chart(rooms) -> None:

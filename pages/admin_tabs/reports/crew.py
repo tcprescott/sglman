@@ -5,10 +5,11 @@ Coverage-by-match table plus contribution-by-person table.
 
 from typing import Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import ReportsService
+from application.services import AuthService, ReportsService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
+from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     clicked_row,
@@ -16,6 +17,7 @@ from .shared import (
     date_range_filter,
     default_date_range,
     eastern_bounds,
+    enable_drill_link,
     navigate_with_params,
     parse_int,
     report_page_shell,
@@ -37,6 +39,11 @@ async def crew_page(
     start_d, end_d = await default_date_range(start, end)
     selected_approval = approval if approval in APPROVAL_OPTIONS else 'All'
     user_id_int = parse_int(user_id)
+    # Resolved once, not per row: this report is readable by staff, tournament
+    # admins and crew coordinators, and all three also have the Schedule tab —
+    # but that is the destination's predicate, so ask it rather than assume it.
+    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    can_open_board = await AuthService.can_view_schedule_board(viewer)
 
     with report_page_shell('Staff / Crew Activity'):
         with ui.card().classes('full-width q-pa-md'):
@@ -145,7 +152,15 @@ async def crew_page(
                 pagination=25,
                 row_key='match_id',
             ).classes('full-width')
-            enable_mobile_grid(cov_table, cov_columns)
+            # The crew cell that approves a pending signup lives on the board;
+            # this report is the only surface that can see the gap.
+            drill_actions = enable_drill_link(
+                cov_table, cov_columns, cov_rows_display,
+                lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
+                enabled=can_open_board,
+                hint='Open on the schedule board',
+            )
+            enable_mobile_grid(cov_table, cov_columns, actions=drill_actions)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between full-width'):
@@ -190,7 +205,7 @@ async def crew_page(
                 rows=contrib_display,
                 pagination=25,
                 row_key='user_id',
-            ).classes('full-width')
+            ).classes('full-width wiz-rowclick')
             contrib_table.on('row-click', _row_clicked)
             enable_mobile_grid(contrib_table, contrib_columns, row_click_event='row-click')
             if user_id_int is None:

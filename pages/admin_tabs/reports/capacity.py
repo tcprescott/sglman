@@ -6,10 +6,13 @@ Concurrent player counts over a date range, against the configured capacity.
 from datetime import datetime, timedelta
 from typing import Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import ReportsService, SystemConfigService
+from application.services import (
+    AuthService, ReportsService, SystemConfigService, get_user_from_discord_id,
+)
 from application.utils.timezone import format_eastern_display
+from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     CHART_GOLD,
@@ -22,6 +25,7 @@ from .shared import (
     date_range_filter,
     default_date_range,
     eastern_bounds,
+    enable_drill_link,
     navigate_with_params,
     report_page_shell,
     themed_chart_option,
@@ -40,6 +44,8 @@ async def capacity_page(
 
     start_d, end_d = await default_date_range(start, end)
     focus_dt = _parse_focus(focus)
+    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    can_open_board = await AuthService.can_view_schedule_board(viewer)
 
     with report_page_shell('Capacity Forecast'):
         with ui.card().classes('full-width q-pa-md'):
@@ -212,7 +218,15 @@ async def capacity_page(
                         {'name': 'state', 'label': 'State', 'field': 'state'},
                     ]
                     focus_table = ui.table(columns=columns, rows=rows, row_key='match_id', pagination=25).classes('full-width')
-                    enable_mobile_grid(focus_table, columns)
+                    # Peak players over the ceiling is fixed by moving one of
+                    # *these* matches; this is the only table that names them.
+                    focus_actions = enable_drill_link(
+                        focus_table, columns, rows,
+                        lambda r: admin_url(SCHEDULE, match_id=r['match_id']),
+                        enabled=can_open_board,
+                        hint='Open on the schedule board',
+                    )
+                    enable_mobile_grid(focus_table, columns, actions=focus_actions)
 
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center justify-between'):
