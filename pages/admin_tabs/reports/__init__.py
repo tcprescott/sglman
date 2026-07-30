@@ -16,6 +16,7 @@ from .crew import crew_page
 from .dashboard import dashboard_page
 from .insights import insights_page
 from .match_ops import match_ops_page
+from .shared import bind_report_refresh
 from .stream_rooms import stream_rooms_page
 from .telemetry import telemetry_page
 from .volunteers import volunteers_page
@@ -63,20 +64,8 @@ def _track_report_view(report: str) -> None:
         pass
 
 
-async def reports_page(
-    report: Optional[str] = None,
-    **params,
-) -> None:
-    """Top-level entry called from the admin tabs config."""
-    # Keeps the operator's scroll position across the filter reload and
-    # acknowledges the click while they wait. Installed once here rather than
-    # per report so the dashboard gets it too; the script keys off the URL's
-    # ``report`` param and no-ops outside /admin/reports.
-    ui.add_head_html('<script src="/static/js/report-nav.js"></script>')
-
-    # One query for every report and every dashboard card, rather than an
-    # is_enabled call in each module.
-    live = await FeatureFlagService().enabled_flags()
+async def _render_report(report: Optional[str], params: dict, live: set) -> None:
+    """Dispatch to one report body. Re-runs on every filter change."""
     feature = _REPORT_FEATURES.get(report)
     if feature is not None and feature not in live:
         report = None
@@ -90,6 +79,37 @@ async def reports_page(
         return
     _track_report_view(report)
     await handler(**params)
+
+
+async def reports_page(
+    report: Optional[str] = None,
+    **params,
+) -> None:
+    """Top-level entry called from the admin tabs config."""
+    # Keeps the operator's scroll position across a filter change and
+    # acknowledges a drill-out click while they wait. Installed once here rather
+    # than per report so the dashboard gets it too; the script keys off the
+    # URL's ``report`` param and no-ops outside /admin/reports.
+    ui.add_head_html('<script src="/static/js/report-nav.js"></script>')
+
+    # One query for every report and every dashboard card, rather than an
+    # is_enabled call in each module. Resolved outside the refreshable: flags do
+    # not change under an open tab, and re-querying per filter change would put
+    # a DB round-trip on the path this refactor exists to shorten.
+    live = await FeatureFlagService().enabled_flags()
+
+    # The refresh boundary for the whole subsystem. Every filter control routes
+    # through ``navigate_with_params``, which re-invokes this with the new
+    # params instead of reloading the page — so a filter change costs one report
+    # body, not a navigation, a fresh websocket and every other admin tab.
+    # The filter strip is built *inside* each report body, so it is rebuilt too
+    # and its handlers close over the new values rather than the stale ones.
+    @ui.refreshable
+    async def report_body(report: Optional[str], params: dict) -> None:
+        await _render_report(report, params, live)
+
+    bind_report_refresh(lambda r, p: report_body.refresh(r, p))
+    await report_body(report, params)
 
 
 __all__ = ['reports_page']

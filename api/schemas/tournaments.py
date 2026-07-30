@@ -22,6 +22,10 @@ class TournamentResponse(BaseModel):
     triforce_access_message: Optional[str] = None
     average_match_duration: Optional[int] = None
     max_match_duration: Optional[int] = None
+    # Approved crew a streamed match needs before the coverage reports call it
+    # covered; 0 means the tournament does not use that role.
+    required_commentators: int
+    required_trackers: int
     staff_administered: bool
     # False once a bracket is attached: the tournament schedules only its own
     # matchups, so POST /matches/request is refused for it.

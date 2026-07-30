@@ -198,9 +198,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.VOLUNTEER_DRAFT_PUBLISHED,
     AuditActions.VOLUNTEER_SHIFTS_RESET,
     AuditActions.VOLUNTEER_QUALIFICATIONS_UPDATED,
-    # Per-device push subscription state.
+    # Per-device push subscription state. The rotation row is the same class of
+    # thing, and even less interesting: the push service moved the device's
+    # endpoint and nothing about the user's intent changed.
     AuditActions.WEB_PUSH_SUBSCRIBED,
     AuditActions.WEB_PUSH_UNSUBSCRIBED,
+    AuditActions.WEB_PUSH_ROTATED,
     # Tenant ↔ Discord-server connection: admin infrastructure configuration,
     # not a tournament domain event a webhook subscriber would act on.
     AuditActions.DISCORD_SERVER_LINKED,

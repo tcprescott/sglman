@@ -53,6 +53,9 @@ async def render_web_push_section(user: User) -> None:
     if not service.is_configured():
         return
 
+    # Order matters: web-push.js uses the helpers this defines, and both are
+    # plain (non-deferred) head scripts, so they execute in source order.
+    ui.add_head_html('<script src="/static/js/web-push-common.js"></script>')
     ui.add_head_html('<script src="/static/js/web-push.js"></script>')
 
     @ui.refreshable

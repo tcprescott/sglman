@@ -210,17 +210,20 @@ def csv_export_button(
 def show_navigating() -> None:
     """Acknowledge a click that is about to cost a full page navigation.
 
-    A measured filter change costs ~4.4 s; without this the page sits stale and
-    a second click queues a second navigation. Built as a NiceGUI element rather
-    than ``ui.run_javascript``, which is deliberate: the outbox emits element
-    *updates* before *messages* in a batch, so an element created here reaches
-    the browser ahead of the ``open`` that navigates — a fire-and-forget
-    ``run_javascript`` is deferred to a background task and loses that race.
+    Built as a NiceGUI element rather than ``ui.run_javascript``, which is
+    deliberate: the outbox emits element *updates* before *messages* in a batch,
+    so an element created here reaches the browser ahead of the ``open`` that
+    navigates — a fire-and-forget ``run_javascript`` is deferred to a background
+    task and loses that race.
 
     The overlay dies with the page, which is what is wanted: the next page
     renders fresh. Flagged on the client so a fast double-change is a no-op
     rather than a second overlay (never module state — one module is shared by
     every operator in every tenant).
+
+    Filter changes no longer reach this — they re-render in place (see
+    ``navigate_with_params``). It still covers the per-row drill-out, which is a
+    real navigation to another admin tab.
     """
     client = context.client
     if getattr(client, '_wiz_report_navigating', False):
@@ -233,10 +236,65 @@ def show_navigating() -> None:
                 ui.label('Updating report…')
 
 
+# Set per client (never module state — one module serves every operator in every
+# tenant) by the Reports dispatcher, which owns the refreshable body.
+_REFRESH_ATTR = '_wiz_report_refresh'
+
+
+def _refresh_params(params: Mapping) -> dict:
+    """Normalise filter params to what a real page load would have delivered.
+
+    The refresh path has to agree with the reload path exactly, or a filter
+    would mean one thing when clicked and another when the URL is opened. Two
+    differences to close: ``admin_url`` drops ``None``/``''`` so the reload sees
+    the handler's default, and it renders a ``date`` as ISO — which is what the
+    route's ``start: str`` annotation would have produced. Ints are left alone,
+    since the annotations (``tournament_id: int``, ``page: int``) coerce them
+    and the handlers do arithmetic on them.
+    """
+    out: dict = {}
+    for key, value in params.items():
+        if value is None or value == '':
+            continue
+        out[key] = value.isoformat() if isinstance(value, (date, datetime)) else value
+    return out
+
+
+def bind_report_refresh(refresh: Callable[[Optional[str], dict], None]) -> None:
+    """Register this client's in-place report re-render.
+
+    Called once by the Reports dispatcher. Every filter handler in the subsystem
+    goes through ``navigate_with_params``, so registering here is what turns all
+    of them from a page reload into a refresh, without each report knowing.
+    """
+    setattr(context.client, _REFRESH_ATTR, refresh)
+
+
 def navigate_with_params(report: Optional[str] = None, **params) -> None:
-    """Reload the admin page with new query params (used for filter changes)."""
-    show_navigating()
-    ui.navigate.to(reports_url(report=report, **params))
+    """Apply new filter params to the Reports tab.
+
+    Re-renders the report body in place and rewrites the URL with
+    ``history.replaceState``, so the filters stay linkable and bookmarkable
+    without the full navigation they used to cost. Falls back to a real
+    navigation when no refreshable is bound — a report body rendered outside the
+    dispatcher has nothing to refresh.
+    """
+    refresh = getattr(context.client, _REFRESH_ATTR, None)
+    url = reports_url(report=report, **params)
+    if refresh is None:
+        show_navigating()
+        ui.navigate.to(url)
+        return
+    # ``reports_url`` is root-relative and NiceGUI adds the client prefix when
+    # *it* navigates; replaceState is ours, so the /t/<slug> prefix is ours to
+    # add. Then hold the operator's scroll position across the rebuild: the body
+    # is streamed in, so the document collapses mid-refresh and the browser
+    # clamps scrollY unless something puts it back (static/js/report-nav.js).
+    ui.run_javascript(
+        f'history.replaceState(null, "", (window.path_prefix || "") + {json.dumps(url)});'
+        'window.wizReportKeepPlace && window.wizReportKeepPlace();'
+    )
+    refresh(report, _refresh_params(params))
 
 
 def parse_details(raw: Optional[str]) -> tuple[Optional[Any], str]:

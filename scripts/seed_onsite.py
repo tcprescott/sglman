@@ -56,6 +56,13 @@ async def seed_onsite_for_tenant(
             "seed_generator": "alttpr",
             "is_active": True,
             "players_per_match": 2,
+            # A commentary-only community: this tournament runs restreams with
+            # two commentators and no tracker. Without the requirement set to 0
+            # every streamed match here would report a permanent coverage gap —
+            # which is exactly the bug the setting exists to fix, so dev needs a
+            # tournament that exercises the non-default side of it.
+            "required_commentators": 2,
+            "required_trackers": 0,
             "staff_administered": False,
             **_ONSITE_META,
             # Per-tournament "tournament days" override: its own event window
@@ -69,6 +76,14 @@ async def seed_onsite_for_tenant(
         },
     )
     await backfill(onsite, **_ONSITE_META)
+    # ``backfill`` only fills NULLs, and these columns are NOT NULL defaulting to
+    # 1/1 — so a dev database seeded before the crew requirement existed would
+    # still show this commentary-only tournament a false gap. Converge it, but
+    # only while it holds the column defaults, so a hand-set value survives.
+    if (onsite.required_commentators, onsite.required_trackers) == (1, 1):
+        onsite.required_commentators = 2
+        onsite.required_trackers = 0
+        await onsite.save()
     await onsite.admins.add(staff)
     for p in (players[0], players[1]):
         await TournamentPlayers.get_or_create(tournament=onsite, user=p, tenant=tenant)
@@ -119,11 +134,12 @@ async def seed_onsite_for_tenant(
         "On-Site Checked In", 0.25, seated=True, stations=('3', '7'), room=stage1,
     )
     # Two approved commentators and **no tracker**: a fully staffed restream for
-    # a tournament that does not use trackers. The other on-site fixture staffs
-    # two commentators *and* a tracker, so the two together are the shape a real
-    # community has — the crew requirement varies by tournament, and the app does
-    # not model that (see docs/current-state.md). Crew are the two entrants who
-    # are not in this match, which is also how a restream really gets staffed.
+    # a tournament that does not use trackers, and this tournament's crew
+    # requirement (2 commentators, 0 trackers) says so — the coverage reports
+    # call it covered. The dev tournament requires one of each and staffs both,
+    # so the two fixtures together show the requirement actually varying. Crew
+    # are the two entrants not in this match, which is how a restream really
+    # gets staffed.
     for commentator in (players[2], players[3]):
         await Commentator.get_or_create(
             match=checked_in, user=commentator, tenant=tenant,

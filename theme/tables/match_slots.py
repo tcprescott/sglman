@@ -18,14 +18,26 @@ def _bool_js(value: bool) -> str:
 
 
 def _fill(template: str, *, admin_controls: bool, can_crud: bool,
-          discord_id_js: str, singular: str = '') -> str:
+          discord_id_js: str, singular: str = '', role: str = '') -> str:
     return (
         template
         .replace('__IA__', _bool_js(admin_controls))
         .replace('__CC__', _bool_js(can_crud))
         .replace('__DID__', discord_id_js)
+        .replace('__WANTED__', crew_wanted_js(role))
         .replace('__SING__', singular)
     )
+
+
+def crew_wanted_js(role: str) -> str:
+    """Vue test for "this tournament uses ``role``" (plural), for a row's crew cell.
+
+    Only an explicit ``false`` hides the control: a row built without
+    ``crew_wanted`` keeps its Sign up button rather than silently losing it.
+    """
+    if not role:
+        return 'true'
+    return f"((props.row.crew_wanted || {{}}).{role} !== false)"
 
 
 # --- Static pass-through slots (flash-aware) -------------------------------
@@ -369,7 +381,7 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
                    @click="$parent.$emit('undo___SING__', props.row)" style="margin-right: 6px;">
                    <q-tooltip>Withdraw my __SING__ signup</q-tooltip>
             </q-btn>
-            <q-btn v-if="props.value && !props.value.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
+            <q-btn v-if="__WANTED__ && props.value && !props.value.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
                    icon="assignment_ind" color="primary" size="sm" no-caps dense label="Sign up"
                    @click="$parent.$emit('signup___SING__', props.row)" style="margin-right: 6px;">
                    <q-tooltip>Sign up as __SING__</q-tooltip>
@@ -426,7 +438,7 @@ def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_
     for role in ('commentators', 'trackers'):
         table.add_slot(f'body-cell-{role}', _fill(
             CREW_SLOT, admin_controls=admin_controls, can_crud=can_crud,
-            discord_id_js=discord_id_js, singular=role[:-1],
+            discord_id_js=discord_id_js, singular=role[:-1], role=role,
         ))
 
     if extra_slots:

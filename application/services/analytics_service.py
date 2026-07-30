@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from application.services.reporting_shared import (
     ON_TIME_THRESHOLD_MIN,
     eastern,
+    is_crew_covered,
     window_hours,
 )
 from application.tenant_context import require_tenant_id
@@ -418,9 +419,9 @@ class AnalyticsService:
 
             if match.is_stream_candidate:
                 stats['stream_candidates'] += 1
-                comm_ok = any(c.approved for c in match.commentators)
-                trk_ok = any(t.approved for t in match.trackers)
-                if comm_ok and trk_ok:
+                comm_approved = sum(1 for c in match.commentators if c.approved)
+                trk_approved = sum(1 for t in match.trackers if t.approved)
+                if is_crew_covered(t, comm_approved, trk_approved):
                     stats['candidates_covered'] += 1
 
         rows: List[Dict] = []

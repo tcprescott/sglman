@@ -40,7 +40,7 @@ depend on — do not change):
     toggle_watch                   -> props.row
 """
 
-from theme.tables.match_slots import SEED_ROLLABLE
+from theme.tables.match_slots import SEED_ROLLABLE, crew_wanted_js
 
 # --- Headline: scheduled time (large) + compact state chip -----------------
 
@@ -117,7 +117,7 @@ _REVIEW_DETAIL = '''
 # but a volunteer can still sign up. Emits props.row for signup/undo and
 # { row, idx } for edit/acknowledge.
 _CREW_DETAIL = '''
-        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (!__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
+        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (__WANTED__ && !__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <template v-for="(item, idx) in props.row.__KEY__">
@@ -144,7 +144,7 @@ _CREW_DETAIL = '''
                            @click="$parent.$emit('undo___SING__', props.row)">
                         <q-tooltip>Remove yourself</q-tooltip>
                     </q-btn>
-                    <q-btn v-if="props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
+                    <q-btn v-if="__WANTED__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
                            icon="assignment" color="primary" size="sm" dense outline
                            @click="$parent.$emit('signup___SING__', props.row)">
                         Sign Up
@@ -318,6 +318,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
         if role in present:
             details += (
                 _CREW_DETAIL
+                .replace('__WANTED__', crew_wanted_js(role))
                 .replace('__KEY__', role)
                 .replace('__SING__', role[:-1])
                 .replace('__LABEL__', labels.get(role, role))

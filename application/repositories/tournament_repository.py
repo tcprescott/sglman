@@ -148,6 +148,8 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         triforce_access_message: Optional[str] = None,
         average_match_duration: Optional[int] = None,
         max_match_duration: Optional[int] = None,
+        required_commentators: int = 1,
+        required_trackers: int = 1,
         staff_administered: bool = False,
         allow_player_match_requests: bool = True,
         config: Optional[Dict[str, Any]] = None,
@@ -177,6 +179,9 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             tournament_format: Format description
             average_match_duration: Average match duration in minutes
             max_match_duration: Maximum match duration in minutes
+            required_commentators: Approved commentators a streamed match needs
+                to count as covered (0 = the role is not used here)
+            required_trackers: Approved trackers a streamed match needs
             staff_administered: Whether this is staff administered
             
         Returns:
@@ -196,6 +201,8 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
             triforce_access_message=triforce_access_message,
             average_match_duration=average_match_duration,
             max_match_duration=max_match_duration,
+            required_commentators=required_commentators,
+            required_trackers=required_trackers,
             staff_administered=staff_administered,
             allow_player_match_requests=allow_player_match_requests,
             config=config,

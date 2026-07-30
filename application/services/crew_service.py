@@ -79,6 +79,18 @@ class CrewService:
         if match.finished_at is not None:
             raise ValueError("This match has already finished. Crew signup is closed.")
 
+        # A tournament that requires none of a role does not staff it, and the
+        # schedule hides its Sign up control — but UI-only hiding is not a rule,
+        # so refuse here too, for the REST route and the Discord button.
+        # Withdrawing stays open: a signup from before the setting changed must
+        # still be removable.
+        required = (
+            match.tournament.required_commentators if role == 'commentator'
+            else match.tournament.required_trackers
+        ) if match.tournament else 1
+        if required == 0:
+            raise ValueError(f"This tournament does not use {role}s.")
+
         # Check if user already signed up
         crew_list = match.commentators if role == 'commentator' else match.trackers
         if any(c.user_id == user.id for c in crew_list):

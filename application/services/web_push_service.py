@@ -18,6 +18,7 @@ UI hides itself.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -170,17 +171,8 @@ class WebPushService:
     async def list_subscriptions(self, user: User) -> List[WebPushSubscription]:
         return await self.repository.list_for_user(user)
 
-    async def subscribe(
-        self,
-        user: User,
-        *,
-        endpoint: str,
-        p256dh: str,
-        auth: str,
-        user_agent: Optional[str] = None,
-    ) -> WebPushSubscription:
-        """Store (or re-bind) a browser PushSubscription for ``user``."""
-        endpoint = (endpoint or '').strip()
+    async def _validate_subscription(self, endpoint: str, p256dh: str, auth: str) -> str:
+        """Check a browser-supplied subscription; returns the endpoint hostname."""
         parsed = urlparse(endpoint)
         if parsed.scheme != 'https' or not parsed.hostname:
             raise ValueError('Push subscription endpoint must be an https:// URL')
@@ -200,6 +192,20 @@ class WebPushService:
                 raise ValueError
         except (ValueError, TypeError):
             raise ValueError('Push subscription keys are malformed')
+        return parsed.hostname
+
+    async def subscribe(
+        self,
+        user: User,
+        *,
+        endpoint: str,
+        p256dh: str,
+        auth: str,
+        user_agent: Optional[str] = None,
+    ) -> WebPushSubscription:
+        """Store (or re-bind) a browser PushSubscription for ``user``."""
+        endpoint = (endpoint or '').strip()
+        hostname = await self._validate_subscription(endpoint, p256dh, auth)
 
         subscription = await self.repository.upsert(
             user, endpoint, p256dh, auth, (user_agent or '')[:255] or None
@@ -207,9 +213,58 @@ class WebPushService:
         await self.audit_service.write_log(
             user,
             AuditActions.WEB_PUSH_SUBSCRIBED,
-            {'subscription_id': subscription.id, 'endpoint_host': parsed.hostname},
+            {'subscription_id': subscription.id, 'endpoint_host': hostname},
         )
         return subscription
+
+    async def rotate_subscription(
+        self,
+        *,
+        old_endpoint: str,
+        old_auth: str,
+        endpoint: str,
+        p256dh: str,
+        auth: str,
+        user_agent: Optional[str] = None,
+    ) -> WebPushSubscription:
+        """Re-point a stored device row at the subscription its push service reissued.
+
+        Called by the service worker's ``pushsubscriptionchange`` handler, which
+        runs with no page, no session and no user gesture — so the caller cannot
+        be authenticated the way :meth:`subscribe` is. The old subscription's
+        ``auth`` secret is the credential instead: it is one of the two RFC 8291
+        client keys, never leaves the browser except to reach us over TLS, and is
+        never logged or rendered. Knowing it proves possession of the device
+        subscription being rotated, which is exactly the claim being made.
+
+        Without that proof this would be an unauthenticated "redirect this user's
+        notifications to an endpoint of my choosing" primitive for anyone who
+        learned a stored endpoint URL.
+        """
+        endpoint = (endpoint or '').strip()
+        hostname = await self._validate_subscription(endpoint, p256dh, auth)
+
+        subscription = await self.repository.get_by_endpoint((old_endpoint or '').strip())
+        if subscription is None:
+            raise NotFoundError('Subscription not found')
+        if not hmac.compare_digest(subscription.auth, (old_auth or '').strip()):
+            # Same message as the miss above: an attacker probing endpoints must
+            # not learn which of the two checks they failed.
+            raise NotFoundError('Subscription not found')
+
+        rotated = await self.repository.rotate(
+            subscription,
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth,
+            user_agent=(user_agent or '')[:255] or None,
+        )
+        await self.audit_service.write_log(
+            await rotated.user,
+            AuditActions.WEB_PUSH_ROTATED,
+            {'subscription_id': rotated.id, 'endpoint_host': hostname},
+        )
+        return rotated
 
     async def unsubscribe(self, user: User, endpoint: str) -> bool:
         """Remove ``user``'s subscription for ``endpoint``; True if one existed."""

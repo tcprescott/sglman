@@ -125,8 +125,16 @@ async def crew_page(
                         'scheduled_at': format_eastern_display(r['scheduled_at']),
                         'stream_room': r['stream_room'],
                         'stream_candidate': 'yes' if r['is_stream_candidate'] else '',
-                        'commentators': f"{r['commentators_approved']}/{r['commentators_total']}",
-                        'trackers': f"{r['trackers_approved']}/{r['trackers_total']}",
+                        # The requirement is per-tournament, so "0/0" only means a
+                        # gap when the tournament actually asks for the role.
+                        'commentators': (
+                            f"{r['commentators_approved']}/{r['commentators_total']}"
+                            f" · need {r['commentators_required']}"
+                        ),
+                        'trackers': (
+                            f"{r['trackers_approved']}/{r['trackers_total']}"
+                            f" · need {r['trackers_required']}"
+                        ),
                         'gap': 'GAP' if r['coverage_gap'] else '',
                     }
                     for r in coverage_rows

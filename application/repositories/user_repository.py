@@ -242,15 +242,12 @@ class UserRepository(TenantScopedRepository[User]):
         return user
 
     @staticmethod
-    async def update_discord_info(
-        user: User,
-        username: str,
-        discriminator: Optional[str] = None,
-        avatar: Optional[str] = None,
-    ) -> None:
+    async def update_discord_info(user: User, username: str) -> None:
+        """Refresh the Discord-sourced identity we actually persist.
+
+        ``username`` is the only one: Discord retired discriminators, and the
+        avatar is a per-session CDN URL that lives in ``app.storage.user``
+        rather than on the row.
+        """
         user.username = username
-        if discriminator is not None:
-            user.discriminator = discriminator
-        if avatar is not None:
-            user.avatar = avatar
         await user.save()

@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from application.utils.timezone import to_eastern
+from models import Tournament
 
 
 # Fallback match length (minutes) when a match has no finish time and its
@@ -33,3 +34,30 @@ def window_hours(start: Optional[datetime], end: Optional[datetime]) -> float:
     if not start or not end:
         return 0.0
     return max(0.0, (end - start).total_seconds() / 3600.0)
+
+
+# What a tournament asks for when it has not said. Matches the column defaults,
+# and is what a match with no tournament at all is measured against.
+DEFAULT_CREW_REQUIREMENT = (1, 1)
+
+
+def crew_requirement(tournament: Optional[Tournament]) -> tuple[int, int]:
+    """``(commentators, trackers)`` an approved crew needs for a stream candidate."""
+    if tournament is None:
+        return DEFAULT_CREW_REQUIREMENT
+    return tournament.required_commentators, tournament.required_trackers
+
+
+def is_crew_covered(
+    tournament: Optional[Tournament],
+    commentators_approved: int,
+    trackers_approved: int,
+) -> bool:
+    """Whether approved crew meets ``tournament``'s requirement.
+
+    The single definition of "covered" behind both the crew-coverage report and
+    the tournament-health score, so the two dashboards cannot drift apart. A
+    role the tournament requires none of is satisfied by having none.
+    """
+    need_commentators, need_trackers = crew_requirement(tournament)
+    return commentators_approved >= need_commentators and trackers_approved >= need_trackers

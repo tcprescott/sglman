@@ -237,7 +237,10 @@ Still not covered (intentionally — each needs live infra the SQLite suite can'
 poetry run pytest --cov=application --cov=api --cov=middleware --cov-report=term-missing
 ```
 
-One known quirk is pinned by a test rather than fixed, so a future fix is flagged: `UserRepository.update_discord_info` silently drops its non-field `discriminator`/`avatar` arguments (`tests/test_repositories_coverage.py`).
+(`UserRepository.update_discord_info` used to accept non-field
+`discriminator`/`avatar` arguments and silently drop them on save. It now takes
+only `username` — the one Discord-sourced field the row actually stores — and
+`tests/test_repositories_coverage.py` pins that the others are rejected.)
 
 ## Continuous integration
 

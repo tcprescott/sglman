@@ -15,6 +15,11 @@ _HOURS_DESC = (
     'Omit or null to inherit the community setting.'
 )
 _DATE_DESC = 'Overrides the community event-window bound; null inherits it.'
+_CREW_DESC = (
+    'Approved crew a streamed match needs before the coverage reports count it '
+    'as covered. 0 means this tournament does not use the role. Does not '
+    'restrict signups.'
+)
 
 
 class TournamentCreateRequest(BaseModel):
@@ -30,6 +35,8 @@ class TournamentCreateRequest(BaseModel):
     is_active: bool = True
     players_per_match: int = 2
     team_size: int = 1
+    required_commentators: int = Field(default=1, ge=0, description=_CREW_DESC)
+    required_trackers: int = Field(default=1, ge=0, description=_CREW_DESC)
     staff_administered: bool = False
     event_start_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     event_end_date: Optional[date] = Field(default=None, description=_DATE_DESC)
@@ -51,6 +58,8 @@ class TournamentUpdateRequest(BaseModel):
     is_active: Optional[bool] = None
     players_per_match: Optional[int] = None
     team_size: Optional[int] = None
+    required_commentators: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC)
+    required_trackers: Optional[int] = Field(default=None, ge=0, description=_CREW_DESC)
     staff_administered: Optional[bool] = None
     event_start_date: Optional[date] = Field(default=None, description=_DATE_DESC)
     event_end_date: Optional[date] = Field(default=None, description=_DATE_DESC)

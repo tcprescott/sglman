@@ -23,9 +23,7 @@ window.wizWebPush = {
   },
 
   _applicationServerKey(base64url) {
-    const padded = base64url + '='.repeat((4 - (base64url.length % 4)) % 4);
-    const raw = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
-    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    return self.wizWebPushKey(base64url);
   },
 
   _isIOS() {
@@ -60,7 +58,15 @@ window.wizWebPush = {
         userVisibleOnly: true,
         applicationServerKey: this._applicationServerKey(publicKey),
       });
-      return { subscription: sub.toJSON(), userAgent: navigator.userAgent };
+      const json = sub.toJSON();
+      // Everything static/sw.js needs to rotate this subscription later, when
+      // the push service retires it and no page is open. See web-push-common.js.
+      await self.wizWebPushStore.save({
+        endpoint: json.endpoint,
+        auth: (json.keys || {}).auth,
+        applicationServerKey: publicKey,
+      });
+      return { subscription: json, userAgent: navigator.userAgent };
     } catch (e) {
       if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
         return { error: 'permission_denied' };
@@ -82,6 +88,9 @@ window.wizWebPush = {
       if (!sub) return { endpoint: null };
       const endpoint = sub.endpoint;
       await sub.unsubscribe();
+      // Drop the rotation record too, so a later pushsubscriptionchange can't
+      // resurrect a device the user just turned off.
+      await self.wizWebPushStore.clear();
       return { endpoint: endpoint };
     } catch (e) {
       return { endpoint: null, error: String(e) };

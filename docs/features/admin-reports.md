@@ -13,11 +13,28 @@ date-range/tournament filters, the export button and the URL-param navigation.
 | Insights & Trends | `insights.py` | Crew participation, volunteer hours, tournament health and admin activity trended weekly/monthly across events (`AnalyticsService`). Defaults to the window `AnalyticsService.activity_extent` reports — floored at four weeks, capped near a year, most-recent slice — rather than a fixed trailing range, so the charts open on buckets that have data in them |
 | Capacity Forecast | `capacity.py` | Concurrent player count over a date range vs. configured capacity |
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
-| Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person |
+| Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person. A stream candidate is short only against its own tournament's `required_commentators`/`required_trackers` (see [What "covered" means](#what-covered-means)) |
 | Stream Room Utilization | `stream_rooms.py` | Per-stage scheduled hours, gaps, back-to-back transitions |
 | Volunteer Coverage | `volunteers.py` | Per-shift filled vs. needed counts over a date range, highlighting understaffed shifts. Behind `FeatureFlag.VOLUNTEERS` — card, handler and `VolunteerScheduleService.coverage` all gate on it |
 | Engagement Telemetry | `telemetry.py` | Page views, interactions and the domain-event mirror over a date window — KPIs, leaderboards, filterable raw log (Staff only; see [telemetry.md](telemetry.md)) |
 | Audit Log | `audit.py` | Searchable, paginated view of every audited action with expandable detail rows (see [audit-logging.md](audit-logging.md)) |
+
+## What "covered" means
+
+The crew-coverage report's **gap** flag and the tournament-health score's
+**coverage** component both come from one function,
+`reporting_shared.is_crew_covered`, so the two dashboards cannot drift apart. It
+compares a stream candidate's *approved* crew against the tournament's
+`required_commentators` / `required_trackers` (Tournament edit → Entry &
+administration → Stream crew; defaults `1`/`1`).
+
+Crew shape varies by community: plenty of tournaments restream with commentary
+and no tracker. Setting a role to `0` says so, its matches stop reporting a gap,
+and the schedule board stops offering a **Sign up** for a role nobody will
+staff — `CrewService.signup_crew` refuses it as well, since the REST route and
+the Discord button reach past the hidden control. Withdrawing stays open at any
+requirement, so a signup made before the setting changed is not stuck on the
+match. A match with no tournament falls back to the defaults.
 
 **Reports link out; they never act.** A report row carries an id to the surface
 that already owns the action, with that surface's own authorization, rather than

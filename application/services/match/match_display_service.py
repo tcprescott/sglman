@@ -296,6 +296,18 @@ class MatchDisplayService:
                 p.user.preferred_name for p in match.players
                 if not (p.user.discord_id and p.user.dm_notifications)
             ],
+            # Which crew roles this tournament actually uses. A tournament that
+            # requires none of a role has no use for volunteers in it, so the
+            # table stops offering Sign up (existing signups still render, and
+            # CrewService refuses a signup that gets here another way).
+            'crew_wanted': {
+                'commentators': (
+                    match.tournament.required_commentators > 0 if match.tournament else True
+                ),
+                'trackers': (
+                    match.tournament.required_trackers > 0 if match.tournament else True
+                ),
+            },
             'commentators': [
                 {
                     'name': c.user.preferred_name,
