@@ -19,6 +19,7 @@ from application.services.bracket_engines.round_names import (
     RoundNode,
     detect_finals_ids,
 )
+from application.services.bracket_engines.standings import ResultRow
 from application.utils.timezone import format_eastern_display
 from models import BracketMatch, BracketMatchState
 
@@ -100,6 +101,29 @@ def build_context(
         on_card_click=on_card_click,
         live_state=live_state or {},
     )
+
+
+def results_from_matches(matches: List[BracketMatch]) -> List[ResultRow]:
+    """Completed matches as opaque-ref result rows for standings computation.
+
+    Shared by the interactive page and the static (cached) view so the two can
+    never compute a different table from the same matches.
+    """
+    rows: List[ResultRow] = []
+    for m in matches:
+        if m.state != BracketMatchState.COMPLETE:
+            continue
+        if m.entry1_id is None and m.entry2_id is None:
+            continue
+        if m.entry2_id is None:
+            rows.append(ResultRow(ref1=m.entry1_id, winner=m.entry1_id))
+        elif m.entry1_id is None:
+            rows.append(ResultRow(ref1=m.entry2_id, winner=m.entry2_id))
+        else:
+            rows.append(
+                ResultRow(ref1=m.entry1_id, ref2=m.entry2_id, winner=m.winner_id)
+            )
+    return rows
 
 
 def entry_records(

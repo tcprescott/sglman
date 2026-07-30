@@ -1,0 +1,60 @@
+"""Keep the anonymous, publicly-cacheable responses free of per-visitor state.
+
+``pages/static_brackets.py`` serves the spectator bracket views with
+``Cache-Control: public`` so a browser — or a CDN in front of the app — can hand
+the same bytes to everyone. NiceGUI's session middleware, however, mints a
+session cookie on *every* request that reaches the app, this one included. A
+``public`` response carrying a ``Set-Cookie`` is a cache-poisoning hazard: a
+shared cache that stored it would hand one visitor's session cookie to every
+subsequent reader.
+
+So this middleware strips ``Set-Cookie`` from exactly those responses. It has to
+run **outside** the session middleware to do it — NiceGUI adds that one itself,
+outermost of the app's own stack, and appends the cookie on the way out — which
+is why it is installed on the wrapping FastAPI app in ``frontend.init`` rather
+than alongside the tenant/auth middlewares.
+
+Nothing is lost by dropping it: these pages never read the session (they render
+identically for everyone, signed in or not), and any other page the visitor
+opens mints the cookie as usual.
+
+Pure ASGI, matching on the path only, so it costs a regex per request and
+touches nothing else.
+"""
+
+import re
+
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+# The static spectator routes, with or without a ``/t/<slug>`` tenant prefix.
+_PUBLIC_CACHEABLE = re.compile(
+    r'^(?:/t/[a-z0-9][a-z0-9-]*)?/live/'
+    r'(?:brackets/\d+|tournament/\d+/brackets)/?$'
+)
+
+
+def is_public_cacheable_path(path: str) -> bool:
+    return bool(_PUBLIC_CACHEABLE.match(path))
+
+
+class PublicCacheMiddleware:
+    """Strip ``Set-Cookie`` from the responses served as publicly cacheable."""
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope['type'] != 'http' or not is_public_cacheable_path(scope.get('path', '')):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message: Message) -> None:
+            if message['type'] == 'http.response.start':
+                message['headers'] = [
+                    (name, value)
+                    for name, value in message.get('headers', [])
+                    if name.lower() != b'set-cookie'
+                ]
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

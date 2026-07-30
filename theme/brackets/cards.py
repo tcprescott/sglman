@@ -43,7 +43,7 @@ _STATE_CLASS = {
 # ``SCHEDULED``/``UNSCHEDULED``/``COMPLETE``/``PENDING`` are absent on purpose:
 # they say nothing ``_STATE_CLASS`` doesn't already say, and a card that shouted
 # about every state would stop drawing the eye to the one being played.
-_LIVE_CLASS = {
+LIVE_STATUS_CLASS = {
     MatchStatus.LIVE: 'is-live',
     MatchStatus.CHECKED_IN: 'is-checked-in',
     MatchStatus.AWAITING_RESULT: 'is-awaiting-result',
@@ -80,7 +80,7 @@ def _slot_score(match: BracketMatch, slot: int) -> Optional[int]:
     return match.entry1_score if slot == 1 else match.entry2_score
 
 
-def _placeholder_text(
+def placeholder_text(
     match: BracketMatch, slot: int, ctx: BracketContext, *, completed: bool
 ) -> str:
     """Label for an empty slot: BYE, a source hint, or TBD."""
@@ -125,7 +125,7 @@ def _render_slot(match: BracketMatch, slot: int, ctx: BracketContext) -> None:
             ui.label(name).classes('bracket-name').tooltip(name)
         else:
             ui.element('div').classes('bracket-avatar is-empty')
-            ui.label(_placeholder_text(match, slot, ctx, completed=completed)) \
+            ui.label(placeholder_text(match, slot, ctx, completed=completed)) \
                 .classes('bracket-name is-placeholder')
 
         # Score cell: the visual anchor. Number when scored, else a W/L glyph;
@@ -150,12 +150,12 @@ def _avatar(name: str) -> None:
     )
 
 
-def _card_classes(match: BracketMatch, ctx: BracketContext) -> str:
+def card_state_class(match: BracketMatch, ctx: BracketContext) -> str:
     """The card's state class: the derived live status if there is one, else the
     matchup's own state (U2)."""
     live = ctx.live_state.get(match.id) or {}
     status = live.get('status')
-    return _LIVE_CLASS.get(status) or _STATE_CLASS.get(match.state, 'is-pending')
+    return LIVE_STATUS_CLASS.get(status) or _STATE_CLASS.get(match.state, 'is-pending')
 
 
 def _render_status_pill(match: BracketMatch, ctx: BracketContext) -> None:
@@ -168,7 +168,7 @@ def _render_status_pill(match: BracketMatch, ctx: BracketContext) -> None:
     """
     live = ctx.live_state.get(match.id) or {}
     status = live.get('status')
-    if status is None or status not in _LIVE_CLASS:
+    if status is None or status not in LIVE_STATUS_CLASS:
         return
     if status == MatchStatus.LIVE:
         url = live.get('watch_url') or ''
@@ -182,7 +182,7 @@ def _render_status_pill(match: BracketMatch, ctx: BracketContext) -> None:
 
 
 def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketContext) -> None:
-    card = ui.element('div').classes(f'bracket-match {_card_classes(match, ctx)}').style(
+    card = ui.element('div').classes(f'bracket-match {card_state_class(match, ctx)}').style(
         f'left: {placement.left}px; top: {placement.top}px; '
         f'width: {COL_WIDTH}px; height: {CARD_HEIGHT}px'
     )
@@ -204,7 +204,7 @@ def render_match_card(match: BracketMatch, placement: Placement, ctx: BracketCon
 def render_mobile_card(match: BracketMatch, ctx: BracketContext) -> None:
     """The same match card in normal flow (full-width) for the mobile accordion."""
     card = ui.element('div').classes(
-        f'bracket-match bracket-match-flow {_card_classes(match, ctx)}'
+        f'bracket-match bracket-match-flow {card_state_class(match, ctx)}'
     )
     card.props(f'data-match-id={match.id}')
     number = ctx.match_number.get(match.id)
