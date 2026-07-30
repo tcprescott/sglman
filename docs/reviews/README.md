@@ -17,7 +17,7 @@ the truth and git history keeps the rationale.
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 | [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
-| [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
+| [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen — see its **Corrections** section, which overturns F5 and one *What works* claim; fixes planned in [plans/identity-linking/](../plans/identity-linking/README.md) |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
@@ -41,7 +41,16 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   fixes it ([reports F1](admin-reports-ux.md#f1--major--nine-reports-zero-actions)).
 - **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
   `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
-  reachable from no surface.
+  reachable from no surface. `LinkSectionConfig`'s `description` and
+  `link_button_label` are the same thing in config form: declared, populated three
+  times, read by nothing
+  ([identity-linking Corrections](identity-linking-ux.md#corrections)).
+- **A message written is not a message delivered.** Nine failure strings across the
+  linking pages are queued with `ui.notify` and then discarded by the
+  `ui.navigate.to` on the next line; `pages/auth.py`'s Discord-login callback has
+  the identical shape. Reviewing the copy in the source says nothing about whether
+  a user ever sees it — probe the path
+  ([identity-linking F1/F2](identity-linking-ux.md#f1--major--measured--four-written-failure-messages-none-of-which-arrive)).
 - **The global `User` table leaks into per-community pickers.** The Users tab, the
   match dialog's "Choose any players", and the equipment borrower select all offer
   every user on the platform, `System` included

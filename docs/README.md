@@ -70,6 +70,7 @@ feature docs become the truth.
 | Doc | What it is |
 |---|---|
 | [plans/match-runner/](plans/match-runner/README.md) | Making "how a match is run" a first-class type instead of a scattered `is_racetime` boolean, so a third race-management system can be added without touching sixteen call sites |
+| [plans/identity-linking/](plans/identity-linking/README.md) | Making the Challonge / Twitch / racetime linking flow speak: nine written failure messages that no redirect survives, a player answered with an admin refusal, and the section copy that is configured and never rendered |
 | [reviews/](reviews/README.md) | UX evaluations, one flow each, measured against the running app — with the cross-cutting themes that recur across them |
 
 ## Conventions for this directory

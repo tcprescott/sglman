@@ -141,3 +141,48 @@ Everything requiring provider credentials: the happy path, consent denial at the
 provider, expiry and reuse of a live token, wrong-browser claims, already-linked
 collisions, and the custom-domain handoff end to end. All five are the audit this
 report cannot be until a dev credential path exists (F5).
+
+---
+
+## Corrections
+
+Found while planning the fixes
+([`docs/plans/identity-linking/`](../plans/identity-linking/README.md)), by
+reading the code this report reasoned about. Two claims above are wrong; the
+waves follow the corrected picture.
+
+**F5 overstates the problem — the dev path already exists.** `MOCK_RACETIME`,
+`MOCK_TWITCH` and `MOCK_CHALLONGE` are all implemented, each with a canned
+four-identity OAuth client and a `MOCK_<PROVIDER>_IDENTITY` hint to choose
+between them, and each provider's `is_configured()` returns `True` under its
+mock. Nothing turns them on: `scripts/setup_env.sh` writes only `MOCK_DISCORD`
+and `MOCK_SEEDGEN`, and `start.sh mock` exports only `MOCK_DISCORD` /
+`MOCK_CHALLONGE` / `MOCK_SEEDGEN`. That — not a missing capability — is why this
+report saw a Profile page with no linking UI. The happy path, the unlink, and the
+already-linked collision are all drivable today with three env lines. The one
+part F5 gets right is the custom-domain handoff, and even there the blocker is an
+ordering: both link pages test `is_mock()` *before*
+`maybe_start_link_handoff`, so the handoff is unreachable in the only
+environment that could exercise it.
+
+**"Each provider says what the link buys" is not true — that copy never
+renders.** `LinkSectionConfig` declares `description` and `link_button_label`;
+`_render_provider_row` reads neither, and the link button is the literal string
+`'Link'`. The racetime sentence quoted approvingly under *What works* exists only
+in the source. The praise belongs to the config, not the screen.
+
+**Two findings the report did not reach**, both `code-read`:
+
+- `ChallongeService.record_player_link` — the method the OAuth callback calls —
+  is the only one of the three link paths with no uniqueness pre-check, against a
+  `unique=True` column. It raises `IntegrityError`, which the callback maps to
+  *"Could not link Challonge. Please try again."* — advice that fails identically
+  every time. `IdentityLinkService.record_player_link` (racetime, Twitch) and
+  `ChallongeService.link_player_by_id` (staff override) both pre-check and name
+  the holding user.
+- F1's symptom is two defects, not one. The lost message is real and applies to
+  the in-place callbacks too. But the community-picker landing is separate:
+  `/oauth/link/claim` has no `host_oauth_handoff_enabled()` guard while its
+  sibling `/oauth/link/start` does, so it served a path-mode request it cannot
+  complete — and its failure exits navigate to a hardcoded `/home/profile`,
+  discarding the `next_path` the handler computed.
