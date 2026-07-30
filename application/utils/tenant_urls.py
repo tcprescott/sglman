@@ -9,10 +9,10 @@ Pure (no NiceGUI / session / DB) so they unit-test in isolation; the presentatio
 layer reads the pending referrer from ``app.storage.user`` and passes it in.
 """
 
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 from application.utils.environment import get_base_url
-from application.utils.hostname import scheme_for_host
+from application.utils.hostname import normalize_hostname, scheme_for_host
 
 # Routes that must never be used as a post-login return target (they would loop).
 AUTH_ROUTES: tuple[str, ...] = ('/login', '/logout', '/oauth/callback')
@@ -52,6 +52,29 @@ def tenant_base_url(tenant: Any) -> str:
     if domain:
         return f'{scheme_for_host(domain)}://{domain}'
     return f'{get_base_url()}/t/{tenant.slug}'
+
+
+def encoded_host_mismatch(canonical_url: Any, browsing_host: Any) -> Optional[str]:
+    """The canonical host, when it is not the host the operator is browsing.
+
+    A printed QR label encodes an absolute link built from the tenant's
+    canonical base (:func:`tenant_base_url`), which on a path-mode tenant comes
+    from ``BASE_URL``. If ``BASE_URL`` is stale, thirty labels come off the
+    printer encoding a host nobody can reach — and the mismatch only surfaces at
+    the venue, with a phone and a cable.
+
+    Compare against the **tenant's canonical base**, never ``BASE_URL`` itself:
+    on a custom-domain tenant the encoded host is *supposed* to differ from the
+    platform's. Both sides go through :func:`normalize_hostname`, so case, a
+    default ``:80``/``:443``, a trailing dot and a scheme/path never produce a
+    spurious warning. Returns ``None`` when they match, or when either side is
+    missing — an absent ``Host`` header must not read as a misconfiguration.
+    """
+    canonical = normalize_hostname(canonical_url)
+    browsing = normalize_hostname(browsing_host)
+    if canonical is None or browsing is None:
+        return None
+    return canonical if canonical != browsing else None
 
 
 def tenant_url(tenant: Any, path: str) -> str:

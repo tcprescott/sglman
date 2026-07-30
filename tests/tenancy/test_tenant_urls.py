@@ -5,7 +5,9 @@ back inside the *originating* tenant, never a different community whose stale
 referrer is still in the session.
 """
 
-from application.utils.tenant_urls import sanitize_return_path, strip_root_path, tenant_home
+from application.utils.tenant_urls import (
+    encoded_host_mismatch, sanitize_return_path, strip_root_path, tenant_home,
+)
 
 
 class TestTenantHome:
@@ -102,3 +104,48 @@ class TestSanitizeReturnPath:
 
     def test_tenant_root_exact_match_is_accepted(self):
         assert sanitize_return_path('/t/sgl', '/t/sgl') == '/t/sgl'
+
+
+class TestEncodedHostMismatch:
+    """The guard that catches a sheet of labels printed against a stale BASE_URL.
+
+    The subtlety a naive check gets wrong: on a custom-domain tenant the encoded
+    host is *supposed* to differ from BASE_URL. The comparison is against the
+    tenant's own canonical base, so a custom-domain community printing from its
+    own domain is silent.
+    """
+
+    def test_matching_hosts_are_silent(self):
+        assert encoded_host_mismatch('http://localhost:8000/t/sgl/equipment/3',
+                                     'localhost:8000') is None
+
+    def test_a_stale_base_url_is_named(self):
+        assert encoded_host_mismatch('https://wrong.example/t/sgl/equipment/3',
+                                     'localhost:8000') == 'wrong.example'
+
+    def test_a_custom_domain_browsed_on_itself_is_silent(self):
+        assert encoded_host_mismatch('https://foo.gg/equipment/3', 'foo.gg') is None
+
+    def test_a_custom_domain_browsed_elsewhere_is_named(self):
+        assert encoded_host_mismatch('https://foo.gg/equipment/3',
+                                     'localhost:8000') == 'foo.gg'
+
+    def test_default_ports_do_not_count_as_a_mismatch(self):
+        assert encoded_host_mismatch('https://foo.gg:443/equipment/3', 'foo.gg') is None
+        assert encoded_host_mismatch('http://foo.gg/equipment/3', 'foo.gg:80') is None
+
+    def test_a_non_default_port_still_counts(self):
+        assert encoded_host_mismatch('http://foo.gg:8000/x', 'foo.gg') == 'foo.gg:8000'
+
+    def test_case_and_trailing_dot_are_not_a_mismatch(self):
+        assert encoded_host_mismatch('https://FOO.GG/equipment/3', 'foo.gg.') is None
+
+    def test_a_missing_host_never_warns(self):
+        # An absent Host header must not read as a misconfiguration.
+        assert encoded_host_mismatch('https://foo.gg/x', None) is None
+        assert encoded_host_mismatch('https://foo.gg/x', '') is None
+        assert encoded_host_mismatch(None, 'foo.gg') is None
+        assert encoded_host_mismatch('', 'foo.gg') is None
+
+    def test_a_malformed_host_never_warns(self):
+        assert encoded_host_mismatch('https://foo.gg/x', 'not a host') is None

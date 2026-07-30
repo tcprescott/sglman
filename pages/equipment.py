@@ -13,8 +13,9 @@ from application.services import AuthService, EquipmentService, TenantService, g
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
 from application.utils.environment import get_base_url
+from application.utils.hostname import effective_request_host
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
-from application.utils.tenant_urls import tenant_url
+from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
 from application.utils.timezone import format_eastern_display
 from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
@@ -124,6 +125,19 @@ def create() -> None:
                     with ui.column().classes('items-center gap-1'):
                         ui.image(asset_qr_data_uri(asset_link)).classes('w-40 h-40')
                         ui.label(asset_link).classes('text-caption')
+                        # Manager-only: a volunteer scanning a label cannot act
+                        # on a BASE_URL misconfiguration and does not need the
+                        # noise. Compared against the tenant's canonical base —
+                        # a custom-domain community's links are meant to differ
+                        # from the platform host.
+                        wrong_host = encoded_host_mismatch(
+                            asset_link,
+                            effective_request_host(context.client.request.headers),
+                        ) if can_manage else None
+                        if wrong_host:
+                            ui.label(
+                                f'Encodes {wrong_host}, not the host you are on — check BASE_URL.'
+                            ).classes('text-warning text-caption')
 
                         def download_qr():
                             ui.download(asset_qr_png_bytes(asset_link), f'asset-{asset.asset_number}-qr.png')
