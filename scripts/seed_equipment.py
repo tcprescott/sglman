@@ -36,6 +36,11 @@ _ASSET_SPECS = (
     ('HDMI Splitter', '4-way powered splitter', None),
     ('Mic Stand', 'Boom arm, held by a volunteer', None),
     ('Long HDMI Run', '50ft HDMI — lent constantly', None),
+    # Gear breaks, and a community retires it rather than deleting the asset and
+    # its loan history. RETIRED was the one EquipmentStatus the seed never
+    # produced, so nothing in dev showed how a retired asset reads in the list or
+    # that it cannot be checked out.
+    ('Console 2', 'Super Nintendo (SNES) — dead PPU, kept for parts', 'staff'),
 )
 
 
@@ -90,6 +95,11 @@ async def seed_equipment_for_tenant(
     await _open_loan(
         equipment['Mic Stand'], users['player_three'], equip_manager, tenant,
     )
+
+    retired = equipment['Console 2']
+    if retired.status != EquipmentStatus.RETIRED:
+        retired.status = EquipmentStatus.RETIRED
+        await retired.save()
 
     long_run = equipment['Long HDMI Run']
     existing = await EquipmentLoan.filter(equipment=long_run, tenant=tenant).count()

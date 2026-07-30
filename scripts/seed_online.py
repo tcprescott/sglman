@@ -40,9 +40,23 @@ from models import (
     AsyncQualifierRunStatus, AsyncQualifierReviewStatus, AsyncQualifierReviewNote,
     AsyncQualifierLiveRace, AsyncQualifierLiveRaceStatus,
 )
+from application.services.preset_service import PresetService
 from application.utils.timezone import now_eastern
+from scripts.seed_support import backfill
 
 ONLINE_TOURNAMENT_NAME = "Wizzrobe Online Series"
+
+#: The operational metadata an online tournament actually carries. Kept beside
+#: the tournament it describes: ``average_match_duration`` is what the schedule's
+#: suggestion engine spaces races by and what the reports' expected-average
+#: column reads, and both fall back to a hard-coded 90 minutes when it is NULL —
+#: so a dev database could never tell a configured tournament from an unconfigured one.
+_ONLINE_TOURNAMENT_META = {
+    "tournament_format": "Round-robin groups into a double-elimination bracket",
+    "rules_url": "https://example.invalid/wizzrobe/online-series/rules",
+    "average_match_duration": 105,
+    "max_match_duration": 210,
+}
 
 
 async def link_racetime_identities(users: dict[str, User]) -> None:
@@ -187,9 +201,10 @@ async def seed_online_for_tenant(
 
     Returns the tournament it created so the caller can report/extend it.
     """
-    preset = await _seed_presets(tenant)
+    preset = await _seed_presets(tenant, staff)
+    profile = await _seed_room_profile(tenant)
     tournament = await _seed_online_tournament(
-        tenant, staff, players, preset, bots["alttpr"],
+        tenant, staff, players, preset, bots["alttpr"], profile,
     )
     scheduled, in_progress, finished = await _seed_online_matches(
         tenant, tournament, players,
@@ -203,7 +218,7 @@ async def seed_online_for_tenant(
     return tournament
 
 
-async def _seed_presets(tenant: Tenant) -> Preset:
+async def _seed_presets(tenant: Tenant, staff: User) -> Preset:
     """Seed-rolling presets (PR 1) plus placeholder randomizer credentials.
 
     Returns the ALTTPR preset, which the online tournament and the qualifier's
@@ -216,18 +231,14 @@ async def _seed_presets(tenant: Tenant) -> Preset:
             "description": "Standard open-mode ALTTPR settings.",
         },
     )
-    # A DK64 Randomizer preset in the canonical settings-string shape (the site's
-    # own portable preset format). The value is a placeholder — dev rolls go
-    # through MOCK_SEEDGEN and never send it upstream; swap in a real string from
-    # dk64randomizer.com before rolling for real.
-    await Preset.get_or_create(
-        name="DK64 Community", tenant=tenant,
-        defaults={
-            "randomizer": "dk64r",
-            "settings": {"settings_string": "REPLACE_WITH_WIZZROBE_DK64_SETTINGS_STRING"},
-            "description": "DK64 Randomizer settings (settings-string form).",
-        },
-    )
+    # The committed ``presets/`` files, imported the way a real community starts:
+    # **Import built-ins** on the Presets tab. They are the settings actual events
+    # ran (ALTTPR sglive2025/casualboots, OoTR sgl25, SM Map Rando community race,
+    # DK64 in its settings-string form), so the dev preset list holds real
+    # multi-randomizer payloads instead of one three-key toy dict — which is what
+    # the JSON editor, the payload-size handling and the per-randomizer filter are
+    # written against. Idempotent by (randomizer, name) inside the service.
+    await PresetService().import_builtins(staff)
     # Placeholder randomizer credentials so the keyed backends stay *selectable*
     # in the Presets tab and tournament dialog, and the Randomizer Keys tab is not
     # empty in dev. The default tenant gets all three; the second tenant only the
@@ -249,6 +260,7 @@ async def _seed_online_tournament(
     players: list[User],
     preset: Preset,
     bot: RacetimeBot,
+    profile: RaceRoomProfile,
 ) -> Tournament:
     """The racetime.gg-managed fixture tournament (PR 3) — the only seeded
     tournament with a ``racetime_bot``."""
@@ -264,8 +276,10 @@ async def _seed_online_tournament(
             "is_active": True,
             "players_per_match": 2,
             "staff_administered": False,
+            **_ONLINE_TOURNAMENT_META,
         },
     )
+    await backfill(tournament, **_ONLINE_TOURNAMENT_META)
     await tournament.admins.add(staff)
     for p in players:
         await TournamentPlayers.get_or_create(
@@ -273,10 +287,22 @@ async def _seed_online_tournament(
         )
     if tournament.preset_id is None:
         tournament.preset = preset
+    # The room profile the auto-opener applies to this tournament's rooms. It was
+    # seeded but attached to nothing, so the "tournament → profile → room
+    # settings" resolution every opened room goes through had no dev fixture —
+    # rooms were only ever opened on the built-in defaults.
+    if tournament.race_room_profile_id is None:
+        tournament.race_room_profile = profile
     tournament.racetime_bot = bot
     tournament.racetime_auto_create_rooms = True
     tournament.room_open_minutes_before = 15
     tournament.racetime_default_goal = "Beat the game"
+    # An online tournament is raced on racetime.gg, so a real one turns this on:
+    # entrants are expected to have linked a racetime account. Nothing enforces
+    # it yet (it is stored and edited, not checked), so this is the fixture for
+    # the *configured* state — and player_three/player_four are enrolled here
+    # while deliberately unlinked, which is the roster the check will meet.
+    tournament.require_racetime_link = True
     await tournament.save()
     return tournament
 
@@ -331,22 +357,14 @@ async def _seed_online_matches(
     return scheduled, in_progress, finished
 
 
-async def _seed_rooms(
-    tenant: Tenant,
-    bot: RacetimeBot,
-    scheduled: Match,
-    in_progress: Match,
-    finished: Match,
-) -> None:
-    """A reusable room profile plus one race room per room state (PR 4/6), and
-    finish times on the finished race's players.
+async def _seed_room_profile(tenant: Tenant) -> RaceRoomProfile:
+    """The reusable room settings a tournament opens its rooms with (PR 4/6).
 
-    Keyed on the globally-unique slug with ``update_or_create``: the open room's
-    slug predates the tournament split, when it hung off the general-purpose
-    tournament's match, so a dev database seeded before the split is re-pointed
-    at the online match rather than left dangling on an on-site one.
+    Returned rather than merely created, so the online tournament can point at
+    it — a profile attached to nothing is a profile the room-opening path never
+    resolves.
     """
-    await RaceRoomProfile.get_or_create(
+    profile, _ = await RaceRoomProfile.get_or_create(
         name="Bracket Match", tenant=tenant,
         defaults={
             "goal": "Beat the game",
@@ -362,7 +380,24 @@ async def _seed_rooms(
             "streaming_required": True,
         },
     )
+    return profile
 
+
+async def _seed_rooms(
+    tenant: Tenant,
+    bot: RacetimeBot,
+    scheduled: Match,
+    in_progress: Match,
+    finished: Match,
+) -> None:
+    """One race room per room state (PR 4/6), and finish times on the finished
+    race's players.
+
+    Keyed on the globally-unique slug with ``update_or_create``: the open room's
+    slug predates the tournament split, when it hung off the general-purpose
+    tournament's match, so a dev database seeded before the split is re-pointed
+    at the online match rather than left dangling on an on-site one.
+    """
     room_specs = [
         ("dev-room", "Scheduled Race — Bracket", RaceRoomStatus.OPEN, scheduled),
         ("dev-room-live", "Race In Progress — Bracket", RaceRoomStatus.IN_PROGRESS, in_progress),
