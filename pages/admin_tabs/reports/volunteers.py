@@ -10,14 +10,14 @@ from nicegui import app, ui
 
 from application.services import AuthService, get_user_from_discord_id
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
-from application.utils.timezone import format_eastern_display, to_eastern
+from application.utils.timezone import format_local_display, to_local
 from pages.admin_tabs.links import VOL_SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     csv_export_button,
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     enable_drill_link,
     navigate_with_params,
     report_page_shell,
@@ -44,7 +44,7 @@ async def volunteers_page(
                 on_change=lambda s, e: navigate_with_params(report='volunteers', start=s, end=e),
             )
 
-        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+        bounds_start, bounds_end = display_bounds(start_d, end_d)
         coverage = await VolunteerScheduleService().coverage(bounds_start, bounds_end)
 
         understaffed = [r for r in coverage if r['understaffed']]
@@ -72,7 +72,7 @@ async def volunteers_page(
             {
                 'position': r['position'],
                 'label': r['label'],
-                'starts_at': format_eastern_display(r['starts_at']),
+                'starts_at': format_local_display(r['starts_at']),
                 'day': _eastern_day(r['starts_at']),
                 'understaffed': r['understaffed'],
                 'coverage': f"{r['filled']}/{r['needed']}",
@@ -115,4 +115,4 @@ def _eastern_day(when) -> str:
     Never a naive ``.date()``: the stored value is UTC, and a 20:00 ET shift
     lands on the next UTC day.
     """
-    return to_eastern(when).date().isoformat()
+    return to_local(when).date().isoformat()

@@ -25,6 +25,7 @@ from application.utils.discord_embeds import (
     COLOR_SCHEDULED,
     COLOR_STREAM,
     match_embed,
+    time_field,
 )
 from application.utils.discord_messages import (
     acknowledgment_request_dm,
@@ -32,7 +33,6 @@ from application.utils.discord_messages import (
     scheduled_dm,
     stream_candidate_dm,
 )
-from application.utils.timezone import format_eastern_display
 from models import Match, MatchPlayers
 
 logger = logging.getLogger(__name__)
@@ -172,7 +172,7 @@ class MatchNotificationMixin:
         """
         try:
             await match.fetch_related('tournament', 'stream_room')
-            scheduled_display = format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
+            scheduled_display = time_field(match.scheduled_at)
             players = await MatchPlayers.filter(match=match, tenant_id=require_tenant_id()).prefetch_related('user')
             player_names = [p.user.preferred_name for p in players]
             message = acknowledgment_request_dm(
@@ -268,9 +268,7 @@ class MatchNotificationMixin:
                 match.tournament_id
             )
             await match.fetch_related('tournament', 'players__user')
-            scheduled_display = ''
-            if match.scheduled_at:
-                scheduled_display = format_eastern_display(match.scheduled_at)
+            scheduled_display = time_field(match.scheduled_at)
             player_names = [p.user.preferred_name for p in match.players]
             msg = stream_candidate_dm(
                 match.tournament.name, scheduled_display,
@@ -318,7 +316,7 @@ class MatchNotificationMixin:
         bracket_line = await bracket_line_for(match.id)
         msg = build_message(
             match.tournament.name,
-            format_eastern_display(match.scheduled_at),
+            time_field(match.scheduled_at),
             player_names=player_names,
             stream_room_name=match.stream_room.name if match.stream_room else '',
             bracket_line=bracket_line,

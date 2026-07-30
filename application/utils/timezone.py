@@ -1,87 +1,161 @@
 """
 Timezone Utilities
 
-Handles timezone conversions for the application.
-All datetimes are stored in UTC in the database and converted to/from US/Eastern for display.
+All datetimes are stored in UTC. Which wall clock a human reads them on is a
+presentation choice that varies per viewer, so every function here takes an
+optional ``tz`` and otherwise resolves the ambient display zone from
+``application/timezone_context.py``.
+
+Two rules keep this honest:
+
+- **Never store a localized datetime.** :func:`parse_local_datetime` is the only
+  wall-clock → UTC ingress; it returns UTC-aware.
+- **Never render a raw UTC one.** The ``format_local_*`` builders are the only
+  UTC → human egress.
+
+``tz=None`` (the default) means "the current viewer's zone". Pass an explicit
+``tz`` whenever the output is *not* for the current request's viewer — a shared
+or cached artifact, or a notification rendered for someone else. See
+``docs/timezone-handling.md``.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional, Union
 
-# Define the application timezone
-EASTERN_TZ = ZoneInfo("America/New_York")
+from application.timezone_context import (
+    FALLBACK_TIMEZONE,
+    current_timezone,
+    get_zone,
+    is_valid_timezone,
+)
+
+# The app's historical fixed zone. Retained as a named constant because a few
+# call sites legitimately need *this specific* zone rather than the viewer's:
+# the fallback when nothing resolves, and tests asserting the default.
+EASTERN_TZ = ZoneInfo(FALLBACK_TIMEZONE)
+
+TzArg = Optional[Union[str, ZoneInfo]]
 
 
-def now_eastern() -> datetime:
+def _resolve(tz: TzArg = None) -> ZoneInfo:
+    """Coerce a ``tz`` argument to a :class:`ZoneInfo`.
+
+    ``None`` → the ambient viewer zone. A string is validated, because zone names
+    reach here from stored config, a user column, and a browser cookie; an
+    unloadable one degrades to the ambient zone rather than raising mid-render.
     """
-    Get current datetime in US/Eastern timezone.
-    
-    Returns:
-        Timezone-aware datetime in US/Eastern
-    """
-    return datetime.now(EASTERN_TZ)
+    if tz is None:
+        return current_timezone()
+    if isinstance(tz, ZoneInfo):
+        return tz
+    if is_valid_timezone(tz):
+        return get_zone(tz)
+    return current_timezone()
 
 
-def parse_eastern_datetime(date_str: str, time_str: str) -> datetime:
+def now_local(tz: TzArg = None) -> datetime:
+    """Current time as an aware datetime on the display clock.
+
+    Use only when the *wall clock* matters — deriving "today", bucketing by
+    calendar day, comparing against an opening time. For a plain instant
+    comparison use ``datetime.now(timezone.utc)``: it is unambiguous and needs
+    no zone.
     """
-    Parse date and time strings as US/Eastern and return as UTC.
-    
-    Args:
-        date_str: Date string in format YYYY-MM-DD
-        time_str: Time string in format HH:MM (24-hour)
-        
-    Returns:
-        Timezone-aware datetime in UTC
-        
+    return datetime.now(_resolve(tz))
+
+
+def today_local(tz: TzArg = None) -> date:
+    """The current calendar date on the display clock.
+
+    Split out from ``now_local().date()`` because the date is the tz-sensitive
+    part: at 21:00 in New York it is already tomorrow in London. Every "today"
+    default in the UI goes through here so the answer follows the viewer.
+    """
+    return now_local(tz).date()
+
+
+def parse_local_datetime(date_str: str, time_str: str, tz: TzArg = None) -> datetime:
+    """Parse ``YYYY-MM-DD`` + ``HH:MM`` as display-local wall clock, return UTC.
+
+    The single wall-clock → UTC ingress for the whole app.
+
     Raises:
-        ValueError: If date/time format is invalid
-        
-    Example:
-        >>> dt = parse_eastern_datetime('2025-01-15', '14:30')
-        >>> # Returns datetime in UTC that represents 2:30 PM Eastern on Jan 15, 2025
+        ValueError: on a malformed date/time, or on a wall clock that **does not
+            exist** in the target zone — the hour skipped by a DST spring-forward.
+            Silently accepting it (what ``replace(tzinfo=…)`` does on its own)
+            stored a time an hour off from the one the user typed, with nothing
+            on screen to show it had moved.
+
+    Ambiguous times — the hour repeated by a DST fall-back — resolve to the
+    **first** (still-daylight-saving) occurrence, matching ``fold=0``. There is
+    no UI to express "the second 01:30", and picking the earlier instant is the
+    conventional reading of a schedule entry.
     """
+    zone = _resolve(tz)
     try:
-        # Parse as naive datetime
-        naive_dt = datetime.strptime(
-            f"{date_str} {time_str}",
-            "%Y-%m-%d %H:%M"
-        )
-        
-        # Localize to Eastern timezone
-        eastern_dt = naive_dt.replace(tzinfo=EASTERN_TZ)
-        
-        # Convert to UTC for storage
-        utc_dt = eastern_dt.astimezone(timezone.utc)
-        
-        return utc_dt
+        naive_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
     except ValueError as e:
         raise ValueError(f"Invalid date/time format: {e}") from e
 
+    local_dt = naive_dt.replace(tzinfo=zone)
 
-def to_eastern(dt: Optional[datetime]) -> Optional[datetime]:
+    # A nonexistent wall clock is detectable by round-tripping: for a real time,
+    # UTC → back to the zone reproduces the same wall clock. Inside a spring-
+    # forward gap it does not, because the zone maps the gap onto a different
+    # instant than the one the naive value names.
+    if local_dt.astimezone(timezone.utc).astimezone(zone).replace(tzinfo=None) != naive_dt:
+        raise ValueError(
+            f"{date_str} {time_str} does not exist in {zone.key} — "
+            "the clocks move forward over that time. Pick a different time."
+        )
+
+    return local_dt.astimezone(timezone.utc)
+
+
+def combine_local(day: date, moment: time, tz: TzArg = None) -> datetime:
+    """Combine a naive date + time as display-local wall clock, return UTC.
+
+    The programmatic twin of :func:`parse_local_datetime`, for callers that
+    already hold ``date``/``time`` objects instead of form strings (report
+    windows, availability grids, tournament-hours bounds). ``datetime.combine``
+    alone yields a **naive** value that later gets read as UTC — the silent
+    whole-day shift this function exists to prevent.
+
+    Unlike :func:`parse_local_datetime` this does not reject a nonexistent wall
+    clock: its callers construct range bounds (00:00, 23:59) rather than a time
+    a human typed, and a range must always produce a usable instant.
     """
-    Convert a datetime to US/Eastern timezone.
-    
-    Args:
-        dt: Datetime to convert (can be naive or aware)
-        
-    Returns:
-        Timezone-aware datetime in US/Eastern, or None if input is None
-        
-    Note:
-        - If dt is naive, assumes it's UTC
-        - If dt is already aware, converts to Eastern
+    zone = _resolve(tz)
+    return datetime.combine(day, moment).replace(tzinfo=zone).astimezone(timezone.utc)
+
+
+def local_day_bounds(start: date, end: date, tz: TzArg = None) -> tuple[datetime, datetime]:
+    """Half-open UTC bounds covering the local days ``start``..``end`` inclusive.
+
+    The correct way to turn a picked date range into a query filter: the lower
+    bound is local midnight on ``start``, the upper is local midnight on the day
+    *after* ``end``. Computing the upper as ``end 23:59:59`` loses the final
+    second, and computing either with ``datetime.combine`` alone shifts the whole
+    window by the UTC offset.
+    """
+    return (
+        combine_local(start, time(0, 0), tz),
+        combine_local(end + timedelta(days=1), time(0, 0), tz),
+    )
+
+
+def to_local(dt: Optional[datetime], tz: TzArg = None) -> Optional[datetime]:
+    """Convert a datetime to the display zone.
+
+    A naive input is assumed UTC — every naive datetime in this codebase comes
+    from a store that dropped its tzinfo, never from a user.
     """
     if dt is None:
         return None
-    
-    # If naive, assume UTC
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    
-    # Convert to Eastern
-    return dt.astimezone(EASTERN_TZ)
+    return dt.astimezone(_resolve(tz))
 
 
 def to_utc_aware(dt: datetime) -> datetime:
@@ -91,74 +165,60 @@ def to_utc_aware(dt: datetime) -> datetime:
     an already-aware input is converted to UTC. Use to normalize datetimes
     that may have lost their tzinfo (e.g. after a round-trip through a store
     that strips it) before comparison or storage.
+
+    Deliberately takes no ``tz``: this is normalization, not presentation.
     """
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
 
-def format_eastern_datetime(dt: Optional[datetime], fmt: str = "%Y-%m-%d %H:%M") -> str:
-    """
-    Format a datetime in US/Eastern timezone.
-    
-    Args:
-        dt: Datetime to format (can be naive or aware)
-        fmt: strftime format string
-        
-    Returns:
-        Formatted string in Eastern time, or empty string if dt is None
-    """
+def format_local_datetime(
+    dt: Optional[datetime], fmt: str = "%Y-%m-%d %H:%M", tz: TzArg = None
+) -> str:
+    """Format a datetime on the display clock. ``''`` when ``dt`` is None."""
     if dt is None:
         return ''
-    
-    eastern_dt = to_eastern(dt)
-    return eastern_dt.strftime(fmt)
+    return to_local(dt, tz).strftime(fmt)
 
 
-def format_eastern_date(dt: Optional[Union[datetime, date]]) -> str:
-    """
-    Format just the date portion in US/Eastern timezone.
+def format_local_date(dt: Optional[Union[datetime, date]], tz: TzArg = None) -> str:
+    """Format the date portion on the display clock, ``YYYY-MM-DD``.
 
-    Args:
-        dt: Datetime or date to format. Plain ``date`` values have no
-            timezone interpretation and are formatted as-is.
-
-    Returns:
-        Date string in YYYY-MM-DD format, or empty string if None
+    A ``datetime`` is converted first, so which date you get depends on the zone
+    — that is the point. A plain ``date`` carries no instant to convert and is
+    formatted as-is.
     """
     if dt is None:
         return ''
     if isinstance(dt, datetime):
-        return format_eastern_datetime(dt, "%Y-%m-%d")
+        return format_local_datetime(dt, "%Y-%m-%d", tz)
     return dt.strftime("%Y-%m-%d")
 
 
-def format_eastern_time(dt: Optional[datetime]) -> str:
-    """
-    Format just the time portion in US/Eastern timezone.
-    
-    Args:
-        dt: Datetime to format
-        
-    Returns:
-        Time string in HH:MM format (24-hour), or empty string if None
-    """
-    return format_eastern_datetime(dt, "%H:%M")
+def format_local_time(dt: Optional[datetime], tz: TzArg = None) -> str:
+    """Format the time portion on the display clock, ``HH:MM`` (24-hour)."""
+    return format_local_datetime(dt, "%H:%M", tz)
 
 
-def format_eastern_display(dt: Optional[datetime]) -> str:
-    """
-    Format datetime for display with timezone indicator.
-    
-    Args:
-        dt: Datetime to format
-        
-    Returns:
-        Formatted string like "2025-01-15 14:30 EST" or empty string if None
+def format_local_display(dt: Optional[datetime], tz: TzArg = None) -> str:
+    """Format for display with a zone label: ``2025-01-15 14:30 EST``.
+
+    ``%Z`` yields whatever label tzdata carries for the zone at that instant —
+    an abbreviation where one exists (``EST``, ``AEDT``), otherwise a numeric
+    form (``+05:30``). Both are unambiguous to a reader, which is the job.
     """
     if dt is None:
         return ''
-    
-    eastern_dt = to_eastern(dt)
-    # %Z gives timezone abbreviation (EST or EDT depending on DST)
-    return eastern_dt.strftime("%Y-%m-%d %H:%M %Z")
+    return to_local(dt, tz).strftime("%Y-%m-%d %H:%M %Z")
+
+
+def timezone_label(tz: TzArg = None, at: Optional[datetime] = None) -> str:
+    """The zone's short label at ``at`` (default now) — ``EST``, ``AEDT``, ``+05:30``.
+
+    For captions and column headers that state which clock a whole table is on,
+    so individual cells need not repeat it.
+    """
+    zone = _resolve(tz)
+    moment = (at or datetime.now(timezone.utc)).astimezone(zone)
+    return moment.strftime("%Z")

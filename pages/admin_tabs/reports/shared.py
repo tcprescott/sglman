@@ -13,7 +13,7 @@ from nicegui import context, ui
 
 from application.services import SystemConfigService, TournamentService
 from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
-from application.utils.timezone import EASTERN_TZ
+from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 
@@ -86,13 +86,15 @@ def parse_int(value) -> Optional[int]:
         return None
 
 
-def eastern_bounds(start_d: date, end_d: date) -> tuple[datetime, datetime]:
-    """Convert a Eastern date range to half-open aware datetime bounds."""
+def display_bounds(start_d: date, end_d: date) -> tuple[datetime, datetime]:
+    """Convert a picked date range to half-open UTC bounds on the display clock.
+
+    The dates come from the viewer's own date pickers, so the window they mean is
+    their local midnight-to-midnight — not UTC's, and not the tenant's.
+    """
     if end_d < start_d:
         end_d = start_d
-    start = datetime.combine(start_d, time(0, 0), tzinfo=EASTERN_TZ)
-    end = datetime.combine(end_d + timedelta(days=1), time(0, 0), tzinfo=EASTERN_TZ)
-    return start, end
+    return local_day_bounds(start_d, end_d)
 
 
 async def default_date_range(

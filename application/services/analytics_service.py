@@ -6,9 +6,10 @@ snapshots in :class:`ReportsService`. Where the reports answer "what does the
 schedule look like right now", these answer "how are things trending over
 time" and "how healthy is each tournament".
 
-All time math runs in US/Eastern. Events are bucketed by the Eastern calendar
-date of when they happened (match ``scheduled_at``, shift ``starts_at``, audit
-``created_at``) into weekly or monthly buckets.
+All time math runs on the viewer's display clock. Events are bucketed by the
+local calendar date of when they happened (match ``scheduled_at``, shift
+``starts_at``, audit ``created_at``) into weekly or monthly buckets — so which
+bucket an event near midnight lands in follows the reader's timezone.
 
 Like :class:`ReportsService`, this queries the ORM models directly rather than
 going through repositories — the aggregations are read-only and self-contained.
@@ -20,12 +21,12 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from application.services.reporting_shared import (
     ON_TIME_THRESHOLD_MIN,
-    eastern,
+    to_display,
     is_crew_covered,
     window_hours,
 )
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import EASTERN_TZ, now_eastern, to_eastern
+from application.utils.timezone import combine_local, now_local, to_local
 from models import AuditLog, Match, VolunteerShift
 
 
@@ -52,8 +53,8 @@ class AnalyticsService:
     # --- Pure bucketing helpers -------------------------------------------
 
     @staticmethod
-    def _eastern(dt: Optional[datetime]) -> Optional[datetime]:
-        return eastern(dt)
+    def _local(dt: Optional[datetime]) -> Optional[datetime]:
+        return to_display(dt)
 
     @staticmethod
     def bucket_start(d: date, bucket: str) -> date:
@@ -131,7 +132,7 @@ class AnalyticsService:
         """Return the series position for an event instant, or None if out of range."""
         if instant is None:
             return None
-        eastern_dt = to_eastern(instant)
+        eastern_dt = to_local(instant)
         key = cls.bucket_start(eastern_dt.date(), bucket)
         return index_map.get(key)
 
@@ -142,19 +143,19 @@ class AnalyticsService:
         """Resolve the bucket series and the (clamped, half-open) query window.
 
         ``end`` is treated as exclusive to match the half-open bounds produced by
-        ``eastern_bounds``, so a range ending at midnight does not spawn a spurious
+        ``display_bounds``, so a range ending at midnight does not spawn a spurious
         trailing bucket. The query lower bound is raised to the first kept bucket so
         that when ``MAX_BUCKETS`` drops the oldest buckets, dropped rows are excluded
         from the totals too (chart and totals stay consistent).
         """
-        start = to_eastern(start)
-        end = to_eastern(end)
+        start = to_local(start)
+        end = to_local(end)
         if end < start:
             end = start
         last_moment = end - timedelta(microseconds=1) if end > start else end
         bucket_starts = cls.iter_bucket_starts(start.date(), last_moment.date(), bucket)
         index_map = {d: i for i, d in enumerate(bucket_starts)}
-        first_bucket_dt = datetime.combine(bucket_starts[0], time(0, 0), tzinfo=EASTERN_TZ)
+        first_bucket_dt = combine_local(bucket_starts[0], time(0, 0))
         query_start = max(start, first_bucket_dt)
         return bucket_starts, index_map, query_start, end
 
@@ -360,9 +361,9 @@ class AnalyticsService:
         Completion is measured only against matches whose scheduled time has
         already passed, so upcoming matches never drag a score down.
         """
-        start = self._eastern(start)
-        end = self._eastern(end)
-        now = now_eastern()
+        start = self._local(start)
+        end = self._local(end)
+        now = now_local()
 
         query = Match.filter(tenant_id=require_tenant_id()).filter(scheduled_at__gte=start, scheduled_at__lt=end)
         if tournament_id:
@@ -392,9 +393,9 @@ class AnalyticsService:
                 'candidates_covered': 0,
             })
 
-            scheduled = self._eastern(match.scheduled_at)
-            started = self._eastern(match.started_at)
-            finished = self._eastern(match.finished_at)
+            scheduled = self._local(match.scheduled_at)
+            started = self._local(match.started_at)
+            finished = self._local(match.finished_at)
 
             is_past = bool(scheduled and scheduled < now)
             stats['matches_total'] += 1
@@ -497,8 +498,8 @@ class AnalyticsService:
         dot (e.g. ``match``, ``crew``, ``tournament``).
         """
         bucket = self._normalize_bucket(bucket)
-        start = self._eastern(start)
-        end = self._eastern(end)
+        start = self._local(start)
+        end = self._local(end)
         bucket_starts = self.iter_bucket_starts(start.date(), end.date(), bucket)
         index_map = self._index_map(bucket_starts, bucket)
         n = len(bucket_starts)
@@ -538,7 +539,7 @@ class AnalyticsService:
     async def activity_extent(
         self, tournament_id: Optional[int] = None,
     ) -> Tuple[Optional[date], Optional[date]]:
-        """Earliest and latest **Eastern dates** with any activity this trends.
+        """Earliest and latest **local dates** with any activity this trends.
 
         The four sections above read matches, volunteer shifts and audit logs;
         this reports the span they cover so the page can open on a window that
@@ -570,7 +571,7 @@ class AnalyticsService:
 
         rows = await asyncio.gather(*sources)
         stamps = [
-            to_eastern(when).date()
+            to_local(when).date()
             for row, attr in zip(rows, _EXTENT_FIELDS[:len(rows)])
             if row is not None and (when := getattr(row, attr, None)) is not None
         ]

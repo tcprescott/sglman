@@ -20,7 +20,7 @@ from application.services.async_qualifier.async_qualifier_scoring import (
     ScoredRun,
     build_leaderboard,
 )
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from application.feature_flags import requires_feature
 from models import (
     AsyncQualifier,
@@ -155,8 +155,8 @@ class PlayerReadsMixin:
         return rules.describe_unavailability(
             reason,
             runs_per_pool=qualifier.runs_per_pool,
-            opens_display=format_eastern_display(qualifier.opens_at) if qualifier.opens_at else '',
-            closes_display=format_eastern_display(qualifier.closes_at) if qualifier.closes_at else '',
+            opens_display=format_local_display(qualifier.opens_at) if qualifier.opens_at else '',
+            closes_display=format_local_display(qualifier.closes_at) if qualifier.closes_at else '',
         )
 
     def is_results_public(self, qualifier: AsyncQualifier, now: Optional[datetime] = None) -> bool:

@@ -10,7 +10,7 @@ from typing import Callable, List, Optional
 from nicegui import background_tasks, context, ui
 
 from application.services import ProbeResult, ServiceStatus
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 
 _STATUS_COLOR = {
     ServiceStatus.HEALTHY: 'positive',
@@ -46,7 +46,7 @@ def _rows(results: List[ProbeResult]) -> List[dict]:
             'status_color': _STATUS_COLOR[r.status],
             'message': r.message,
             # App-wide convention: display US/Eastern, never raw UTC.
-            'checked_at': format_eastern_display(r.checked_at),
+            'checked_at': format_local_display(r.checked_at),
         }
         for r in results
     ]

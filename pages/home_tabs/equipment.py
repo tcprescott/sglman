@@ -3,7 +3,7 @@
 from nicegui import app, background_tasks, context, ui
 
 from application.services import AuthService, EquipmentService, get_user_from_discord_id
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import open_checkout, quick_checkin
 
@@ -181,7 +181,7 @@ async def equipment_tab() -> None:
                             'id': loan.equipment_id,
                             'asset_number': loan.equipment.asset_number,
                             'name': loan.equipment.name,
-                            'checked_out_at': format_eastern_display(loan.checked_out_at),
+                            'checked_out_at': format_local_display(loan.checked_out_at),
                         }
                         for loan in loans
                     ]

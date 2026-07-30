@@ -21,9 +21,9 @@ from application.repositories import (
 )
 from application.services.match.match_status import has_recorded_result, legacy_label, resolve
 from application.utils.timezone import (
-    format_eastern_datetime,
-    format_eastern_display,
-    format_eastern_time,
+    format_local_datetime,
+    format_local_display,
+    format_local_time,
     to_utc_aware,
 )
 
@@ -209,7 +209,7 @@ class MatchDisplayService:
             state_changed_at = match.seated_at
         else:
             state_changed_at = match.created_at
-        state_timestamp = format_eastern_datetime(state_changed_at)
+        state_timestamp = format_local_datetime(state_changed_at)
 
         ack_by_user: Dict[int, MatchAcknowledgment] = {
             a.user_id: a for a in (acknowledgments or [])
@@ -220,7 +220,7 @@ class MatchDisplayService:
             ack = ack_by_user.get(user_id) if user_id is not None else None
             acknowledged = ack is not None and ack.acknowledged_at is not None
             ts_display = (
-                format_eastern_display(ack.acknowledged_at)
+                format_local_display(ack.acknowledged_at)
                 if acknowledged and ack and ack.acknowledged_at else ''
             )
             discord_id = getattr(p.user, 'discord_id', None)
@@ -238,7 +238,7 @@ class MatchDisplayService:
             # None unless a bracket scheduled this match; drives the schedule's
             # link into the (publicly readable) bracket view.
             'bracket': self._bracket_ref(match),
-            'scheduled_at': format_eastern_datetime(match.scheduled_at) if match.scheduled_at else '',
+            'scheduled_at': format_local_datetime(match.scheduled_at) if match.scheduled_at else '',
             # Sort key and urgency flag for the proctor board. The formatted
             # ``scheduled_at`` string is display-only and does not sort.
             'scheduled_ts': to_utc_aware(match.scheduled_at).timestamp() if match.scheduled_at else None,
@@ -262,7 +262,7 @@ class MatchDisplayService:
             # it: see ``has_recorded_result``.
             'has_result': has_recorded_result(match.players),
             'state_timestamp': state_timestamp,
-            'state_time': format_eastern_time(state_changed_at),
+            'state_time': format_local_time(state_changed_at),
             'players': [
                 {
                     'name': p.user.preferred_name,
@@ -315,7 +315,7 @@ class MatchDisplayService:
                     # str: raw snowflake ints lose precision as JS numbers, breaking == checks
                     'discord_id': str(c.user.discord_id) if c.user.discord_id else None,
                     'acknowledged': c.acknowledged_at is not None,
-                    'ack_ts': format_eastern_display(c.acknowledged_at) if c.acknowledged_at else '',
+                    'ack_ts': format_local_display(c.acknowledged_at) if c.acknowledged_at else '',
                     'id': c.id,
                 }
                 for c in match.commentators
@@ -326,12 +326,12 @@ class MatchDisplayService:
                     'approved': t.approved,
                     'discord_id': str(t.user.discord_id) if t.user.discord_id else None,
                     'acknowledged': t.acknowledged_at is not None,
-                    'ack_ts': format_eastern_display(t.acknowledged_at) if t.acknowledged_at else '',
+                    'ack_ts': format_local_display(t.acknowledged_at) if t.acknowledged_at else '',
                     'id': t.id,
                 }
                 for t in match.trackers
             ],
             # Keep these for backward compatibility with existing code that may reference them
-            'seated': format_eastern_datetime(match.seated_at) if match.seated_at else '',
-            'finished': format_eastern_datetime(match.finished_at) if match.finished_at else '',
+            'seated': format_local_datetime(match.seated_at) if match.seated_at else '',
+            'finished': format_local_datetime(match.finished_at) if match.finished_at else '',
         }

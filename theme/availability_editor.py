@@ -14,10 +14,11 @@ from nicegui import app, ui
 
 from application.services import SystemConfigService, get_user_from_discord_id
 from application.utils.timezone import (
-    format_eastern_date,
-    format_eastern_time,
-    parse_eastern_datetime,
-    to_eastern,
+    timezone_label,
+    format_local_date,
+    format_local_time,
+    parse_local_datetime,
+    to_local,
 )
 from models import VolunteerAvailabilityStatus
 
@@ -64,7 +65,7 @@ async def render_availability_editor(service, *, help_text: str) -> None:
     event_start, event_end = await SystemConfigService.get_event_window()
     existing = await service.availability_for(user)
 
-    # Calendar days spanned by the event window (US/Eastern), as
+    # Calendar days spanned by the event window, on the display clock, as
     # (date, day_start_utc, day_end_utc) tuples for the graph.
     event_days: list[tuple] = []
     cursor = event_start
@@ -73,17 +74,17 @@ async def render_availability_editor(service, *, help_text: str) -> None:
         next_day = cursor + timedelta(days=1)
         event_days.append((
             cursor,
-            parse_eastern_datetime(cursor.isoformat(), '00:00'),
-            parse_eastern_datetime(next_day.isoformat(), '00:00'),
+            parse_local_datetime(cursor.isoformat(), '00:00'),
+            parse_local_datetime(next_day.isoformat(), '00:00'),
         ))
         cursor = next_day
 
     # Working set of rows; each is a mutable dict the inputs bind to.
     rows: list[dict] = [
         {
-            'date': format_eastern_date(w.starts_at),
-            'start': format_eastern_time(w.starts_at),
-            'end': format_eastern_time(to_eastern(w.ends_at)),
+            'date': format_local_date(w.starts_at),
+            'start': format_local_time(w.starts_at),
+            'end': format_local_time(to_local(w.ends_at)),
             'status': w.status.value if hasattr(w.status, 'value') else str(w.status),
         }
         for w in existing
@@ -94,8 +95,8 @@ async def render_availability_editor(service, *, help_text: str) -> None:
             ui.label('My Availability').classes('page-title')
         ui.separator().classes('separator-spacing')
         ui.label(
-            f'Event window: {format_eastern_date(event_start)} → {format_eastern_date(event_end)} '
-            f'(US/Eastern). {help_text}'
+            f'Event window: {format_local_date(event_start)} → {format_local_date(event_end)} '
+            f'({timezone_label()}). {help_text}'
         ).classes('italic-note')
 
         @ui.refreshable
@@ -127,8 +128,8 @@ async def render_availability_editor(service, *, help_text: str) -> None:
                 if not row['date'] or not row['start'] or not row['end']:
                     continue
                 try:
-                    starts_at = parse_eastern_datetime(row['date'], row['start'])
-                    ends_at = parse_eastern_datetime(row['date'], row['end'])
+                    starts_at = parse_local_datetime(row['date'], row['start'])
+                    ends_at = parse_local_datetime(row['date'], row['end'])
                     status = VolunteerAvailabilityStatus(row['status'])
                 except (ValueError, KeyError):
                     continue
@@ -166,7 +167,7 @@ async def render_availability_editor(service, *, help_text: str) -> None:
                                 pct = (seg_end - seg_start).total_seconds() / total * 100
                                 seg = ui.element('div').classes(_seg_class(status)).style(f'width:{pct}%')
                                 seg.tooltip(
-                                    f'{format_eastern_time(seg_start)}–{format_eastern_time(seg_end)} · '
+                                    f'{format_local_time(seg_start)}–{format_local_time(seg_end)} · '
                                     f'{_status_label(status)}'
                                 )
                 with ui.row().classes('items-center no-wrap gap-2 w-full'):
@@ -182,7 +183,7 @@ async def render_availability_editor(service, *, help_text: str) -> None:
 
         def _add() -> None:
             rows.append({
-                'date': format_eastern_date(event_start),
+                'date': format_local_date(event_start),
                 'start': '09:00',
                 'end': '13:00',
                 'status': VolunteerAvailabilityStatus.AVAILABLE.value,
@@ -199,8 +200,8 @@ async def render_availability_editor(service, *, help_text: str) -> None:
                 for row in rows:
                     if not row['date'] or not row['start'] or not row['end']:
                         raise ValueError('Every window needs a date, start, and end.')
-                    starts_at = parse_eastern_datetime(row['date'], row['start'])
-                    ends_at = parse_eastern_datetime(row['date'], row['end'])
+                    starts_at = parse_local_datetime(row['date'], row['start'])
+                    ends_at = parse_local_datetime(row['date'], row['end'])
                     if ends_at <= starts_at:
                         raise ValueError('Each availability window must end after it starts.')
                     status = VolunteerAvailabilityStatus(row['status'])

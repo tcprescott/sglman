@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from application.services.bracket_engines.round_names import round_label
-from application.utils.timezone import parse_eastern_datetime, to_eastern
+from application.utils.timezone import parse_local_datetime, to_local
 from models import BracketFormat, BracketMatch
 from theme.brackets import detect_finals
 
@@ -25,7 +25,7 @@ def iso_to_local_input(iso: Optional[str]) -> str:
         return ''
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return to_eastern(dt).strftime('%Y-%m-%dT%H:%M')
+    return to_local(dt).strftime('%Y-%m-%dT%H:%M')
 
 
 def local_input_to_iso(value: Optional[str]) -> Optional[str]:
@@ -33,7 +33,7 @@ def local_input_to_iso(value: Optional[str]) -> Optional[str]:
     if not value or 'T' not in value:
         return None
     date_str, time_str = value.split('T', 1)
-    return parse_eastern_datetime(date_str, time_str[:5]).isoformat()
+    return parse_local_datetime(date_str, time_str[:5]).isoformat()
 
 
 def distinct_rounds(matches: List[BracketMatch]) -> List[int]:

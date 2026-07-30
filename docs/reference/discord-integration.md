@@ -240,7 +240,7 @@ Recipient selection helpers:
 
 ### DM message builders
 
-Message text comes from **public functions** in [`discord_messages.py`](../../application/utils/discord_messages.py) — not from methods on any service. Services import the builders they need and the interaction handlers import the ephemeral confirmation strings. Times are formatted with `format_eastern_display` at the call site before being passed in ([timezone-handling.md](../timezone-handling.md)); each builder takes optional fields and suppresses any that are empty/`None`.
+Message text comes from **public functions** in [`discord_messages.py`](../../application/utils/discord_messages.py) — not from methods on any service. Services import the builders they need and the interaction handlers import the ephemeral confirmation strings. Times are passed in as Discord's native `<t:unix:F>` markup (`discord_embeds.time_field`), so each recipient's own client renders them in their own zone — never a formatted string ([timezone-handling.md](../timezone-handling.md)); each builder takes optional fields and suppresses any that are empty/`None`.
 
 | Builder | Used for | Content |
 |---|---|---|

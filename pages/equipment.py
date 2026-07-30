@@ -16,7 +16,7 @@ from application.utils.environment import get_base_url
 from application.utils.hostname import effective_request_host
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
 from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
@@ -39,12 +39,12 @@ def _render_loans(loans) -> None:
     Presentation only — the *limit* is the repository's job, this is the shape.
     """
     for loan in loans:
-        out = format_eastern_display(loan.checked_out_at)
+        out = format_local_display(loan.checked_out_at)
         with ui.row().classes('items-baseline gap-2'):
             if loan.checked_in_at is None:
                 ui.badge('Out now', color='warning')
             back = (
-                format_eastern_display(loan.checked_in_at)
+                format_local_display(loan.checked_in_at)
                 if loan.checked_in_at else 'not yet returned'
             )
             ui.label(
@@ -115,7 +115,7 @@ def create() -> None:
                         if open_loan is not None:
                             ui.label(
                                 f'Checked out to {open_loan.borrower.preferred_name} '
-                                f'({format_eastern_display(open_loan.checked_out_at)})'
+                                f'({format_local_display(open_loan.checked_out_at)})'
                             ).classes('italic-note')
                         if can_manage and asset.private_notes:
                             with ui.card().classes('q-pa-sm bg-amber-1 text-grey-10'):

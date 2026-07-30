@@ -48,6 +48,8 @@ from application.services import BracketService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_theme_service import TenantThemeService
 from application.tenant_context import get_current_tenant_id
+from application.services.timezone_service import TimezoneService
+from application.timezone_context import tz_scope
 from application.utils.html_cache import HtmlPageCache
 from models import Bracket, BracketFormat, FeatureFlag, Tournament
 from theme.brackets.static_view import (
@@ -170,21 +172,27 @@ def create() -> None:
         if tournament is None:
             return _no_store('Tournament not found', 404)
 
+        # One render is cached and served to every spectator, so it cannot carry
+        # any one viewer's clock — and these routes never run the page-build
+        # resolver anyway. The community's own zone is the only correct answer.
+        tz = await TimezoneService.tenant_timezone_name(tenant_id)
+
         service = BracketService()
         # Anonymous always: a DRAFT stage is unpublished and a CANCELLED one is
         # withdrawn, on every public surface (theme/brackets/visibility.py).
         brackets = visible_stages(
             await service.list_brackets(tournament_id), is_staff=False,
         )
-        body = render_index_document(StaticIndexView(
-            tournament_id=tournament_id,
-            tournament_name=tournament.name,
-            brackets=brackets,
-            generated_at=datetime.now(timezone.utc),
-            root_path=request.scope.get('root_path', '') or '',
-            primary_color=await _theme_primary(),
-            refresh_seconds=_INDEX_REFRESH_SECONDS,
-        ))
+        with tz_scope(tz):
+            body = render_index_document(StaticIndexView(
+                tournament_id=tournament_id,
+                tournament_name=tournament.name,
+                brackets=brackets,
+                generated_at=datetime.now(timezone.utc),
+                root_path=request.scope.get('root_path', '') or '',
+                primary_color=await _theme_primary(),
+                refresh_seconds=_INDEX_REFRESH_SECONDS,
+            ))
         return _respond(request, tenant_id, key, body)
 
     @app.get('/live/brackets/{bracket_id}', include_in_schema=False)
@@ -199,6 +207,8 @@ def create() -> None:
         cached = _cache.get(tenant_id, key)
         if cached is not None:
             return _conditional(request, cached.etag, cached.body)
+
+        tz = await TimezoneService.tenant_timezone_name(tenant_id)
 
         service = BracketService()
         bracket = await service.get_bracket(bracket_id)
@@ -219,19 +229,20 @@ def create() -> None:
         )
 
         entrant_name = {en.id: en.display_name for en in entrants}
-        body = render_bracket_document(StaticBracketView(
-            bracket=bracket,
-            tournament_name=tournament.name if tournament else 'Tournament',
-            entries=entries,
-            matches=matches,
-            entry_name={
-                e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
-            },
-            live_state=live_state,
-            advancement=advancement,
-            generated_at=datetime.now(timezone.utc),
-            root_path=request.scope.get('root_path', '') or '',
-            primary_color=await _theme_primary(),
-            refresh_seconds=_PAGE_REFRESH_SECONDS,
-        ))
+        with tz_scope(tz):
+            body = render_bracket_document(StaticBracketView(
+                bracket=bracket,
+                tournament_name=tournament.name if tournament else 'Tournament',
+                entries=entries,
+                matches=matches,
+                entry_name={
+                    e.id: entrant_name.get(e.entrant_id, 'Unknown') for e in entries
+                },
+                live_state=live_state,
+                advancement=advancement,
+                generated_at=datetime.now(timezone.utc),
+                root_path=request.scope.get('root_path', '') or '',
+                primary_color=await _theme_primary(),
+                refresh_seconds=_PAGE_REFRESH_SECONDS,
+            ))
         return _respond(request, tenant_id, key, body)

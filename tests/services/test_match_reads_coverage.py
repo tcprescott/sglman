@@ -12,7 +12,7 @@ import pytest
 
 from application.services.match.match_display_service import MatchDisplayService
 from application.services.match.match_suggestion_service import MatchSuggestionService, _covers
-from application.utils.timezone import EASTERN_TZ, format_eastern_datetime, now_eastern
+from application.utils.timezone import EASTERN_TZ, format_local_datetime, now_local
 from models import (
     Commentator,
     GeneratedSeeds,
@@ -35,7 +35,7 @@ Status = VolunteerAvailabilityStatus
 from tests.factories import utc
 
 
-def eastern(y, mo, d, h=0, mi=0):
+def to_display(y, mo, d, h=0, mi=0):
     return datetime(y, mo, d, h, mi, tzinfo=EASTERN_TZ)
 
 
@@ -100,7 +100,7 @@ class TestFormatStateBranches:
         svc = MatchDisplayService()
         result = await svc.get_match_for_display(match.id)
         assert result["state"] == "Finished"
-        assert result["state_timestamp"] == format_eastern_datetime(utc(2025, 1, 15, 21, 0))
+        assert result["state_timestamp"] == format_local_datetime(utc(2025, 1, 15, 21, 0))
 
     async def test_started_state_uses_started_timestamp(self, db):
         t = await Tournament.create(name="T")
@@ -110,7 +110,7 @@ class TestFormatStateBranches:
         svc = MatchDisplayService()
         result = await svc.get_match_for_display(match.id)
         assert result["state"] == "Started"
-        assert result["state_timestamp"] == format_eastern_datetime(utc(2025, 1, 15, 20, 30))
+        assert result["state_timestamp"] == format_local_datetime(utc(2025, 1, 15, 20, 30))
 
     async def test_checked_in_state_uses_seated_timestamp(self, db):
         t = await Tournament.create(name="T")
@@ -120,7 +120,7 @@ class TestFormatStateBranches:
         svc = MatchDisplayService()
         result = await svc.get_match_for_display(match.id)
         assert result["state"] == "Checked In"
-        assert result["state_timestamp"] == format_eastern_datetime(utc(2025, 1, 15, 19, 45))
+        assert result["state_timestamp"] == format_local_datetime(utc(2025, 1, 15, 19, 45))
 
     async def test_confirmed_state_uses_confirmed_timestamp(self, db):
         t = await Tournament.create(name="T")
@@ -132,7 +132,7 @@ class TestFormatStateBranches:
         svc = MatchDisplayService()
         result = await svc.get_match_for_display(match.id)
         assert result["state"] == "Confirmed"
-        assert result["state_timestamp"] == format_eastern_datetime(utc(2025, 1, 15, 21, 15))
+        assert result["state_timestamp"] == format_local_datetime(utc(2025, 1, 15, 21, 15))
 
 
 class TestGetMatchesForDisplay:
@@ -214,21 +214,21 @@ class TestFilterDropdowns:
 
 class TestCovers:
     def test_no_overlap_returns_none(self):
-        w = _win(eastern(2026, 1, 15, 8), eastern(2026, 1, 15, 9), Status.AVAILABLE)
-        assert _covers([w], eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12)) is None
+        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 9), Status.AVAILABLE)
+        assert _covers([w], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) is None
 
     def test_available_overlap_returns_available(self):
-        w = _win(eastern(2026, 1, 15, 8), eastern(2026, 1, 15, 14), Status.AVAILABLE)
-        assert _covers([w], eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12)) == Status.AVAILABLE
+        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.AVAILABLE)
+        assert _covers([w], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) == Status.AVAILABLE
 
     def test_preferred_overlap_returns_preferred(self):
-        w = _win(eastern(2026, 1, 15, 8), eastern(2026, 1, 15, 14), Status.PREFERRED)
-        assert _covers([w], eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12)) == Status.PREFERRED
+        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.PREFERRED)
+        assert _covers([w], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) == Status.PREFERRED
 
     def test_unavailable_overlap_wins(self):
-        avail = _win(eastern(2026, 1, 15, 8), eastern(2026, 1, 15, 14), Status.AVAILABLE)
-        unavail = _win(eastern(2026, 1, 15, 9), eastern(2026, 1, 15, 13), Status.UNAVAILABLE)
-        assert _covers([avail, unavail], eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12)) == Status.UNAVAILABLE
+        avail = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.AVAILABLE)
+        unavail = _win(to_display(2026, 1, 15, 9), to_display(2026, 1, 15, 13), Status.UNAVAILABLE)
+        assert _covers([avail, unavail], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12)) == Status.UNAVAILABLE
 
 
 class TestCountOccupancy:
@@ -237,7 +237,7 @@ class TestCountOccupancy:
 
         match = SimpleNamespace(scheduled_at=None, players=[SimpleNamespace()], tournament=None)
         count = MatchSuggestionService._count_occupancy(
-            [match], eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12), timedelta(hours=2),
+            [match], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12), timedelta(hours=2),
         )
         assert count == 0
 
@@ -245,12 +245,12 @@ class TestCountOccupancy:
         from types import SimpleNamespace
 
         match = SimpleNamespace(
-            scheduled_at=eastern(2026, 1, 15, 10).astimezone(UTC),
+            scheduled_at=to_display(2026, 1, 15, 10).astimezone(UTC),
             players=[SimpleNamespace(), SimpleNamespace()],
             tournament=SimpleNamespace(average_match_duration=90),
         )
         count = MatchSuggestionService._count_occupancy(
-            [match], eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12), timedelta(minutes=90),
+            [match], to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12), timedelta(minutes=90),
         )
         assert count == 2
 
@@ -259,10 +259,11 @@ class TestGenerateCandidatesCeiling:
     def test_stops_at_to_dt_ceiling(self, service):
         from datetime import date
 
-        from_dt = eastern(2026, 1, 15, 10)
-        to_dt = eastern(2026, 1, 15, 12)
+        from_dt = to_display(2026, 1, 15, 10)
+        to_dt = to_display(2026, 1, 15, 12)
         candidates = service._generate_candidates(
             from_dt, to_dt, {}, timedelta(hours=1), date(2026, 1, 15), date(2026, 1, 15),
+            EASTERN_TZ,
         )
         # 10:00, 10:30, 11:00, 11:30 — the 12:00 slot hits the to_dt break.
         assert len(candidates) == 4
@@ -273,8 +274,8 @@ class TestGenerateCandidatesCeiling:
 
         hours_map = {date(2026, 1, 15): (time(10, 0), time(14, 0))}
         candidates = service._generate_candidates(
-            eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 14), hours_map,
-            timedelta(hours=1), date(2026, 1, 15), date(2026, 1, 15),
+            to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 14), hours_map,
+            timedelta(hours=1), date(2026, 1, 15), date(2026, 1, 15), EASTERN_TZ,
         )
         assert len(candidates) > 0
         assert all(s.astimezone(EASTERN_TZ).hour >= 10 for s, _ in candidates)
@@ -282,26 +283,26 @@ class TestGenerateCandidatesCeiling:
 
 class TestBestCandidate:
     def test_unconstrained_player_without_windows_is_eligible(self, service):
-        slot = (eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12))
+        slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
         result = service._best_candidate([slot], [99], {}, set(), [], timedelta(hours=2))
         assert result is not None
         assert result.astimezone(EASTERN_TZ).hour == 10
 
     def test_player_window_not_covering_slot_is_skipped(self, service):
-        w = _win(eastern(2026, 1, 15, 6), eastern(2026, 1, 15, 8), Status.AVAILABLE)
-        slot = (eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12))
+        w = _win(to_display(2026, 1, 15, 6), to_display(2026, 1, 15, 8), Status.AVAILABLE)
+        slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
         result = service._best_candidate([slot], [1], {1: [w]}, {1}, [], timedelta(hours=2))
         assert result is None
 
     def test_unavailable_window_disqualifies_slot(self, service):
-        w = _win(eastern(2026, 1, 15, 8), eastern(2026, 1, 15, 14), Status.UNAVAILABLE)
-        slot = (eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12))
+        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.UNAVAILABLE)
+        slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
         result = service._best_candidate([slot], [1], {1: [w]}, {1}, [], timedelta(hours=2))
         assert result is None
 
     def test_preferred_window_is_eligible(self, service):
-        w = _win(eastern(2026, 1, 15, 8), eastern(2026, 1, 15, 14), Status.PREFERRED)
-        slot = (eastern(2026, 1, 15, 10), eastern(2026, 1, 15, 12))
+        w = _win(to_display(2026, 1, 15, 8), to_display(2026, 1, 15, 14), Status.PREFERRED)
+        slot = (to_display(2026, 1, 15, 10), to_display(2026, 1, 15, 12))
         result = service._best_candidate([slot], [1], {1: [w]}, {1}, [], timedelta(hours=2))
         assert result is not None
         assert result.astimezone(EASTERN_TZ).hour == 10
@@ -325,7 +326,7 @@ class TestBuildAvailabilityMap:
 class TestSuggestMatchTime:
     async def test_returns_primary_slot(self, db):
         t = await Tournament.create(name="T", average_match_duration=60)
-        today = now_eastern().date()
+        today = now_local().date()
         await _event_window(today - timedelta(days=1), today + timedelta(days=2))
         svc = MatchSuggestionService()
         result = await svc.suggest_match_time(t.id, [])
@@ -334,7 +335,7 @@ class TestSuggestMatchTime:
 
     async def test_falls_back_to_full_event_window(self, db):
         t = await Tournament.create(name="T", average_match_duration=90)
-        today = now_eastern().date()
+        today = now_local().date()
         start = today + timedelta(days=10)
         end = today + timedelta(days=12)
         await _event_window(start, end)
@@ -345,7 +346,7 @@ class TestSuggestMatchTime:
 
     async def test_raises_when_no_configured_day_is_open(self, db):
         t = await Tournament.create(name="T")
-        today = now_eastern().date()
+        today = now_local().date()
         start = today + timedelta(days=10)
         end = today + timedelta(days=12)
         await _event_window(start, end)

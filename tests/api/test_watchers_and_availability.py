@@ -9,7 +9,7 @@
 from datetime import timedelta
 
 
-from application.utils.timezone import now_eastern
+from application.utils.timezone import now_local
 from models import Match, Role, SystemConfiguration, Tournament, User
 from tests.api_helpers import client_for, create_user_token
 
@@ -109,7 +109,7 @@ class TestPlayerAvailability:
 class TestMatchSuggestion:
     async def test_suggests_a_time(self, db, app):
         _, raw = await create_user_token(username='ta')
-        today = now_eastern().date()
+        today = now_local().date()
         await SystemConfiguration.create(name='event_start_date', value=today.isoformat())
         await SystemConfiguration.create(
             name='event_end_date', value=(today + timedelta(days=2)).isoformat(),

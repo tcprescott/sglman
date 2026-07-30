@@ -32,7 +32,7 @@ UTC = timezone.utc
 from tests.factories import utc
 
 
-def eastern(y, mo, d, h=0, mi=0):
+def to_display(y, mo, d, h=0, mi=0):
     return datetime(y, mo, d, h, mi, tzinfo=EASTERN_TZ)
 
 
@@ -281,8 +281,8 @@ class TestNormalizeBucket:
 # ---------------------------------------------------------------------------
 
 
-WINDOW_START = eastern(2025, 10, 1)
-WINDOW_END = eastern(2025, 11, 1)
+WINDOW_START = to_display(2025, 10, 1)
+WINDOW_END = to_display(2025, 11, 1)
 # Weekly buckets over [Oct 1, Nov 1]: [Sep 29, Oct 6, Oct 13, Oct 20, Oct 27]
 BUCKET_EARLY = 1   # week of Oct 6
 BUCKET_LATE = 3    # week of Oct 20
@@ -451,7 +451,7 @@ class TestTournamentHealthDB:
             started_at=utc(2099, 10, 9, 16, 5), finished_at=utc(2099, 10, 9, 17, 35),
         )
         out = await AnalyticsService().tournament_health(
-            eastern(2025, 10, 1), eastern(2100, 1, 1),
+            to_display(2025, 10, 1), to_display(2100, 1, 1),
         )
         row = next(r for r in out['rows'] if r['tournament_id'] == t.id)
         assert row['matches_finished'] == 2

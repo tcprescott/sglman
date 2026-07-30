@@ -242,6 +242,12 @@ class UserRepository(TenantScopedRepository[User]):
         return user
 
     @staticmethod
+    async def set_timezone(user: User, timezone_name: Optional[str]) -> None:
+        """Persist a user's display-timezone preference (``None`` clears it)."""
+        user.timezone = timezone_name
+        await user.save()
+
+    @staticmethod
     async def update_discord_info(user: User, username: str) -> None:
         """Refresh the Discord-sourced identity we actually persist.
 

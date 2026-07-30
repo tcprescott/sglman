@@ -2,12 +2,11 @@
 
 import asyncio
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from nicegui import app, ui
 
 from application.services import AuthService, MatchService, get_user_from_discord_id
-from application.utils.timezone import format_eastern_time
+from application.utils.timezone import format_local_time, today_local
 from models import Match, User
 from theme.empty_state import empty_state
 from theme.realtime import register_view
@@ -22,10 +21,10 @@ async def stage_timeline_tab():
     # Initialize service
     match_service = MatchService()
 
-    # Use internal state for the current date (based on US/Eastern timezone)
-    eastern = ZoneInfo('US/Eastern')
-    today_eastern = datetime.now(eastern).date()
-    current_date = {'value': today_eastern}
+    # "Today" is the viewer's today, not UTC's — at 21:00 in New York it is
+    # already tomorrow in London, and the timeline must open on the day the
+    # reader means.
+    current_date = {'value': today_local()}
 
     with ui.column().classes('full-width-column'):
         # Header with date navigation
@@ -121,7 +120,7 @@ async def stage_timeline_tab():
             with ui.card().classes(f'match-card {border_class}'):
                 with ui.row().classes('full-width'):
                     # Time (displayed in Eastern timezone)
-                    time_str = format_eastern_time(match.scheduled_at) if match.scheduled_at else 'TBD'
+                    time_str = format_local_time(match.scheduled_at) if match.scheduled_at else 'TBD'
                     ui.label(time_str).classes('match-time')
 
                     # Status badge
@@ -179,7 +178,7 @@ async def stage_timeline_tab():
             await load_timeline()
 
         async def go_today():
-            current_date['value'] = datetime.now(eastern).date()
+            current_date['value'] = today_local()
             await load_timeline()
 
         async def go_to_date():

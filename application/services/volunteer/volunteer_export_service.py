@@ -31,11 +31,13 @@ from application.services.volunteer.volunteer_availability_service import (
     VolunteerAvailabilityService,
 )
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
+from application.timezone_context import current_timezone_name
 from application.utils.timezone import (
-    format_eastern_date,
-    format_eastern_display,
-    format_eastern_time,
-    to_eastern,
+    format_local_date,
+    format_local_display,
+    format_local_time,
+    timezone_label,
+    to_local,
     to_utc_aware,
 )
 from models import FeatureFlag, User, VolunteerAvailability, VolunteerAvailabilityStatus
@@ -47,6 +49,15 @@ _STATUS_LABEL = {
     VolunteerAvailabilityStatus.UNAVAILABLE: 'Unavailable',
 }
 
+
+def _tz_label() -> str:
+    """Short label for the zone this export is being rendered in.
+
+    Column headers used to read "(ET)" because there was only one zone. Now that
+    the clock follows the reader, a fixed label would caption the wrong zone —
+    worse than no label, since a forwarded CSV has no other context.
+    """
+    return timezone_label()
 
 def _columns(*pairs: tuple) -> List[Dict[str, str]]:
     """``('name', 'Label')`` pairs → the column descriptors CSV export expects."""
@@ -96,11 +107,12 @@ class VolunteerExportBundle:
         lines = [
             f'{who} exported from Wizzrobe',
             '',
-            f'Window: {format_eastern_display(self.start)} → {format_eastern_display(self.end)}',
+            f'Window: {format_local_display(self.start)} → {format_local_display(self.end)}',
             '',
-            'Times in columns labelled "(ET)" are US/Eastern, the timezone the app',
-            'displays everywhere. Every table also carries the underlying UTC',
-            'timestamps in ISO 8601, which is what to sort or compute on.',
+            f'Times in columns labelled "({_tz_label()})" are in '
+            f'{current_timezone_name()}, the timezone this export was generated in.',
+            'Every table also carries the underlying UTC timestamps in ISO 8601,',
+            'which is what to sort or compute on.',
             '',
             'Files',
             '-----',
@@ -251,7 +263,7 @@ class VolunteerExportService:
                 'pronouns': user.pronouns or '',
                 'in_volunteer_pool': user.id in pool_ids,
                 'opted_in': profile is not None,
-                'opted_in_at_et': format_eastern_display(getattr(profile, 'opted_in_at', None)),
+                'opted_in_at_local': format_local_display(getattr(profile, 'opted_in_at', None)),
                 'note': getattr(profile, 'note', None) or '',
                 'qualifications': ', '.join(sorted(qualifications_by_user.get(user.id, []))),
                 'availability_windows': len(windows),
@@ -274,7 +286,7 @@ class VolunteerExportService:
                 ('pronouns', 'Pronouns'),
                 ('in_volunteer_pool', 'In Pool'),
                 ('opted_in', 'Opted In'),
-                ('opted_in_at_et', 'Opted In At (ET)'),
+                ('opted_in_at_local', f'Opted In At ({_tz_label()})'),
                 ('note', 'Volunteer Note'),
                 ('qualifications', 'Qualified Positions'),
                 ('availability_windows', 'Availability Windows'),
@@ -298,9 +310,9 @@ class VolunteerExportService:
                     'user_id': user_id,
                     'name': user.preferred_name if user else '',
                     'status': _status_label(window.status),
-                    'date_et': format_eastern_date(window.starts_at),
-                    'start_et': format_eastern_time(window.starts_at),
-                    'end_et': format_eastern_time(window.ends_at),
+                    'date_local': format_local_date(window.starts_at),
+                    'start_local': format_local_time(window.starts_at),
+                    'end_local': format_local_time(window.ends_at),
                     'hours': _hours(window.starts_at, window.ends_at),
                     'note': window.note or '',
                     'starts_at_utc': to_utc_aware(window.starts_at).isoformat(),
@@ -316,9 +328,9 @@ class VolunteerExportService:
                 ('user_id', 'User ID'),
                 ('name', 'Name'),
                 ('status', 'Status'),
-                ('date_et', 'Date (ET)'),
-                ('start_et', 'Start (ET)'),
-                ('end_et', 'End (ET)'),
+                ('date_local', f'Date ({_tz_label()})'),
+                ('start_local', f'Start ({_tz_label()})'),
+                ('end_local', f'End ({_tz_label()})'),
                 ('hours', 'Hours'),
                 ('note', 'Note'),
                 ('starts_at_utc', 'Starts At (UTC)'),
@@ -379,10 +391,10 @@ class VolunteerExportService:
                 'shift_id': shift.id,
                 'position': shift.position.name if shift.position else '',
                 'label': shift.label or '',
-                'date_et': format_eastern_date(shift.starts_at),
-                'day': to_eastern(shift.starts_at).strftime('%A'),
-                'start_et': format_eastern_time(shift.starts_at),
-                'end_et': format_eastern_time(shift.ends_at),
+                'date_local': format_local_date(shift.starts_at),
+                'day': to_local(shift.starts_at).strftime('%A'),
+                'start_local': format_local_time(shift.starts_at),
+                'end_local': format_local_time(shift.ends_at),
                 'hours': _hours(shift.starts_at, shift.ends_at),
                 'slots_needed': shift.slots_needed,
                 'filled': len(shift.assignments),
@@ -400,10 +412,10 @@ class VolunteerExportService:
                 ('shift_id', 'Shift ID'),
                 ('position', 'Position'),
                 ('label', 'Shift'),
-                ('date_et', 'Date (ET)'),
+                ('date_local', f'Date ({_tz_label()})'),
                 ('day', 'Day'),
-                ('start_et', 'Start (ET)'),
-                ('end_et', 'End (ET)'),
+                ('start_local', f'Start ({_tz_label()})'),
+                ('end_local', f'End ({_tz_label()})'),
                 ('hours', 'Hours'),
                 ('slots_needed', 'Slots Needed'),
                 ('filled', 'Filled'),
@@ -433,17 +445,17 @@ class VolunteerExportService:
                     'shift_id': shift.id,
                     'position': shift.position.name if shift.position else '',
                     'label': shift.label or '',
-                    'date_et': format_eastern_date(shift.starts_at),
-                    'start_et': format_eastern_time(shift.starts_at),
-                    'end_et': format_eastern_time(shift.ends_at),
+                    'date_local': format_local_date(shift.starts_at),
+                    'start_local': format_local_time(shift.starts_at),
+                    'end_local': format_local_time(shift.ends_at),
                     'hours': _hours(shift.starts_at, shift.ends_at),
                     'user_id': assignment.user_id,
                     'name': assignment.user.preferred_name if assignment.user else '',
                     'source': 'Auto-draft' if assignment.auto_generated else 'Coordinator',
                     'stated_availability': _status_label(status) or 'Not stated',
                     'assigned_by': names.get(assignment.assigned_by_id, ''),
-                    'acknowledged_at_et': format_eastern_display(assignment.acknowledged_at),
-                    'checked_in_at_et': format_eastern_display(assignment.checked_in_at),
+                    'acknowledged_at_local': format_local_display(assignment.acknowledged_at),
+                    'checked_in_at_local': format_local_display(assignment.checked_in_at),
                     'checked_in_by': names.get(assignment.checked_in_by_id, ''),
                 })
         return ExportSheet(
@@ -456,17 +468,17 @@ class VolunteerExportService:
                 ('shift_id', 'Shift ID'),
                 ('position', 'Position'),
                 ('label', 'Shift'),
-                ('date_et', 'Date (ET)'),
-                ('start_et', 'Start (ET)'),
-                ('end_et', 'End (ET)'),
+                ('date_local', f'Date ({_tz_label()})'),
+                ('start_local', f'Start ({_tz_label()})'),
+                ('end_local', f'End ({_tz_label()})'),
                 ('hours', 'Hours'),
                 ('user_id', 'User ID'),
                 ('name', 'Volunteer'),
                 ('source', 'Source'),
                 ('stated_availability', 'Stated Availability'),
                 ('assigned_by', 'Assigned By'),
-                ('acknowledged_at_et', 'Acknowledged At (ET)'),
-                ('checked_in_at_et', 'Checked In At (ET)'),
+                ('acknowledged_at_local', f'Acknowledged At ({_tz_label()})'),
+                ('checked_in_at_local', f'Checked In At ({_tz_label()})'),
                 ('checked_in_by', 'Checked In By'),
             ),
             rows=rows,
@@ -489,10 +501,10 @@ class VolunteerExportService:
             for index in range(slots):
                 assignment = assignments[index] if index < len(assignments) else None
                 rows.append({
-                    'date_et': format_eastern_date(shift.starts_at),
-                    'day': to_eastern(shift.starts_at).strftime('%A'),
-                    'start_et': format_eastern_time(shift.starts_at),
-                    'end_et': format_eastern_time(shift.ends_at),
+                    'date_local': format_local_date(shift.starts_at),
+                    'day': to_local(shift.starts_at).strftime('%A'),
+                    'start_local': format_local_time(shift.starts_at),
+                    'end_local': format_local_time(shift.ends_at),
                     'position': shift.position.name if shift.position else '',
                     'label': shift.label or '',
                     'slot': index + 1,
@@ -506,10 +518,10 @@ class VolunteerExportService:
             description='one row per slot, open slots included — the sheet to draft a '
                         'schedule on',
             columns=_columns(
-                ('date_et', 'Date (ET)'),
+                ('date_local', f'Date ({_tz_label()})'),
                 ('day', 'Day'),
-                ('start_et', 'Start (ET)'),
-                ('end_et', 'End (ET)'),
+                ('start_local', f'Start ({_tz_label()})'),
+                ('end_local', f'End ({_tz_label()})'),
                 ('position', 'Position'),
                 ('label', 'Shift'),
                 ('slot', 'Slot'),

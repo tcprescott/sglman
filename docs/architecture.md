@@ -145,7 +145,7 @@ Every top-level entry in the repository, with the doc that covers it:
 
 ## Key design decisions
 
-- **UTC in the database, US/Eastern in the UI.** All datetimes are stored UTC; every user-facing render goes through `application/utils/timezone.py`. See [timezone-handling.md](timezone-handling.md).
+- **UTC in the database, viewer-local in the UI.** All datetimes are stored UTC; every user-facing render goes through `application/utils/timezone.py`, on a clock resolved per request (tenant pin, else the viewer's profile/browser zone). See [timezone-handling.md](timezone-handling.md).
 - **Role-based access, no permission bits on `User`.** Roles live in the `UserRole` junction table and are **per-tenant** (nullable `tenant` FK; the one global `SUPER_ADMIN` uses `tenant=NULL`); tournament-scoped authority comes from `Tournament.admins` / `Tournament.crew_coordinators` M2M membership. See [reference/authentication.md](reference/authentication.md#roles).
 - **Logically multitenant, no auto-scoping manager.** One process and DB serve many communities; the `tenant` FK on nearly every model a community owns is scoped explicitly through `application/repositories/_tenant.py`, and `require_tenant_id()` raising is the safety net. Users are global. See [features/multitenancy.md](features/multitenancy.md).
 - **The bot and the web UI are peers.** Both call the same service layer, so a crew signup from a Discord button and one from the web page follow identical business rules and audit logging.

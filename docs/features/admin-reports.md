@@ -49,7 +49,7 @@ to take their focus as a query param — Schedule `?match_id=`, Vol. Schedule
 | Match Operations | the match on the board; per-tournament aggregates re-filter this report |
 | Capacity Forecast | the matches making a peak instant, on the board |
 | Stream Room Utilization | a room's matches, on the board |
-| Volunteer Coverage | Vol. Schedule at the understaffed shift's Eastern day |
+| Volunteer Coverage | Vol. Schedule at the understaffed shift's local day |
 | Dashboard KPIs | the one report each number is computed from, over the same window |
 
 `shared.enable_drill_link(table, columns, rows, url_for, enabled=…)` builds the

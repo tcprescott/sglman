@@ -19,7 +19,9 @@ from typing import Callable, Dict, Optional, Tuple
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from application.services.timezone_service import TimezoneService
 from application.tenant_context import tenant_scope
+from application.timezone_context import tz_scope
 from models import FeatureFlag
 from mcpserver.auth import Gate, authorize, current_actor, resolve_tenant
 from mcpserver.errors import map_service_error
@@ -59,7 +61,13 @@ def register(
             tenant = await resolve_tenant(kwargs.get('tenant'))
             with tenant_scope(tenant.id):
                 await authorize(actor, gate, feature, slug=tenant.slug)
-                return await fn(**kwargs)
+                # An MCP caller has no browser and is not "a viewer", so there is
+                # no personal clock to resolve — but tools still take and derive
+                # calendar dates (``get_schedule(date=…)``), and those must land
+                # on the community's day. Bound here, alongside the tenant, so no
+                # tool can be written that forgets it.
+                with tz_scope(await TimezoneService.tenant_timezone_name(tenant.id)):
+                    return await fn(**kwargs)
         except Exception as exc:
             raise map_service_error(exc) from exc
 

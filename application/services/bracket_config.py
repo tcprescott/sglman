@@ -76,7 +76,7 @@ class RoundConfig(BaseModel):
     ``best_of`` is **semantic**: it is the default series length for every match
     in the round (a per-matchup ``BracketMatch.best_of`` overrides it), and the
     scheduler and clinch logic both read it. ``scheduled_at`` stays display-only,
-    rendered through ``format_eastern_display``. It is a UTC ISO-8601 string (all
+    rendered through ``format_local_display``. It is a UTC ISO-8601 string (all
     stored datetimes are UTC — see docs/timezone-handling.md); it is accepted as
     a ``datetime`` and normalized back to an ISO string so the blob stays JSON.
     """

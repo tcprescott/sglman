@@ -29,7 +29,7 @@ from application.utils.discord_embeds import (
     notification_embed,
 )
 from application.utils.discord_messages import join_decided_dm, join_requested_dm
-from application.utils.timezone import now_eastern
+from application.utils.timezone import now_local
 from models import JoinRequestStatus, Role, TenantJoinRequest, User
 
 
@@ -153,7 +153,7 @@ class TenantMembershipService:
         request = await self._decidable(actor, request_id)
         await TenantMembershipRepository.add(request.user, request.tenant_id)
         await TenantJoinRequestRepository.decide(
-            request, JoinRequestStatus.APPROVED, actor, now_eastern(),
+            request, JoinRequestStatus.APPROVED, actor, now_local(),
         )
         await self.audit_service.write_and_publish(
             actor, AuditActions.TENANT_JOIN_APPROVED,
@@ -166,7 +166,7 @@ class TenantMembershipService:
     async def deny_request(self, actor: User, request_id: int) -> TenantJoinRequest:
         request = await self._decidable(actor, request_id)
         await TenantJoinRequestRepository.decide(
-            request, JoinRequestStatus.DENIED, actor, now_eastern(),
+            request, JoinRequestStatus.DENIED, actor, now_local(),
         )
         await self.audit_service.write_and_publish(
             actor, AuditActions.TENANT_JOIN_DENIED,

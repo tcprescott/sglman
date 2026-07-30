@@ -15,7 +15,9 @@ from typing import List, Optional, Sequence, Tuple
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
 from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import now_eastern, parse_eastern_datetime, to_eastern
+from application.services.timezone_service import TimezoneService
+from application.timezone_context import get_zone
+from application.utils.timezone import now_local, parse_local_datetime, to_local
 from models import Match, PlayerAvailability, Tournament, VolunteerAvailabilityStatus
 
 
@@ -48,7 +50,12 @@ class MatchSuggestionService:
         hours_map = await SystemConfigService.get_tournament_hours(tournament)
         event_start, event_end = await SystemConfigService.get_event_window(tournament)
 
-        now = now_eastern()
+        # The whole search is laid out on the community's clock, because the
+        # operating hours and event window that bound it are written in that
+        # clock. Only the returned instant is timezone-free.
+        tz_name = await TimezoneService.tenant_timezone_name()
+        tz = get_zone(tz_name)
+        now = now_local(tz)
 
         # Occupancy snapshot: all unfinished matches with a scheduled time
         existing_matches = await Match.filter(
@@ -57,20 +64,20 @@ class MatchSuggestionService:
         ).prefetch_related('tournament', 'players')
 
         # Player availability windows for the entire event range
-        event_start_dt = parse_eastern_datetime(event_start.isoformat(), '00:00')
-        event_end_dt = parse_eastern_datetime(event_end.isoformat(), '23:59')
+        event_start_dt = parse_local_datetime(event_start.isoformat(), '00:00', tz)
+        event_end_dt = parse_local_datetime(event_end.isoformat(), '23:59', tz)
         avail_map = await self._build_availability_map(player_ids, event_start_dt, event_end_dt)
         has_windows = await self.availability_repository.has_any(player_ids)
 
         # --- Primary search: next 4 hours ---
         primary_end = now + timedelta(hours=_PRIMARY_WINDOW_HOURS)
-        primary_candidates = self._generate_candidates(now, primary_end, hours_map, duration, event_start, event_end)
+        primary_candidates = self._generate_candidates(now, primary_end, hours_map, duration, event_start, event_end, tz)
         result = self._best_candidate(primary_candidates, player_ids, avail_map, has_windows, existing_matches, duration)
         if result is not None:
             return result
 
         # --- Fallback search: full remaining event window ---
-        fallback_candidates = self._generate_candidates(now, None, hours_map, duration, event_start, event_end)
+        fallback_candidates = self._generate_candidates(now, None, hours_map, duration, event_start, event_end, tz)
         # Exclude slots already checked in the primary pass
         primary_set = {s for s, _ in primary_candidates}
         fallback_candidates = [(s, e) for s, e in fallback_candidates if s not in primary_set]
@@ -92,9 +99,14 @@ class MatchSuggestionService:
         duration: timedelta,
         event_start,
         event_end,
+        tz,
     ) -> List[Tuple[datetime, datetime]]:
-        """Generate (slot_start_eastern, slot_end_eastern) pairs at 30-min intervals."""
-        from application.utils.timezone import EASTERN_TZ
+        """Generate (slot_start, slot_end) pairs at 30-min intervals, on ``tz``.
+
+        ``tz`` is the community's zone, not the viewer's: the slots are bounded by
+        the community's operating hours, so they must be laid out on the clock
+        those hours are written in.
+        """
 
         candidates: List[Tuple[datetime, datetime]] = []
         current_date = from_dt.date()
@@ -118,11 +130,11 @@ class MatchSuggestionService:
                 open_t, close_t = window
             day_open = datetime(
                 current_date.year, current_date.month, current_date.day,
-                open_t.hour, open_t.minute, tzinfo=EASTERN_TZ,
+                open_t.hour, open_t.minute, tzinfo=tz,
             )
             day_close = datetime(
                 current_date.year, current_date.month, current_date.day,
-                close_t.hour, close_t.minute, tzinfo=EASTERN_TZ,
+                close_t.hour, close_t.minute, tzinfo=tz,
             )
 
             # Start no earlier than "from_dt" (rounded up to next slot)
@@ -186,7 +198,7 @@ class MatchSuggestionService:
 
         scored.sort()
         best_eastern = scored[0][2]
-        # Convert eastern-aware dt to UTC
+        # Convert display-zone-aware dt to UTC
         from datetime import timezone
         return best_eastern.astimezone(timezone.utc)
 
@@ -202,7 +214,7 @@ class MatchSuggestionService:
         for m in matches:
             if not m.scheduled_at:
                 continue
-            m_start = to_eastern(m.scheduled_at)
+            m_start = to_local(m.scheduled_at)
             dur = duration
             if m.tournament and m.tournament.average_match_duration:
                 dur = timedelta(minutes=m.tournament.average_match_duration)

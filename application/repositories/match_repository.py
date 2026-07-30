@@ -8,6 +8,8 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 from typing import List, Optional
 from datetime import datetime, date
 
+from application.utils.timezone import local_day_bounds
+
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User
 
@@ -321,12 +323,15 @@ class MatchRepository:
         Returns:
             List of matches with all related data prefetched
         """
-        start_of_day = datetime.combine(target_date, datetime.min.time())
-        end_of_day = datetime.combine(target_date, datetime.max.time())
+        # Half-open bounds on the display clock. ``datetime.combine`` alone
+        # yields naive values that the ORM reads as UTC, which silently selected
+        # the UTC day instead of the day the viewer picked — a several-hour
+        # window of the wrong matches at either end.
+        start_of_day, next_day = local_day_bounds(target_date, target_date)
 
         query = scoped(Match.filter(
             scheduled_at__gte=start_of_day,
-            scheduled_at__lte=end_of_day
+            scheduled_at__lt=next_day
         ))
 
         if exclude_finished:

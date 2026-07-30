@@ -24,8 +24,8 @@ and is invisible to Python tests. This skill drives the running app so you can
 bash scripts/setup_env.sh
 ```
 
-Installs/starts PostgreSQL 16, ensures `tzdata` **and the `US/Eastern` alias**
-(the app calls `ZoneInfo('US/Eastern')`, which throws on minimal tzdata images),
+Installs/starts PostgreSQL 16, ensures **full `tzdata`** (zone names are now
+user- and admin-supplied, so any IANA zone must load),
 creates the `wizzrobe` DB, runs `poetry install`, and writes a dev `.env`
 (`MOCK_DISCORD=true`, generated `STORAGE_SECRET`). Idempotent. This is also the
 script to paste into the "Setup script" field of a Claude Code cloud environment.

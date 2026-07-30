@@ -105,6 +105,8 @@ class AuditActions:
     # System
     SYSTEM_CONFIG_UPDATED = 'system_config.updated'
     THEME_UPDATED = 'theme.updated'
+    TIMEZONE_UPDATED = 'timezone.updated'
+    USER_TIMEZONE_UPDATED = 'user.timezone_updated'
 
     # Triforce texts
     TRIFORCE_TEXT_SUBMITTED = 'triforce_text.submitted'

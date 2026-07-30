@@ -5,7 +5,7 @@ from nicegui import app, ui
 from application.services import get_user_from_discord_id
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
-from application.utils.timezone import format_eastern_date, format_eastern_time
+from application.utils.timezone import format_local_date, format_local_time
 from models import User, VolunteerAvailabilityStatus, VolunteerPosition
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
 
@@ -49,9 +49,9 @@ class VolunteerProfileDialog:
                             label_text, badge_props = _STATUS_PROPS.get(
                                 w.status, (w.status, 'grey'),
                             )
-                            date_str = format_eastern_date(w.starts_at)
-                            start_str = format_eastern_time(w.starts_at)
-                            end_str = format_eastern_time(w.ends_at)
+                            date_str = format_local_date(w.starts_at)
+                            start_str = format_local_time(w.starts_at)
+                            end_str = format_local_time(w.ends_at)
                             with ui.row().classes('items-center gap-2 no-wrap'):
                                 ui.badge(label_text).props(f'color={badge_props}')
                                 ui.label(f'{date_str}  {start_str}–{end_str} ET').classes('text-caption')

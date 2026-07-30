@@ -59,7 +59,7 @@ application/repositories/ ← ORM queries (Tortoise), tenant scoping
 models/                   ← Tortoise models + enums, per-domain submodules
 ```
 
-All datetimes stored UTC, displayed US/Eastern ([timezone-handling](timezone-handling.md)).
+All datetimes stored UTC, displayed on a per-request local clock — a community either pins one zone or follows each viewer ([timezone-handling](timezone-handling.md)).
 Full process model and directory map: [architecture](architecture.md).
 Capacity and the single-worker constraint: [scaling-roadmap](scaling-roadmap.md).
 

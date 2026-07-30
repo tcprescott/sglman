@@ -9,7 +9,7 @@ from application.services.volunteer.volunteer_availability_service import Volunt
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
-from application.utils.timezone import format_eastern_date, format_eastern_time
+from application.utils.timezone import format_local_date, format_local_time
 from models import VolunteerAvailabilityStatus
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_profile_dialog import VolunteerProfileDialog
@@ -180,8 +180,8 @@ async def admin_volunteer_roster_page() -> None:
                 windows = sorted(avail_map.get(volunteer.id, []), key=lambda w: w.starts_at)
                 avail_lines = [
                     f'{_STATUS_ABBR.get(w.status, w.status)}: '
-                    f'{format_eastern_date(w.starts_at)} '
-                    f'{format_eastern_time(w.starts_at)}–{format_eastern_time(w.ends_at)} ET'
+                    f'{format_local_date(w.starts_at)} '
+                    f'{format_local_time(w.starts_at)}–{format_local_time(w.ends_at)} ET'
                     for w in windows
                 ]
                 rows.append({

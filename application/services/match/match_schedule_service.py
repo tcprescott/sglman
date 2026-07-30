@@ -40,13 +40,13 @@ from application.utils.discord_embeds import (
     COLOR_SEED,
     match_embed,
     state_changed_embed,
+    time_field,
 )
 from application.utils.discord_messages import (
     checked_in_dm,
     seed_dm,
     state_changed_dm,
 )
-from application.utils.timezone import format_eastern_display
 from models import Match, GeneratedSeeds, User
 
 logger = logging.getLogger(__name__)
@@ -64,9 +64,7 @@ def _match_descriptor(match: Match, bracket_line: str = '') -> dict:
     """
     return {
         'player_names': [p.user.preferred_name for p in match.players],
-        'scheduled_at_display': (
-            format_eastern_display(match.scheduled_at) if match.scheduled_at else ''
-        ),
+        'scheduled_at_display': time_field(match.scheduled_at),
         'stream_room_name': match.stream_room.name if match.stream_room else '',
         'bracket_line': bracket_line,
     }

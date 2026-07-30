@@ -41,7 +41,7 @@ from models import (
 from application.tenant_context import tenant_scope
 from application.services.audit_service import AuditActions
 from application.services.feature_flag_service import FeatureFlagService
-from application.utils.timezone import now_eastern, parse_eastern_datetime
+from application.utils.timezone import now_local, parse_local_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
@@ -72,6 +72,29 @@ TENANT_SPECS = [
 ]
 
 
+# Per-user display-timezone preferences. Only consulted by a community that
+# leaves the choice to its members (tenant 'second'), so these are what make the
+# profile-preference branch reachable in dev — and what makes a still-hardcoded
+# Eastern render obvious, since none of them is Eastern. Everyone else keeps
+# NULL, which means "detect from my device".
+TIMEZONE_SPECS = {
+    'player_one': 'Europe/Berlin',
+    'player_two': 'Asia/Tokyo',
+    'player_three': 'America/Los_Angeles',
+    # A half-hour offset, which is what catches code assuming whole-hour zones.
+    'player_four': 'Asia/Kolkata',
+}
+
+
+async def seed_timezone_preferences(users: dict[str, User]) -> None:
+    """Give a few fixtures an explicit timezone; leave the rest on detection."""
+    for username, zone in TIMEZONE_SPECS.items():
+        u = users.get(username)
+        if u is not None and u.timezone != zone:
+            u.timezone = zone
+            await u.save()
+
+
 async def seed_users() -> dict[str, User]:
     """Create the global (tenant-agnostic) users. Roles are granted per tenant."""
     specs = [(name, display) for name, display in USER_SPECS]
@@ -99,6 +122,7 @@ async def seed_users() -> dict[str, User]:
             u.username, u.display_name = username, display_name
             await u.save()
         users[username] = u
+    await seed_timezone_preferences(users)
     await link_racetime_identities(users)
     await link_twitch_identities(users)
     # Before anything else writes a provider id: clicking Link as one of these
@@ -308,7 +332,7 @@ async def seed_for_tenant(
         # key the seed omits is a Settings-tab field that reads as "not
         # configured" in dev and a code path (venue hours, the reminder lead, the
         # station-label format) that only ever runs on its fallback.
-        today = now_eastern().date()
+        today = now_local().date()
         event_days = [today + timedelta(days=d) for d in range(3)]
         venue_hours = {
             event_days[0].isoformat(): {"open": "10:00", "close": "23:00"},
@@ -394,7 +418,7 @@ async def seed_for_tenant(
         stage1 = await StreamRoom.get(name="Stage 1", tenant=tenant)
         stage2 = await StreamRoom.get(name="Stage 2", tenant=tenant)
         stage3 = await StreamRoom.get(name="Stage 3", tenant=tenant)
-        now = now_eastern()
+        now = now_local()
 
         fixtures = await seed_matches_for_tenant(
             tenant, tournament, staff, players,
@@ -498,8 +522,8 @@ async def seed_for_tenant(
                 continue
             for day in event_days:
                 day_str = day.isoformat()
-                starts_at = parse_eastern_datetime(day_str, start_hhmm)
-                ends_at = parse_eastern_datetime(day_str, end_hhmm)
+                starts_at = parse_local_datetime(day_str, start_hhmm)
+                ends_at = parse_local_datetime(day_str, end_hhmm)
                 if ends_at <= starts_at:
                     ends_at = ends_at + timedelta(days=1)
                 await PlayerAvailability.create(
@@ -645,7 +669,7 @@ async def seed_for_tenant(
                 'status': JoinRequestStatus.DENIED,
                 'message': 'Can I get in?',
                 'decided_by': staff,
-                'decided_at': now_eastern(),
+                'decided_at': now_local(),
             },
         )
         await TenantJoinRequest.get_or_create(
@@ -654,7 +678,7 @@ async def seed_for_tenant(
                 'status': JoinRequestStatus.APPROVED,
                 'message': 'I commentate for a couple of events and would like to help.',
                 'decided_by': staff,
-                'decided_at': now_eastern() - timedelta(days=3),
+                'decided_at': now_local() - timedelta(days=3),
             },
         )
         print(f"    [{tenant.slug}] join requests ok")
@@ -739,6 +763,21 @@ async def seed_all() -> None:
                 config['theme'] = theme
                 tenant.config = config
                 await tenant.save()
+        # One community of each timezone mode, so both paths are reachable in a
+        # dev environment without touching the admin UI first. Tenant A pins
+        # Eastern (the on-site SpeedGaming Live shape, and what the migration
+        # gives every existing community); tenant B follows each member's own
+        # clock with a non-US default, which is the shape online tournaments
+        # need and the one that catches "still hardcoded to Eastern".
+        tz_settings = (
+            {'mode': 'pinned', 'name': 'America/New_York'} if slug == 'default'
+            else {'mode': 'user', 'name': 'Europe/London'}
+        )
+        if (tenant.config or {}).get('timezone') != tz_settings:
+            config = dict(tenant.config or {})
+            config['timezone'] = tz_settings
+            tenant.config = config
+            await tenant.save()
         print(f"  tenant '{slug}' ({'created' if created else 'exists'}, id={tenant.id})")
         # Tier first: the per-tenant fixtures below consult the live flags (a
         # service that enforces a flag refuses to seed data for a tenant that

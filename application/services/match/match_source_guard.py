@@ -11,7 +11,7 @@ here would be silently reverted on the next sync and look like a bug.
 
 from typing import List, Optional
 
-from application.utils.timezone import parse_eastern_datetime
+from application.utils.timezone import parse_local_datetime
 
 
 def assert_sg_fields_unchanged(
@@ -35,7 +35,7 @@ def assert_sg_fields_unchanged(
     if tournament_id is not None and tournament_id != match.tournament_id:
         violations.append('tournament')
     if scheduled_date and scheduled_time:
-        new_scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
+        new_scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         old = match.scheduled_at
         if old is None or abs((new_scheduled_at - old).total_seconds()) >= 60:
             violations.append('scheduled time')

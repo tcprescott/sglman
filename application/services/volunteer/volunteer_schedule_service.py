@@ -26,9 +26,8 @@ from application.services.auth_service import AuthService
 from application.services.discord.discord_service import DiscordService
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
-    EASTERN_TZ,
-    format_eastern_display,
-    parse_eastern_datetime,
+    format_local_display,
+    parse_local_datetime,
 )
 from models import FeatureFlag, User, VolunteerAssignment, VolunteerPosition, VolunteerShift
 
@@ -130,8 +129,8 @@ class VolunteerScheduleService:
         """Create one fixed shift per block for a position."""
         out: List[VolunteerShift] = []
         for label, start_hhmm, end_hhmm in blocks:
-            starts_at = parse_eastern_datetime(date_str, start_hhmm)
-            ends_at = parse_eastern_datetime(date_str, end_hhmm)
+            starts_at = parse_local_datetime(date_str, start_hhmm)
+            ends_at = parse_local_datetime(date_str, end_hhmm)
             if ends_at <= starts_at:
                 ends_at = ends_at + timedelta(days=1)
             out.append(
@@ -147,8 +146,8 @@ class VolunteerScheduleService:
         blocks: Sequence[Tuple[str, str, str]],
     ) -> List[VolunteerShift]:
         """Create staggered rolling shifts spanning the day's coverage window."""
-        coverage_start = parse_eastern_datetime(date_str, blocks[0][1])
-        coverage_end = parse_eastern_datetime(date_str, blocks[-1][2])
+        coverage_start = parse_local_datetime(date_str, blocks[0][1])
+        coverage_end = parse_local_datetime(date_str, blocks[-1][2])
         if coverage_end <= coverage_start:
             coverage_end = coverage_end + timedelta(days=1)
         shift_length = timedelta(minutes=position.shift_length_minutes)
@@ -361,7 +360,7 @@ class VolunteerScheduleService:
             )
         if assignment.acknowledged_at is not None:
             return assignment
-        assignment.acknowledged_at = datetime.now(EASTERN_TZ)
+        assignment.acknowledged_at = datetime.now(timezone.utc)
         await self.assignment_repository.save(assignment)
         await self.audit_service.write_log(
             user, AuditActions.VOLUNTEER_ACKNOWLEDGED,
@@ -520,8 +519,8 @@ class VolunteerScheduleService:
         message = volunteer_assignment_dm(
             position_name=position_name,
             label=shift.label,
-            starts_display=format_eastern_display(shift.starts_at),
-            ends_display=format_eastern_display(shift.ends_at),
+            starts_display=format_local_display(shift.starts_at),
+            ends_display=format_local_display(shift.ends_at),
         )
         description = 'Tap **Acknowledge** below to confirm you can cover this shift.'
         if shift.label:
@@ -553,8 +552,8 @@ class VolunteerScheduleService:
         message = volunteer_unassigned_dm(
             position_name=position_name,
             label=shift.label,
-            starts_display=format_eastern_display(shift.starts_at),
-            ends_display=format_eastern_display(shift.ends_at),
+            starts_display=format_local_display(shift.starts_at),
+            ends_display=format_local_display(shift.ends_at),
         )
         embed = volunteer_embed(
             title='🙋 Volunteer shift removed',
@@ -584,10 +583,10 @@ class VolunteerScheduleService:
         message = volunteer_shift_changed_dm(
             position_name=position_name,
             label=shift.label,
-            starts_display=format_eastern_display(shift.starts_at),
-            ends_display=format_eastern_display(shift.ends_at),
-            old_starts_display=format_eastern_display(old_starts),
-            old_ends_display=format_eastern_display(old_ends),
+            starts_display=format_local_display(shift.starts_at),
+            ends_display=format_local_display(shift.ends_at),
+            old_starts_display=format_local_display(old_starts),
+            old_ends_display=format_local_display(old_ends),
         )
         embed = volunteer_embed(
             title='🙋 Volunteer shift moved',
@@ -629,8 +628,8 @@ class VolunteerScheduleService:
             volunteer_name=volunteer.preferred_name,
             position_name=position_name,
             label=shift.label,
-            starts_display=format_eastern_display(shift.starts_at),
-            ends_display=format_eastern_display(shift.ends_at),
+            starts_display=format_local_display(shift.starts_at),
+            ends_display=format_local_display(shift.ends_at),
             hours_notice=details.get('hours_notice'),
             reason=details.get('reason'),
         )

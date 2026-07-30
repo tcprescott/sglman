@@ -248,7 +248,7 @@ reshapes it — see the reports section above. `mcpserver/tools/_args.py` holds 
 shared timestamp/limit parsing so every tool refuses a bad window in the same
 words.
 
-All datetimes are UTC as stored. Users see US/Eastern; the model is told once in
+All datetimes are UTC as stored. Each community chooses the zone its members read them in; the model is told once in
 the server instructions rather than per field.
 
 ## Errors

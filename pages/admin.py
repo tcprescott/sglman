@@ -25,6 +25,7 @@ from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
 from pages.admin_tabs.admin_theme import admin_theme_page
+from pages.admin_tabs.admin_timezone import admin_timezone_page
 from pages.admin_tabs.admin_brackets import admin_brackets_page
 from pages.admin_tabs.admin_challonge import admin_challonge_page
 from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
@@ -147,6 +148,7 @@ def build_admin_tabs(
         tabs.append({'label': 'Settings', 'icon': 'settings', 'group': 'System', 'content': admin_system_config_page})
     if is_staff:
         tabs.append({'label': 'Appearance', 'icon': 'palette', 'group': 'System', 'content': admin_theme_page})
+        tabs.append({'label': 'Timezone', 'icon': 'schedule', 'group': 'System', 'content': admin_timezone_page})
 
     tabs.sort(key=lambda t: _ADMIN_GROUP_ORDER.index(t['group']))
     return tabs

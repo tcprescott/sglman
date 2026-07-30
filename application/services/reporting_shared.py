@@ -11,7 +11,7 @@ and Insights dashboards can never silently disagree.
 from datetime import datetime
 from typing import Optional
 
-from application.utils.timezone import to_eastern
+from application.utils.timezone import to_local
 from models import Tournament
 
 
@@ -24,9 +24,9 @@ DEFAULT_MATCH_DURATION_MIN = 90
 ON_TIME_THRESHOLD_MIN = 5
 
 
-def eastern(dt: Optional[datetime]) -> Optional[datetime]:
-    """Convert a UTC-aware datetime to US/Eastern, passing ``None`` through."""
-    return to_eastern(dt)
+def to_display(dt: Optional[datetime]) -> Optional[datetime]:
+    """Convert a UTC-aware datetime to the display zone, passing ``None`` through."""
+    return to_local(dt)
 
 
 def window_hours(start: Optional[datetime], end: Optional[datetime]) -> float:

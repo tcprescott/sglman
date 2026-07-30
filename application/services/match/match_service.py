@@ -45,9 +45,11 @@ from application.services.match.match_schedule_service import MatchScheduleServi
 from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
+from application.services.timezone_service import TimezoneService
 from application.utils.timezone import (
-    parse_eastern_datetime,
-    to_eastern,
+    timezone_label,
+    parse_local_datetime,
+    to_local,
 )
 
 class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
@@ -233,7 +235,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
 
         # Parse datetime - input is in Eastern, convert to UTC for storage
         try:
-            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
+            scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 
@@ -397,7 +399,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
 
         if scheduled_date and scheduled_time:
             # Parse datetime - input is in Eastern, convert to UTC for storage
-            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
+            scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
             # Validate against the target tournament (new one on reassignment).
             await self._assert_within_tournament_hours(
                 scheduled_at, tournament_id if tournament_id is not None else match.tournament_id,
@@ -771,15 +773,21 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         when set, otherwise the tenant-wide setting applies.
         """
         tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id()) if tournament_id is not None else None
-        eastern_dt = to_eastern(scheduled_at)
-        d = eastern_dt.date()
+        # Operating hours belong to the community, not the reader: "matches run
+        # 09:00–22:00" means the community's clock. Resolving the day and the
+        # start time in the viewer's zone instead would let two people in
+        # different countries get opposite verdicts on the same instant.
+        tz = await TimezoneService.tenant_timezone_name()
+        local_dt = to_local(scheduled_at, tz)
+        d = local_dt.date()
         window = await SystemConfigService.get_tournament_window_for_date(d, tournament=tournament)
         if window is None:
             return
         open_t, close_t = window
-        start_time = eastern_dt.time().replace(second=0, microsecond=0)
+        start_time = local_dt.time().replace(second=0, microsecond=0)
         if start_time < open_t or start_time >= close_t:
             raise ValueError(
                 f"Matches on {d} can only start between "
-                f"{open_t.strftime('%H:%M')} and {close_t.strftime('%H:%M')} (US/Eastern)."
+                f"{open_t.strftime('%H:%M')} and {close_t.strftime('%H:%M')} "
+                f"({timezone_label(tz)})."
             )

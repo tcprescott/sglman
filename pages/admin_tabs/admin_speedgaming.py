@@ -83,7 +83,7 @@ async def admin_speedgaming_page() -> None:
             return {t.id: t.name for t in tournaments}
 
         async def refresh_table():
-            from application.utils.timezone import format_eastern_display
+            from application.utils.timezone import format_local_display
             links = await service.list_links(await _current())
             table.rows = [
                 {
@@ -96,7 +96,7 @@ async def admin_speedgaming_page() -> None:
                     'lookahead_hours': link.lookahead_hours,
                     'active': 'yes' if link.active else 'no',
                     'active_bool': link.active,
-                    'last_synced': format_eastern_display(link.last_synced_at) if link.last_synced_at else '—',
+                    'last_synced': format_local_display(link.last_synced_at) if link.last_synced_at else '—',
                     'last_status': link.last_status or '—',
                     'last_error': (link.last_error or '')[:80],
                 }

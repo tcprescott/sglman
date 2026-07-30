@@ -87,7 +87,7 @@ async def admin_discord_events_page() -> None:
         events_container = ui.column().classes('w-full')
 
         async def refresh_tables():
-            from application.utils.timezone import format_eastern_display
+            from application.utils.timezone import format_local_display
             user = await _current()
             tournaments = await service.list_tournaments(user)
             tournament_table.rows = [
@@ -108,9 +108,9 @@ async def admin_discord_events_page() -> None:
             event_table.rows = [
                 {
                     'title': e.title,
-                    'when': format_eastern_display(e.scheduled_at) if e.scheduled_at else '—',
+                    'when': format_local_display(e.scheduled_at) if e.scheduled_at else '—',
                     'discord_event_id': str(e.discord_event_id),
-                    'synced': format_eastern_display(e.synced_at) if e.synced_at else '—',
+                    'synced': format_local_display(e.synced_at) if e.synced_at else '—',
                 }
                 for e in events
             ]

@@ -9,7 +9,7 @@ reuses the existing match-request + acknowledgment flow.
 from nicegui import ui
 
 from application.services import ChallongeService, MatchSuggestionService
-from application.utils.timezone import format_eastern_date, format_eastern_time, now_eastern
+from application.utils.timezone import format_local_date, format_local_time, now_local
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -31,7 +31,7 @@ class ChallongeScheduleDialog:
 
     async def open(self):
         cm = self.challonge_match
-        now = now_eastern()
+        now = now_local()
         default_date = now.strftime('%Y-%m-%d')
         default_time = now.strftime('%H:%M')
 
@@ -41,8 +41,8 @@ class ChallongeScheduleDialog:
             suggested = await MatchSuggestionService().suggest_match_time(
                 tournament_id=cm.tournament_id, player_ids=player_ids,
             )
-            default_date = format_eastern_date(suggested)
-            default_time = format_eastern_time(suggested)
+            default_date = format_local_date(suggested)
+            default_time = format_local_time(suggested)
         except ValueError:
             pass
 

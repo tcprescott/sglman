@@ -1,7 +1,7 @@
 from nicegui import background_tasks, ui
 
 from application.tenant_context import get_current_tenant_id, tenant_scope
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 
 
@@ -189,8 +189,8 @@ class UserTableView:
             'challonge': u.challonge_username or u.challonge_user_id or '',
             'is_active': u.is_active,
             'roles': ', '.join(role_labels),
-            'created_at': format_eastern_display(u.created_at),
-            'updated_at': format_eastern_display(u.updated_at),
+            'created_at': format_local_display(u.created_at),
+            'updated_at': format_local_display(u.updated_at),
         }
 
     def _on_page_change(self, _event):

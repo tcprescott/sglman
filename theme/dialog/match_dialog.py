@@ -7,7 +7,7 @@ from application.services import (
     RacetimeRoomService,
     get_user_from_discord_id,
 )
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from application.tenant_context import require_tenant_id, tenant_scope
 from models import FeatureFlag
 from theme.dialog._helpers import (
@@ -284,7 +284,7 @@ class AdminMatchDialog(BaseMatchDialog):
                                         suffix = ' (auto)' if ack.auto_acknowledged else ''
                                         ui.label(
                                             f'{ack.user.preferred_name}{suffix} — '
-                                            f'{format_eastern_display(ack.acknowledged_at)}'
+                                            f'{format_local_display(ack.acknowledged_at)}'
                                         )
                                     else:
                                         ui.icon('schedule').classes('st-pending')

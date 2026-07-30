@@ -15,7 +15,7 @@ from nicegui import ui
 
 from application.tenant_context import is_host_mode
 from application.utils.environment import host_oauth_handoff_enabled
-from application.utils.timezone import format_eastern_date
+from application.utils.timezone import format_local_date
 from models import User
 from pages._oauth_link import platform_link_redirect
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -71,7 +71,7 @@ def _render_provider_row(
                         # A date is what lets someone recognise a link they made
                         # years ago under a provider name they have since changed.
                         # Additive: a row linked before the column existed has none.
-                        since = f' on {format_eastern_date(linked_at)}' if linked_at else ''
+                        since = f' on {format_local_date(linked_at)}' if linked_at else ''
                         ui.label(f'Linked as {username or user_id}{since}') \
                             .classes('text-caption text-grey-7 ellipsis')
                 else:
