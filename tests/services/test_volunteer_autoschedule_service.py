@@ -165,3 +165,36 @@ class TestClearDraft:
         removed = await service.clear_draft(actor=MagicMock(), start=_dt(0), end=_dt(23))
         assert removed == 3
         service.audit_service.write_log.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# publish_draft
+# ---------------------------------------------------------------------------
+
+
+class TestPublishDraft:
+    async def test_confirms_each_draft_and_counts_volunteers(self, service):
+        drafts = [
+            SimpleNamespace(id=1, user_id=10),
+            SimpleNamespace(id=2, user_id=10),
+            SimpleNamespace(id=3, user_id=11),
+        ]
+        service.assignment_repository.list_auto_for_window = AsyncMock(return_value=drafts)
+        service.schedule_service.confirm_assignment = AsyncMock()
+
+        result = await service.publish_draft(MagicMock(), _dt(0), _dt(23))
+
+        assert result == {'published': 3, 'volunteers': 2}
+        assert service.schedule_service.confirm_assignment.await_count == 3
+        service.audit_service.write_log.assert_awaited_once()
+
+    async def test_empty_window_audits_zero_and_notifies_nobody(self, service):
+        service.assignment_repository.list_auto_for_window = AsyncMock(return_value=[])
+        service.schedule_service.confirm_assignment = AsyncMock()
+
+        result = await service.publish_draft(MagicMock(), _dt(0), _dt(23))
+
+        assert result == {'published': 0, 'volunteers': 0}
+        service.schedule_service.confirm_assignment.assert_not_awaited()
+        _, args, _kwargs = service.audit_service.write_log.mock_calls[0]
+        assert args[2]['published'] == 0

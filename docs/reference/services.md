@@ -936,6 +936,8 @@ Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthServ
 
 The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
 
+A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
+
 ### volunteer_profile_service.py — VolunteerProfileService
 
 Opt-in lifecycle (self-service for any logged-in user) plus the assignable-volunteer pool the coordinator UI and auto-scheduler read.
@@ -988,9 +990,11 @@ Core shift/assignment operations: creating shifts (including bulk day generation
 | `delete_shift(actor, shift)` | `None` | Coordinator-only; audits `volunteer.shift_deleted`. |
 | `reset_all_shifts(actor)` | `int` | Coordinator-only; delete every shift; returns the count; audits `volunteer.shifts_reset`. |
 | `assign(actor, shift, user, *, auto_generated=False, notify=True)` | `(VolunteerAssignment, list[str])` | Coordinator-only. Hard-fails (`ValueError`) on duplicate or overlapping assignment; returns soft warnings for overfilled shifts and stated-unavailability. Enqueues an acknowledgment-request DM unless auto-generated. Audits `volunteer.assigned`. |
+| `confirm_assignment(actor, assignment, *, notify=True)` | `VolunteerAssignment` | Coordinator-only. Turn one draft into a commitment: clear `auto_generated`, DM the volunteer, emit `volunteer.assigned` with `published_from_draft: True`. Idempotent — a published assignment is returned untouched. |
+| `count_drafts(start, end)` | `int` | How many unpublished drafts sit in the window (the coordinator's draft banner). |
 | `unassign(actor, assignment)` | `None` | Coordinator-only; audits `volunteer.unassigned`. |
-| `acknowledge(assignment_id, user)` | `VolunteerAssignment` | Self-acknowledge (idempotent); rejects other users' assignments (`ValueError`). Audits `volunteer.acknowledged`. |
-| `assignments_for_user(user, upcoming_after=None)` | `list[VolunteerAssignment]` | A user's assignments, optionally only those starting after a cutoff. |
+| `acknowledge(assignment_id, user)` | `VolunteerAssignment` | Self-acknowledge (idempotent); rejects other users' assignments and unpublished drafts (`ValueError`). Audits `volunteer.acknowledged`. |
+| `assignments_for_user(user, upcoming_after=None, *, include_drafts=False)` | `list[VolunteerAssignment]` | A user's assignments, optionally only those starting after a cutoff. Drafts are excluded unless asked for. |
 | `coverage(start, end)` | `list[dict]` | Per-shift filled/needed counts (flagging understaffed shifts). |
 
 Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPositionRepository`, `VolunteerAvailabilityService`, `DiscordService` (via `discord_queue`), `AuditService`, `AuthService`, [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy).
@@ -1002,7 +1006,8 @@ Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool 
 | Method | Returns | Description |
 |---|---|---|
 | `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions); returns `{created, unfilled, pool_size}`. Transactional; audits `volunteer.draft_generated`. |
-| `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. |
+| `publish_draft(actor, start, end)` | `dict` | Coordinator-only; the inverse of `clear_draft`. Confirms every draft in the window through `VolunteerScheduleService.confirm_assignment` — so each volunteer gets the same DM and event a manual assign produces — and returns `{published, volunteers}`. Deliberately **not** transactional: a rollback cannot un-send a DM, and `confirm_assignment` is idempotent so a re-click finishes a partial run. Audits `volunteer.draft_published`. |
+| `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. Silent by design — a draft was never announced. |
 
 Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly.
 

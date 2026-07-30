@@ -161,4 +161,14 @@ async def seed_volunteers_for_tenant(
             shift=proctor_shift, user=users["proctor_user"], tenant=tenant,
             defaults={"assigned_by": staff},
         )
+
+    second_day = event_days[1].isoformat()
+    draft_shift = shift_index.get((second_day, "Check-in Desk|Shift 1"))
+    if draft_shift:
+        # An unpublished autoscheduler draft: outlined on the coordinator's grid,
+        # invisible on the volunteer's page until Publish draft.
+        await VolunteerAssignment.get_or_create(
+            shift=draft_shift, user=users["player_three"], tenant=tenant,
+            defaults={"assigned_by": staff, "auto_generated": True},
+        )
     print(f"    [{tenant.slug}] volunteers ok")

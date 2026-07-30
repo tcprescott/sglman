@@ -32,7 +32,10 @@ def make_shift(**overrides):
 
 
 def make_assignment(**overrides):
-    defaults = dict(id=1, shift_id=1, user_id=42, acknowledged_at=None)
+    defaults = dict(
+        id=1, shift_id=1, user_id=42, acknowledged_at=None,
+        auto_generated=False, checked_in_at=None,
+    )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
 
@@ -214,6 +217,12 @@ class TestAcknowledge:
         service.assignment_repository.save.assert_awaited_once()
         service.audit_service.write_log.assert_awaited_once()
 
+    async def test_refuses_a_draft(self, service):
+        service.assignment_repository.get_by_id = AsyncMock(
+            return_value=make_assignment(auto_generated=True))
+        with pytest.raises(ValueError, match='still a draft'):
+            await service.acknowledge(1, SimpleNamespace(id=42))
+
     async def test_idempotent_when_already_acknowledged(self, service):
         ts = datetime.now(UTC)
         assignment = make_assignment(user_id=42, acknowledged_at=ts)
@@ -222,6 +231,42 @@ class TestAcknowledge:
         result = await service.acknowledge(assignment_id=1, user=SimpleNamespace(id=42))
         assert result.acknowledged_at == ts
         service.assignment_repository.save.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# confirm_assignment
+# ---------------------------------------------------------------------------
+
+
+class TestConfirmAssignment:
+    async def test_publishes_notifies_and_publishes_event(self, service):
+        assignment = make_assignment(auto_generated=True)
+        assignment.shift = make_shift()
+        assignment.user = SimpleNamespace(id=42, preferred_name='Alice')
+        service.assignment_repository.mark_published = AsyncMock()
+        service.audit_service.write_and_publish = AsyncMock()
+
+        with patch.object(service, 'request_acknowledgment', AsyncMock()) as ack:
+            await service.confirm_assignment(MagicMock(), assignment)
+
+        service.assignment_repository.mark_published.assert_awaited_once_with(assignment)
+        ack.assert_awaited_once()
+        _, args, _kwargs = service.audit_service.write_and_publish.mock_calls[0]
+        assert args[1] == 'volunteer.assigned'
+        assert args[2]['published_from_draft'] is True
+
+    async def test_returns_early_when_already_published(self, service):
+        assignment = make_assignment(auto_generated=False)
+        service.assignment_repository.mark_published = AsyncMock()
+        service.audit_service.write_and_publish = AsyncMock()
+
+        with patch.object(service, 'request_acknowledgment', AsyncMock()) as ack:
+            result = await service.confirm_assignment(MagicMock(), assignment)
+
+        assert result is assignment
+        service.assignment_repository.mark_published.assert_not_awaited()
+        service.audit_service.write_and_publish.assert_not_awaited()
+        ack.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

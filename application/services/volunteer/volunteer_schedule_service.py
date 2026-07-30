@@ -256,12 +256,40 @@ class VolunteerScheduleService:
              'user_id': user.id, 'auto_generated': auto_generated},
         )
         if notify and not auto_generated:
-            await self._request_acknowledgment(assignment, shift, user)
+            await self.request_acknowledgment(assignment, shift, user)
         if not auto_generated:
             event_bus.publish(Event.create(EventType.VOLUNTEER_ASSIGNED, {
                 'assignment_id': assignment.id, 'shift_id': shift.id, 'user_id': user.id,
             }, actor))
         return assignment, warnings
+
+    async def confirm_assignment(
+        self, actor: User, assignment: VolunteerAssignment, *, notify: bool = True,
+    ) -> VolunteerAssignment:
+        """Turn one draft assignment into a commitment: flip the flag, DM the
+        volunteer, emit the same event a manual assign emits. Idempotent."""
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can publish assignments.",
+        )
+        if not assignment.auto_generated:
+            return assignment
+        await self.assignment_repository.mark_published(assignment)
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.VOLUNTEER_ASSIGNED,
+            {'assignment_id': assignment.id, 'shift_id': assignment.shift_id,
+             'user_id': assignment.user_id, 'published_from_draft': True},
+            EventType.VOLUNTEER_ASSIGNED,
+        )
+        if notify:
+            await self.request_acknowledgment(
+                assignment, assignment.shift, assignment.user,
+            )
+        return assignment
+
+    async def count_drafts(self, start: datetime, end: datetime) -> int:
+        """How many unpublished draft assignments sit in the window."""
+        return await self.assignment_repository.count_auto_for_window(start, end)
 
     async def get_assignment(self, assignment_id: int) -> Optional[VolunteerAssignment]:
         """Read-only load-or-None lookup for entry surfaces (api/, discordbot/)."""
@@ -288,6 +316,10 @@ class VolunteerScheduleService:
         )
         if assignment.user_id != user.id:
             raise ValueError("You can only acknowledge your own assignments.")
+        if assignment.auto_generated:
+            raise ValueError(
+                "That shift is still a draft — your coordinator has not confirmed it yet."
+            )
         if assignment.acknowledged_at is not None:
             return assignment
         assignment.acknowledged_at = datetime.now(EASTERN_TZ)
@@ -317,8 +349,16 @@ class VolunteerScheduleService:
             )
         return assignment
 
-    async def assignments_for_user(self, user: User, upcoming_after: Optional[datetime] = None) -> List[VolunteerAssignment]:
-        return await self.assignment_repository.list_for_user(user, upcoming_after=upcoming_after)
+    async def assignments_for_user(
+        self,
+        user: User,
+        upcoming_after: Optional[datetime] = None,
+        *,
+        include_drafts: bool = False,
+    ) -> List[VolunteerAssignment]:
+        return await self.assignment_repository.list_for_user(
+            user, upcoming_after=upcoming_after, include_drafts=include_drafts,
+        )
 
     # --- Coverage ---------------------------------------------------------
 
@@ -357,7 +397,7 @@ class VolunteerScheduleService:
             return f"{user.preferred_name} has not marked this time as available."
         return None
 
-    async def _request_acknowledgment(
+    async def request_acknowledgment(
         self, assignment: VolunteerAssignment, shift: VolunteerShift, user: User,
     ) -> None:
         """Best-effort Discord DM asking the volunteer to confirm. Never raises."""

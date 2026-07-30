@@ -199,6 +199,100 @@ async def test_acknowledge_sets_timestamp_and_guards_owner(db):
         await svc.acknowledge(assignment.id, intruder)
 
 
+# --- drafts: hidden until published --------------------------------------
+
+async def test_draft_is_hidden_from_the_volunteers_own_list(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    vol = await _opted_in_volunteer('drafted')
+    await VolunteerAssignment.create(shift=shift, user=vol, auto_generated=True)
+    svc = VolunteerScheduleService()
+
+    assert await svc.assignments_for_user(vol) == []
+    assert len(await svc.assignments_for_user(vol, include_drafts=True)) == 1
+
+
+async def test_draft_is_never_the_first_dm(db):
+    pos = await VolunteerPosition.create(name='Admin Desk')
+    soon = datetime.now(UTC) + timedelta(minutes=30)
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4),
+    )
+    drafted = await _opted_in_volunteer('drafted')
+    published = await _opted_in_volunteer('published')
+    await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
+    await VolunteerAssignment.create(shift=shift, user=published, auto_generated=False)
+
+    from application.repositories import VolunteerAssignmentRepository
+    due = await VolunteerAssignmentRepository.due_for_reminder(
+        datetime.now(UTC), datetime.now(UTC) + timedelta(hours=1),
+    )
+    assert [a.user_id for a in due] == [published.id]
+
+
+async def test_acknowledging_a_draft_is_refused(db):
+    pos = await VolunteerPosition.create(name='Admin Desk')
+    shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    vol = await _opted_in_volunteer('drafted')
+    assignment = await VolunteerAssignment.create(shift=shift, user=vol, auto_generated=True)
+
+    with pytest.raises(ValueError, match='still a draft'):
+        await VolunteerScheduleService().acknowledge(assignment.id, vol)
+
+
+async def test_count_drafts_counts_only_drafts_in_the_window(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    today = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    tomorrow = await VolunteerShift.create(
+        position=pos, starts_at=_at(8, day=5), ends_at=_at(12, day=5),
+    )
+    a = await _opted_in_volunteer('a')
+    b = await _opted_in_volunteer('b')
+    c = await _opted_in_volunteer('c')
+    await VolunteerAssignment.create(shift=today, user=a, auto_generated=True)
+    await VolunteerAssignment.create(shift=today, user=b, auto_generated=False)
+    await VolunteerAssignment.create(shift=tomorrow, user=c, auto_generated=True)
+
+    assert await VolunteerScheduleService().count_drafts(_at(0), _at(23)) == 1
+
+
+async def test_publish_draft_commits_and_survives_clear_draft(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    morning = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    afternoon = await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
+    a = await _opted_in_volunteer('aa')
+    b = await _opted_in_volunteer('bb')
+    await VolunteerAssignment.create(shift=morning, user=a, auto_generated=True)
+    await VolunteerAssignment.create(shift=afternoon, user=a, auto_generated=True)
+    await VolunteerAssignment.create(shift=morning, user=b, auto_generated=True)
+
+    auto = VolunteerAutoscheduleService()
+    result = await auto.publish_draft(staff, _at(0), _at(23))
+    assert result == {'published': 3, 'volunteers': 2}
+    assert await VolunteerAssignment.filter(auto_generated=True).count() == 0
+
+    # Idempotent: nothing left to publish.
+    assert (await auto.publish_draft(staff, _at(0), _at(23)))['published'] == 0
+
+    # And the published rows are no longer clear_draft's to delete.
+    assert await auto.clear_draft(staff, _at(0), _at(23)) == 0
+    assert await VolunteerAssignment.all().count() == 3
+
+
+async def test_assignments_for_user_prefetches_assigned_by(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Admin Desk')
+    shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    vol = await _opted_in_volunteer('assignee')
+    await VolunteerScheduleService().assign(staff, shift, vol)
+
+    rows = await VolunteerScheduleService().assignments_for_user(vol)
+    assert rows[0].assigned_by.id == staff.id
+
+
 # --- coverage -------------------------------------------------------------
 
 async def test_coverage_reports_understaffing(db):

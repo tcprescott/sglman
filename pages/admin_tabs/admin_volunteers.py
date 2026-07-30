@@ -77,12 +77,11 @@ async def admin_volunteers_page() -> None:
                 def on_day_change(e):
                     state['day'] = e.value
                     grid.refresh()
+                    draft_banner.refresh()
                 day_select.on_value_change(on_day_change)
 
                 ui.button('Auto-fill from availability', icon='smart_toy',
                           on_click=lambda: auto_fill()).props('flat color=primary')
-                ui.button('Clear draft', icon='clear_all',
-                          on_click=lambda: clear_draft()).props('flat color=negative')
                 ui.button('Manage positions', icon='badge',
                           on_click=lambda: open_positions_dialog()).props('flat')
                 ui.button('Export data', icon='download',
@@ -90,6 +89,29 @@ async def admin_volunteers_page() -> None:
                     .props('flat').tooltip('Download the roster, availability and schedule as CSVs')
                 ui.button('Reset all volunteer data', icon='delete_forever',
                           on_click=lambda: open_reset_dialog()).props('flat color=negative')
+
+        # --- Draft banner ------------------------------------------------
+        banner_container = ui.column().classes('full-width')
+
+        @ui.refreshable
+        async def draft_banner() -> None:
+            win_start, win_end = _day_window(state['day'])
+            pending = await schedule_service.count_drafts(win_start, win_end)
+            if not pending:
+                return
+            with ui.card().classes('full-width q-pa-sm wiz-draft-banner'):
+                with ui.row().classes('items-center gap-2 full-width').style('flex-wrap: wrap;'):
+                    ui.icon('edit_note', color='secondary')
+                    ui.label(
+                        f'{pending} draft assignment(s) on this day. '
+                        'The volunteers have not been told yet.'
+                    ).classes('text-body2')
+                    ui.space()
+                    ui.button('Publish draft', icon='send',
+                              on_click=lambda: confirm_publish(pending)) \
+                        .props('color=positive')
+                    ui.button('Clear draft', icon='clear_all',
+                              on_click=lambda: clear_draft()).props('flat color=negative')
 
         # --- Grid --------------------------------------------------------
         grid_container = ui.column().classes('full-width')
@@ -157,7 +179,8 @@ async def admin_volunteers_page() -> None:
             with ui.row().classes('items-center gap-1 no-wrap'):
                 chip = ui.chip(name, removable=True).props('dense')
                 if assignment.auto_generated:
-                    chip.props('outline color=secondary').tooltip('Auto-generated draft')
+                    chip.props('outline color=secondary') \
+                        .tooltip('Draft — this volunteer has not been told')
                 elif assignment.acknowledged_at:
                     chip.props('color=positive')
 
@@ -171,6 +194,7 @@ async def admin_volunteers_page() -> None:
                         # The chip already removed itself client-side; refresh to
                         # re-sync regardless of whether the service call succeeded.
                         grid.refresh()
+                        draft_banner.refresh()
                 chip.on('remove', lambda a=assignment: remove(a))
 
                 if assignment.checked_in_at:
@@ -183,6 +207,7 @@ async def admin_volunteers_page() -> None:
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
                         grid.refresh()
+                        draft_banner.refresh()
                     ui.button(icon='login', on_click=do_check_in) \
                         .props('flat dense color=teal').tooltip('Check in volunteer')
 
@@ -270,6 +295,7 @@ async def admin_volunteers_page() -> None:
                     ui.notify(f'Assigned {u.preferred_name}.', color='positive')
                     dialog.close()
                     grid.refresh()
+                    draft_banner.refresh()
                 ui.button('Assign', on_click=do_assign).props('dense flat color=primary')
 
         # --- Actions -----------------------------------------------------
@@ -284,10 +310,12 @@ async def admin_volunteers_page() -> None:
             ui.notify(f'Generated shifts for {position.name} (staggered where configured).',
                       color='positive')
             grid.refresh()
+            draft_banner.refresh()
 
         async def open_shift_dialog(shift=None, position=None) -> None:
             async def after(_):
                 grid.refresh()
+                draft_banner.refresh()
             await VolunteerShiftDialog(
                 shift=shift, position=position, default_day=state['day'], on_submit=after,
             ).open()
@@ -308,6 +336,7 @@ async def admin_volunteers_page() -> None:
                     return
                 ui.notify('Shift deleted.', color='info')
                 grid.refresh()
+                draft_banner.refresh()
 
             confirm = ConfirmationDialog(message=message, on_confirm=on_confirm, confirm_text='Delete')
             confirm.open()
@@ -326,6 +355,7 @@ async def admin_volunteers_page() -> None:
                 color='positive' if result['created'] else 'warning',
             )
             grid.refresh()
+            draft_banner.refresh()
 
         async def clear_draft() -> None:
             win_start, win_end = _day_window(state['day'])
@@ -336,6 +366,32 @@ async def admin_volunteers_page() -> None:
                 return
             ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
             grid.refresh()
+            draft_banner.refresh()
+
+        async def confirm_publish(pending: int) -> None:
+            async def on_confirm() -> None:
+                confirm.dialog.close()
+                win_start, win_end = _day_window(state['day'])
+                try:
+                    result = await autoschedule_service.publish_draft(actor, win_start, win_end)
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify(
+                    f"Published {result['published']} assignment(s) to "
+                    f"{result['volunteers']} volunteer(s). Each got a Discord DM.",
+                    color='positive',
+                )
+                grid.refresh()
+                draft_banner.refresh()
+
+            confirm = ConfirmationDialog(
+                message=(f'Publish {pending} draft assignment(s)? Each volunteer gets a '
+                         'Discord DM asking them to acknowledge. This cannot be undone — '
+                         'removing an assignment afterwards notifies them again.'),
+                on_confirm=on_confirm, confirm_text='Publish & notify',
+            )
+            confirm.open()
 
         def open_reset_dialog() -> None:
             CONFIRM_PHRASE = 'yes please delete all shifts'
@@ -362,6 +418,7 @@ async def admin_volunteers_page() -> None:
                             return
                         ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
                         grid.refresh()
+                        draft_banner.refresh()
 
                 ui.separator()
                 with ui.row().classes('justify-end q-pa-sm gap-2'):
@@ -388,6 +445,7 @@ async def admin_volunteers_page() -> None:
                                 async def after(_):
                                     position_list.refresh()
                                     grid.refresh()
+                                    draft_banner.refresh()
                                 await VolunteerPositionDialog(position=p, on_submit=after).open()
                             ui.button(icon='edit', on_click=edit).props('flat dense')
 
@@ -398,6 +456,7 @@ async def admin_volunteers_page() -> None:
                     async def after(_):
                         position_list.refresh()
                         grid.refresh()
+                        draft_banner.refresh()
                     await VolunteerPositionDialog(on_submit=after).open()
 
                 with ui.row().classes('justify-end q-pa-sm gap-2'):
@@ -405,5 +464,7 @@ async def admin_volunteers_page() -> None:
                     ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
+        with banner_container:
+            await draft_banner()
         with grid_container:
             await grid()

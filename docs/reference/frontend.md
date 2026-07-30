@@ -227,7 +227,7 @@ The two self-service tabs read the *signed-in* user's own data, so they are safe
 
 `proctor_station_tab()` is a purpose-built board, **deliberately diverged** from the admin Schedule tab it used to render: same `MatchTableView` and the same lifecycle dialogs (both build their callbacks from `theme/tables/match_lifecycle.py:MatchLifecycleHandlers`, so the two cannot drift), but six columns instead of nine — Time, Next step, Players & stations, Seed, Tournament, `#` — with no Commentators/Trackers/Stage and no create/edit/confirm controls. It also passes three board-shaping options the admin table does not: `exclude_racetime=True` (a racetime.gg match has no on-site proctor), `row_sort=proctor_row_order` (overdue → checked in → started → scheduled → finished, earliest first within a bucket) and `actions_first=True` (the mobile card's lifecycle button sits under the player names). A `@ui.refreshable` chip strip above the table — driven by the view's `on_rows_changed` — counts to-check-in / to-start / in-play / overdue. The tab slug stays `proctor-station`, so existing deep links keep working.
 
-`my_shifts_tab()` is a `@ui.refreshable` list of `VolunteerScheduleService.assignments_for_user(user, upcoming_after=now)`. Each card shows the position/label, the shift's Eastern start→end, and either an "Acknowledged" badge or an **Acknowledge** button calling `service.acknowledge(assignment_id, user)`.
+`my_shifts_tab()` is a `@ui.refreshable` list of `VolunteerScheduleService.assignments_for_user(user, upcoming_after=now)`, which **excludes unpublished drafts** — a coordinator's sketch is not this page's business. Each card shows the position/label, the shift's Eastern start→end, and a provenance caption ("Scheduled by …", when the assignment was made, and the acknowledgment time once given), then either an "Acknowledged" badge or an **Acknowledge** button calling `service.acknowledge(assignment_id, user)`.
 
 ## Admin dashboard (`/admin`, `pages/admin.py`)
 
@@ -359,7 +359,8 @@ Two tab functions live in this module.
 
 `admin_volunteers_page()` — the "Vol. Schedule" tab, the coordinator scheduling grid (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
-- A controls card: an event-day select, **Auto-fill from availability** (`VolunteerAutoscheduleService.generate_draft`), **Clear draft**, **Manage positions** (an inline dialog wiring `VolunteerPositionDialog`), and a guarded **Reset all volunteer data** dialog (type-to-confirm → `VolunteerScheduleService.reset_all_shifts`).
+- A controls card: an event-day select, **Auto-fill from availability** (`VolunteerAutoscheduleService.generate_draft`), **Manage positions** (an inline dialog wiring `VolunteerPositionDialog`), **Export data**, and a guarded **Reset all volunteer data** dialog (type-to-confirm → `VolunteerScheduleService.reset_all_shifts`).
+- A `@ui.refreshable` **draft banner** below it, rendered only when the selected day holds drafts (`VolunteerScheduleService.count_drafts`): it names the count, says the volunteers have not been told, and carries the day's two decisions — **Publish draft** (`publish_draft`, behind a `ConfirmationDialog` because it sends DMs) and **Clear draft** (silent, so no confirmation).
 - A `@ui.refreshable` `grid()` renders one card per active position, each with **Generate standard shifts** and **Add shift** (→ `VolunteerShiftDialog`) and a shift card per shift (filled/needed badge, edit/delete, and an **Assign** picker dialog).
 - The assign picker pulls the opted-in pool and per-volunteer availability badges (`VolunteerAvailabilityService.availability_map` / `covers`); assigning goes through `VolunteerScheduleService.assign` (surfacing returned warnings); assignment chips remove via `unassign`.
 

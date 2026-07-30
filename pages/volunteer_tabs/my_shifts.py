@@ -7,6 +7,7 @@ from nicegui import app, ui
 from application.services import get_user_from_discord_id
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import format_eastern_display
+from theme.notify import notify_error
 
 
 async def my_shifts_tab() -> None:
@@ -46,6 +47,17 @@ async def my_shifts_tab() -> None:
                                 f'{format_eastern_display(shift.starts_at)} → '
                                 f'{format_eastern_display(shift.ends_at)}'
                             ).classes('text-caption')
+                            assigned_by = assignment.assigned_by
+                            provenance = 'Scheduled'
+                            if assigned_by is not None:
+                                provenance = f'Scheduled by {assigned_by.preferred_name}'
+                            provenance += f' · {format_eastern_display(assignment.created_at)}'
+                            if assignment.acknowledged_at:
+                                provenance += (
+                                    f' · you acknowledged '
+                                    f'{format_eastern_display(assignment.acknowledged_at)}'
+                                )
+                            ui.label(provenance).classes('text-caption text-grey')
                         with ui.row().classes('items-center gap-2'):
                             if checked_in:
                                 ui.badge('Checked in', color='teal')
@@ -56,8 +68,8 @@ async def my_shifts_tab() -> None:
                                     try:
                                         await service.acknowledge(a_id, user)
                                         ui.notify('Shift acknowledged.', color='positive')
-                                    except ValueError as e:
-                                        ui.notify(str(e), color='warning')
+                                    except (ValueError, PermissionError) as e:
+                                        notify_error(e)
                                     shift_list.refresh()
                                 ui.button('Acknowledge', icon='check', on_click=ack).props('color=primary')
 

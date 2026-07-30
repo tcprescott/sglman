@@ -124,11 +124,36 @@ class VolunteerAutoscheduleService:
             'pool_size': len(pool),
         }
 
+    async def publish_draft(self, actor: User, start: datetime, end: datetime) -> Dict:
+        """Commit every draft assignment in the window and tell each volunteer.
+
+        The inverse of ``clear_draft``: same window, same authorization, opposite
+        decision. Returns counts for the coordinator's confirmation toast.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can publish drafts.",
+        )
+        drafts = await self.assignment_repository.list_auto_for_window(start, end)
+        # Not in a transaction: each confirmation enqueues a DM and a rollback
+        # cannot un-send one. A partial publish is recoverable — confirm_assignment
+        # is idempotent, so the next click finishes the job.
+        for assignment in drafts:
+            await self.schedule_service.confirm_assignment(actor, assignment)
+        await self.audit_service.write_log(
+            actor, AuditActions.VOLUNTEER_DRAFT_PUBLISHED,
+            {'published': len(drafts), 'start': start, 'end': end},
+        )
+        return {'published': len(drafts),
+                'volunteers': len({a.user_id for a in drafts})}
+
     async def clear_draft(self, actor: User, start: datetime, end: datetime) -> int:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
             "Only volunteer coordinators can clear drafts.",
         )
+        # Deliberately silent: a draft was never announced, so its removal has
+        # nobody to notify. Publishing is what makes a shift real.
         removed = await self.assignment_repository.delete_auto_for_window(start, end)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_DRAFT_CLEARED,
