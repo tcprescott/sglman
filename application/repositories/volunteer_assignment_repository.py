@@ -11,7 +11,11 @@ from application.repositories._tenant import current_tenant_id, scoped
 from models import User, VolunteerAssignment, VolunteerShift
 
 
-_PREFETCH = ('user', 'shift', 'shift__position')
+_PREFETCH = ('user', 'shift', 'shift__position', 'assigned_by')
+
+# Only for the volunteer's own card, which names who else is on the slot. Kept
+# off _PREFETCH so every other caller does not pay for the extra two joins.
+_PREFETCH_WITH_SHIFTMATES = _PREFETCH + ('shift__assignments', 'shift__assignments__user')
 
 
 class VolunteerAssignmentRepository:
@@ -22,6 +26,14 @@ class VolunteerAssignmentRepository:
         return await VolunteerAssignment.get_or_none(
             id=assignment_id, tenant_id=current_tenant_id(),
         ).prefetch_related(*_PREFETCH)
+
+    @staticmethod
+    async def get_for_shift_and_user(
+        shift_id: int, user_id: int,
+    ) -> Optional[VolunteerAssignment]:
+        return await scoped(
+            VolunteerAssignment.filter(shift_id=shift_id, user_id=user_id)
+        ).prefetch_related(*_PREFETCH).first()
 
     @staticmethod
     async def exists(shift_id: int, user_id: int) -> bool:
@@ -64,11 +76,26 @@ class VolunteerAssignmentRepository:
         return await query.prefetch_related(*_PREFETCH)
 
     @staticmethod
-    async def list_for_user(user: User, upcoming_after: Optional[datetime] = None) -> List[VolunteerAssignment]:
+    async def list_for_user(
+        user: User,
+        upcoming_after: Optional[datetime] = None,
+        *,
+        include_drafts: bool = False,
+        with_shiftmates: bool = False,
+    ) -> List[VolunteerAssignment]:
+        """This user's assignments.
+
+        Drafts are excluded by default: an ``auto_generated`` row is the
+        coordinator's sketch and the volunteer has not been told about it (see
+        ``VolunteerAutoscheduleService.publish_draft``).
+        """
         query = scoped(VolunteerAssignment.filter(user=user))
+        if not include_drafts:
+            query = query.filter(auto_generated=False)
         if upcoming_after is not None:
             query = query.filter(shift__ends_at__gte=upcoming_after)
-        return await query.order_by('shift__starts_at').prefetch_related(*_PREFETCH)
+        prefetch = _PREFETCH_WITH_SHIFTMATES if with_shiftmates else _PREFETCH
+        return await query.order_by('shift__starts_at').prefetch_related(*prefetch)
 
     @staticmethod
     async def list_for_window(start: datetime, end: datetime) -> List[VolunteerAssignment]:
@@ -94,14 +121,60 @@ class VolunteerAssignmentRepository:
         )).delete()
 
     @staticmethod
+    async def count_auto_for_window(start: datetime, end: datetime) -> int:
+        """How many draft assignments sit in the window."""
+        shift_ids = await scoped(VolunteerShift.filter(
+            starts_at__lt=end, ends_at__gt=start,
+        )).values_list('id', flat=True)
+        if not shift_ids:
+            return 0
+        return await scoped(VolunteerAssignment.filter(
+            auto_generated=True, shift_id__in=list(shift_ids),
+        )).count()
+
+    @staticmethod
+    async def list_auto_for_window(start: datetime, end: datetime) -> List[VolunteerAssignment]:
+        """Draft assignments whose shift overlaps the window, prefetched for notification."""
+        shift_ids = await scoped(VolunteerShift.filter(
+            starts_at__lt=end, ends_at__gt=start,
+        )).values_list('id', flat=True)
+        if not shift_ids:
+            return []
+        return await (
+            scoped(VolunteerAssignment.filter(
+                auto_generated=True, shift_id__in=list(shift_ids),
+            ))
+            .order_by('shift__starts_at')
+            .prefetch_related(*_PREFETCH)
+        )
+
+    @staticmethod
+    async def mark_published(assignment: VolunteerAssignment) -> VolunteerAssignment:
+        assignment.auto_generated = False
+        await assignment.save(update_fields=['auto_generated', 'updated_at'])
+        return assignment
+
+    @staticmethod
+    async def list_for_shift(shift_id: int) -> List[VolunteerAssignment]:
+        return await (
+            scoped(VolunteerAssignment.filter(shift_id=shift_id))
+            .prefetch_related(*_PREFETCH)
+        )
+
+    @staticmethod
     async def due_for_reminder(
         window_start: datetime, window_end: datetime,
     ) -> List[VolunteerAssignment]:
-        """Un-reminded assignments whose shift starts within [window_start, window_end]."""
+        """Un-reminded assignments whose shift starts within [window_start, window_end].
+
+        Drafts are skipped — the reminder must not be the message that first tells
+        someone they have a shift.
+        """
         # Deliberately cross-tenant: the reminder loop scans every tenant and wraps
         # each assignment in its own tenant_scope before acting. Do NOT scope this.
         return await (
             VolunteerAssignment.filter(
+                auto_generated=False,
                 reminder_sent_at__isnull=True,
                 shift__starts_at__gte=window_start,
                 shift__starts_at__lte=window_end,

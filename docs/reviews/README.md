@@ -12,8 +12,6 @@ the truth and git history keeps the rationale.
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [match-operations-ux.md](match-operations-ux.md) | Admin Schedule board + match dialog, across five roles | Four service-level authorization gates compressed into one `can_crud` boolean: a crew coordinator gets 37 controls that all refuse |
 | [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
-| [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
-| [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 | [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
 
@@ -23,6 +21,14 @@ The equipment lending audit — its findings became the offline banner and the
 socket guard, the labelled mobile cards, the guidance line under an actionless
 asset page, the bounded loan history, the per-community borrower/owner pickers,
 and the encoded-host check on the label sheet.
+The async-qualifier run audit — four waves closed all seven findings: the confirmed
+forfeit and strict `H:MM:SS` entry, `measured_seconds` and the claimed-vs-measured
+check, the required rejection reason with both reattempt paths, and the explained
+score/estimate with per-reason run availability.
+The volunteer-hub audit — its findings became the draft/publish split
+(`auto_generated=True` now means nobody has been told), the `DraftPolicy` that
+makes availability a constraint and hours a ceiling, the volunteer's own
+release/brief on My Shifts, and the coordinator's coverage strip.
 
 ## Cross-cutting themes
 
@@ -33,14 +39,18 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   hides the crew coordinator's approval link and offers them 37 lifecycle controls
   the services refuse. The services' own gates are correct and more granular than
   the UI's.
-- **Notification is one-directional.** Assignment/approval DMs the person; every
-  reverse transition — crew withdrawal, crew un-approval, volunteer unassignment,
-  a cleared draft — is silent to everyone
-  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional),
-  [volunteer RC2](volunteer-hub-ux.md#rc2--notification-is-one-directional-the-same-shape-as-crew)).
-- **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
-  `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
-  reachable from no surface.
+- **Notification is one-directional** — *half fixed.* Assignment/approval DMs the
+  person; the reverse transitions were silent to everyone
+  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional)). The
+  volunteer half now speaks in both directions: un-assignment and a moved shift DM
+  the volunteer, a volunteer's release DMs the coordinators, and a cleared draft
+  stays silent on purpose because its creation was. **Crew withdrawal and crew
+  un-approval are still silent** — the same fix, not yet applied, and
+  `VolunteerScheduleService`'s notification matrix is the worked example.
+- **Capabilities nobody wired are invisible.** `update_bracket`,
+  `state_readonly_slot()` — each exists, is tested, and is reachable from no
+  surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
+  now wired, which is what the fix for it looks like.)
 - **The global `User` table leaks into per-community pickers.** The Users tab and
   the match dialog's "Choose any players" still offer every user on the platform,
   `System` included
@@ -54,8 +64,8 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   (VOLUNTEER_COORDINATOR only) and `cc_user` (crew coordinator, no role row at
   all) — but a stream-manager-only user still does not.
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
-  forfeiting a qualifier run, revoking an approval and arming five lifecycle-clear
-  buttons get none.
+  revoking an approval and arming five lifecycle-clear buttons get none. (The
+  qualifier forfeit was the worst case and now confirms.)
 
 ## Method
 

@@ -7,7 +7,9 @@ load-balancing. Produces ``auto_generated`` assignments the coordinator reviews.
 """
 
 import logging
-from datetime import datetime
+from collections import Counter
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from tortoise.transactions import in_transaction
@@ -36,6 +38,27 @@ _AVAIL_RANK = {
     None: 2,
 }
 
+# Per-run limits on what the greedy filler may do. The defaults are the
+# conservative reading of a volunteer's declared availability: an undeclared
+# window is not consent, and eight hours is a long day on your feet.
+DEFAULT_MAX_HOURS = 8.0
+
+# Two blocks this close together are one long stretch as far as the person
+# working them is concerned.
+_CONSECUTIVE_GAP = timedelta(minutes=15)
+
+# Why an open slot stayed open, most-specific first — the tie-break order when a
+# shift failed several ways at once.
+_REASON_ORDER = ('not_stated', 'at_hour_cap', 'unavailable', 'overlapping')
+
+
+@dataclass(frozen=True)
+class DraftPolicy:
+    """What the coordinator is willing to let the autoscheduler do."""
+
+    max_hours: float = DEFAULT_MAX_HOURS
+    fill_outside_availability: bool = False
+
 
 class VolunteerAutoscheduleService:
     """Builds a draft volunteer schedule from availability + qualifications."""
@@ -56,11 +79,13 @@ class VolunteerAutoscheduleService:
         *,
         position_ids: Optional[Sequence[int]] = None,
         clear_existing_drafts: bool = True,
+        policy: Optional[DraftPolicy] = None,
     ) -> Dict:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
             "Only volunteer coordinators can auto-fill the schedule.",
         )
+        policy = policy or DraftPolicy()
 
         if clear_existing_drafts:
             await self.assignment_repository.delete_auto_for_window(start, end)
@@ -74,7 +99,14 @@ class VolunteerAutoscheduleService:
         pool = await self.profile_service.assignable_volunteers()
         if not pool:
             empty = {s.id: len(s.assignments) for s in shifts}
-            return {'created': 0, 'unfilled': self._unfilled_summary(shifts, empty), 'pool_size': 0}
+            return {
+                'created': 0,
+                'pool_size': 0,
+                'policy': policy,
+                'unfilled': self._unfilled_summary(shifts, empty, {}, policy),
+                'outside_availability': [],
+                'heavy_loads': [],
+            }
         pool_ids = [u.id for u in pool]
 
         quals = await self._qualifications(pool_ids)
@@ -92,13 +124,17 @@ class VolunteerAutoscheduleService:
 
         created = 0
         filled_counts: Dict[int, int] = {}
+        reasons_by_shift: Dict[int, Counter] = {}
+        outside: List[Dict] = []
         async with in_transaction():
             for shift in shifts:
                 filled = len(shift.assignments)
                 shift_hours = self._hours(shift.starts_at, shift.ends_at)
+                reasons = reasons_by_shift.setdefault(shift.id, Counter())
                 for _ in range(shift.slots_needed - filled):
                     candidate = self._pick(
                         shift, pool, pool_ids, quals, avail_map, intervals, hours, on_shift,
+                        policy=policy, shift_hours=shift_hours, reasons=reasons,
                     )
                     if candidate is None:
                         break
@@ -106,6 +142,18 @@ class VolunteerAutoscheduleService:
                         shift_id=shift.id, user_id=candidate.id,
                         assigned_by_id=actor.id, auto_generated=True,
                     )
+                    status = VolunteerAvailabilityService.covers(
+                        avail_map.get(candidate.id, []), shift.starts_at, shift.ends_at,
+                    )
+                    if status is None:
+                        outside.append({
+                            'user_id': candidate.id,
+                            'name': candidate.preferred_name,
+                            'shift_id': shift.id,
+                            'position': shift.position.name if shift.position else '',
+                            'label': shift.label or '',
+                            'starts_at': shift.starts_at,
+                        })
                     intervals[candidate.id].append((shift.starts_at, shift.ends_at))
                     hours[candidate.id] += shift_hours
                     on_shift[candidate.id].add(shift.id)
@@ -113,22 +161,57 @@ class VolunteerAutoscheduleService:
                     created += 1
                 filled_counts[shift.id] = filled
 
+            open_slots = sum(
+                max(0, s.slots_needed - filled_counts.get(s.id, len(s.assignments)))
+                for s in shifts
+            )
             await self.audit_service.write_log(
                 actor, AuditActions.VOLUNTEER_DRAFT_GENERATED,
-                {'created': created, 'start': start, 'end': end},
+                {'created': created, 'start': start, 'end': end,
+                 'open': open_slots, 'pool_size': len(pool),
+                 'max_hours': policy.max_hours,
+                 'fill_outside_availability': policy.fill_outside_availability},
             )
 
         return {
             'created': created,
-            'unfilled': self._unfilled_summary(shifts, filled_counts),
             'pool_size': len(pool),
+            'policy': policy,
+            'unfilled': self._unfilled_summary(shifts, filled_counts, reasons_by_shift, policy),
+            'outside_availability': outside,
+            'heavy_loads': self._heavy_loads(pool, hours, intervals, policy),
         }
+
+    async def publish_draft(self, actor: User, start: datetime, end: datetime) -> Dict:
+        """Commit every draft assignment in the window and tell each volunteer.
+
+        The inverse of ``clear_draft``: same window, same authorization, opposite
+        decision. Returns counts for the coordinator's confirmation toast.
+        """
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can publish drafts.",
+        )
+        drafts = await self.assignment_repository.list_auto_for_window(start, end)
+        # Not in a transaction: each confirmation enqueues a DM and a rollback
+        # cannot un-send one. A partial publish is recoverable — confirm_assignment
+        # is idempotent, so the next click finishes the job.
+        for assignment in drafts:
+            await self.schedule_service.confirm_assignment(actor, assignment)
+        await self.audit_service.write_log(
+            actor, AuditActions.VOLUNTEER_DRAFT_PUBLISHED,
+            {'published': len(drafts), 'start': start, 'end': end},
+        )
+        return {'published': len(drafts),
+                'volunteers': len({a.user_id for a in drafts})}
 
     async def clear_draft(self, actor: User, start: datetime, end: datetime) -> int:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),
             "Only volunteer coordinators can clear drafts.",
         )
+        # Deliberately silent: a draft was never announced, so its removal has
+        # nobody to notify. Publishing is what makes a shift real.
         removed = await self.assignment_repository.delete_auto_for_window(start, end)
         await self.audit_service.write_log(
             actor, AuditActions.VOLUNTEER_DRAFT_CLEARED,
@@ -140,7 +223,14 @@ class VolunteerAutoscheduleService:
 
     def _pick(
         self, shift, pool, pool_ids, quals, avail_map, intervals, hours, on_shift,
+        *,
+        policy: Optional[DraftPolicy] = None,
+        shift_hours: float = 0.0,
+        reasons: Optional[Counter] = None,
     ) -> Optional[User]:
+        policy = policy or DraftPolicy()
+        if reasons is None:
+            reasons = Counter()
         best: Optional[User] = None
         best_key = None
         for user in pool:
@@ -153,8 +243,16 @@ class VolunteerAutoscheduleService:
             windows = avail_map.get(uid, [])
             status = VolunteerAvailabilityService.covers(windows, shift.starts_at, shift.ends_at)
             if status == VolunteerAvailabilityStatus.UNAVAILABLE:
+                reasons['unavailable'] += 1
+                continue
+            if status is None and not policy.fill_outside_availability:
+                reasons['not_stated'] += 1
                 continue
             if self._overlaps(intervals[uid], shift.starts_at, shift.ends_at):
+                reasons['overlapping'] += 1
+                continue
+            if policy.max_hours and hours[uid] + shift_hours > policy.max_hours:
+                reasons['at_hour_cap'] += 1
                 continue
             qual_priority = 0 if shift.position_id in qualified_set else 1
             key = (qual_priority, _AVAIL_RANK.get(status, 2), hours[uid], user.preferred_name.lower())
@@ -182,7 +280,34 @@ class VolunteerAutoscheduleService:
         return out
 
     @staticmethod
-    def _unfilled_summary(shifts, filled_counts: Dict[int, int]) -> List[Dict]:
+    def _reason_sentence(reasons: Optional[Counter], max_hours: Optional[float]) -> str:
+        """Say why a slot stayed open, in the coordinator's terms."""
+        if reasons:
+            dominant = max(
+                _REASON_ORDER,
+                key=lambda name: (reasons.get(name, 0), -_REASON_ORDER.index(name)),
+            )
+            if reasons.get(dominant):
+                if dominant == 'not_stated':
+                    return 'Nobody qualified has marked this time as available.'
+                if dominant == 'at_hour_cap':
+                    limit = f'{max_hours:g}' if max_hours else 'hour'
+                    return f'Everyone eligible is at the {limit}-hour limit.'
+                if dominant == 'unavailable':
+                    return 'Everyone qualified marked this time unavailable.'
+                return 'Everyone qualified is already on another shift.'
+        return 'No qualified volunteer in the pool.'
+
+    @classmethod
+    def _unfilled_summary(
+        cls,
+        shifts,
+        filled_counts: Dict[int, int],
+        reasons_by_shift: Optional[Dict[int, Counter]] = None,
+        policy: Optional[DraftPolicy] = None,
+    ) -> List[Dict]:
+        reasons_by_shift = reasons_by_shift or {}
+        max_hours = policy.max_hours if policy else None
         out: List[Dict] = []
         for shift in shifts:
             filled = filled_counts.get(shift.id, len(shift.assignments))
@@ -190,6 +315,45 @@ class VolunteerAutoscheduleService:
                 out.append({
                     'shift_id': shift.id,
                     'position': shift.position.name if shift.position else '',
+                    'label': shift.label or '',
+                    'starts_at': shift.starts_at,
                     'open': shift.slots_needed - filled,
+                    'reason': cls._reason_sentence(
+                        reasons_by_shift.get(shift.id), max_hours,
+                    ),
                 })
         return out
+
+    @classmethod
+    def _heavy_loads(
+        cls, pool, hours: Dict[int, float],
+        intervals: Dict[int, List[Tuple[datetime, datetime]]],
+        policy: DraftPolicy,
+    ) -> List[Dict]:
+        """Volunteers this run leaves working a long day, so the coordinator can look."""
+        threshold = (policy.max_hours or 0) * 0.75
+        out: List[Dict] = []
+        for user in pool:
+            blocks = intervals.get(user.id) or []
+            if not blocks:
+                continue
+            worked = hours.get(user.id, 0.0)
+            if not (threshold and worked >= threshold) and cls._longest_run(blocks) < 3:
+                continue
+            out.append({
+                'user_id': user.id,
+                'name': user.preferred_name,
+                'hours': round(worked, 1),
+                'shifts': len(blocks),
+            })
+        return out
+
+    @staticmethod
+    def _longest_run(blocks: List[Tuple[datetime, datetime]]) -> int:
+        """How many of these blocks are worked back-to-back, at most."""
+        ordered = sorted(blocks)
+        longest = run = 1
+        for (_, prev_end), (next_start, _) in zip(ordered, ordered[1:]):
+            run = run + 1 if next_start - prev_end <= _CONSECUTIVE_GAP else 1
+            longest = max(longest, run)
+        return longest

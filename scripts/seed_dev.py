@@ -217,6 +217,7 @@ async def seed_for_tenant(
             ("player_one", Role.VOLUNTEER),
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
+            ("player_four", Role.VOLUNTEER),
             # Deliberately the only grant vc_user gets: a coordinator with no
             # staff role. cc_user gets no role row at all — crew coordination is
             # a per-tournament relation, granted below.

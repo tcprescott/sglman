@@ -404,8 +404,123 @@ def volunteer_reminder_dm(
     return "\n\n".join(blocks)
 
 
+def volunteer_unassigned_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+) -> str:
+    """DM sent when a coordinator takes a volunteer off a shift.
+
+    No acknowledgment button: there is nothing for them to confirm, and the point
+    is that the removal stops being silent.
+    """
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["You have been taken off a volunteer shift."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("No action needed. Ask your coordinator if this looks wrong.")
+    return "\n\n".join(blocks)
+
+
+def volunteer_shift_changed_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+    old_starts_display: str = "",
+    old_ends_display: str = "",
+) -> str:
+    """DM sent when a shift a volunteer is on moves in time.
+
+    Both windows are shown, because "the shift moved" without the old time is
+    unverifiable against what they remember agreeing to.
+    """
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["A shift you are on has moved."]
+    if old_starts_display or old_ends_display:
+        was = " → ".join(p for p in (old_starts_display, old_ends_display) if p)
+        blocks.append(f"**Was:** {was}")
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Tap **Acknowledge** to confirm you can still cover it.")
+    return "\n\n".join(blocks)
+
+
+def volunteer_released_dm(
+    volunteer_name: str,
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+    hours_notice: Optional[float] = None,
+    reason: Optional[str] = None,
+) -> str:
+    """DM to the coordinators when a volunteer gives a shift back."""
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = [f"**{volunteer_name}** has given back a volunteer shift."]
+    if details:
+        blocks.append("\n".join(details))
+    if hours_notice is not None:
+        blocks.append(f"Notice: about {hours_notice:g} hour(s).")
+    if reason:
+        blocks.append(f'Their reason: "{reason}"')
+    blocks.append("This slot is open again.")
+    return "\n\n".join(blocks)
+
+
 def volunteer_ack_confirmation(position_name: str) -> str:
     return f"Thanks! Your **{position_name}** shift is acknowledged."
+
+
+# ---------------------------------------------------------------------------
+# Async qualifier runs  (application/services/async_qualifier/)
+# ---------------------------------------------------------------------------
+
+def qualifier_run_reviewed_dm(
+    qualifier_name: str,
+    *,
+    approved: bool,
+    reason: str = '',
+    qualifier_url: str = '',
+) -> str:
+    """The verdict on a submitted run, the reason behind it, and a way back.
+
+    A rejection always carries a reason (the service refuses one without), and
+    that reason is the whole message: told only "your run was rejected", a runner
+    has nothing to act on and nothing to appeal. An approval keeps it short and
+    includes the reviewer's note only when one was left.
+    """
+    verb = 'approved' if approved else 'rejected'
+    blocks = [f"Your **{qualifier_name}** qualifier run was {verb}."]
+    if reason:
+        blocks.append(f"Reason: {reason}")
+    if qualifier_url:
+        blocks.append(f"[Your runs and the leaderboard]({qualifier_url})")
+    return "\n\n".join(blocks)
+
+
+def qualifier_reattempt_granted_dm(
+    qualifier_name: str,
+    pool_name: str,
+    *,
+    reason: str = '',
+    qualifier_url: str = '',
+) -> str:
+    """A reviewer voided a run on the runner's behalf, freeing its pool slot.
+
+    Sent because the runner's own pool availability just changed under them
+    without their doing anything — the one state change on this surface they
+    could not have initiated.
+    """
+    where = f" in **{pool_name}**" if pool_name else ''
+    blocks = [f"A reviewer granted you another attempt{where} in **{qualifier_name}**."]
+    if reason:
+        blocks.append(f"Reason: {reason}")
+    blocks.append("Your previous run no longer counts, and the pool slot is free again.")
+    if qualifier_url:
+        blocks.append(f"[Start your next run]({qualifier_url})")
+    return "\n\n".join(blocks)
 
 
 # ---------------------------------------------------------------------------

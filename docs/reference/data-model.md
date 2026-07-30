@@ -1221,12 +1221,27 @@ Indexes on `tenant`, `pool`.
 A player's attempt. FKs → `qualifier` (`CASCADE`), `user`, `permalink` (`SET_NULL`
 so purging a permalink keeps run history), and nullable `reviewed_by` /
 `review_claimed_by` (`SET_NULL`). Carries `status` / `review_status` enums, timing
-(`started_at`, `finished_at`, `elapsed_seconds`), `runner_vod_url`, the one-attempt
+(`started_at`, `finished_at`, `elapsed_seconds`, `measured_seconds`), `runner_vod_url`, the one-attempt
 backstop (`reattempted` + `reattempt_reason`), `score` (0–105, null until scored),
 and review attribution/claim-lock timestamps. Indexes: `tenant`, `(qualifier,
 review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute).
 The nullable `live_race` FK (`SET_NULL`) marks a run captured from a synchronous
 racetime race.
+
+`reattempted` + `reattempt_reason` are set by **either** reattempt path;
+`reattempt_granted_by` distinguishes them — null when the runner spent their own
+allowance, the reviewer when it was granted on their behalf (which is what keeps a
+granted void out of the runner's spent count).
+
+`elapsed_seconds` is the runner's **claim**; `measured_seconds` is the server's own
+wall clock from the `started_at` it stamped at the draw to the moment of submit. The
+two are kept side by side rather than one replacing the other: the timer runs through
+reading the seed, pausing, and the gap before submitting, so measured is an **upper
+bound** on the real run — evidence for the reviewer, not the result. A claim above it
+is refused (impossible), a claim far below it is confirmed by the runner, and both
+numbers reach the review queue. Null for live-race captures and for rows that predate
+the column; no backfill, because a measurement that was never taken cannot be
+reconstructed and a guess would be indistinguishable from a real one.
 
 #### `AsyncQualifierReviewNote`
 
@@ -1421,7 +1436,7 @@ Consult the source for full signatures.
 | `VolunteerProfileRepository` | [`volunteer_profile_repository.py`](../../application/repositories/volunteer_profile_repository.py) | `VolunteerProfile` | `get_for_user`, `get_or_create_for_user`, `save`, `list_opted_in`, `opted_in_user_ids` |
 | `VolunteerPositionRepository` | [`volunteer_position_repository.py`](../../application/repositories/volunteer_position_repository.py) | `VolunteerPosition` | `get_by_id`, `list_all`, `list_active`, `create`, `update`, `delete` |
 | `VolunteerShiftRepository` | [`volunteer_shift_repository.py`](../../application/repositories/volunteer_shift_repository.py) | `VolunteerShift` | `get_by_id`, `list_for_window`, `list_for_position_window`, `create`, `update`, `delete`, `delete_all` |
-| `VolunteerAssignmentRepository` | [`volunteer_assignment_repository.py`](../../application/repositories/volunteer_assignment_repository.py) | `VolunteerAssignment` | `get_by_id`, `exists`, `create`, `delete`, `save`, `overlapping_for_user`, `list_for_user`, `list_for_window`, `delete_auto_for_window`, `due_for_reminder` |
+| `VolunteerAssignmentRepository` | [`volunteer_assignment_repository.py`](../../application/repositories/volunteer_assignment_repository.py) | `VolunteerAssignment` | `get_by_id`, `get_for_shift_and_user`, `exists`, `create`, `delete`, `save`, `overlapping_for_user`, `list_for_user` (excludes drafts unless `include_drafts`; `with_shiftmates` adds the sibling-assignment joins), `list_for_window`, `list_for_shift`, draft lifecycle `count_auto_for_window` / `list_auto_for_window` / `mark_published` / `delete_auto_for_window`, `due_for_reminder` (**deliberately unscoped** — the reminder worker scans every tenant; skips drafts) |
 | `VolunteerAvailabilityRepository` | [`volunteer_availability_repository.py`](../../application/repositories/volunteer_availability_repository.py) | `VolunteerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user` |
 | `VolunteerQualificationRepository` | [`volunteer_qualification_repository.py`](../../application/repositories/volunteer_qualification_repository.py) | `VolunteerQualification` | `qualified_position_ids`, `qualified_user_ids_for_position`, `set_for_user`, `list_all` |
 | `PlayerAvailabilityRepository` | [`player_availability_repository.py`](../../application/repositories/player_availability_repository.py) | `PlayerAvailability` | `get_by_id`, `list_for_user`, `for_users_overlapping`, `create`, `delete`, `delete_for_user`, `has_any` |
