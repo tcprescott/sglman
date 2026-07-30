@@ -32,6 +32,55 @@ def _fmt(dt) -> str:
     return format_eastern_display(dt) if dt else '—'
 
 
+def _enum_value(value) -> str:
+    return value.value if hasattr(value, 'value') else str(value)
+
+
+# Terminal run states a reattempt can be granted on — an in-progress run is
+# finished or forfeited first.
+_GRANTABLE_STATUSES = {'finished', 'forfeit', 'disqualified'}
+
+# ``v-if`` on the row's own flag: a voided or in-progress run offers nothing.
+_GRANT_ACTION = '''
+    <q-btn v-if="props.row.grantable" flat dense icon="restart_alt" color="primary"
+           label="Grant reattempt"
+           @click="$parent.$emit('grant', props.row)">
+        <q-tooltip>Void this run and free its pool slot</q-tooltip>
+    </q-btn>
+'''
+
+
+def _short_url(url: str, limit: int = 60) -> str:
+    url = url or ''
+    return url if len(url) <= limit else f'{url[:limit]}…'
+
+
+def _other_runs_summary(all_runs, run) -> str:
+    """"Player Two: 2 other runs in this qualifier (1 approved, 1 forfeit)".
+
+    Re-reviewing without seeing a runner's other attempts is how two reviewers
+    reach different conclusions about the same person.
+    """
+    others = [r for r in all_runs if r.user_id == run.user_id and r.id != run.id]
+    if not others:
+        return ''
+    tally: dict[str, int] = {}
+    for other in others:
+        key = ('voided' if other.reattempted
+               else _enum_value(other.review_status) if _enum_value(other.status) == 'finished'
+               else _enum_value(other.status))
+        tally[key] = tally.get(key, 0) + 1
+    breakdown = ', '.join(f'{count} {label}' for label, count in sorted(tally.items()))
+    runner = run.user.display_name or run.user.username
+    plural = '' if len(others) == 1 else 's'
+    return f'{runner}: {len(others)} other run{plural} in this qualifier ({breakdown})'
+
+
+def _existing_notes(run) -> list:
+    notes = list(getattr(run, 'review_notes', []) or [])
+    return [n.note for n in notes if getattr(n, 'note', '')]
+
+
 def _live_race_color(status) -> str:
     return {
         'scheduled': 'grey',
@@ -74,6 +123,7 @@ async def admin_qualifiers_page() -> None:
                     'qualifier': await service.get_qualifier(current, qid),
                     'pools': await service.list_pools(current, qid),
                     'queue': await service.list_review_queue(current, qid),
+                    'runs': await service.list_runs(current, qid),
                     'leaderboard': await service.get_leaderboard(current, qid),
                     'presets': await preset_service.list_selectable(),
                     'live_races': await live_race_service.list_live_races(current, qid),
@@ -225,6 +275,7 @@ async def admin_qualifiers_page() -> None:
             pools_tab = ui.tab('Pools')
             live_tab = ui.tab('Live Races')
             review_tab = ui.tab('Review Queue')
+            runs_tab = ui.tab('Runs')
             board_tab = ui.tab('Leaderboard')
         with ui.tab_panels(tabs, value=pools_tab).classes('w-full'):
             with ui.tab_panel(pools_tab):
@@ -232,7 +283,9 @@ async def admin_qualifiers_page() -> None:
             with ui.tab_panel(live_tab):
                 _render_live_races(detail)
             with ui.tab_panel(review_tab):
-                _render_queue(detail['queue'])
+                _render_queue(detail['queue'], detail['runs'])
+            with ui.tab_panel(runs_tab):
+                _render_runs(detail['runs'])
             with ui.tab_panel(board_tab):
                 _render_leaderboard(detail['leaderboard'])
 
@@ -428,7 +481,7 @@ async def admin_qualifiers_page() -> None:
         ui.notify('Live race cancelled', color='positive')
         await load_detail()
 
-    def _render_queue(queue) -> None:
+    def _render_queue(queue, all_runs=()) -> None:
         if not queue:
             ui.label('No runs awaiting review.').classes('text-grey')
             return
@@ -444,10 +497,10 @@ async def admin_qualifiers_page() -> None:
                         ui.badge('claimed', color='orange')
                     ui.space()
                     ui.button('Approve', icon='check',
-                              on_click=lambda rid=run.id: _review(rid, True)
+                              on_click=lambda r=run: _open_review_dialog(r, True)
                               ).props('flat color=positive')
                     ui.button('Reject', icon='close',
-                              on_click=lambda rid=run.id: _review(rid, False)
+                              on_click=lambda r=run: _open_review_dialog(r, False)
                               ).props('flat color=negative')
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
@@ -460,17 +513,121 @@ async def admin_qualifiers_page() -> None:
                             'The runner confirmed this time against their own timer.')
                 ui.label(f'Started {_fmt(run.started_at)} · Finished {_fmt(run.finished_at)}').classes(
                     'text-caption text-grey')
+                if run.permalink:
+                    ui.link(f'Permalink played: {_short_url(run.permalink.url)}',
+                            run.permalink.url, new_tab=True).classes('text-caption')
                 if run.runner_vod_url:
                     ui.link('VoD', run.runner_vod_url, new_tab=True).classes('text-caption')
+                others = _other_runs_summary(all_runs, run)
+                if others:
+                    ui.label(others).classes('text-caption text-grey')
+                for note in _existing_notes(run):
+                    ui.label(f'Note — {note}').classes('text-caption text-italic')
 
-    async def _review(run_id: int, approved: bool) -> None:
-        try:
-            await service.review_run(await _current(), run_id, approved=approved)
-        except (ValueError, PermissionError) as e:
-            notify_error(e)
+    def _open_review_dialog(run, approved: bool) -> None:
+        """One dialog for both verdicts so the two paths cannot drift.
+
+        A rejection's reason is required — the service refuses one without, and
+        what the reviewer types is what the runner is told.
+        """
+        verb = 'Approve' if approved else 'Reject'
+        runner = run.user.display_name or run.user.username
+        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+            ui.label(f'{verb} {runner}\u2019s run').classes('text-h6')
+            note_in = ui.textarea(
+                'Note (optional)' if approved else 'Reason (shown to the runner)'
+            ).classes('w-full').props('rows=3')
+
+            async def submit() -> None:
+                try:
+                    await service.review_run(
+                        await _current(), run.id, approved=approved, note=note_in.value,
+                    )
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify('Run approved' if approved else 'Run rejected', color='positive')
+                dialog.close()
+                await load_detail()
+
+            with ui.row().classes('justify-end w-full'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                confirm = ui.button(f'{verb} run', icon='check' if approved else 'close',
+                                    on_click=submit)
+                confirm.props(f'color={"positive" if approved else "negative"}')
+                if not approved:
+                    # Belt as well as braces: the service is the authority, but a
+                    # disabled button explains the rule before the click.
+                    confirm.bind_enabled_from(note_in, 'value', lambda v: bool((v or '').strip()))
+        dialog.open()
+
+    def _render_runs(runs) -> None:
+        """Every run, because a forfeit never reaches the review queue.
+
+        A forfeit is written straight to approved/score 0, so this list is the
+        only place a reviewer can find a mis-clicked one and grant a reattempt.
+        """
+        if not runs:
+            ui.label('No runs yet.').classes('text-grey')
             return
-        ui.notify('Run approved' if approved else 'Run rejected', color='positive')
-        await load_detail()
+        columns = [
+            {'name': 'player', 'label': 'Player', 'field': 'player', 'align': 'left'},
+            {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left'},
+            {'name': 'status', 'label': 'Status', 'field': 'status'},
+            {'name': 'review', 'label': 'Review', 'field': 'review'},
+            {'name': 'claimed', 'label': 'Claimed', 'field': 'claimed'},
+            {'name': 'timed', 'label': 'Timed', 'field': 'timed'},
+            {'name': 'score', 'label': 'Score', 'field': 'score'},
+            {'name': 'actions', 'label': '', 'field': 'actions'},
+        ]
+        rows = []
+        for run in runs:
+            rows.append({
+                'id': run.id,
+                'player': run.user.display_name or run.user.username,
+                'pool': (run.permalink.pool.name if run.permalink and run.permalink.pool else '—'),
+                'status': _enum_value(run.status) + (' (voided)' if run.reattempted else ''),
+                'review': _enum_value(run.review_status),
+                'claimed': format_hms(run.elapsed_seconds),
+                'timed': format_hms(run.measured_seconds),
+                'score': '' if run.score is None else round(run.score, 1),
+                'grantable': (not run.reattempted
+                              and _enum_value(run.status) in _GRANTABLE_STATUSES),
+            })
+        by_id = {r.id: r for r in runs}
+        table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full wiz-table')
+        table.add_slot('body-cell-actions', f'<q-td :props="props">{_GRANT_ACTION}</q-td>')
+        table.on('grant', lambda e: _open_grant_dialog(by_id.get(e.args.get('id'))))
+        enable_mobile_grid(table, columns, actions=_GRANT_ACTION)
+
+    def _open_grant_dialog(run) -> None:
+        if run is None:
+            return
+        runner = run.user.display_name or run.user.username
+        with ui.dialog() as dialog, ui.card().classes('w-[34rem]'):
+            ui.label(f'Grant {runner} another attempt').classes('text-h6')
+            ui.label('This voids the run and frees its pool slot. It does not use up '
+                     'the runner\u2019s own reattempt allowance.').classes('text-caption text-grey')
+            reason_in = ui.textarea('Reason (shown to the runner)').classes('w-full').props('rows=2')
+
+            async def submit() -> None:
+                try:
+                    await service.grant_reattempt(
+                        await _current(), run.id, reason=reason_in.value,
+                    )
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+                ui.notify('Reattempt granted', color='positive')
+                dialog.close()
+                await load_detail()
+
+            with ui.row().classes('justify-end w-full'):
+                ui.button('Cancel', on_click=dialog.close).props('flat')
+                grant = ui.button('Grant reattempt', icon='restart_alt', on_click=submit)
+                grant.props('color=primary')
+                grant.bind_enabled_from(reason_in, 'value', lambda v: bool((v or '').strip()))
+        dialog.open()
 
     def _render_leaderboard(entries) -> None:
         if not entries:

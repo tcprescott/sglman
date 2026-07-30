@@ -6,6 +6,7 @@ Mirrors the existing ``async_qualifier_config`` / ``async_qualifier_scoring``
 sibling helpers.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, Tuple
@@ -67,6 +68,23 @@ def ensure_window_open(qualifier: AsyncQualifier) -> None:
         raise ValueError("This qualifier has not opened yet")
     if qualifier.closes_at is not None and now >= qualifier.closes_at:
         raise ValueError("This qualifier has closed")
+
+
+@dataclass(frozen=True)
+class ReattemptAllowance:
+    """What a player has spent of their own reattempt allowance, and what is left.
+
+    A reviewer-granted reattempt is deliberately **not** counted here: it does not
+    consume the runner's allowance, so it must not shrink what they may still
+    spend themselves.
+    """
+
+    spent: int
+    allowed: int
+
+    @property
+    def remaining(self) -> int:
+        return max(0, self.allowed - self.spent)
 
 
 class ClaimVerdict(str, Enum):

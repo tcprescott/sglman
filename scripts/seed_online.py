@@ -413,6 +413,61 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
                 note="VOD checked through the halfway split; finish looks clean.",
             )
 
+    # The states the review/reattempt surfaces are about, none of which the two
+    # runs above produce: a rejection carrying its reason (the runs table's
+    # Reviewer note column and the DM copy), a forfeit nobody can reach from the
+    # review queue (the Runs tab's reason to exist), and an already-voided run.
+    p2 = await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
+    if runner_a is not None:
+        rejected = await AsyncQualifierRun.filter(
+            qualifier=qualifier, user=runner_a, permalink=p2
+        ).first()
+        if rejected is None:
+            rejected = await AsyncQualifierRun.create(
+                tenant=tenant, qualifier=qualifier, user=runner_a, permalink=p2,
+                status=AsyncQualifierRunStatus.FINISHED,
+                review_status=AsyncQualifierReviewStatus.REJECTED,
+                started_at=now - timedelta(hours=8), finished_at=now - timedelta(hours=6),
+                elapsed_seconds=4800, measured_seconds=7200,
+                reviewed_by=staff, reviewed_at=now - timedelta(hours=5),
+            )
+        if staff is not None and not await AsyncQualifierReviewNote.filter(
+            run=rejected, tenant=tenant
+        ).exists():
+            await AsyncQualifierReviewNote.create(
+                tenant=tenant, run=rejected, author=staff,
+                note="The VoD cuts off before the final boss, so the finish time "
+                     "can't be verified. Use a reattempt and stream the whole run.",
+            )
+
+    p3 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
+    if runner_b is not None:
+        # A forfeit: approved with score 0 the moment it happens, so it never
+        # appears in the reviewer queue — only in the Runs tab.
+        if not await AsyncQualifierRun.filter(
+            qualifier=qualifier, user=runner_b, status=AsyncQualifierRunStatus.FORFEIT
+        ).exists():
+            await AsyncQualifierRun.create(
+                tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p3,
+                status=AsyncQualifierRunStatus.FORFEIT,
+                review_status=AsyncQualifierReviewStatus.APPROVED,
+                started_at=now - timedelta(hours=5), finished_at=now - timedelta(hours=5),
+                score=0.0,
+            )
+        # And one already voided by the runner's own reattempt.
+        p4 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
+        if not await AsyncQualifierRun.filter(
+            qualifier=qualifier, user=runner_b, reattempted=True
+        ).exists():
+            await AsyncQualifierRun.create(
+                tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p4,
+                status=AsyncQualifierRunStatus.FORFEIT,
+                review_status=AsyncQualifierReviewStatus.APPROVED,
+                started_at=now - timedelta(hours=10), finished_at=now - timedelta(hours=10),
+                score=0.0, reattempted=True,
+                reattempt_reason="Emulator crashed on the opening cutscene.",
+            )
+
     # A live-race pool (PR 10): a live-flagged permalink + a scheduled live race,
     # so the admin Live Races sub-tab has data to open a room for.
     live_pool, _ = await AsyncQualifierPool.get_or_create(

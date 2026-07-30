@@ -32,6 +32,32 @@ def _fmt(dt) -> str:
     return format_eastern_display(dt) if dt else '—'
 
 
+# Run states a reattempt can void — an in-progress run is finished or forfeited
+# first, which is what reattempt_run enforces.
+_TERMINAL_STATUSES = {'finished', 'forfeit', 'disqualified'}
+
+_REATTEMPT_ACTION = '''
+    <q-btn v-if="props.row.reattemptable" flat dense icon="restart_alt" color="primary"
+           label="Reattempt"
+           @click="$parent.$emit('reattempt', props.row)">
+        <q-tooltip>Void this run and free its pool slot</q-tooltip>
+    </q-btn>
+'''
+
+
+def _latest_note(run) -> str:
+    """The most recent reviewer note on a run — the reason behind its verdict.
+
+    Not a disclosure change: ``get_run_notes`` already lets a run's own owner read
+    its notes. The page simply never asked.
+    """
+    notes = [n for n in (getattr(run, 'review_notes', None) or []) if getattr(n, 'note', '')]
+    if not notes:
+        return ''
+    latest = max(notes, key=lambda n: (n.created_at, n.id))
+    return latest.note
+
+
 def _words(seconds: int) -> str:
     """``5025`` → ``'1 hour, 23 minutes, 45 seconds'`` — display copy for the echo."""
     parts = []
@@ -226,18 +252,26 @@ def create() -> None:
                     ui.notify('Run forfeited.', color='info')
                     await render.refresh()
 
-                def _confirm_forfeit() -> None:
+                async def _confirm_forfeit() -> None:
                     # ConfirmationDialog does not close itself once on_confirm is
                     # supplied, so the handler closes it before refreshing.
                     async def _confirmed() -> None:
                         confirm.dialog.close()
                         await _forfeit()
 
+                    allowance = await service.get_reattempt_allowance(user, qualifier_id)
+                    remedy = ''
+                    if allowance.remaining:
+                        # Never "you can undo this" — a reattempt is a fresh draw on
+                        # a new permalink, not an undo of this one.
+                        plural = '' if allowance.remaining == 1 else 's'
+                        remedy = (f'\n\nYou would have {allowance.remaining} reattempt{plural} '
+                                  f'left, which starts a new run on a new permalink.')
                     confirm = ConfirmationDialog(
                         title='Forfeit this run?',
                         message=('Forfeiting ends this attempt now.\n\n'
                                  'The run scores 0, the pool slot is spent, and this '
-                                 'cannot be undone.'),
+                                 'cannot be undone.' + remedy),
                         confirm_text='Forfeit run',
                         tone='negative',
                         on_confirm=_confirmed,
@@ -251,29 +285,82 @@ def create() -> None:
 
         async def _render_my_runs(current) -> None:
             runs = await service.list_user_runs(current, qualifier_id)
+            allowance = await service.get_reattempt_allowance(current, qualifier_id)
             ui.label('My runs').classes('text-subtitle1')
+            if allowance.allowed:
+                ui.label(f'Reattempts: {allowance.remaining} of {allowance.allowed} remaining. '
+                         'Spending one voids a finished or forfeited run and frees its pool '
+                         'slot for a new draw.').classes('text-caption text-grey')
             if not runs:
                 ui.label('You have no runs yet.').classes('text-grey')
                 return
+            # A reattempt after the window closes would delete the runner's own
+            # score with no way to replace it, so the action is offered only while
+            # runs are still possible. The service deliberately allows it either
+            # way, because a reviewer may need to void a run after close.
+            can_reattempt = _window_open(qualifier) and allowance.remaining > 0
             columns = [
                 {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left'},
                 {'name': 'status', 'label': 'Status', 'field': 'status'},
                 {'name': 'review', 'label': 'Review', 'field': 'review'},
                 {'name': 'time', 'label': 'Time', 'field': 'time'},
                 {'name': 'score', 'label': 'Score', 'field': 'score'},
+                # Capped and wrapping: a full rejection reason is the longest text
+                # on the row, and left to itself it pushes the row action off the
+                # right edge of a desktop table.
+                {'name': 'note', 'label': 'Reviewer note', 'field': 'note', 'align': 'left',
+                 'style': 'max-width: 20rem; white-space: normal'},
             ]
+            if can_reattempt:
+                columns.append({'name': 'actions', 'label': '', 'field': 'actions'})
             rows = []
             for r in runs:
                 pool_name = r.permalink.pool.name if r.permalink and r.permalink.pool else '—'
+                status = r.status.value if hasattr(r.status, 'value') else str(r.status)
                 rows.append({
+                    'id': r.id,
                     'pool': pool_name + (' (reattempted)' if r.reattempted else ''),
-                    'status': r.status.value if hasattr(r.status, 'value') else str(r.status),
+                    'status': status,
                     'review': r.review_status.value if hasattr(r.review_status, 'value') else str(r.review_status),
                     'time': format_hms(r.elapsed_seconds),
                     'score': '' if r.score is None else round(r.score, 1),
+                    'note': _latest_note(r),
+                    'reattemptable': not r.reattempted and status in _TERMINAL_STATUSES,
                 })
-            table = ui.table(columns=columns, rows=rows, row_key='pool').classes('w-full wiz-table')
-            enable_mobile_grid(table, columns)
+            table = ui.table(columns=columns, rows=rows, row_key='id').classes('w-full wiz-table')
+            if can_reattempt:
+                table.add_slot('body-cell-actions',
+                               f'<q-td :props="props">{_REATTEMPT_ACTION}</q-td>')
+                table.on('reattempt', lambda e: _open_reattempt_dialog(e.args.get('id')))
+                enable_mobile_grid(table, columns, actions=_REATTEMPT_ACTION)
+            else:
+                enable_mobile_grid(table, columns)
+
+        def _open_reattempt_dialog(run_id) -> None:
+            with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):
+                ui.label('Use a reattempt?').classes('text-h6')
+                ui.label('This voids that run — it stops counting and its score is '
+                         'discarded — and frees the pool slot so you can draw a new '
+                         'permalink. It does not restore the run you already played.'
+                         ).classes('text-caption text-grey')
+                reason_in = ui.textarea('Why? (required)').classes('w-full').props('rows=2')
+
+                async def submit() -> None:
+                    try:
+                        await service.reattempt_run(user, int(run_id), reason=reason_in.value)
+                    except (ValueError, PermissionError) as e:
+                        notify_error(e)
+                        return
+                    ui.notify('Reattempt used — that pool is open again.', color='positive')
+                    dialog.close()
+                    await render.refresh()
+
+                with ui.row().classes('justify-end w-full'):
+                    ui.button('Cancel', on_click=dialog.close).props('flat')
+                    spend = ui.button('Use reattempt', icon='restart_alt', on_click=submit)
+                    spend.props('color=primary')
+                    spend.bind_enabled_from(reason_in, 'value', lambda v: bool((v or '').strip()))
+            dialog.open()
 
         async def _render_leaderboard(current, is_public) -> None:
             ui.label('Leaderboard').classes('text-subtitle1')

@@ -1228,6 +1228,11 @@ review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute
 The nullable `live_race` FK (`SET_NULL`) marks a run captured from a synchronous
 racetime race.
 
+`reattempted` + `reattempt_reason` are set by **either** reattempt path;
+`reattempt_granted_by` distinguishes them — null when the runner spent their own
+allowance, the reviewer when it was granted on their behalf (which is what keeps a
+granted void out of the runner's spent count).
+
 `elapsed_seconds` is the runner's **claim**; `measured_seconds` is the server's own
 wall clock from the `started_at` it stamped at the draw to the moment of submit. The
 two are kept side by side rather than one replacing the other: the timer runs through

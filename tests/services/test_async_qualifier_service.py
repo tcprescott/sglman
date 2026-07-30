@@ -8,6 +8,8 @@ from application.events import EventType, event_bus
 from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from models import (
     AsyncQualifierPermalink,
+    AsyncQualifierReviewNote,
+    AsyncQualifierReviewStatus,
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
     Role,
@@ -24,8 +26,8 @@ async def _staff() -> User:
     return u
 
 
-async def _player(discord_id: int, name: str) -> User:
-    return await User.create(discord_id=discord_id, username=name)
+async def _player(discord_id: int, name: str, **extra) -> User:
+    return await User.create(discord_id=discord_id, username=name, **extra)
 
 
 async def _submit(service, player, run, seconds: int):
@@ -336,3 +338,292 @@ async def test_submit_tolerates_a_run_with_no_started_at(db):
 
     assert submitted.measured_seconds is None
     assert submitted.elapsed_seconds == 1200
+
+
+# --- a rejection owes the runner a reason ---------------------------------
+
+async def _pending_run(service, staff, player, *, seconds=1200):
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    run = await service.start_run(player, q.id, pool.id)
+    await _submit(service, player, run, seconds)
+    return q, pool, run
+
+
+async def test_rejection_requires_a_reason(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900040, 'p1')
+    _, _, run = await _pending_run(service, staff, player)
+
+    with pytest.raises(ValueError, match='A rejection needs a reason'):
+        await service.review_run(staff, run.id, approved=False)
+
+
+async def test_rejection_without_a_reason_changes_nothing(db):
+    """The check sits above the note write and the status update."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900041, 'p1')
+    _, _, run = await _pending_run(service, staff, player)
+
+    with pytest.raises(ValueError):
+        await service.review_run(staff, run.id, approved=False, note='   ')
+
+    unchanged = await AsyncQualifierRun.get(id=run.id)
+    assert unchanged.review_status == AsyncQualifierReviewStatus.PENDING
+    assert unchanged.reviewed_by_id is None
+    assert await AsyncQualifierReviewNote.filter(run_id=run.id).count() == 0
+
+
+async def test_rejection_with_a_reason_stores_a_note(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900042, 'p1')
+    _, _, run = await _pending_run(service, staff, player)
+
+    reviewed = await service.review_run(
+        staff, run.id, approved=False, note='The VoD cuts off before the final boss.',
+    )
+    assert reviewed.review_status == AsyncQualifierReviewStatus.REJECTED
+    notes = await AsyncQualifierReviewNote.filter(run_id=run.id)
+    assert [n.note for n in notes] == ['The VoD cuts off before the final boss.']
+
+
+async def test_approval_still_works_without_a_note(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900043, 'p1')
+    _, _, run = await _pending_run(service, staff, player)
+
+    reviewed = await service.review_run(staff, run.id, approved=True)
+    assert reviewed.review_status == AsyncQualifierReviewStatus.APPROVED
+    assert await AsyncQualifierReviewNote.filter(run_id=run.id).count() == 0
+
+
+# --- a remedy someone can actually spend ----------------------------------
+
+@pytest.fixture
+def captured_dms(monkeypatch):
+    """Capture the DM text the qualifier notifications send.
+
+    The notification module imports ``DiscordService`` lazily inside each
+    function, so patching the class where it lives covers both call sites.
+    """
+    sent: list[tuple[int, str]] = []
+
+    class _Fake:
+        async def send_dm(self, discord_id, message):
+            sent.append((discord_id, message))
+            return True, 'ok'
+
+    monkeypatch.setattr(
+        'application.services.discord.discord_service.DiscordService', _Fake,
+    )
+    return sent
+
+
+async def test_reattempt_allowance_counts_spent_and_remaining(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=1)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    player = await _player(900050, 'p1')
+
+    fresh = await service.get_reattempt_allowance(player, q.id)
+    assert (fresh.spent, fresh.allowed, fresh.remaining) == (0, 1, 1)
+
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+    await service.reattempt_run(player, run.id, reason='mis-clicked forfeit')
+
+    after = await service.get_reattempt_allowance(player, q.id)
+    assert (after.spent, after.allowed, after.remaining) == (1, 1, 0)
+
+
+async def test_reattempt_frees_the_pool_slot_for_a_new_draw(db):
+    """The runner-visible behaviour: a voided run gives the pool slot back."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=1)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    player = await _player(900051, 'p1')
+
+    first = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, first.id)
+    assert await service.get_player_pools(player, q.id) == []
+
+    await service.reattempt_run(player, first.id, reason='the seed would not load')
+    assert [p.id for p in await service.get_player_pools(player, q.id)] == [pool.id]
+
+    second = await service.start_run(player, q.id, pool.id)
+    assert second.id != first.id
+    assert second.status == AsyncQualifierRunStatus.IN_PROGRESS
+    # The voided run leaves the played set too, so its permalink is drawable
+    # again — a void says the attempt did not happen, not that the seed is spent.
+
+
+async def test_grant_reattempt_requires_qualifier_admin(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900052, 'p1')
+    other = await _player(900053, 'p2')
+
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+
+    with pytest.raises(PermissionError):
+        await service.grant_reattempt(other, run.id, reason='nope')
+    with pytest.raises(PermissionError):
+        await service.grant_reattempt(None, run.id, reason='nope')
+
+
+async def test_grant_reattempt_requires_a_reason(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900054, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+    with pytest.raises(ValueError, match='reattempt reason is required'):
+        await service.grant_reattempt(staff, run.id, reason='  ')
+
+    unchanged = await AsyncQualifierRun.get(id=run.id)
+    assert unchanged.reattempted is False
+
+
+async def test_grant_reattempt_ignores_the_runners_allowance(db, captured_dms):
+    """The override exists precisely where the runner's own path refuses."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=0)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    player = await _player(900055, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+    with pytest.raises(ValueError, match='No reattempts remaining'):
+        await service.reattempt_run(player, run.id, reason='please')
+
+    granted = await service.grant_reattempt(staff, run.id, reason='seed was unbeatable')
+    assert granted.reattempted is True
+    assert granted.reattempt_granted_by_id == staff.id
+
+    # And it does not eat an allowance the runner never had.
+    allowance = await service.get_reattempt_allowance(player, q.id)
+    assert (allowance.spent, allowance.remaining) == (0, 0)
+    assert captured_dms and 'granted you another attempt' in captured_dms[0][1]
+
+
+async def test_grant_reattempt_frees_the_slot_after_a_forfeit(db):
+    """F1, end to end: a mis-clicked forfeit stops being the end of the attempt."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=1, allowed_reattempts=0)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+    player = await _player(900056, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+    assert await service.get_player_pools(player, q.id) == []
+
+    await service.grant_reattempt(staff, run.id, reason='mis-click, confirmed on stream')
+    assert [p.id for p in await service.get_player_pools(player, q.id)] == [pool.id]
+    again = await service.start_run(player, q.id, pool.id)
+    assert again.status == AsyncQualifierRunStatus.IN_PROGRESS
+
+
+async def test_grant_reattempt_refreshes_par_and_scores(db):
+    """Voiding an approved run must drop it out of the par inputs."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    fast = await _player(900057, 'fast')
+
+    run = await service.start_run(fast, q.id, pool.id)
+    permalink_id = run.permalink_id
+    await _submit(service, fast, run, 600)
+    await service.review_run(staff, run.id, approved=True)
+    assert (await AsyncQualifierPermalink.get(id=permalink_id)).par_time == 600
+
+    await service.grant_reattempt(staff, run.id, reason='wrong permalink played')
+    assert (await AsyncQualifierPermalink.get(id=permalink_id)).par_time is None
+
+
+async def test_grant_reattempt_refuses_an_in_progress_run(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900058, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    with pytest.raises(ValueError, match='finished or forfeited'):
+        await service.grant_reattempt(staff, run.id, reason='too early')
+
+
+async def test_list_runs_requires_qualifier_admin(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900059, 'p1')
+    run = await service.start_run(player, q.id, pool.id)
+    await service.forfeit_run(player, run.id)
+
+    with pytest.raises(PermissionError):
+        await service.list_runs(player, q.id)
+    # A forfeit never reaches the review queue, which is why this read exists.
+    assert await service.list_review_queue(staff, q.id) == []
+    assert [r.id for r in await service.list_runs(staff, q.id)] == [run.id]
+
+
+async def test_runner_runs_carry_their_review_notes(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900060, 'p1')
+    _, _, run = await _pending_run(service, staff, player)
+    await service.review_run(staff, run.id, approved=False, note='VoD ends early.')
+
+    runs = await service.list_user_runs(player, run.qualifier_id)
+    assert [n.note for n in runs[0].review_notes] == ['VoD ends early.']
+
+
+async def test_rejection_dm_includes_the_reason(db, captured_dms):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900061, 'p1')
+    _, _, run = await _pending_run(service, staff, player)
+
+    await service.review_run(staff, run.id, approved=False, note='The VoD cuts off early.')
+    assert captured_dms, 'the runner was told nothing'
+    _, message = captured_dms[-1]
+    assert 'rejected' in message
+    assert 'Reason: The VoD cuts off early.' in message
+    assert f'/qualifiers/{run.qualifier_id}' in message
+
+
+async def test_review_queue_carries_existing_notes(db):
+    """The reviewer's card renders notes already on the run, so the queue read
+    must prefetch them — touching an unfetched relation raises in the page."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    player = await _player(900062, 'p1')
+    q, pool = await _open_qualifier(service, staff, runs_per_pool=2)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1', 'u2'])
+
+    first = await service.start_run(player, q.id, pool.id)
+    await _submit(service, player, first, 1200)
+    await service.review_run(staff, first.id, approved=False, note='VoD ends early.')
+    second = await service.start_run(player, q.id, pool.id)
+    await _submit(service, player, second, 1300)
+
+    queue = await service.list_review_queue(staff, q.id)
+    assert [[n.note for n in r.review_notes] for r in queue] == [[]]
+    runs = await service.list_runs(staff, q.id)
+    assert sorted(n.note for r in runs for n in r.review_notes) == ['VoD ends early.']

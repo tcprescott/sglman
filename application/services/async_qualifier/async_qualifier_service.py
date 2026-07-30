@@ -41,6 +41,7 @@ from application.repositories import (
     PresetRepository,
 )
 from application.services.async_qualifier import async_qualifier_access as access
+from application.services.async_qualifier import async_qualifier_notifications as notifications
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_config import validate_async_qualifier_config
 from application.services.async_qualifier.async_qualifier_draw import AsyncQualifierDraw
@@ -577,21 +578,60 @@ class AsyncQualifierService:
         if run.status not in _TERMINAL:
             raise ValueError("Only a finished or forfeited run can be reattempted")
         qualifier = await self._require_qualifier(run.qualifier_id)
-        spent = await self._count_reattempts(user.id, run.qualifier_id)
-        if spent >= qualifier.allowed_reattempts:
-            raise ValueError("No reattempts remaining")
-        run = await self.run_repository.update(
-            run, reattempted=True, reattempt_reason=reason
+        allowance = rules.ReattemptAllowance(
+            spent=await self._count_reattempts(user.id, run.qualifier_id),
+            allowed=qualifier.allowed_reattempts,
         )
-        # A voided run leaves the leaderboard/par inputs, so refresh the affected
-        # permalink's par + sibling scores.
-        if run.permalink_id is not None:
-            await self.draw.recompute_par_and_scores(run.permalink_id)
+        if allowance.remaining < 1:
+            raise ValueError("No reattempts remaining")
+        run = await self._void_run(run, reason=reason)
         await self.audit_service.write_log(
             user, AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
             {'run_id': run.id, 'qualifier_id': run.qualifier_id},
         )
         return run
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def grant_reattempt(
+        self, actor: Optional[User], run_id: int, *, reason: str
+    ) -> AsyncQualifierRun:
+        """Void a runner's terminal run on their behalf, ignoring their allowance.
+
+        The reviewer's override for a mis-clicked forfeit or a bad seed. Requires
+        qualifier-admin and a reason; unlike :meth:`reattempt_run` it does not
+        consume ``allowed_reattempts``, because the run being voided is not the
+        runner's mistake. Deliberately does not check the window either — a
+        reviewer may need to void a run after the qualifier closes.
+        """
+        run, qualifier = await self._require_reviewable(
+            actor, run_id, message="Cannot grant a reattempt in this qualifier",
+        )
+        reason = (reason or '').strip()
+        if not reason:
+            raise ValueError("A reattempt reason is required — the runner is told what you write here.")
+        if run.reattempted:
+            raise ValueError("This run was already reattempted")
+        if run.status not in _TERMINAL:
+            raise ValueError("Only a finished or forfeited run can be reattempted")
+        run = await self._void_run(run, reason=reason, granted_by=actor)
+        await self.audit_service.write_log(
+            actor, AuditActions.ASYNC_QUALIFIER_REATTEMPT_GRANTED,
+            {'run_id': run.id, 'qualifier_id': run.qualifier_id,
+             'target_user_id': run.user_id, 'reason': reason},
+        )
+        await notifications.notify_reattempt_granted(run, reason)
+        return run
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def get_reattempt_allowance(
+        self, user: User, qualifier_id: int
+    ) -> rules.ReattemptAllowance:
+        """How many reattempts this player has spent and may still spend."""
+        qualifier = await self._require_qualifier(qualifier_id)
+        return rules.ReattemptAllowance(
+            spent=await self._count_reattempts(user.id, qualifier_id),
+            allowed=qualifier.allowed_reattempts,
+        )
 
     # =============================================================== review
 
@@ -600,6 +640,18 @@ class AsyncQualifierService:
         qualifier = await self._require_qualifier(qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
         return await self.run_repository.list_pending_review(qualifier_id)
+
+    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
+    async def list_runs(self, actor: Optional[User], qualifier_id: int) -> List[AsyncQualifierRun]:
+        """Every run in the qualifier, for the reviewer's runs list.
+
+        The review queue only returns finished+pending runs, so a forfeit — which
+        is written straight to approved/score 0 — is unreachable from it. This is
+        the read that lets a reviewer find one and grant a reattempt on it.
+        """
+        qualifier = await self._require_qualifier(qualifier_id)
+        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
+        return await self.run_repository.list_for_qualifier(qualifier_id)
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def claim_run(self, actor: Optional[User], run_id: int) -> AsyncQualifierRun:
@@ -628,10 +680,14 @@ class AsyncQualifierService:
             raise ValueError("You cannot review your own run")
         if run.status != AsyncQualifierRunStatus.FINISHED:
             raise ValueError("Only a finished run can be reviewed")
+        note = (note or '').strip()
+        # Above the note write and the status update, so a reasonless rejection
+        # changes nothing at all.
+        if not approved and not note:
+            raise ValueError("A rejection needs a reason — the runner is told what you write here.")
         new_status = (
             AsyncQualifierReviewStatus.APPROVED if approved else AsyncQualifierReviewStatus.REJECTED
         )
-        note = (note or '').strip()
         if note:
             await self.note_repository.create(run_id=run.id, author_id=actor.id, note=note)
         run = await self.run_repository.update(
@@ -653,7 +709,7 @@ class AsyncQualifierService:
             'run_id': run.id, 'qualifier_id': run.qualifier_id,
             'user_id': run.user_id, 'approved': approved,
         }, actor))
-        await self._notify_run_reviewed(run, approved)
+        await notifications.notify_run_reviewed(run, approved, reason=note)
         return run
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
@@ -728,34 +784,39 @@ class AsyncQualifierService:
             raise ValueError("This run is no longer in progress")
         return run
 
-    async def _require_reviewable(self, actor: Optional[User], run_id: int):
+    async def _require_reviewable(
+        self, actor: Optional[User], run_id: int, *, message: str = "Cannot review this qualifier"
+    ):
         if actor is None:
             raise PermissionError("Cannot review this run")
         run = await access.require_run(self.run_repository, run_id)
         qualifier = await self._require_qualifier(run.qualifier_id)
-        await access.ensure_qualifier_admin(actor, qualifier, message="Cannot review this qualifier")
+        await access.ensure_qualifier_admin(actor, qualifier, message=message)
         return run, qualifier
 
     async def _count_reattempts(self, user_id: int, qualifier_id: int) -> int:
+        """Reattempts this player spent themselves — a reviewer's grant is not theirs."""
         runs = await self.run_repository.list_for_user(qualifier_id, user_id)
-        return sum(1 for r in runs if r.reattempted)
+        return sum(1 for r in runs if r.reattempted and r.reattempt_granted_by_id is None)
 
     async def recompute_par_and_scores(self, permalink_id: int) -> None:
         """Public entry for sibling services (the live-race capture path) that add
         approved runs on a permalink and need its par + scores refreshed."""
         await self.draw.recompute_par_and_scores(permalink_id)
 
-    async def _notify_run_reviewed(self, run: AsyncQualifierRun, approved: bool) -> None:
-        try:
-            await run.fetch_related('user')
-            discord_id = run.user.discord_id
-            if not discord_id or run.user.is_placeholder:
-                return
-            from application.services.discord.discord_service import DiscordService
-            verb = 'approved' if approved else 'rejected'
-            await DiscordService().send_dm(
-                int(discord_id),
-                f"Your qualifier run was {verb}.",
-            )
-        except Exception:
-            logger.debug("Failed to DM run-reviewed notification", exc_info=True)
+    async def _void_run(
+        self, run: AsyncQualifierRun, *, reason: str, granted_by: Optional[User] = None
+    ) -> AsyncQualifierRun:
+        """Mark a terminal run reattempted, freeing its pool slot, and refresh par.
+
+        Shared by the runner's own reattempt and a reviewer's grant so neither can
+        forget the par refresh — a voided run left in the scoring inputs silently
+        skews every score on its permalink.
+        """
+        run = await self.run_repository.update(
+            run, reattempted=True, reattempt_reason=reason,
+            reattempt_granted_by_id=granted_by.id if granted_by is not None else None,
+        )
+        if run.permalink_id is not None:
+            await self.draw.recompute_par_and_scores(run.permalink_id)
+        return run

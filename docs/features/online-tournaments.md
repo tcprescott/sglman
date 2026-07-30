@@ -140,6 +140,34 @@ blocked** — an admin who ran the qualifier cannot approve their own run. Live 
 qualifier races are the deliberate exception: they skip sign-off entirely and are
 written `APPROVED`, because a racetime result is self-attributing.
 
+**A rejection needs a reason; an approval does not.** `review_run` refuses a rejection
+with a blank note, before it writes anything — rejection is the branch that owes the
+runner an explanation. The reason is stored as a run note and reaches the runner twice:
+a **Reviewer note** column on their own runs table (`get_run_notes` has always let a
+run's owner read its notes) and a DM carrying the reason plus a link back to the
+qualifier. The reviewer's card also shows the permalink played, the runner's other runs
+in this qualifier, and any notes already on the run — re-reviewing blind is how two
+reviewers reach opposite conclusions about the same person.
+
+**Two ways to spend a reattempt, both requiring a reason.** A reattempt voids one
+terminal run: it stops counting toward par and score, and its pool slot frees up for a
+fresh draw. It is not an undo — the voided attempt is gone, and the next run draws a new
+permalink.
+
+| Path | Who | Allowance | Where |
+|---|---|---|---|
+| `reattempt_run` | the runner, on their own run | spends `allowed_reattempts` | a row action on **My runs**, offered only while the window is open (voiding a run they can no longer re-run would just delete their own score) |
+| `grant_reattempt` | a qualifier admin, on anyone's run | **ignores** `allowed_reattempts` | the **Runs** tab of the Manage drill-down |
+
+The grant exists for a mis-clicked forfeit or a bad seed, so charging it to the runner's
+allowance would defeat the point; `reattempt_granted_by` records which of the two
+happened and is what keeps a granted void out of the runner's spent count. The Runs tab
+exists because a forfeit is written straight to `APPROVED`/score 0 and so never appears
+in the review queue — without it a reviewer cannot reach the very run the remedy is for.
+Both paths audit (`async_qualifier.run_reattempted` / `.reattempt_granted`) and the
+grant DMs the runner, because their pool availability changed without their doing
+anything.
+
 **Scoring.** `compute_par` is the mean of the N fastest approved runs on a permalink;
 `compute_score` is `clamp(0, 105, (2 − elapsed/par) · 100)` — par scores 100, twice par
 scores 0, and the 105 ceiling caps what a single outlier run can be worth. Forfeits,

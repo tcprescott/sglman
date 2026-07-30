@@ -409,6 +409,56 @@ def volunteer_ack_confirmation(position_name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Async qualifier runs  (application/services/async_qualifier/)
+# ---------------------------------------------------------------------------
+
+def qualifier_run_reviewed_dm(
+    qualifier_name: str,
+    *,
+    approved: bool,
+    reason: str = '',
+    qualifier_url: str = '',
+) -> str:
+    """The verdict on a submitted run, the reason behind it, and a way back.
+
+    A rejection always carries a reason (the service refuses one without), and
+    that reason is the whole message: told only "your run was rejected", a runner
+    has nothing to act on and nothing to appeal. An approval keeps it short and
+    includes the reviewer's note only when one was left.
+    """
+    verb = 'approved' if approved else 'rejected'
+    blocks = [f"Your **{qualifier_name}** qualifier run was {verb}."]
+    if reason:
+        blocks.append(f"Reason: {reason}")
+    if qualifier_url:
+        blocks.append(f"[Your runs and the leaderboard]({qualifier_url})")
+    return "\n\n".join(blocks)
+
+
+def qualifier_reattempt_granted_dm(
+    qualifier_name: str,
+    pool_name: str,
+    *,
+    reason: str = '',
+    qualifier_url: str = '',
+) -> str:
+    """A reviewer voided a run on the runner's behalf, freeing its pool slot.
+
+    Sent because the runner's own pool availability just changed under them
+    without their doing anything — the one state change on this surface they
+    could not have initiated.
+    """
+    where = f" in **{pool_name}**" if pool_name else ''
+    blocks = [f"A reviewer granted you another attempt{where} in **{qualifier_name}**."]
+    if reason:
+        blocks.append(f"Reason: {reason}")
+    blocks.append("Your previous run no longer counts, and the pool slot is free again.")
+    if qualifier_url:
+        blocks.append(f"[Start your next run]({qualifier_url})")
+    return "\n\n".join(blocks)
+
+
+# ---------------------------------------------------------------------------
 # Match acknowledgment ephemeral replies  (discordbot/match_acknowledgment.py)
 # ---------------------------------------------------------------------------
 

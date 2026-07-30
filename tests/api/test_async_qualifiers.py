@@ -313,6 +313,74 @@ class TestRunLifecycle:
             assert review.status_code == 400
             assert 'own run' in review.json()['detail'].lower()
 
+    async def test_reject_without_a_reason_is_a_400(self, db, app):
+        _, raw = await _admin_token(username='qadmin_rej')
+        _, runner_raw = await create_user_token(username='rejected_runner')
+        async with client_for(app, raw) as c:
+            qid = await _open_qualifier(c)
+            pool_id = await _pool_with_permalink(c, qid)
+        async with client_for(app, runner_raw) as rc:
+            start = await rc.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
+            run_id = start.json()['id']
+            await _backdate(run_id, 900)
+            await rc.post(f'/api/async-qualifiers/runs/{run_id}/submit',
+                          json={'elapsed_seconds': 900})
+        async with client_for(app, raw) as c:
+            blank = await c.post(f'/api/async-qualifiers/runs/{run_id}/review',
+                                 json={'approved': False})
+            assert blank.status_code == 400, blank.text
+            assert 'needs a reason' in blank.json()['detail']
+
+            ok = await c.post(f'/api/async-qualifiers/runs/{run_id}/review',
+                              json={'approved': False, 'note': 'VoD ends early.'})
+            assert ok.status_code == 200, ok.text
+            assert ok.json()['review_status'] == 'rejected'
+
+            notes = await c.get(f'/api/async-qualifiers/runs/{run_id}/notes')
+            assert [n['note'] for n in notes.json()] == ['VoD ends early.']
+
+    async def test_grant_reattempt_and_the_runs_list(self, db, app):
+        """A forfeit never reaches the review queue, so the runs list is how a
+        reviewer finds one — and the grant ignores the runner's allowance."""
+        _, raw = await _admin_token(username='qadmin_grant')
+        _, runner_raw = await create_user_token(username='forfeit_runner')
+        async with client_for(app, raw) as c:
+            qid = await _open_qualifier(c)
+            pool_id = await _pool_with_permalink(c, qid)
+        async with client_for(app, runner_raw) as rc:
+            start = await rc.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
+            run_id = start.json()['id']
+            await rc.post(f'/api/async-qualifiers/runs/{run_id}/forfeit')
+
+            # The runner has no allowance of their own (default 0).
+            own = await rc.post(f'/api/async-qualifiers/runs/{run_id}/reattempt',
+                                json={'reason': 'mis-click'})
+            assert own.status_code == 400
+            assert 'No reattempts remaining' in own.json()['detail']
+
+            forbidden = await rc.get(f'/api/async-qualifiers/{qid}/runs')
+            assert forbidden.status_code == 403
+
+        async with client_for(app, raw) as c:
+            queue = await c.get(f'/api/async-qualifiers/{qid}/review-queue')
+            assert queue.json() == []
+            runs = await c.get(f'/api/async-qualifiers/{qid}/runs')
+            assert [r['id'] for r in runs.json()] == [run_id]
+
+            blank = await c.post(f'/api/async-qualifiers/runs/{run_id}/grant-reattempt',
+                                 json={'reason': ' '})
+            assert blank.status_code == 400
+
+            granted = await c.post(f'/api/async-qualifiers/runs/{run_id}/grant-reattempt',
+                                   json={'reason': 'mis-click, confirmed on stream'})
+            assert granted.status_code == 200, granted.text
+            assert granted.json()['reattempted'] is True
+
+        async with client_for(app, runner_raw) as rc:
+            # The slot is free again despite the spent-nothing allowance.
+            pools = await rc.get(f'/api/async-qualifiers/{qid}/pools/available')
+            assert [p['id'] for p in pools.json()] == [pool_id]
+
     async def test_review_queue_forbidden_for_non_admin(self, db, app):
         _, admin_raw = await _admin_token()
         async with client_for(app, admin_raw) as c:
