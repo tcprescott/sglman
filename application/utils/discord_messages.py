@@ -404,6 +404,71 @@ def volunteer_reminder_dm(
     return "\n\n".join(blocks)
 
 
+def volunteer_unassigned_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+) -> str:
+    """DM sent when a coordinator takes a volunteer off a shift.
+
+    No acknowledgment button: there is nothing for them to confirm, and the point
+    is that the removal stops being silent.
+    """
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["You have been taken off a volunteer shift."]
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("No action needed. Ask your coordinator if this looks wrong.")
+    return "\n\n".join(blocks)
+
+
+def volunteer_shift_changed_dm(
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+    old_starts_display: str = "",
+    old_ends_display: str = "",
+) -> str:
+    """DM sent when a shift a volunteer is on moves in time.
+
+    Both windows are shown, because "the shift moved" without the old time is
+    unverifiable against what they remember agreeing to.
+    """
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = ["A shift you are on has moved."]
+    if old_starts_display or old_ends_display:
+        was = " → ".join(p for p in (old_starts_display, old_ends_display) if p)
+        blocks.append(f"**Was:** {was}")
+    if details:
+        blocks.append("\n".join(details))
+    blocks.append("Tap **Acknowledge** to confirm you can still cover it.")
+    return "\n\n".join(blocks)
+
+
+def volunteer_released_dm(
+    volunteer_name: str,
+    position_name: str,
+    label: Optional[str],
+    starts_display: str,
+    ends_display: str,
+    hours_notice: Optional[float] = None,
+    reason: Optional[str] = None,
+) -> str:
+    """DM to the coordinators when a volunteer gives a shift back."""
+    details = _volunteer_shift_lines(position_name, label, starts_display, ends_display)
+    blocks = [f"**{volunteer_name}** has given back a volunteer shift."]
+    if details:
+        blocks.append("\n".join(details))
+    if hours_notice is not None:
+        blocks.append(f"Notice: about {hours_notice:g} hour(s).")
+    if reason:
+        blocks.append(f'Their reason: "{reason}"')
+    blocks.append("This slot is open again.")
+    return "\n\n".join(blocks)
+
+
 def volunteer_ack_confirmation(position_name: str) -> str:
     return f"Thanks! Your **{position_name}** shift is acknowledged."
 

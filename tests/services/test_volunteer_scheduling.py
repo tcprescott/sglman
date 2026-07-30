@@ -300,6 +300,49 @@ async def test_assignments_for_user_prefetches_assigned_by(db):
     assert rows[0].assigned_by.id == staff.id
 
 
+# --- release --------------------------------------------------------------
+
+async def test_release_frees_the_slot(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Race Proctor')
+    soon = datetime.now(UTC) + timedelta(days=2)
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4), slots_needed=1,
+    )
+    vol = await _opted_in_volunteer('quitter')
+    svc = VolunteerScheduleService()
+    assignment, _ = await svc.assign(staff, shift, vol)
+
+    await svc.release(assignment.id, vol, 'Something came up')
+
+    assert await VolunteerAssignment.get_or_none(id=assignment.id) is None
+    rows = await svc.coverage(soon - timedelta(hours=1), soon + timedelta(hours=6))
+    assert rows[0]['filled'] == 0 and rows[0]['understaffed'] is True
+
+
+async def test_shiftmates_are_only_loaded_when_asked_for(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Broadcast Tech')
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3,
+    )
+    me = await _opted_in_volunteer('me')
+    them = await _opted_in_volunteer('them')
+    svc = VolunteerScheduleService()
+    await svc.assign(staff, shift, me)
+    await svc.assign(staff, shift, them)
+
+    with_mates = await svc.assignments_for_user(me, with_shiftmates=True)
+    names = {a.user.preferred_name for a in with_mates[0].shift.assignments}
+    assert names == {'me', 'them'}
+
+    # Nobody quietly makes the expensive version the default.
+    from tortoise.exceptions import NoValuesFetched
+    plain = await svc.assignments_for_user(me)
+    with pytest.raises(NoValuesFetched):
+        _ = plain[0].shift.assignments[0]
+
+
 # --- coverage -------------------------------------------------------------
 
 async def test_coverage_reports_understaffing(db):

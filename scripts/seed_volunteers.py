@@ -42,18 +42,27 @@ async def seed_volunteers_for_tenant(
         user=staff, role=Role.VOLUNTEER_COORDINATOR, tenant=tenant, defaults={"granted_by": None},
     )
 
+    # Descriptions are what the volunteer's own card shows as the standing job
+    # brief, so two of the four carry one.
     position_specs = [
-        ("Check-in Desk", 1, 1),
-        ("Race Proctor", 2, 1),
-        ("Broadcast Tech", 3, 3),  # multiple concurrent slots
-        ("Admin Desk", 4, 1),
+        ("Check-in Desk", 1, 1,
+         "Greet arrivals at the main door, check them against the entrant list, "
+         "hand out badges."),
+        ("Race Proctor", 2, 1,
+         "Run one race room: seat the players, roll the seed, start them, record "
+         "the winner."),
+        ("Broadcast Tech", 3, 3, None),  # multiple concurrent slots
+        ("Admin Desk", 4, 1, None),
     ]
     positions: dict[str, VolunteerPosition] = {}
     default_slots: dict[str, int] = {}
-    for name, order, slots in position_specs:
+    for name, order, slots, description in position_specs:
         p, _ = await VolunteerPosition.get_or_create(
             name=name, tenant=tenant, defaults={"display_order": order, "is_active": True},
         )
+        if description and not p.description:
+            p.description = description
+            await p.save()
         positions[name] = p
         default_slots[name] = slots
 
@@ -156,6 +165,14 @@ async def seed_volunteers_for_tenant(
                         "slots_needed": default_slots[pos_name],
                     },
                 )
+                # Per-shift instructions, distinct from the position's standing
+                # description: the volunteer's card renders the two separately.
+                if pos_name == "Check-in Desk" and label == "Shift 1" and not shift.notes:
+                    shift.notes = (
+                        "Report to the info desk 10 minutes early. Radio channel 2. "
+                        "Bring a jacket — the door is draughty."
+                    )
+                    await shift.save()
                 shift_index[(day_str, f"{pos_name}|{label}")] = shift
 
     first_day = event_days[0].isoformat()

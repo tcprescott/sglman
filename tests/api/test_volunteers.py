@@ -483,6 +483,34 @@ class TestSelfService:
             assert everything.status_code == 200
             assert len(everything.json()) == 2
 
+    async def test_release_my_own_assignment(self, db, app):
+        actor, raw = await create_user_token(username='vol')
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2030, 1, 1, 12), ends_at=utc(2030, 1, 1, 16),
+        )
+        assignment = await VolunteerAssignment.create(shift=shift, user=actor)
+        async with client_for(app, raw) as c:
+            resp = await c.request(
+                'DELETE', f'/api/volunteers/me/assignments/{assignment.id}',
+                json={'reason': 'Double-booked'},
+            )
+            assert resp.status_code == 204
+        assert await VolunteerAssignment.get_or_none(id=assignment.id) is None
+
+    async def test_release_someone_elses_assignment_bad_request(self, db, app):
+        owner = await User.create(discord_id=6101, username='owner')
+        _, raw = await create_user_token(username='intruder')
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2030, 1, 1, 12), ends_at=utc(2030, 1, 1, 16),
+        )
+        assignment = await VolunteerAssignment.create(shift=shift, user=owner)
+        async with client_for(app, raw) as c:
+            resp = await c.delete(f'/api/volunteers/me/assignments/{assignment.id}')
+            assert resp.status_code == 400
+        assert await VolunteerAssignment.get_or_none(id=assignment.id) is not None
+
     async def test_my_assignments_omits_drafts(self, db, app):
         actor, raw = await create_user_token(username='vol')
         pos = await VolunteerPosition.create(name='Desk')

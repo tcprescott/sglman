@@ -13,6 +13,10 @@ from models import User, VolunteerAssignment, VolunteerShift
 
 _PREFETCH = ('user', 'shift', 'shift__position', 'assigned_by')
 
+# Only for the volunteer's own card, which names who else is on the slot. Kept
+# off _PREFETCH so every other caller does not pay for the extra two joins.
+_PREFETCH_WITH_SHIFTMATES = _PREFETCH + ('shift__assignments', 'shift__assignments__user')
+
 
 class VolunteerAssignmentRepository:
     """Repository for volunteer shift assignments."""
@@ -77,6 +81,7 @@ class VolunteerAssignmentRepository:
         upcoming_after: Optional[datetime] = None,
         *,
         include_drafts: bool = False,
+        with_shiftmates: bool = False,
     ) -> List[VolunteerAssignment]:
         """This user's assignments.
 
@@ -89,7 +94,8 @@ class VolunteerAssignmentRepository:
             query = query.filter(auto_generated=False)
         if upcoming_after is not None:
             query = query.filter(shift__ends_at__gte=upcoming_after)
-        return await query.order_by('shift__starts_at').prefetch_related(*_PREFETCH)
+        prefetch = _PREFETCH_WITH_SHIFTMATES if with_shiftmates else _PREFETCH
+        return await query.order_by('shift__starts_at').prefetch_related(*prefetch)
 
     @staticmethod
     async def list_for_window(start: datetime, end: datetime) -> List[VolunteerAssignment]:

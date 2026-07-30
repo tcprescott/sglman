@@ -227,7 +227,13 @@ The two self-service tabs read the *signed-in* user's own data, so they are safe
 
 `proctor_station_tab()` is a purpose-built board, **deliberately diverged** from the admin Schedule tab it used to render: same `MatchTableView` and the same lifecycle dialogs (both build their callbacks from `theme/tables/match_lifecycle.py:MatchLifecycleHandlers`, so the two cannot drift), but six columns instead of nine — Time, Next step, Players & stations, Seed, Tournament, `#` — with no Commentators/Trackers/Stage and no create/edit/confirm controls. It also passes three board-shaping options the admin table does not: `exclude_racetime=True` (a racetime.gg match has no on-site proctor), `row_sort=proctor_row_order` (overdue → checked in → started → scheduled → finished, earliest first within a bucket) and `actions_first=True` (the mobile card's lifecycle button sits under the player names). A `@ui.refreshable` chip strip above the table — driven by the view's `on_rows_changed` — counts to-check-in / to-start / in-play / overdue. The tab slug stays `proctor-station`, so existing deep links keep working.
 
-`my_shifts_tab()` is a `@ui.refreshable` list of `VolunteerScheduleService.assignments_for_user(user, upcoming_after=now)`, which **excludes unpublished drafts** — a coordinator's sketch is not this page's business. Each card shows the position/label, the shift's Eastern start→end, and a provenance caption ("Scheduled by …", when the assignment was made, and the acknowledgment time once given), then either an "Acknowledged" badge or an **Acknowledge** button calling `service.acknowledge(assignment_id, user)`.
+`my_shifts_tab()` is a `@ui.refreshable` list of `VolunteerScheduleService.assignments_for_user(user, upcoming_after=now, with_shiftmates=True)`, which **excludes unpublished drafts** — a coordinator's sketch is not this page's business. Each card answers the three questions a volunteer brings to the page:
+
+- **What am I down for** — position/label, the Eastern start→end, and a provenance caption ("Scheduled by …", when, and the acknowledgment time once given).
+- **What does it involve** — the position's `description` as the standing brief, `shift.notes` in a bordered **For this shift** block (the per-shift instruction must not merge visually with the standing one), and a "With: …" line naming the others on the slot, drafts excluded.
+- **How do I get out of it** — a **Can't make this** button beside **Acknowledge**, offered whether or not the shift is acknowledged, opening a dialog that restates the shift, takes an optional reason the coordinator sees, and warns when the shift falls inside the reminder lead or 24 hours (whichever is longer). Its copy is the module-level pure `release_warning(starts_at, lead_minutes)`, so the decision is unit-testable. Confirming calls `service.release`.
+
+The actions sit in their own wrapping row rather than the header row: two buttons plus the badge stack does not fit at 390px.
 
 ## Admin dashboard (`/admin`, `pages/admin.py`)
 
@@ -365,6 +371,7 @@ Two tab functions live in this module.
 - The run's output lands in a dismissible `@ui.refreshable` **result panel** (held in the page's `state['last_run']`, never a module global) listing each open slot with the sentence explaining why plus an **Assign** button into the existing picker, everyone placed outside their stated availability with a **Remove**, and any heavy loads. The shift card's `filled/needed` badge carries the same sentence as its tooltip, so the grid and the panel agree. The panel does not survive a reload — the audit row is the durable record.
 - A `@ui.refreshable` `grid()` renders one card per active position, each with **Generate standard shifts** and **Add shift** (→ `VolunteerShiftDialog`) and a shift card per shift (filled/needed badge, edit/delete, and an **Assign** picker dialog).
 - The assign picker pulls the opted-in pool and per-volunteer availability badges (`VolunteerAvailabilityService.availability_map` / `covers`); assigning goes through `VolunteerScheduleService.assign` (surfacing returned warnings); assignment chips remove via `unassign`.
+- The two write-only text fields are now readable from the grid: a position's `description` renders as a caption under its name, and a shift with `notes` carries a `sticky_note_2` icon whose tooltip is the notes text — so a coordinator can check what the volunteer will read.
 
 ### Volunteer data export (`theme/dialog/volunteer_export_dialog.py`)
 

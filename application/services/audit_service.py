@@ -195,6 +195,7 @@ class AuditActions:
     VOLUNTEER_DRAFT_GENERATED = 'volunteer.draft_generated'
     VOLUNTEER_DRAFT_CLEARED = 'volunteer.draft_cleared'
     VOLUNTEER_DRAFT_PUBLISHED = 'volunteer.draft_published'
+    VOLUNTEER_RELEASED = 'volunteer.released'
     VOLUNTEER_SHIFTS_RESET = 'volunteer.shifts_reset'
     VOLUNTEER_QUALIFICATIONS_UPDATED = 'volunteer.qualifications_updated'
     VOLUNTEER_DATA_EXPORTED = 'volunteer.data_exported'

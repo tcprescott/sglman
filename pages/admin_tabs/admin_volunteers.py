@@ -234,7 +234,10 @@ async def admin_volunteers_page() -> None:
             for position in positions:
                 with ui.card().classes('full-width q-pa-sm q-mb-sm'):
                     with ui.row().classes('items-center justify-between full-width'):
-                        ui.label(position.name).classes('text-subtitle1')
+                        with ui.column().classes('gap-0'):
+                            ui.label(position.name).classes('text-subtitle1')
+                            if position.description:
+                                ui.label(position.description).classes('text-caption text-grey')
                         with ui.row().classes('gap-1'):
                             ui.button('Generate standard shifts', icon='auto_awesome_motion',
                                       on_click=lambda p=position: generate_shifts(p)) \
@@ -271,6 +274,10 @@ async def admin_volunteers_page() -> None:
                     reason = _last_run_reason(shift.id)
                     if understaffed and reason:
                         badge.tooltip(reason)
+                    if shift.notes:
+                        # The notes field is write-only otherwise; the volunteer
+                        # reads it on their card, the coordinator could not.
+                        ui.icon('sticky_note_2', size='xs').tooltip(shift.notes)
                 ui.label(
                     f'{format_eastern_time(shift.starts_at)}–{format_eastern_time(shift.ends_at)} ET'
                 ).classes('text-caption')

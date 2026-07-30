@@ -253,6 +253,9 @@ Message text comes from **public functions** in [`discord_messages.py`](../../ap
 | `seed_dm` | Seed generation | Greeting, match/tournament, seed URL |
 | `crew_assignment_dm` | Crew approval DM | Crew type, match title, players, scheduled time, stage; ends with "Please click below to acknowledge your assignment." |
 | `volunteer_assignment_dm` / `volunteer_reminder_dm` | Volunteer shift assigned / reminder | Position, label, shift start/end |
+| `volunteer_unassigned_dm` | Coordinator took a volunteer off a shift | Position, label, start/end; no acknowledgment button — there is nothing to confirm |
+| `volunteer_shift_changed_dm` | A shift a volunteer is on moved in time | Both windows (was → now), then "Tap **Acknowledge** to confirm you can still cover it." |
+| `volunteer_released_dm` | A volunteer gave a shift back — **sent to the coordinators**, not the volunteer | Who dropped it, the shift block, hours of notice, their reason, "This slot is open again." |
 
 Ephemeral confirmation strings live in the same module: `crew_signup_confirmation(role, player_names)`, `match_ack_confirmation`, `crew_ack_confirmation`, `volunteer_ack_confirmation`, `unwatch_confirmation(player_names, was_watching)`.
 
