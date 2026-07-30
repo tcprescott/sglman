@@ -7,6 +7,26 @@ so a design decision can be argued against something other than taste.
 Captured from the maintainer, 2026-07. Treat as authoritative until contradicted;
 revise in place rather than appending a second snapshot.
 
+## History
+
+Wizzrobe's first tenant is **SpeedGaming Live**, and its first production use was
+**October 2025** — in a much cruder form than what's in this tree today (see git
+history for that era). The project was originally named **SGLMan**
+("SpeedGaming Live Manager"), reflected in this repo's name (`sglman`).
+
+Its original purpose was narrow: simplify operations during SGL's on-site
+tournament. That purpose broadened once it became clear how much overlap exists
+between on-site tournament operations and running an **online tournament via
+racetime.gg** — a problem space the maintainer had already solved once in a prior
+Discord bot, **Sahasrahbot** (github.com/tcprescott/sahasrahbot). Wizzrobe brought
+that functionality forward rather than leaving it to age in a separate codebase.
+The **Async Qualifier** feature is a direct port of Sahasrahbot's async tournament
+functionality, rebuilt Discord-native rather than command-driven.
+
+The resulting goal is broader than the original one: a **unified platform for
+speedrunning/randomizer tournament operations**, spanning both on-site and online
+events, not just SGL's annual show.
+
 ## The situation
 
 | Dimension | Reality |
