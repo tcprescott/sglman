@@ -34,7 +34,11 @@ from .layout import (
 
 
 def format_scheduled(iso: str) -> str:
-    """A round's stored UTC ISO time → the app's Eastern display string."""
+    """A round's stored UTC ISO time → a display string on the ambient clock.
+
+    Bound by the caller: the cached spectator pages render in the community's
+    zone (``pages/static_brackets.py``), the admin views in the viewer's.
+    """
     try:
         dt = datetime.fromisoformat(iso)
     except (TypeError, ValueError):

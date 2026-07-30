@@ -6,6 +6,7 @@ from application.timezone_context import (
     FALLBACK_TIMEZONE,
     current_timezone_name,
     is_valid_timezone,
+    read_timezone_cookie,
     tz_scope,
 )
 from application.utils.timezone import (
@@ -61,6 +62,33 @@ class TestTimezoneContext:
         assert not is_valid_timezone('Mars/Olympus_Mons')
         assert not is_valid_timezone('')
         assert not is_valid_timezone(None)
+
+
+class TestReadTimezoneCookie:
+    """The browser writes the cookie with ``encodeURIComponent``.
+
+    Starlette does not percent-decode cookie values, so an undecoded name loads
+    in no tzdata — it failed validation silently and every viewer fell through to
+    the community default, which is indistinguishable from the browser tier not
+    existing at all.
+    """
+
+    def test_percent_encoded_value_is_decoded(self):
+        assert read_timezone_cookie('Asia%2FTokyo') == 'Asia/Tokyo'
+
+    def test_decoded_value_is_a_loadable_zone(self):
+        assert is_valid_timezone(read_timezone_cookie('America%2FNew_York'))
+
+    def test_plain_value_passes_through(self):
+        assert read_timezone_cookie('America/New_York') == 'America/New_York'
+
+    def test_absent_cookie_is_none(self):
+        assert read_timezone_cookie(None) is None
+        assert read_timezone_cookie('') is None
+
+    def test_garbage_decodes_but_does_not_validate(self):
+        # Decoding is not validation — a forged cookie still has to load.
+        assert not is_valid_timezone(read_timezone_cookie('Mars%2FOlympus_Mons'))
 
 
 class TestParseLocalDatetime:

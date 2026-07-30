@@ -48,13 +48,26 @@ surprise reload mid-session is worse than a few seconds of stale clock.
 ## Resolution, and where it is bound
 
 `middleware/auth.py::_tenant_page` resolves once per page build and writes the
-answer to both a contextvar (serving the rest of the HTTP request) and
+answer via `bind_display_timezone` to both a contextvar (serving the rest of the HTTP request) and
 `app.storage.client['tz']` (serving every later websocket event handler on that
 connection, which runs after the request context is gone). This is the same
 two-tier shape as `application/tenant_context.py`, for the same reason.
 
 Reading it back is a free sync call, which is what lets ~390 formatting sites stay
 argument-free.
+
+Two places need it by hand, because they do not pass through `_tenant_page`:
+
+- **The tenant home** (`pages/home.py`) is a bare `ui.page` — the same function
+  also serves the tenant-less community picker — so it calls
+  `bind_display_timezone(tid, user)` itself, next to the membership gate it
+  likewise applies by hand. Without it the whole home surface, *including the
+  timezone picker on the Profile tab*, renders on the fallback zone.
+- **Detached background tasks** (`theme/tables/admin_crud.scoped_background`)
+  have neither the contextvars nor the client stash — NiceGUI keys its slot
+  stack by asyncio task id, so `app.storage.client` raises inside one. Capture
+  with `capture_render_context()` at build time and rebind; the tenant and the
+  zone travel together so the pairing cannot drift apart again.
 
 ## The utilities
 
@@ -82,11 +95,13 @@ scheduled_at = parse_local_datetime("2026-01-15", "14:30")   # viewer's clock �
 format_local_display(scheduled_at)                           # → "2026-01-15 14:30 EST"
 ```
 
-## Shared output never inherits a viewer's clock
+## Which clock, for output that isn't a page
 
-A single render read by many people cannot carry any one of them. These use the
-**tenant's** zone via `TimezoneService.tenant_timezone_name()`, bound with
-`tz_scope(...)`:
+Ask whether the artifact has a single identifiable reader.
+
+**No reader, or many** → the **tenant's** zone via
+`TimezoneService.tenant_timezone_name()`, bound with `tz_scope(...)`. There is no
+one whose clock would be the right answer, so the community's is:
 
 - **Cached spectator pages** (`pages/static_brackets.py`) — one render, every viewer.
 - **Tournament operating hours** (`match_service._assert_within_tournament_hours`,
@@ -97,10 +112,20 @@ A single render read by many people cannot carry any one of them. These use the
   still take calendar dates.
 - **REST** (`api/dependencies.py`) — responses stay UTC (see below); the binding
   exists so date-valued params land on the community's day, not UTC's.
+- **Workers** (`for_each_tenant_scoped`) — bound alongside `tenant_scope`, so a
+  reminder DM does not tell every community the same wrong time.
+- **Shift generation** from the standard blocks — "Shift 1 is 08:00" is a fact
+  about the event, not about the coordinator generating it.
 
-**Discord** sidesteps the question: embeds and DMs use native `<t:unix:F>` markup
-(`discord_embeds.time_field`), which each recipient's own client renders in their
-own zone. Never format a literal time string into Discord output.
+**One reader, and it is the requester** → the ambient zone; that *is* their
+clock. Pages, report windows (`display_bounds`), and exports the viewer
+triggered. An export also **labels** the zone it used (`timezone_label()`),
+because a CSV can be forwarded to someone who did not generate it.
+
+**One reader, and it is someone else** → **Discord sidesteps the question**:
+embeds and DMs use native `<t:unix:F>` markup (`discord_embeds.time_field`),
+which each recipient's own client renders in their own zone. Never format a
+literal time string into Discord output.
 
 ## REST and webhooks stay UTC
 

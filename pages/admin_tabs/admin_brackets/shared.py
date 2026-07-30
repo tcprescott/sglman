@@ -16,7 +16,7 @@ ELIM_FORMATS = (BracketFormat.SINGLE_ELIM, BracketFormat.DOUBLE_ELIM)
 
 
 def iso_to_local_input(iso: Optional[str]) -> str:
-    """Stored UTC ISO → a ``datetime-local`` value (Eastern) for prefill."""
+    """Stored UTC ISO → a ``datetime-local`` value on the display clock, for prefill."""
     if not iso:
         return ''
     try:
@@ -29,7 +29,7 @@ def iso_to_local_input(iso: Optional[str]) -> str:
 
 
 def local_input_to_iso(value: Optional[str]) -> Optional[str]:
-    """A ``datetime-local`` value (Eastern) → stored UTC ISO, or None if blank."""
+    """A ``datetime-local`` value on the display clock → stored UTC ISO, or None if blank."""
     if not value or 'T' not in value:
         return None
     date_str, time_str = value.split('T', 1)

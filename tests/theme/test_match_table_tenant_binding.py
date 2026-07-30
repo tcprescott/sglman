@@ -1,16 +1,21 @@
-"""A table event handler that touches tenant-scoped data must keep its tenant.
+"""A table event handler that touches tenant-scoped data must keep its context.
 
-``MatchTableView`` captures the request's tenant at construction and rebinds it
-in ``_bg``. A handler scheduled with a bare ``background_tasks.create`` instead
-loses the tenant and dies on ``require_tenant_id()`` — silently, because the
-exception surfaces in a background task rather than the UI. ``assign_stations``
-regressed exactly that way; this pins the wiring.
+``MatchTableView`` captures the request's tenant *and display zone* at
+construction and rebinds both in ``_bg``. A handler scheduled with a bare
+``background_tasks.create`` instead loses them: it dies on
+``require_tenant_id()`` — silently, because the exception surfaces in a
+background task rather than the UI — or, worse, survives and repaints every
+timestamp on the fallback clock. ``assign_stations`` regressed the first way;
+this pins both halves of the wiring.
 """
 
 import inspect
 import re
 
+from theme.tables.admin_crud import scoped_background
 from theme.tables.match import MatchTableView
+from theme.tables.tournament import TournamentTableView
+from theme.tables.user import UserTableView
 
 # Events whose handlers reach tenant-scoped data and which are NOT given a
 # client context to run inside. These must go through ``_bg``.
@@ -38,9 +43,33 @@ def _registrations() -> list[str]:
     return ['self.table.on(' + p for p in parts]
 
 
-def test_bg_rebinds_the_captured_tenant():
+def test_bg_delegates_to_the_shared_scoped_background():
     src = inspect.getsource(MatchTableView._bg)
-    assert 'tenant_scope(self._tenant_id)' in src
+    assert 'scoped_background(' in src
+
+
+def test_scoped_background_rebinds_both_tenant_and_display_zone():
+    """The tenant alone is not enough.
+
+    A task that rebinds the tenant but not the zone repaints the same rows on
+    the fallback clock, so a table silently changes timezone the moment you
+    paginate or switch tabs — a wrong answer that looks like a working page.
+    """
+    src = inspect.getsource(scoped_background)
+    assert 'tenant_scope(' in src
+    assert 'tz_scope(' in src
+
+
+def test_every_view_that_captures_a_tenant_also_captures_a_zone():
+    """The two halves are captured together or the pairing drifts apart again."""
+    for view in (MatchTableView, UserTableView, TournamentTableView):
+        src = inspect.getsource(view.__init__)
+        if 'get_current_tenant_id()' not in src:
+            continue
+        assert 'capture_render_context()' in src, (
+            f"{view.__name__} captures a tenant for its background tasks but no "
+            f"display zone; use capture_render_context() so both travel together."
+        )
 
 
 def test_listed_events_are_actually_registered():

@@ -14,6 +14,7 @@ from nicegui import app, ui
 from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
 from application.utils.timezone import format_local_display
+from application.utils.timezone import timezone_label
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     date_range_filter,
@@ -188,7 +189,7 @@ async def telemetry_page(
                 'full_details': display,
             })
         columns = [
-            {'name': 'created_at', 'label': 'When (ET)', 'field': 'created_at', 'sortable': False},
+            {'name': 'created_at', 'label': f'When ({timezone_label()})', 'field': 'created_at', 'sortable': False},
             {'name': 'user', 'label': 'User', 'field': 'user', 'sortable': False},
             {'name': 'category', 'label': 'Category', 'field': 'category', 'sortable': False},
             {'name': 'event_type', 'label': 'Event', 'field': 'event_type', 'sortable': False},

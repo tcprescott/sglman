@@ -1,8 +1,9 @@
 from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
-from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.tenant_context import get_current_tenant_id
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
+from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.match_grid import render_grid_slot
@@ -91,6 +92,7 @@ class MatchTableView(MatchTableHandlersMixin):
         # stash is reachable, so scoped repository reads would raise
         # ``require_tenant_id()``; ``_bg`` rebinds this captured tenant.
         self._tenant_id = get_current_tenant_id()
+        self._render_context = capture_render_context()
         # True until the stored filters have been restored, so restoring them
         # does not each trigger their own table load. See _refresh_unless_initializing.
         self._initializing = True
@@ -102,11 +104,8 @@ class MatchTableView(MatchTableHandlersMixin):
         self._setup_ui()
 
     def _bg(self, coro) -> None:
-        """Schedule ``coro`` as a background task with this view's tenant bound."""
-        async def _run():
-            with tenant_scope(self._tenant_id):
-                await coro
-        background_tasks.create(_run())
+        """Schedule ``coro`` with this view's tenant *and* display zone rebound."""
+        scoped_background(self._render_context, coro)
 
     def _skey(self, name: str) -> str:
         """Session key for one of this view's filters.

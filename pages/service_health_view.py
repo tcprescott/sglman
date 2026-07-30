@@ -45,7 +45,7 @@ def _rows(results: List[ProbeResult]) -> List[dict]:
             'status': _STATUS_LABEL[r.status],
             'status_color': _STATUS_COLOR[r.status],
             'message': r.message,
-            # App-wide convention: display US/Eastern, never raw UTC.
+            # App-wide convention: display on the viewer's clock, never raw UTC.
             'checked_at': format_local_display(r.checked_at),
         }
         for r in results

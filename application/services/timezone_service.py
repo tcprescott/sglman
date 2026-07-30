@@ -18,12 +18,21 @@ than an error.
 mode uses it as the floor everything falls back to — including every surface that
 structurally cannot have a viewer (see below).
 
-**Shared output never inherits a viewer's clock.** A cached spectator page, a
-Discord channel post, a CSV someone will forward — all are read by people who are
-not the request's viewer. Those render in the tenant's zone via
-:meth:`tenant_timezone_name`, never the ambient one. Per-recipient channels
-(a DM, a web push) may use the recipient's zone, and Discord embeds sidestep the
-question entirely with native ``<t:…>`` markup that each client localizes itself.
+**Output that one viewer cannot own renders in the tenant's zone.** The test is
+whether the artifact has a single identifiable reader:
+
+- **No reader, or many** — a cached spectator page, a channel-wide post, a
+  worker's tick, an operating-hours rule the whole community is judged against.
+  These take :meth:`tenant_timezone_name` explicitly, never the ambient zone,
+  because there is no one whose clock would be the right answer.
+- **One reader, and it is the requester** — every page, report window, and
+  export the viewer triggered and reads themselves. These use the ambient zone;
+  that *is* the viewer's clock. An export additionally labels the zone it used
+  (``volunteer_export_service``), because a CSV can be forwarded to someone who
+  did not generate it and a bare "14:30" would then be unattributable.
+- **One reader, and it is someone else** — a DM, a web push. Discord sidesteps
+  this entirely with native ``<t:…>`` markup that each recipient's own client
+  localizes, which is why no Discord path formats a literal time string.
 
 Storage is ``Tenant.config['timezone']`` — the documented home for per-tenant
 knobs, same as ``TenantThemeService`` — plus a nullable ``User.timezone`` column

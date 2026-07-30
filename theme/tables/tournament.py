@@ -1,7 +1,8 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 from tortoise.functions import Count
 
-from application.tenant_context import get_current_tenant_id, tenant_scope
+from application.tenant_context import get_current_tenant_id
+from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
@@ -20,14 +21,12 @@ class TournamentTableView:
         # slot where the tenant stash lives, so scoped reads would otherwise raise
         # require_tenant_id(). _bg rebinds it — same pattern as MatchTableView.
         self._tenant_id = get_current_tenant_id()
+        self._render_context = capture_render_context()
         self._setup_ui()
 
     def _bg(self, coro) -> None:
-        """Schedule ``coro`` as a background task with this view's tenant bound."""
-        async def _run():
-            with tenant_scope(self._tenant_id):
-                await coro
-        background_tasks.create(_run())
+        """Schedule ``coro`` with this view's tenant *and* display zone rebound."""
+        scoped_background(self._render_context, coro)
 
     def _setup_ui(self):
         # Toolbar with actions

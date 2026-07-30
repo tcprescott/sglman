@@ -26,7 +26,8 @@ from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 
 
-# Standard four 4-hour shift blocks (Eastern), matching the 2025 schedule.
+# Standard four 4-hour shift blocks, in the community's own timezone (the
+# generator resolves them against it), matching the 2025 schedule.
 STANDARD_BLOCKS = [
     ('Shift 1', '08:00', '12:00'),
     ('Shift 2', '12:00', '16:00'),

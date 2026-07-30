@@ -47,6 +47,7 @@ from application.tenant_context import (
 )
 from application.timezone_context import (
     TZ_COOKIE,
+    read_timezone_cookie,
     reset_browser_timezone,
     set_browser_timezone,
 )
@@ -142,7 +143,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # carried on a cookie. Bound around *every* path — platform surface
         # included, and before the tenant is known — because it is a property of
         # the browser, not of the community. Resolution consumes it later.
-        tz_token = set_browser_timezone(request.cookies.get(TZ_COOKIE))
+        tz_token = set_browser_timezone(read_timezone_cookie(request.cookies.get(TZ_COOKIE)))
         try:
             return await self._dispatch(request, call_next)
         finally:

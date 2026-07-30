@@ -47,6 +47,7 @@ from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
 from application.services.timezone_service import TimezoneService
 from application.utils.timezone import (
+    local_day_bounds,
     timezone_label,
     parse_local_datetime,
     to_local,
@@ -133,6 +134,10 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         """
         Get all matches for a specific date with optional filters.
 
+        "That day" is resolved on the **display clock**, so a schedule board shows
+        the day its reader means. The repository takes instants; deciding which
+        instants make up a day is the rule that lives here.
+
         Args:
             target_date: The date to fetch matches for
             exclude_finished: If True, exclude matches that are finished
@@ -141,8 +146,9 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         Returns:
             List of matches with all related data prefetched
         """
-        return await self.repository.get_for_date(
-            target_date, exclude_finished, require_stream_room
+        start, end = local_day_bounds(target_date, target_date)
+        return await self.repository.scheduled_between(
+            start, end, exclude_finished, require_stream_room
         )
 
     async def group_matches_by_stream_room(
@@ -233,7 +239,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
 
         await StreamRoomService().require_in_tenant(stream_room_id)
 
-        # Parse datetime - input is in Eastern, convert to UTC for storage
+        # Parse datetime - input is on the caller's display clock, stored UTC
         try:
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
@@ -398,7 +404,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
             update_fields['tournament_id'] = tournament_id
 
         if scheduled_date and scheduled_time:
-            # Parse datetime - input is in Eastern, convert to UTC for storage
+            # Parse datetime - input is on the caller's display clock, stored UTC
             scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
             # Validate against the target tournament (new one on reassignment).
             await self._assert_within_tournament_hours(

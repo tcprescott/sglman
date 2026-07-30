@@ -9,6 +9,7 @@ from nicegui import ui
 
 from application.services import AuditService
 from application.utils.timezone import format_local_display
+from application.utils.timezone import timezone_label
 from .shared import (
     date_range_filter,
     default_date_range,
@@ -100,7 +101,7 @@ async def audit_page(
                 'full_details': display,
             })
         columns = [
-            {'name': 'created_at', 'label': 'When (ET)', 'field': 'created_at', 'sortable': False},
+            {'name': 'created_at', 'label': f'When ({timezone_label()})', 'field': 'created_at', 'sortable': False},
             {'name': 'user', 'label': 'User', 'field': 'user', 'sortable': False},
             {'name': 'action', 'label': 'Action', 'field': 'action', 'sortable': False},
             {'name': 'details', 'label': 'Details', 'field': 'details', 'sortable': False},

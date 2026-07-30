@@ -34,6 +34,7 @@ NiceGUI only inside the fallback so it stays usable with no UI context.
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Iterator, Optional
+from urllib.parse import unquote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # The zone used when nothing else resolves: no tenant, no user, no browser hint.
@@ -96,6 +97,23 @@ def set_timezone_name(name: Optional[str]) -> Token:
 def reset_timezone_name(token: Token) -> None:
     """Restore the zone the matching :func:`set_timezone_name` replaced."""
     _tz_var.reset(token)
+
+
+def read_timezone_cookie(raw: Optional[str]) -> Optional[str]:
+    """Decode a ``wiz_tz`` cookie value into an IANA zone name.
+
+    The browser writes it with ``encodeURIComponent``, so ``America/New_York``
+    arrives as ``America%2FNew_York`` — Starlette does not percent-decode cookie
+    values, and an encoded name loads in no tzdata. Left undecoded it silently
+    failed validation and every viewer fell through to the community default,
+    which looks exactly like the browser tier not existing.
+
+    Tolerates an already-plain value (``unquote`` is a no-op on one), so it does
+    not matter whether a future writer encodes.
+    """
+    if not raw:
+        return None
+    return unquote(raw)
 
 
 def set_browser_timezone(name: Optional[str]) -> Token:

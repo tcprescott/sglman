@@ -10,6 +10,7 @@ from typing import Dict, List
 from nicegui import ui
 
 from application.tenant_context import tenant_scope
+from application.utils.timezone import timezone_label
 from models import BracketMatch
 from theme.dialog._helpers import dialog_actions  # noqa: F401  (kept for parity)
 from theme.notify import notify_error
@@ -38,7 +39,8 @@ def render_round_editor(
         ui.label(
             'Best-of is the series length the round is actually played at: it '
             'decides how many games get scheduled and how a matchup clinches, '
-            'not just what the header says. Odd numbers only; times are Eastern.'
+            f'not just what the header says. Odd numbers only; times are '
+            f'{timezone_label()}.'
         ).classes('text-caption text-grey')
         if default_best_of:
             ui.label(
@@ -55,7 +57,7 @@ def render_round_editor(
                     'Best of', value=cfg.get('best_of'), min=1, precision=0,
                 ).props('dense inputmode=numeric').classes('col-4 col-sm-3')
                 scheduled = ui.input(
-                    'Scheduled (ET)',
+                    f'Scheduled ({timezone_label()})',
                     value=iso_to_local_input(cfg.get('scheduled_at')),
                 ).props('type=datetime-local dense').classes('col')
                 widgets[round_number] = (best_of, scheduled)

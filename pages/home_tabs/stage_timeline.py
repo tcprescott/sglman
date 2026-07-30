@@ -119,7 +119,7 @@ async def stage_timeline_tab():
 
             with ui.card().classes(f'match-card {border_class}'):
                 with ui.row().classes('full-width'):
-                    # Time (displayed in Eastern timezone)
+                    # Time, on the viewer's display clock
                     time_str = format_local_time(match.scheduled_at) if match.scheduled_at else 'TBD'
                     ui.label(time_str).classes('match-time')
 

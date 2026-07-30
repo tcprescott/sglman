@@ -103,6 +103,9 @@ async def admin_timezone_page() -> None:
             except ValueError as e:
                 ui.notify(str(e), color='warning')
                 return
+            except PermissionError as e:
+                ui.notify(str(e), color='negative')
+                return
             ui.notify('Timezone settings saved', color='positive')
             ui.navigate.reload()
 

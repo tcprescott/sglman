@@ -60,7 +60,7 @@ async def volunteers_page(
                 if can_staff_shifts:
                     # The headline sentence is the most actionable line in the
                     # whole reports section; make it, not only the table, a route.
-                    first_day = _eastern_day(min(r['starts_at'] for r in understaffed))
+                    first_day = _local_day(min(r['starts_at'] for r in understaffed))
                     ui.button(
                         f'Staff {first_day}', icon='open_in_new',
                         on_click=lambda: ui.navigate.to(
@@ -73,7 +73,7 @@ async def volunteers_page(
                 'position': r['position'],
                 'label': r['label'],
                 'starts_at': format_local_display(r['starts_at']),
-                'day': _eastern_day(r['starts_at']),
+                'day': _local_day(r['starts_at']),
                 'understaffed': r['understaffed'],
                 'coverage': f"{r['filled']}/{r['needed']}",
                 'status': 'Understaffed' if r['understaffed'] else 'OK',
@@ -109,8 +109,8 @@ async def volunteers_page(
             enable_mobile_grid(table, columns, actions=drill_actions)
 
 
-def _eastern_day(when) -> str:
-    """The Eastern calendar day a shift starts on, as the Vol. Schedule names it.
+def _local_day(when) -> str:
+    """The local calendar day a shift starts on, as the Vol. Schedule names it.
 
     Never a naive ``.date()``: the stored value is UTC, and a 20:00 ET shift
     lands on the next UTC day.

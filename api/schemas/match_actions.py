@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 
 class MatchCreateRequest(BaseModel):
     tournament_id: int
-    scheduled_date: str = Field(..., description="Eastern date, YYYY-MM-DD")
-    scheduled_time: str = Field(..., description="Eastern time, HH:MM")
+    scheduled_date: str = Field(..., description="Date in the community's timezone, YYYY-MM-DD")
+    scheduled_time: str = Field(..., description="Time in the community's timezone, HH:MM")
     player_ids: List[int] = Field(..., min_length=1, description="User IDs of the players")
     comment: Optional[str] = None
     stream_room_id: Optional[int] = None
@@ -22,8 +22,8 @@ class MatchRequestCreate(BaseModel):
     """Player-initiated match request. The caller must be among ``player_ids``."""
 
     tournament_id: int
-    scheduled_date: str = Field(..., description="Eastern date, YYYY-MM-DD")
-    scheduled_time: str = Field(..., description="Eastern time, HH:MM")
+    scheduled_date: str = Field(..., description="Date in the community's timezone, YYYY-MM-DD")
+    scheduled_time: str = Field(..., description="Time in the community's timezone, HH:MM")
     player_ids: List[int] = Field(..., min_length=1)
     comment: Optional[str] = None
 

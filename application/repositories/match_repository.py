@@ -8,8 +8,6 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 from typing import List, Optional
 from datetime import datetime, date
 
-from application.utils.timezone import local_day_bounds
-
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User
 
@@ -307,31 +305,30 @@ class MatchRepository:
         ).order_by('scheduled_at')
 
     @staticmethod
-    async def get_for_date(
-        target_date: date,
+    async def scheduled_between(
+        start: datetime,
+        end: datetime,
         exclude_finished: bool = True,
         require_stream_room: bool = True,
     ) -> List[Match]:
         """
-        Get matches scheduled on a given date, with optional filters.
+        Get matches scheduled in the half-open window ``[start, end)``.
+
+        Takes instants, not a date: which instants make up "a day" depends on a
+        timezone, and choosing one is a business rule the service layer owns.
 
         Args:
-            target_date: The date to fetch matches for
+            start: Inclusive lower bound (aware UTC)
+            end: Exclusive upper bound (aware UTC)
             exclude_finished: If True, exclude matches that are finished
             require_stream_room: If True, only include matches with a stream room
 
         Returns:
             List of matches with all related data prefetched
         """
-        # Half-open bounds on the display clock. ``datetime.combine`` alone
-        # yields naive values that the ORM reads as UTC, which silently selected
-        # the UTC day instead of the day the viewer picked — a several-hour
-        # window of the wrong matches at either end.
-        start_of_day, next_day = local_day_bounds(target_date, target_date)
-
         query = scoped(Match.filter(
-            scheduled_at__gte=start_of_day,
-            scheduled_at__lt=next_day
+            scheduled_at__gte=start,
+            scheduled_at__lt=end
         ))
 
         if exclude_finished:

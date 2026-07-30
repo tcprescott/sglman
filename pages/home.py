@@ -8,7 +8,7 @@ from application.tenant_context import (
     stash_client_host_mode,
     stash_client_tenant_id,
 )
-from middleware.auth import enforce_membership
+from middleware.auth import bind_display_timezone, enforce_membership
 from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.brackets import brackets_tab
@@ -108,6 +108,12 @@ def create() -> None:
         # the login flow, and the REST API) rather than still being shown its
         # personalized home and admin/volunteer nav affordances.
         user = await get_user_from_discord_id(discord_id)
+        # Bind the display clock. Same reason this page applies the membership
+        # gate itself: it is a bare ``ui.page``, so it never passes through
+        # ``_tenant_page`` and gets nothing from it. Without this every tab below
+        # — including the timezone picker on the Profile tab — renders on the
+        # fallback zone no matter what the community or the viewer chose.
+        await bind_display_timezone(tid, user)
         # The membership gate. This page is registered with a bare ``ui.page``
         # (the same function also renders the platform community picker, which
         # has no tenant and must stay anonymous), so it applies the gate itself

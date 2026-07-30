@@ -42,6 +42,23 @@ def _bind_display_timezone(name: str) -> None:
     stash_client_timezone(name)
 
 
+async def bind_display_timezone(tenant_id: int, user=None) -> str:
+    """Resolve and bind this viewer's display clock. Returns the bound zone.
+
+    The entry point for any page that does **not** go through
+    :func:`_tenant_page` — currently the tenant home, which is a bare
+    ``ui.page`` so that the same function can also serve the tenant-less
+    community picker. A page that binds no zone silently renders on the
+    fallback, which looks like the feature simply not working.
+    """
+    browser_tz = get_browser_timezone()
+    stash_client_browser_timezone(browser_tz)
+    settings = await TimezoneService.get_settings(tenant_id)
+    name = TimezoneService.pick(settings, user=user, browser_timezone=browser_tz)
+    _bind_display_timezone(name)
+    return name
+
+
 async def _run_in_tenant(tenant_id, coro) -> None:
     """Await a deferred (background-task) coroutine with a tenant bound.
 

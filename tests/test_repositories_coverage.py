@@ -5,11 +5,10 @@ repositories in isolation against the in-memory SQLite ``db`` fixture.
 Repositories perform no Discord I/O, so no queue stub is needed.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
-from application.timezone_context import tz_scope
 from application.repositories.match_acknowledgment_repository import MatchAcknowledgmentRepository
 from application.repositories.match_repository import MatchRepository
 from application.repositories.tournament_notification_repository import TournamentNotificationRepository
@@ -30,6 +29,16 @@ from models import (
     UserRole,
 )
 from tests.factories import make_user, utc
+
+
+def _utc_day(d: date) -> tuple:
+    """The UTC calendar day of ``d`` as half-open bounds.
+
+    The repository takes instants now — which instants make up "a day" is the
+    service's rule (see tests/services/test_match_service_day_window.py). These
+    repository tests only need *a* window, so UTC's is the simplest one.
+    """
+    return utc(d.year, d.month, d.day), utc(d.year, d.month, d.day) + timedelta(days=1)
 
 
 # ---------------------------------------------------------------------------
@@ -658,7 +667,7 @@ class TestMatchRepository:
         await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
         # different day -> excluded
         await Match.create(tournament=t, scheduled_at=utc(2025, 3, 11, 15), stream_room=sr)
-        result = await MatchRepository.get_for_date(target)
+        result = await MatchRepository.scheduled_between(*_utc_day(target))
         assert [m.id for m in result] == [keep.id]
 
     async def test_get_for_date_include_finished_and_no_stream_room(self, db):
@@ -670,45 +679,10 @@ class TestMatchRepository:
             tournament=t, scheduled_at=utc(2025, 3, 10, 16), stream_room=sr, finished_at=utc(2025, 3, 10, 18)
         )
         no_room = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
-        result = await MatchRepository.get_for_date(target, exclude_finished=False, require_stream_room=False)
+        result = await MatchRepository.scheduled_between(
+            *_utc_day(target), exclude_finished=False, require_stream_room=False
+        )
         assert {m.id for m in result} == {with_room.id, finished.id, no_room.id}
-
-    async def test_get_for_date_uses_the_display_clock_not_utc(self, db):
-        """A day's matches are that day *where the viewer is*.
-
-        Regression: the bounds were built with a bare ``datetime.combine``, whose
-        naive result the ORM reads as UTC — so "March 10" selected 00:00–23:59
-        UTC. In Eastern (UTC-5) that dropped the evening (19:00 ET onward, which
-        is already the 11th in UTC) and wrongly pulled in the previous evening.
-        """
-        t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Room 1")
-        # 21:00 ET on the 10th — 02:00 UTC on the *11th*. On the viewer's clock
-        # this is squarely inside the requested day.
-        evening = await Match.create(
-            tournament=t, scheduled_at=utc(2025, 3, 11, 2), stream_room=sr,
-        )
-        # 20:00 ET on the *9th* — 01:00 UTC on the 10th. Inside the UTC day, but
-        # not the day that was asked for.
-        await Match.create(
-            tournament=t, scheduled_at=utc(2025, 3, 10, 1), stream_room=sr,
-        )
-        with tz_scope('America/New_York'):
-            result = await MatchRepository.get_for_date(date(2025, 3, 10))
-        assert [m.id for m in result] == [evening.id]
-
-    async def test_get_for_date_window_follows_the_zone(self, db):
-        """The same instant belongs to different days in different zones."""
-        t = await Tournament.create(name="T")
-        sr = await StreamRoom.create(name="Room 1")
-        # 02:00 UTC on the 11th = 21:00 ET on the 10th = 11:00 JST on the 11th.
-        m = await Match.create(
-            tournament=t, scheduled_at=utc(2025, 3, 11, 2), stream_room=sr,
-        )
-        with tz_scope('America/New_York'):
-            assert [x.id for x in await MatchRepository.get_for_date(date(2025, 3, 10))] == [m.id]
-        with tz_scope('Asia/Tokyo'):
-            assert [x.id for x in await MatchRepository.get_for_date(date(2025, 3, 11))] == [m.id]
 
     async def test_get_for_player(self, db):
         t = await Tournament.create(name="T")

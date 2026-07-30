@@ -20,6 +20,7 @@ import logging
 from typing import Awaitable, Callable, Iterable, Optional, TypeVar
 
 from application.tenant_context import tenant_scope
+from application.timezone_context import tz_scope
 
 _default_logger = logging.getLogger(__name__)
 
@@ -102,14 +103,24 @@ async def for_each_tenant_scoped(
     Items whose ``tenant_id_of`` is ``None`` are skipped; a per-item failure is
     logged (with ``describe(item)`` for context) and isolated so the rest of the
     batch still runs. This is the fan-out shape shared by the tenant-scoped ticks.
+
+    Binds the community's display timezone as well as its tenant, so a worker
+    that formats a time gets that community's clock rather than the fallback.
     """
+    from application.services.timezone_service import TimezoneService
+
     log = logger or _default_logger
     for item in items:
         tenant_id = tenant_id_of(item)
         if tenant_id is None:
             continue
         try:
-            with tenant_scope(tenant_id):
+            # The community's own clock, bound alongside its tenant: a worker has
+            # no viewer, so anything it renders locally (a reminder DM, an export)
+            # would otherwise fall back to the default zone and tell every
+            # community the same wrong time.
+            tz = await TimezoneService.tenant_timezone_name(tenant_id)
+            with tenant_scope(tenant_id), tz_scope(tz):
                 await handle(item)
         except Exception:
             log.exception('scoped work failed for %s', describe(item))
