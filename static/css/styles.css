@@ -1781,3 +1781,18 @@ body.body--dark {
     font-weight: 600;
     color: #fff;
 }
+
+/* ---------------------------------------------------------------------------
+   Volunteer grid — fold a fully-staffed position away on phones.
+
+   The coordinator's day was 4,891 px at 390×844 with no way to skip the
+   positions that are done. The page marks such a position's shift row with this
+   class; the rule lives only inside the below-`md` media query, so the same
+   markup renders once and the desktop grid is untouched by construction. The
+   toggle button that clears the fold is itself `lt-md`.
+--------------------------------------------------------------------------- */
+@media (max-width: 1023.98px) {
+    .wiz-position-folded {
+        display: none !important;
+    }
+}

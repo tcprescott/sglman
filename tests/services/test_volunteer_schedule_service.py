@@ -443,7 +443,7 @@ class TestUpdateShiftReasks:
 
 class TestCoverage:
     async def test_reports_understaffed_shift(self, service):
-        shift = make_shift(slots_needed=2, assignments=[SimpleNamespace()])
+        shift = make_shift(slots_needed=2, assignments=[make_assignment()])
         shift.position = SimpleNamespace(name='Proctor')
         service.shift_repository.list_for_window = AsyncMock(return_value=[shift])
         rows = await service.coverage(_dt(0), _dt(23))
@@ -453,8 +453,44 @@ class TestCoverage:
         assert rows[0]['understaffed'] is True
 
     async def test_reports_fully_staffed_shift(self, service):
-        assignment = SimpleNamespace()
-        shift = make_shift(slots_needed=1, assignments=[assignment])
+        shift = make_shift(slots_needed=1, assignments=[make_assignment()])
         service.shift_repository.list_for_window = AsyncMock(return_value=[shift])
         rows = await service.coverage(_dt(0), _dt(23))
         assert rows[0]['understaffed'] is False
+
+    async def test_breaks_the_filled_total_down_by_state(self, service):
+        shift = make_shift(slots_needed=3, assignments=[
+            make_assignment(id=1, auto_generated=True),
+            make_assignment(id=2, acknowledged_at=datetime.now(UTC)),
+            make_assignment(id=3),
+        ])
+        service.shift_repository.list_for_window = AsyncMock(return_value=[shift])
+        rows = await service.coverage(_dt(0), _dt(23))
+        assert rows[0]['filled'] == 3          # drafts count for the coordinator
+        assert rows[0]['drafts'] == 1
+        assert rows[0]['acknowledged'] == 1
+
+
+class TestDaySummary:
+    async def test_aggregates_the_days_states(self, service):
+        morning = make_shift(id=1, slots_needed=2, assignments=[
+            make_assignment(id=1, acknowledged_at=datetime.now(UTC)),
+            make_assignment(id=2, auto_generated=True),
+        ])
+        afternoon = make_shift(id=2, slots_needed=2, assignments=[
+            make_assignment(id=3),
+        ])
+        service.shift_repository.list_for_window = AsyncMock(
+            return_value=[morning, afternoon])
+
+        summary = await service.day_summary(_dt(0), _dt(23))
+
+        assert summary == {
+            'shifts': 2, 'needed': 4, 'filled': 3, 'open': 1,
+            'drafts': 1, 'unacknowledged': 1, 'understaffed_shifts': 1,
+        }
+
+    async def test_an_empty_day_reports_zeroes(self, service):
+        service.shift_repository.list_for_window = AsyncMock(return_value=[])
+        summary = await service.day_summary(_dt(0), _dt(23))
+        assert summary['shifts'] == 0 and summary['open'] == 0

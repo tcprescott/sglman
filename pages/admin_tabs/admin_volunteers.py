@@ -1,6 +1,7 @@
 """Admin Volunteers management page (coordinator schedule grid)."""
 
 from datetime import timedelta
+from typing import List, Optional
 
 from nicegui import app, ui
 from theme.notify import notify_error
@@ -12,6 +13,7 @@ from application.services.volunteer.volunteer_position_service import VolunteerP
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
+from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import (
     format_eastern_time,
     parse_eastern_datetime,
@@ -31,6 +33,17 @@ STANDARD_BLOCKS = [
     ('Shift 3', '16:00', '20:00'),
     ('Shift 4', '20:00', '00:00'),
 ]
+
+# Namespaced like the match board's filter keys, and tenant-scoped, so a
+# coordinator working two communities does not carry day 3 of one into the other.
+_DAY_KEY = 'volunteers:day'
+
+
+def stored_or_default_day(
+    stored: Optional[str], day_options: List[str], fallback: str,
+) -> str:
+    """The day to open on. A stored day from a previous event is not a day of this one."""
+    return stored if stored in day_options else fallback
 
 
 async def admin_volunteers_page() -> None:
@@ -56,8 +69,13 @@ async def admin_volunteers_page() -> None:
     # ``last_run`` holds the most recent auto-fill result for the summary panel;
     # the durable record of a run is its audit row, not this.
     state = {
-        'day': day_options[0] if day_options else event_start.isoformat(),
+        'day': stored_or_default_day(
+            tenant_session_get(_DAY_KEY), day_options,
+            day_options[0] if day_options else event_start.isoformat(),
+        ),
         'last_run': None,
+        # Per-position "I opened this fully-staffed one anyway", keyed by id.
+        'folds': {},
     }
 
     def _day_window(day_str: str):
@@ -74,6 +92,39 @@ async def admin_volunteers_page() -> None:
             'from availability, and assign volunteers per shift.'
         ).classes('text-caption text-grey')
 
+        # --- Coverage strip ----------------------------------------------
+        # The one number a coordinator wants on-site — how much of today is
+        # uncovered — used to require scrolling 5.8 screenfuls and adding up.
+        strip_container = ui.row().classes('full-width')
+
+        def refresh_all() -> None:
+            """Every handler on this page changes the grid, the strip, the draft
+            count or the panel's staleness — so they all refresh together."""
+            coverage_strip.refresh()
+            draft_banner.refresh()
+            result_panel.refresh()
+            grid.refresh()
+
+        @ui.refreshable
+        async def coverage_strip() -> None:
+            win_start, win_end = _day_window(state['day'])
+            summary = await schedule_service.day_summary(win_start, win_end)
+            if not summary['shifts']:
+                ui.label('No shifts on this day yet.').classes('text-caption text-grey')
+                return
+            with ui.row().classes('items-center gap-2').style('flex-wrap: wrap;'):
+                ui.chip(f"{summary['filled']}/{summary['needed']} slots filled") \
+                    .props('outline dense')
+                if summary['open']:
+                    ui.chip(f"{summary['open']} open").props('dense color=warning')
+                else:
+                    ui.chip('Fully staffed').props('dense color=positive')
+                if summary['unacknowledged']:
+                    ui.chip(f"{summary['unacknowledged']} awaiting acknowledgment") \
+                        .props('outline dense')
+                if summary['drafts']:
+                    ui.chip(f"{summary['drafts']} draft").props('outline dense color=secondary')
+
         # --- Controls ----------------------------------------------------
         with ui.card().classes('full-width q-pa-md'):
             with ui.row().classes('items-center gap-3'):
@@ -83,8 +134,8 @@ async def admin_volunteers_page() -> None:
 
                 def on_day_change(e):
                     state['day'] = e.value
-                    grid.refresh()
-                    draft_banner.refresh()
+                    tenant_session_set(_DAY_KEY, e.value)
+                    refresh_all()
                 day_select.on_value_change(on_day_change)
 
                 ui.button('Auto-fill from availability', icon='smart_toy',
@@ -210,9 +261,7 @@ async def admin_volunteers_page() -> None:
                 r for r in state['last_run']['outside_availability']
                 if not (r['shift_id'] == row['shift_id'] and r['user_id'] == row['user_id'])
             ]
-            grid.refresh()
-            draft_banner.refresh()
-            result_panel.refresh()
+            refresh_all()
 
         # --- Grid --------------------------------------------------------
         grid_container = ui.column().classes('full-width')
@@ -232,10 +281,29 @@ async def admin_volunteers_page() -> None:
                 by_position.setdefault(shift.position_id, []).append(shift)
 
             for position in positions:
+                pos_shifts = sorted(
+                    by_position.get(position.id, []), key=lambda s: s.starts_at,
+                )
+                open_slots = sum(
+                    max(0, s.slots_needed - len(s.assignments)) for s in pos_shifts
+                )
+                filled = sum(len(s.assignments) for s in pos_shifts)
+                needed = sum(s.slots_needed for s in pos_shifts)
                 with ui.card().classes('full-width q-pa-sm q-mb-sm'):
+                    # The header always states the position's state, so a collapsed
+                    # position hides finished work and never hidden work. The action
+                    # buttons stay outside the expansion: they are how an empty day
+                    # gets populated.
                     with ui.row().classes('items-center justify-between full-width'):
                         with ui.column().classes('gap-0'):
-                            ui.label(position.name).classes('text-subtitle1')
+                            with ui.row().classes('items-center gap-2'):
+                                ui.label(position.name).classes('text-subtitle1')
+                                if pos_shifts:
+                                    ui.badge(f'{filled}/{needed}',
+                                             color='warning' if open_slots else 'positive')
+                                    if open_slots:
+                                        ui.label(f'{open_slots} open') \
+                                            .classes('text-caption text-warning')
                             if position.description:
                                 ui.label(position.description).classes('text-caption text-grey')
                         with ui.row().classes('gap-1'):
@@ -245,13 +313,33 @@ async def admin_volunteers_page() -> None:
                             ui.button('Add shift', icon='add',
                                       on_click=lambda p=position: open_shift_dialog(position=p)) \
                                 .props('flat dense color=primary')
-                    pos_shifts = by_position.get(position.id, [])
                     if not pos_shifts:
                         ui.label('No shifts for this day yet.').classes('italic-note q-pa-sm')
                         continue
-                    with ui.row().classes('gap-2 items-stretch').style('flex-wrap: wrap;'):
-                        for shift in sorted(pos_shifts, key=lambda s: s.starts_at):
+                    # A fully-staffed position folds away — on phones only, where
+                    # 5.8 screenfuls of finished work is the finding. The fold is a
+                    # class our own stylesheet only honours below `md`, so the
+                    # cards render once and the desktop layout is provably
+                    # untouched; a `ui.expansion` per width would double the DOM
+                    # and register every row action twice.
+                    folded = not open_slots and not state['folds'].get(position.id)
+                    if not open_slots:
+                        with ui.row().classes('items-center lt-md q-pt-xs'):
+                            ui.button(
+                                f"{'Show' if folded else 'Hide'} {len(pos_shifts)} shift(s)",
+                                icon='expand_more' if folded else 'expand_less',
+                                on_click=lambda p=position: toggle_fold(p.id),
+                            ).props('flat dense color=primary')
+                    classes = 'gap-2 items-stretch'
+                    if folded:
+                        classes += ' wiz-position-folded'
+                    with ui.row().classes(classes).style('flex-wrap: wrap;'):
+                        for shift in pos_shifts:
                             _render_shift_card(shift)
+
+        def toggle_fold(position_id: int) -> None:
+            state['folds'][position_id] = not state['folds'].get(position_id)
+            grid.refresh()
 
         def _last_run_reason(shift_id: int):
             """Why the last auto-fill left this shift short, so the grid and the
@@ -313,8 +401,7 @@ async def admin_volunteers_page() -> None:
                     finally:
                         # The chip already removed itself client-side; refresh to
                         # re-sync regardless of whether the service call succeeded.
-                        grid.refresh()
-                        draft_banner.refresh()
+                        refresh_all()
                 chip.on('remove', lambda a=assignment: remove(a))
 
                 if assignment.checked_in_at:
@@ -326,8 +413,7 @@ async def admin_volunteers_page() -> None:
                             ui.notify('Volunteer checked in.', color='positive')
                         except (ValueError, PermissionError) as e:
                             notify_error(e)
-                        grid.refresh()
-                        draft_banner.refresh()
+                        refresh_all()
                     ui.button(icon='login', on_click=do_check_in) \
                         .props('flat dense color=teal').tooltip('Check in volunteer')
 
@@ -414,8 +500,7 @@ async def admin_volunteers_page() -> None:
                         ui.notify(w, color='warning')
                     ui.notify(f'Assigned {u.preferred_name}.', color='positive')
                     dialog.close()
-                    grid.refresh()
-                    draft_banner.refresh()
+                    refresh_all()
                 ui.button('Assign', on_click=do_assign).props('dense flat color=primary')
 
         # --- Actions -----------------------------------------------------
@@ -429,13 +514,11 @@ async def admin_volunteers_page() -> None:
                 return
             ui.notify(f'Generated shifts for {position.name} (staggered where configured).',
                       color='positive')
-            grid.refresh()
-            draft_banner.refresh()
+            refresh_all()
 
         async def open_shift_dialog(shift=None, position=None) -> None:
             async def after(_):
-                grid.refresh()
-                draft_banner.refresh()
+                refresh_all()
             await VolunteerShiftDialog(
                 shift=shift, position=position, default_day=state['day'], on_submit=after,
             ).open()
@@ -455,8 +538,7 @@ async def admin_volunteers_page() -> None:
                     notify_error(e)
                     return
                 ui.notify('Shift deleted.', color='info')
-                grid.refresh()
-                draft_banner.refresh()
+                refresh_all()
 
             confirm = ConfirmationDialog(message=message, on_confirm=on_confirm, confirm_text='Delete')
             confirm.open()
@@ -480,9 +562,7 @@ async def admin_volunteers_page() -> None:
                 'Draft created — see the summary below.',
                 color='positive' if result['created'] else 'warning',
             )
-            grid.refresh()
-            draft_banner.refresh()
-            result_panel.refresh()
+            refresh_all()
 
         async def clear_draft() -> None:
             win_start, win_end = _day_window(state['day'])
@@ -492,8 +572,7 @@ async def admin_volunteers_page() -> None:
                 notify_error(e)
                 return
             ui.notify(f'Cleared {removed} draft assignment(s).', color='info')
-            grid.refresh()
-            draft_banner.refresh()
+            refresh_all()
 
         async def confirm_publish(pending: int) -> None:
             async def on_confirm() -> None:
@@ -509,8 +588,7 @@ async def admin_volunteers_page() -> None:
                     f"{result['volunteers']} volunteer(s). Each got a Discord DM.",
                     color='positive',
                 )
-                grid.refresh()
-                draft_banner.refresh()
+                refresh_all()
 
             confirm = ConfirmationDialog(
                 message=(f'Publish {pending} draft assignment(s)? Each volunteer gets a '
@@ -544,8 +622,7 @@ async def admin_volunteers_page() -> None:
                             notify_error(e)
                             return
                         ui.notify(f'Deleted {deleted} shift(s) and all assignments.', color='negative')
-                        grid.refresh()
-                        draft_banner.refresh()
+                        refresh_all()
 
                 ui.separator()
                 with ui.row().classes('justify-end q-pa-sm gap-2'):
@@ -571,8 +648,7 @@ async def admin_volunteers_page() -> None:
                             async def edit(p=position) -> None:
                                 async def after(_):
                                     position_list.refresh()
-                                    grid.refresh()
-                                    draft_banner.refresh()
+                                    refresh_all()
                                 await VolunteerPositionDialog(position=p, on_submit=after).open()
                             ui.button(icon='edit', on_click=edit).props('flat dense')
 
@@ -582,8 +658,7 @@ async def admin_volunteers_page() -> None:
                 async def add_position() -> None:
                     async def after(_):
                         position_list.refresh()
-                        grid.refresh()
-                        draft_banner.refresh()
+                        refresh_all()
                     await VolunteerPositionDialog(on_submit=after).open()
 
                 with ui.row().classes('justify-end q-pa-sm gap-2'):
@@ -591,6 +666,8 @@ async def admin_volunteers_page() -> None:
                     ui.button('Close', on_click=dialog.close).props('flat')
                 dialog.open()
 
+        with strip_container:
+            await coverage_strip()
         with banner_container:
             await draft_banner()
         with panel_container:

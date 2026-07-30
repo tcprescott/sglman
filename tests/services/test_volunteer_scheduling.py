@@ -345,6 +345,29 @@ async def test_shiftmates_are_only_loaded_when_asked_for(db):
 
 # --- coverage -------------------------------------------------------------
 
+async def test_day_summary_counts_the_states(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2,
+    )
+    committed = await _opted_in_volunteer('committed')
+    drafted = await _opted_in_volunteer('drafted')
+    svc = VolunteerScheduleService()
+    assignment, _ = await svc.assign(staff, shift, committed)
+    await svc.acknowledge(assignment.id, committed)
+    await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
+
+    summary = await svc.day_summary(_at(0), _at(23))
+    assert summary['filled'] == 2 and summary['open'] == 0
+    assert summary['drafts'] == 1 and summary['unacknowledged'] == 0
+
+
+async def test_day_summary_of_an_empty_day(db):
+    summary = await VolunteerScheduleService().day_summary(_at(0), _at(23))
+    assert summary['shifts'] == 0 and summary['open'] == 0
+
+
 async def test_coverage_reports_understaffing(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Race Proctor')

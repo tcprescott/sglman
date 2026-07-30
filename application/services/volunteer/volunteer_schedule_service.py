@@ -435,11 +435,22 @@ class VolunteerScheduleService:
     # --- Coverage ---------------------------------------------------------
 
     async def coverage(self, start: datetime, end: datetime) -> List[Dict]:
-        """Per-shift filled/needed counts across [start, end]."""
+        """Per-shift filled/needed counts across [start, end].
+
+        ``filled`` counts drafts: this is the coordinator's working schedule, and
+        a draft is real work-in-progress to them. ``drafts`` and ``acknowledged``
+        break that total down so a caller can tell how much of it is committed.
+        """
         shifts = await self.shift_repository.list_for_window(start, end)
         rows: List[Dict] = []
         for shift in shifts:
-            filled = len(shift.assignments)
+            assignments = list(shift.assignments)
+            filled = len(assignments)
+            drafts = sum(1 for a in assignments if a.auto_generated)
+            acknowledged = sum(
+                1 for a in assignments
+                if not a.auto_generated and a.acknowledged_at is not None
+            )
             rows.append({
                 'shift_id': shift.id,
                 'position': shift.position.name if shift.position else '',
@@ -449,8 +460,25 @@ class VolunteerScheduleService:
                 'filled': filled,
                 'needed': shift.slots_needed,
                 'understaffed': filled < shift.slots_needed,
+                'drafts': drafts,
+                'acknowledged': acknowledged,
             })
         return rows
+
+    async def day_summary(self, start: datetime, end: datetime) -> Dict:
+        """Aggregate coverage for a day: the numbers the coordinator's strip shows."""
+        rows = await self.coverage(start, end)
+        return {
+            'shifts': len(rows),
+            'needed': sum(r['needed'] for r in rows),
+            'filled': sum(r['filled'] for r in rows),
+            'open': sum(max(0, r['needed'] - r['filled']) for r in rows),
+            'drafts': sum(r['drafts'] for r in rows),
+            'unacknowledged': sum(
+                r['filled'] - r['drafts'] - r['acknowledged'] for r in rows
+            ),
+            'understaffed_shifts': sum(1 for r in rows if r['understaffed']),
+        }
 
     # --- Helpers ----------------------------------------------------------
 
