@@ -135,18 +135,48 @@ def create() -> None:
         if user is None:
             # Not authenticated: bounce to the originating tenant's login rather
             # than the platform host (the returns carry the /t/<slug> prefix).
+            stash_notice('Please log in and try linking again.', color='warning')
             ui.navigate.to(service_return if service_state is not None else player_return)
             return
-        # The pending CSRF state tells us which flow this single callback completes.
+        # One registered redirect URI serves two flows, so the pending CSRF state
+        # says which one this callback completes. Four outcomes, named — the old
+        # two-branch guess fell through to the service flow whenever *neither*
+        # state was pending (a replay, a stale tab, a hand-typed URL), and that
+        # flow returns to /admin/challonge, so a player was answered with a 403
+        # about the admin area.
         state = returned_state(url)
-        if player_state is not None and (state == player_state or service_state is None):
+        if player_state is not None and state == player_state:
             await _finish_player_link(
                 user, read_callback_code(url, player_state, _PROVIDER_LABEL), player_return,
             )
-        else:
+        elif service_state is not None and state == service_state:
             await _finish_service_connect(
                 user, read_callback_code(url, service_state, _PROVIDER_LABEL), service_return,
             )
+        elif (player_state is None) != (service_state is None):
+            # Exactly one flow pending and the state did not match it: a provider
+            # redirect carrying an error and no usable state. Complete that flow
+            # with no code so it reports cancelled/failed and returns to its own
+            # path — what the old `or service_state is None` clause was for.
+            if player_state is not None:
+                await _finish_player_link(user, None, player_return)
+            else:
+                await _finish_service_connect(user, None, service_return)
+        else:
+            # Nothing pending, or both pending and neither matched: this callback
+            # belongs to neither flow, so complete neither. Return to the profile,
+            # never the admin area — every actor can reach their own profile, and
+            # a staff member replaying a service-connect callback lands there with
+            # an accurate message instead of a player hitting a 403. With no
+            # markers there is no tenant to prefix, so in path mode the fallback
+            # resolves on the platform host as the community picker — with the
+            # message, which is the honest answer for a callback that names no
+            # community.
+            stash_notice(
+                f"That {_PROVIDER_LABEL} link didn't complete. "
+                f'Try again from your profile.', color='warning',
+            )
+            ui.navigate.to(player_return)
 
     @ui.page('/challonge/link')
     async def challonge_link(request: Request) -> RedirectResponse:
