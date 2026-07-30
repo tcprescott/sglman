@@ -13,6 +13,7 @@ Coding conventions and the rules to follow while writing code are in
 
 | Doc | What it covers |
 |---|---|
+| [product-context.md](product-context.md) | Who uses it, at what scale, what failure costs — the situation the code serves |
 | [architecture.md](architecture.md) | Tech stack, process model, startup sequence, three-layer pattern, component diagram, directory map, key design decisions |
 | [current-state.md](current-state.md) | Status snapshot: what works, known issues, what is deliberately deferred |
 | [development.md](development.md) | Local setup, the `MOCK_DISCORD` loop, dev fixtures, migrations, tests, CI |
