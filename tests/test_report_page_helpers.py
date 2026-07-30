@@ -9,7 +9,7 @@ labels; a URL that carries a hand-built tenant prefix).
 from datetime import date
 
 from pages.admin_tabs.links import SCHEDULE, VOL_SCHEDULE, admin_url
-from pages.admin_tabs.reports.shared import _page_range_label, reports_url
+from pages.admin_tabs.reports.shared import _page_range_label, _refresh_params, reports_url
 
 
 class TestPageRangeLabel:
@@ -56,3 +56,37 @@ class TestAdminUrl:
     def test_reports_url_without_a_report_is_the_dashboard(self):
         assert reports_url() == '/admin/reports'
         assert reports_url(start=date(2026, 1, 2)) == '/admin/reports?start=2026-01-02'
+
+
+class TestRefreshParams:
+    """A filter change re-renders in place, so its params must arrive looking
+    exactly like the ones a page load at the same URL would have delivered."""
+
+    def test_dates_become_iso_strings(self):
+        # The route annotates ``start: str``; a date object here would fail
+        # ``parse_date`` and silently reset the range to the event window.
+        assert _refresh_params({'start': date(2026, 1, 2), 'end': date(2026, 1, 5)}) == {
+            'start': '2026-01-02', 'end': '2026-01-05',
+        }
+
+    def test_absent_params_are_dropped_so_the_handler_default_applies(self):
+        assert _refresh_params({'tournament_id': None, 'approval': ''}) == {}
+
+    def test_ints_keep_their_type(self):
+        # ``tournament_id: int`` / ``page: int`` are coerced by the route on a
+        # reload, and the handlers do arithmetic on the page number.
+        assert _refresh_params({'tournament_id': 3, 'page': 2}) == {
+            'tournament_id': 3, 'page': 2,
+        }
+
+    def test_zero_survives(self):
+        # 0 is falsey but meaningful (page 0 clamps downstream); only None and
+        # the empty string mean "not set".
+        assert _refresh_params({'page': 0}) == {'page': 0}
+
+    def test_matches_what_the_url_would_have_carried(self):
+        params = {'start': date(2026, 1, 2), 'tournament_id': 3, 'user_id': None}
+        assert reports_url(report='crew', **params) == (
+            '/admin/reports?report=crew&start=2026-01-02&tournament_id=3'
+        )
+        assert _refresh_params(params) == {'start': '2026-01-02', 'tournament_id': 3}
