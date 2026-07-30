@@ -128,6 +128,27 @@ Pytest is configured in [`pyproject.toml`](../pyproject.toml) with `asyncio_mode
 
 **The suite runs in parallel by default** — `addopts = "-n auto --dist loadfile"` (pytest-xdist). `loadfile` keeps every test in a module on one worker, so module-level state stays as contained as it is in a serial run. Pass `-n0` to go serial when you need `-s`, a debugger, or readable live output from a single file.
 
+### The `db` fixture stamps the tenant for you — and what that hides
+
+Almost every scoped model in the suite is created bare (`Match.create(...)`), so
+the `db` fixture in [`tests/conftest.py`](../tests/conftest.py) wraps each
+tenant-scoped model's `.create` to stamp the ambient tenant when the caller
+omits it. That keeps ~700 call sites free of per-call edits, and the production
+contract — **never auto-stamp** — is untouched, because the wrapper exists only
+in the harness.
+
+The cost: **no DB-backed test can fail on an unstamped write.** A production
+write that forgets `tenant_id` on a non-null FK raises `IntegrityError` against
+Postgres and passes silently here. That is exactly how the enrolment write in
+`UserService` shipped broken. Two things guard it now:
+
+- `check_tenant_scoping.py` reads service modules as well as repositories
+  (writes only) — see [`.claude/README.md`](../.claude/README.md).
+- [`tests/tenancy/test_enrolment_tenant_stamping.py`](../tests/tenancy/test_enrolment_tenant_stamping.py)
+  has an `unstamped_creates` fixture that restores Tortoise's own `Model.create`
+  for one model, so the write is tested as production runs it. Copy that pattern
+  when a write path's tenant stamping is the thing under test.
+
 ### Keeping it fast
 
 Wall time is dominated by **per-test fixture setup**, not by assertions — test *count* is close to free, so do not thin out parametrized cases to save time. Two rules:

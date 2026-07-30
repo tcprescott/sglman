@@ -7,6 +7,7 @@ Coordinates user-related operations and enforces business rules.
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Set
 
+from application.repositories.tournament_repository import TournamentRepository
 from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
@@ -22,6 +23,9 @@ class UserService:
     def __init__(self) -> None:
         self.repository = UserRepository()
         self.role_repository = UserRoleRepository()
+        # Enrolment writes go through here rather than straight to the model:
+        # the repository is what stamps the tenant on a non-null FK.
+        self.tournament_repository = TournamentRepository()
         self.audit_service = AuditService()
 
     async def get_user_by_discord_id(self, discord_id: str) -> Optional[User]:
@@ -231,7 +235,7 @@ class UserService:
         for tournament_id in added_ids:
             tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
             if tournament:
-                await TournamentPlayers.create(user=user, tournament=tournament)
+                await self.tournament_repository.enroll_player(tournament, user)
                 created_ids.append(tournament_id)
 
         if created_ids or removed_ids:
@@ -391,7 +395,7 @@ class UserService:
             for tournament_id in tournament_ids:
                 tournament = await Tournament.get_or_none(id=tournament_id, tenant_id=require_tenant_id())
                 if tournament:
-                    await TournamentPlayers.create(user=user, tournament=tournament)
+                    await self.tournament_repository.enroll_player(tournament, user)
                     added.append(tournament_id)
             if added:
                 await self.audit_service.write_log(

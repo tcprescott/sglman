@@ -35,6 +35,8 @@ def service(monkeypatch):
     svc.role_repository = MagicMock()
     svc.role_repository.add = AsyncMock()
     svc.role_repository.remove = AsyncMock()
+    svc.tournament_repository = MagicMock()
+    svc.tournament_repository.enroll_player = AsyncMock()
     svc.audit_service = MagicMock()
     svc.audit_service.write_log = AsyncMock()
     return svc
@@ -380,15 +382,16 @@ class TestUpdateUserTournamentRegistrations:
         async def fake_get_or_none(id, tenant_id=None):
             return {5: tournament_5, 6: tournament_6}.get(id)
 
-        create_mock = AsyncMock()
         monkeypatch.setattr(
             'application.services.user_service.Tournament.get_or_none',
             fake_get_or_none,
         )
-        monkeypatch.setattr(
-            'application.services.user_service.TournamentPlayers.create',
-            create_mock,
-        )
+        # The write goes through the repository, which is what stamps the
+        # non-null tenant FK. Mocking TournamentPlayers.create here instead is
+        # how this suite stayed green while the service wrote unstamped rows
+        # that failed to insert on Postgres.
+        create_mock = AsyncMock()
+        service.tournament_repository.enroll_player = create_mock
 
         # keep id=1, add 5 and 6, remove 2 and 3
         await service.update_user_tournament_registrations(
@@ -402,8 +405,9 @@ class TestUpdateUserTournamentRegistrations:
         current[1].delete.assert_awaited_once()
         current[2].delete.assert_awaited_once()
 
-        # 5 and 6 are created.
+        # 5 and 6 are created, through the repository.
         assert create_mock.await_count == 2
+        assert [c.args[0] for c in create_mock.await_args_list] == [tournament_5, tournament_6]
 
         # Audit log records the deltas (sorted).
         details = service.audit_service.write_log.await_args.args[2]
