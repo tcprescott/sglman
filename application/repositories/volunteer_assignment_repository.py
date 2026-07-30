@@ -24,6 +24,14 @@ class VolunteerAssignmentRepository:
         ).prefetch_related(*_PREFETCH)
 
     @staticmethod
+    async def get_for_shift_and_user(
+        shift_id: int, user_id: int,
+    ) -> Optional[VolunteerAssignment]:
+        return await scoped(
+            VolunteerAssignment.filter(shift_id=shift_id, user_id=user_id)
+        ).prefetch_related(*_PREFETCH).first()
+
+    @staticmethod
     async def exists(shift_id: int, user_id: int) -> bool:
         return await scoped(VolunteerAssignment.filter(shift_id=shift_id, user_id=user_id)).exists()
 

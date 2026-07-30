@@ -201,6 +201,7 @@ async def seed_for_tenant(
             ("player_one", Role.VOLUNTEER),
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
+            ("player_four", Role.VOLUNTEER),
         ]
         for uname, role in role_grants:
             await UserRole.get_or_create(

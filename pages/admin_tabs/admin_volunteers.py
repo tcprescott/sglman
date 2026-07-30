@@ -18,6 +18,7 @@ from application.utils.timezone import (
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
 from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
@@ -51,7 +52,13 @@ async def admin_volunteers_page() -> None:
     while d <= event_end:
         day_options.append(d.isoformat())
         d += timedelta(days=1)
-    state = {'day': day_options[0] if day_options else event_start.isoformat()}
+    # Per-page state, never module level: NiceGUI shares one process across users.
+    # ``last_run`` holds the most recent auto-fill result for the summary panel;
+    # the durable record of a run is its audit row, not this.
+    state = {
+        'day': day_options[0] if day_options else event_start.isoformat(),
+        'last_run': None,
+    }
 
     def _day_window(day_str: str):
         start = parse_eastern_datetime(day_str, '00:00')
@@ -113,6 +120,100 @@ async def admin_volunteers_page() -> None:
                     ui.button('Clear draft', icon='clear_all',
                               on_click=lambda: clear_draft()).props('flat color=negative')
 
+        # --- Last auto-fill result ---------------------------------------
+        panel_container = ui.column().classes('full-width')
+
+        @ui.refreshable
+        async def result_panel() -> None:
+            run = state['last_run']
+            if not run:
+                return
+            policy = run.get('policy')
+            open_slots = sum(u['open'] for u in run['unfilled'])
+            header = (f"Draft: {run['created']} assigned · {open_slots} slot(s) open "
+                      f"· pool of {run['pool_size']}")
+            if policy is not None and policy.max_hours:
+                header += f" · max {policy.max_hours:g} h/volunteer"
+
+            def dismiss() -> None:
+                state['last_run'] = None
+                result_panel.refresh()
+
+            with ui.card().classes('full-width q-pa-sm'):
+                with ui.row().classes('items-center gap-2 full-width').style('flex-wrap: wrap;'):
+                    ui.label(header).classes('text-body2 text-weight-medium')
+                    ui.space()
+                    ui.button(icon='close', on_click=dismiss) \
+                        .props('flat dense round').tooltip('Dismiss this summary')
+
+                if run['unfilled']:
+                    ui.label('Open slots').classes('text-caption text-weight-medium q-mt-sm')
+                    for row in run['unfilled']:
+                        with ui.row().classes('items-center gap-2 full-width') \
+                                .style('flex-wrap: wrap;'):
+                            ui.label(_slot_title(row)).classes('text-caption')
+                            ui.badge(f"{row['open']} open", color='warning')
+                            ui.label(row['reason']).classes('text-caption text-grey')
+                            ui.space()
+                            ui.button('Assign',
+                                      on_click=lambda r=row: assign_from_panel(r['shift_id'])) \
+                                .props('flat dense color=primary')
+
+                if run.get('outside_availability'):
+                    ui.label('Placed outside stated availability') \
+                        .classes('text-caption text-weight-medium q-mt-sm')
+                    for row in run['outside_availability']:
+                        with ui.row().classes('items-center gap-2 full-width') \
+                                .style('flex-wrap: wrap;'):
+                            ui.label(
+                                f"{row['name']} — {_slot_title(row)}"
+                            ).classes('text-caption')
+                            ui.space()
+                            ui.button('Remove',
+                                      on_click=lambda r=row: remove_from_panel(r)) \
+                                .props('flat dense color=negative')
+
+                if run.get('heavy_loads'):
+                    ui.label('Heavy loads').classes('text-caption text-weight-medium q-mt-sm')
+                    for row in run['heavy_loads']:
+                        ui.label(
+                            f"{row['name']} — {row['hours']:g} h across "
+                            f"{row['shifts']} shift(s)"
+                        ).classes('text-caption text-grey')
+
+        def _slot_title(row) -> str:
+            label = f" — {row['label']}" if row.get('label') else ''
+            return (f"{row['position']}{label}   "
+                    f"{format_eastern_time(row['starts_at'])} ET")
+
+        async def assign_from_panel(shift_id: int) -> None:
+            shift = await schedule_service.get_shift(shift_id)
+            if shift is None:
+                ui.notify('That shift no longer exists.', color='warning')
+                return
+            await open_assign_dialog(shift)
+
+        async def remove_from_panel(row) -> None:
+            assignment = await schedule_service.find_assignment(
+                row['shift_id'], row['user_id'],
+            )
+            if assignment is None:
+                ui.notify('That assignment is already gone.', color='info')
+            else:
+                try:
+                    await schedule_service.unassign(actor, assignment)
+                    ui.notify(f"Removed {row['name']}.", color='info')
+                except (ValueError, PermissionError) as e:
+                    notify_error(e)
+                    return
+            state['last_run']['outside_availability'] = [
+                r for r in state['last_run']['outside_availability']
+                if not (r['shift_id'] == row['shift_id'] and r['user_id'] == row['user_id'])
+            ]
+            grid.refresh()
+            draft_banner.refresh()
+            result_panel.refresh()
+
         # --- Grid --------------------------------------------------------
         grid_container = ui.column().classes('full-width')
 
@@ -149,6 +250,15 @@ async def admin_volunteers_page() -> None:
                         for shift in sorted(pos_shifts, key=lambda s: s.starts_at):
                             _render_shift_card(shift)
 
+        def _last_run_reason(shift_id: int):
+            """Why the last auto-fill left this shift short, so the grid and the
+            summary panel agree without the coordinator holding the mapping."""
+            run = state['last_run']
+            if not run:
+                return None
+            return next((u['reason'] for u in run['unfilled']
+                         if u['shift_id'] == shift_id), None)
+
         def _render_shift_card(shift) -> None:
             filled = len(shift.assignments)
             understaffed = filled < shift.slots_needed
@@ -156,8 +266,11 @@ async def admin_volunteers_page() -> None:
                 header = shift.label or f'{format_eastern_time(shift.starts_at)}'
                 with ui.row().classes('items-center justify-between full-width'):
                     ui.label(header).classes('text-weight-medium')
-                    ui.badge(f'{filled}/{shift.slots_needed}',
-                             color='warning' if understaffed else 'positive')
+                    badge = ui.badge(f'{filled}/{shift.slots_needed}',
+                                     color='warning' if understaffed else 'positive')
+                    reason = _last_run_reason(shift.id)
+                    if understaffed and reason:
+                        badge.tooltip(reason)
                 ui.label(
                     f'{format_eastern_time(shift.starts_at)}–{format_eastern_time(shift.ends_at)} ET'
                 ).classes('text-caption')
@@ -342,20 +455,27 @@ async def admin_volunteers_page() -> None:
             confirm.open()
 
         async def auto_fill() -> None:
+            positions = await position_service.list_active()
+            await VolunteerAutofillDialog(positions, on_submit=run_auto_fill).open()
+
+        async def run_auto_fill(policy, position_ids) -> None:
             win_start, win_end = _day_window(state['day'])
             try:
-                result = await autoschedule_service.generate_draft(actor, win_start, win_end)
+                result = await autoschedule_service.generate_draft(
+                    actor, win_start, win_end,
+                    position_ids=position_ids, policy=policy,
+                )
             except (ValueError, PermissionError) as e:
                 notify_error(e)
                 return
-            unfilled = sum(u['open'] for u in result['unfilled'])
+            state['last_run'] = result
             ui.notify(
-                f"Draft created: {result['created']} assignment(s), "
-                f"{unfilled} slot(s) still open (pool of {result['pool_size']}).",
+                'Draft created — see the summary below.',
                 color='positive' if result['created'] else 'warning',
             )
             grid.refresh()
             draft_banner.refresh()
+            result_panel.refresh()
 
         async def clear_draft() -> None:
             win_start, win_end = _day_window(state['day'])
@@ -466,5 +586,7 @@ async def admin_volunteers_page() -> None:
 
         with banner_container:
             await draft_banner()
+        with panel_container:
+            await result_panel()
         with grid_container:
             await grid()

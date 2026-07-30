@@ -7,7 +7,10 @@ in-memory DB fixture, and the qualification-based filtering inside _pick.
 """
 
 
-from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
+from application.services.volunteer.volunteer_autoschedule_service import (
+    DraftPolicy,
+    VolunteerAutoscheduleService,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +68,10 @@ class TestPickQualificationFiltering:
     def _make_svc(self):
         return object.__new__(VolunteerAutoscheduleService)
 
+    # These tests isolate the qualification dimension, so they opt out of the
+    # availability constraint rather than declaring a window per candidate.
+    POLICY = DraftPolicy(fill_outside_availability=True, max_hours=0)
+
     def _make_shift(self, position_id=5):
         from types import SimpleNamespace
         from datetime import datetime, timezone
@@ -88,7 +95,7 @@ class TestPickQualificationFiltering:
         # empty quals dict means generalist -> eligible
         result = svc._pick(
             shift, [user], [1], {}, {},
-            {1: []}, {1: 0.0}, {1: set()},
+            {1: []}, {1: 0.0}, {1: set()}, policy=self.POLICY,
         )
         assert result is user
 
@@ -99,7 +106,7 @@ class TestPickQualificationFiltering:
         quals = {1: {5}}  # qualified for position 5
         result = svc._pick(
             shift, [user], [1], quals, {},
-            {1: []}, {1: 0.0}, {1: set()},
+            {1: []}, {1: 0.0}, {1: set()}, policy=self.POLICY,
         )
         assert result is user
 
@@ -110,7 +117,7 @@ class TestPickQualificationFiltering:
         quals = {1: {99}}  # qualified only for position 99
         result = svc._pick(
             shift, [user], [1], quals, {},
-            {1: []}, {1: 0.0}, {1: set()},
+            {1: []}, {1: 0.0}, {1: set()}, policy=self.POLICY,
         )
         assert result is None
 
@@ -123,5 +130,6 @@ class TestPickQualificationFiltering:
         result = svc._pick(
             shift, [generalist, specialist], [1, 2], quals, {},
             {1: [], 2: []}, {1: 0.0, 2: 0.0}, {1: set(), 2: set()},
+            policy=self.POLICY,
         )
         assert result is specialist

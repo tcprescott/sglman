@@ -71,6 +71,10 @@ async def seed_volunteers_for_tenant(
         "player_one": "Available around my matches — check the schedule first.",
         "player_two": None,
         "player_three": "First time volunteering, would like a shadow shift.",
+        # Deliberately absent from avail_specs below: the auto-scheduler's default
+        # policy skips a volunteer who has not declared this time, and that skip
+        # needs someone to skip.
+        "player_four": "Can help wherever, ask me on the day.",
     }
     for uname, note in opted_in.items():
         profile, _ = await VolunteerProfile.get_or_create(user=users[uname], tenant=tenant)

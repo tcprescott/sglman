@@ -1001,11 +1001,20 @@ Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `Vol
 
 ### volunteer_autoschedule_service.py — VolunteerAutoscheduleService
 
-Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool using qualifications, availability, no-overlap, and hour load-balancing, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
+Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool using qualifications, availability, no-overlap, and an hour ceiling, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
+
+What the filler may do is a **`DraftPolicy`** (frozen dataclass, exported from `application.services`), built by the coordinator's auto-fill dialog and defaulting to the conservative reading of a volunteer's declared availability:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `max_hours` | `DEFAULT_MAX_HOURS` (8.0) | Hard ceiling per volunteer per run; `0` disables it. |
+| `fill_outside_availability` | `False` | Whether a volunteer who has *not* marked the time may be used at all. Someone who marked it **unavailable** is never used, under any policy. |
+
+Both are **hard skips inside `_pick`**, not tiebreakers — that distinction is the finding this replaced, where one volunteer was given four consecutive blocks totalling 16 hours, 12 of them outside their declared window.
 
 | Method | Returns | Description |
 |---|---|---|
-| `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions); returns `{created, unfilled, pool_size}`. Transactional; audits `volunteer.draft_generated`. |
+| `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True, policy=None)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions) under `policy` (defaulting to `DraftPolicy()`). Returns `{created, pool_size, policy, unfilled, outside_availability, heavy_loads}` — `unfilled` carries a per-slot `reason` sentence saying *why* it stayed open, `outside_availability` names everyone placed outside their stated window, and `heavy_loads` names anyone left near the ceiling or on three touching blocks. Transactional; audits `volunteer.draft_generated` with the policy and the open-slot count, so the audit row answers "what did that run do". |
 | `publish_draft(actor, start, end)` | `dict` | Coordinator-only; the inverse of `clear_draft`. Confirms every draft in the window through `VolunteerScheduleService.confirm_assignment` — so each volunteer gets the same DM and event a manual assign produces — and returns `{published, volunteers}`. Deliberately **not** transactional: a rollback cannot un-send a DM, and `confirm_assignment` is idempotent so a re-click finishes a partial run. Audits `volunteer.draft_published`. |
 | `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. Silent by design — a draft was never announced. |
 

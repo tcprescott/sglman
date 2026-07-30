@@ -295,6 +295,12 @@ class VolunteerScheduleService:
         """Read-only load-or-None lookup for entry surfaces (api/, discordbot/)."""
         return await self.assignment_repository.get_by_id(assignment_id)
 
+    async def find_assignment(
+        self, shift_id: int, user_id: int,
+    ) -> Optional[VolunteerAssignment]:
+        """This volunteer's assignment on this shift, if they hold one."""
+        return await self.assignment_repository.get_for_shift_and_user(shift_id, user_id)
+
     async def unassign(self, actor: User, assignment: VolunteerAssignment) -> None:
         await AuthService.ensure(
             await AuthService.can_manage_volunteers(actor),

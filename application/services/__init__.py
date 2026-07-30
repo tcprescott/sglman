@@ -36,6 +36,7 @@ from .discord import (
     discord_queue,
 )
 from .volunteer import (
+    DraftPolicy,
     VolunteerAutoscheduleService,
     VolunteerAvailabilityService,
     VolunteerExportService,
@@ -172,6 +173,7 @@ __all__ = [
     'TriforceTextService',
     'TwitchService',
     'UserService',
+    'DraftPolicy',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',
