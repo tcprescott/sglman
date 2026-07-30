@@ -8,7 +8,8 @@ from typing import Optional
 
 from nicegui import app, background_tasks
 
-from application.services import TelemetryService
+from application.services import FeatureFlagService, TelemetryService
+from models import FeatureFlag
 from .audit import audit_page
 from .capacity import capacity_page
 from .crew import crew_page
@@ -29,6 +30,15 @@ _REPORT_HANDLERS = {
     'volunteers': volunteers_page,
     'audit': audit_page,
     'telemetry': telemetry_page,
+}
+
+# Reports whose subsystem is behind a per-tenant flag. A community that has
+# never enabled volunteer scheduling used to get a Volunteer Coverage card, open
+# it, and read volunteer data — the report was the only entry surface that did
+# not check (REST mounts behind require_feature, the MCP tool declares the flag,
+# both Vol. tabs test it). The service now refuses too; this is the surface half.
+_REPORT_FEATURES = {
+    'volunteers': FeatureFlag.VOLUNTEERS,
 }
 
 
@@ -58,9 +68,15 @@ async def reports_page(
     **params,
 ) -> None:
     """Top-level entry called from the admin tabs config."""
+    # One query for every report and every dashboard card, rather than an
+    # is_enabled call in each module.
+    live = await FeatureFlagService().enabled_flags()
+    feature = _REPORT_FEATURES.get(report)
+    if feature is not None and feature not in live:
+        report = None
     handler = _REPORT_HANDLERS.get(report)
     if handler is None:
-        await dashboard_page()
+        await dashboard_page(live=live)
         return
     _track_report_view(report)
     await handler(**params)

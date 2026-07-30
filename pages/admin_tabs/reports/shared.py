@@ -237,12 +237,101 @@ def kpi_card(
     subtitle: str,
     color: str = 'primary',
     min_width: int = 220,
+    href: Optional[str] = None,
+    href_label: str = 'See the detail →',
 ) -> None:
-    """A single flex KPI tile (title / big value / subtitle) for report strips."""
+    """A single flex KPI tile (title / big value / subtitle) for report strips.
+
+    ``href`` turns the tile into a route to the report that explains the number
+    — it must carry the same window the number was computed over, or the
+    destination contradicts the tile it came from.
+    """
     with ui.card().classes('q-pa-md').style(f'flex: 1 1 {min_width}px; min-width: {min_width}px;'):
         ui.label(title).classes('text-caption text-grey-7')
         ui.label(value).classes('text-h4').style(f'color: var(--q-{color});')
         ui.label(subtitle).classes('text-caption')
+        if href:
+            ui.link(href_label, href).classes('text-caption q-mt-xs')
+
+
+# Per-row drill-out. Reports identify work; the surface that fixes it lives
+# elsewhere, so a row carries an id there rather than growing its own mutation.
+DRILL_FIELD = 'drill_url'
+DRILL_HINT_FIELD = 'drill_hint'
+
+# Both halves are static Vue: the destination arrives as row *data*
+# (``props.row.drill_url``), never as markup templated into the slot. The button
+# emits rather than rendering an ``<a href>`` — NiceGUI prepends the client's
+# path prefix to a navigate target, so an anchor built in a template would drop
+# the ``/t/<slug>`` in path-mode tenancy and 404.
+_DRILL_CELL = r'''
+        <q-td :props="props" class="text-right" @click.stop>
+            <q-btn v-if="props.row.drill_url" flat dense round
+                   icon="open_in_new" color="primary"
+                   @click.stop="$parent.$emit('drill', props.row)">
+                <q-tooltip>{{ props.row.drill_hint }}</q-tooltip>
+            </q-btn>
+        </q-td>
+'''
+# The card mirror. enable_mobile_grid builds its card body from the columns and
+# skips the actions column entirely, so a cell slot alone is invisible on a
+# phone — this is what makes the control exist there.
+_DRILL_ACTION = r'''
+            <q-btn v-if="props.row.drill_url" flat dense
+                   icon="open_in_new" color="primary"
+                   :label="props.row.drill_hint"
+                   @click.stop="$parent.$emit('drill', props.row)" />
+'''
+
+
+def enable_drill_link(
+    table: ui.table,
+    columns: Sequence[Mapping],
+    rows: Sequence[dict],
+    url_for: Callable[[Mapping], Optional[str]],
+    *,
+    enabled: bool = True,
+    hint: str = 'Open on the schedule board',
+) -> str:
+    """Add a per-row navigating control to ``table``; return its card mirror.
+
+    Call after building the table and pass the return value as
+    ``enable_mobile_grid(..., actions=…)`` — the desktop cell and the card
+    footer are one call so they cannot be shipped apart.
+
+    ``url_for`` returns the destination for a row, or ``None`` for a row with
+    nowhere to go (its cell stays empty). ``enabled`` is the destination's own
+    authorization predicate: when it is false the column is not rendered at all
+    rather than rendered disabled, because a control that is present and
+    refuses is worse than one that was never offered.
+
+    The caller's ``columns`` list is left untouched, so a CSV export built from
+    it does not grow a URL column.
+    """
+    if not enabled:
+        return ''
+
+    for row in rows:
+        row[DRILL_FIELD] = url_for(row) or ''
+        row[DRILL_HINT_FIELD] = hint
+
+    table.columns = [
+        *columns,
+        {'name': 'drill', 'label': '', 'field': DRILL_FIELD, 'align': 'right'},
+    ]
+    # Re-assign, don't rely on the mutation above reaching the client: NiceGUI
+    # copies rows into ObservableDicts when the table is built, so the caller's
+    # dicts and ``table.rows`` are different objects from that point on.
+    table.rows = rows
+    table.add_slot('body-cell-drill', _DRILL_CELL)
+    table.on('drill', _follow_drill)
+    return _DRILL_ACTION
+
+
+def _follow_drill(e) -> None:
+    url = clicked_row(e).get(DRILL_FIELD)
+    if url:
+        ui.navigate.to(url)
 
 
 def clicked_row(e) -> dict:

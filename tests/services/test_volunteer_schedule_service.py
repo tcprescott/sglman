@@ -230,6 +230,19 @@ class TestAcknowledge:
 
 
 class TestCoverage:
+    """``coverage`` is ``@requires_feature(VOLUNTEERS)``-gated, and these are
+    DB-less unit tests, so the flag lookup is stubbed live. That the guard
+    *refuses* without the flag is covered in test_feature_flag_enforcement.py
+    against a real bare tenant."""
+
+    @pytest.fixture(autouse=True)
+    def _volunteers_live(self):
+        with patch(
+            'application.services.feature_flag_service.FeatureFlagService.ensure_enabled',
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
     async def test_reports_understaffed_shift(self, service):
         shift = make_shift(slots_needed=2, assignments=[SimpleNamespace()])
         shift.position = SimpleNamespace(name='Proctor')

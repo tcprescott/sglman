@@ -1073,6 +1073,13 @@ body.body--dark {
     font-style: italic;
 }
 
+/* A report table whose row click *filters* (as opposed to navigating). The
+   drill-out control in its own cell is what navigates; this says the rest of
+   the row does something too. */
+.wiz-rowclick tbody tr {
+    cursor: pointer;
+}
+
 /* Timeline/Schedule Specific Styles */
 .timeline-container {
     width: 100%;

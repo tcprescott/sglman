@@ -4,11 +4,15 @@ KPI strip + report cards. All KPIs scoped to the configured event window.
 """
 
 import asyncio
+from typing import Optional
 
-from nicegui import ui
+from nicegui import app, ui
 
-from application.services import ReportsService, SystemConfigService
+from application.services import (
+    AuthService, ReportsService, SystemConfigService, get_user_from_discord_id,
+)
 from application.utils.timezone import format_eastern_date, format_eastern_display
+from models import FeatureFlag
 from .shared import (
     eastern_bounds,
     kpi_card,
@@ -52,6 +56,7 @@ REPORT_CARDS = [
         'title': 'Volunteer Coverage',
         'icon': 'volunteer_activism',
         'description': 'Per-shift filled vs needed counts, highlighting understaffed shifts.',
+        'feature': FeatureFlag.VOLUNTEERS,
     },
     {
         'key': 'audit',
@@ -64,13 +69,21 @@ REPORT_CARDS = [
         'title': 'Engagement Telemetry',
         'icon': 'insights',
         'description': 'How people use the tool: page views, interactions, and '
-                       'domain events. Staff only.',
+                       'domain events.',
+        # The card used to say "Staff only" in its own description while being
+        # offered to every viewer of this tab — the code admitting the gate
+        # belonged one level up. telemetry_page still refuses, this stops the
+        # invitation.
+        'staff_only': True,
     },
 ]
 
 
-async def dashboard_page() -> None:
+async def dashboard_page(live: Optional[set] = None) -> None:
     reports_service = ReportsService()
+    viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+    is_staff = await AuthService.is_staff(viewer)
+    live = live if live is not None else set()
 
     with ui.column().classes('page-container-wide'):
         with ui.row().classes('header-row items-center'):
@@ -122,22 +135,31 @@ async def dashboard_page() -> None:
 
         with ui.row().classes('full-width gap-3 q-mt-md no-wrap items-stretch') \
                 .style('flex-wrap: wrap;'):
+            # Each KPI is computed from exactly one report's data, and every
+            # link carries this page's window so the destination cannot
+            # contradict the tile it came from.
             kpi_card(
                 'Peak players',
                 f'{peak_players} / {forecast["max_capacity"]}',
                 _peak_subtitle(peak_time),
                 color='primary' if peak_players <= forecast['max_capacity'] else 'negative',
+                href=reports_url('capacity', start=start_d, end=end_d),
+                href_label='Capacity forecast →',
             )
             kpi_card(
                 'Peak stages used',
                 f'{peak_stages} / {max_stages}',
                 'across the event window',
                 color='primary' if peak_stages <= max_stages else 'negative',
+                href=reports_url('stream_rooms', start=start_d, end=end_d),
+                href_label='Stream room utilization →',
             )
             kpi_card(
                 'Matches',
                 f'{total_matches}',
                 f'{in_progress} in flight • {finished} finished',
+                href=reports_url('match_ops', start=start_d, end=end_d),
+                href_label='Match operations →',
             )
             # Three-tier so an ops-critical gap reads as a problem, not a mild
             # amber: green >= 80%, amber 50-79%, red < 50% (and red when there are
@@ -156,21 +178,33 @@ async def dashboard_page() -> None:
                 f'{covered}/{len(candidate_rows)} fully covered'
                 if candidate_rows else 'no stream candidates in window',
                 color=coverage_color,
+                href=reports_url('crew', start=start_d, end=end_d),
+                href_label='Crew activity →',
             )
 
         ui.label('Reports').classes('section-title q-mt-lg')
         with ui.row().classes('full-width gap-3').style('flex-wrap: wrap;'):
             for card in REPORT_CARDS:
+                if card.get('staff_only') and not is_staff:
+                    continue
+                feature = card.get('feature')
+                if feature is not None and feature not in live:
+                    continue
                 _report_card(card)
 
 
 def _report_card(card: dict) -> None:
-    with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;'):
+    url = reports_url(report=card['key'])
+    # cursor-pointer was on the card while only the link navigated. Make the
+    # whole card do what it looks like it does; the link stays for keyboard and
+    # middle-click.
+    with ui.card().classes('q-pa-md cursor-pointer').style('flex: 1 1 280px; min-width: 280px;') as card_el:
         with ui.row().classes('items-center no-wrap'):
             ui.icon(card['icon']).classes('text-h5 q-mr-sm')
             ui.label(card['title']).classes('text-h6')
         ui.label(card['description']).classes('text-body2 q-mt-xs')
-        ui.link('Open report →', reports_url(report=card['key'])).classes('q-mt-sm')
+        ui.link('Open report →', url).classes('q-mt-sm')
+    card_el.on('click', lambda: ui.navigate.to(url))
 
 
 def _peak_subtitle(peak_time) -> str:

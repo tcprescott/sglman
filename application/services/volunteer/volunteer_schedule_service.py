@@ -14,6 +14,7 @@ from tortoise.transactions import in_transaction
 
 from application.errors import require_found
 from application.events import Event, EventType, event_bus
+from application.feature_flags import requires_feature
 from application.repositories import (
     VolunteerAssignmentRepository,
     VolunteerPositionRepository,
@@ -29,7 +30,7 @@ from application.utils.timezone import (
     format_eastern_display,
     parse_eastern_datetime,
 )
-from models import User, VolunteerAssignment, VolunteerPosition, VolunteerShift
+from models import FeatureFlag, User, VolunteerAssignment, VolunteerPosition, VolunteerShift
 
 
 logger = logging.getLogger(__name__)
@@ -322,6 +323,7 @@ class VolunteerScheduleService:
 
     # --- Coverage ---------------------------------------------------------
 
+    @requires_feature(FeatureFlag.VOLUNTEERS)
     async def coverage(self, start: datetime, end: datetime) -> List[Dict]:
         """Per-shift filled/needed counts across [start, end]."""
         shifts = await self.shift_repository.list_for_window(start, end)

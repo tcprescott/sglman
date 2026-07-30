@@ -501,7 +501,8 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 | `report_page_shell(title, back_to_dashboard=True)` | Context manager: page container, "← Reports" back link, title, separator |
 | `date_range_filter(default_start, default_end, on_change)` | Start/End inputs with calendar popups; fires `on_change(start, end)` on either change |
 | `async tournament_filter(current_id, on_change)` | Tournament select with an "All tournaments" (`0`) option |
-| `kpi_card(title, value, subtitle, color, min_width)` | One flex KPI tile for report strips (dashboard and insights) |
+| `kpi_card(title, value, subtitle, color, min_width, href, href_label)` | One flex KPI tile for report strips (dashboard and insights); `href` makes it a route to the report the number comes from |
+| `enable_drill_link(table, columns, rows, url_for, enabled=True, hint=…)` | Per-row navigating control — desktop `body-cell-drill` slot **and** the string to pass as `enable_mobile_grid(actions=…)`, in one call. Renders nothing when `enabled` is false. Returns the card-action markup |
 | `parse_details(raw)` | `(parsed_json_or_none, display_text)` for an audit/telemetry blob; legacy plain-text rows pass through unchanged |
 | `clicked_row(e)` | Extract the row dict from a NiceGUI `row-click` event |
 | `paginated_event_log(...)` | The shared server-side-paginated log table (audit + telemetry): columns, CSV, count label, pager |

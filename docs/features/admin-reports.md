@@ -15,7 +15,7 @@ date-range/tournament filters, the export button and the URL-param navigation.
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
 | Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person |
 | Stream Room Utilization | `stream_rooms.py` | Per-stage scheduled hours, gaps, back-to-back transitions |
-| Volunteer Coverage | `volunteers.py` | Per-shift filled vs. needed counts over a date range, highlighting understaffed shifts |
+| Volunteer Coverage | `volunteers.py` | Per-shift filled vs. needed counts over a date range, highlighting understaffed shifts. Behind `FeatureFlag.VOLUNTEERS` — card, handler and `VolunteerScheduleService.coverage` all gate on it |
 | Engagement Telemetry | `telemetry.py` | Page views, interactions and the domain-event mirror over a date window — KPIs, leaderboards, filterable raw log (Staff only; see [telemetry.md](telemetry.md)) |
 | Audit Log | `audit.py` | Searchable, paginated view of every audited action with expandable detail rows (see [audit-logging.md](audit-logging.md)) |
 
@@ -25,6 +25,23 @@ duplicating a mutation into a read-only page. The admin tabs a report can link
 to take their focus as a query param — Schedule `?match_id=`, Vol. Schedule
 `?day=` — and every URL is built by `admin_url` in
 [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py).
+
+| Report | Row control leads to |
+|---|---|
+| Staff / Crew Activity | the match on the Schedule board (its crew cell approves the pending signup) |
+| Match Operations | the match on the board; per-tournament aggregates re-filter this report |
+| Capacity Forecast | the matches making a peak instant, on the board |
+| Stream Room Utilization | a room's matches, on the board |
+| Volunteer Coverage | Vol. Schedule at the understaffed shift's Eastern day |
+| Dashboard KPIs | the one report each number is computed from, over the same window |
+
+`shared.enable_drill_link(table, columns, rows, url_for, enabled=…)` builds the
+desktop cell **and** the mobile card's action in one call — `enable_mobile_grid`
+skips the actions column when generating cards, so a `body-cell-*` slot alone is
+invisible on a phone. `enabled` is the *destination's* predicate
+(`AuthService.can_view_schedule_board`, `can_manage_volunteers`): a link the
+viewer cannot follow is not rendered rather than rendered disabled. Row clicks
+that **filter** keep their meaning; navigation is always its own control.
 
 Aggregation always happens in a service, never in the page: most reports call
 `ReportsService`, Insights calls `AnalyticsService`, and the three that read one
