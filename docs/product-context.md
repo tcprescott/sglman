@@ -21,7 +21,7 @@ racetime.gg** — a problem space the maintainer had already solved once in a pr
 Discord bot, **Sahasrahbot** (github.com/tcprescott/sahasrahbot). Wizzrobe brought
 that functionality forward rather than leaving it to age in a separate codebase.
 The **Async Qualifier** feature is a direct port of Sahasrahbot's async tournament
-functionality, rebuilt Discord-native rather than command-driven.
+functionality, rebuilt web-native rather than relying on Discord.
 
 The resulting goal is broader than the original one: a **unified platform for
 speedrunning/randomizer tournament operations**, spanning both on-site and online
