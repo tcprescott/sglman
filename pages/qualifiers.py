@@ -25,6 +25,7 @@ from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
+from theme.qualifier_copy import BOARD_EXPLAINER, SCORE_EXPLAINER
 from theme.tables.mobile_grid import enable_mobile_grid
 
 
@@ -134,28 +135,37 @@ def create() -> None:
                 active = await service.get_active_run(user, qualifier_id)
                 if active is not None:
                     await _render_active_run(active)
-                elif open_now:
-                    await _render_start(qualifier, user)
                 else:
-                    ui.label('This qualifier is not open for runs.').classes('text-grey')
+                    await _render_start(user)
 
                 ui.separator()
                 await _render_my_runs(user)
                 ui.separator()
                 await _render_leaderboard(user, is_public)
 
-        async def _render_start(qual, current) -> None:
-            pools = await service.get_player_pools(current, qualifier_id)
+        async def _render_start(current) -> None:
+            # One read answers both "can I run?" and "why not?" — the page no
+            # longer has to infer a reason from an empty list.
+            availability = await service.get_run_availability(current, qualifier_id)
             ui.label('Start a run').classes('text-subtitle1')
-            if not pools:
-                ui.label('No pools available to run right now.').classes('text-grey')
+            if not availability.pools:
+                ui.label(availability.message).classes('text-grey')
                 return
             ui.label('Pick a pool. A permalink is drawn and revealed only when your '
                      'run starts — and your timer begins immediately.').classes('text-caption text-grey')
-            for pool in pools:
+            eligible = {p.id for p in availability.pools}
+            for usage in availability.usage:
                 with ui.row().classes('items-center'):
-                    ui.button(f'Start: {pool.name}', icon='play_arrow',
-                              on_click=lambda pid=pool.id: _start(pid)).props('color=primary')
+                    if usage.pool_id in eligible:
+                        ui.button(f'Start: {usage.name}', icon='play_arrow',
+                                  on_click=lambda pid=usage.pool_id: _start(pid)
+                                  ).props('color=primary')
+                    else:
+                        ui.label(usage.name).classes('text-grey')
+                    detail = f'{usage.used} of {usage.allowed} runs used'
+                    if usage.slots_left and not usage.has_candidates:
+                        detail += ' · no unplayed seeds left'
+                    ui.label(detail).classes('text-caption text-grey')
 
         async def _start(pool_id: int) -> None:
             try:
@@ -287,18 +297,20 @@ def create() -> None:
             runs = await service.list_user_runs(current, qualifier_id)
             allowance = await service.get_reattempt_allowance(current, qualifier_id)
             ui.label('My runs').classes('text-subtitle1')
-            if allowance.allowed:
+            # A reattempt after the window closes would delete the runner's own
+            # score with no way to replace it, so neither the action nor the
+            # sentence promising it appears once the window shuts. The service
+            # deliberately allows it either way, because a reviewer may need to
+            # void a run after close.
+            window_open = _window_open(qualifier)
+            if allowance.allowed and window_open:
                 ui.label(f'Reattempts: {allowance.remaining} of {allowance.allowed} remaining. '
                          'Spending one voids a finished or forfeited run and frees its pool '
                          'slot for a new draw.').classes('text-caption text-grey')
             if not runs:
                 ui.label('You have no runs yet.').classes('text-grey')
                 return
-            # A reattempt after the window closes would delete the runner's own
-            # score with no way to replace it, so the action is offered only while
-            # runs are still possible. The service deliberately allows it either
-            # way, because a reviewer may need to void a run after close.
-            can_reattempt = _window_open(qualifier) and allowance.remaining > 0
+            can_reattempt = window_open and allowance.remaining > 0
             columns = [
                 {'name': 'pool', 'label': 'Pool', 'field': 'pool', 'align': 'left'},
                 {'name': 'status', 'label': 'Status', 'field': 'status'},
@@ -335,6 +347,7 @@ def create() -> None:
                 enable_mobile_grid(table, columns, actions=_REATTEMPT_ACTION)
             else:
                 enable_mobile_grid(table, columns)
+            ui.label(SCORE_EXPLAINER).classes('text-caption text-grey')
 
         def _open_reattempt_dialog(run_id) -> None:
             with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):
@@ -377,13 +390,18 @@ def create() -> None:
                 {'name': 'user', 'label': 'Player', 'field': 'user', 'align': 'left'},
                 {'name': 'actual', 'label': 'Score', 'field': 'actual'},
                 {'name': 'estimate', 'label': 'Estimate', 'field': 'estimate'},
+                # Without this the caption's "unrun slots" names something the
+                # player cannot see; the admin board has always had it.
+                {'name': 'slots', 'label': 'Slots', 'field': 'slots'},
             ]
             rows = [
-                {'rank': i + 1, 'user': e.username, 'actual': e.actual, 'estimate': e.estimate}
+                {'rank': i + 1, 'user': e.username, 'actual': e.actual, 'estimate': e.estimate,
+                 'slots': f'{e.slots_filled}/{e.slots_total}'}
                 for i, e in enumerate(entries)
             ]
             table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
             enable_mobile_grid(table, columns)
+            ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
         await render()
 

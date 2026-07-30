@@ -14,6 +14,7 @@ without a background task.
 
 from nicegui import app, context, ui
 from theme.notify import notify_error
+from theme.qualifier_copy import BOARD_EXPLAINER
 from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
@@ -647,6 +648,7 @@ async def admin_qualifiers_page() -> None:
         ]
         table = ui.table(columns=columns, rows=rows, row_key='rank').classes('w-full wiz-table')
         enable_mobile_grid(table, columns)
+        ui.label(BOARD_EXPLAINER).classes('text-caption text-grey')
 
     # ------------------------------------------------------------------ shell
 

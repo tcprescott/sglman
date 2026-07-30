@@ -45,14 +45,11 @@ from application.services.async_qualifier import async_qualifier_notifications a
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_config import validate_async_qualifier_config
 from application.services.async_qualifier.async_qualifier_draw import AsyncQualifierDraw
-from application.services.async_qualifier.async_qualifier_scoring import (
-    LeaderboardEntry,
-    ScoredRun,
-    build_leaderboard,
-)
+from application.services.async_qualifier.async_qualifier_reads import PlayerReadsMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
+from application.utils.timezone import format_eastern_display
 from application.feature_flags import requires_feature
 from models import (
     FeatureFlag,
@@ -81,8 +78,13 @@ _TERMINAL = {
 }
 
 
-class AsyncQualifierService:
-    """CRUD + run execution + review + scoring for async qualifiers."""
+class AsyncQualifierService(PlayerReadsMixin):
+    """CRUD + run execution + review + scoring for async qualifiers.
+
+    The competitor-facing reads (open qualifiers, run availability, own runs,
+    reattempt allowance, the leaderboard) come from
+    :class:`~application.services.async_qualifier.async_qualifier_reads.PlayerReadsMixin`.
+    """
 
     def __init__(self) -> None:
         self.repository = AsyncQualifierRepository()
@@ -426,47 +428,6 @@ class AsyncQualifierService:
 
     # =============================================================== player
 
-    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def list_open_qualifiers(self) -> List[AsyncQualifier]:
-        """Active qualifiers, newest first (the player-facing list)."""
-        return await self.repository.list_active()
-
-    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def get_qualifier_for_player(self, qualifier_id: int) -> AsyncQualifier:
-        """A qualifier's public shell (name/window) for the player pages — no
-        admin gate. Pools/pars/other entrants' runs stay behind the lockdown in
-        the methods that return them."""
-        return await self._require_qualifier(qualifier_id)
-
-    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def get_player_pools(
-        self, user: Optional[User], qualifier_id: int
-    ) -> List[AsyncQualifierPool]:
-        """Pools a player may still draw from: within window, slots remaining,
-        and at least one undrawn non-live-race permalink left."""
-        qualifier = await self._require_qualifier(qualifier_id)
-        rules.ensure_window_open(qualifier)
-        if user is None:
-            return []
-        pools = await self.pool_repository.list_for_qualifier(qualifier_id)
-        eligible: List[AsyncQualifierPool] = []
-        for pool in pools:
-            candidates = await self.draw.draw_candidates(pool, user.id)
-            used = await self.run_repository.count_valid_runs_for_user_in_pool(pool.id, user.id)
-            if candidates and used < qualifier.runs_per_pool:
-                eligible.append(pool)
-        return eligible
-
-    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def list_user_runs(self, user: User, qualifier_id: int) -> List[AsyncQualifierRun]:
-        return await self.run_repository.list_for_user(qualifier_id, user.id)
-
-    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def get_active_run(self, user: User, qualifier_id: int) -> Optional[AsyncQualifierRun]:
-        run = await self.run_repository.get_active_for_user(qualifier_id, user.id)
-        if run is not None:
-            await run.fetch_related('permalink__pool')
-        return run
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
     async def start_run(self, user: User, qualifier_id: int, pool_id: int) -> AsyncQualifierRun:
@@ -622,16 +583,6 @@ class AsyncQualifierService:
         await notifications.notify_reattempt_granted(run, reason)
         return run
 
-    @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
-    async def get_reattempt_allowance(
-        self, user: User, qualifier_id: int
-    ) -> rules.ReattemptAllowance:
-        """How many reattempts this player has spent and may still spend."""
-        qualifier = await self._require_qualifier(qualifier_id)
-        return rules.ReattemptAllowance(
-            spent=await self._count_reattempts(user.id, qualifier_id),
-            allowed=qualifier.allowed_reattempts,
-        )
 
     # =============================================================== review
 
@@ -722,40 +673,6 @@ class AsyncQualifierService:
             raise PermissionError("Cannot view these review notes")
         return await self.note_repository.list_for_run(run_id)
 
-    # =========================================================== leaderboard
-
-    def is_results_public(self, qualifier: AsyncQualifier, now: Optional[datetime] = None) -> bool:
-        return rules.is_results_public(qualifier, now)
-
-    async def get_leaderboard(
-        self, actor: Optional[User], qualifier_id: int
-    ) -> List[LeaderboardEntry]:
-        qualifier = await self._require_qualifier(qualifier_id)
-        if not self.is_results_public(qualifier):
-            await access.ensure_qualifier_admin(
-                actor, qualifier,
-                message="The leaderboard is hidden while this qualifier is open",
-            )
-        pools = await self.pool_repository.list_for_qualifier(qualifier_id)
-        pool_ids = [p.id for p in pools]
-        runs = await self.run_repository.list_valid_for_qualifier(qualifier_id)
-        scored: List[ScoredRun] = []
-        for run in runs:
-            if (run.status == AsyncQualifierRunStatus.FINISHED
-                    and run.review_status == AsyncQualifierReviewStatus.APPROVED
-                    and run.score is not None
-                    and run.permalink is not None):
-                scored.append(ScoredRun(
-                    user_id=run.user_id,
-                    username=rules.display_name(run.user),
-                    pool_id=run.permalink.pool_id,
-                    score=run.score,
-                ))
-        # Deterministic input order → stable ties (scoring keeps insertion order).
-        scored.sort(key=lambda s: (s.username.lower(), s.user_id))
-        return build_leaderboard(
-            pool_ids=pool_ids, runs_per_pool=qualifier.runs_per_pool, scored_runs=scored
-        )
 
     # ============================================================= internals
 
@@ -793,6 +710,7 @@ class AsyncQualifierService:
         qualifier = await self._require_qualifier(run.qualifier_id)
         await access.ensure_qualifier_admin(actor, qualifier, message=message)
         return run, qualifier
+
 
     async def _count_reattempts(self, user_id: int, qualifier_id: int) -> int:
         """Reattempts this player spent themselves — a reviewer's grant is not theirs."""

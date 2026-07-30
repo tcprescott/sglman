@@ -125,6 +125,7 @@ async def seed_online_for_tenant(
     await _seed_speedgaming(tenant, tournament, scheduled)
     await _seed_discord_events(tenant, tournament, scheduled)
     await _seed_qualifiers(tenant, preset)
+    await _seed_closed_qualifier(tenant)
     print(f"    [{tenant.slug}] online tournament ok")
     return tournament
 
@@ -321,11 +322,20 @@ async def _seed_rooms(
 
 
 async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
-    """Async Qualifier fixtures (PR 9): an active, open qualifier with two pools,
-    a preset-tied pool, permalinks, and runs across states — one finished+approved
-    (scored, sets par) and one finished+pending (shows in the reviewer queue) — so
-    the admin Qualifiers tab, reviewer queue, and leaderboard all have data, and
-    the active-window lockdown is demonstrable (non-staff can't see the board)."""
+    """Async Qualifier fixtures (PR 9): **two** qualifiers.
+
+    The open one has three pools (one preset-tied, one live-race), permalinks, and
+    runs across every state a reviewer or runner can meet — approved+scored (sets
+    par), pending (the reviewer queue), rejected-with-a-note, forfeited, and voided
+    by a reattempt — so the admin Qualifiers tab, reviewer queue, Runs tab and the
+    lockdown (non-staff can't see the board) are all demonstrable.
+
+    The **closed** one exists because the lockdown means a player can never see a
+    leaderboard on an open qualifier: without a closed fixture the player-facing
+    board, its Score/Estimate/Slots columns, and the "this qualifier closed"
+    message are unreachable in dev by the role they are written for. Its three
+    scored runs deliberately fill different numbers of slots so ``actual`` and
+    ``estimate`` visibly differ."""
     now = datetime.now(timezone.utc)
     staff = await User.get_or_none(username="staff_user")
     runner_a = await User.get_or_none(username="player_three")
@@ -486,6 +496,74 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
             match_title="Dev Live Qualifier Race",
             status=AsyncQualifierLiveRaceStatus.SCHEDULED,
         )
+
+
+async def _seed_closed_qualifier(tenant: Tenant) -> None:
+    """A finished qualifier whose results are public — the only way a player can
+    see a leaderboard in dev (the active-window lockdown hides the open one)."""
+    now = datetime.now(timezone.utc)
+    staff = await User.get_or_none(username="staff_user")
+    runners = [
+        await User.get_or_none(username="player_two"),
+        await User.get_or_none(username="player_three"),
+        await User.get_or_none(username="player_four"),
+    ]
+
+    qualifier, _ = await AsyncQualifier.get_or_create(
+        name="Dev Async Qualifier (Closed)", tenant=tenant,
+        defaults={
+            "description": "A finished qualifier — results are public, so the "
+                           "player-facing leaderboard is reachable in dev.",
+            "event_name": "Wizzrobe Dev Season",
+            "opens_at": now - timedelta(days=21),
+            "closes_at": now - timedelta(days=7),
+            "runs_per_pool": 2,
+            "allowed_reattempts": 1,
+            "is_active": True,
+            "config": {"par_sample_size": 3},
+        },
+    )
+    if staff is not None:
+        await qualifier.admins.add(staff)
+
+    pool, _ = await AsyncQualifierPool.get_or_create(
+        qualifier=qualifier, name="Qualifier Pool", tenant=tenant,
+    )
+    permalinks = []
+    for n in (1, 2):
+        pl, _ = await AsyncQualifierPermalink.get_or_create(
+            pool=pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-closed-{n}", tenant=tenant,
+        )
+        permalinks.append(pl)
+
+    # Different slot counts per runner (2, 1, 1 of 2) so `actual` and `estimate`
+    # differ on the board and the Slots column is not uniformly full.
+    plan = [
+        (runners[0], [(permalinks[0], 4500, 104.0), (permalinks[1], 5100, 98.0)]),
+        (runners[1], [(permalinks[0], 5400, 92.0)]),
+        (runners[2], [(permalinks[1], 6300, 74.0)]),
+    ]
+    for runner, results in plan:
+        if runner is None:
+            continue
+        for permalink, seconds, score in results:
+            if await AsyncQualifierRun.filter(
+                qualifier=qualifier, user=runner, permalink=permalink
+            ).exists():
+                continue
+            await AsyncQualifierRun.create(
+                tenant=tenant, qualifier=qualifier, user=runner, permalink=permalink,
+                status=AsyncQualifierRunStatus.FINISHED,
+                review_status=AsyncQualifierReviewStatus.APPROVED,
+                started_at=now - timedelta(days=10), finished_at=now - timedelta(days=10),
+                elapsed_seconds=seconds, measured_seconds=seconds + 240,
+                reviewed_by=staff, reviewed_at=now - timedelta(days=9), score=score,
+            )
+    for permalink in permalinks:
+        if permalink.par_time is None:
+            permalink.par_time = 5000
+            permalink.par_updated_at = now - timedelta(days=9)
+            await permalink.save()
 
 
 async def _seed_speedgaming(

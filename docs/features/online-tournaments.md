@@ -168,12 +168,42 @@ Both paths audit (`async_qualifier.run_reattempted` / `.reattempt_granted`) and 
 grant DMs the runner, because their pool availability changed without their doing
 anything.
 
+**Why a run cannot be started, specifically.** `get_player_pools` returns an empty list
+for five different situations, and the page used to collapse them into *"No pools
+available to run right now."* — leaving the runner unable to tell whether to wait, ask an
+organiser, or go home. `get_run_availability` answers instead: it never raises (a shut
+window is the answer, not an error) and carries a reason plus the sentence it owes.
+
+| Reason | What the runner is told |
+|---|---|
+| `NOT_ACTIVE` | This qualifier isn't accepting runs. |
+| `NOT_OPEN_YET` | This qualifier opens *{when}*. |
+| `CLOSED` | This qualifier closed *{when}*. The leaderboard is below. |
+| `NO_POOLS` | No pools have been set up yet — check back, or ask an organiser. |
+| `ALL_SLOTS_USED` | You've used all *N* of your runs in every pool. |
+| `PERMALINKS_EXHAUSTED` | You've played every seed available in the pools you have runs left in. An organiser needs to add more. |
+| `ANONYMOUS` | Sign in to start a run. |
+
+The last two are the distinction the surface could never make and the reason the split
+matters: only `PERMALINKS_EXHAUSTED` is something an organiser can fix. While a run *is*
+still possible, each pool also shows what is left ("1 of 2 runs used").
+
 **Scoring.** `compute_par` is the mean of the N fastest approved runs on a permalink;
 `compute_score` is `clamp(0, 105, (2 − elapsed/par) · 100)` — par scores 100, twice par
 scores 0, and the 105 ceiling caps what a single outlier run can be worth. Forfeits,
 non-finishers and unfilled pool slots score 0. Approving or rejecting a run recomputes
 that permalink's par and rescores every approved run on it, so a late submission
 retroactively corrects the board rather than grandfathering an early par.
+
+**And the surfaces say so.** Because par is a moving average, a runner's score changes
+when a *stranger's* run on a seed they played is approved — correct behaviour that the
+page never explained. Both the runs table and both leaderboards now carry the same
+captions (`theme/qualifier_copy.py`, shared so the player and admin boards cannot
+explain a column differently): scores are relative to par, 100 is par and 105 the cap;
+**Score** is the realised total with unrun slots counting zero, **Estimate** projects
+unrun slots at the player's own average, and ranking is by Score. The player's board
+also carries the `Slots` column the admin one always had — without it "unrun slots"
+names something the player cannot see.
 
 **Active-window information lockdown.** While the qualifier is open, the leaderboard,
 the pools, and the pars are staff-only (`is_results_public`). Publishing them mid-window

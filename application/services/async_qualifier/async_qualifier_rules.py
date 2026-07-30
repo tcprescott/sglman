@@ -9,7 +9,7 @@ sibling helpers.
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 from application.services.async_qualifier.async_qualifier_scoring import DEFAULT_PAR_SAMPLE_SIZE
 from application.utils.duration import format_hms
@@ -70,6 +70,45 @@ def ensure_window_open(qualifier: AsyncQualifier) -> None:
         raise ValueError("This qualifier has closed")
 
 
+class RunUnavailableReason(str, Enum):
+    """Why a player cannot start a run right now.
+
+    ``get_player_pools`` returns an empty list for five distinct situations and the
+    page used to collapse them into one sentence — leaving the runner unable to
+    tell whether to wait, ask an organiser, or go home. Only two of these are
+    something an organiser can fix.
+    """
+
+    NOT_ACTIVE = 'not_active'
+    NOT_OPEN_YET = 'not_open_yet'
+    CLOSED = 'closed'
+    NO_POOLS = 'no_pools'
+    ALL_SLOTS_USED = 'all_slots_used'
+    PERMALINKS_EXHAUSTED = 'permalinks_exhausted'
+    ANONYMOUS = 'anonymous'
+
+
+@dataclass(frozen=True)
+class PoolUsage:
+    """One pool's per-player state: how many of its runs are spent, and whether
+    an undrawn permalink is left."""
+
+    pool_id: int
+    name: str
+    used: int
+    allowed: int
+    has_candidates: bool
+    # Whether the pool holds any permalink a self-paced runner could ever draw. A
+    # live-race-only pool holds none, and would otherwise look permanently like
+    # "slots free, every seed played" — the one reason that tells an organiser to
+    # add more seeds.
+    seeded: bool = True
+
+    @property
+    def slots_left(self) -> int:
+        return max(0, self.allowed - self.used)
+
+
 @dataclass(frozen=True)
 class ReattemptAllowance:
     """What a player has spent of their own reattempt allowance, and what is left.
@@ -85,6 +124,67 @@ class ReattemptAllowance:
     @property
     def remaining(self) -> int:
         return max(0, self.allowed - self.spent)
+
+
+def describe_unavailability(
+    reason: RunUnavailableReason,
+    *,
+    runs_per_pool: int = 0,
+    opens_display: str = '',
+    closes_display: str = '',
+) -> str:
+    """The sentence each reason owes the runner — what to do, not just that they can't."""
+    if reason is RunUnavailableReason.ANONYMOUS:
+        return "Sign in to start a run."
+    if reason is RunUnavailableReason.NOT_ACTIVE:
+        return "This qualifier isn't accepting runs."
+    if reason is RunUnavailableReason.NOT_OPEN_YET:
+        when = f' {opens_display}' if opens_display else ' soon'
+        return f"This qualifier opens{when}."
+    if reason is RunUnavailableReason.CLOSED:
+        when = f' {closes_display}' if closes_display else ''
+        return f"This qualifier closed{when}. The leaderboard is below."
+    if reason is RunUnavailableReason.NO_POOLS:
+        return "No pools have been set up yet — check back, or ask an organiser."
+    if reason is RunUnavailableReason.ALL_SLOTS_USED:
+        return f"You've used all {runs_per_pool} of your runs in every pool."
+    return ("You've played every seed available in the pools you have runs left in. "
+            "An organiser needs to add more.")
+
+
+def classify_availability(
+    usages: Sequence[PoolUsage], *, window_reason: Optional[RunUnavailableReason] = None
+) -> Optional[RunUnavailableReason]:
+    """Why an empty pool list is empty — ``None`` when a run can be started.
+
+    The two exhaustion reasons are the distinction the page could never make:
+    a pool is out of *slots* when the player has spent them all, and out of
+    *seeds* when it has slots to spare but no undrawn permalink. Only the second
+    is something an organiser can fix, so a pool in that state wins the report.
+    """
+    if window_reason is not None:
+        return window_reason
+    runnable = [u for u in usages if u.seeded]
+    if not runnable:
+        return RunUnavailableReason.NO_POOLS
+    if any(u.has_candidates and u.slots_left > 0 for u in runnable):
+        return None
+    if any(u.slots_left > 0 for u in runnable):
+        return RunUnavailableReason.PERMALINKS_EXHAUSTED
+    return RunUnavailableReason.ALL_SLOTS_USED
+
+
+def window_reason(qualifier: AsyncQualifier, now: Optional[datetime] = None) -> Optional[RunUnavailableReason]:
+    """The window's own verdict, as a reason rather than the ``ValueError``
+    ``ensure_window_open`` raises — a shut window is an answer, not an error."""
+    now = now or datetime.now(timezone.utc)
+    if not qualifier.is_active:
+        return RunUnavailableReason.NOT_ACTIVE
+    if qualifier.opens_at is not None and now < qualifier.opens_at:
+        return RunUnavailableReason.NOT_OPEN_YET
+    if qualifier.closes_at is not None and now >= qualifier.closes_at:
+        return RunUnavailableReason.CLOSED
+    return None
 
 
 class ClaimVerdict(str, Enum):
