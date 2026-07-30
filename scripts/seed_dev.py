@@ -54,7 +54,8 @@ from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 from scripts.seed_online import (
-    link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
+    assert_unlinked_probe_users, link_racetime_identities, link_twitch_identities,
+    reset_unlinked_probe_users, seed_racetime_bots, seed_online_for_tenant,
 )
 
 
@@ -108,6 +109,10 @@ async def seed_users() -> dict[str, User]:
         )
         users[username] = u
     await link_racetime_identities(users)
+    await link_twitch_identities(users)
+    # Before anything else writes a provider id: clicking Link as one of these
+    # fixtures is what they exist for, so a re-seed restores them.
+    await reset_unlinked_probe_users(users)
     print("  users ok (global)")
     return users
 
@@ -740,6 +745,10 @@ async def seed_all() -> None:
         # lacks the feature), so availability has to be settled before seeding.
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
+    # Last, because the per-tenant Challonge mirror above also links identities:
+    # the unlinked fixtures have to be unlinked after everything that could link
+    # them has run.
+    await assert_unlinked_probe_users(users)
 
 
 async def seed() -> None:

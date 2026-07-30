@@ -67,13 +67,54 @@ poetry run pytest               # before pushing
 
 ## Local development without Discord (MOCK_DISCORD)
 
-The recommended dev loop — `./start.sh mock` sets `MOCK_DISCORD`, `MOCK_CHALLONGE`, `MOCK_SEEDGEN` and `ENVIRONMENT=development` in one command. With `MOCK_DISCORD`:
+The recommended dev loop — `./start.sh mock` sets `MOCK_DISCORD`, `MOCK_SEEDGEN`, `MOCK_CHALLONGE`, `MOCK_TWITCH`, `MOCK_RACETIME` and `ENVIRONMENT=development` in one command. With `MOCK_DISCORD`:
 
 - `/login` renders a **user picker** instead of redirecting to Discord OAuth — pick any user in the database or use "Create test user". Picked and created users are real rows that persist across restarts.
 - All `DiscordService` calls (DMs, guild member lookups, …) are stubbed no-ops, and the **bot does not start**, so `DISCORD_TOKEN` is not required.
 - Discord *button* interactions (acknowledgment, crew signup, watch) need a live bot connection and cannot be exercised. Mock mode is a full auth bypass, so the app refuses to start while `ENVIRONMENT=production`.
 
 Details: [features/discord.md](features/discord.md#mock-mode). Auth internals: [reference/authentication.md](reference/authentication.md).
+
+## Account linking without provider credentials
+
+Profile → **Connected accounts** hides any provider whose integration is not configured, so with no credentials the card does not render at all. Three mock switches make it appear and make the links complete:
+
+| Switch | Makes appear | Canned identities (`MOCK_<PROVIDER>_IDENTITY`, `1`–`4`, default `1`) |
+|---|---|---|
+| `MOCK_CHALLONGE` | the Challonge row (also gated on `FeatureFlag.CHALLONGE`) plus the staff service connection at `/admin/challonge` | `1001`…`1004` / `mockone`…`mockfour` |
+| `MOCK_TWITCH` | the Twitch row | `20001`…`20004` / `MockTwitchOne`…`Four` |
+| `MOCK_RACETIME` | the racetime.gg row | `mockrt0001`…`mockrt0004` / `MockRacerOne`…`Four` |
+
+`MOCK_<PROVIDER>_IDENTITY` is read per request, so changing it in the environment and re-linking binds a different identity — that is how a collision between two users is produced. `MOCK_RACETIME` also gates the racetime *bot* runtime, but that is separately gated by `RACETIME_BOT_ENABLED` (off by default), so turning the mock on starts no bot.
+
+**Mock mode short-circuits the OAuth round trip entirely** — `is_mock()` is checked in the `/<provider>/link` page and the link is recorded on the spot, so the provider callback never runs. That covers the happy path, the section states and unlinking. The failure paths are reached by opening the callback routes directly:
+
+| Failure | How to reach it |
+|---|---|
+| Consent denied / codeless callback | `/t/default/racetime/oauth/callback` with no query string, signed in |
+| State mismatch | the same route with `?code=x&state=wrong` |
+| Already linked to someone else | link two users at the same `MOCK_*_IDENTITY` — e.g. `player_three` then `player_four` under the default `MOCK_RACETIME_IDENTITY=1` |
+| Wrong door (Challonge's one callback serves two flows) | `/t/default/challonge/oauth/callback` as a non-admin |
+| Stale / replayed cross-host claim | `/oauth/link/claim?token=nope` |
+
+Seeded starting states: `player_one` is linked to all three providers, `player_two` to racetime and Challonge, and **`player_three` / `player_four` are linked to nothing** — the fixtures every probe above starts from (`seed_dev.py` asserts they stay that way).
+
+`setup_env.sh` only writes `.env` when one is absent, so an **existing** dev environment needs `MOCK_CHALLONGE=true`, `MOCK_TWITCH=true` and `MOCK_RACETIME=true` added by hand — or just use `./start.sh mock`, which exports them.
+
+### Driving the cross-host link handoff
+
+On a custom domain the provider callback lands on the platform host, whose session cannot see the domain's cookie. With `HOST_OAUTH_MODE=handoff` the OAuth runs on the platform host and the verified identity is handed back to the domain's `/oauth/link/claim` through a single-use, host-bound, browser-bound token. It needs two hostnames, and the seeded **`second`** tenant already carries `domain=second.localhost:8000`:
+
+```bash
+PLATFORM_HOST=platform.localhost:8000 HOST_OAUTH_MODE=handoff ./start.sh mock
+```
+
+Drive `http://second.localhost:8000/home/profile` (a custom domain serves its community at the root — no `/t/<slug>` prefix) and click **Link**. Under a provider mock the start leg redirects to its own callback with `?code=mock`, so the whole handoff — state match, exchange, mint, hand-back, browser binding, claim — runs for real against a mock exchange.
+
+Two things to check first when it dead-ends:
+
+- **Use `*.localhost` hostnames, not a wildcard-DNS domain.** `scheme_for_host` returns `http` only for `localhost`, `127.0.0.1` and `*.localhost`; anything else gets `https`, so the cross-host redirect fails TLS against a plain uvicorn. Browsers resolve `*.localhost` to loopback themselves, so no `/etc/hosts` edit is needed — but tools that go through the system resolver (`curl`, `getent`) may not.
+- **The start leg allow-lists the target host against *active* tenant domains** and silently redirects to `/` when it does not match. Confirm the tenant's `domain` is exactly the host you are driving, port included.
 
 ## Dev data
 

@@ -15,7 +15,9 @@ What they cover:
 
 - **Presets** (PR 1) — per-tenant ``Preset`` rows, one assigned to the online
   tournament, plus placeholder ``RandomizerCredential`` rows for keyed backends.
-- **Racetime identity** (PR 2) — two players linked to racetime handles.
+- **Provider identities** (PR 2) — two players linked to racetime handles, one to
+  a Twitch handle, and an assertion that ``player_three``/``player_four`` stay
+  unlinked (the fixtures the account-link probes start from).
 - **Racetime bots** (PR 3/4) — platform-level (no tenant FK), one connected and
   one parked in an error state so the ``/platform`` health table shows both.
 - **Racetime config + rooms** (PR 3/4/6) — the online tournament's bot +
@@ -64,6 +66,77 @@ async def link_racetime_identities(users: dict[str, User]) -> None:
             u.racetime_username = rt_name
             u.racetime_linked_at = now_eastern()
             await u.save()
+
+
+async def link_twitch_identities(users: dict[str, User]) -> None:
+    """Link one player to a Twitch identity, so the Profile page's Connected
+    accounts card has a linked *and* an unlinked provider on the same screen.
+
+    The ids avoid ``MockTwitchClient``'s canned set (``2000{1..4}``) on
+    purpose, the way the racetime seed does: a seeded user clicking **Link**
+    under ``MOCK_TWITCH`` then rebinds to a mock identity instead of colliding
+    with another seeded row.
+    """
+    twitch_links = [
+        ("player_one", "seedtw0001", "PlayerOneTV"),
+    ]
+    for key, tw_id, tw_name in twitch_links:
+        u = users[key]
+        if u.twitch_user_id is None:
+            u.twitch_user_id = tw_id
+            u.twitch_username = tw_name
+            u.twitch_linked_at = now_eastern()
+            await u.save()
+
+
+PROBE_UNLINKED_USERS = ("player_three", "player_four")
+_PROVIDER_PREFIXES = ("challonge", "twitch", "racetime")
+
+
+async def reset_unlinked_probe_users(users: dict[str, User]) -> None:
+    """Return the link-probe fixtures to unlinked, whatever a dev left behind.
+
+    ``player_three`` and ``player_four`` are the only users with no provider
+    identity, which is what makes the Connected accounts card's unlinked state
+    and the two-user collision sequence reachable. Clicking **Link** as either of
+    them — the whole point of the fixture — writes a real row, so a re-seed has
+    to clear it or the second run starts from a state the first one did not.
+    Re-seeding is exactly when a developer expects fixture state to be restored.
+    """
+    for key in PROBE_UNLINKED_USERS:
+        u = users[key]
+        dirty = False
+        for prefix in _PROVIDER_PREFIXES:
+            if getattr(u, f"{prefix}_user_id") is not None:
+                setattr(u, f"{prefix}_user_id", None)
+                setattr(u, f"{prefix}_username", None)
+                setattr(u, f"{prefix}_linked_at", None)
+                dirty = True
+        if dirty:
+            await u.save()
+
+
+async def assert_unlinked_probe_users(users: dict[str, User]) -> None:
+    """Fail loudly if *the seed itself* linked a probe fixture.
+
+    Runs after every other seed function, against users
+    :func:`reset_unlinked_probe_users` already cleared — so anything found here
+    was written by the seed in between, which would silently remove the last
+    unlinked fixture. A developer's own manual link is not this: it was reset
+    before the run started.
+    """
+    for key in PROBE_UNLINKED_USERS:
+        u = users[key]
+        await u.refresh_from_db()
+        linked = [
+            prefix for prefix in _PROVIDER_PREFIXES
+            if getattr(u, f"{prefix}_user_id") is not None
+        ]
+        if linked:
+            raise AssertionError(
+                f"the seed linked {key}, which must stay unlinked (the dev fixture "
+                f"every account-link probe starts from): {', '.join(linked)}"
+            )
 
 
 async def seed_racetime_bots() -> dict[str, RacetimeBot]:

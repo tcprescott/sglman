@@ -146,9 +146,19 @@ Inspects `tool_input.command` and blocks:
 - `git commit --no-verify` / `-n` → don't skip git's verification.
 - `git reset --hard`, `git clean -f`, `git checkout -- .` → irreversible working-tree loss.
 - `aerich downgrade` → reverts DB migrations (data loss).
-- `rm -rf`, `dropdb`, `DROP TABLE|DATABASE` → irreversible deletes / data destruction.
+- `rm -rf` → irreversible recursive delete.
+- `dropdb`, `DROP TABLE|DATABASE` → data destruction. **Local sessions only** — see below.
 - `git add`/`git commit` of `.env`, and `cat`/`head`/`tail`/`xxd`/… of `.env` → never
   commit or dump real secrets (`.env.example` is exempt via a negative lookahead).
+
+Every row is unconditional except the database-drop one, which carries
+`local_only=True` and is skipped when `CLAUDE_CODE_REMOTE=true`. The rule exists to
+protect a developer's real, long-lived dev database; a web session gets a throwaway
+container whose scratch Postgres `/ui-validation` and `/api-validation` are meant to
+tear down and rebuild, so enforcing it there blocks legitimate work and protects
+nothing. An **unset** marker counts as local — the exemption has to be opted into,
+never inferred. `tests/test_hook_safe_commands.py` pins both halves, and asserts the
+other destructive rules stay unconditional.
 
 ### Audit-action constants — `scripts/check_audit_actions.py` (PostToolUse: Write|Edit)
 AST-based. Flags `…write_log(actor, "match.created")` — an audit action passed
@@ -538,8 +548,10 @@ cover the feature lifecycle end to end — plan → implement → test → revie
   if file_path.replace("\\", "/").endswith("/some_special_file.py"):
       sys.exit(0)
   ```
-- **New blocked command:** add a `(compiled_regex, name, fix)` row to `RULES` in
-  `enforce_safe_commands.py`.
+- **New blocked command:** add a `Rule(compiled_regex, name, fix)` row to `RULES` in
+  `enforce_safe_commands.py`. Pass `local_only=True` only when the danger is a
+  developer's own machine and the rule would be pure friction in a throwaway web
+  container — the default (enforce everywhere) is the right one for almost everything.
 - **Register a new hook:** add a `{ "type": "command", "command": "python3
   \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_foo.py\"", "timeout": 10 }`
   entry under the right matcher in `settings.json`, and start the script with

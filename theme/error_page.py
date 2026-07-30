@@ -16,6 +16,7 @@ from nicegui import app, ui
 
 from models import FeedbackCategory, User
 from theme.base import BaseLayout
+from theme.notice import drain_notice
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,14 @@ def render_error_page(
         user: Logged-in user (when known), used for the header/footer.
     """
     ui.page_title(f'{status_code} — Wizzrobe')
+
+    # A notice stashed before a redirect must still be shown on the error page a
+    # bad return path lands on — this renderer does not go through
+    # BaseLayout.render(), so it drains for itself.
+    try:
+        drain_notice()
+    except Exception:  # pragma: no cover - defensive, inside an error handler
+        logger.exception('Failed to drain a pending notice on the error page')
 
     # Never let layout chrome throw from inside an error handler.
     try:
