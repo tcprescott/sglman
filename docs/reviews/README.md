@@ -16,7 +16,6 @@ the truth and git history keeps the rationale.
 | [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 | [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
-| [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 | [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
@@ -36,9 +35,6 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   a cleared draft — is silent to everyone
   ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional),
   [volunteer RC2](volunteer-hub-ux.md#rc2--notification-is-one-directional-the-same-shape-as-crew)).
-- **Discovery and action live on different pages.** Reports can see pending crew,
-  understaffed shifts and over-capacity peaks; none of them link to the surface that
-  fixes it ([reports F1](admin-reports-ux.md#f1--major--nine-reports-zero-actions)).
 - **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
   `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
   reachable from no surface.
@@ -46,9 +42,9 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   match dialog's "Choose any players", and the equipment borrower select all offer
   every user on the platform, `System` included
   ([onboarding F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform)).
-- **The dev seed cannot produce the roles that expose the worst bugs.** A
-  coordinator-only, stream-manager-only or equipment-manager-only user has to be
-  granted by hand; three audits needed one
+- **The dev seed cannot produce every role that exposes a bug.** `cc_user` and
+  `vc_user` are seeded now, but a stream-manager-only or equipment-manager-only
+  user still has to be granted by hand
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
   forfeiting a qualifier run, revoking an approval and arming five lifecycle-clear

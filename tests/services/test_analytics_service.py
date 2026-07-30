@@ -471,3 +471,67 @@ class TestActivityTrendsDB:
         assert by_cat['crew']['counts'] == [0, 0, 0, 1, 0]
         # sorted by total volume descending
         assert out['categories'][0]['category'] == 'match'
+
+
+# ---------------------------------------------------------------------------
+# activity_extent — what the Insights page opens on
+# ---------------------------------------------------------------------------
+
+
+class TestActivityExtent:
+    async def test_empty_tenant_has_no_extent(self, db):
+        assert await AnalyticsService().activity_extent() == (None, None)
+
+    async def test_spans_every_source(self, db):
+        t = await Tournament.create(name='T')
+        await Match.create(tournament=t, scheduled_at=utc(2025, 10, 8, 16))
+        position = await VolunteerPosition.create(name='Desk')
+        await VolunteerShift.create(
+            position=position,
+            starts_at=utc(2025, 11, 1, 12),
+            ends_at=utc(2025, 11, 1, 16),
+            slots_needed=1,
+        )
+        u = await _user(1, 'Alice')
+        log = await AuditLog.create(user=u, action='match.created', details='{}')
+        await AuditLog.filter(id=log.id).update(created_at=utc(2025, 9, 1, 12))
+
+        first, last = await AnalyticsService().activity_extent()
+
+        # Eastern dates: the audit row is the earliest, the shift the latest.
+        assert first == date(2025, 9, 1)
+        assert last == date(2025, 11, 1)
+
+    async def test_single_day_of_history_is_a_single_day_extent(self, db):
+        t = await Tournament.create(name='T')
+        await Match.create(tournament=t, scheduled_at=utc(2025, 10, 8, 16))
+        await Match.create(tournament=t, scheduled_at=utc(2025, 10, 8, 20))
+
+        assert await AnalyticsService().activity_extent() == (
+            date(2025, 10, 8), date(2025, 10, 8),
+        )
+
+    async def test_tournament_scope_ignores_unscoped_sources(self, db):
+        """Shifts and audit logs carry no tournament, so a narrowed extent must
+        come only from the sources that do — otherwise it widens back out."""
+        t1 = await Tournament.create(name='A')
+        t2 = await Tournament.create(name='B')
+        await Match.create(tournament=t1, scheduled_at=utc(2025, 10, 8, 16))
+        await Match.create(tournament=t2, scheduled_at=utc(2025, 12, 8, 16))
+        position = await VolunteerPosition.create(name='Desk')
+        await VolunteerShift.create(
+            position=position,
+            starts_at=utc(2026, 3, 1, 12),
+            ends_at=utc(2026, 3, 1, 16),
+            slots_needed=1,
+        )
+
+        assert await AnalyticsService().activity_extent(tournament_id=t1.id) == (
+            date(2025, 10, 8), date(2025, 10, 8),
+        )
+
+    async def test_unscheduled_matches_are_not_an_extent(self, db):
+        t = await Tournament.create(name='T')
+        await Match.create(tournament=t, scheduled_at=None)
+
+        assert await AnalyticsService().activity_extent(tournament_id=t.id) == (None, None)

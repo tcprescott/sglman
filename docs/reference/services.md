@@ -552,6 +552,7 @@ Longitudinal / cross-event analytics behind the admin Reports → **Insights & T
 | `volunteer_hour_trends(start, end, bucket='week')` | `dict` | Per-bucket scheduled vs checked-in volunteer-hours, needed-hours and fill-rate %, a per-position breakdown, and top-15 volunteers (bucketed by shift `starts_at`). |
 | `tournament_health(start, end)` | `dict` | Per-tournament scorecards: completion % (past matches only), on-time %, crew coverage %, avg duration vs expected, and a composite 0–100 `health_score`. |
 | `activity_trends(start, end, bucket='week')` | `dict` | Per-bucket audit-log volume grouped by action namespace (the `verb.object` prefix). |
+| `activity_extent(tournament_id=None)` | `(date \| None, date \| None)` | Earliest and latest **Eastern dates** with any activity the four trends above read, so the page can open on a window that has data in it. `(None, None)` for a community with no history. A `tournament_id` narrows it to the tournament-scoped sources only — shifts and audit logs carry no tournament, so including them would widen the "narrowed" window back out. |
 
 **Pure helpers (unit-tested without a DB):** `bucket_start`, `iter_bucket_starts`, `bucket_label`, `_bucket_index`, `health_score` (weighted average of present `(value, weight)` components, renormalized so missing dimensions don't dilute the score; `None` when no component has data), `_finalize_health`, `_duration_hours`.
 

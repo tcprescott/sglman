@@ -9,8 +9,8 @@ date-range/tournament filters, the export button and the URL-param navigation.
 
 | Report | Module | Shows |
 |---|---|---|
-| Dashboard | `dashboard.py` | Landing page: KPI summary for the event window + cards linking to each report |
-| Insights & Trends | `insights.py` | Crew participation, volunteer hours, tournament health and admin activity trended weekly/monthly across events (`AnalyticsService`) |
+| Dashboard | `dashboard.py` | Landing page: KPI summary + cards linking to each report. Takes a date window like every other report (absent ⇒ the event window); no CSV, since each KPI links to a report that already exports the data it comes from |
+| Insights & Trends | `insights.py` | Crew participation, volunteer hours, tournament health and admin activity trended weekly/monthly across events (`AnalyticsService`). Defaults to the window `AnalyticsService.activity_extent` reports — floored at four weeks, capped near a year, most-recent slice — rather than a fixed trailing range, so the charts open on buckets that have data in them |
 | Capacity Forecast | `capacity.py` | Concurrent player count over a date range vs. configured capacity |
 | Match Operations | `match_ops.py` | Per-match start delay, duration, confirmation lag; per-tournament aggregates |
 | Staff / Crew Activity | `crew.py` | Coverage by match and contribution (hours, assignments) by person |
@@ -42,6 +42,10 @@ invisible on a phone. `enabled` is the *destination's* predicate
 (`AuthService.can_view_schedule_board`, `can_manage_volunteers`): a link the
 viewer cannot follow is not rendered rather than rendered disabled. Row clicks
 that **filter** keep their meaning; navigation is always its own control.
+
+The two server-paginated logs (Audit, Telemetry) label the page they are showing
+— `Showing 51–100 of 124 entries`, and the plain count when everything fits on
+one page. CSV export stays per-page; its filename carries the page number.
 
 Aggregation always happens in a service, never in the page: most reports call
 `ReportsService`, Insights calls `AnalyticsService`, and the three that read one

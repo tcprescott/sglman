@@ -403,6 +403,24 @@ _EVENT_LOG_BODY_ROWCLICK = (
 _EVENT_LOG_BODY_PLAIN = r'<q-tr :props="props">' + _EVENT_LOG_DETAILS_CELL + '</q-tr>'
 
 
+def _page_range_label(total: int, page: int, page_size: int, noun: str) -> str:
+    """``Showing 51–100 of 124 entries`` — or just ``124 entries`` on one page.
+
+    The header used to be handed a pre-formatted count, so it read ``124
+    entries`` above a table paginated to 50. Both numbers were true and together
+    they were misleading: what you are reading is a page, and nothing said so.
+    """
+    if total <= page_size:
+        return f'{total:,} {noun}'
+    first = (page - 1) * page_size + 1
+    if first > total:
+        # A hand-edited ``?page=`` past the end. Saying "Showing 101–95" would
+        # be worse than saying nothing about the range.
+        return f'{total:,} {noun} — page {page} is past the end'
+    last = min(page * page_size, total)
+    return f'Showing {first:,}–{last:,} of {total:,} {noun}'
+
+
 def paginated_event_log(
     *,
     columns: Sequence[Mapping],
@@ -413,7 +431,7 @@ def paginated_event_log(
     page_size: int,
     on_page: Callable[[int], None],
     csv_filename_prefix: str,
-    count_label: str,
+    count_noun: str,
     note: str,
     on_row_click: Optional[Callable[[dict], None]] = None,
     card_classes: str = 'full-width q-pa-md',
@@ -426,7 +444,7 @@ def paginated_event_log(
     """
     with ui.card().classes(card_classes):
         with ui.row().classes('items-center justify-between full-width'):
-            ui.label(count_label).classes('text-h6')
+            ui.label(_page_range_label(total, page, page_size, count_noun)).classes('text-h6')
             csv_export_button(csv_filename_prefix, lambda: columns, lambda: rows)
 
         table = ui.table(columns=columns, rows=rows, row_key=row_key).classes('full-width')

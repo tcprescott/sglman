@@ -505,7 +505,8 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 | `enable_drill_link(table, columns, rows, url_for, enabled=True, hint=…)` | Per-row navigating control — desktop `body-cell-drill` slot **and** the string to pass as `enable_mobile_grid(actions=…)`, in one call. Renders nothing when `enabled` is false. Returns the card-action markup |
 | `parse_details(raw)` | `(parsed_json_or_none, display_text)` for an audit/telemetry blob; legacy plain-text rows pass through unchanged |
 | `clicked_row(e)` | Extract the row dict from a NiceGUI `row-click` event |
-| `paginated_event_log(...)` | The shared server-side-paginated log table (audit + telemetry): columns, CSV, count label, pager |
+| `paginated_event_log(...)` | The shared server-side-paginated log table (audit + telemetry): columns, CSV, pager, and a header stating the page range (`count_noun='entries'` → `Showing 51–100 of 124 entries`) |
+| `show_navigating()` | The overlay that acknowledges a click costing a full navigation. A NiceGUI element, not `run_javascript` — the outbox emits element updates before messages, so this reaches the browser ahead of the `open` |
 | `csv_export_button(filename_prefix, columns_provider, rows_provider, label='Export CSV')` | Download button; notifies on failure |
 | `navigate_with_params(report=None, **params)` | `ui.navigate.to(reports_url(...))` — the reload-based filter mechanism |
 

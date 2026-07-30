@@ -82,7 +82,11 @@ async def reports_page(
         report = None
     handler = _REPORT_HANDLERS.get(report)
     if handler is None:
-        await dashboard_page(live=live)
+        # The dashboard takes a window like every other report now; the rest of
+        # the filter params belong to reports it is not rendering.
+        await dashboard_page(
+            live=live, start=params.get('start'), end=params.get('end'),
+        )
         return
     _track_report_view(report)
     await handler(**params)

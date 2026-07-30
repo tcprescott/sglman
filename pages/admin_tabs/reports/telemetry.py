@@ -205,7 +205,7 @@ async def telemetry_page(
             page_size=PAGE_SIZE,
             on_page=lambda new_page: _nav(page=new_page),
             csv_filename_prefix=f'telemetry-page-{page_int}-{start_d}-to-{end_d}',
-            count_label=f'{total:,} events',
+            count_noun='events',
             note=(
                 'Click a row to filter by that user. Category filters the log; '
                 'the "Event contains" box matches the path.'

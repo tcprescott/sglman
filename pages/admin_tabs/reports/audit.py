@@ -134,7 +134,7 @@ async def audit_page(
             page_size=PAGE_SIZE,
             on_page=_go_to_page,
             csv_filename_prefix=f'audit-log-page-{page_int}-{start_d}-to-{end_d}',
-            count_label=f'{total} entries',
+            count_noun='entries',
             note=(
                 'Click a row to filter by that user. Click the details cell to expand JSON. '
                 'Try action filters like "match." or "user.role_".'

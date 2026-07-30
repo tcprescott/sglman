@@ -14,8 +14,11 @@ from application.services import (
 from application.utils.timezone import format_eastern_date, format_eastern_display
 from models import FeatureFlag
 from .shared import (
+    date_range_filter,
+    default_date_range,
     eastern_bounds,
     kpi_card,
+    navigate_with_params,
     reports_url,
 )
 
@@ -79,7 +82,11 @@ REPORT_CARDS = [
 ]
 
 
-async def dashboard_page(live: Optional[set] = None) -> None:
+async def dashboard_page(
+    live: Optional[set] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> None:
     reports_service = ReportsService()
     viewer = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     is_staff = await AuthService.is_staff(viewer)
@@ -92,17 +99,30 @@ async def dashboard_page(live: Optional[set] = None) -> None:
 
         ui.label('Event overview').classes('text-h6 q-mt-sm')
 
-        start_d, end_d = await SystemConfigService.get_event_window()
-        start, end = eastern_bounds(start_d, end_d)
+        # An absent pair still means the event window, so the label below keeps
+        # telling the truth and an unfiltered dashboard is unchanged.
+        start_d, end_d = await default_date_range(start, end)
+        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
         ui.label(
             f'Window: {format_eastern_date(start_d)} → {format_eastern_date(end_d)} (US/Eastern)'
         ).classes('italic-note')
 
+        # `Peak players 14 / 12` is the loudest number here and the one most
+        # likely to make someone ask "over what period?"; until now there was no
+        # way to answer. No CSV: each KPI links to a report that already exports
+        # the data it comes from, so a fifth export would be maintenance, not a
+        # feature.
+        with ui.card().classes('full-width q-pa-md q-mt-sm'):
+            date_range_filter(
+                start_d, end_d,
+                on_change=lambda s, e: navigate_with_params(report=None, start=s, end=e),
+            )
+
         forecast, ops, coverage, utilization, max_stages = await asyncio.gather(
-            reports_service.generate_capacity_forecast(start, end),
-            reports_service.match_operations(start, end),
-            reports_service.crew_coverage(start, end),
-            reports_service.stream_room_utilization(start, end),
+            reports_service.generate_capacity_forecast(bounds_start, bounds_end),
+            reports_service.match_operations(bounds_start, bounds_end),
+            reports_service.crew_coverage(bounds_start, bounds_end),
+            reports_service.stream_room_utilization(bounds_start, bounds_end),
             SystemConfigService.get_max_concurrent_stages(),
         )
 
@@ -149,7 +169,7 @@ async def dashboard_page(live: Optional[set] = None) -> None:
             kpi_card(
                 'Peak stages used',
                 f'{peak_stages} / {max_stages}',
-                'across the event window',
+                'across the window',
                 color='primary' if peak_stages <= max_stages else 'negative',
                 href=reports_url('stream_rooms', start=start_d, end=end_d),
                 href_label='Stream room utilization →',
