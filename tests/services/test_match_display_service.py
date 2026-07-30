@@ -99,6 +99,38 @@ class TestGetMatchState:
 # ---------------------------------------------------------------------------
 
 
+class TestHasResult:
+    """``has_result`` is what the boards gate the Confirm control on.
+
+    It must answer the same question ``MatchScheduleService.confirm_match``
+    enforces (both call ``has_recorded_result``), or a board hides a Confirm the
+    service would have accepted.
+    """
+
+    def test_false_with_no_players(self, display_service):
+        assert display_service._format_match_for_display(make_match())["has_result"] is False
+
+    def test_false_when_nobody_is_ranked(self, display_service):
+        players = [make_player("Alice"), make_player("Bob")]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["has_result"] is False
+
+    def test_true_when_a_winner_is_ranked(self, display_service):
+        players = [make_player("Alice", finish_rank=1), make_player("Bob", finish_rank=2)]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["has_result"] is True
+
+    def test_true_when_ranks_exist_but_none_is_first(self, display_service):
+        """A racetime sync passes ``entrant.place`` straight through.
+
+        An unlinked place-1 entrant leaves the linked player on rank 2, and
+        ``confirm_match`` accepts that — so the board must not call it resultless.
+        """
+        players = [make_player("Alice", finish_rank=2)]
+        result = display_service._format_match_for_display(make_match(players=players))
+        assert result["has_result"] is True
+
+
 class TestFormatMatchForDisplay:
     def test_returns_id(self, display_service):
         result = display_service._format_match_for_display(make_match(id=77))

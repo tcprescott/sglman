@@ -28,6 +28,46 @@ from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.notify import notify_error
 
 
+def confirm_result_message(match: Match) -> str:
+    """The body of the admin's confirm-a-result dialog. Needs ``players__user``.
+
+    Names the winner rather than just listing both players: this is the step that
+    settles the match and advances the bracket, and an admin working a queue of
+    them needs to check the name against what they were told without closing the
+    dialog to read the row behind it. A flagged result repeats the proctor's note
+    for the same reason — on the desktop board that note lives in a hover
+    tooltip, which is the wrong place for the one fact that explains why this
+    match is in front of them.
+    """
+    winner = next((p for p in match.players if p.finish_rank == 1), None)
+    # Only a head-to-head has a single loser to name; with three or more the
+    # "X beat Y" line would pick one arbitrarily, so list the field instead.
+    others = [p for p in match.players if p is not winner]
+
+    def name(player) -> str:
+        return player.user.preferred_name if player else ''
+
+    if winner is not None:
+        lines = [f'Record {name(winner)} as the winner of match #{match.id}?']
+        if len(others) == 1:
+            lines.append(f'{name(winner)} beat {name(others[0])}.')
+        elif others:
+            lines.append('Against: ' + ', '.join(name(p) for p in others) + '.')
+    else:
+        # Reachable from a stale row (someone else cleared the result between the
+        # render and the click); confirm_match refuses it, so say so up front.
+        lines = [f'No winner is recorded for match #{match.id}.',
+                 'Record one before confirming.']
+    if match.needs_review:
+        lines.append(
+            f'Flagged for review by the proctor: {match.review_note}'
+            if match.review_note
+            else 'Flagged for review by the proctor, with no note.'
+        )
+        lines.append('Confirming clears the flag.')
+    return '\n\n'.join(lines)
+
+
 class MatchLifecycleHandlers:
     """The ``on_*`` callbacks a match table needs to run a match's lifecycle."""
 
@@ -122,6 +162,7 @@ class MatchLifecycleHandlers:
             await self.confirm_starting(match)
         with self.page_container:
             dialog = ConfirmationDialog(
+                title=f'Start match #{match.id}',
                 message=f'Start match #{match.id}?\n\n{player_names}',
                 confirm_text='Start match',
                 tone='primary',
@@ -162,15 +203,14 @@ class MatchLifecycleHandlers:
 
     async def on_confirm(self, match_id: int):
         match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
-        player_names = ', '.join(
-            [p.user.preferred_name for p in match.players])
 
         async def handle_confirm(_):
             dialog.dialog.close()
             await self.confirm_confirming(match)
         with self.page_container:
             dialog = ConfirmationDialog(
-                message=f'Confirm the recorded result for match #{match.id}?\n\n{player_names}',
+                title=f'Confirm match #{match.id}',
+                message=confirm_result_message(match),
                 confirm_text='Confirm result',
                 tone='primary',
                 on_confirm=handle_confirm,

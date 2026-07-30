@@ -215,3 +215,20 @@ def legacy_label(status: MatchStatus) -> str:
 def is_live(statuses: Iterable[MatchStatus]) -> bool:
     """Whether any of ``statuses`` means "being played right now"."""
     return MatchStatus.LIVE in set(statuses)
+
+
+def has_recorded_result(players: Iterable[Any]) -> bool:
+    """Whether a result is on the board, from an already-loaded ``players`` list.
+
+    One predicate, two callers, deliberately: ``MatchScheduleService.confirm_match``
+    refuses a match without a result, and ``MatchDisplayService`` puts the same
+    answer on every row as ``has_result`` so the boards stop offering a Confirm
+    whose only outcome is that refusal. Two spellings of "is there a result" drift
+    into a board that hides a Confirm the service would have accepted.
+
+    Reads *any* rank rather than a rank of 1, because a racetime sync maps
+    ``entrant.place`` straight through (``race_room_service._map_results``): a match
+    whose place-1 entrant has no linked user carries only a rank 2, and confirming
+    it is legitimate.
+    """
+    return any(getattr(p, 'finish_rank', None) for p in players)

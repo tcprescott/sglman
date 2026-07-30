@@ -19,7 +19,7 @@ from application.repositories import (
     StreamRoomRepository,
     TournamentRepository,
 )
-from application.services.match.match_status import legacy_label, resolve
+from application.services.match.match_status import has_recorded_result, legacy_label, resolve
 from application.utils.timezone import (
     format_eastern_datetime,
     format_eastern_display,
@@ -251,6 +251,13 @@ class MatchDisplayService:
             # independent — a row can carry a note with needs_review False.
             'needs_review': match.needs_review,
             'review_note': match.review_note or '',
+            # Whether a result is on the board. A match can be Finished with
+            # nothing recorded, and ``confirm_match`` refuses that — so the
+            # surfaces gate the Confirm control on this rather than on the state
+            # alone, instead of offering a button whose only outcome is a refusal.
+            # The *same* predicate the service enforces, not a second spelling of
+            # it: see ``has_recorded_result``.
+            'has_result': has_recorded_result(match.players),
             'state_timestamp': state_timestamp,
             'state_time': format_eastern_time(state_changed_at),
             'players': [

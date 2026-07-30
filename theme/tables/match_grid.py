@@ -40,6 +40,8 @@ depend on — do not change):
     toggle_watch                   -> props.row
 """
 
+from theme.tables.match_slots import SEED_ROLLABLE
+
 # --- Headline: scheduled time (large) + compact state chip -----------------
 
 _STATE_CHIP = '''
@@ -173,10 +175,10 @@ _STREAM_DETAIL = '''
 # seed exists everyone gets a truncated link. Empty for non-admins -> nothing.
 # A racetime.gg room owns its own seed, so no Generate button there.
 _SEED_DETAIL = '''
-        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && props.row.tournament_seed_generator && !props.row.is_racetime)">
+        <div class="mgc-detail" v-if="props.row.generated_seed || (__IA__ && __ROLLABLE__)">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <q-btn v-if="__IA__ && props.row.tournament_seed_generator && !props.row.generated_seed && !props.row.is_racetime"
+                <q-btn v-if="__IA__ && __ROLLABLE__ && !props.row.generated_seed"
                        :loading="props.row._generating_seed" :disabled="props.row._generating_seed"
                        icon="casino" color="primary" size="sm" dense outline
                        @click="(props.row._generating_seed = true, $parent.$emit('roll', { key: props.row.id }))">
@@ -223,15 +225,19 @@ _ACTIONS = '''
                    @click="$parent.$emit('start', { key: props.row.id })">Start</q-btn>
             <q-btn v-else-if="__IA__ && props.row.state === 'Started'" icon="sports_score" color="primary" size="md"
                    @click="$parent.$emit('finish', { key: props.row.id })">Finish</q-btn>
-            <q-btn v-else-if="__IA__ && __CC__ && props.row.state === 'Finished'" icon="check_circle" color="primary" size="md"
+            <q-btn v-else-if="__IA__ && __CC__ && props.row.state === 'Finished' && props.row.has_result" icon="check_circle" color="primary" size="md"
                    @click="$parent.$emit('confirm', { key: props.row.id })">Confirm</q-btn>
+            <!-- Mirrors the desktop State cell: Finished with nobody recorded is
+                 not confirmable, so say so instead of offering a refusal. -->
+            <span v-else-if="__IA__ && __CC__ && props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
+                <q-icon name="report_problem" size="14px" />No result recorded</span>
             <span v-else-if="__IA__ && props.row.state === 'Finished'" class="wiz-chip wiz-chip--pending">
                 <q-icon name="flag" size="14px" />Awaiting confirmation</span>
             <q-btn v-if="__IA__ && __CC__ && props.row.state === 'Finished'"
-                   icon="edit" color="primary" size="md" outline
-                   @click="$parent.$emit('edit_result', { key: props.row.id })">Change Winner</q-btn>
+                   :icon="props.row.has_result ? 'edit' : 'emoji_events'" color="primary" size="md" outline
+                   @click="$parent.$emit('edit_result', { key: props.row.id })">{{ props.row.has_result ? 'Change Winner' : 'Record Winner' }}</q-btn>
             <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
-                   icon="switch_access_shortcut" color="primary" size="md" outline
+                   icon="chair" color="primary" size="md" outline
                    @click="$parent.$emit('assign_stations', { row: props.row })">Assign Stations</q-btn>
             <q-space />
             <q-btn v-if="__WATCH__" :icon="props.row._watching ? 'notifications' : 'notifications_none'"
@@ -338,6 +344,9 @@ def render_grid_slot(table, columns, *, admin_controls: bool, can_crud: bool, di
 
     template = (
         template
+        # Shared with the desktop seed cell so the two boards agree on when a
+        # seed can still be rolled (match_slots.SEED_ROLLABLE).
+        .replace('__ROLLABLE__', SEED_ROLLABLE)
         .replace('__IA__', ia)
         .replace('__CC__', cc)
         .replace('__WATCH__', watch_js)

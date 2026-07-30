@@ -31,3 +31,31 @@ class TestConfirmationDialogTone:
         source = inspect.getsource(ConfirmationDialog.open)
         assert 'color=negative' not in source
         assert 'color={self.tone}' in source
+
+
+class TestConfirmationDialogTitle:
+    """A bare "Confirm" over a body that also starts with "Confirm…" says nothing."""
+
+    def test_default_title_is_confirm(self):
+        assert ConfirmationDialog(message='Delete this?').title == 'Confirm'
+
+    def test_title_is_honoured_when_supplied(self):
+        dialog = ConfirmationDialog(message='...', title='Confirm match #3')
+        assert dialog.title == 'Confirm match #3'
+
+    def test_open_reads_the_title_rather_than_hard_coding_it(self):
+        source = inspect.getsource(ConfirmationDialog.open)
+        assert "dialog_header('Confirm'" not in source
+        assert 'dialog_header(self.title' in source
+
+
+class TestConfirmationDialogBody:
+    """Callers write these messages as ``'\\n\\n'``-separated paragraphs.
+
+    A plain ``ui.label`` collapses every one of them onto a single line, which is
+    how "Start match #1?\\n\\nAlice, Bob" rendered as one run-on sentence.
+    """
+
+    def test_open_renders_the_message_with_preserved_line_breaks(self):
+        source = inspect.getsource(ConfirmationDialog.open)
+        assert 'white-space: pre-line' in source

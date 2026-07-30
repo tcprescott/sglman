@@ -133,6 +133,14 @@ The admin Schedule tab's review-queue strip counts flagged matches separately
 from merely-unconfirmed ones, since a contested result needs a decision and an
 uncontested one needs a click.
 
+The **confirm dialog repeats it** rather than relying on the row behind it
+(`confirm_result_message` in `theme/tables/match_lifecycle.py` — pure, so its
+copy is unit-tested). That body names the winner (`Record <name> as the winner of
+match #N?`), says who beat whom, and for a flagged result quotes the proctor's
+note and warns that confirming clears the flag. The desktop row's note lives in a
+hover tooltip, which is the wrong place for the one fact that explains why the
+match is in front of the admin at all.
+
 **Resolving it.** *Confirming the match is the resolution* — an admin
 confirming has, by definition, looked at it, so `confirm_match` clears
 `needs_review` and writes a second `match.review_cleared` audit row carrying the
