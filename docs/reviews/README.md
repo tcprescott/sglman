@@ -22,6 +22,9 @@ the truth and git history keeps the rationale.
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
 
+In flight: the async-qualifier findings have a four-wave implementation plan at
+[plans/async-qualifier-ux/](../plans/async-qualifier-ux/README.md).
+
 ## Cross-cutting themes
 
 Findings that recur across the audits, worth fixing once rather than nine times:

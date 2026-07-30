@@ -26,6 +26,10 @@ runner's claim, and the one destructive control on the page (**Forfeit**) has no
 confirmation while its documented remedy (`reattempt_run`) exists in the service
 and is wired to nothing.
 
+**Being fixed by:** [plans/async-qualifier-ux/](../plans/async-qualifier-ux/README.md)
+— four waves, F1/F3 → wave 1, F2 → wave 2, F4/F5 → wave 3, F6/F7 → wave 4. Delete
+this file when the last one lands.
+
 ---
 
 ## The measured shape
