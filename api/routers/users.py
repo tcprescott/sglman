@@ -47,13 +47,19 @@ async def _to_detail(user: User) -> UserDetailResponse:
     "",
     response_model=List[UserListItem],
     summary="List users",
-    description="Staff only. Optionally filter by global role.",
+    description=(
+        "Staff only. Returns the members of the token's community — identity is "
+        "global but this list is not. Optionally filter by role held here."
+    ),
 )
 async def list_users(
-    role: Optional[Role] = Query(None, description="Filter to users holding this global role"),
+    role: Optional[Role] = Query(None, description="Filter to users holding this role in this community"),
     actor: User = Depends(require_staff),
 ):
-    return await UserService().get_all_users(role=role)
+    # Community members, not every account on the platform. A token belongs to
+    # one tenant, so returning the platform's whole user table was a leak; there
+    # is deliberately no ?scope=all, which would re-open it behind a parameter.
+    return await UserService().get_community_users(role=role)
 
 
 @router.get("/me", response_model=UserDetailResponse, summary="Get the current user")

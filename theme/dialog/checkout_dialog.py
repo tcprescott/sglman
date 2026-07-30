@@ -25,7 +25,7 @@ class CheckoutDialog:
         self.service = EquipmentService()
 
     async def open(self) -> None:
-        users = await UserService().get_all_users()
+        users = await UserService().get_community_users()
         options = {str(u.id): u.preferred_name for u in users}
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             mobile_sheet(dialog)

@@ -122,14 +122,41 @@ Because PKs are global, every tenant-aware `AuthService` check adds a `tenant_id
 filter; `SUPER_ADMIN` is the one role that may have `tenant=NULL` and bypasses the
 per-tenant gate.
 
+**Membership answers "who is in this community".** `TenantMembership` is the
+join between a global `User` and the tenants they belong to, and it carries one
+invariant:
+
+> **Holding any role in a tenant implies membership in that tenant.**
+
+Membership is the *wider* set — a member may hold no roles (a player), but
+nobody holds a role without being a member. It is enforced where roles are
+written (`UserService.grant_role`, `UserService.create_user`,
+`TenantService.bootstrap_staff`, the Discord role sync), not by a reconciler.
+`SUPER_ADMIN` is the exception: its row carries `tenant=NULL` and it belongs to
+no community, so the grant is guarded on the role rather than on whether a
+tenant happens to be in scope. `TenantMembershipService.remove_member` defends
+the invariant from the other side — it refuses to eject someone who still holds
+roles rather than cascading a revoke. `scripts/backfill_memberships.py` catches
+up rows granted before the invariant existed.
+
+Every **per-community person list** joins through it —
+`UserService.get_community_users` (`UserRepository.get_members`), which is what
+the match, equipment and bracket pickers, the Users tab, `GET /users` and the
+MCP `list_users` tool all read. `get_all_users` still answers "every account on
+the platform" and has exactly one caller: `/platform`'s first-admin picker,
+which is choosing from every account precisely because the target community has
+no members yet. The reserved `System` automation actor is excluded from the
+community list — the migration made it a member of everywhere, and it was
+measured being offered as a player.
+
 **Authorization is tenant-scoped, not membership-gated.** A `@protected_page` with
 a role requirement (or `allow_tournament_membership`) authorizes on the user's
 tenant-scoped roles / tournament-admin membership / super-admin, so a role in
 another tenant grants nothing here; role-less protected pages need only
 authentication. There is deliberately **no** separate "must be a
 `TenantMembership`" gate — the app has no self-serve or invite enrollment path, so
-such a gate would lock out every new user. `TenantMembership` records who belongs
-to a tenant (managed on `/platform`) but does not gate pages. A page reached with
+such a gate would lock out every new user. Membership decides who *appears* in a
+community, not yet who may *enter* it. A page reached with
 *no* tenant (a bare `/admin` on the platform host) 404s: every `@protected_page`
 is a tenant page.
 

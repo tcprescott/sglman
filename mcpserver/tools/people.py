@@ -53,7 +53,9 @@ async def list_users(
         except ValueError as exc:
             valid = ', '.join(r.value for r in Role)
             raise ValueError(f"Unknown role '{role}'. Valid roles: {valid}") from exc
-    users = await UserService().get_all_users(role=parsed, has_discord=has_discord)
+    # The community's members, not the platform's user table — a session
+    # resolves one tenant and every other tool here is community-scoped.
+    users = await UserService().get_community_users(role=parsed, has_discord=has_discord)
     return [UserSummary.model_validate(u, from_attributes=True) for u in users]
 
 

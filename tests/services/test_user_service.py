@@ -17,8 +17,16 @@ from models import Role, RoleSource
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
-def service():
+def service(monkeypatch):
+    # The membership write behind "a role implies membership" is a real DB call;
+    # this suite is mock-only, so stand it in and let the tests assert against it.
+    membership = AsyncMock()
+    monkeypatch.setattr(
+        'application.services.user_service.TenantMembershipService.ensure_member',
+        membership,
+    )
     svc = object.__new__(UserService)
+    svc.membership_hook = membership
     svc.repository = MagicMock()
     svc.repository.get_by_id = AsyncMock()
     svc.repository.get_by_discord_id = AsyncMock()
@@ -307,6 +315,24 @@ class TestRoleManagement:
         action = service.audit_service.write_log.await_args.args[1]
         assert action == 'user.role_granted'
         assert service.audit_service.write_log.await_args.args[2]['role'] == Role.PROCTOR.value
+
+    async def test_granting_a_role_makes_the_user_a_member(self, service):
+        target = make_user(user_id=7)
+        await service.grant_role(target, Role.PROCTOR, make_user(user_id=1))
+        service.membership_hook.assert_awaited_once_with(target)
+
+    async def test_granting_super_admin_makes_no_membership(self, service):
+        # SUPER_ADMIN's UserRole carries tenant=NULL and belongs to no community,
+        # but grant_role runs inside a tenant context — so the guard is on the
+        # role, not on whether a tenant happens to be in scope.
+        await service.grant_role(make_user(user_id=7), Role.SUPER_ADMIN, make_user(user_id=1))
+        service.membership_hook.assert_not_awaited()
+
+    async def test_revoking_a_role_leaves_membership_alone(self, service):
+        # Membership is the wider set: losing a role does not eject you from the
+        # community. TenantMembershipService.remove_member is the only way out.
+        await service.revoke_role(make_user(user_id=7), Role.PROCTOR, make_user(user_id=1))
+        service.membership_hook.assert_not_awaited()
 
     async def test_revoke_role_calls_repository_and_audits(self, service):
         target = make_user(user_id=7)

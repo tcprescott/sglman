@@ -30,7 +30,7 @@ class EquipmentDialog:
     async def open(self) -> None:
         is_edit = self.equipment is not None
 
-        users = await UserService().get_all_users()
+        users = await UserService().get_community_users()
         community = await TenantService.current_community_name()
         owner_options = {_WIZ_OWNER: community}
         owner_options.update({str(u.id): u.preferred_name for u in users})

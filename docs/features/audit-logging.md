@@ -55,8 +55,11 @@ not a reason to skip the audit.
 | Community content | `triforce_text.*`, `feedback.*` |
 | Integrations & platform | `discord.*` (server link), `discord_event.*`, `webhook.*`, `apitoken.*`, `web_push.*`, `twitch.*`, `system_config.*`, `theme.updated`, `feature_flag.*`, `feature_group.*`, `tenant.*`, `platform.super_admin_*` |
 
-Platform-level rows (`tenant.*`, `platform.*`, feature-group and availability
-grants) carry `tenant=NULL`; everything else is stamped with the acting tenant.
+Platform-level rows (`tenant.created` / `.updated` / `.deleted`, `platform.*`,
+feature-group and availability grants) carry `tenant=NULL`; everything else is
+stamped with the acting tenant — including `tenant.member_added` /
+`tenant.member_removed`, which a community's own staff write inside their
+community and which are mirrored as events.
 
 ## Viewing the log
 

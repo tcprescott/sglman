@@ -69,12 +69,25 @@ class TestUsers:
             assert (await c.get('/api/users')).status_code == 403
 
     async def test_staff_can_list_users(self, db, app):
+        from models import TenantMembership
+
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
-        await User.create(discord_id=555, username='someone')
+        member = await User.create(discord_id=555, username='someone')
+        await TenantMembership.create(user=member, tenant_id=1)
         async with client_for(app, raw) as c:
             resp = await c.get('/api/users')
             assert resp.status_code == 200
             assert any(u['username'] == 'someone' for u in resp.json())
+
+    async def test_list_users_returns_members_not_the_whole_platform(self, db, app):
+        # A token belongs to one community; identity is global but this list is
+        # not. A user with no membership here must not appear.
+        _, raw = await create_user_token(username='boss2', roles=[Role.STAFF])
+        await User.create(discord_id=556, username='stranger')
+        async with client_for(app, raw) as c:
+            resp = await c.get('/api/users')
+            assert resp.status_code == 200
+            assert not any(u['username'] == 'stranger' for u in resp.json())
 
     async def test_non_staff_cannot_read_other_user(self, db, app):
         _, raw = await create_user_token(username='nosy')

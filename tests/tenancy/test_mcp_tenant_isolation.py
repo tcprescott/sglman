@@ -61,6 +61,35 @@ class TestScoping:
         assert [m['id'] for m in from_a['result']] == [match_a.id]
         assert [m['id'] for m in from_b['result']] == [match_b.id]
 
+    async def test_list_users_returns_only_this_communitys_members(self, two_tenants):
+        """Identity is global; the people list is not.
+
+        A session resolves one community per call, so listing users had to stop
+        returning every account on the platform — which is a bigger leak than the
+        admin table, because it is machine-readable.
+        """
+        from models import TenantMembership
+
+        tenant_a, tenant_b = two_tenants
+        here = await User.create(discord_id=91001, username='alpha-member')
+        there = await User.create(discord_id=91002, username='beta-member')
+        await TenantMembership.create(user=here, tenant=tenant_a)
+        await TenantMembership.create(user=there, tenant=tenant_b)
+        _, raw = await _staff_everywhere(two_tenants)
+
+        async with mcp_session() as client:
+            err_a, from_a = await call_tool(
+                client, raw, 'list_users', tenant=tenant_a.slug,
+            )
+            err_b, from_b = await call_tool(
+                client, raw, 'list_users', tenant=tenant_b.slug,
+            )
+        assert not err_a and not err_b, (from_a, from_b)
+        names_a = {u['username'] for u in from_a['result']}
+        names_b = {u['username'] for u in from_b['result']}
+        assert 'alpha-member' in names_a and 'beta-member' not in names_a
+        assert 'beta-member' in names_b and 'alpha-member' not in names_b
+
     async def test_cross_community_row_is_not_found_not_forbidden(self, two_tenants):
         """The message must not confirm that the other community's row exists.
 

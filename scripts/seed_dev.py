@@ -78,6 +78,11 @@ async def seed_users() -> dict[str, User]:
         ("100000000000000005", "player_two",   "Player Two"),
         ("100000000000000006", "player_three", "Player Three"),
         ("100000000000000007", "player_four",  "Player Four"),
+        # Seeded into the "default" community only (see seed_for_tenant): the
+        # fixture for "a platform account that is a member of one community and
+        # not another", which is what proves the person pickers are scoped —
+        # every other seeded user is a member everywhere.
+        ("100000000000000009", "default_only",  "Default Only"),
         # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
         # the dev fixture for "platform authority, zero local grants", which is
         # what /platform and the super-admin's in-tenant access need to be
@@ -183,8 +188,11 @@ async def seed_for_tenant(
     script mirrors that contract.
     """
     with tenant_scope(tenant.id):
-        # Every scoped user is a member of this tenant.
-        for u in users.values():
+        # Every scoped user is a member of this tenant — except default_only,
+        # which is the fixture for a member of one community and not another.
+        for uname, u in users.items():
+            if uname == 'default_only' and tenant.slug != 'default':
+                continue
             await TenantMembership.get_or_create(user=u, tenant=tenant)
 
         # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +

@@ -11,6 +11,7 @@ from application.repositories.user_repository import UserRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.tenant_context import require_tenant_id
 from models import Role, RoleSource, Tournament, TournamentPlayers, User
 
@@ -63,7 +64,27 @@ class UserService:
         role: Optional[Role] = None,
         has_discord: bool = False,
     ) -> List[User]:
+        """Every account on the platform.
+
+        Identity is global, so this is a **platform-level** list. Any picker that
+        means "people in this community" wants
+        :meth:`get_community_users` instead — the only legitimate caller of this
+        one is the ``/platform`` first-admin dialog, which is choosing from every
+        account precisely because the target community has no members yet.
+        """
         return await self.repository.get_all(role=role, has_discord=has_discord)
+
+    async def get_community_users(
+        self,
+        role: Optional[Role] = None,
+        has_discord: bool = False,
+    ) -> List[User]:
+        """Everyone who belongs to the tenant in scope, via ``TenantMembership``.
+
+        Same signature as :meth:`get_all_users` so converting a picker is a
+        one-word change. Raises if there is no tenant in scope.
+        """
+        return await self.repository.get_members(role=role, has_discord=has_discord)
 
     async def get_current_user_from_storage(self, storage_discord_id: Optional[str]) -> Optional[User]:
         if not storage_discord_id:
@@ -246,6 +267,10 @@ class UserService:
             is_active=is_active,
             discord_id=discord_id,
         )
+        # Staff creating an account from their own admin area mean it for their
+        # own community — without this the new user would not appear in the very
+        # table they were created from.
+        await TenantMembershipService.ensure_member(new_user)
         await self.audit_service.write_log(
             actor,
             AuditActions.USER_CREATED,
@@ -325,6 +350,12 @@ class UserService:
             "Only Staff can grant roles",
         )
         await self.role_repository.add(target, role, granted_by=actor, source=RoleSource.MANUAL)
+        # A role in a tenant implies membership in it. Guarded on the role rather
+        # than on the ambient tenant: grant_role runs *inside* a tenant context,
+        # so without this a super-admin grant would make them a member of
+        # whichever community happened to grant it.
+        if role is not Role.SUPER_ADMIN:
+            await TenantMembershipService.ensure_member(target)
         await self.audit_service.write_log(
             actor,
             AuditActions.USER_ROLE_GRANTED,

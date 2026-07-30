@@ -75,6 +75,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
+| `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
 | `TenantSetupService` | [tenant_setup_service.py](../../application/services/tenant_setup_service.py) | The derived new-community setup checklist (`SetupStep`); nothing stored | [multitenancy.md](../features/multitenancy.md#provisioning-a-community) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
@@ -670,14 +671,26 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `list_tenants()` | `list[Tenant]` | All tenants (platform admin table + community picker). |
 | `create_tenant(actor, *, name, slug, domain=None, discord_guild_id=None, ...)` | `Tenant` | Super-admin create; validates slug/domain uniqueness and format; audited `tenant.created`. |
 | `update_tenant(actor, tenant, **fields)` | `Tenant` | Super-admin partial update; re-validates slug/domain; audited `tenant.updated`. |
-| `is_member(user_id, tenant_id)` | `bool` | Membership check (`TenantMembership` lookup; used by `/platform` membership management). |
-| `add_member(actor, user, tenant_id)` / `list_members(tenant_id)` / `list_memberships_for_user(user)` | — / `list` / `list` | Membership management. |
+| `is_member(user_id, tenant_id)` | `bool` | Membership check by explicit ids, for tenancy machinery. Community-facing membership management lives in `TenantMembershipService`. |
 | `grant_super_admin(actor, user)` / `revoke_super_admin(actor, user)` | `None` | Super-admin gated; grant/revoke the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`); audited `super_admin.*`. |
 | `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. Wired to `/platform`'s **Admins** row action and offered at the end of tenant creation. |
 | `list_staff(actor, tenant_id)` | `list[User]` | Who holds STAFF in a named tenant, read from `/platform`. Wraps `tenant_scope` because the role tables are scoped and the platform surface has no ambient tenant. |
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
 Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`.
+
+### tenant_membership_service.py — TenantMembershipService
+
+Who belongs to a community, and who may change that. Membership is the **wider set**: every role-holder is a member, not every member holds a role — the invariant enforced wherever roles are written (see [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership)). `TenantMembership` is exempt from `check_tenant_scoping` (cross-tenant by nature: the row *is* the tenant linkage), so its queries pass tenant ids explicitly. Writes authorize on `AuthService.can_grant_roles` — the same gate the Users tab's role grants use, because member management and role management need identical authority.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_members()` | `list[User]` | Everyone in the tenant in scope, by username. |
+| `is_member(user)` | `bool` | Membership check for the tenant in scope. |
+| `addable_users()` | `list[User]` | Accounts not in this community yet — the Add Member picker. Deliberately reads the *global* list (identity is shared), which is why it is a named service method rather than a bare `get_all_users()` in the page. |
+| `add_member(actor, user)` | `None` | Idempotent; audited `tenant.member_added` + `EventType.TENANT_MEMBER_ADDED`. |
+| `remove_member(actor, user)` | `None` | **Refuses** while the user holds any role here — silently cascading a revoke because staff clicked Remove is the invisible side effect this defends against. Audited `tenant.member_removed` + event. |
+| `ensure_member(user)` | `None` | Idempotent, **unaudited** membership for the in-scope tenant. The invariant's hook, called from role grants that are audited in their own right. |
 
 ### tenant_setup_service.py — TenantSetupService
 
@@ -932,6 +945,8 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | Method | Returns | Description |
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` / `get_user_by_id(user_id)` | `User \| None` | Lookups the entry surfaces use instead of touching `UserRepository`. |
+| `get_all_users(role=None, has_discord=False)` | `list[User]` | **Every account on the platform.** Identity is global, so this is a platform-level list; the only caller is `/platform`'s first-admin picker. |
+| `get_community_users(role=None, has_discord=False)` | `list[User]` | **The tenant in scope's members**, joined through `TenantMembership` and excluding the `System` actor. Same signature as `get_all_users` so converting a picker is a one-word change; raises with no tenant in scope. What every per-community picker, the Users tab, `GET /users` and MCP `list_users` read. |
 | `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |

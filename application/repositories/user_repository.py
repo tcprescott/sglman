@@ -9,6 +9,7 @@ from typing import List, Optional
 from tortoise.expressions import Q
 
 from application.repositories._base import TenantScopedRepository
+from application.repositories._tenant import current_tenant_id
 from models import SYSTEM_USER_DISCORD_ID, Role, User
 
 
@@ -63,6 +64,39 @@ class UserRepository(TenantScopedRepository[User]):
             query = query.exclude(discord_id=None)
 
         return await query
+
+    @staticmethod
+    async def get_members(
+        role: Optional[Role] = None,
+        has_discord: bool = False,
+    ) -> List[User]:
+        """Users who belong to the tenant in scope.
+
+        ``User`` is global, so joining through ``TenantMembership`` is the only
+        correct way to ask "who is in this community" — and it is what every
+        per-community picker wants. ``get_all`` stays as it is for the
+        platform-level callers (the first-admin picker on ``/platform``).
+
+        ``current_tenant_id()`` raising with no tenant in scope is wanted: a
+        per-community picker rendered outside a tenant is a bug, and this is
+        where it should surface loudly.
+
+        The reserved ``System`` automation actor is excluded: the multitenancy
+        migration backfilled a membership for *every* user, so it is technically
+        a member of every community, and it was measured being offered as — and
+        enrolled as — a player. It is an audit actor, not a person.
+        """
+        query = User.filter(
+            tenant_memberships__tenant_id=current_tenant_id(),
+        ).exclude(is_system=True).order_by('username')
+
+        if role is not None:
+            query = query.filter(roles__role=role, roles__tenant_id=current_tenant_id())
+
+        if has_discord:
+            query = query.exclude(discord_id=None)
+
+        return await query.distinct()
 
     @staticmethod
     async def search_by_name(

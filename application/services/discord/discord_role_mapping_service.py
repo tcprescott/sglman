@@ -16,6 +16,7 @@ from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord.discord_service import DiscordService
+from application.services.tenant_membership_service import TenantMembershipService
 from application.services.tenant_service import TenantService
 from application.tenant_context import tenant_scope
 from models import DiscordRoleMapping, Role, RoleSource, Tenant, User
@@ -187,7 +188,17 @@ class DiscordRoleMappingService:
                 )
                 current_discord = {r.role for r in discord_rows}
 
-                for role in desired - current_all:
+                granting = desired - current_all
+                if granting:
+                    # A role in a tenant implies membership in it. Once per sync,
+                    # not once per role — the write is idempotent either way.
+                    # Deliberately *before* the grants and inside the existing
+                    # try: if it fails, this tenant is skipped and retried on the
+                    # next login (fail-open, as the docstring promises), which is
+                    # self-healing. Granting first would instead leave roles with
+                    # no membership behind — the state wave 4's gate locks out.
+                    await TenantMembershipService.ensure_member(user)
+                for role in granting:
                     await self.role_repository.add(
                         user, role, granted_by=None, source=RoleSource.DISCORD
                     )

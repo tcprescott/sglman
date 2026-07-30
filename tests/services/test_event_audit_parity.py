@@ -251,11 +251,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Tenancy / platform administration: super-admin-only, platform-level
     # (tenant=NULL) rows. Webhooks are tenant-scoped, so a platform event would
     # reach zero subscribers — and tenant CRUD / role grants are sensitive.
+    # Membership is the exception and is emitted: it is written *inside* a
+    # tenant by that tenant's own staff, and who belongs to a community is
+    # exactly what an external roster subscriber needs to mirror.
     AuditActions.TENANT_CREATED,
     AuditActions.TENANT_UPDATED,
     AuditActions.TENANT_DELETED,
-    AuditActions.TENANT_MEMBER_ADDED,
-    AuditActions.TENANT_MEMBER_REMOVED,
     AuditActions.SUPER_ADMIN_GRANTED,
     AuditActions.SUPER_ADMIN_REVOKED,
 })

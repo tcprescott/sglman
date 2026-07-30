@@ -69,7 +69,7 @@ class AdminMatchDialog(BaseMatchDialog):
             ).props('outline color=secondary')
 
     async def open(self):
-        users = await self.user_service.get_all_users()
+        users = await self.user_service.get_community_users()
         stream_rooms = await self.stream_room_service.get_all_stream_rooms()
         tournaments = await self.tournament_service.get_all_tournaments()
 
@@ -147,7 +147,13 @@ class AdminMatchDialog(BaseMatchDialog):
                         with_input=True,
                     ).props('use-chips')
                     selected_players.disable()
-                    choose_any_players = ui.checkbox('Choose any players', value=False)
+                    # "Choose any players" meant "any account on the platform"
+                    # and now means "any member of this community", which is not
+                    # what it did either way: the list it opens is the community,
+                    # and what the box changes is the *enrolment* filter.
+                    choose_any_players = ui.checkbox(
+                        'Include players not enrolled in this tournament', value=False,
+                    )
 
                 with ui.row().classes('items-start gap-2 flex-wrap'):
                     selected_commentators = ui.select(
@@ -336,7 +342,7 @@ class UserMatchDialog(BaseMatchDialog):
         self.discord_id = discord_id
 
     async def open(self):
-        users = await self.user_service.get_all_users()
+        users = await self.user_service.get_community_users()
 
         user = await self.user_service.get_user_by_discord_id(self.discord_id)
         if not user:
