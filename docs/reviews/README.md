@@ -15,7 +15,7 @@ the truth and git history keeps the rationale.
 | [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
 | [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
-| [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | A volunteer can take equipment out but cannot check it back in; an action clicked during a network blip is silently lost |
+| [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 | [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
 

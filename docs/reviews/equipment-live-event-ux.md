@@ -18,11 +18,12 @@ offline interval, and rendered the label sheet. Every number below is measured.
 
 **Headline:** the scan → login → asset path works, which is the thing most likely
 to have been broken: the deep link survives the Discord round trip and lands on
-the right asset. Two things do not. The **volunteer who can take a cable out
-cannot put it back** — check-out admits volunteers, check-in is
-manager-only — and an action clicked during a network blip is **silently lost**:
-no error, no retry, the page still says "Checked out". Also, the post-login
-redirect lands on a URL with the tenant prefix applied twice.
+the right asset. The real problem is what happens when the network hiccups — an
+action clicked during a blip is **silently lost**: no error, no retry, the page
+still says "Checked out". Second: the post-login redirect lands on a URL with the
+tenant prefix applied twice. The asymmetric gate (volunteers may check out, only
+staff and equipment managers may check in) is **deliberate**; the only thing worth
+changing there is that the page never says so (F7).
 
 ---
 
@@ -31,7 +32,7 @@ redirect lands on a URL with the tenant prefix applied twice.
 | Journey | Result |
 |---|---|
 | Signed-out scan of `/t/default/equipment/1` | HTTP 200 → `/t/default/login` (mock picker) |
-| …then log in | lands on the asset — **but at `/t/default/t/default/equipment/1`** (F3) |
+| …then log in | lands on the asset — **but at `/t/default/t/default/equipment/1`** (F2) |
 | Staff scan → checked out | **4 interactions** (Check out… → Borrower select → pick → Check out) → `Checked out.` |
 | Asset page height at 390×844 | 844–886 px — fits a phone, no horizontal overflow |
 | Checkout dialog | 1 select, `Borrower / Cancel / Check out` |
@@ -59,16 +60,23 @@ Network interruption, measured on a real checked-out asset:
 
 ## Root causes
 
-### RC1 — Taking out and putting back are gated differently, and the page says nothing about the gap
+### RC1 — Taking out and putting back are gated differently *by design*, and the page never says so
 
 [`auth_service.py:262-271`](../../application/services/auth_service.py#L262):
 `can_checkout_equipment` admits staff, equipment managers **and volunteers**
 (*"volunteers may only check out to themselves"*); `can_checkin_equipment` is
-`can_manage_equipment` — staff and equipment managers only. The asset page renders
-buttons purely from those predicates
-([`equipment.py:114-121`](../../pages/equipment.py#L114)), so a volunteer holding a
-cable scans its label, sees the asset, sees who has it (themselves), and sees
-**nothing to click**.
+`can_manage_equipment` — staff and equipment managers only.
+
+**This asymmetry is intentional** — check-in is reserved for staff and equipment
+managers so that a return is recorded by someone accountable for the item actually
+coming back, not by the person handing it over. Treat it as settled; it is not a
+finding.
+
+What follows from it *is* a presentation gap. The asset page renders buttons purely
+from those predicates ([`equipment.py:114-121`](../../pages/equipment.py#L114)), so a
+volunteer holding a cable scans its label, sees the asset, sees who has it
+(themselves), and sees **nothing to click** — with no indication that returning it
+means finding a manager rather than that the page is broken (F7).
 
 ### RC2 — The page assumes the socket is up
 
@@ -90,16 +98,7 @@ service accounts.
 
 ## Findings, ranked
 
-### F1 — Critical · A volunteer can take equipment out but cannot check it back in
-
-Measured both directions (RC1). At a live event this means every return has to
-find a staff member, and the person holding the item gets no hint of that: the
-scanned page simply has no buttons. Either check-in should admit the current
-borrower for their own loan (the mirror of "volunteers may only check out to
-themselves"), or the page must say *"ask an equipment manager to check this in"* —
-right now it says nothing at all.
-
-### F2 — Critical · An action taken during a network blip is silently lost
+### F1 — Critical · An action taken during a network blip is silently lost
 
 Measured (RC2): offline click → no feedback → reconnect → state unchanged, no
 notification. On a venue Wi-Fi this is the difference between an asset the system
@@ -108,7 +107,7 @@ connection state on this page plus a failed-action notice; NiceGUI's
 disconnect handling is the lever, and this is the one surface where it matters
 most.
 
-### F3 — Major · The post-login redirect doubles the tenant prefix
+### F2 — Major · The post-login redirect doubles the tenant prefix
 
 Reproduced twice: scan `/t/default/equipment/3` while signed out → log in → land
 on **`/t/default/t/default/equipment/3`**. The page renders (HTTP 200, correct
@@ -117,7 +116,7 @@ return path already carries the tenant prefix and something prefixes it again.
 Any stricter routing, a custom-domain tenant, or a link a volunteer copies out of
 the address bar and shares is where this stops being cosmetic.
 
-### F4 — Major · The mobile register's row actions are four unlabelled icons, one of which deletes
+### F3 — Major · The mobile register's row actions are four unlabelled icons, one of which deletes
 
 The card grid at 390×844 renders `#`, Name, Owner, Status, Checked out to, then
 four icon-only buttons: check-out, QR, edit, **delete**. No labels, tooltip-only
@@ -126,13 +125,13 @@ that *"the proctor reads this board on a tablet, where a tooltip never opens"*
 ([`match_slots.py:349-352`](../../theme/tables/match_slots.py#L349)). Delete sits
 one thumb-width from Edit.
 
-### F5 — Minor · The borrower picker offers the whole platform, including `System`
+### F4 — Minor · The borrower picker offers the whole platform, including `System`
 
 RC3, measured: 11 options, and the checkout succeeded against `System`, which then
 appeared on the asset page as *"Checked out to System"*. Nothing filters to this
 community's people, to volunteers, or away from service accounts.
 
-### F6 — Minor · Loan history is an unbounded list of plain text lines
+### F5 — Minor · Loan history is an unbounded list of plain text lines
 
 [`equipment.py:124-137`](../../pages/equipment.py#L124) renders one caption line
 per loan (`borrower: out → back (out by X)`) with no limit, no grouping and no
@@ -140,13 +139,26 @@ collapse. A cable lent 200 times pushes the action buttons — which are rendere
 *above* it, so the ordering is right — but makes the page an endless scroll on the
 device where scrolling costs the most.
 
-### F7 — Minor · The printed QR encodes whatever `BASE_URL` says, discoverable only by scanning a printed label
+### F6 — Minor · The printed QR encodes whatever `BASE_URL` says, discoverable only by scanning a printed label
 
 The page shows the encoded link as a caption under the QR (good — measured
 `http://localhost:8000/t/default/equipment/3` in dev), so a misconfiguration is
 *visible* if someone reads it, but nothing validates that the host matches the one
 the operator is browsing. A batch of labels printed against a stale `BASE_URL` is
 only discovered when someone scans one at the venue.
+
+### F7 — Minor · A volunteer scanning the item they hold sees an actionless page and no reason why
+
+The gate itself is settled (RC1): check-in is staff / equipment-manager only, by
+design. But measured, a volunteer scanning a label for the asset **they are
+currently holding** gets the asset name, the status badge, the holder line — and no
+controls at all. Nothing distinguishes "you are not the one who records returns"
+from "this page is broken", and nothing tells them what to do instead.
+
+One line under the actions row covers it — *"Returns are recorded by staff or an
+equipment manager — hand it to them to check in."* — and turns a dead end into an
+instruction. Worth pairing with the current holder's name (already on the page)
+when the viewer is not the holder.
 
 ---
 
@@ -163,9 +175,12 @@ only discovered when someone scans one at the venue.
   so a deactivated account cannot keep reading them.
 - **The asset page fits a phone** (844–886 px, no horizontal overflow) with the QR,
   the status, the holder and the actions all above the history.
+- **The check-out / check-in split is enforced in the service, not just the page** —
+  `can_checkout_equipment` and `can_checkin_equipment` are separate predicates, so
+  the rule holds for the REST API and any future surface, not only this button row.
 - **The borrower's own tab** has `INVENTORY` and `MY CHECKOUTS` sub-tabs and shows
-  the whole inventory with statuses and holders — the "what do I have" view F1's
-  scanned page lacks.
+  the whole inventory with statuses and holders — the "what do I have" view the
+  scanned page lacks (F7).
 - **The label sheet** renders one label per asset with a Print button and no
   surprises.
 
@@ -173,5 +188,5 @@ only discovered when someone scans one at the venue.
 
 A real device pass (everything here is emulated Playwright at 390×844 — per
 [current-state.md](../current-state.md) no physical-device run has ever happened,
-and F2 in particular deserves one), real camera scanning of a printed label, and
+and F1 in particular deserves one), real camera scanning of a printed label, and
 the equipment REST endpoints.
