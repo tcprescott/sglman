@@ -15,17 +15,15 @@ the truth and git history keeps the rationale.
 | [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
 | [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
-| [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 | [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
 
-In flight: the equipment audit's findings are being shipped wave by wave through
-[plans/equipment-ux/](../plans/equipment-ux/README.md) — that plan (not this file)
-is the place to start work on them, and it deletes this audit when its last wave
-lands.
-
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
+The equipment lending audit — its findings became the offline banner and the
+socket guard, the labelled mobile cards, the guidance line under an actionless
+asset page, the bounded loan history, the per-community borrower/owner pickers,
+and the encoded-host check on the label sheet.
 
 ## Cross-cutting themes
 
