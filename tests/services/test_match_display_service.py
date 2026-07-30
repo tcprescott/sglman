@@ -26,7 +26,10 @@ def make_match(**overrides):
         created_at=datetime(2025, 1, 1, 12, 0),
         scheduled_at=datetime(2025, 1, 15, 19, 30),
         comment=None,
-        tournament=SimpleNamespace(name="Test Tournament", seed_generator=None, is_racetime_enabled=False),
+        tournament=SimpleNamespace(
+            name="Test Tournament", seed_generator=None, is_racetime_enabled=False,
+            required_commentators=1, required_trackers=1,
+        ),
         stream_room=None,
         stream_room_id=None,
         generated_seed=None,
@@ -409,7 +412,8 @@ class TestFormatMatchIsRacetime:
     def test_is_racetime_true_when_tournament_racetime_enabled(self, display_service):
         match = make_match(
             tournament=SimpleNamespace(
-                name="Online Cup", seed_generator=None, is_racetime_enabled=True
+                name="Online Cup", seed_generator=None, is_racetime_enabled=True,
+                required_commentators=1, required_trackers=1,
             )
         )
         result = display_service._format_match_for_display(match)

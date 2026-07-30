@@ -31,6 +31,16 @@ The REST crew endpoints return only `approved=True` rows — enforced by a Pydan
 validator, so an unapproved signup is never exposed. Signup, approval and undo all
 audit through `AuditActions.CREW_SIGNUP_CREATED` / `CREW_APPROVAL_CHANGED`.
 
+**A tournament can opt out of a role.** `Tournament.required_commentators` /
+`required_trackers` (Tournament edit → Entry & administration → Stream crew)
+say how much approved crew a streamed match needs; `0` means the tournament does
+not use that role at all. The schedule board renders no **Sign up** for it, and
+`signup_crew` refuses it — the Discord button and the REST route reach past the
+hidden control, so the rule lives in the service. `undo_crew_signup` is
+deliberately *not* gated: a signup made before the requirement changed has to
+stay removable. The same numbers drive the coverage reports
+([admin-reports](admin-reports.md#what-covered-means)).
+
 ## Acknowledgment
 
 Two flows, both confirming someone has seen and accepted a match.

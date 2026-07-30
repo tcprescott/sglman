@@ -29,9 +29,12 @@ compares a stream candidate's *approved* crew against the tournament's
 administration → Stream crew; defaults `1`/`1`).
 
 Crew shape varies by community: plenty of tournaments restream with commentary
-and no tracker. Setting a role to `0` says so, and its matches stop reporting a
-gap. The requirement measures — it never restricts who may sign up or be
-approved. A match with no tournament falls back to the defaults.
+and no tracker. Setting a role to `0` says so, its matches stop reporting a gap,
+and the schedule board stops offering a **Sign up** for a role nobody will
+staff — `CrewService.signup_crew` refuses it as well, since the REST route and
+the Discord button reach past the hidden control. Withdrawing stays open at any
+requirement, so a signup made before the setting changed is not stuck on the
+match. A match with no tournament falls back to the defaults.
 
 **Reports link out; they never act.** A report row carries an id to the surface
 that already owns the action, with that surface's own authorization, rather than

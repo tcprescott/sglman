@@ -55,6 +55,9 @@ def make_signup_match(**overrides):
         finished_at=None,
         commentators=[],
         trackers=[],
+        # A tournament that staffs both roles, so a test opts *out* by passing
+        # its own with a requirement of 0.
+        tournament=SimpleNamespace(required_commentators=1, required_trackers=1),
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -281,6 +284,40 @@ class TestSignupCrew:
         service.match_repository.get_players = AsyncMock(return_value=[SimpleNamespace(user_id=42)])
         with pytest.raises(ValueError, match="[Pp]layer"):
             await service.signup_crew(match_id=1, user=user, role="commentator")
+
+    async def test_refuses_a_role_the_tournament_does_not_use(self, service):
+        # The schedule hides the control, but hiding is not enforcing — the
+        # REST route and the Discord button reach this same method.
+        match = make_signup_match(
+            tournament=SimpleNamespace(required_commentators=2, required_trackers=0),
+        )
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        service.tracker_repository.create = AsyncMock()
+        with pytest.raises(ValueError, match="does not use trackers"):
+            await service.signup_crew(match_id=1, user=SimpleNamespace(id=99), role="tracker")
+        service.tracker_repository.create.assert_not_awaited()
+
+    async def test_allows_the_role_the_same_tournament_does_use(self, service):
+        match = make_signup_match(
+            tournament=SimpleNamespace(required_commentators=2, required_trackers=0),
+        )
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        service.commentator_repository.create = AsyncMock()
+        await service.signup_crew(match_id=1, user=SimpleNamespace(id=99), role="commentator")
+        service.commentator_repository.create.assert_awaited_once()
+
+    async def test_withdrawing_stays_open_for_an_unused_role(self, service):
+        # A signup made before the requirement was set to 0 must still be
+        # removable, or it is stuck on the match forever.
+        user = SimpleNamespace(id=42)
+        signup = SimpleNamespace(user_id=42, delete=AsyncMock())
+        match = make_signup_match(
+            trackers=[signup],
+            tournament=SimpleNamespace(required_commentators=1, required_trackers=0),
+        )
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        await service.undo_crew_signup(match_id=1, user=user, role="tracker")
+        signup.delete.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

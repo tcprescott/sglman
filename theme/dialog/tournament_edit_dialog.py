@@ -209,8 +209,10 @@ class TournamentDialog:
                     ui.label(
                         'How much approved crew a streamed match needs before the coverage '
                         'reports count it as covered. Set a role to 0 if this tournament '
-                        'does not use it — otherwise every streamed match shows a gap. '
-                        'This does not restrict who may sign up.'
+                        'does not use it — otherwise every streamed match shows a gap, and '
+                        'the schedule keeps offering a signup nobody will staff. A role set '
+                        'to 0 stops accepting signups; anyone already signed up can still '
+                        'withdraw.'
                     ).classes('text-caption text-grey')
                     with ui.row().classes('gap-2'):
                         required_commentators_input = ui.number(

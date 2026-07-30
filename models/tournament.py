@@ -83,9 +83,15 @@ class Tournament(Model):
     # plenty stream with commentary and no tracker — and without this the
     # reports assumed one of each and showed those tournaments a permanent
     # false gap and a depressed health score. ``0`` means the role is not used
-    # here; the defaults reproduce the old assumption for existing rows. Read by
-    # ``ReportsService.crew_coverage`` and ``AnalyticsService.tournament_health``;
-    # signup itself is unrestricted, so this measures rather than gates.
+    # here; the defaults reproduce the old assumption for existing rows.
+    #
+    # Read by ``ReportsService.crew_coverage`` and
+    # ``AnalyticsService.tournament_health`` (through
+    # ``reporting_shared.is_crew_covered``), and by the schedule board, which
+    # hides Sign up for a role requiring ``0`` — ``CrewService.signup_crew``
+    # refuses it too, since hiding a control is not enforcing a rule. Withdrawing
+    # stays open at any requirement, so a signup made before the setting changed
+    # can still be removed.
     required_commentators = fields.IntField(default=1)
     required_trackers = fields.IntField(default=1)
     staff_administered = fields.BooleanField(default=False)
