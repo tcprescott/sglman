@@ -408,7 +408,16 @@ async def _seed_a_series(
     bracket_match = open_matches[0]
     best_of = service.resolve_best_of(brackets[0], bracket_match)
 
-    for number in (1, 2):
+    # One game per state: game 1 decided, game 2 still waiting on it, and game 3
+    # cancelled because a 2-0 would clinch the series. The cancelled row is the
+    # reason ``BracketMatchGame`` keeps unplayed games instead of deleting them,
+    # and nothing else in the seed produces it.
+    game_states = {
+        1: BracketMatchGameState.COMPLETE,
+        2: BracketMatchGameState.SCHEDULED,
+        3: BracketMatchGameState.CANCELLED,
+    }
+    for number, state in game_states.items():
         match, _ = await Match.get_or_create(
             title=(
                 f"{tournament.name}: bracket match {bracket_match.id} "
@@ -423,12 +432,11 @@ async def _seed_a_series(
             bracket_match=bracket_match, game_number=number, tenant=tenant,
             defaults={
                 "match": match,
-                # Game 1 is decided; game 2 is the one still waiting on it.
-                "state": (
-                    BracketMatchGameState.COMPLETE if number == 1
-                    else BracketMatchGameState.SCHEDULED
+                "state": state,
+                "winner_entry_id": (
+                    bracket_match.entry1_id
+                    if state is BracketMatchGameState.COMPLETE else None
                 ),
-                "winner_entry_id": bracket_match.entry1_id if number == 1 else None,
             },
         )
 

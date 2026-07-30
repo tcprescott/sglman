@@ -28,11 +28,9 @@ from tortoise import Tortoise
 from models import (
     Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
     TenantJoinRequest, JoinRequestStatus,
-    User, UserRole, Role,
+    User, UserRole, Role, RoleSource,
     Tournament, TournamentPlayers,
-    Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
-    Commentator, Tracker, GeneratedSeeds,
-    TournamentNotificationPreference, MatchNotificationLevel,
+    Commentator, Tracker,
     Station, StreamRoom, SystemConfiguration,
     ApiToken, ApiTokenOrigin, McpOAuthClient,
     Feedback, FeedbackCategory, FeedbackStatus,
@@ -41,14 +39,21 @@ from models import (
     RacetimeBot,
 )
 from application.tenant_context import tenant_scope
+from application.services.audit_service import AuditActions
 from application.services.feature_flag_service import FeatureFlagService
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_fledgling import seed_fledgling_tenant
+from scripts.seed_match_day import seed_match_day_for_tenant
+from scripts.seed_matches import seed_matches_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
+from scripts.seed_play_in import seed_play_in_for_tenant
+from scripts.seed_support import (
+    RACER_SPECS, USER_SPECS, backfill, fixture_discord_id,
+)
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 from scripts.seed_online import (
     assert_unlinked_probe_users, link_racetime_identities, link_twitch_identities,
@@ -69,42 +74,19 @@ TENANT_SPECS = [
 
 async def seed_users() -> dict[str, User]:
     """Create the global (tenant-agnostic) users. Roles are granted per tenant."""
-    user_specs = [
-        ("100000000000000001", "staff_user",   "Staff User"),
-        ("100000000000000002", "proctor_user", "Proctor User"),
-        ("100000000000000003", "sm_user",      "SM User"),
-        ("100000000000000004", "player_one",   "Player One"),
-        ("100000000000000005", "player_two",   "Player Two"),
-        ("100000000000000006", "player_three", "Player Three"),
-        ("100000000000000007", "player_four",  "Player Four"),
-        # A member of **no** community, with a pending join request against
-        # 'fledgling' (see seed_fledgling): the fixture for the membership gate's
-        # own door. Without it the only way to see the join page in dev is to
-        # delete your own membership.
-        ("100000000000000011", "outsider",      "Hopeful Outsider"),
-        # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
-        # the dev fixture for "platform authority, zero local grants", which is
-        # what /platform and the super-admin's in-tenant access need to be
-        # exercised against.
-        ("100000000000000008", "super_admin",  "Platform Owner"),
-        # EQUIPMENT_MANAGER *without* STAFF (granted per tenant below).
-        # staff_user holds both, so nothing else proves the manager path works
-        # on its own — three audits had to grant a role like this by hand.
-        ("100000000000000009", "equip_manager", "Equipment Manager"),
-        # A member of the 'default' tenant only (see seed_for_tenant), holding a
-        # role there and enrolled in nothing: the fixture that makes
-        # per-community people scoping visible in the dev loop. They must appear
-        # in tenant A's borrower/owner pickers and in neither of tenant B's.
-        ("100000000000000010", "local_only",   "Local Only"),
-        # Two more single-capability operators, for the same reason as
-        # equip_manager: staff satisfies every predicate in the admin area, so a
-        # surface that gates on staff-ness where it means to gate on a
-        # capability looks correct until one of these logs in.
-        ("100000000000000011", "cc_user",      "Crew Coordinator"),
-        ("100000000000000012", "vc_user",      "Volunteer Coordinator"),
-    ]
+    specs = [(name, display) for name, display in USER_SPECS]
+    specs += [(name, display) for name, display, _ in RACER_SPECS]
     users: dict[str, User] = {}
-    for discord_id, username, display_name in user_specs:
+    for username, display_name in specs:
+        discord_id = fixture_discord_id(username)
+        # Convergence for a dev database seeded before ids were derived: the row
+        # is found by its username and re-pointed, so its matches, roles and
+        # memberships follow it instead of a second copy of every fixture
+        # appearing beside the first.
+        legacy = await User.get_or_none(username=username)
+        if legacy is not None and legacy.discord_id != discord_id:
+            legacy.discord_id = discord_id
+            await legacy.save()
         u, created = await User.get_or_create(
             discord_id=discord_id,
             defaults={"username": username, "display_name": display_name, "is_active": True},
@@ -247,15 +229,45 @@ async def seed_for_tenant(
             # staff role. cc_user gets no role row at all — crew coordination is
             # a per-tournament relation, granted below.
             ("vc_user", Role.VOLUNTEER_COORDINATOR),
+            # One holder each for the three online-tournament admin roles, and
+            # nothing else: the Presets tab, the sync config (SpeedGaming /
+            # racetime / Discord events) and the qualifier review queue each gate
+            # on one of these, and a surface that gates on staff-ness instead
+            # looks correct until the delegate it was written for logs in.
+            ("preset_mgr", Role.PRESET_MANAGER),
+            ("sync_user", Role.SYNC_ADMIN),
+            ("qual_admin", Role.QUALIFIER_ADMIN),
+            # The same rule applied to the four roles whose only holders also held
+            # VOLUNTEER (proctor_user, sm_user, player_one): with nothing holding
+            # them alone, a surface that means to gate on PROCTOR but gates on
+            # VOLUNTEER — or the reverse — passed in dev either way.
+            ("proctor_only", Role.PROCTOR),
+            ("sm_only", Role.STREAM_MANAGER),
+            ("triforce_sub", Role.TRIFORCE_SUBMITTER),
+            ("volunteer_only", Role.VOLUNTEER),
         ]
         if tenant.slug == "default":
             # Deliberately one tenant only — a role grant implies membership, so
             # a user who holds nothing in tenant B and is a member of nothing
             # there must be absent from tenant B's pickers.
             role_grants.append(("local_only", Role.VOLUNTEER))
+        # Roles the guild-role sync granted rather than a staff member: the
+        # DiscordRoleMapping fixtures below map this guild's "Volunteers" role
+        # onto VOLUNTEER, and these are the rows that mapping would produce.
+        # ``RoleSource`` is what the role table's "granted by" column reads, and
+        # what a re-sync is allowed to revoke — a seed where every grant is
+        # MANUAL cannot show either.
+        discord_sourced = {("player_three", Role.VOLUNTEER), ("player_four", Role.VOLUNTEER)}
         for uname, role in role_grants:
             await UserRole.get_or_create(
-                user=users[uname], role=role, tenant=tenant, defaults={"granted_by": None},
+                user=users[uname], role=role, tenant=tenant,
+                defaults={
+                    "granted_by": None,
+                    "source": (
+                        RoleSource.DISCORD if (uname, role) in discord_sourced
+                        else RoleSource.MANUAL
+                    ),
+                },
             )
         print(
             f"    [{tenant.slug}] roles ok"
@@ -292,14 +304,30 @@ async def seed_for_tenant(
         else:
             print(f"    [{tenant.slug}] stations skipped (free-text fallback fixture)")
 
-        # System configuration
+        # System configuration — every key SystemConfigService reads, because a
+        # key the seed omits is a Settings-tab field that reads as "not
+        # configured" in dev and a code path (venue hours, the reminder lead, the
+        # station-label format) that only ever runs on its fallback.
         today = now_eastern().date()
-        for key, val in [
+        event_days = [today + timedelta(days=d) for d in range(3)]
+        venue_hours = {
+            event_days[0].isoformat(): {"open": "10:00", "close": "23:00"},
+            event_days[1].isoformat(): {"open": "09:00", "close": "23:00"},
+            event_days[2].isoformat(): {"open": "09:00", "close": "20:00"},
+        }
+        config_specs = [
             ("event_start_date", today.isoformat()),
             ("event_end_date", (today + timedelta(days=2)).isoformat()),
             ("max_concurrent_players", "12"),
             ("max_concurrent_stages", "3"),
-        ]:
+            ("volunteer_reminder_lead_minutes", "90"),
+            ("tournament_hours_by_date", json.dumps(venue_hours, sort_keys=True)),
+            # Tenant A's stations are the numbered pool seeded below, so it
+            # enforces numeric labels; tenant B has no station pool and keeps the
+            # free-text default — the two halves of the same setting.
+            ("station_format", "numeric" if tenant.slug == "default" else "free"),
+        ]
+        for key, val in config_specs:
             await SystemConfiguration.get_or_create(
                 name=key, tenant=tenant, defaults={"value": val},
             )
@@ -307,6 +335,23 @@ async def seed_for_tenant(
 
         # Tournament
         staff = users["staff_user"]
+        # The operational metadata a real tournament carries. Not decoration:
+        # ``average_match_duration`` is what the suggestion engine spaces matches
+        # by and what the reports' expected-average column reads (both fall back
+        # to a hard-coded 90 when it is NULL, so dev could never tell the two
+        # apart), and the format/rules links are what the player-facing header
+        # renders.
+        dev_tournament_meta = {
+            "tournament_format": "Double elimination, best of 3",
+            "bracket_url": f"https://challonge.com/wizzrobe_{tenant.slug}",
+            "rules_url": "https://example.invalid/wizzrobe/rules",
+            "average_match_duration": 90,
+            "max_match_duration": 150,
+            "triforce_access_message": (
+                "Submit your triforce text once you have played a match — "
+                "approved texts go into the seeds we roll for finals."
+            ),
+        }
         tournament, _ = await Tournament.get_or_create(
             name="Wizzrobe Dev Tournament", tenant=tenant,
             defaults={
@@ -315,11 +360,18 @@ async def seed_for_tenant(
                 "is_active": True,
                 "players_per_match": 2,
                 "staff_administered": False,
+                **dev_tournament_meta,
             },
         )
+        await backfill(tournament, **dev_tournament_meta)
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
         await tournament.crew_coordinators.add(users["cc_user"])
+        # Heal the fixture that the duplicated discord id left behind: cc_user
+        # used to collide with `outsider` on id ...011, so a dev database seeded
+        # before the fix holds this coordinator grant against the account that is
+        # supposed to belong to no community at all.
+        await tournament.crew_coordinators.remove(users["outsider"])
 
         # The general-purpose fixture tournament is deliberately **on-premises**:
         # its matches are the proctor-lifecycle fixtures, and attaching a
@@ -344,160 +396,17 @@ async def seed_for_tenant(
         stage3 = await StreamRoom.get(name="Stage 3", tenant=tenant)
         now = now_eastern()
 
-        async def make_match(
-            title: str,
-            offset_hours: float | None,
-            *,
-            seated: bool = False,
-            started: bool = False,
-            finished: bool = False,
-            confirmed: bool = True,
-            p1: User | None = None,
-            p2: User | None = None,
-            room: StreamRoom | None = None,
-            stream_candidate: bool = True,
-            comment: str | None = None,
-        ) -> Match:
-            scheduled_at = now + timedelta(hours=offset_hours) if offset_hours is not None else None
-            match, created = await Match.get_or_create(
-                title=title,
-                tournament=tournament,
-                tenant=tenant,
-                defaults={
-                    "scheduled_at": scheduled_at,
-                    "stream_room": room,
-                    "is_stream_candidate": stream_candidate,
-                    "comment": comment,
-                },
-            )
-            if not created:
-                return match
-            anchor = scheduled_at or now
-            if seated or started or finished:
-                match.seated_at = anchor - timedelta(minutes=10)
-            if started or finished:
-                match.started_at = anchor
-            if finished:
-                match.finished_at = anchor + timedelta(hours=1)
-                if confirmed:
-                    match.confirmed_at = anchor + timedelta(hours=1, minutes=5)
-            await match.save()
-            for rank, player in enumerate([p1, p2], 1):
-                if player:
-                    await MatchPlayers.get_or_create(
-                        match=match,
-                        user=player,
-                        tenant=tenant,
-                        defaults={"finish_rank": rank if finished else None},
-                    )
-            return match
-
-        scheduled_match = await make_match("Scheduled Match",   2,   p1=players[0], p2=players[1])
-        checked_in_match = await make_match("Checked-In Match",  0,   seated=True,  p1=players[0], p2=players[1], room=stage1)
-        in_progress_match = await make_match("In-Progress Match", -1,  seated=True, started=True,  p1=players[2], p2=players[3], room=stage2)
-        finished_match = await make_match("Finished Match",    -3,  seated=True, started=True, finished=True, p1=players[0], p2=players[2], room=stage1)
-        stage3_match = await make_match(
-            "Stage 3 Rematch", 3, seated=True, p1=players[1], p2=players[3], room=stage3,
-            comment="Requested a rematch after a disconnect last round.",
+        fixtures = await seed_matches_for_tenant(
+            tenant, tournament, staff, players,
+            {"stage1": stage1, "stage2": stage2, "stage3": stage3}, now,
         )
-        await make_match(
-            "Off-Stream Match", 4, p1=players[2], p2=players[0], stream_candidate=False,
-        )
-        future_match = await make_match(
-            "Grand Finals", 30, p1=players[3], p2=players[1], room=stage1,
-            comment="Best of 3, winner takes the trophy.",
-        )
-        disputed_match = await make_match(
-            "Disputed Match", -5, seated=True, started=True, finished=True, confirmed=False,
-            p1=players[1], p2=players[2], room=stage2,
-            comment="Result under review — desync reported by both players.",
-        )
-        await make_match(
-            "TBD Match", None, p1=players[3], p2=players[0], stream_candidate=False,
-        )
-        # Seat the two matches that are checked in but not finished at real
-        # stations, so the schedule shows stations out of the box and the
-        # occupancy check has something to trip on: 1/2/5/6 read as in use when
-        # a proctor opens the picker on any other match.
-        for seated_match, labels in (
-            (checked_in_match, ("1", "5")),
-            (in_progress_match, ("2", "6")),
-        ):
-            seated_players = await MatchPlayers.filter(
-                match=seated_match, tenant=tenant,
-            ).order_by("id")
-            for seated_player, label in zip(seated_players, labels):
-                if seated_player.assigned_station is None and tenant.slug == "default":
-                    seated_player.assigned_station = label
-                    await seated_player.save()
-
-        print(f"    [{tenant.slug}] matches ok")
-
-        # Generated seeds, attached to matches that have already been rolled.
-        seed, _ = await GeneratedSeeds.get_or_create(
-            seed_url="https://alttpr.com/en/h/DevSeed0",
-            tenant=tenant,
-            defaults={"seed_info": json.dumps({"logic": "NoGlitches", "spoilers": "off"})},
-        )
-        if finished_match.generated_seed_id is None:
-            finished_match.generated_seed = seed
-            await finished_match.save()
-
-        disputed_seed, _ = await GeneratedSeeds.get_or_create(
-            seed_url="https://alttpr.com/en/h/DevSeed1",
-            tenant=tenant,
-            defaults={"seed_info": json.dumps({"logic": "Glitched", "spoilers": "mystery"})},
-        )
-        if disputed_match.generated_seed_id is None:
-            disputed_match.generated_seed = disputed_seed
-            await disputed_match.save()
-
-        # The dispute flag itself, so the admin's review queue has a contested
-        # row out of the box — this match has claimed to be disputed since the
-        # first seed script and only now actually is.
-        if not disputed_match.needs_review:
-            disputed_match.needs_review = True
-            disputed_match.review_note = (
-                "Player Two says the timer was still running when Player Three "
-                "raised their hand. Needs an admin to look at the VOD."
-            )
-            await disputed_match.save()
-
-        # Match acknowledgments — the checked-in match's players have both confirmed.
-        for player in (players[0], players[1]):
-            await MatchAcknowledgment.get_or_create(
-                match=checked_in_match, user=player, tenant=tenant,
-                defaults={"acknowledged_at": now, "auto_acknowledged": False},
-            )
-        # The scheduled match still has one un-acknowledged and one pending player.
-        await MatchAcknowledgment.get_or_create(
-            match=scheduled_match, user=players[0], tenant=tenant,
-            defaults={"acknowledged_at": now, "auto_acknowledged": False},
-        )
-        await MatchAcknowledgment.get_or_create(
-            match=scheduled_match, user=players[1], tenant=tenant,
-            defaults={"acknowledged_at": None, "auto_acknowledged": False},
-        )
-        # Grand Finals — one player auto-acknowledged, the other hasn't responded.
-        await MatchAcknowledgment.get_or_create(
-            match=future_match, user=players[3], tenant=tenant,
-            defaults={"acknowledged_at": now, "auto_acknowledged": True},
-        )
-        await MatchAcknowledgment.get_or_create(
-            match=future_match, user=players[1], tenant=tenant,
-            defaults={"acknowledged_at": None, "auto_acknowledged": False},
-        )
-
-        # Match watchers — staff keeps an eye on the scheduled, in-progress, and disputed matches.
-        for m in (scheduled_match, in_progress_match, disputed_match):
-            await MatchWatcher.get_or_create(user=staff, match=m, tenant=tenant)
-
-        # Notification preference — staff wants DMs for every match in this tournament.
-        await TournamentNotificationPreference.get_or_create(
-            user=staff, tournament=tournament, tenant=tenant,
-            defaults={"match_notifications": MatchNotificationLevel.ALL},
-        )
-        print(f"    [{tenant.slug}] match extras ok")
+        checked_in_match = fixtures["checked_in"]
+        in_progress_match = fixtures["in_progress"]
+        finished_match = fixtures["finished"]
+        stage3_match = fixtures["stage3"]
+        future_match = fixtures["future"]
+        disputed_match = fixtures["disputed"]
+        seed = fixtures["seed"]
 
         # --- Online tournament (scripts/seed_online.py) ----------------------
         # Its own racetime.gg-managed tournament with its own matches, kept apart
@@ -510,6 +419,22 @@ async def seed_for_tenant(
         # match per step of the proctor's workflow.
         await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
         print(f"    [{tenant.slug}] on-site tournament ok")
+
+        # --- Group play-in races (scripts/seed_play_in.py) -------------------
+        # Staff-run races of ten, seeding the bracket above — the only rosters
+        # longer than two, and the only match holding finishers and forfeits
+        # together. They belong to this tournament because that is the bracket
+        # they feed.
+        racers = players + [users[name] for name, _display, _full in RACER_SPECS]
+        await seed_play_in_for_tenant(tenant, tournament, staff, racers, now)
+
+        # --- One realistic match day (scripts/seed_match_day.py) -------------
+        # Density, not states: fifteen ordinary bracket matches across the three
+        # stages so the schedule and the stage-utilisation report have a real day
+        # to draw. Everything it creates is deliberately unremarkable.
+        await seed_match_day_for_tenant(
+            tenant, tournament, racers, [stage1, stage2, stage3], today, now,
+        )
 
         # --- Crew signups (commentators / trackers) -------------------------
         sm = users["sm_user"]
@@ -538,6 +463,21 @@ async def seed_for_tenant(
             match=stage3_match, user=sm, tenant=tenant,
             defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
         )
+        # A **fully crewed** restream: two approved commentators and an approved
+        # tracker on one match, which is what a stage match actually goes live
+        # with. Every other seeded match is partly crewed, so the coverage
+        # surfaces (and the crew card's full state) had nothing complete to show.
+        # The crew here are the two players who are *not* in this match — which
+        # is also how a community really staffs a restream.
+        for commentator in (players[2], sm):
+            await Commentator.get_or_create(
+                match=checked_in_match, user=commentator, tenant=tenant,
+                defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
+            )
+        await Tracker.get_or_create(
+            match=checked_in_match, user=players[3], tenant=tenant,
+            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
+        )
         print(f"    [{tenant.slug}] crew ok")
 
         # --- Volunteer scheduling (scripts/seed_volunteers.py) ---------------
@@ -545,8 +485,7 @@ async def seed_for_tenant(
         await seed_volunteers_for_tenant(tenant, users, staff, today, now_utc)
 
         # --- Player availability --------------------------------------------
-        # Same three-day window the volunteer fixtures use.
-        event_days = [today + timedelta(days=d) for d in range(3)]
+        # Same three-day window the venue hours and the volunteer fixtures use.
         player_avail_specs = {
             "player_one": ("10:00", "18:00", VolunteerAvailabilityStatus.PREFERRED),
             "player_two": ("14:00", "22:00", VolunteerAvailabilityStatus.AVAILABLE),
@@ -599,6 +538,8 @@ async def seed_for_tenant(
              "Would love a dark mode toggle.", "/"),
             ("sm_user", FeedbackCategory.PRAISE, FeedbackStatus.NEW,
              "The new crew view is great, thanks!", "/admin/schedule"),
+            ("player_three", FeedbackCategory.OTHER, FeedbackStatus.REVIEWED,
+             "Who do I ask about getting my racetime name fixed?", "/home/profile"),
         ]
         for uname, category, status, message, page_url in feedback_specs:
             if not await Feedback.filter(user=users[uname], message=message, tenant=tenant).exists():
@@ -664,25 +605,40 @@ async def seed_for_tenant(
         await seed_observability_for_tenant(tenant, staff, finished_match, now_utc)
 
         # --- Audit log -------------------------------------------------------
+        # One row per action a staff member actually takes on a match day, so the
+        # Audit tab's action filter has more than one value to filter by.
         audit_specs = [
-            (staff, "tournament.created", {"tournament_id": tournament.id, "name": tournament.name}),
-            (staff, "match.created", {"match_id": finished_match.id, "title": finished_match.title}),
-            (staff, "match.finished", {"match_id": finished_match.id}),
-            (staff, "user.role_granted", {"user_id": proctor.id, "role": Role.PROCTOR.value}),
-            (staff, "equipment.checked_out",
+            (staff, AuditActions.TOURNAMENT_CREATED,
+             {"tournament_id": tournament.id, "name": tournament.name}),
+            (staff, AuditActions.MATCH_CREATED,
+             {"match_id": finished_match.id, "title": finished_match.title}),
+            (staff, AuditActions.MATCH_SEED_ROLLED,
+             {"match_id": finished_match.id, "randomizer": "alttpr",
+              "preset": None, "seed_url": seed.seed_url}),
+            (staff, AuditActions.MATCH_FINISHED, {"match_id": finished_match.id}),
+            (staff, AuditActions.MATCH_FLAGGED_FOR_REVIEW,
+             {"match_id": disputed_match.id, "note": disputed_match.review_note}),
+            (staff, AuditActions.USER_ROLE_GRANTED,
+             {"user_id": proctor.id, "role": Role.PROCTOR.value}),
+            (staff, AuditActions.EQUIPMENT_CHECKED_OUT,
              {"equipment_id": equipment["Capture Card A"].id, "borrower_id": users["player_one"].id}),
         ]
-        if await AuditLog.filter(tenant=tenant).count() == 0:
-            for actor, action, details in audit_specs:
+        # Per-row, not "only when the log is empty": anything else that writes an
+        # audit row first — a preset import, a bracket created through its
+        # service — would otherwise suppress this whole fixture set.
+        for actor, action, details in audit_specs:
+            payload = json.dumps(details, sort_keys=True)
+            if not await AuditLog.filter(action=action, details=payload, tenant=tenant).exists():
                 await AuditLog.create(
-                    user=actor, action=action, details=json.dumps(details, sort_keys=True), tenant=tenant,
+                    user=actor, action=action, details=payload, tenant=tenant,
                 )
         print(f"    [{tenant.slug}] audit log ok")
 
-        # A *decided* join request, so both states of the model exist in dev: the
+        # A *decided* join request, so every state of the model exists in dev: the
         # pending one lives in 'fledgling' (the staff queue), this denied one is
         # the re-openable case — asking again updates this row rather than
-        # appending a second.
+        # appending a second — and the approved one is the ordinary outcome, the
+        # record of how most members actually got in.
         await TenantJoinRequest.get_or_create(
             user=users['outsider'], tenant=tenant,
             defaults={
@@ -690,6 +646,15 @@ async def seed_for_tenant(
                 'message': 'Can I get in?',
                 'decided_by': staff,
                 'decided_at': now_eastern(),
+            },
+        )
+        await TenantJoinRequest.get_or_create(
+            user=users['volunteer_only'], tenant=tenant,
+            defaults={
+                'status': JoinRequestStatus.APPROVED,
+                'message': 'I commentate for a couple of events and would like to help.',
+                'decided_by': staff,
+                'decided_at': now_eastern() - timedelta(days=3),
             },
         )
         print(f"    [{tenant.slug}] join requests ok")

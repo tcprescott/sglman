@@ -36,6 +36,11 @@ _ASSET_SPECS = (
     ('HDMI Splitter', '4-way powered splitter', None),
     ('Mic Stand', 'Boom arm, held by a volunteer', None),
     ('Long HDMI Run', '50ft HDMI — lent constantly', None),
+    # Gear breaks, and a community retires it rather than deleting the asset and
+    # its loan history. RETIRED was the one EquipmentStatus the seed never
+    # produced, so nothing in dev showed how a retired asset reads in the list or
+    # that it cannot be checked out.
+    ('Console 2', 'Super Nintendo (SNES) — dead PPU, kept for parts', 'staff'),
 )
 
 
@@ -50,11 +55,13 @@ async def seed_equipment_for_tenant(
     Returns the assets by name; ``seed_dev.py``'s audit-log fixtures reference
     one of them.
     """
-    await UserRole.get_or_create(
-        user=staff, role=Role.EQUIPMENT_MANAGER, tenant=tenant, defaults={'granted_by': None},
-    )
+    # staff_user is deliberately *not* granted EQUIPMENT_MANAGER: every gate here
+    # is ``is_staff(user) or is_equipment_manager(user)``, so the grant added
+    # nothing but a second role on the one fixture that has to stay plain STAFF
+    # (one holder per role — docs/reference/dev-seed.md).
+    #
     # Manager without STAFF: the fixture that proves the manager surfaces stand
-    # on their own. staff_user holds both, so it can never show that.
+    # on their own.
     equip_manager = users['equip_manager']
     await UserRole.get_or_create(
         user=equip_manager, role=Role.EQUIPMENT_MANAGER, tenant=tenant,
@@ -90,6 +97,11 @@ async def seed_equipment_for_tenant(
     await _open_loan(
         equipment['Mic Stand'], users['player_three'], equip_manager, tenant,
     )
+
+    retired = equipment['Console 2']
+    if retired.status != EquipmentStatus.RETIRED:
+        retired.status = EquipmentStatus.RETIRED
+        await retired.save()
 
     long_run = equipment['Long HDMI Run']
     existing = await EquipmentLoan.filter(equipment=long_run, tenant=tenant).count()

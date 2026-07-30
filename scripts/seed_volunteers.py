@@ -15,11 +15,10 @@ so the Vol. Roster tab and the auto-scheduler have something real to show
 from datetime import date, datetime, timedelta
 
 from application.utils.timezone import parse_eastern_datetime
+from scripts.seed_support import FULL_RACERS
 from models import (
-    Role,
     Tenant,
     User,
-    UserRole,
     VolunteerAssignment,
     VolunteerAvailability,
     VolunteerAvailabilityStatus,
@@ -38,9 +37,10 @@ async def seed_volunteers_for_tenant(
     now_utc: datetime,
 ) -> None:
     """Seed positions, opt-ins, qualifications, availability, shifts and one assignment."""
-    await UserRole.get_or_create(
-        user=staff, role=Role.VOLUNTEER_COORDINATOR, tenant=tenant, defaults={"granted_by": None},
-    )
+    # staff_user is deliberately *not* granted VOLUNTEER_COORDINATOR: the gate is
+    # ``is_staff(user) or is_volunteer_coordinator(user)``, so the grant bought
+    # nothing and cost the seed its plain-STAFF fixture (one holder per role —
+    # docs/reference/dev-seed.md). vc_user is the coordinator.
 
     # Descriptions are what the volunteer's own card shows as the standing job
     # brief, so two of the four carry one.
@@ -84,6 +84,12 @@ async def seed_volunteers_for_tenant(
         # policy skips a volunteer who has not declared this time, and that skip
         # needs someone to skip.
         "player_four": "Can help wherever, ask me on the day.",
+        # The two play-in racers given the full participant treatment
+        # (seed_support.FULL_RACERS): the assignable pool has to contain people
+        # who are not also the four named players, or every coverage and
+        # auto-scheduler screen in dev is drawn from the same four rows.
+        FULL_RACERS[0]: "Racing the play-in, free either side of it.",
+        FULL_RACERS[1]: None,
     }
     for uname, note in opted_in.items():
         profile, _ = await VolunteerProfile.get_or_create(user=users[uname], tenant=tenant)
@@ -106,26 +112,37 @@ async def seed_volunteers_for_tenant(
         )
 
     event_days = [today + timedelta(days=d) for d in range(3)]
+    # Windows per volunteer, repeated across every event day. A list rather than
+    # one window because a real declaration is not uniform: the last fixture
+    # offers the afternoon and blocks the morning, which is the only place
+    # ``UNAVAILABLE`` — the status the auto-scheduler must refuse to schedule
+    # over — exists on a volunteer.
     avail_specs = {
-        "proctor_user": ("08:00", "16:00", VolunteerAvailabilityStatus.PREFERRED),
-        "sm_user": ("12:00", "20:00", VolunteerAvailabilityStatus.AVAILABLE),
-        "player_one": ("08:00", "12:00", VolunteerAvailabilityStatus.AVAILABLE),
-        "player_two": ("16:00", "00:00", VolunteerAvailabilityStatus.AVAILABLE),
-        "player_three": ("08:00", "20:00", VolunteerAvailabilityStatus.AVAILABLE),
+        "proctor_user": [("08:00", "16:00", VolunteerAvailabilityStatus.PREFERRED)],
+        "sm_user": [("12:00", "20:00", VolunteerAvailabilityStatus.AVAILABLE)],
+        "player_one": [("08:00", "12:00", VolunteerAvailabilityStatus.AVAILABLE)],
+        "player_two": [("16:00", "00:00", VolunteerAvailabilityStatus.AVAILABLE)],
+        "player_three": [("08:00", "20:00", VolunteerAvailabilityStatus.AVAILABLE)],
+        FULL_RACERS[0]: [("10:00", "18:00", VolunteerAvailabilityStatus.AVAILABLE)],
+        FULL_RACERS[1]: [
+            ("08:00", "12:00", VolunteerAvailabilityStatus.UNAVAILABLE),
+            ("12:00", "20:00", VolunteerAvailabilityStatus.PREFERRED),
+        ],
     }
-    for uname, (start_hhmm, end_hhmm, status) in avail_specs.items():
+    for uname, windows in avail_specs.items():
         u = users[uname]
         if await VolunteerAvailability.filter(user=u, tenant=tenant).exists():
             continue
         for day in event_days:
             day_str = day.isoformat()
-            starts_at = parse_eastern_datetime(day_str, start_hhmm)
-            ends_at = parse_eastern_datetime(day_str, end_hhmm)
-            if ends_at <= starts_at:
-                ends_at = ends_at + timedelta(days=1)
-            await VolunteerAvailability.create(
-                user=u, starts_at=starts_at, ends_at=ends_at, status=status, tenant=tenant,
-            )
+            for start_hhmm, end_hhmm, status in windows:
+                starts_at = parse_eastern_datetime(day_str, start_hhmm)
+                ends_at = parse_eastern_datetime(day_str, end_hhmm)
+                if ends_at <= starts_at:
+                    ends_at = ends_at + timedelta(days=1)
+                await VolunteerAvailability.create(
+                    user=u, starts_at=starts_at, ends_at=ends_at, status=status, tenant=tenant,
+                )
 
     blocks = [
         ("Shift 1", "08:00", "12:00"),

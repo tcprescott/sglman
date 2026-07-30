@@ -33,6 +33,7 @@ Layer-by-layer detail, kept in step with the source.
 | [reference/authentication.md](reference/authentication.md) | Discord OAuth, `AuthMiddleware`, `protected_page` / `public_page`, `AuthService`, the role matrix |
 | [reference/discord-integration.md](reference/discord-integration.md) | `discordbot/`, `application/services/discord/`, the DM queue, `racetimebot/` |
 | [reference/seed-generation.md](reference/seed-generation.md) | Randomizer backends, `presets/`, per-tenant credentials |
+| [reference/dev-seed.md](reference/dev-seed.md) | `scripts/seed_*.py` — the fixture standard and what enforces it |
 | [reference/frontend.md](reference/frontend.md) | `frontend.py`, `pages/`, `theme/`, `static/` |
 
 ## Features (`features/`)
