@@ -5,7 +5,7 @@ Typed accessors over the SystemConfiguration key/value table.
 """
 
 import json
-from datetime import date, datetime, time
+from datetime import date, time
 from typing import Dict, Optional, Tuple
 
 from application.services.audit_service import AuditActions, AuditService

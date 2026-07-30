@@ -6,7 +6,7 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 """
 
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User
