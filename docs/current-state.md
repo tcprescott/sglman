@@ -35,7 +35,7 @@ Everything listed is **stable in production** unless marked otherwise.
 
 Recorded so they read as decisions rather than gaps:
 
-- **The `System` service account is still offered as a person** wherever a picker is not membership-scoped. `UserRepository.get_members` excludes it (`is_system`), which covers every per-community picker; the platform-level `get_all_users` does not, because a super-admin's first-admin picker is choosing from every account. A general "service account" concept was out of scope.
+- **The `System` service account is still offered as a person** wherever a picker is not membership-scoped. `UserRepository.get_community_people` excludes it, which covers every per-community picker; the platform-level `get_all_users` does not, because a super-admin's first-admin picker is choosing from every account (the checkout dialog, its other caller, re-applies the exclusion in Python). A general "service account" concept was out of scope.
 - **A brand-new community still shows the full admin drawer.** The setup checklist supplies the ordering the audit found missing, and nothing hides the other tabs — hiding tabs from a staff member who knows what they want is a worse failure than showing too many.
 
 - **Bracket automation stops at Challonge parity.** Humans schedule open matchups into `Match` rows. Auto-created matches, full round auto-scheduling, and bracket-driven crew/restream assignment were all left out of v1.

@@ -9,10 +9,10 @@ Pure (no NiceGUI / session / DB) so they unit-test in isolation; the presentatio
 layer reads the pending referrer from ``app.storage.user`` and passes it in.
 """
 
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 from application.utils.environment import get_base_url
-from application.utils.hostname import scheme_for_host
+from application.utils.hostname import normalize_hostname, scheme_for_host
 
 # Routes that must never be used as a post-login return target (they would loop).
 AUTH_ROUTES: tuple[str, ...] = ('/login', '/logout', '/oauth/callback')
@@ -54,6 +54,29 @@ def tenant_base_url(tenant: Any) -> str:
     return f'{get_base_url()}/t/{tenant.slug}'
 
 
+def encoded_host_mismatch(canonical_url: Any, browsing_host: Any) -> Optional[str]:
+    """The canonical host, when it is not the host the operator is browsing.
+
+    A printed QR label encodes an absolute link built from the tenant's
+    canonical base (:func:`tenant_base_url`), which on a path-mode tenant comes
+    from ``BASE_URL``. If ``BASE_URL`` is stale, thirty labels come off the
+    printer encoding a host nobody can reach — and the mismatch only surfaces at
+    the venue, with a phone and a cable.
+
+    Compare against the **tenant's canonical base**, never ``BASE_URL`` itself:
+    on a custom-domain tenant the encoded host is *supposed* to differ from the
+    platform's. Both sides go through :func:`normalize_hostname`, so case, a
+    default ``:80``/``:443``, a trailing dot and a scheme/path never produce a
+    spurious warning. Returns ``None`` when they match, or when either side is
+    missing — an absent ``Host`` header must not read as a misconfiguration.
+    """
+    canonical = normalize_hostname(canonical_url)
+    browsing = normalize_hostname(browsing_host)
+    if canonical is None or browsing is None:
+        return None
+    return canonical if canonical != browsing else None
+
+
 def tenant_url(tenant: Any, path: str) -> str:
     """:func:`tenant_base_url` joined to an absolute in-app ``path`` (leading ``/``)."""
     return f'{tenant_base_url(tenant)}{path}'
@@ -62,6 +85,36 @@ def tenant_url(tenant: Any, path: str) -> str:
 def tenant_home(root_path: str) -> str:
     """The current tenant's home path — ``/t/<slug>/`` in path mode, ``/`` bare."""
     return f'{root_path}/'
+
+
+def strip_root_path(root_path: Any, path: Any) -> str:
+    """``path`` made **tenant-local**, for handing to a client-side navigate.
+
+    ``ui.navigate.to`` is client-side, and ``nicegui.js`` unconditionally prepends
+    the client's ``options.prefix`` (``X-Forwarded-Prefix`` + ``root_path``, i.e.
+    ``/t/<slug>`` in path mode) to any absolute path::
+
+        open: (msg) => { const url = msg.path.startsWith("/") ? options.prefix + msg.path : msg.path; ... }
+
+    So a navigate issued from a page served under ``/t/<slug>`` must be given the
+    path *without* that prefix, or it lands on ``/t/<slug>/t/<slug>/…``. This
+    strips ``root_path`` when ``path`` sits under it and returns ``path``
+    unchanged otherwise (host mode, the bare platform host, or a path belonging
+    to somewhere else). Pure.
+
+    Do **not** use it for an HTTP ``RedirectResponse`` — the browser resolves
+    those against the origin, nothing prepends a prefix, and a stripped path
+    would leave the tenant.
+    """
+    if not isinstance(path, str) or not path:
+        return '/'
+    if not isinstance(root_path, str) or not root_path:
+        return path
+    if path == root_path:
+        return '/'
+    if path.startswith(root_path + '/'):
+        return path[len(root_path):]
+    return path
 
 
 def sanitize_return_path(
@@ -79,12 +132,9 @@ def sanitize_return_path(
     home = tenant_home(root_path)
     if not isinstance(referrer, str) or not referrer:
         return home
-    if root_path:
-        if not (referrer == root_path or referrer.startswith(root_path + '/')):
-            return home
-        local = referrer[len(root_path):] or '/'
-    else:
-        local = referrer
+    if root_path and not (referrer == root_path or referrer.startswith(root_path + '/')):
+        return home
+    local = strip_root_path(root_path, referrer)
     if local.split('?', 1)[0] in auth_routes:
         return home
     return referrer

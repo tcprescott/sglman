@@ -62,6 +62,14 @@ behind `TRUST_FORWARDED_HOST` (last value).
   `/oauth/link/start` → provider OAuth → a callback minting a token that carries
   only the public provider identity → custom-domain `/oauth/link/claim`, which
   records the link where the session and tenant live (`pages/_oauth_link.py`).
+  `/oauth/link/claim` refuses in path mode, where no token can have been minted.
+  A handoff the platform host gives up on hands back through that same claim
+  route with an opaque `r=<reason>`, because the platform host cannot write a
+  notice into the target domain's session. With handoff **off**, the row shows
+  "Main site only" as a link to the platform-host equivalent of the profile page
+  (built by `platform_link_redirect`) rather than naming a place and staying put.
+  Drivable end to end under a provider mock — see
+  [development.md](../development.md#driving-the-cross-host-link-handoff).
 - **Privileged flows stay main-site-only** — Challonge STAFF service-connect and
   Discord-connect hold real per-tenant OAuth tokens, so their buttons are hidden
   on a custom domain and their initiation routes bounce to the path-mode surface.
@@ -140,14 +148,21 @@ roles rather than cascading a revoke. `scripts/backfill_memberships.py` catches
 up rows granted before the invariant existed.
 
 Every **per-community person list** joins through it —
-`UserService.get_community_users` (`UserRepository.get_members`), which is what
-the match, equipment and bracket pickers, the Users tab, `GET /users` and the
-MCP `list_users` tool all read. `get_all_users` still answers "every account on
-the platform" and has exactly one caller: `/platform`'s first-admin picker,
-which is choosing from every account precisely because the target community has
-no members yet. The reserved `System` automation actor is excluded from the
+`UserService.get_community_people`, which is what the match, equipment and
+bracket pickers, the Users tab, `GET /users` and the MCP `list_users` tool all
+read. That is the same basis the access gate below checks, so a picker cannot
+offer someone the app would turn away at the door. `get_all_users` still answers
+"every account on the platform" and has two deliberate callers, both labelled on
+screen: `/platform`'s first-admin picker, choosing from every account precisely
+because the target community has no members yet, and the checkout dialog's
+**Include people outside this community** toggle, for lending to someone who
+just walked in. The reserved `System` automation actor is excluded from the
 community list — the migration made it a member of everywhere, and it was
-measured being offered as a player.
+measured being offered as a player. It is excluded by **both** its flag and its
+sentinel discord id, spelled as a positive filter: written as
+`.exclude(discord_id=SENTINEL)` it also drops every SpeedGaming placeholder,
+whose discord id is NULL, because `NULL = <sentinel>` is NULL and NOT NULL is
+not true.
 
 **Authorization is tenant-scoped *and* membership-gated.** A tenant page runs
 four checks in order — tenant → feature → **membership** → role:

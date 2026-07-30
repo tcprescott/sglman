@@ -290,7 +290,8 @@ exactly that lesson for the Stations button).
 ## Not covered
 
 Volunteer *shifts* (positions, the auto-scheduler, roster export) — that is a
-separate subsystem, audited in
-[volunteer-hub-ux.md](volunteer-hub-ux.md). Restream/tracker
+separate subsystem, audited and since remediated (see
+[docs/reference/services.md](../reference/services.md#volunteering) for the
+notification matrix this audit's RC3 still needs). Restream/tracker
 tooling outside Wizzrobe, and the Discord button path beyond confirming that the
 approval DM carries one.

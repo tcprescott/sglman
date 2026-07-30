@@ -17,15 +17,16 @@ Each QR encodes the asset's tenant-qualified detail URL, exactly as the single-
 asset page does.
 """
 
-from nicegui import ui
+from nicegui import context, ui
 
 from middleware.auth import protected_page
 
 from application.services import EquipmentService, TenantService
 from application.tenant_context import get_current_tenant_id
 from application.utils.environment import get_base_url
+from application.utils.hostname import effective_request_host, normalize_hostname
 from application.utils.qrcode_util import asset_qr_data_uri
-from application.utils.tenant_urls import tenant_url
+from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
 from models import FeatureFlag, Role
 
 _MIN_COLS, _MAX_COLS, _DEFAULT_COLS = 1, 5, 3
@@ -174,9 +175,33 @@ def create() -> None:
             columns = _DEFAULT_COLS
         state = {'cols': columns}
 
+        # The host these labels encode, and whether it is the one the operator is
+        # actually browsing. Compared against the *tenant's* canonical base, not
+        # BASE_URL: a custom-domain community's labels are supposed to encode
+        # that domain. `no-print`, so it never lands on a sticker.
+        canonical_link = asset_link(assets[0]) if assets else None
+        encoded_host = normalize_hostname(canonical_link)
+        browsing_host = effective_request_host(context.client.request.headers)
+        wrong_host = encoded_host_mismatch(canonical_link, browsing_host)
+
         # --- Toolbar (screen only) ---
+        if wrong_host:
+            # Above the Print button in reading order: a warning below the action
+            # is a warning after the fact. Never blocks printing — the operator
+            # may be printing at home for a venue on another host.
+            with ui.row().classes('no-print full-width q-px-sm q-pt-sm items-center gap-1'):
+                ui.icon('warning').classes('text-warning')
+                ui.label(
+                    f'These labels encode {wrong_host} — you are browsing '
+                    f'{browsing_host or "an unknown host"}. Check BASE_URL before printing.'
+                ).classes('text-warning text-caption')
+
         with ui.row().classes('no-print items-center full-width q-pa-sm').style('gap: 0.75rem'):
             ui.label(f'{community} — equipment QR labels').classes('text-h6 q-ma-none')
+            if encoded_host:
+                # The sheet was the only surface encoding links without showing
+                # one; the asset page has printed its link under the QR all along.
+                ui.label(f'links → {encoded_host}').classes('text-caption')
             ui.space()
             if labels:
                 ui.label(f'{len(labels)} label{"s" if len(labels) != 1 else ""}').classes('text-caption')

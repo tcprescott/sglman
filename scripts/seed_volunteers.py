@@ -42,18 +42,27 @@ async def seed_volunteers_for_tenant(
         user=staff, role=Role.VOLUNTEER_COORDINATOR, tenant=tenant, defaults={"granted_by": None},
     )
 
+    # Descriptions are what the volunteer's own card shows as the standing job
+    # brief, so two of the four carry one.
     position_specs = [
-        ("Check-in Desk", 1, 1),
-        ("Race Proctor", 2, 1),
-        ("Broadcast Tech", 3, 3),  # multiple concurrent slots
-        ("Admin Desk", 4, 1),
+        ("Check-in Desk", 1, 1,
+         "Greet arrivals at the main door, check them against the entrant list, "
+         "hand out badges."),
+        ("Race Proctor", 2, 1,
+         "Run one race room: seat the players, roll the seed, start them, record "
+         "the winner."),
+        ("Broadcast Tech", 3, 3, None),  # multiple concurrent slots
+        ("Admin Desk", 4, 1, None),
     ]
     positions: dict[str, VolunteerPosition] = {}
     default_slots: dict[str, int] = {}
-    for name, order, slots in position_specs:
+    for name, order, slots, description in position_specs:
         p, _ = await VolunteerPosition.get_or_create(
             name=name, tenant=tenant, defaults={"display_order": order, "is_active": True},
         )
+        if description and not p.description:
+            p.description = description
+            await p.save()
         positions[name] = p
         default_slots[name] = slots
 
@@ -71,6 +80,10 @@ async def seed_volunteers_for_tenant(
         "player_one": "Available around my matches — check the schedule first.",
         "player_two": None,
         "player_three": "First time volunteering, would like a shadow shift.",
+        # Deliberately absent from avail_specs below: the auto-scheduler's default
+        # policy skips a volunteer who has not declared this time, and that skip
+        # needs someone to skip.
+        "player_four": "Can help wherever, ask me on the day.",
     }
     for uname, note in opted_in.items():
         profile, _ = await VolunteerProfile.get_or_create(user=users[uname], tenant=tenant)
@@ -152,6 +165,14 @@ async def seed_volunteers_for_tenant(
                         "slots_needed": default_slots[pos_name],
                     },
                 )
+                # Per-shift instructions, distinct from the position's standing
+                # description: the volunteer's card renders the two separately.
+                if pos_name == "Check-in Desk" and label == "Shift 1" and not shift.notes:
+                    shift.notes = (
+                        "Report to the info desk 10 minutes early. Radio channel 2. "
+                        "Bring a jacket — the door is draughty."
+                    )
+                    await shift.save()
                 shift_index[(day_str, f"{pos_name}|{label}")] = shift
 
     first_day = event_days[0].isoformat()
@@ -160,5 +181,15 @@ async def seed_volunteers_for_tenant(
         await VolunteerAssignment.get_or_create(
             shift=proctor_shift, user=users["proctor_user"], tenant=tenant,
             defaults={"assigned_by": staff},
+        )
+
+    second_day = event_days[1].isoformat()
+    draft_shift = shift_index.get((second_day, "Check-in Desk|Shift 1"))
+    if draft_shift:
+        # An unpublished autoscheduler draft: outlined on the coordinator's grid,
+        # invisible on the volunteer's page until Publish draft.
+        await VolunteerAssignment.get_or_create(
+            shift=draft_shift, user=users["player_three"], tenant=tenant,
+            defaults={"assigned_by": staff, "auto_generated": True},
         )
     print(f"    [{tenant.slug}] volunteers ok")

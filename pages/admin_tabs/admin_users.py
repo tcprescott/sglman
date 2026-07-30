@@ -104,7 +104,7 @@ async def admin_users_page() -> None:
         def get_query():
             # Members of this community, not every account on the platform.
             # UserTableView wants a queryset rather than a coroutine, so this
-            # hand-scopes; UserService.get_community_users is the canonical
+            # hand-scopes; UserService.get_community_people is the canonical
             # version and every other caller uses it.
             sel_list = selected.get('value') or []
             tid = require_tenant_id()

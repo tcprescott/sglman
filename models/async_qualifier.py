@@ -145,9 +145,24 @@ class AsyncQualifierRun(Model):
     finished_at = fields.DatetimeField(null=True)
     # Self-reported elapsed run time in whole seconds (submitted by the player).
     elapsed_seconds = fields.IntField(null=True)
+    # Wall-clock seconds from the server-stamped ``started_at`` to the moment the
+    # player submitted. Stored beside the claimed ``elapsed_seconds`` rather than
+    # replacing it: the timer starts at the draw and keeps running while the
+    # player reads the seed, pauses, and gets around to submitting, so measured is
+    # an upper bound on the real run — evidence for the reviewer, not the result.
+    # Null for runs captured from a live race and for pre-existing rows.
+    measured_seconds = fields.IntField(null=True)
     runner_vod_url = fields.CharField(max_length=1024, null=True)
     reattempted = fields.BooleanField(default=False)
     reattempt_reason = fields.TextField(null=True)
+    # Set when a reviewer voided this run on the runner's behalf (a mis-clicked
+    # forfeit, a bad seed) rather than the runner spending their own allowance.
+    # Null for a self-spent reattempt, which is what makes the two countable
+    # apart: a granted one must not shrink what the runner may still spend.
+    reattempt_granted_by = fields.ForeignKeyField(
+        'models.User', related_name='granted_async_qualifier_reattempts', null=True,
+        on_delete=fields.SET_NULL,
+    )
     # Par score in [0, 105]; null until an approved run is scored.
     score = fields.FloatField(null=True)
     reviewed_by = fields.ForeignKeyField(

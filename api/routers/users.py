@@ -59,7 +59,7 @@ async def list_users(
     # Community members, not every account on the platform. A token belongs to
     # one tenant, so returning the platform's whole user table was a leak; there
     # is deliberately no ?scope=all, which would re-open it behind a parameter.
-    return await UserService().get_community_users(role=role)
+    return await UserService().get_community_people(role=role)
 
 
 @router.get("/me", response_model=UserDetailResponse, summary="Get the current user")

@@ -69,7 +69,10 @@ class AdminMatchDialog(BaseMatchDialog):
             ).props('outline color=secondary')
 
     async def open(self):
-        users = await self.user_service.get_community_users()
+        # include_inactive: a SpeedGaming placeholder entrant is inactive by
+        # construction, and a synced match's roster already contains it — leaving
+        # it out of the options would blank an existing player's chip.
+        users = await self.user_service.get_community_people(include_inactive=True)
         stream_rooms = await self.stream_room_service.get_all_stream_rooms()
         tournaments = await self.tournament_service.get_all_tournaments()
 
@@ -372,7 +375,10 @@ class UserMatchDialog(BaseMatchDialog):
         self.discord_id = discord_id
 
     async def open(self):
-        users = await self.user_service.get_community_users()
+        # include_inactive: a SpeedGaming placeholder entrant is inactive by
+        # construction, and a synced match's roster already contains it — leaving
+        # it out of the options would blank an existing player's chip.
+        users = await self.user_service.get_community_people(include_inactive=True)
 
         user = await self.user_service.get_user_by_discord_id(self.discord_id)
         if not user:

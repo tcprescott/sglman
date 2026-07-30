@@ -72,23 +72,44 @@ class UserService:
 
         Identity is global, so this is a **platform-level** list. Any picker that
         means "people in this community" wants
-        :meth:`get_community_users` instead — the only legitimate caller of this
-        one is the ``/platform`` first-admin dialog, which is choosing from every
-        account precisely because the target community has no members yet.
+        :meth:`get_community_people` instead. Two callers are legitimately
+        platform-level and both label the widening on screen: the ``/platform``
+        first-admin dialog (choosing from every account precisely because the
+        target community has no members yet) and the checkout dialog's "Include
+        people outside this community" toggle.
         """
         return await self.repository.get_all(role=role, has_discord=has_discord)
 
-    async def get_community_users(
+    async def get_community_people(
         self,
+        *,
         role: Optional[Role] = None,
         has_discord: bool = False,
+        include_user_ids: Optional[List[int]] = None,
+        include_inactive: bool = False,
     ) -> List[User]:
-        """Everyone who belongs to the tenant in scope, via ``TenantMembership``.
+        """The people of the tenant in scope, for a per-community person picker.
 
-        Same signature as :meth:`get_all_users` so converting a picker is a
-        one-word change. Raises if there is no tenant in scope.
+        Named for the concept, not the caller: every per-community picker has
+        the same leak and wants the same read. It lives here rather than on
+        ``EquipmentService`` deliberately — hanging it there would drag
+        ``FeatureFlag.EQUIPMENT``'s declared ``service_modules`` gating onto a
+        people query that has nothing to do with equipment.
+
+        This is a **default for a picker, not an authorization rule.** The hard
+        rules are enforced by whichever service acts on the choice — see
+        ``EquipmentService.checkout`` and the membership check in
+        ``CrewService.signup_crew``.
+
+        Raises if there is no tenant in scope: a per-community picker rendered
+        outside a tenant is a bug, and that is where it should surface.
         """
-        return await self.repository.get_members(role=role, has_discord=has_discord)
+        return await self.repository.get_community_people(
+            role=role,
+            has_discord=has_discord,
+            include_user_ids=include_user_ids,
+            include_inactive=include_inactive,
+        )
 
     async def get_current_user_from_storage(self, storage_discord_id: Optional[str]) -> Optional[User]:
         if not storage_discord_id:

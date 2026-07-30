@@ -34,8 +34,11 @@ from application.tenant_context import get_current_tenant_id, is_host_mode, tena
 from application.utils.environment import get_platform_host, host_oauth_handoff_enabled
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mocks.mock_discord import is_mock_discord
-from application.utils.tenant_urls import AUTH_ROUTES, safe_next, sanitize_return_path, tenant_home
+from application.utils.tenant_urls import (
+    AUTH_ROUTES, safe_next, sanitize_return_path, strip_root_path, tenant_home,
+)
 from models import Role, Tenant, User
+from theme.notice import drain_notice, stash_notice
 from theme.tables.mobile_grid import enable_mobile_grid
 
 logger = logging.getLogger(__name__)
@@ -185,19 +188,19 @@ def _register_discord_connect_callback() -> None:
 
         params = parse_qs(urlparse(url).query)
         if 'error' in params:
-            ui.notify('Discord authorization was cancelled or denied.', color='warning')
+            stash_notice('Discord authorization was cancelled or denied.', color='warning')
             ui.navigate.to(return_path)
             return
         returned_state = (params.get('state') or [None])[0]
         if not expected_state or returned_state != expected_state or not tenant_id:
-            ui.notify('Connection session expired or invalid. Please try again.', color='warning')
+            stash_notice('Connection session expired or invalid. Please try again.', color='warning')
             ui.navigate.to(return_path)
             return
 
         actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         tenant = await TenantService.get_by_id(int(tenant_id))
         if actor is None or tenant is None:
-            ui.notify('Session expired. Please try again.', color='warning')
+            stash_notice('Session expired. Please try again.', color='warning')
             ui.navigate.to(return_path)
             return
 
@@ -212,21 +215,21 @@ def _register_discord_connect_callback() -> None:
                 else:
                     code = (params.get('code') or [None])[0]
                     if not code:
-                        ui.notify('Discord authorization was cancelled.', color='warning')
+                        stash_notice('Discord authorization was cancelled.', color='warning')
                         ui.navigate.to(return_path)
                         return
                     await DiscordLinkService.complete_link(actor, tenant, code)
         except (ValueError, PermissionError) as e:
-            ui.notify(str(e), color='warning')
+            stash_notice(str(e), color='warning')
             ui.navigate.to(return_path)
             return
         except Exception:
             logger.exception('Discord connect callback failed')
-            ui.notify('An unexpected error occurred while connecting Discord.', color='negative')
+            stash_notice('An unexpected error occurred while connecting Discord.', color='negative')
             ui.navigate.to(return_path)
             return
 
-        ui.notify('Discord server connected.', color='positive')
+        stash_notice('Discord server connected.', color='positive')
         ui.navigate.to(return_path)
 
 
@@ -238,6 +241,9 @@ def create() -> None:
 
     @ui.page('/login')
     async def login(request: Request, client: Client) -> Optional[RedirectResponse]:
+        # No drain point here: this route renders nothing, it redirects straight to
+        # Discord. A notice stashed for /login (e.g. "Please log in and try linking
+        # again.") is drained by the first framed page after the login completes.
         root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
             return RedirectResponse(tenant_home(root_path))
@@ -291,21 +297,21 @@ def create() -> None:
 
             if 'error' in params:
                 logger.warning('OAuth callback returned error: %s', params.get('error'))
-                ui.notify('Discord login was cancelled or denied.', color='warning')
+                stash_notice('Discord login was cancelled or denied.', color='warning')
                 ui.navigate.to('/login')
                 return
 
             returned_state = (params.get('state') or [None])[0]
             if not expected_state or returned_state != expected_state:
                 logger.warning('OAuth state mismatch on callback.')
-                ui.notify('Login session expired or invalid. Please try again.', color='warning')
+                stash_notice('Login session expired or invalid. Please try again.', color='warning')
                 ui.navigate.to('/login')
                 return
 
             code = (params.get('code') or [None])[0]
             if not code:
                 logger.warning('OAuth callback missing authorization code.')
-                ui.notify('Login failed. Please try again.', color='warning')
+                stash_notice('Login failed. Please try again.', color='warning')
                 ui.navigate.to('/login')
                 return
 
@@ -337,7 +343,7 @@ def create() -> None:
             if not user.is_active:
                 logger.warning('Inactive account %s attempted web login', current_user.id)
                 app.storage.user.clear()
-                ui.notify(
+                stash_notice(
                     'This account is inactive. Contact staff if you believe this is a mistake.',
                     color='negative',
                 )
@@ -380,6 +386,10 @@ def create() -> None:
             # referrer_path was pinned to a tenant-qualified path at /login, so
             # this returns to the originating community even though the callback
             # itself runs on the bare platform host with no tenant in scope.
+            # Deliberately *not* run through strip_root_path: this page is served
+            # off the bare platform host (path mode) or the tenant's own domain
+            # (host mode), so the client's options.prefix is empty and the fully
+            # qualified path is the only one that arrives in the right community.
             referrer = app.storage.user.get('referrer_path', '/')
             if referrer.split('?', 1)[0] in AUTH_ROUTES:
                 referrer = '/'
@@ -387,7 +397,7 @@ def create() -> None:
             app.storage.user.pop('referrer_path', None)
         except Exception:
             logger.exception('Unexpected error during OAuth callback')
-            ui.notify('An unexpected error occurred during login. Please try again.', color='negative')
+            stash_notice('An unexpected error occurred during login. Please try again.', color='negative')
             ui.navigate.to('/login')
 
     @ui.page('/oauth/start')
@@ -431,7 +441,7 @@ def create() -> None:
         bind = app.storage.user.pop('handoff_bind', None)
         payload = handoff_service.claim(token, request_host) if (token and request_host) else None
         if payload is None:
-            ui.notify('Login link expired or already used. Please try again.', color='warning')
+            stash_notice('Login link expired or already used. Please try again.', color='warning')
             ui.navigate.to('/login')
             return
         # Login-CSRF guard: the token must have been minted for a login *this*
@@ -442,7 +452,7 @@ def create() -> None:
         if not (expected and isinstance(bind, str)
                 and hmac.compare_digest(expected, _bind_commit(bind))):
             logger.warning('OAuth handoff browser-binding mismatch on %r', request_host)
-            ui.notify('Login link is not valid for this browser. Please try again.', color='warning')
+            stash_notice('Login link is not valid for this browser. Please try again.', color='warning')
             ui.navigate.to('/login')
             return
         # Re-check the account is still active (it was provisioned at mint time,
@@ -450,7 +460,7 @@ def create() -> None:
         user = await get_user_from_discord_id(payload['discord_id'])
         if user is None:
             app.storage.user.clear()
-            ui.notify('This account is inactive. Contact staff if this is a mistake.', color='negative')
+            stash_notice('This account is inactive. Contact staff if this is a mistake.', color='negative')
             ui.navigate.to('/login')
             return
         app.storage.user.update({
@@ -461,10 +471,13 @@ def create() -> None:
         })
         # Self-defensive; never blocks login.
         await DiscordRoleMappingService().sync_user_roles(user)
+        # Host mode: the claim runs on the tenant's own domain, where root_path
+        # (and so the client's options.prefix) is empty — the path travels
+        # unstripped, exactly as minted.
         ui.navigate.to(_safe_next(payload.get('next') or '/'))
 
 
-def _login_as(user: User) -> None:
+def _login_as(user: User, root_path: str = '') -> None:
     """Populate app.storage.user the same way the real OAuth callback does."""
     app.storage.user.update({
         'username': user.username,
@@ -476,7 +489,10 @@ def _login_as(user: User) -> None:
     if referrer.split('?', 1)[0] in AUTH_ROUTES:
         referrer = '/'
     app.storage.user.pop('referrer_path', None)
-    ui.navigate.to(referrer)
+    # referrer_path is stored tenant-qualified (AuthMiddleware writes
+    # f'{root_path}{path}'), but this picker is *served* under /t/<slug>, so
+    # nicegui.js adds that prefix again on the client — see strip_root_path.
+    ui.navigate.to(strip_root_path(root_path, referrer))
 
 
 def _create_mock() -> None:
@@ -489,11 +505,18 @@ def _create_mock() -> None:
     async def mock_login(request: Request, client: Client):
         root_path = request.scope.get('root_path', '') or ''
         if app.storage.user.get('authenticated', False):
-            ui.navigate.to(tenant_home(root_path))
+            # Tenant-local: this page is served under root_path, and the client
+            # prepends it. tenant_home(root_path) would double it.
+            ui.navigate.to(strip_root_path(root_path, tenant_home(root_path)))
             return
         # Pin the post-login return to this tenant (mirrors the real flow) so a
         # picked user lands on this community's home, not the platform landing.
         app.storage.user['referrer_path'] = _sanitized_return(root_path)
+
+        # Unlike the real /login (an immediate redirect to Discord), this one has
+        # a page to show a stashed notice on — so a message that sent the user
+        # here arrives before they pick a user rather than after.
+        drain_notice()
 
         ui.page_title('Mock Discord Login')
 
@@ -560,7 +583,7 @@ def _create_mock() -> None:
                     if user is None:
                         ui.notify('User no longer exists', color='negative')
                         return
-                    _login_as(user)
+                    _login_as(user, root_path)
 
                 table.on('login_as', on_login_as)
 
@@ -618,7 +641,7 @@ def _create_mock() -> None:
                         role_values=role_select.value or [],
                     )
                     ui.notify(f'Created user {user.username} (#{user.discord_id})', color='positive')
-                    _login_as(user)
+                    _login_as(user, root_path)
 
                 ui.button('Create and log in', color='green', on_click=create_user)
 

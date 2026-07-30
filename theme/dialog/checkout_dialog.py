@@ -1,13 +1,28 @@
 """Shared equipment checkout flow — borrower picker for managers, self-checkout
 for everyone else. Used by the asset detail page and the inventory tables."""
 
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Iterable, Optional
 
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from application.services import EquipmentService, UserService
-from models import User
+from models import SYSTEM_USER_DISCORD_ID, User
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet
+from theme.notify import notify_error
+
+
+def _borrower_options(users: Iterable[User]) -> dict[str, str]:
+    """Selectable borrowers, keyed by id.
+
+    The two hard exclusions are applied here as well as in the scoped read, so
+    they hold for the "include people outside this community" list too — that
+    toggle widens *which community's* people are offered, never who may borrow.
+    """
+    return {
+        str(u.id): u.preferred_name
+        for u in users
+        if u.is_active and str(u.discord_id) != str(SYSTEM_USER_DISCORD_ID)
+    }
 
 
 class CheckoutDialog:
@@ -25,16 +40,40 @@ class CheckoutDialog:
         self.service = EquipmentService()
 
     async def open(self) -> None:
-        users = await UserService().get_community_users()
-        options = {str(u.id): u.preferred_name for u in users}
+        user_service = UserService()
+        # The actor is force-included: a manager checking something out to
+        # themselves must always be in their own picker.
+        community = await user_service.get_community_people(include_user_ids=[self.actor.id])
+        options = _borrower_options(community)
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             mobile_sheet(dialog)
             dialog_header('Check out equipment', dialog)
             with ui.column().classes('q-pa-md gap-2 full-width'):
+                # Labelled as a widening, not a filter: the default list is this
+                # community's people, and the venue case — lending to someone who
+                # just walked in and is not enrolled in anything — is real.
+                widen = ui.checkbox('Include people outside this community')
                 borrower_select = ui.select(
                     label='Borrower', options=options, value=str(self.actor.id),
                     with_input=True,
                 ).classes('full-width')
+
+                async def apply_scope() -> None:
+                    people = (
+                        await user_service.get_all_users() if widen.value
+                        else await user_service.get_community_people(
+                            include_user_ids=[self.actor.id],
+                        )
+                    )
+                    # The two hard exclusions survive the escape hatch: nobody
+                    # lends a cable to the automation actor, and a deactivated
+                    # account cannot even log in.
+                    borrower_select.options = _borrower_options(people)
+                    if borrower_select.value not in borrower_select.options:
+                        borrower_select.value = str(self.actor.id)
+                    borrower_select.update()
+
+                widen.on_value_change(lambda: background_tasks.create(apply_scope()))
 
             async def confirm():
                 try:
@@ -42,7 +81,7 @@ class CheckoutDialog:
                         self.actor, self.equipment_id, borrower_id=int(borrower_select.value)
                     )
                 except (ValueError, PermissionError) as e:
-                    ui.notify(str(e), color='warning')
+                    notify_error(e)
                     return
                 dialog.close()
                 ui.notify('Checked out.', color='positive')
@@ -70,7 +109,7 @@ async def open_checkout(
     try:
         await EquipmentService().checkout(actor, equipment_id)
     except (ValueError, PermissionError) as e:
-        ui.notify(str(e), color='warning')
+        notify_error(e)
         return
     ui.notify('Checked out to you.', color='positive')
     if on_done:
@@ -86,7 +125,7 @@ async def quick_checkin(
     try:
         await EquipmentService().checkin(actor, equipment_id)
     except (ValueError, PermissionError) as e:
-        ui.notify(str(e), color='warning')
+        notify_error(e)
         return
     ui.notify('Checked in.', color='positive')
     if on_done:

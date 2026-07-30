@@ -175,11 +175,37 @@ class VolunteerScheduleService:
             raise ValueError("A shift must end after it starts.")
         if fields.get('slots_needed', shift.slots_needed) < 1:
             raise ValueError("A shift needs at least one slot.")
+        old_starts, old_ends = shift.starts_at, shift.ends_at
+        moved = starts != old_starts or ends != old_ends
         shift = await self.shift_repository.update(shift, **fields)
+        details = {'shift_id': shift.id}
+        # Someone who agreed to 08:00–12:00 has not agreed to 16:00–20:00, so a
+        # time change withdraws the question and asks it again. A slots-only or
+        # label-only edit notifies nobody; check-ins are never cleared.
+        reacknowledge = await self._reask_moved_shift(shift, old_starts, old_ends) if moved else 0
+        if reacknowledge:
+            details['reacknowledge_cleared'] = reacknowledge
         await self.audit_service.write_log(
-            actor, AuditActions.VOLUNTEER_SHIFT_UPDATED, {'shift_id': shift.id},
+            actor, AuditActions.VOLUNTEER_SHIFT_UPDATED, details,
         )
         return shift
+
+    async def _reask_moved_shift(
+        self, shift: VolunteerShift, old_starts: datetime, old_ends: datetime,
+    ) -> int:
+        """Clear acknowledgments on a moved shift and re-ask. Returns how many."""
+        cleared = 0
+        for assignment in await self.assignment_repository.list_for_shift(shift.id):
+            if assignment.auto_generated:
+                continue
+            if assignment.acknowledged_at is not None:
+                assignment.acknowledged_at = None
+                await self.assignment_repository.save(assignment)
+                cleared += 1
+            await self._notify_shift_moved(
+                assignment, shift, assignment.user, old_starts, old_ends,
+            )
+        return cleared
 
     async def delete_shift(self, actor: User, shift: VolunteerShift) -> None:
         await AuthService.ensure(
@@ -256,16 +282,50 @@ class VolunteerScheduleService:
              'user_id': user.id, 'auto_generated': auto_generated},
         )
         if notify and not auto_generated:
-            await self._request_acknowledgment(assignment, shift, user)
+            await self.request_acknowledgment(assignment, shift, user)
         if not auto_generated:
             event_bus.publish(Event.create(EventType.VOLUNTEER_ASSIGNED, {
                 'assignment_id': assignment.id, 'shift_id': shift.id, 'user_id': user.id,
             }, actor))
         return assignment, warnings
 
+    async def confirm_assignment(
+        self, actor: User, assignment: VolunteerAssignment, *, notify: bool = True,
+    ) -> VolunteerAssignment:
+        """Turn one draft assignment into a commitment: flip the flag, DM the
+        volunteer, emit the same event a manual assign emits. Idempotent."""
+        await AuthService.ensure(
+            await AuthService.can_manage_volunteers(actor),
+            "Only volunteer coordinators can publish assignments.",
+        )
+        if not assignment.auto_generated:
+            return assignment
+        await self.assignment_repository.mark_published(assignment)
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.VOLUNTEER_ASSIGNED,
+            {'assignment_id': assignment.id, 'shift_id': assignment.shift_id,
+             'user_id': assignment.user_id, 'published_from_draft': True},
+            EventType.VOLUNTEER_ASSIGNED,
+        )
+        if notify:
+            await self.request_acknowledgment(
+                assignment, assignment.shift, assignment.user,
+            )
+        return assignment
+
+    async def count_drafts(self, start: datetime, end: datetime) -> int:
+        """How many unpublished draft assignments sit in the window."""
+        return await self.assignment_repository.count_auto_for_window(start, end)
+
     async def get_assignment(self, assignment_id: int) -> Optional[VolunteerAssignment]:
         """Read-only load-or-None lookup for entry surfaces (api/, discordbot/)."""
         return await self.assignment_repository.get_by_id(assignment_id)
+
+    async def find_assignment(
+        self, shift_id: int, user_id: int,
+    ) -> Optional[VolunteerAssignment]:
+        """This volunteer's assignment on this shift, if they hold one."""
+        return await self.assignment_repository.get_for_shift_and_user(shift_id, user_id)
 
     async def unassign(self, actor: User, assignment: VolunteerAssignment) -> None:
         await AuthService.ensure(
@@ -277,9 +337,15 @@ class VolunteerScheduleService:
             'shift_id': assignment.shift_id,
             'user_id': assignment.user_id,
         }
+        was_draft = assignment.auto_generated
+        shift = assignment.shift
+        user = assignment.user
         await self.assignment_repository.delete(assignment)
         await self.audit_service.write_log(actor, AuditActions.VOLUNTEER_UNASSIGNED, details)
         event_bus.publish(Event.create(EventType.VOLUNTEER_UNASSIGNED, details, actor))
+        # An unpublished draft's removal is silent because its creation was.
+        if not was_draft:
+            await self._notify_removed(user, shift)
 
     async def acknowledge(self, assignment_id: int, user: User) -> VolunteerAssignment:
         """Self-acknowledge an assignment. Idempotent."""
@@ -288,6 +354,10 @@ class VolunteerScheduleService:
         )
         if assignment.user_id != user.id:
             raise ValueError("You can only acknowledge your own assignments.")
+        if assignment.auto_generated:
+            raise ValueError(
+                "That shift is still a draft — your coordinator has not confirmed it yet."
+            )
         if assignment.acknowledged_at is not None:
             return assignment
         assignment.acknowledged_at = datetime.now(EASTERN_TZ)
@@ -300,6 +370,38 @@ class VolunteerScheduleService:
             'assignment_id': assignment.id, 'shift_id': assignment.shift_id, 'user_id': user.id,
         }, user))
         return assignment
+
+    async def release(
+        self, assignment_id: int, user: User, reason: Optional[str] = None,
+    ) -> None:
+        """Give a shift back. The volunteer's own decision, not the coordinator's.
+
+        Frees the slot immediately and DMs the coordinators — a schedule showing
+        someone who has already said no is worse than an open one.
+        """
+        assignment = require_found(
+            await self.assignment_repository.get_by_id(assignment_id), "Volunteer assignment"
+        )
+        if assignment.user_id != user.id:
+            raise ValueError("You can only release your own assignments.")
+        shift = assignment.shift
+        if assignment.checked_in_at is not None:
+            raise ValueError(
+                "You are already checked in for this shift — talk to your coordinator."
+            )
+        now = datetime.now(timezone.utc)
+        if shift.ends_at <= now:
+            raise ValueError("That shift has already finished.")
+        details = {
+            'assignment_id': assignment.id, 'shift_id': shift.id, 'user_id': user.id,
+            'reason': (reason or '').strip() or None,
+            'hours_notice': round((shift.starts_at - now).total_seconds() / 3600.0, 1),
+        }
+        await self.assignment_repository.delete(assignment)
+        await self.audit_service.write_and_publish(
+            user, AuditActions.VOLUNTEER_RELEASED, details, EventType.VOLUNTEER_RELEASED,
+        )
+        await self._notify_coordinators_of_release(user, shift, details)
 
     async def check_in(self, assignment_id: int, actor: User) -> VolunteerAssignment:
         """Record that a volunteer appeared for their shift."""
@@ -317,17 +419,38 @@ class VolunteerScheduleService:
             )
         return assignment
 
-    async def assignments_for_user(self, user: User, upcoming_after: Optional[datetime] = None) -> List[VolunteerAssignment]:
-        return await self.assignment_repository.list_for_user(user, upcoming_after=upcoming_after)
+    async def assignments_for_user(
+        self,
+        user: User,
+        upcoming_after: Optional[datetime] = None,
+        *,
+        include_drafts: bool = False,
+        with_shiftmates: bool = False,
+    ) -> List[VolunteerAssignment]:
+        return await self.assignment_repository.list_for_user(
+            user, upcoming_after=upcoming_after,
+            include_drafts=include_drafts, with_shiftmates=with_shiftmates,
+        )
 
     # --- Coverage ---------------------------------------------------------
 
     async def coverage(self, start: datetime, end: datetime) -> List[Dict]:
-        """Per-shift filled/needed counts across [start, end]."""
+        """Per-shift filled/needed counts across [start, end].
+
+        ``filled`` counts drafts: this is the coordinator's working schedule, and
+        a draft is real work-in-progress to them. ``drafts`` and ``acknowledged``
+        break that total down so a caller can tell how much of it is committed.
+        """
         shifts = await self.shift_repository.list_for_window(start, end)
         rows: List[Dict] = []
         for shift in shifts:
-            filled = len(shift.assignments)
+            assignments = list(shift.assignments)
+            filled = len(assignments)
+            drafts = sum(1 for a in assignments if a.auto_generated)
+            acknowledged = sum(
+                1 for a in assignments
+                if not a.auto_generated and a.acknowledged_at is not None
+            )
             rows.append({
                 'shift_id': shift.id,
                 'position': shift.position.name if shift.position else '',
@@ -337,8 +460,25 @@ class VolunteerScheduleService:
                 'filled': filled,
                 'needed': shift.slots_needed,
                 'understaffed': filled < shift.slots_needed,
+                'drafts': drafts,
+                'acknowledged': acknowledged,
             })
         return rows
+
+    async def day_summary(self, start: datetime, end: datetime) -> Dict:
+        """Aggregate coverage for a day: the numbers the coordinator's strip shows."""
+        rows = await self.coverage(start, end)
+        return {
+            'shifts': len(rows),
+            'needed': sum(r['needed'] for r in rows),
+            'filled': sum(r['filled'] for r in rows),
+            'open': sum(max(0, r['needed'] - r['filled']) for r in rows),
+            'drafts': sum(r['drafts'] for r in rows),
+            'unacknowledged': sum(
+                r['filled'] - r['drafts'] - r['acknowledged'] for r in rows
+            ),
+            'understaffed_shifts': sum(1 for r in rows if r['understaffed']),
+        }
 
     # --- Helpers ----------------------------------------------------------
 
@@ -357,7 +497,7 @@ class VolunteerScheduleService:
             return f"{user.preferred_name} has not marked this time as available."
         return None
 
-    async def _request_acknowledgment(
+    async def request_acknowledgment(
         self, assignment: VolunteerAssignment, shift: VolunteerShift, user: User,
     ) -> None:
         """Best-effort Discord DM asking the volunteer to confirm. Never raises."""
@@ -391,3 +531,114 @@ class VolunteerScheduleService:
                 int(discord_id), message, assignment.id, embed=embed,
             )
         )
+
+    async def _notify_removed(self, user: User, shift: VolunteerShift) -> None:
+        """Best-effort Discord DM telling a volunteer they are off a shift. Never raises."""
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import volunteer_embed
+        from application.utils.discord_messages import volunteer_unassigned_dm
+
+        discord_id = getattr(user, 'discord_id', None)
+        if not discord_id or not getattr(user, 'dm_notifications', True):
+            return
+        position_name = shift.position.name if shift.position else ''
+        message = volunteer_unassigned_dm(
+            position_name=position_name,
+            label=shift.label,
+            starts_display=format_eastern_display(shift.starts_at),
+            ends_display=format_eastern_display(shift.ends_at),
+        )
+        embed = volunteer_embed(
+            title='🙋 Volunteer shift removed',
+            position=position_name or 'Volunteer shift',
+            community_name=await TenantService.current_community_name(),
+            starts=shift.starts_at,
+            ends=shift.ends_at,
+            description='No action needed.',
+        )
+        discord_queue.enqueue(
+            self.discord_service.send_dm(int(discord_id), message, embed=embed)
+        )
+
+    async def _notify_shift_moved(
+        self, assignment: VolunteerAssignment, shift: VolunteerShift, user: User,
+        old_starts: datetime, old_ends: datetime,
+    ) -> None:
+        """Best-effort DM re-asking a volunteer to confirm a moved shift. Never raises."""
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import volunteer_embed
+        from application.utils.discord_messages import volunteer_shift_changed_dm
+
+        discord_id = getattr(user, 'discord_id', None)
+        if not discord_id or not getattr(user, 'dm_notifications', True):
+            return
+        position_name = shift.position.name if shift.position else ''
+        message = volunteer_shift_changed_dm(
+            position_name=position_name,
+            label=shift.label,
+            starts_display=format_eastern_display(shift.starts_at),
+            ends_display=format_eastern_display(shift.ends_at),
+            old_starts_display=format_eastern_display(old_starts),
+            old_ends_display=format_eastern_display(old_ends),
+        )
+        embed = volunteer_embed(
+            title='🙋 Volunteer shift moved',
+            position=position_name or 'Volunteer shift',
+            community_name=await TenantService.current_community_name(),
+            starts=shift.starts_at,
+            ends=shift.ends_at,
+            description='Tap **Acknowledge** to confirm you can still cover it.',
+        )
+        discord_queue.enqueue(
+            self.discord_service.send_dm_with_volunteer_acknowledgment_button(
+                int(discord_id), message, assignment.id, embed=embed,
+            )
+        )
+
+    async def _notify_coordinators_of_release(
+        self, volunteer: User, shift: VolunteerShift, details: Dict,
+    ) -> None:
+        """Best-effort DM to whoever has to find cover. Never raises.
+
+        The only role-addressed DM in the codebase, so the fan-out stays private
+        to this service rather than becoming a general broadcast utility.
+        """
+        from application.repositories import UserRoleRepository
+        from application.services.tenant_service import TenantService
+        from application.utils.discord_embeds import volunteer_embed
+        from application.utils.discord_messages import volunteer_released_dm
+        from models import Role
+
+        recipients: Dict[int, User] = {}
+        for role in (Role.VOLUNTEER_COORDINATOR, Role.STAFF):
+            for candidate in await UserRoleRepository.list_users_with_role(role):
+                recipients[candidate.id] = candidate
+        if not recipients:
+            return
+
+        position_name = shift.position.name if shift.position else ''
+        message = volunteer_released_dm(
+            volunteer_name=volunteer.preferred_name,
+            position_name=position_name,
+            label=shift.label,
+            starts_display=format_eastern_display(shift.starts_at),
+            ends_display=format_eastern_display(shift.ends_at),
+            hours_notice=details.get('hours_notice'),
+            reason=details.get('reason'),
+        )
+        embed = volunteer_embed(
+            title='🙋 Volunteer dropped a shift',
+            position=position_name or 'Volunteer shift',
+            community_name=await TenantService.current_community_name(),
+            starts=shift.starts_at,
+            ends=shift.ends_at,
+            description=f'**{volunteer.preferred_name}** can no longer cover this. '
+                        'The slot is open again.',
+        )
+        for coordinator in recipients.values():
+            discord_id = getattr(coordinator, 'discord_id', None)
+            if not discord_id or not getattr(coordinator, 'dm_notifications', True):
+                continue
+            discord_queue.enqueue(
+                self.discord_service.send_dm(int(discord_id), message, embed=embed)
+            )

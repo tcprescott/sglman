@@ -90,6 +90,11 @@ Design B's session keys and guards: `/login` on the custom domain mints a `hando
 
 The Discord `access_token` is **never persisted** — not on the `User` row, not in the session — so there is nothing token-shaped to revoke at logout. The post-login target is `referrer_path` (default `/`), falling back to `/` when it names one of the auth routes.
 
+**How the target is delivered matters.** `referrer_path` is stored *tenant-qualified* (`AuthMiddleware` writes `f'{root_path}{path}'`), and the two delivery mechanisms treat that differently:
+
+- An HTTP `RedirectResponse` is resolved by the browser against the origin, so it takes the fully qualified path — `tenant_home(root_path)`, `referrer_path` as stored.
+- `ui.navigate.to` is **client-side**, and `nicegui.js` prepends the client's `options.prefix` (`X-Forwarded-Prefix` + `root_path`) to any absolute path. A navigate issued from a page served under `/t/<slug>` must therefore be given the **tenant-local** path via `strip_root_path(root_path, path)`, or it lands on `/t/<slug>/t/<slug>/…`. The mock-login picker (`_login_as`) does this. The real `/oauth/callback` and `/session/claim` deliberately do not: both run where the prefix is empty — the callback on the bare platform host, the claim on the tenant's own domain — so the qualified path is the correct one there.
+
 `User` row writes go through `UserService.provision_from_discord_login(discord_id, username)` (the presentation layer performs no direct ORM write):
 
 - **New user** — created with `discord_id` + `username`, and a `user.provisioned` audit entry self-attributed to the new user.
@@ -97,6 +102,27 @@ The Discord `access_token` is **never persisted** — not on the `User` row, not
 - **Inactive user** — returned without a username update so the callback can reject the login.
 
 Roles are not written by the callback itself; `DiscordRoleMappingService().sync_user_roles(user)` may map guild roles onto `UserRole` rows (self-defensive, never blocks login), and every other role comes from a `UserRole` row or a tournament membership.
+
+## Account linking (Challonge / Twitch / racetime.gg)
+
+Separate from login: a signed-in user links a **provider identity** so we can find their bracket matches, attribute their race results, and check auto-open eligibility. The verified `(id, name)` is recorded on the global `User` row (`<provider>_user_id`, `_username`, `_linked_at`); no provider access token is ever retained. Each id column is `unique=True`, so a provider account resolves to exactly one user.
+
+Surfaced on Profile → **Connected accounts** ([`pages/home_tabs/_link_section.py`](../../pages/home_tabs/_link_section.py), one `LinkSectionConfig` per provider). A provider whose integration is not configured is **hidden rather than offered** — with none configured the whole card is omitted. Challonge additionally requires `FeatureFlag.CHALLONGE`.
+
+| Route | Purpose |
+|---|---|
+| `/<provider>/link` | Initiation. Tries the cross-host handoff, then the mock short-circuit, then the Design A detour, then real OAuth |
+| `/<provider>/oauth/callback` | Exchange + record. Also serves the platform-host leg of a handoff |
+| `/oauth/link/start` | Platform-host entry point for a custom domain's handoff. Refuses unless `HOST_OAUTH_MODE=handoff` |
+| `/oauth/link/claim` | Custom-domain claim: validates the token and browser binding, records the link. Refuses in path mode, where no token can have been minted |
+
+The engine is shared ([`pages/_oauth_link.py`](../../pages/_oauth_link.py)); `challonge_oauth.py` registers its own pages because **one registered redirect URI serves two flows** — the STAFF service-account connect and the player identity link. Which one a callback completes is decided by matching the returned CSRF `state` against the pending ones by name; a callback that matches neither completes neither, and returns to the profile rather than the admin area.
+
+The **cross-host handoff** is the linking counterpart of Design B above and turns on with the same `HOST_OAUTH_MODE=handoff`: the provider OAuth runs on the platform host, and only the public identity crosses back to the custom domain in a single-use, host-bound, browser-bound token (`oauth_link_bind` / `oauth_link_bind_commit`, verified fail-closed). With handoff **off** on a custom domain the row shows "Main site only" as a link to the platform-host equivalent of the profile page, because the callback would land on a host that cannot see this domain's cookie.
+
+**Failure messages survive the redirect.** Every link outcome is queued with `stash_notice` ([`theme/notice.py`](../../theme/notice.py)) and shown on the page the user lands on — `ui.notify` followed by `ui.navigate.to` loses the toast with the document. The platform host cannot write into the target domain's session, so a handoff it gives up on hands back through `/oauth/link/claim?r=<reason>` and the claim route turns the reason into the message.
+
+Driving all of this without provider credentials: [development.md](../development.md#account-linking-without-provider-credentials).
 
 ### OAuth URL derivation
 

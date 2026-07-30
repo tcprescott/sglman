@@ -105,7 +105,7 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 - **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
 - **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment).
 - **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
-- **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`).
+- **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`, and unpublished drafts are never listed) · `DELETE /volunteers/me/assignments/{id}` (give a shift back, optional `{"reason": …}` body → 204; the coordinators are DMed).
 
 ### Triforce texts (`/api/triforce-texts`) · `triforce.py`
 - `GET /mine?tournament_id=` (own; `tournament_id` required) · `GET ?tournament_id=&status=` (moderation, Staff/TA).
@@ -195,7 +195,17 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 - **Reads:** `GET /async-qualifiers` · `/open` · `/{id}` · `/{id}/public` · `/{id}/admins` · `/{id}/pools` · `/{id}/pools/available` · `/{id}/review-queue` · `/{id}/leaderboard` · `/{id}/me/runs` · `/{id}/me/active-run` · `/runs/{run_id}/notes`.
 - **Qualifier/admin/pool/permalink writes:** `POST /async-qualifiers` · `PATCH`/`DELETE /{id}`; `POST`/`DELETE /{id}/admins[/{user_id}]`; `POST /{id}/pools`, `PATCH`/`DELETE /pools/{pool_id}`; `POST /pools/{pool_id}/permalinks` (+ `/bulk`, `/roll`), `PATCH`/`DELETE /permalinks/{permalink_id}`.
 - **Player run lifecycle:** `POST /{id}/runs` (start) · `POST /runs/{run_id}/submit|forfeit|reattempt`.
-- **Review:** `POST /runs/{run_id}/claim|release|review`.
+  `submit` 400s when the claimed `elapsed_seconds` exceeds the wall clock since the
+  server stamped `started_at` — a run cannot have taken longer than it has existed.
+  The run stays in progress, so the client can correct the time and resubmit. Every
+  successful submit records `measured_seconds` (that wall clock) on the run response
+  beside the runner's claim.
+- **Review:** `POST /runs/{run_id}/claim|release|review` · `POST /runs/{run_id}/grant-reattempt`
+  (admin; voids a runner's terminal run ignoring their `allowed_reattempts`, reason
+  required) · `GET /{qualifier_id}/runs` (admin; every run, since the review queue holds
+  only finished+pending rows and a forfeit is written straight to approved).
+  `review` 400s on a rejection with a blank `note` — the reason is stored as a run note
+  and DM'd to the runner. An approval's note stays optional.
 
 ### Async qualifier live races (`/api/async-qualifiers/live-races`) · `async_qualifier_live_races.py`
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).

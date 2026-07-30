@@ -46,6 +46,10 @@ class EventType:
     VOLUNTEER_ASSIGNED = 'volunteer.assigned'
     VOLUNTEER_UNASSIGNED = 'volunteer.unassigned'
     VOLUNTEER_ACKNOWLEDGED = 'volunteer.acknowledged'
+    # Deliberately distinct from VOLUNTEER_UNASSIGNED: a subscriber has to be able
+    # to tell "the coordinator removed them" from "the volunteer dropped out",
+    # because only the second one needs cover found.
+    VOLUNTEER_RELEASED = 'volunteer.released'
 
     # Racetime race-room lifecycle (mirrors AuditActions.RACE_ROOM_*). Tenant-
     # scoped domain events a webhook subscriber can act on; published by the
@@ -143,6 +147,7 @@ class EventType:
         CREW_SIGNUP_CREATED, CREW_SIGNUP_REMOVED, CREW_APPROVAL_CHANGED,
         CREW_ACKNOWLEDGED,
         VOLUNTEER_ASSIGNED, VOLUNTEER_UNASSIGNED, VOLUNTEER_ACKNOWLEDGED,
+        VOLUNTEER_RELEASED,
         RACE_ROOM_CREATED, RACE_ROOM_OPENED, RACE_ROOM_STARTED,
         RACE_ROOM_FINISHED, RACE_ROOM_CANCELLED, RACE_ROOM_RESULT_RECORDED,
         SG_EPISODE_IMPORTED, SG_EPISODE_CANCELLED, SG_MATCH_AUTO_FINISHED,

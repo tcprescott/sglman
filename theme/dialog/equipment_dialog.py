@@ -30,15 +30,22 @@ class EquipmentDialog:
     async def open(self) -> None:
         is_edit = self.equipment is not None
 
-        users = await UserService().get_community_users()
+        # This community's people, not every User on the platform — an asset
+        # recorded as owned by a stranger (or by the automation account) is not a
+        # useful record. The stored owner is force-included so editing an asset
+        # whose owner has since fallen out of the set cannot silently drop them.
+        stored_owner = self.equipment.owner_user_id if is_edit else None
+        users = await UserService().get_community_people(
+            include_user_ids=[i for i in (self.actor.id, stored_owner) if i is not None],
+        )
         community = await TenantService.current_community_name()
         owner_options = {_WIZ_OWNER: community}
         owner_options.update({str(u.id): u.preferred_name for u in users})
-        current_owner = (
-            str(self.equipment.owner_user_id)
-            if is_edit and self.equipment.owner_user_id
-            else _WIZ_OWNER
-        )
+        current_owner = str(stored_owner) if stored_owner else _WIZ_OWNER
+        if current_owner not in owner_options:
+            # Deactivated or system-owned (the two exclusions the read enforces):
+            # keep the value selectable so saving does not clear it by accident.
+            owner_options[current_owner] = f'#{current_owner} (no longer available)'
 
         with ui.dialog() as dialog, ui.card().classes('dialog-card'):
             self.dialog = dialog

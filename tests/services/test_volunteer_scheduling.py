@@ -41,6 +41,13 @@ async def _opted_in_volunteer(name):
     return await _user(name, roles=[Role.VOLUNTEER])
 
 
+async def _available(user, start, end, status=VolunteerAvailabilityStatus.AVAILABLE):
+    """Declare a window. The autoscheduler's default policy needs one to fill."""
+    return await VolunteerAvailability.create(
+        user=user, starts_at=start, ends_at=end, status=status,
+    )
+
+
 def _at(hour, day=4):
     return datetime(2026, 10, day, hour, 0, tzinfo=UTC)
 
@@ -199,7 +206,167 @@ async def test_acknowledge_sets_timestamp_and_guards_owner(db):
         await svc.acknowledge(assignment.id, intruder)
 
 
+# --- drafts: hidden until published --------------------------------------
+
+async def test_draft_is_hidden_from_the_volunteers_own_list(db):
+    await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    vol = await _opted_in_volunteer('drafted')
+    await VolunteerAssignment.create(shift=shift, user=vol, auto_generated=True)
+    svc = VolunteerScheduleService()
+
+    assert await svc.assignments_for_user(vol) == []
+    assert len(await svc.assignments_for_user(vol, include_drafts=True)) == 1
+
+
+async def test_draft_is_never_the_first_dm(db):
+    pos = await VolunteerPosition.create(name='Admin Desk')
+    soon = datetime.now(UTC) + timedelta(minutes=30)
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4),
+    )
+    drafted = await _opted_in_volunteer('drafted')
+    published = await _opted_in_volunteer('published')
+    await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
+    await VolunteerAssignment.create(shift=shift, user=published, auto_generated=False)
+
+    from application.repositories import VolunteerAssignmentRepository
+    due = await VolunteerAssignmentRepository.due_for_reminder(
+        datetime.now(UTC), datetime.now(UTC) + timedelta(hours=1),
+    )
+    assert [a.user_id for a in due] == [published.id]
+
+
+async def test_acknowledging_a_draft_is_refused(db):
+    pos = await VolunteerPosition.create(name='Admin Desk')
+    shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    vol = await _opted_in_volunteer('drafted')
+    assignment = await VolunteerAssignment.create(shift=shift, user=vol, auto_generated=True)
+
+    with pytest.raises(ValueError, match='still a draft'):
+        await VolunteerScheduleService().acknowledge(assignment.id, vol)
+
+
+async def test_count_drafts_counts_only_drafts_in_the_window(db):
+    await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    today = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    tomorrow = await VolunteerShift.create(
+        position=pos, starts_at=_at(8, day=5), ends_at=_at(12, day=5),
+    )
+    a = await _opted_in_volunteer('a')
+    b = await _opted_in_volunteer('b')
+    c = await _opted_in_volunteer('c')
+    await VolunteerAssignment.create(shift=today, user=a, auto_generated=True)
+    await VolunteerAssignment.create(shift=today, user=b, auto_generated=False)
+    await VolunteerAssignment.create(shift=tomorrow, user=c, auto_generated=True)
+
+    assert await VolunteerScheduleService().count_drafts(_at(0), _at(23)) == 1
+
+
+async def test_publish_draft_commits_and_survives_clear_draft(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    morning = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    afternoon = await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
+    a = await _opted_in_volunteer('aa')
+    b = await _opted_in_volunteer('bb')
+    await VolunteerAssignment.create(shift=morning, user=a, auto_generated=True)
+    await VolunteerAssignment.create(shift=afternoon, user=a, auto_generated=True)
+    await VolunteerAssignment.create(shift=morning, user=b, auto_generated=True)
+
+    auto = VolunteerAutoscheduleService()
+    result = await auto.publish_draft(staff, _at(0), _at(23))
+    assert result == {'published': 3, 'volunteers': 2}
+    assert await VolunteerAssignment.filter(auto_generated=True).count() == 0
+
+    # Idempotent: nothing left to publish.
+    assert (await auto.publish_draft(staff, _at(0), _at(23)))['published'] == 0
+
+    # And the published rows are no longer clear_draft's to delete.
+    assert await auto.clear_draft(staff, _at(0), _at(23)) == 0
+    assert await VolunteerAssignment.all().count() == 3
+
+
+async def test_assignments_for_user_prefetches_assigned_by(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Admin Desk')
+    shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    vol = await _opted_in_volunteer('assignee')
+    await VolunteerScheduleService().assign(staff, shift, vol)
+
+    rows = await VolunteerScheduleService().assignments_for_user(vol)
+    assert rows[0].assigned_by.id == staff.id
+
+
+# --- release --------------------------------------------------------------
+
+async def test_release_frees_the_slot(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Race Proctor')
+    soon = datetime.now(UTC) + timedelta(days=2)
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=soon, ends_at=soon + timedelta(hours=4), slots_needed=1,
+    )
+    vol = await _opted_in_volunteer('quitter')
+    svc = VolunteerScheduleService()
+    assignment, _ = await svc.assign(staff, shift, vol)
+
+    await svc.release(assignment.id, vol, 'Something came up')
+
+    assert await VolunteerAssignment.get_or_none(id=assignment.id) is None
+    rows = await svc.coverage(soon - timedelta(hours=1), soon + timedelta(hours=6))
+    assert rows[0]['filled'] == 0 and rows[0]['understaffed'] is True
+
+
+async def test_shiftmates_are_only_loaded_when_asked_for(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Broadcast Tech')
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3,
+    )
+    me = await _opted_in_volunteer('me')
+    them = await _opted_in_volunteer('them')
+    svc = VolunteerScheduleService()
+    await svc.assign(staff, shift, me)
+    await svc.assign(staff, shift, them)
+
+    with_mates = await svc.assignments_for_user(me, with_shiftmates=True)
+    names = {a.user.preferred_name for a in with_mates[0].shift.assignments}
+    assert names == {'me', 'them'}
+
+    # Nobody quietly makes the expensive version the default.
+    from tortoise.exceptions import NoValuesFetched
+    plain = await svc.assignments_for_user(me)
+    with pytest.raises(NoValuesFetched):
+        _ = plain[0].shift.assignments[0]
+
+
 # --- coverage -------------------------------------------------------------
+
+async def test_day_summary_counts_the_states(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    shift = await VolunteerShift.create(
+        position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2,
+    )
+    committed = await _opted_in_volunteer('committed')
+    drafted = await _opted_in_volunteer('drafted')
+    svc = VolunteerScheduleService()
+    assignment, _ = await svc.assign(staff, shift, committed)
+    await svc.acknowledge(assignment.id, committed)
+    await VolunteerAssignment.create(shift=shift, user=drafted, auto_generated=True)
+
+    summary = await svc.day_summary(_at(0), _at(23))
+    assert summary['filled'] == 2 and summary['open'] == 0
+    assert summary['drafts'] == 1 and summary['unacknowledged'] == 0
+
+
+async def test_day_summary_of_an_empty_day(db):
+    summary = await VolunteerScheduleService().day_summary(_at(0), _at(23))
+    assert summary['shifts'] == 0 and summary['open'] == 0
+
 
 async def test_coverage_reports_understaffing(db):
     staff = await _staff()
@@ -247,6 +414,8 @@ async def test_autoschedule_load_balances(db):
     await VolunteerShift.create(position=pos, starts_at=_at(12), ends_at=_at(16))
     a = await _opted_in_volunteer('aa')
     b = await _opted_in_volunteer('bb')
+    for vol in (a, b):
+        await _available(vol, _at(8), _at(16))
 
     result = await VolunteerAutoscheduleService().generate_draft(staff, _at(0), _at(23))
     assert result['created'] == 2
@@ -259,12 +428,14 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
     staff = await _staff()
     pos = await VolunteerPosition.create(name='Admin Desk')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=3)
-    await _opted_in_volunteer('solo')
+    solo = await _opted_in_volunteer('solo')
+    await _available(solo, _at(8), _at(12))
 
     auto = VolunteerAutoscheduleService()
     result = await auto.generate_draft(staff, _at(0), _at(23))
     assert result['created'] == 1
     assert result['unfilled'] and result['unfilled'][0]['open'] == 2
+    assert result['unfilled'][0]['reason'] == 'No qualified volunteer in the pool.'
 
     # A manual assignment must survive clear_draft; drafts must not.
     manual = await _opted_in_volunteer('manual')
@@ -273,6 +444,71 @@ async def test_autoschedule_leaves_unfillable_open_and_clear_draft(db):
     assert removed == 1
     remaining = await VolunteerAssignment.filter(shift=shift)
     assert len(remaining) == 1 and remaining[0].user_id == manual.id
+
+
+async def test_does_not_repeat_the_sixteen_hour_draft(db):
+    """The measured F2 failure: four consecutive 4-hour blocks to one person."""
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    for hour in (8, 12, 16, 20):
+        await VolunteerShift.create(
+            position=pos, starts_at=_at(hour), ends_at=_at(hour) + timedelta(hours=4),
+        )
+    hero = await _opted_in_volunteer('hero')
+    await _available(hero, _at(8), _at(8) + timedelta(hours=16))
+
+    result = await VolunteerAutoscheduleService().generate_draft(staff, _at(0), _at(23) + timedelta(hours=6))
+
+    assert result['created'] == 2  # 8 hours, not 16
+    assert await VolunteerAssignment.filter(user=hero).count() == 2
+    at_cap = [u for u in result['unfilled']
+              if u['reason'] == 'Everyone eligible is at the 8-hour limit.']
+    assert len(at_cap) == 2
+    assert [r['name'] for r in result['heavy_loads']] == ['hero']
+
+
+async def test_undeclared_volunteer_is_skipped_unless_opted_into(db):
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
+    await _opted_in_volunteer('undeclared')
+
+    auto = VolunteerAutoscheduleService()
+    default_run = await auto.generate_draft(staff, _at(0), _at(23))
+    assert default_run['created'] == 0
+    assert default_run['unfilled'][0]['reason'] == (
+        'Nobody qualified has marked this time as available.'
+    )
+    assert default_run['outside_availability'] == []
+
+    from application.services.volunteer.volunteer_autoschedule_service import DraftPolicy
+    opted_in = await auto.generate_draft(
+        staff, _at(0), _at(23), policy=DraftPolicy(fill_outside_availability=True),
+    )
+    assert opted_in['created'] == 1
+    assert [r['name'] for r in opted_in['outside_availability']] == ['undeclared']
+
+
+async def test_draft_audit_records_the_policy(db):
+    from models import AuditLog
+
+    staff = await _staff()
+    pos = await VolunteerPosition.create(name='Check-in')
+    await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12), slots_needed=2)
+    await _opted_in_volunteer('undeclared')
+
+    from application.services.volunteer.volunteer_autoschedule_service import DraftPolicy
+    await VolunteerAutoscheduleService().generate_draft(
+        staff, _at(0), _at(23), policy=DraftPolicy(max_hours=6, fill_outside_availability=True),
+    )
+
+    row = await AuditLog.filter(action='volunteer.draft_generated').first()
+    import json
+    details = json.loads(row.details)
+    assert details['max_hours'] == 6
+    assert details['fill_outside_availability'] is True
+    assert details['open'] == 1
+    assert details['pool_size'] == 1
 
 
 # --- reminders ------------------------------------------------------------

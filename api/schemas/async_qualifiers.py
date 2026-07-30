@@ -156,6 +156,9 @@ class AsyncQualifierRunResponse(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     elapsed_seconds: Optional[int] = None
+    # Server-measured wall clock from the draw to the submit — an upper bound on
+    # the run, kept beside the runner's claim as evidence for the reviewer.
+    measured_seconds: Optional[int] = None
     runner_vod_url: Optional[str] = None
     reattempted: bool
     reattempt_reason: Optional[str] = None

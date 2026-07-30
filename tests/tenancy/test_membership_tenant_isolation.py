@@ -89,29 +89,29 @@ async def test_community_user_list_never_crosses_tenants(two_tenants, db):
     await TenantMembership.create(user=there, tenant=tenant_b)
 
     with tenant_scope(tenant_a.id):
-        names_a = {u.username for u in await UserService().get_community_users()}
+        names_a = {u.username for u in await UserService().get_community_people()}
     with tenant_scope(tenant_b.id):
-        names_b = {u.username for u in await UserService().get_community_users()}
+        names_b = {u.username for u in await UserService().get_community_people()}
 
     assert 'here' in names_a and 'there' not in names_a
     assert 'there' in names_b and 'here' not in names_b
 
 
-async def test_get_community_users_excludes_non_members(db):
+async def test_get_community_people_excludes_non_members(db):
     member = await User.create(discord_id=6008, username='member')
     await TenantMembership.create(user=member, tenant_id=1)
     await User.create(discord_id=6009, username='stranger')
 
-    names = {u.username for u in await UserService().get_community_users()}
+    names = {u.username for u in await UserService().get_community_people()}
     assert names == {'member'}
 
 
-async def test_get_community_users_honours_the_role_filter(db):
+async def test_get_community_people_honours_the_role_filter(db):
     boss = await _staff(6010)
     plain = await User.create(discord_id=6011, username='plain')
     await TenantMembership.create(user=plain, tenant_id=1)
 
-    staffers = await UserService().get_community_users(role=Role.STAFF)
+    staffers = await UserService().get_community_people(role=Role.STAFF)
     assert [u.id for u in staffers] == [boss.id]
 
 
@@ -124,10 +124,10 @@ async def test_the_role_filter_does_not_admit_another_tenants_grant(two_tenants,
         await UserRole.create(user=person, role=Role.PROCTOR, tenant=tenant_b)
 
     with tenant_scope(tenant_a.id):
-        assert await UserService().get_community_users(role=Role.PROCTOR) == []
+        assert await UserService().get_community_people(role=Role.PROCTOR) == []
 
 
-async def test_get_community_users_excludes_the_system_actor(db):
+async def test_get_community_people_excludes_the_system_actor(db):
     from application.repositories.user_repository import UserRepository
 
     system = await UserRepository.get_or_create_system_user()
@@ -135,17 +135,17 @@ async def test_get_community_users_excludes_the_system_actor(db):
     member = await User.create(discord_id=6013, username='member')
     await TenantMembership.create(user=member, tenant_id=1)
 
-    names = {u.username for u in await UserService().get_community_users()}
+    names = {u.username for u in await UserService().get_community_people()}
     assert names == {'member'}
 
 
-async def test_get_community_users_raises_without_a_tenant(db):
+async def test_get_community_people_raises_without_a_tenant(db):
     from application.tenant_context import reset_tenant_id, set_tenant_id
 
     token = set_tenant_id(None)
     try:
         with pytest.raises(RuntimeError):
-            await UserService().get_community_users()
+            await UserService().get_community_people()
     finally:
         reset_tenant_id(token)
 
@@ -166,10 +166,18 @@ async def test_get_all_users_is_unchanged(db):
 # --- the pickers ------------------------------------------------------------
 
 
-# The one legitimate caller: a super-admin choosing a new community's first
-# admin from every account on the platform, precisely because that community has
-# no members yet.
-_GLOBAL_LIST_ALLOWLIST = {'pages/platform_tenant_admins.py'}
+# The two legitimate callers, both deliberate and both labelled on screen:
+#
+# - the /platform first-admin dialog — a super-admin choosing from every account
+#   precisely because the target community has no members yet;
+# - the checkout dialog's "Include people outside this community" toggle — the
+#   venue case, lending to someone who just walked in. It widens *which*
+#   community's people are offered, never who may borrow; EquipmentService
+#   enforces that.
+_GLOBAL_LIST_ALLOWLIST = {
+    'pages/platform_tenant_admins.py',
+    'theme/dialog/checkout_dialog.py',
+}
 
 _PICKER_DIRS = ['pages', 'theme', 'api', 'mcpserver']
 
@@ -200,7 +208,7 @@ def test_every_person_picker_is_member_scoped():
                 offenders.append(rel)
     assert offenders == [], (
         f'These call UserService.get_all_users (every account on the platform): '
-        f'{offenders}. Per-community pickers want get_community_users; if this '
+        f'{offenders}. Per-community pickers want get_community_people; if this '
         f'one really is platform-level, add it to _GLOBAL_LIST_ALLOWLIST with a '
         f'reason.'
     )
@@ -225,13 +233,13 @@ async def test_membership_is_what_the_picker_offers(two_tenants, db):
     boss = await _staff(6016)
     outsider = await User.create(discord_id=6017, username='outsider')
 
-    offered = {u.username for u in await UserService().get_community_users()}
+    offered = {u.username for u in await UserService().get_community_people()}
     assert boss.username in offered
     assert outsider.username not in offered
 
     # And once staff add them, they are.
     await TenantMembershipService().add_member(boss, outsider)
-    offered = {u.username for u in await UserService().get_community_users()}
+    offered = {u.username for u in await UserService().get_community_people()}
     assert outsider.username in offered
 
 
@@ -250,12 +258,12 @@ async def test_the_seed_has_a_member_of_one_community_and_not_another(db):
     second = await Tenant.get(slug='second')
 
     with tenant_scope(default.id):
-        in_default = {u.username for u in await UserService().get_community_users()}
+        in_default = {u.username for u in await UserService().get_community_people()}
     with tenant_scope(second.id):
-        in_second = {u.username for u in await UserService().get_community_users()}
+        in_second = {u.username for u in await UserService().get_community_people()}
 
-    assert 'default_only' in in_default
-    assert 'default_only' not in in_second
+    assert 'local_only' in in_default
+    assert 'local_only' not in in_second
     # And the shared cast really is shared, or the assertion above proves nothing.
     assert 'staff_user' in in_default and 'staff_user' in in_second
 
@@ -266,6 +274,12 @@ async def test_an_imported_speedgaming_player_becomes_a_member(db):
     The ETL creates placeholder accounts for entrants it cannot resolve to a
     Discord identity. Those are people on this community's schedule, so they have
     to join the community's person lists like anyone else.
+
+    A placeholder is deliberately ``is_active=False`` — nobody signs in as one —
+    so the picker that has to offer them is the match dialog's, which asks for
+    inactive accounts too. Membership is what decides *which* community's dialog
+    that is; without the row the placeholder is offered by every community or
+    none, depending on which way the read is scoped.
     """
     from application.services.speedgaming_etl_service import SpeedGamingETLService
 
@@ -276,7 +290,9 @@ async def test_an_imported_speedgaming_player_becomes_a_member(db):
     assert resolved.is_placeholder is True
     assert await TenantMembership.filter(user=resolved, tenant_id=1).count() == 1
 
-    offered = {u.username for u in await UserService().get_community_users()}
+    service = UserService()
+    assert resolved.username not in {u.username for u in await service.get_community_people()}
+    offered = {u.username for u in await service.get_community_people(include_inactive=True)}
     assert resolved.username in offered
 
 

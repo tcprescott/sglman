@@ -25,7 +25,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tortoise import Tortoise
-from tortoise.functions import Max
 from models import (
     Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
     TenantJoinRequest, JoinRequestStatus,
@@ -37,7 +36,6 @@ from models import (
     Station, StreamRoom, SystemConfiguration,
     ApiToken, ApiTokenOrigin, McpOAuthClient,
     Feedback, FeedbackCategory, FeedbackStatus,
-    Equipment, EquipmentLoan, EquipmentStatus,
     AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
     VolunteerAvailabilityStatus,
     RacetimeBot,
@@ -47,12 +45,14 @@ from application.services.feature_flag_service import FeatureFlagService
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
+from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 from scripts.seed_online import (
-    link_racetime_identities, seed_racetime_bots, seed_online_for_tenant,
+    assert_unlinked_probe_users, link_racetime_identities, link_twitch_identities,
+    reset_unlinked_probe_users, seed_racetime_bots, seed_online_for_tenant,
 )
 
 
@@ -77,30 +77,45 @@ async def seed_users() -> dict[str, User]:
         ("100000000000000005", "player_two",   "Player Two"),
         ("100000000000000006", "player_three", "Player Three"),
         ("100000000000000007", "player_four",  "Player Four"),
-        # Seeded into the "default" community only (see seed_for_tenant): the
-        # fixture for "a platform account that is a member of one community and
-        # not another", which is what proves the person pickers are scoped —
-        # every other seeded user is a member everywhere.
-        ("100000000000000009", "default_only",  "Default Only"),
         # A member of **no** community, with a pending join request against
         # 'fledgling' (see seed_fledgling): the fixture for the membership gate's
         # own door. Without it the only way to see the join page in dev is to
         # delete your own membership.
-        ("100000000000000010", "outsider",      "Hopeful Outsider"),
+        ("100000000000000011", "outsider",      "Hopeful Outsider"),
         # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
         # the dev fixture for "platform authority, zero local grants", which is
         # what /platform and the super-admin's in-tenant access need to be
         # exercised against.
         ("100000000000000008", "super_admin",  "Platform Owner"),
+        # EQUIPMENT_MANAGER *without* STAFF (granted per tenant below).
+        # staff_user holds both, so nothing else proves the manager path works
+        # on its own — three audits had to grant a role like this by hand.
+        ("100000000000000009", "equip_manager", "Equipment Manager"),
+        # A member of the 'default' tenant only (see seed_for_tenant), holding a
+        # role there and enrolled in nothing: the fixture that makes
+        # per-community people scoping visible in the dev loop. They must appear
+        # in tenant A's borrower/owner pickers and in neither of tenant B's.
+        ("100000000000000010", "local_only",   "Local Only"),
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
-        u, _ = await User.get_or_create(
+        u, created = await User.get_or_create(
             discord_id=discord_id,
             defaults={"username": username, "display_name": display_name, "is_active": True},
         )
+        # The discord id is the identity key; the name is fixture metadata, so a
+        # renamed or renumbered fixture has to converge on re-seed rather than
+        # leave the previous occupant of that id wearing the wrong name in every
+        # dev picker.
+        if not created and (u.username != username or u.display_name != display_name):
+            u.username, u.display_name = username, display_name
+            await u.save()
         users[username] = u
     await link_racetime_identities(users)
+    await link_twitch_identities(users)
+    # Before anything else writes a provider id: clicking Link as one of these
+    # fixtures is what they exist for, so a re-seed restores them.
+    await reset_unlinked_probe_users(users)
     print("  users ok (global)")
     return users
 
@@ -192,15 +207,18 @@ async def seed_for_tenant(
     script mirrors that contract.
     """
     with tenant_scope(tenant.id):
-        # Every scoped user is a member of this tenant — except default_only,
-        # which is the fixture for a member of one community and not another.
         for uname, u in users.items():
-            # default_only is the "member of one community, not another" fixture;
-            # outsider is the "member of nothing at all" one, which is what the
-            # membership gate's join page needs to be reachable in dev.
-            if uname == 'outsider':
-                continue
-            if uname == 'default_only' and tenant.slug != 'default':
+            # Every scoped user is a member of this tenant, bar the two fixtures
+            # that exist to be absent: local_only is the "member of one community
+            # and not another" case, outsider the "member of nothing at all" one,
+            # which is what the membership gate's join page needs to be reachable
+            # in dev.
+            if uname == 'outsider' or (uname == 'local_only' and tenant.slug != 'default'):
+                # Deleted, not merely skipped: these two fixtures are defined by
+                # an *absence*, and a create-only seed can never converge one —
+                # a stale row from an earlier fixture layout would leave them
+                # members here and quietly stop proving anything.
+                await TenantMembership.filter(user=u, tenant=tenant).delete()
                 continue
             await TenantMembership.get_or_create(user=u, tenant=tenant)
 
@@ -218,11 +236,22 @@ async def seed_for_tenant(
             ("player_one", Role.VOLUNTEER),
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
+            ("player_four", Role.VOLUNTEER),
         ]
+        if tenant.slug == "default":
+            # Deliberately one tenant only — a role grant implies membership, so
+            # a user who holds nothing in tenant B and is a member of nothing
+            # there must be absent from tenant B's pickers.
+            role_grants.append(("local_only", Role.VOLUNTEER))
         for uname, role in role_grants:
             await UserRole.get_or_create(
                 user=users[uname], role=role, tenant=tenant, defaults={"granted_by": None},
             )
+        print(
+            f"    [{tenant.slug}] roles ok"
+            + (" (local_only is a VOLUNTEER here and nowhere else)"
+               if tenant.slug == "default" else " (local_only holds nothing here)")
+        )
 
         # Stream rooms
         for name, url in [
@@ -528,46 +557,8 @@ async def seed_for_tenant(
                 )
         print(f"    [{tenant.slug}] player availability ok")
 
-        # --- Equipment lending ----------------------------------------------
-        await UserRole.get_or_create(
-            user=staff, role=Role.EQUIPMENT_MANAGER, tenant=tenant, defaults={"granted_by": None},
-        )
-
-        equipment_specs = [
-            ("Capture Card A", "Elgato HD60 X", None),
-            ("Capture Card B", "Elgato HD60 X", None),
-            ("Console 1", "Super Nintendo (SNES)", staff),
-            ("HDMI Splitter", "4-way powered splitter", None),
-        ]
-        equipment: dict[str, Equipment] = {}
-        for name, description, owner in equipment_specs:
-            asset = await Equipment.get_or_none(name=name, tenant=tenant)
-            if asset is None:
-                # asset_number is unique per tenant; take this tenant's max + 1.
-                row = await Equipment.filter(tenant=tenant).annotate(m=Max("asset_number")).values("m")
-                next_number = (row[0]["m"] or 0) + 1
-                asset = await Equipment.create(
-                    asset_number=next_number, name=name, description=description,
-                    owner_user=owner, tenant=tenant,
-                )
-            equipment[name] = asset
-
-        card_a = equipment["Capture Card A"]
-        if not await EquipmentLoan.filter(equipment=card_a, tenant=tenant).exists():
-            await EquipmentLoan.create(
-                equipment=card_a, borrower=users["player_one"], checked_out_by=staff, tenant=tenant,
-            )
-            if card_a.status != EquipmentStatus.CHECKED_OUT:
-                card_a.status = EquipmentStatus.CHECKED_OUT
-                await card_a.save()
-
-        console = equipment["Console 1"]
-        if not await EquipmentLoan.filter(equipment=console, tenant=tenant).exists():
-            await EquipmentLoan.create(
-                equipment=console, borrower=users["player_two"], checked_out_by=staff,
-                checked_in_at=now, checked_in_by=staff, tenant=tenant,
-            )
-        print(f"    [{tenant.slug}] equipment ok")
+        # --- Equipment lending (scripts/seed_equipment.py) -------------------
+        equipment = await seed_equipment_for_tenant(tenant, users, staff, now)
 
         # --- API tokens ------------------------------------------------------
         # Deterministic dev bearer strings, one pair per tenant, so REST
@@ -667,7 +658,8 @@ async def seed_for_tenant(
             (staff, "match.created", {"match_id": finished_match.id, "title": finished_match.title}),
             (staff, "match.finished", {"match_id": finished_match.id}),
             (staff, "user.role_granted", {"user_id": proctor.id, "role": Role.PROCTOR.value}),
-            (staff, "equipment.checked_out", {"equipment_id": card_a.id, "borrower_id": users["player_one"].id}),
+            (staff, "equipment.checked_out",
+             {"equipment_id": equipment["Capture Card A"].id, "borrower_id": users["player_one"].id}),
         ]
         if await AuditLog.filter(tenant=tenant).count() == 0:
             for actor, action, details in audit_specs:
@@ -778,6 +770,10 @@ async def seed_all() -> None:
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
     await seed_fledgling_tenant(users, groups)
+    # Last, because the per-tenant Challonge mirror above also links identities:
+    # the unlinked fixtures have to be unlinked after everything that could link
+    # them has run.
+    await assert_unlinked_probe_users(users)
 
 
 async def seed() -> None:

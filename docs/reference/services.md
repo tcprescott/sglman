@@ -369,13 +369,14 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 | `bulk_create_assets(actor, name, count, description=None, private_notes=None, owner_user_id=None)` | `list[Equipment]` | Manager-only; create `count` (1–200) consecutively numbered assets. |
 | `update_asset(actor, equipment_id, name, description, private_notes, owner_user_id, status=None)` | `Equipment` | Manager-only edit; refuses to set/clear `CHECKED_OUT` status directly (use checkout/check-in). Audits `equipment.updated`. |
 | `delete_asset(actor, equipment_id)` | `None` | Manager-only; refuses an asset with an open loan. Audits `equipment.deleted`. |
-| `checkout(actor, equipment_id, borrower_id=None)` | `EquipmentLoan` | Open a loan; managers may set a `borrower_id`, otherwise the borrower is `actor`. Rejects retired/already-checked-out assets; flips status to `CHECKED_OUT`. Audits `equipment.checked_out`. |
+| `checkout(actor, equipment_id, borrower_id=None)` | `EquipmentLoan` | Open a loan; managers may set a `borrower_id`, otherwise the borrower is `actor`. Rejects retired/already-checked-out assets, and rejects the system account or a deactivated account as borrower (*"That account cannot borrow equipment."*). It deliberately does **not** require the borrower to belong to this community — the picker narrows to that by default and offers an opt-in to widen, because lending to someone who just walked into the venue is the case this serves. Flips status to `CHECKED_OUT`. Audits `equipment.checked_out`. |
 | `checkin(actor, equipment_id)` | `Equipment` | Close the open loan and flip status to `AVAILABLE`; `ValueError` when not checked out. Audits `equipment.checked_in`. |
 | `list_assets()` / `get_asset(equipment_id)` | reads | Every asset; one asset by id. |
 | `get_assets_by_ids(ids)` | `list[Equipment]` | Tenant-scoped fetch of the given assets (ordered by asset number) for the bulk QR-label sheet; unknown/foreign ids are silently dropped. |
 | `current_loan(equipment)` | `EquipmentLoan \| None` | The open loan for an asset, if any. |
 | `open_loans_by_equipment_id()` | `dict[int, EquipmentLoan]` | All open loans keyed by equipment id (table batch-load). |
-| `loan_history(equipment)` | `list[EquipmentLoan]` | Full loan history for an asset. |
+| `loan_history(equipment, *, limit=None)` | `list[EquipmentLoan]` | Loan history, newest first; `limit` bounds the fetch. Each row prefetches three users, so an asset lent hundreds of times is worth bounding — the asset page asks for the five it paints. |
+| `loan_count(equipment)` | `int` | Total loans against an asset — the `N` a bounded view reports as "5 of N". |
 | `my_checkouts(user)` | `list[EquipmentLoan]` | A user's currently-open loans. |
 
 Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipment detail pages render QR codes via [`qrcode_util.py`](#qrcode_utilpy).
@@ -961,9 +962,9 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` / `get_user_by_id(user_id)` | `User \| None` | Lookups the entry surfaces use instead of touching `UserRepository`. |
 | `get_all_users(role=None, has_discord=False)` | `list[User]` | **Every account on the platform.** Identity is global, so this is a platform-level list; the only caller is `/platform`'s first-admin picker. |
-| `get_community_users(role=None, has_discord=False)` | `list[User]` | **The tenant in scope's members**, joined through `TenantMembership` and excluding the `System` actor. Same signature as `get_all_users` so converting a picker is a one-word change; raises with no tenant in scope. What every per-community picker, the Users tab, `GET /users` and MCP `list_users` read. |
 | `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
+| `get_community_people(*, role=None, has_discord=False, include_user_ids=None, include_inactive=False)` | `list[User]` | **The people of the tenant in scope** — every per-community picker, the Users tab, `GET /users` and MCP `list_users`. `User` is global, so belonging is derived, and `TenantMembership` derives it: the same basis the access gate checks, so a picker cannot offer someone the app would turn away. (It used to union role-holders with tournament entrants, because membership was a frozen backfill nothing wrote to; the membership work closed that and the old union is a strict subset.) `include_user_ids` force-includes specific people (the actor; an asset's current holder) so they stay resolvable. Excludes the system account by **both** its flag and its sentinel id, and deactivated accounts unless `include_inactive` — which the match dialog passes, since a SpeedGaming placeholder is inactive by construction. Raises with no tenant in scope. **A picker default, not an authorization rule** — the hard rules live in the acting service and are narrower. |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |
 | `get_active_tournaments_categorized()` | `dict[str, list[Tournament]]` | Active tournaments split into `staff_tournaments` / `player_tournaments` / `all_tournaments`. |
@@ -982,6 +983,8 @@ Collaborators: `UserRepository`, `UserRoleRepository`, `AuditService`, `AuthServ
 ## Volunteering
 
 The onsite volunteer subsystem is one service per concern plus a background reminder loop. The data flow: any user opts in (`VolunteerProfileService`) and declares availability (`VolunteerAvailabilityService`); coordinators define positions (`VolunteerPositionService`), track per-user qualifications (`VolunteerQualificationService`), and generate/assign shifts (`VolunteerScheduleService`), optionally seeding a draft from the pool (`VolunteerAutoscheduleService`); the `volunteer_reminder` loop DMs upcoming-shift reminders. All coordinator-side mutations are gated by `AuthService.can_manage_volunteers` and audited under `volunteer.*`.
+
+A draft assignment (`auto_generated=True`) is the coordinator's sketch: it is excluded from the volunteer's own shift list and from the reminder sweep, cannot be acknowledged, and is deleted wholesale by `clear_draft`. `publish_draft` is what makes one real — it flips the flag, DMs the volunteer with the acknowledgment button, and emits `volunteer.assigned` per row. Coordinator-facing counts (the grid's badges, `coverage`, the CSV export, `volunteer_hour_trends`) deliberately keep counting drafts: the invariant is about what the *volunteer* has been told, not about the coordinator's arithmetic.
 
 ### volunteer_profile_service.py — VolunteerProfileService
 
@@ -1031,25 +1034,55 @@ Core shift/assignment operations: creating shifts (including bulk day generation
 | `list_shifts_for_window(start, end)` / `get_shift(shift_id)` | reads | Shifts overlapping `[start, end]`; one shift by id. |
 | `create_shift(actor, position_id, starts_at, ends_at, label=None, slots_needed=1, notes=None)` | `VolunteerShift` | Coordinator-only; requires end after start and ≥1 slot. Audits `volunteer.shift_created`. |
 | `generate_day_shifts(actor, date_str, position_ids, blocks)` | `list[VolunteerShift]` | Coordinator-only; create a day's shifts from `(label, start_HHMM, end_HHMM)` blocks (a block ending ≤ its start crosses midnight). Staggered positions instead get rolling shifts spanning the day window. Transactional; audits `volunteer.shift_created`. |
-| `update_shift(actor, shift, **fields)` | `VolunteerShift` | Coordinator-only partial update; same end>start / slots≥1 validation. Audits `volunteer.shift_updated`. |
+| `update_shift(actor, shift, **fields)` | `VolunteerShift` | Coordinator-only partial update; same end>start / slots≥1 validation. When `starts_at`/`ends_at` actually change, clears `acknowledged_at` on every non-draft assignment and re-asks by DM (someone who agreed to 08:00–12:00 has not agreed to 16:00–20:00), recording the count as `reacknowledge_cleared`. A slots-only or label-only edit notifies nobody; check-ins are never cleared. Audits `volunteer.shift_updated`. |
 | `delete_shift(actor, shift)` | `None` | Coordinator-only; audits `volunteer.shift_deleted`. |
 | `reset_all_shifts(actor)` | `int` | Coordinator-only; delete every shift; returns the count; audits `volunteer.shifts_reset`. |
 | `assign(actor, shift, user, *, auto_generated=False, notify=True)` | `(VolunteerAssignment, list[str])` | Coordinator-only. Hard-fails (`ValueError`) on duplicate or overlapping assignment; returns soft warnings for overfilled shifts and stated-unavailability. Enqueues an acknowledgment-request DM unless auto-generated. Audits `volunteer.assigned`. |
-| `unassign(actor, assignment)` | `None` | Coordinator-only; audits `volunteer.unassigned`. |
-| `acknowledge(assignment_id, user)` | `VolunteerAssignment` | Self-acknowledge (idempotent); rejects other users' assignments (`ValueError`). Audits `volunteer.acknowledged`. |
-| `assignments_for_user(user, upcoming_after=None)` | `list[VolunteerAssignment]` | A user's assignments, optionally only those starting after a cutoff. |
-| `coverage(start, end)` | `list[dict]` | Per-shift filled/needed counts (flagging understaffed shifts). |
+| `confirm_assignment(actor, assignment, *, notify=True)` | `VolunteerAssignment` | Coordinator-only. Turn one draft into a commitment: clear `auto_generated`, DM the volunteer, emit `volunteer.assigned` with `published_from_draft: True`. Idempotent — a published assignment is returned untouched. |
+| `count_drafts(start, end)` | `int` | How many unpublished drafts sit in the window (the coordinator's draft banner). |
+| `unassign(actor, assignment)` | `None` | Coordinator-only; audits `volunteer.unassigned` and DMs the volunteer — unless the assignment was an unpublished draft, whose removal is silent because its creation was. |
+| `release(assignment_id, user, reason=None)` | `None` | The volunteer's own decision, mirroring crew withdrawal: frees the slot immediately, records the reason and the `hours_notice` it was given with, audits + publishes `volunteer.released`, and DMs the `VOLUNTEER_COORDINATOR`/`STAFF` holders who have to find cover. Refuses someone else's assignment, a checked-in one, and a finished shift (`ValueError`). |
+| `acknowledge(assignment_id, user)` | `VolunteerAssignment` | Self-acknowledge (idempotent); rejects other users' assignments and unpublished drafts (`ValueError`). Audits `volunteer.acknowledged`. |
+| `assignments_for_user(user, upcoming_after=None, *, include_drafts=False, with_shiftmates=False)` | `list[VolunteerAssignment]` | A user's assignments, optionally only those starting after a cutoff. Drafts are excluded unless asked for; `with_shiftmates` adds the two joins the volunteer's "who else is on" line needs and nothing else pays for. |
+| `find_assignment(shift_id, user_id)` | `VolunteerAssignment \| None` | This volunteer's assignment on this shift, if they hold one. |
+| `coverage(start, end)` | `list[dict]` | Per-shift `filled`/`needed` counts (flagging understaffed shifts), with `drafts` and `acknowledged` breaking the filled total down. `filled` **counts drafts** — this is the coordinator's working schedule. |
+| `day_summary(start, end)` | `dict` | The day's totals over `coverage`: `shifts`, `needed`, `filled`, `open`, `drafts`, `unacknowledged` (published but not acknowledged), `understaffed_shifts`. Feeds the coordinator's coverage strip. |
 
-Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPositionRepository`, `VolunteerAvailabilityService`, `DiscordService` (via `discord_queue`), `AuditService`, `AuthService`, [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy).
+**Who gets told what.** The subsystem's most load-bearing rule, and it is spread across five methods, so it is written down here:
+
+| Transition | Volunteer | Coordinators |
+|---|---|---|
+| Manual assign | DM + Acknowledge | — |
+| Draft created | — | — (grid + banner) |
+| Draft published | DM + Acknowledge | — |
+| Draft cleared | — | — |
+| Shift time changed | DM + Acknowledge (ack cleared) | — |
+| Coordinator un-assigns | DM (no button) | — |
+| Volunteer releases | — | DM |
+| Reminder lead reached | DM + Acknowledge | — |
+
+Every DM is best-effort, gated on `discord_id` **and** `dm_notifications`, and never raises. `_notify_coordinators_of_release` is the only role-addressed DM in the codebase (it dedupes a coordinator who is also staff); it stays private to this service rather than becoming a general broadcast utility for one caller.
+
+Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerPositionRepository`, `VolunteerAvailabilityService`, `UserRoleRepository` (the release fan-out), `DiscordService` (via `discord_queue`), `AuditService`, `AuthService`, [`discord_messages.py`](#discord_messagespy), [`timezone.py`](#timezonepy).
 
 ### volunteer_autoschedule_service.py — VolunteerAutoscheduleService
 
-Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool using qualifications, availability, no-overlap, and hour load-balancing, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
+Greedy/heuristic draft generator. Fills open shift slots from the opted-in pool using qualifications, availability, no-overlap, and an hour ceiling, producing `auto_generated` assignments the coordinator then reviews. Candidate ranking prefers qualified volunteers, then `PREFERRED`/`AVAILABLE` availability, then fewest assigned hours, then name.
+
+What the filler may do is a **`DraftPolicy`** (frozen dataclass, exported from `application.services`), built by the coordinator's auto-fill dialog and defaulting to the conservative reading of a volunteer's declared availability:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `max_hours` | `DEFAULT_MAX_HOURS` (8.0) | Hard ceiling per volunteer per run; `0` disables it. |
+| `fill_outside_availability` | `False` | Whether a volunteer who has *not* marked the time may be used at all. Someone who marked it **unavailable** is never used, under any policy. |
+
+Both are **hard skips inside `_pick`**, not tiebreakers — that distinction is the finding this replaced, where one volunteer was given four consecutive blocks totalling 16 hours, 12 of them outside their declared window.
 
 | Method | Returns | Description |
 |---|---|---|
-| `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions); returns `{created, unfilled, pool_size}`. Transactional; audits `volunteer.draft_generated`. |
-| `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. |
+| `generate_draft(actor, start, end, *, position_ids=None, clear_existing_drafts=True, policy=None)` | `dict` | Coordinator-only; build a draft over `[start, end]` (optionally one or more positions) under `policy` (defaulting to `DraftPolicy()`). Returns `{created, pool_size, policy, unfilled, outside_availability, heavy_loads}` — `unfilled` carries a per-slot `reason` sentence saying *why* it stayed open, `outside_availability` names everyone placed outside their stated window, and `heavy_loads` names anyone left near the ceiling or on three touching blocks. Transactional; audits `volunteer.draft_generated` with the policy and the open-slot count, so the audit row answers "what did that run do". |
+| `publish_draft(actor, start, end)` | `dict` | Coordinator-only; the inverse of `clear_draft`. Confirms every draft in the window through `VolunteerScheduleService.confirm_assignment` — so each volunteer gets the same DM and event a manual assign produces — and returns `{published, volunteers}`. Deliberately **not** transactional: a rollback cannot un-send a DM, and `confirm_assignment` is idempotent so a re-click finishes a partial run. Audits `volunteer.draft_published`. |
+| `clear_draft(actor, start, end)` | `int` | Coordinator-only; remove auto-generated assignments in the window; returns the count; audits `volunteer.draft_cleared`. Silent by design — a draft was never announced. |
 
 Collaborators: `VolunteerShiftRepository`, `VolunteerAssignmentRepository`, `VolunteerProfileService`, `VolunteerAvailabilityService`, `VolunteerScheduleService`, `AuthService`, `AuditService`; reads `VolunteerQualification` directly.
 
@@ -1107,17 +1140,22 @@ The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` wit
 | `add_admin` / `remove_admin` / `list_admins` | — / `list[User]` | The per-qualifier `admins` M2M, who are also its reviewers. |
 | `list_pools` / `create_pool` / `update_pool` / `delete_pool` | `AsyncQualifierPool`(s) | Pool CRUD within a qualifier. |
 | `add_permalink` / `add_permalinks_bulk` / `roll_permalinks` / `update_permalink` / `delete_permalink` | `AsyncQualifierPermalink`(s) | Permalink management; `roll_permalinks` rolls N seeds from the pool's `Preset` via `SeedGenerationService`, `add_permalinks_bulk` pastes many at once. |
-| `list_open_qualifiers` / `get_qualifier_for_player` / `get_player_pools` / `list_user_runs` / `get_active_run` | reads | The player-facing surface. |
+| `list_open_qualifiers` / `get_qualifier_for_player` / `get_player_pools` / `list_user_runs` / `get_active_run` | reads | The player-facing surface. `get_player_pools` **raises** for a shut window and is retained for the REST client that depends on that. |
+| `get_run_availability(user, qualifier_id)` | `RunAvailability` | The web surface's read: the pools this player may draw from, every pool's spent/remaining counts, and — when none are available — a `RunUnavailableReason` with the sentence it owes the runner. Never raises for a closed window; a closed window is the answer. |
 | `start_run(user, qualifier_id, pool_id)` | `AsyncQualifierRun` | The **draw**: an atomic, row-locked transaction enforcing one active run per player, the `runs_per_pool` cap, and permalink no-repeat, then picking a permalink by imbalance-forcing fairness. Reveal == start. |
-| `submit_run(...)` / `forfeit_run(user, run_id)` / `reattempt_run(user, run_id, *, reason)` | `AsyncQualifierRun` | Run lifecycle: submit a finish time (positive and under `MAX_RUN_SECONDS`) for review; forfeit irreversibly for 0; or void the prior run and free the slot, within `allowed_reattempts`. |
-| `list_review_queue` / `claim_run` / `release_claim` / `review_run` / `get_run_notes` | — | Review: claim-locking, then approve/reject (**self-review blocked**), which recomputes the permalink's par and rescores its approved runs. |
+| `submit_run(...)` / `forfeit_run(user, run_id)` / `reattempt_run(user, run_id, *, reason)` | `AsyncQualifierRun` | Run lifecycle: submit a finish time (positive, under `MAX_RUN_SECONDS`, and not longer than the run has existed — see `classify_claim`) for review, recording `measured_seconds`; forfeit irreversibly for 0; or void the prior run and free the slot, within `allowed_reattempts`. |
+| `grant_reattempt(actor, run_id, *, reason)` | `AsyncQualifierRun` | A qualifier admin voids someone else's terminal run — the override for a mis-clicked forfeit or a bad seed. Requires a reason, **ignores** `allowed_reattempts` (recorded via `reattempt_granted_by`, so it does not shrink what the runner may still spend), and DMs the runner. Shares `_void_run` with `reattempt_run` so neither path can skip the par refresh. |
+| `get_reattempt_allowance(user, qualifier_id)` | `ReattemptAllowance` | `spent` / `allowed` / `remaining` for one player — what the run surface says out loud and what the forfeit dialog promises. Counts only self-spent reattempts. |
+| `list_review_queue` / `list_runs` / `claim_run` / `release_claim` / `review_run` / `get_run_notes` | — | Review: claim-locking, then approve/reject (**self-review blocked**), which recomputes the permalink's par and rescores its approved runs. A **rejection requires a note** — it is stored as a run note and DM'd to the runner. `list_runs` is every run in the qualifier (admin), because the queue holds only finished+pending rows and a forfeit is written straight to `APPROVED`. |
 | `is_results_public(qualifier, now=None)` / `get_leaderboard(...)` | `bool` / `dict` | The board, pools, and pars are staff-only until the qualifier closes (inactive or past `closes_at`). |
 | `recompute_par_and_scores(permalink_id)` | `None` | Recompute one permalink's par and rescore its approved runs; the public entry the live-race capture path reuses. |
 
-Four sibling modules keep the service under the file-length guideline:
+Sibling modules keep the service under the file-length guideline:
 
 - **async_qualifier_config.py** — `validate_async_qualifier_config`, the Pydantic `extra='forbid'` validator for `AsyncQualifier.config`.
-- **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window`, `ensure_window_open`, `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (tunables off `qualifier.config`, with defaults), and `display_name`.
+- **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window`, `ensure_window_open`, `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (tunables off `qualifier.config`, with defaults), `display_name`, the `ReattemptAllowance` value object, the availability trio `window_reason`/`classify_availability`/`describe_unavailability` (with `RunUnavailableReason` and `PoolUsage`), and the claimed-vs-measured trio `measure_elapsed`/`classify_claim`/`describe_claim` (`ClaimVerdict.OK|IMPLAUSIBLE|IMPOSSIBLE`, thresholds `CLOCK_GRACE_SECONDS` and `IMPLAUSIBLE_DRIFT_SECONDS`) that the service, the run surface and the review queue all share.
+- **async_qualifier_reads.py** — `PlayerReadsMixin`, mixed into the service: the competitor-facing reads (open qualifiers, `get_run_availability`/`get_player_pools`, own runs, active run, reattempt allowance) and the leaderboard. Reads only — nothing here writes or audits.
+- **async_qualifier_notifications.py** — the two runner-facing DMs (`notify_run_reviewed`, `notify_reattempt_granted`), best-effort and swallowed here rather than at each call site; the copy itself lives in `application/utils/discord_messages.py`.
 - **async_qualifier_access.py** — shared gate + entity resolution both qualifier services use: `ensure_qualifier_admin(...)` and the `require_qualifier`/`require_pool`/`require_permalink`/`require_run` load-or-`NotFoundError` lookups.
 - **async_qualifier_draw.py** — `AsyncQualifierDraw`, the repository-touching draw and recompute engine (`draw_candidates`/`pick_permalink`/`recompute_par_and_scores`), composed as `self.draw`.
 - **async_qualifier_scoring.py** — the pure par/score math: `compute_par`, `compute_score`, `build_leaderboard`.
@@ -1173,6 +1211,23 @@ Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the in
 
 Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, plus `USERS_URL` (Twitch) / `USERINFO_URL` + `IDENTITY_SCOPE` (racetime).
 
+### duration.py
+
+Whole-second duration parsing and display for typed finish times
+([duration.py](../../application/utils/duration.py)). Pure syntax — no ORM, no service
+rules (the `MAX_RUN_SECONDS` ceiling stays in `AsyncQualifierService`, so the hour
+segment is unbounded here). Shared by the player run surface, the reviewer queue and
+anything else that shows a run duration.
+
+| Function | Returns | Description |
+|---|---|---|
+| `format_hms(seconds, *, dash='—')` | `str` | `4325` → `'1:12:05'`; `None` → `dash`. Negatives clamp to zero. |
+| `parse_hms(text)` | `int` | Parse **exactly** `H:MM:SS` into whole seconds; raises `ValueError` with a sentence naming the shape. |
+
+`parse_hms` is deliberately strict. Accepting `SS` and `MM:SS` by folding parts into
+base 60 meant `1:23` — the likeliest typo in a field labelled `H:MM:SS` — silently
+submitted 83 seconds, and every later surface displayed it as a valid time.
+
 ### csv_export.py
 
 CSV rendering for the report tables ([csv_export.py](../../application/utils/csv_export.py)).
@@ -1193,7 +1248,7 @@ Notable members:
 - **Shared constants:** `MSG_NO_ACCOUNT`, `MSG_UNEXPECTED_ERROR_MATCH`, `MSG_UNEXPECTED_ERROR_CREW`.
 - **Match scheduling DMs** (sent by `MatchScheduleService`/`MatchService`): `scheduled_dm`, `rescheduled_dm`, `acknowledgment_request_dm`, `checked_in_dm`, `state_changed_dm`, `stream_candidate_dm`, `seed_dm`.
 - **Crew DMs** (`CrewService`): `crew_assignment_dm`.
-- **Volunteer DMs** (`VolunteerScheduleService`, `volunteer_reminder`): `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_ack_confirmation`.
+- **Volunteer DMs** (`VolunteerScheduleService`, `volunteer_reminder`): `volunteer_assignment_dm`, `volunteer_reminder_dm`, `volunteer_unassigned_dm`, `volunteer_shift_changed_dm`, `volunteer_released_dm` (to the coordinators), `volunteer_ack_confirmation`.
 - **Ephemeral button replies** (`discordbot/`): `match_ack_confirmation`, `crew_ack_confirmation`, `crew_signup_confirmation`, `unwatch_confirmation`.
 
 All builders are pure functions returning `str`; optional fields passed as `None`/`''` are omitted from the rendered message.

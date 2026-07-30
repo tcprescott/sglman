@@ -336,6 +336,17 @@ class TestAssignments:
             resp = await c.post('/api/volunteers/assignments/9999/acknowledge')
             assert resp.status_code == 404
 
+    async def test_acknowledge_draft_bad_request(self, db, app):
+        volunteer, raw = await create_user_token(username='vol')
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(position=pos, starts_at=utc(2025, 10, 8, 12), ends_at=utc(2025, 10, 8, 16))
+        assignment = await VolunteerAssignment.create(
+            shift=shift, user=volunteer, auto_generated=True,
+        )
+        async with client_for(app, raw) as c:
+            resp = await c.post(f'/api/volunteers/assignments/{assignment.id}/acknowledge')
+            assert resp.status_code == 400
+
     async def test_acknowledge_other_users_assignment_bad_request(self, db, app):
         owner = await User.create(discord_id=6001, username='owner')
         _, raw = await create_user_token(username='intruder')
@@ -471,3 +482,43 @@ class TestSelfService:
             everything = await c.get('/api/volunteers/me/assignments', params={'upcoming_only': 'false'})
             assert everything.status_code == 200
             assert len(everything.json()) == 2
+
+    async def test_release_my_own_assignment(self, db, app):
+        actor, raw = await create_user_token(username='vol')
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2030, 1, 1, 12), ends_at=utc(2030, 1, 1, 16),
+        )
+        assignment = await VolunteerAssignment.create(shift=shift, user=actor)
+        async with client_for(app, raw) as c:
+            resp = await c.request(
+                'DELETE', f'/api/volunteers/me/assignments/{assignment.id}',
+                json={'reason': 'Double-booked'},
+            )
+            assert resp.status_code == 204
+        assert await VolunteerAssignment.get_or_none(id=assignment.id) is None
+
+    async def test_release_someone_elses_assignment_bad_request(self, db, app):
+        owner = await User.create(discord_id=6101, username='owner')
+        _, raw = await create_user_token(username='intruder')
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2030, 1, 1, 12), ends_at=utc(2030, 1, 1, 16),
+        )
+        assignment = await VolunteerAssignment.create(shift=shift, user=owner)
+        async with client_for(app, raw) as c:
+            resp = await c.delete(f'/api/volunteers/me/assignments/{assignment.id}')
+            assert resp.status_code == 400
+        assert await VolunteerAssignment.get_or_none(id=assignment.id) is not None
+
+    async def test_my_assignments_omits_drafts(self, db, app):
+        actor, raw = await create_user_token(username='vol')
+        pos = await VolunteerPosition.create(name='Desk')
+        shift = await VolunteerShift.create(
+            position=pos, starts_at=utc(2030, 1, 1, 12), ends_at=utc(2030, 1, 1, 16),
+        )
+        await VolunteerAssignment.create(shift=shift, user=actor, auto_generated=True)
+        async with client_for(app, raw) as c:
+            resp = await c.get('/api/volunteers/me/assignments')
+            assert resp.status_code == 200
+            assert resp.json() == []
