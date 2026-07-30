@@ -91,6 +91,13 @@ async def seed_challonge_for_tenant(
             "participant1": participants["cp_2"], "participant2": participants["cp_4"],
         },
     )
+    # Round 2, waiting on round 1: PENDING is what most of a freshly mirrored
+    # bracket looks like, and both its slots are unknown — which is also the only
+    # mirrored row with no participants to render.
+    await ChallongeMatch.get_or_create(
+        tournament=tournament, challonge_match_id="cm_3", tenant=tenant,
+        defaults={"round": 2, "state": ChallongeMatchState.PENDING},
+    )
 
     usage_period = today.strftime("%Y-%m")
     await ChallongeApiUsage.get_or_create(

@@ -55,11 +55,13 @@ async def seed_equipment_for_tenant(
     Returns the assets by name; ``seed_dev.py``'s audit-log fixtures reference
     one of them.
     """
-    await UserRole.get_or_create(
-        user=staff, role=Role.EQUIPMENT_MANAGER, tenant=tenant, defaults={'granted_by': None},
-    )
+    # staff_user is deliberately *not* granted EQUIPMENT_MANAGER: every gate here
+    # is ``is_staff(user) or is_equipment_manager(user)``, so the grant added
+    # nothing but a second role on the one fixture that has to stay plain STAFF
+    # (one holder per role — docs/reference/dev-seed.md).
+    #
     # Manager without STAFF: the fixture that proves the manager surfaces stand
-    # on their own. staff_user holds both, so it can never show that.
+    # on their own.
     equip_manager = users['equip_manager']
     await UserRole.get_or_create(
         user=equip_manager, role=Role.EQUIPMENT_MANAGER, tenant=tenant,

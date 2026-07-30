@@ -28,7 +28,7 @@ from tortoise import Tortoise
 from models import (
     Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
     TenantJoinRequest, JoinRequestStatus,
-    User, UserRole, Role,
+    User, UserRole, Role, RoleSource,
     Tournament, TournamentPlayers,
     Commentator, Tracker,
     Station, StreamRoom, SystemConfiguration,
@@ -44,13 +44,16 @@ from application.services.feature_flag_service import FeatureFlagService
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
-from scripts.seed_community_race import seed_community_race_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_fledgling import seed_fledgling_tenant
+from scripts.seed_match_day import seed_match_day_for_tenant
 from scripts.seed_matches import seed_matches_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
-from scripts.seed_support import backfill
+from scripts.seed_play_in import seed_play_in_for_tenant
+from scripts.seed_support import (
+    RACER_SPECS, USER_SPECS, backfill, fixture_discord_id,
+)
 from scripts.seed_volunteers import seed_volunteers_for_tenant
 from scripts.seed_online import (
     assert_unlinked_probe_users, link_racetime_identities, link_twitch_identities,
@@ -71,49 +74,19 @@ TENANT_SPECS = [
 
 async def seed_users() -> dict[str, User]:
     """Create the global (tenant-agnostic) users. Roles are granted per tenant."""
-    user_specs = [
-        ("100000000000000001", "staff_user",   "Staff User"),
-        ("100000000000000002", "proctor_user", "Proctor User"),
-        ("100000000000000003", "sm_user",      "SM User"),
-        ("100000000000000004", "player_one",   "Player One"),
-        ("100000000000000005", "player_two",   "Player Two"),
-        ("100000000000000006", "player_three", "Player Three"),
-        ("100000000000000007", "player_four",  "Player Four"),
-        # A member of **no** community, with a pending join request against
-        # 'fledgling' (see seed_fledgling): the fixture for the membership gate's
-        # own door. Without it the only way to see the join page in dev is to
-        # delete your own membership.
-        ("100000000000000011", "outsider",      "Hopeful Outsider"),
-        # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
-        # the dev fixture for "platform authority, zero local grants", which is
-        # what /platform and the super-admin's in-tenant access need to be
-        # exercised against.
-        ("100000000000000008", "super_admin",  "Platform Owner"),
-        # EQUIPMENT_MANAGER *without* STAFF (granted per tenant below).
-        # staff_user holds both, so nothing else proves the manager path works
-        # on its own — three audits had to grant a role like this by hand.
-        ("100000000000000009", "equip_manager", "Equipment Manager"),
-        # A member of the 'default' tenant only (see seed_for_tenant), holding a
-        # role there and enrolled in nothing: the fixture that makes
-        # per-community people scoping visible in the dev loop. They must appear
-        # in tenant A's borrower/owner pickers and in neither of tenant B's.
-        ("100000000000000010", "local_only",   "Local Only"),
-        # More single-capability operators, for the same reason as
-        # equip_manager: staff satisfies every predicate in the admin area, so a
-        # surface that gates on staff-ness where it means to gate on a
-        # capability looks correct until one of these logs in. The last three
-        # carry the online-tournament admin roles, which a community delegates
-        # the same way it delegates equipment or volunteers — and which nothing
-        # in dev held until now, so every surface they gate could only ever be
-        # driven as staff.
-        ("100000000000000013", "cc_user",      "Crew Coordinator"),
-        ("100000000000000012", "vc_user",      "Volunteer Coordinator"),
-        ("100000000000000014", "preset_mgr",   "Preset Manager"),
-        ("100000000000000015", "sync_user",    "Sync Admin"),
-        ("100000000000000016", "qual_admin",   "Qualifier Admin"),
-    ]
+    specs = [(name, display) for name, display in USER_SPECS]
+    specs += [(name, display) for name, display, _ in RACER_SPECS]
     users: dict[str, User] = {}
-    for discord_id, username, display_name in user_specs:
+    for username, display_name in specs:
+        discord_id = fixture_discord_id(username)
+        # Convergence for a dev database seeded before ids were derived: the row
+        # is found by its username and re-pointed, so its matches, roles and
+        # memberships follow it instead of a second copy of every fixture
+        # appearing beside the first.
+        legacy = await User.get_or_none(username=username)
+        if legacy is not None and legacy.discord_id != discord_id:
+            legacy.discord_id = discord_id
+            await legacy.save()
         u, created = await User.get_or_create(
             discord_id=discord_id,
             defaults={"username": username, "display_name": display_name, "is_active": True},
@@ -264,15 +237,37 @@ async def seed_for_tenant(
             ("preset_mgr", Role.PRESET_MANAGER),
             ("sync_user", Role.SYNC_ADMIN),
             ("qual_admin", Role.QUALIFIER_ADMIN),
+            # The same rule applied to the four roles whose only holders also held
+            # VOLUNTEER (proctor_user, sm_user, player_one): with nothing holding
+            # them alone, a surface that means to gate on PROCTOR but gates on
+            # VOLUNTEER — or the reverse — passed in dev either way.
+            ("proctor_only", Role.PROCTOR),
+            ("sm_only", Role.STREAM_MANAGER),
+            ("triforce_sub", Role.TRIFORCE_SUBMITTER),
+            ("volunteer_only", Role.VOLUNTEER),
         ]
         if tenant.slug == "default":
             # Deliberately one tenant only — a role grant implies membership, so
             # a user who holds nothing in tenant B and is a member of nothing
             # there must be absent from tenant B's pickers.
             role_grants.append(("local_only", Role.VOLUNTEER))
+        # Roles the guild-role sync granted rather than a staff member: the
+        # DiscordRoleMapping fixtures below map this guild's "Volunteers" role
+        # onto VOLUNTEER, and these are the rows that mapping would produce.
+        # ``RoleSource`` is what the role table's "granted by" column reads, and
+        # what a re-sync is allowed to revoke — a seed where every grant is
+        # MANUAL cannot show either.
+        discord_sourced = {("player_three", Role.VOLUNTEER), ("player_four", Role.VOLUNTEER)}
         for uname, role in role_grants:
             await UserRole.get_or_create(
-                user=users[uname], role=role, tenant=tenant, defaults={"granted_by": None},
+                user=users[uname], role=role, tenant=tenant,
+                defaults={
+                    "granted_by": None,
+                    "source": (
+                        RoleSource.DISCORD if (uname, role) in discord_sourced
+                        else RoleSource.MANUAL
+                    ),
+                },
             )
         print(
             f"    [{tenant.slug}] roles ok"
@@ -425,11 +420,21 @@ async def seed_for_tenant(
         await seed_onsite_for_tenant(tenant, staff, players, today, now, stage1, stage3)
         print(f"    [{tenant.slug}] on-site tournament ok")
 
-        # --- Race night (scripts/seed_community_race.py) ---------------------
-        # The staff-run, four-racers-per-heat event: the only fixture with more
-        # than two players in a match, the only staff-administered tournament,
-        # and the only matches with no title / no roster.
-        await seed_community_race_for_tenant(tenant, staff, players, now)
+        # --- Group play-in races (scripts/seed_play_in.py) -------------------
+        # Staff-run races of ten, seeding the bracket above — the only rosters
+        # longer than two, and the only match holding finishers and forfeits
+        # together. They belong to this tournament because that is the bracket
+        # they feed.
+        racers = players + [users[name] for name, _display, _full in RACER_SPECS]
+        await seed_play_in_for_tenant(tenant, tournament, staff, racers, now)
+
+        # --- One realistic match day (scripts/seed_match_day.py) -------------
+        # Density, not states: fifteen ordinary bracket matches across the three
+        # stages so the schedule and the stage-utilisation report have a real day
+        # to draw. Everything it creates is deliberately unremarkable.
+        await seed_match_day_for_tenant(
+            tenant, tournament, racers, [stage1, stage2, stage3], today, now,
+        )
 
         # --- Crew signups (commentators / trackers) -------------------------
         sm = users["sm_user"]
@@ -533,6 +538,8 @@ async def seed_for_tenant(
              "Would love a dark mode toggle.", "/"),
             ("sm_user", FeedbackCategory.PRAISE, FeedbackStatus.NEW,
              "The new crew view is great, thanks!", "/admin/schedule"),
+            ("player_three", FeedbackCategory.OTHER, FeedbackStatus.REVIEWED,
+             "Who do I ask about getting my racetime name fixed?", "/home/profile"),
         ]
         for uname, category, status, message, page_url in feedback_specs:
             if not await Feedback.filter(user=users[uname], message=message, tenant=tenant).exists():
@@ -627,10 +634,11 @@ async def seed_for_tenant(
                 )
         print(f"    [{tenant.slug}] audit log ok")
 
-        # A *decided* join request, so both states of the model exist in dev: the
+        # A *decided* join request, so every state of the model exists in dev: the
         # pending one lives in 'fledgling' (the staff queue), this denied one is
         # the re-openable case — asking again updates this row rather than
-        # appending a second.
+        # appending a second — and the approved one is the ordinary outcome, the
+        # record of how most members actually got in.
         await TenantJoinRequest.get_or_create(
             user=users['outsider'], tenant=tenant,
             defaults={
@@ -638,6 +646,15 @@ async def seed_for_tenant(
                 'message': 'Can I get in?',
                 'decided_by': staff,
                 'decided_at': now_eastern(),
+            },
+        )
+        await TenantJoinRequest.get_or_create(
+            user=users['volunteer_only'], tenant=tenant,
+            defaults={
+                'status': JoinRequestStatus.APPROVED,
+                'message': 'I commentate for a couple of events and would like to help.',
+                'decided_by': staff,
+                'decided_at': now_eastern() - timedelta(days=3),
             },
         )
         print(f"    [{tenant.slug}] join requests ok")

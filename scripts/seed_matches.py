@@ -116,6 +116,13 @@ async def seed_matches_for_tenant(
     await make_match(
         "TBD Match", None, p1=players[3], p2=players[0], stream_candidate=False,
     )
+    # Exactly one match with **no title**. Most matches carry a round label, but a
+    # blank one happens, and when it does every surface falls back to the roster
+    # (``match.title or players_str`` in the crew service, the reconciler's own
+    # label, the race-room name). One fixture, because one is how often it occurs
+    # — and because ``title=None`` is only a usable natural key while it is unique
+    # within the tournament.
+    await make_match(None, 6, p1=players[1], p2=players[2], room=stage2)
     # Seat the two matches that are checked in but not finished at real
     # stations, so the schedule shows stations out of the box and the
     # occupancy check has something to trip on: 1/2/5/6 read as in use when
@@ -193,11 +200,22 @@ async def seed_matches_for_tenant(
     for m in (scheduled_match, in_progress_match, disputed_match):
         await MatchWatcher.get_or_create(user=staff, match=m, tenant=tenant)
 
-    # Notification preference — staff wants DMs for every match in this tournament.
-    await TournamentNotificationPreference.get_or_create(
-        user=staff, tournament=tournament, tenant=tenant,
-        defaults={"match_notifications": MatchNotificationLevel.ALL},
-    )
+    # Notification preferences — one person per level, because the level is what
+    # the fan-out reads: a fixture set where everyone is on ALL cannot show that
+    # the narrower choices actually narrow anything.
+    notification_specs = [
+        (staff, MatchNotificationLevel.ALL),
+        (players[0], MatchNotificationLevel.STREAMED),
+        (players[1], MatchNotificationLevel.STREAMED_AND_CANDIDATES),
+        # Explicitly off, which is not the same as never having chosen: the row
+        # exists and says "none".
+        (players[2], MatchNotificationLevel.NONE),
+    ]
+    for user, level in notification_specs:
+        await TournamentNotificationPreference.get_or_create(
+            user=user, tournament=tournament, tenant=tenant,
+            defaults={"match_notifications": level},
+        )
     print(f"    [{tenant.slug}] match extras ok")
 
     return {

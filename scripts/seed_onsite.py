@@ -15,6 +15,7 @@ this fixture exists to exercise.
 from datetime import date, datetime, timedelta
 
 from models import (
+    Commentator,
     Match,
     MatchPlayers,
     StreamRoom,
@@ -114,7 +115,20 @@ async def seed_onsite_for_tenant(
     # One row per step of the proctor's workflow.
     await make_match("On-Site Scheduled", 2)
     await make_match("On-Site Overdue", -0.5)
-    await make_match("On-Site Checked In", 0.25, seated=True, stations=('3', '7'), room=stage1)
+    checked_in = await make_match(
+        "On-Site Checked In", 0.25, seated=True, stations=('3', '7'), room=stage1,
+    )
+    # Two approved commentators and **no tracker**: a fully staffed restream for
+    # a tournament that does not use trackers. The other on-site fixture staffs
+    # two commentators *and* a tracker, so the two together are the shape a real
+    # community has — the crew requirement varies by tournament, and the app does
+    # not model that (see docs/current-state.md). Crew are the two entrants who
+    # are not in this match, which is also how a restream really gets staffed.
+    for commentator in (players[2], players[3]):
+        await Commentator.get_or_create(
+            match=checked_in, user=commentator, tenant=tenant,
+            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
+        )
     await make_match("On-Site In Progress", -1, seated=True, started=True, stations=('4', '8'), room=stage3)
     # Recorded but not yet confirmed — the admin's review queue.
     await make_match(

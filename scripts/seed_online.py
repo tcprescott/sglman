@@ -23,8 +23,10 @@ What they cover:
 - **Racetime config + rooms** (PR 3/4/6) — the online tournament's bot +
   auto-open config, its own matches, a room profile, and one race room per room
   lifecycle state.
-- **SpeedGaming ETL** (PR 7), **Discord Events mirror** (PR 8) and **async
-  qualifiers** (PR 9/10), all hanging off the same online tournament.
+- **SpeedGaming ETL** (PR 7) and the **Discord Events mirror** (PR 8), both
+  hanging off the same online tournament.
+- **Async qualifiers** (PR 9/10) live in ``seed_qualifiers.py``, called from here
+  so they stay part of the same online fixture set.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -36,12 +38,10 @@ from models import (
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
     DiscordScheduledEvent, DiscordEventSource,
     BotStatus, RaceRoomStatus,
-    AsyncQualifier, AsyncQualifierPool, AsyncQualifierPermalink, AsyncQualifierRun,
-    AsyncQualifierRunStatus, AsyncQualifierReviewStatus, AsyncQualifierReviewNote,
-    AsyncQualifierLiveRace, AsyncQualifierLiveRaceStatus,
 )
 from application.services.preset_service import PresetService
 from application.utils.timezone import now_eastern
+from scripts.seed_qualifiers import seed_qualifiers_for_tenant
 from scripts.seed_support import backfill
 
 ONLINE_TOURNAMENT_NAME = "Wizzrobe Online Series"
@@ -156,8 +156,8 @@ async def assert_unlinked_probe_users(users: dict[str, User]) -> None:
 async def seed_racetime_bots() -> dict[str, RacetimeBot]:
     """Platform-level racetime bots (PR 3/4). Bots have no tenant FK — they are
     managed at ``/platform`` and authorized per tenant. Seed one healthy,
-    connected bot plus one in an error state so the /platform health table shows
-    both variants."""
+    connected bot plus one per remaining ``BotStatus``, so the /platform health
+    table shows every variant it can render."""
     now = now_eastern()
     alttpr, _ = await RacetimeBot.get_or_create(
         category="alttpr",
@@ -173,19 +173,35 @@ async def seed_racetime_bots() -> dict[str, RacetimeBot]:
             "last_checked_at": now,
         },
     )
-    await RacetimeBot.get_or_create(
-        category="smw",
-        defaults={
-            "client_id": "dev_smw_client_id",
-            "client_secret": "dev_smw_client_secret_local_only",
-            "name": "SMW Dev Bot",
-            "description": "Second fixture bot, parked in an error state.",
-            "is_active": True,
-            "status": BotStatus.ERROR,
-            "status_message": "Authentication rejected (fixture).",
-            "last_checked_at": now,
-        },
-    )
+    # One bot per BotStatus, because the /platform health table's whole job is
+    # telling them apart: a board that only ever shows connected and error rows
+    # cannot show whether the other two render (or sort) correctly.
+    parked_bots = [
+        ("smw", "SMW Dev Bot", BotStatus.ERROR,
+         "Second fixture bot, parked in an error state.",
+         "Authentication rejected (fixture)."),
+        ("ootr", "OoTR Dev Bot", BotStatus.DISCONNECTED,
+         "Configured and authorized, websocket currently down.",
+         "Socket closed; retrying (fixture)."),
+        ("smz3", "SMZ3 Dev Bot", BotStatus.UNKNOWN,
+         "Never connected — the state a freshly added bot sits in.",
+         None),
+    ]
+    for category, name, status, description, status_message in parked_bots:
+        await RacetimeBot.get_or_create(
+            category=category,
+            defaults={
+                "client_id": f"dev_{category}_client_id",
+                "client_secret": f"dev_{category}_client_secret_local_only",
+                "name": name,
+                "description": description,
+                "is_active": True,
+                "status": status,
+                "status_message": status_message,
+                # An UNKNOWN bot has never been checked; the others have.
+                "last_checked_at": None if status is BotStatus.UNKNOWN else now,
+            },
+        )
     print("  racetime bots ok (global)")
     return {"alttpr": alttpr}
 
@@ -212,8 +228,7 @@ async def seed_online_for_tenant(
     await _seed_rooms(tenant, bots["alttpr"], scheduled, in_progress, finished)
     await _seed_speedgaming(tenant, tournament, scheduled)
     await _seed_discord_events(tenant, tournament, scheduled)
-    await _seed_qualifiers(tenant, preset)
-    await _seed_closed_qualifier(tenant)
+    await seed_qualifiers_for_tenant(tenant, preset)
     print(f"    [{tenant.slug}] online tournament ok")
     return tournament
 
@@ -402,6 +417,12 @@ async def _seed_rooms(
         ("dev-room", "Scheduled Race — Bracket", RaceRoomStatus.OPEN, scheduled),
         ("dev-room-live", "Race In Progress — Bracket", RaceRoomStatus.IN_PROGRESS, in_progress),
         ("dev-room-done", "Finished Race — Bracket", RaceRoomStatus.FINISHED, finished),
+        # A cancelled room, detached from any match. ``RacetimeRoom.match`` is a
+        # OneToOne, so a room cannot share a match with a live one — and this is
+        # the shape the real thing leaves behind anyway: the room is cancelled,
+        # the match it was opened for is deleted or re-opened elsewhere, and
+        # ``SET_NULL`` leaves the record standing on its own.
+        ("dev-room-void", "Cancelled Room — Bracket", RaceRoomStatus.CANCELLED, None),
     ]
     for suffix, room_name, status, match in room_specs:
         await RacetimeRoom.update_or_create(
@@ -415,7 +436,7 @@ async def _seed_rooms(
                 "match": match,
                 "opened_at": (
                     match.scheduled_at - timedelta(minutes=15)
-                    if match.scheduled_at else None
+                    if match is not None and match.scheduled_at else None
                 ),
             },
         )
@@ -427,251 +448,6 @@ async def _seed_rooms(
         if mp.finish_time is None:
             mp.finish_time = secs
             await mp.save()
-
-
-async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
-    """Async Qualifier fixtures (PR 9): **two** qualifiers.
-
-    The open one has three pools (one preset-tied, one live-race), permalinks, and
-    runs across every state a reviewer or runner can meet — approved+scored (sets
-    par), pending (the reviewer queue), rejected-with-a-note, forfeited, and voided
-    by a reattempt — so the admin Qualifiers tab, reviewer queue, Runs tab and the
-    lockdown (non-staff can't see the board) are all demonstrable.
-
-    The **closed** one exists because the lockdown means a player can never see a
-    leaderboard on an open qualifier: without a closed fixture the player-facing
-    board, its Score/Estimate/Slots columns, and the "this qualifier closed"
-    message are unreachable in dev by the role they are written for. Its three
-    scored runs deliberately fill different numbers of slots so ``actual`` and
-    ``estimate`` visibly differ."""
-    now = datetime.now(timezone.utc)
-    staff = await User.get_or_none(username="staff_user")
-    runner_a = await User.get_or_none(username="player_three")
-    runner_b = await User.get_or_none(username="player_four")
-
-    qualifier, _ = await AsyncQualifier.get_or_create(
-        name="Dev Async Qualifier", tenant=tenant,
-        defaults={
-            "description": "Self-paced qualifier fixture for local dev.",
-            "event_name": "Wizzrobe Dev Season",
-            "opens_at": now - timedelta(days=1),
-            "closes_at": now + timedelta(days=7),
-            "runs_per_pool": 2,
-            "allowed_reattempts": 1,
-            "is_active": True,
-            "config": {"par_sample_size": 3},
-        },
-    )
-    if staff is not None:
-        await qualifier.admins.add(staff)
-
-    standard, _ = await AsyncQualifierPool.get_or_create(
-        qualifier=qualifier, name="Standard Pool", tenant=tenant,
-        defaults={"preset": preset},
-    )
-    bonus, _ = await AsyncQualifierPool.get_or_create(
-        qualifier=qualifier, name="Bonus Pool", tenant=tenant,
-    )
-
-    async def _permalink(pool: AsyncQualifierPool, url: str) -> AsyncQualifierPermalink:
-        pl, _ = await AsyncQualifierPermalink.get_or_create(
-            pool=pool, url=url, tenant=tenant,
-        )
-        return pl
-
-    p1 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-1")
-    await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
-    await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
-    await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-1")
-    await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
-
-    # A finished, approved, scored run on p1 — par is the run's own time, so its
-    # score is 100 and the leaderboard has an entry.
-    if runner_a is not None:
-        run_a = await AsyncQualifierRun.filter(
-            qualifier=qualifier, user=runner_a, permalink=p1
-        ).first()
-        if run_a is None:
-            await AsyncQualifierRun.create(
-                tenant=tenant, qualifier=qualifier, user=runner_a, permalink=p1,
-                status=AsyncQualifierRunStatus.FINISHED,
-                review_status=AsyncQualifierReviewStatus.APPROVED,
-                started_at=now - timedelta(hours=3), finished_at=now - timedelta(hours=1, minutes=30),
-                elapsed_seconds=5400, measured_seconds=5460,
-                runner_vod_url="https://twitch.tv/videos/dev-a",
-                reviewed_by=staff, reviewed_at=now - timedelta(hours=1), score=100.0,
-            )
-            if p1.par_time is None:
-                p1.par_time = 5400
-                p1.par_updated_at = now
-                await p1.save()
-
-    # A finished run awaiting review — populates the reviewer queue. Its claimed
-    # time is an hour under the server's own measurement, so the queue card shows
-    # a drift badge without anyone having to construct one by hand.
-    if runner_b is not None:
-        run_b = await AsyncQualifierRun.filter(
-            qualifier=qualifier, user=runner_b, permalink=p1
-        ).first()
-        if run_b is None:
-            run_b = await AsyncQualifierRun.create(
-                tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p1,
-                status=AsyncQualifierRunStatus.FINISHED,
-                review_status=AsyncQualifierReviewStatus.PENDING,
-                started_at=now - timedelta(hours=2), finished_at=now - timedelta(minutes=20),
-                elapsed_seconds=6000, measured_seconds=9600,
-                runner_vod_url="https://twitch.tv/videos/dev-b",
-            )
-        # A reviewer note on the pending run so the review surface renders notes.
-        if staff is not None and not await AsyncQualifierReviewNote.filter(
-            run=run_b, tenant=tenant
-        ).exists():
-            await AsyncQualifierReviewNote.create(
-                tenant=tenant, run=run_b, author=staff,
-                note="VOD checked through the halfway split; finish looks clean.",
-            )
-
-    # The states the review/reattempt surfaces are about, none of which the two
-    # runs above produce: a rejection carrying its reason (the runs table's
-    # Reviewer note column and the DM copy), a forfeit nobody can reach from the
-    # review queue (the Runs tab's reason to exist), and an already-voided run.
-    p2 = await _permalink(bonus, f"https://alttpr.com/en/h/dev-{tenant.slug}-bonus-2")
-    if runner_a is not None:
-        rejected = await AsyncQualifierRun.filter(
-            qualifier=qualifier, user=runner_a, permalink=p2
-        ).first()
-        if rejected is None:
-            rejected = await AsyncQualifierRun.create(
-                tenant=tenant, qualifier=qualifier, user=runner_a, permalink=p2,
-                status=AsyncQualifierRunStatus.FINISHED,
-                review_status=AsyncQualifierReviewStatus.REJECTED,
-                started_at=now - timedelta(hours=8), finished_at=now - timedelta(hours=6),
-                elapsed_seconds=4800, measured_seconds=7200,
-                reviewed_by=staff, reviewed_at=now - timedelta(hours=5),
-            )
-        if staff is not None and not await AsyncQualifierReviewNote.filter(
-            run=rejected, tenant=tenant
-        ).exists():
-            await AsyncQualifierReviewNote.create(
-                tenant=tenant, run=rejected, author=staff,
-                note="The VoD cuts off before the final boss, so the finish time "
-                     "can't be verified. Use a reattempt and stream the whole run.",
-            )
-
-    p3 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-2")
-    if runner_b is not None:
-        # A forfeit: approved with score 0 the moment it happens, so it never
-        # appears in the reviewer queue — only in the Runs tab.
-        if not await AsyncQualifierRun.filter(
-            qualifier=qualifier, user=runner_b, status=AsyncQualifierRunStatus.FORFEIT
-        ).exists():
-            await AsyncQualifierRun.create(
-                tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p3,
-                status=AsyncQualifierRunStatus.FORFEIT,
-                review_status=AsyncQualifierReviewStatus.APPROVED,
-                started_at=now - timedelta(hours=5), finished_at=now - timedelta(hours=5),
-                score=0.0,
-            )
-        # And one already voided by the runner's own reattempt.
-        p4 = await _permalink(standard, f"https://alttpr.com/en/h/dev-{tenant.slug}-std-3")
-        if not await AsyncQualifierRun.filter(
-            qualifier=qualifier, user=runner_b, reattempted=True
-        ).exists():
-            await AsyncQualifierRun.create(
-                tenant=tenant, qualifier=qualifier, user=runner_b, permalink=p4,
-                status=AsyncQualifierRunStatus.FORFEIT,
-                review_status=AsyncQualifierReviewStatus.APPROVED,
-                started_at=now - timedelta(hours=10), finished_at=now - timedelta(hours=10),
-                score=0.0, reattempted=True,
-                reattempt_reason="Emulator crashed on the opening cutscene.",
-            )
-
-    # A live-race pool (PR 10): a live-flagged permalink + a scheduled live race,
-    # so the admin Live Races sub-tab has data to open a room for.
-    live_pool, _ = await AsyncQualifierPool.get_or_create(
-        qualifier=qualifier, name="Live Race Pool", tenant=tenant,
-    )
-    live_pl, _ = await AsyncQualifierPermalink.get_or_create(
-        pool=live_pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-live-1", tenant=tenant,
-        defaults={"live_race": True},
-    )
-    live_race = await AsyncQualifierLiveRace.filter(
-        pool=live_pool, match_title="Dev Live Qualifier Race"
-    ).first()
-    if live_race is None:
-        await AsyncQualifierLiveRace.create(
-            tenant=tenant, pool=live_pool, permalink=live_pl,
-            match_title="Dev Live Qualifier Race",
-            status=AsyncQualifierLiveRaceStatus.SCHEDULED,
-        )
-
-
-async def _seed_closed_qualifier(tenant: Tenant) -> None:
-    """A finished qualifier whose results are public — the only way a player can
-    see a leaderboard in dev (the active-window lockdown hides the open one)."""
-    now = datetime.now(timezone.utc)
-    staff = await User.get_or_none(username="staff_user")
-    runners = [
-        await User.get_or_none(username="player_two"),
-        await User.get_or_none(username="player_three"),
-        await User.get_or_none(username="player_four"),
-    ]
-
-    qualifier, _ = await AsyncQualifier.get_or_create(
-        name="Dev Async Qualifier (Closed)", tenant=tenant,
-        defaults={
-            "description": "A finished qualifier — results are public, so the "
-                           "player-facing leaderboard is reachable in dev.",
-            "event_name": "Wizzrobe Dev Season",
-            "opens_at": now - timedelta(days=21),
-            "closes_at": now - timedelta(days=7),
-            "runs_per_pool": 2,
-            "allowed_reattempts": 1,
-            "is_active": True,
-            "config": {"par_sample_size": 3},
-        },
-    )
-    if staff is not None:
-        await qualifier.admins.add(staff)
-
-    pool, _ = await AsyncQualifierPool.get_or_create(
-        qualifier=qualifier, name="Qualifier Pool", tenant=tenant,
-    )
-    permalinks = []
-    for n in (1, 2):
-        pl, _ = await AsyncQualifierPermalink.get_or_create(
-            pool=pool, url=f"https://alttpr.com/en/h/dev-{tenant.slug}-closed-{n}", tenant=tenant,
-        )
-        permalinks.append(pl)
-
-    # Different slot counts per runner (2, 1, 1 of 2) so `actual` and `estimate`
-    # differ on the board and the Slots column is not uniformly full.
-    plan = [
-        (runners[0], [(permalinks[0], 4500, 104.0), (permalinks[1], 5100, 98.0)]),
-        (runners[1], [(permalinks[0], 5400, 92.0)]),
-        (runners[2], [(permalinks[1], 6300, 74.0)]),
-    ]
-    for runner, results in plan:
-        if runner is None:
-            continue
-        for permalink, seconds, score in results:
-            if await AsyncQualifierRun.filter(
-                qualifier=qualifier, user=runner, permalink=permalink
-            ).exists():
-                continue
-            await AsyncQualifierRun.create(
-                tenant=tenant, qualifier=qualifier, user=runner, permalink=permalink,
-                status=AsyncQualifierRunStatus.FINISHED,
-                review_status=AsyncQualifierReviewStatus.APPROVED,
-                started_at=now - timedelta(days=10), finished_at=now - timedelta(days=10),
-                elapsed_seconds=seconds, measured_seconds=seconds + 240,
-                reviewed_by=staff, reviewed_at=now - timedelta(days=9), score=score,
-            )
-    for permalink in permalinks:
-        if permalink.par_time is None:
-            permalink.par_time = 5000
-            permalink.par_updated_at = now - timedelta(days=9)
-            await permalink.save()
 
 
 async def _seed_speedgaming(
@@ -715,6 +491,33 @@ async def _seed_speedgaming(
             "synced_at": now,
         },
     )
+
+    # One episode per remaining SyncStatus. The SpeedGaming tab exists to show
+    # sync *health*, and health is the non-synced rows: an episode discovered but
+    # not yet materialized, one a lifecycle guard held back, one whose upstream
+    # vanished, and one whose transform failed with the reason attached.
+    unhealthy_specs = [
+        (2, "Discovered — Not Yet Materialized", SyncStatus.PENDING, None),
+        (3, "Held Back — Match Already Started", SyncStatus.SKIPPED, None),
+        (4, "Withdrawn Upstream", SyncStatus.CANCELLED, None),
+        (5, "Transform Failed", SyncStatus.ERROR,
+         "players[1].displayName missing from the upstream payload"),
+    ]
+    for index, title, status, sync_error in unhealthy_specs:
+        await SpeedGamingEpisode.get_or_create(
+            sg_episode_id=f"dev-{tenant.slug}-{index}", tenant=tenant,
+            defaults={
+                "event_link": link,
+                "title": title,
+                "scheduled_at": now + timedelta(days=1, hours=index),
+                "payload": {"id": f"dev-{tenant.slug}-{index}", "title": title},
+                "content_hash": f"devseedhash{index}",
+                "sync_status": status,
+                "sync_error": sync_error,
+                # Only a row that reached the app has a synced_at.
+                "synced_at": now if status is SyncStatus.SKIPPED else None,
+            },
+        )
 
     sourced_match = await Match.filter(speedgaming_episode=episode).first()
     if sourced_match is None:
