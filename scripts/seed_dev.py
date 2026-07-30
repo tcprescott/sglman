@@ -211,6 +211,7 @@ async def seed_for_tenant(
             ("player_one", Role.VOLUNTEER),
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
+            ("player_four", Role.VOLUNTEER),
         ]
         if tenant.slug == "default":
             # Deliberately one tenant only — the per-community people read

@@ -105,7 +105,7 @@ Positions, shifts, and assignments for volunteer scheduling; the `/me/*` routes 
 - **Shifts:** `GET /volunteers/shifts?start=&end=` (list shifts in a UTC ISO-8601 window; `start`/`end` required) · `GET /volunteers/shifts/{id}` · `POST /volunteers/shifts` (create) · `DELETE /volunteers/shifts/{id}`.
 - **Assignments:** `POST /volunteers/shifts/{shift_id}/assignments` (assign a volunteer; returns the assignment plus any warnings) · `DELETE /volunteers/assignments/{id}` (remove) · `POST /volunteers/assignments/{id}/acknowledge` (acknowledge your own assignment).
 - **Coverage:** `GET /volunteers/coverage?start=&end=` — per-shift coverage across a UTC ISO-8601 window (`start`/`end` required).
-- **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`).
+- **Self-service (`/me`):** `GET /volunteers/me/profile` · `POST /volunteers/me/opt-in` · `POST /volunteers/me/opt-out` · `GET /volunteers/me/availability` · `PUT /volunteers/me/availability` (replace windows) · `GET /volunteers/me/assignments?upcoming_only=` (your shift assignments; `upcoming_only` defaults to `true`, and unpublished drafts are never listed) · `DELETE /volunteers/me/assignments/{id}` (give a shift back, optional `{"reason": …}` body → 204; the coordinators are DMed).
 
 ### Triforce texts (`/api/triforce-texts`) · `triforce.py`
 - `GET /mine?tournament_id=` (own; `tournament_id` required) · `GET ?tournament_id=&status=` (moderation, Staff/TA).

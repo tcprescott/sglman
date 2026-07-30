@@ -193,6 +193,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.VOLUNTEER_AVAILABILITY_UPDATED,
     AuditActions.VOLUNTEER_DRAFT_GENERATED,
     AuditActions.VOLUNTEER_DRAFT_CLEARED,
+    # The coordinator's bulk decision; the per-volunteer commitments it makes are
+    # each emitted as VOLUNTEER_ASSIGNED by confirm_assignment.
+    AuditActions.VOLUNTEER_DRAFT_PUBLISHED,
     AuditActions.VOLUNTEER_SHIFTS_RESET,
     AuditActions.VOLUNTEER_QUALIFICATIONS_UPDATED,
     # Per-device push subscription state.
