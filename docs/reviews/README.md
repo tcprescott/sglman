@@ -14,7 +14,6 @@ the truth and git history keeps the rationale.
 | [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
-| [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
@@ -22,6 +21,9 @@ The equipment lending audit — its findings became the offline banner and the
 socket guard, the labelled mobile cards, the guidance line under an actionless
 asset page, the bounded loan history, the per-community borrower/owner pickers,
 and the encoded-host check on the label sheet.
+The identity-linking audit — its findings became `theme/notice.py`, the Challonge
+callback's four named outcomes, the collision pre-check, and the Connected
+accounts card that finally renders the copy it was configured with.
 The async-qualifier run audit — four waves closed all seven findings: the confirmed
 forfeit and strict `H:MM:SS` entry, `measured_seconds` and the claimed-vs-measured
 check, the required rejection reason with both reattempt paths, and the explained
@@ -54,7 +56,20 @@ Findings that recur across the audits, worth fixing once rather than nine times:
 - **Capabilities nobody wired are invisible.** `update_bracket`,
   `state_readonly_slot()` — each exists, is tested, and is reachable from no
   surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
-  now wired, which is what the fix for it looks like.)
+  now wired, which is what the fix for it looks like.) `LinkSectionConfig`'s
+  `description` and `link_button_label` were the same thing in config form —
+  declared, populated three times, read by nothing, and praised by an audit that
+  had only read the source. Now fixed, with
+  `test_every_link_section_config_field_is_rendered` as the guard; that test is
+  the shape worth copying elsewhere.
+- **A message written is not a message delivered.** Twenty-one failure strings
+  across the linking and login pages were queued with `ui.notify` and then
+  discarded by the `ui.navigate.to` on the next line — every one of them written
+  with care, none of them ever on a screen. Reviewing copy in the source says
+  nothing about whether a user sees it; probe the path. Fixed by
+  [`theme/notice.py`](../../theme/notice.py), and
+  `test_no_link_page_notifies_immediately_before_navigating` keeps the shape from
+  coming back.
 - **The global `User` table leaks into per-community pickers.** The Users tab and
   the match dialog's "Choose any players" still offer every user on the platform,
   `System` included

@@ -62,6 +62,14 @@ behind `TRUST_FORWARDED_HOST` (last value).
   `/oauth/link/start` → provider OAuth → a callback minting a token that carries
   only the public provider identity → custom-domain `/oauth/link/claim`, which
   records the link where the session and tenant live (`pages/_oauth_link.py`).
+  `/oauth/link/claim` refuses in path mode, where no token can have been minted.
+  A handoff the platform host gives up on hands back through that same claim
+  route with an opaque `r=<reason>`, because the platform host cannot write a
+  notice into the target domain's session. With handoff **off**, the row shows
+  "Main site only" as a link to the platform-host equivalent of the profile page
+  (built by `platform_link_redirect`) rather than naming a place and staying put.
+  Drivable end to end under a provider mock — see
+  [development.md](../development.md#driving-the-cross-host-link-handoff).
 - **Privileged flows stay main-site-only** — Challonge STAFF service-connect and
   Discord-connect hold real per-tenant OAuth tokens, so their buttons are hidden
   on a custom domain and their initiation routes bounce to the path-mode surface.

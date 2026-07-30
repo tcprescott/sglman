@@ -18,8 +18,13 @@ CONFIG = LinkSectionConfig(
     ),
     link_route='/racetime/link',
     link_button_label='Link racetime.gg account',
+    unlink_button_label='Unlink racetime.gg account',
     unlinked_message='racetime.gg account unlinked.',
     user_id_attr='racetime_user_id',
     username_attr='racetime_username',
+    linked_at_attr='racetime_linked_at',
     service_factory=RacetimeService,
+    # No confirmation: the identity is used for attribution and auto-open
+    # eligibility, and re-linking restores it. A modal here would only be for
+    # symmetry with Challonge.
 )

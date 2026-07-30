@@ -18,8 +18,12 @@ CONFIG = LinkSectionConfig(
     ),
     link_route='/twitch/link',
     link_button_label='Link Twitch account',
+    unlink_button_label='Unlink Twitch account',
     unlinked_message='Twitch account unlinked.',
     user_id_attr='twitch_user_id',
     username_attr='twitch_username',
+    linked_at_attr='twitch_linked_at',
     service_factory=TwitchService,
+    # No confirmation: nothing else reads the Twitch identity, so an unlink is
+    # reversible by re-linking.
 )

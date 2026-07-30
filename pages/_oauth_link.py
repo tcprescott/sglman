@@ -51,6 +51,7 @@ from application.utils.environment import (
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.tenant_urls import safe_next
 from models import User
+from theme.notice import stash_notice
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +133,11 @@ class LinkHandoffProvider:
     the platform-host callback (code → ``{'user_id', 'name'}`` public identity);
     ``record`` runs on the custom domain (claim leg) where the user's session and
     tenant context live, so its audit row is stamped with the right tenant.
+
+    ``is_mock`` / ``callback_route`` exist only so the start leg can reach the
+    provider's own callback instead of an authorize URL that cannot answer under
+    a provider mock. Everything downstream of that redirect — state match,
+    exchange, mint, browser binding, claim — runs unmodified.
     """
 
     key: str
@@ -140,6 +146,8 @@ class LinkHandoffProvider:
     authorize_url: Callable[[str], str]
     exchange: Callable[[str], Awaitable[dict]]
     record: Callable[[User, dict], Awaitable[None]]
+    is_mock: Callable[[], bool]
+    callback_route: str
 
 
 # provider key -> config. Populated at each provider module's ``create()`` time.
@@ -168,9 +176,66 @@ def _link_handoff_start_url(
     return f'{scheme_for_host(platform)}://{platform}/oauth/link/start?{query}'
 
 
+def _mock_callback_url(provider: LinkHandoffProvider, state: str) -> str:
+    """Platform-host URL that stands in for a mocked provider's authorize page.
+
+    Under ``MOCK_<PROVIDER>`` the provider's real authorize URL cannot answer, so
+    the start leg redirects straight to the callback it would have returned to.
+    The rest of the handoff is untouched: the callback matches the state the
+    start leg stored, exchanges the code through the mock client, and mints a
+    genuine host-bound single-use token the real claim code has to validate.
+    """
+    platform = get_platform_host()
+    query = urlencode({'code': 'mock', 'state': state})
+    return f'{scheme_for_host(platform)}://{platform}{provider.callback_route}?{query}'
+
+
 def _link_claim_url(target_host: str, token: str) -> str:
     """Custom-domain ``/oauth/link/claim`` URL the platform callback hands off to."""
     return f'{scheme_for_host(target_host)}://{target_host}/oauth/link/claim?token={quote(token, safe="")}'
+
+
+def _link_handback_url(
+    target_host: str, provider_key: str, reason: str, next_path: str,
+) -> str:
+    """Custom-domain claim URL for a handoff the platform host could not finish.
+
+    The platform host cannot stash a notice for the target domain — different
+    origin, different cookie — so the failure crosses as an opaque reason code
+    the claim route turns into a message. Routing it through the claim route
+    keeps one door and one notice carrier for every handoff outcome.
+    """
+    query = urlencode({'r': reason, 'p': provider_key, 'next': next_path})
+    return f'{scheme_for_host(target_host)}://{target_host}/oauth/link/claim?{query}'
+
+
+def _default_link_return() -> str:
+    """The return path shared by every registered provider, or ``/``.
+
+    Derived rather than hardcoded: the expired-token branch of the claim route
+    has no payload to read a return path from, and three literal
+    ``'/home/profile'``\\ s is how the next provider's differing return silently
+    stops working.
+    """
+    returns = {p.profile_return for p in _HANDOFF_PROVIDERS.values()}
+    return returns.pop() if len(returns) == 1 else '/'
+
+
+# What a handed-back failure means, in the wording the in-place paths already
+# use. A URL parameter the user can edit, so it selects from a fixed set and
+# anything unrecognised falls back to the generic message.
+_HANDBACK_DENIED = 'denied'
+_HANDBACK_FAILED = 'failed'
+
+
+def _handback_message(reason: Optional[str], provider_key: Optional[str]) -> str:
+    """Turn a hand-back reason code into the message the user sees."""
+    provider = _HANDOFF_PROVIDERS.get(provider_key or '')
+    if provider is None:
+        return 'Could not complete the account link. Please try again.'
+    if reason == _HANDBACK_DENIED:
+        return f'{provider.label} linking was cancelled or failed.'
+    return f'Could not link {provider.label}. Please try again.'
 
 
 def _cross_host_url(host: str, path: str) -> str:
@@ -261,16 +326,20 @@ async def handle_link_handoff_callback(url: str) -> bool:
         # Nothing to hand back to; return the user somewhere sane.
         ui.navigate.to(_cross_host_url(host, next_path) if host else next_path)
         return True
+    # This leg runs on the *platform* host, whose session the target domain
+    # cannot read — so a failure cannot be stashed as a notice here. It hands
+    # back through the target's own claim route instead, which owns what a user
+    # is told about a handoff that did not complete.
     code = read_callback_code(url, expected_state, provider.label)
     if code is None:
         # Cancelled / denied / state mismatch — send the user back to their domain.
-        ui.navigate.to(_cross_host_url(host, next_path))
+        ui.navigate.to(_link_handback_url(host, provider_key, _HANDBACK_DENIED, next_path))
         return True
     try:
         data = await provider.exchange(code)
     except Exception:  # noqa: BLE001 - log server-side; hand the user back either way
         logger.exception('%s link handoff exchange failed', provider.label)
-        ui.navigate.to(_cross_host_url(host, next_path))
+        ui.navigate.to(_link_handback_url(host, provider_key, _HANDBACK_FAILED, next_path))
         return True
     token = handoff_service.mint_data(
         data={'key': provider_key, **data},
@@ -278,7 +347,10 @@ async def handle_link_handoff_callback(url: str) -> bool:
         next_path=next_path,
         bind_commit=bind_commit or None,
     )
-    ui.navigate.to(_link_claim_url(host, token) if token else _cross_host_url(host, next_path))
+    ui.navigate.to(
+        _link_claim_url(host, token) if token
+        else _link_handback_url(host, provider_key, _HANDBACK_FAILED, next_path)
+    )
     return True
 
 
@@ -318,51 +390,75 @@ def register_link_handoff_pages() -> None:
         app.storage.user['oauth_link_host'] = target
         app.storage.user['oauth_link_next'] = next_path
         app.storage.user['oauth_link_bind_commit'] = bind_commit
+        if provider.is_mock():
+            return RedirectResponse(_mock_callback_url(provider, state))
         return RedirectResponse(provider.authorize_url(state))
 
     @ui.page('/oauth/link/claim')
-    async def link_claim(client: Client) -> None:
-        """Custom-domain claim: validate the handoff and record the link here."""
+    async def link_claim(client: Client) -> Optional[RedirectResponse]:
+        """Custom-domain claim: validate the handoff and record the link here.
+
+        Also the single door for a handoff the **platform** host gave up on: it
+        cannot stash a notice in this domain's session (different origin), so it
+        hands back a ``r=<reason>`` this route turns into a message.
+        """
+        # Path mode cannot mint a claim token, so there is nothing here to claim
+        # — the sibling /oauth/link/start refuses the same way. Without this the
+        # route rendered, failed to validate a token that never existed, and
+        # redirected to an unprefixed path that resolves to the community picker.
+        if not host_oauth_handoff_enabled():
+            return RedirectResponse('/')
         await client.connected()
         url = await ui.run_javascript('window.location.href')
         parsed = urlparse(url)
-        token = (parse_qs(parsed.query).get('token') or [None])[0]
+        params = parse_qs(parsed.query)
+        token = (params.get('token') or [None])[0]
         request_host = normalize_hostname(parsed.netloc)
+        # The platform host's hand-back carries its own return path, across a host
+        # boundary as a bare query parameter — as untrusted as any other.
+        handed_back = safe_next((params.get('next') or [None])[0] or _default_link_return())
         # Consume the browser-binding secret this domain's /<provider>/link stashed.
         bind = app.storage.user.pop('oauth_link_bind', None)
-        payload = handoff_service.claim(token, request_host) if (token and request_host) else None
+        if not token:
+            stash_notice(_handback_message(
+                (params.get('r') or [None])[0], (params.get('p') or [None])[0],
+            ), color='warning')
+            ui.navigate.to(handed_back)
+            return None
+        payload = handoff_service.claim(token, request_host) if request_host else None
         if payload is None:
-            ui.notify('Link session expired or already used. Please try again.', color='warning')
-            ui.navigate.to('/home/profile')
-            return
+            stash_notice('Link session expired or already used. Please try again.', color='warning')
+            ui.navigate.to(handed_back)
+            return None
         # Link-CSRF guard: the token must have been minted for a link *this* browser
         # initiated — the secret behind the committed hash must be in this domain's
         # session. A token delivered to another browser (which lacks it) is rejected.
         if not _bind_matches(payload.get('bind_commit'), bind):
             logger.warning('OAuth link handoff browser-binding mismatch on %r', request_host)
-            ui.notify('Link is not valid for this browser. Please try again.', color='warning')
-            ui.navigate.to('/home/profile')
-            return
+            stash_notice('Link is not valid for this browser. Please try again.', color='warning')
+            ui.navigate.to(safe_next(payload.get('next') or handed_back))
+            return None
         data = payload.get('data') or {}
         provider = _HANDOFF_PROVIDERS.get(data.get('key'))
         next_path = safe_next(payload.get('next') or (provider.profile_return if provider else '/'))
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
-            ui.notify('Please log in and try linking again.', color='warning')
+            stash_notice('Please log in and try linking again.', color='warning')
             ui.navigate.to('/login')
-            return
+            return None
         if provider is None:
             ui.navigate.to(next_path)
-            return
+            return None
         try:
             await provider.record(user, data)
-            ui.notify(f'{provider.label} account linked.', color='positive')
+            stash_notice(f'{provider.label} account linked.', color='positive')
         except ValueError as e:
-            ui.notify(str(e), color='warning')
+            stash_notice(str(e), color='warning')
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('%s link handoff claim failed', provider.label)
-            ui.notify(f'Could not link {provider.label}. Please try again.', color='negative')
+            stash_notice(f'Could not link {provider.label}. Please try again.', color='negative')
         ui.navigate.to(next_path)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +509,8 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
         authorize_url=flow.authorize_url,
         exchange=lambda code, f=flow: _flow_exchange(f, code),
         record=lambda user, data, f=flow: _flow_record(f, user, data),
+        is_mock=flow.is_mock,
+        callback_route=flow.callback_route,
     ))
 
     @ui.page(flow.link_route)
@@ -423,18 +521,33 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
             return RedirectResponse(f'{root_path}/login')
-        if flow.is_mock():
-            service = flow.service_factory()
-            me = await service.exchange_player_code('mock')
-            await service.record_player_link(
-                user, me['user_id'], flow.display_name(me), actor=user,
-            )
-            return RedirectResponse(f'{root_path}{flow.profile_return}')
         # Custom domain + handoff: run the provider OAuth on the platform host and
         # hand the verified identity back here, where the session and tenant live.
+        # Tried *before* the mock short-circuit so the handoff is reachable in the
+        # only environment that can drive it; a no-op (None) in path mode and
+        # wherever HOST_OAUTH_MODE is not `handoff`, so nothing else moves.
         handoff = await maybe_start_link_handoff(flow.provider_key, f'{root_path}{flow.profile_return}')
         if handoff is not None:
             return handoff
+        if flow.is_mock():
+            # Mock mode records the link on the spot (no provider round trip), so
+            # this page — not the callback's _finish_link — owns its outcome. A
+            # bare call here answered an already-linked id with a 500.
+            service = flow.service_factory()
+            me = await service.exchange_player_code('mock')
+            try:
+                await service.record_player_link(
+                    user, me['user_id'], flow.display_name(me), actor=user,
+                )
+                stash_notice(f'{flow.provider_label} account linked.', color='positive')
+            except ValueError as e:
+                stash_notice(str(e), color='warning')
+            except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+                logger.exception('%s mock linking failed', flow.provider_label)
+                stash_notice(
+                    f'Could not link {flow.provider_label}. Please try again.', color='negative',
+                )
+            return RedirectResponse(f'{root_path}{flow.profile_return}')
         # Custom domain + Design A (handoff off): the callback is on the platform
         # host; bounce to the platform-host path-mode surface where the cookie is
         # visible. No-op (returns None) in path mode / platform surface.
@@ -467,7 +580,7 @@ async def _finish_link(
     flow: IdentityLinkFlow, user: User, code: Optional[str], return_path: str,
 ) -> None:
     if code is None:
-        ui.notify(f'{flow.provider_label} linking was cancelled or failed.', color='warning')
+        stash_notice(f'{flow.provider_label} linking was cancelled or failed.', color='warning')
     else:
         try:
             service = flow.service_factory()
@@ -475,10 +588,10 @@ async def _finish_link(
             await service.record_player_link(
                 user, me['user_id'], flow.display_name(me), actor=user,
             )
-            ui.notify(f'{flow.provider_label} account linked.', color='positive')
+            stash_notice(f'{flow.provider_label} account linked.', color='positive')
         except ValueError as e:
-            ui.notify(str(e), color='warning')
+            stash_notice(str(e), color='warning')
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('%s linking failed', flow.provider_label)
-            ui.notify(f'Could not link {flow.provider_label}. Please try again.', color='negative')
+            stash_notice(f'Could not link {flow.provider_label}. Please try again.', color='negative')
     ui.navigate.to(return_path)

@@ -109,9 +109,82 @@ def test_register_link_handoff_provider(link):
         key='demo', label='Demo', profile_return='/home/profile',
         authorize_url=lambda s: f'https://x/y?state={s}',
         exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
     )
     link.register_link_handoff_provider(provider)
     assert link._HANDOFF_PROVIDERS['demo'] is provider
+
+
+def test_link_handoff_provider_requires_its_mock_exit(link):
+    # The start leg needs both fields to reach a mocked provider's own callback;
+    # a provider registered without them would dead-end at an authorize URL that
+    # cannot answer under MOCK_*. No defaults, so a fourth provider cannot omit
+    # them silently.
+    import dataclasses
+    required = {
+        f.name for f in dataclasses.fields(link.LinkHandoffProvider)
+        if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
+    }
+    assert {'is_mock', 'callback_route'} <= required
+
+
+# --- the mock exit on the start leg (dev-drivable handoff) --------------------
+
+def test_mock_callback_url_targets_the_providers_own_callback(link, monkeypatch):
+    monkeypatch.setenv('PLATFORM_HOST', 'main.gg')
+    provider = link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: 'https://provider.example/authorize',
+        exchange=None, record=None,
+        is_mock=lambda: True, callback_route='/demo/oauth/callback',
+    )
+    assert link._mock_callback_url(provider, 'st8') == (
+        'https://main.gg/demo/oauth/callback?code=mock&state=st8'
+    )
+
+
+def test_link_start_never_self_redirects_in_production(monkeypatch):
+    # The branch is reachable only through a provider's is_mock(), and every one
+    # of those raises rather than returning True under ENVIRONMENT=production —
+    # so the mock exit cannot be taken there. Assert it instead of trusting it.
+    from application.utils.mocks.mock_challonge import is_mock_challonge
+    from application.utils.mocks.mock_racetime import is_mock_racetime
+    from application.utils.mocks.mock_twitch import is_mock_twitch
+    monkeypatch.setenv('ENVIRONMENT', 'production')
+    for is_mock in (is_mock_challonge, is_mock_racetime, is_mock_twitch):
+        monkeypatch.setenv(f'MOCK_{is_mock.__name__.removeprefix("is_mock_").upper()}', 'true')
+        with pytest.raises(RuntimeError):
+            is_mock()
+
+
+async def test_maybe_start_link_handoff_is_none_in_path_mode(link, monkeypatch):
+    # The reorder in each /<provider>/link page puts this call ahead of the mock
+    # short-circuit, so "returns None in path mode" is what keeps path-mode dev
+    # and every handoff-off deployment on exactly the path they were on before.
+    monkeypatch.setenv('HOST_OAUTH_MODE', 'handoff')
+    monkeypatch.setattr(link, 'is_host_mode', lambda: False)
+    assert await link.maybe_start_link_handoff('racetime', '/home/profile') is None
+
+
+async def test_maybe_start_link_handoff_is_none_with_handoff_off(link, monkeypatch):
+    monkeypatch.delenv('HOST_OAUTH_MODE', raising=False)
+    monkeypatch.setattr(link, 'is_host_mode', lambda: True)
+    assert await link.maybe_start_link_handoff('racetime', '/home/profile') is None
+
+
+def test_link_page_prefers_handoff_over_mock(link):
+    # Source-level, because the ordering *is* the fix: maybe_start_link_handoff
+    # has to be reached before the is_mock() short-circuit returns, or the whole
+    # handoff stays unreachable in the one environment that can drive it.
+    import inspect
+
+    import pages.challonge_oauth as ch
+    for module, mock_call in ((link, 'flow.is_mock()'), (ch, 'is_mock_challonge()')):
+        src = inspect.getsource(module)
+        handoff = src.index('maybe_start_link_handoff(')
+        # The *link page's* mock branch, i.e. the last occurrence — challonge's
+        # /connect page has its own earlier one that is not part of this flow.
+        assert src.rindex(mock_call) > handoff, module.__name__
 
 
 # --- browser-binding guard (link-CSRF / forced-link) --------------------------
@@ -135,6 +208,90 @@ def test_bind_matches_rejects_a_different_browser(link):
 ])
 def test_bind_matches_fails_closed(link, expected_commit, browser_secret):
     assert link._bind_matches(expected_commit, browser_secret) is False
+
+
+# --- the cross-host hand-back (T2.4) ------------------------------------------
+
+def test_handoff_failure_hands_back_through_the_claim_route(link):
+    # The platform host cannot stash a notice in the target domain's session, so
+    # a failure crosses as a reason code on the claim route rather than jumping
+    # straight to the return path with nothing said.
+    url = link._link_handback_url('foo.gg', 'racetime', 'denied', '/home/profile')
+    assert url.startswith('https://foo.gg/oauth/link/claim?')
+    assert 'r=denied' in url and 'p=racetime' in url and 'next=%2Fhome%2Fprofile' in url
+
+
+def test_handback_reasons_map_to_the_existing_wording(link):
+    provider = link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: '', exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
+    )
+    link.register_link_handoff_provider(provider)
+    assert link._handback_message('denied', 'demo') == 'Demo linking was cancelled or failed.'
+    assert link._handback_message('failed', 'demo') == 'Could not link Demo. Please try again.'
+
+
+def test_unknown_reason_code_falls_back_to_the_generic_message(link):
+    provider = link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: '', exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
+    )
+    link.register_link_handoff_provider(provider)
+    # `r` is a query parameter the user can edit; it selects from a fixed set.
+    for reason in ('', 'nonsense', '<script>', None):
+        assert link._handback_message(reason, 'demo') == 'Could not link Demo. Please try again.'
+    # An unknown provider key cannot name a provider, and must not guess one.
+    assert 'Demo' not in link._handback_message('denied', 'no-such-provider')
+
+
+def test_default_link_return_is_derived_not_hardcoded(link, monkeypatch):
+    # The expired-token branch of the claim route has no payload to read a return
+    # path from; three literal '/home/profile's is how the next provider's
+    # differing return silently stops working.
+    monkeypatch.setattr(link, '_HANDOFF_PROVIDERS', {}, raising=False)
+    assert link._default_link_return() == '/'
+    one = link.LinkHandoffProvider(
+        key='a', label='A', profile_return='/somewhere/else',
+        authorize_url=lambda s: '', exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/a/cb',
+    )
+    monkeypatch.setattr(link, '_HANDOFF_PROVIDERS', {'a': one}, raising=False)
+    assert link._default_link_return() == '/somewhere/else'
+
+
+def test_claim_route_is_disabled_in_path_mode(link, monkeypatch):
+    # Path mode cannot mint a claim token, so there is nothing to claim — the
+    # audit's F1 probe landed on the community picker because this route answered
+    # anyway. Its sibling /oauth/link/start already refused the same way.
+    import inspect
+    src = inspect.getsource(link.register_link_handoff_pages)
+    claim = src.index("@ui.page('/oauth/link/claim')")
+    guard = src.index('if not host_oauth_handoff_enabled():', claim)
+    connected = src.index('await client.connected()', claim)
+    assert guard < connected, 'the mode guard must run before the page does any work'
+    assert "RedirectResponse('/')" in src[guard:connected]
+
+
+def test_claim_failure_paths_are_all_safe_next_guarded(link):
+    # safe_next is the open-redirect guard on every return path the claim route
+    # takes; hoisting a default is exactly the kind of edit that drops it.
+    import inspect
+    src = inspect.getsource(link.register_link_handoff_pages)
+    claim = src[src.index("@ui.page('/oauth/link/claim')"):]
+    for line in claim.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith('ui.navigate.to('):
+            continue
+        # The one legitimate literal: a claim with no logged-in user goes to
+        # /login, which is not a return path the token could have supplied.
+        if stripped == "ui.navigate.to('/login')":
+            continue
+        assert 'safe_next(' in stripped or 'handed_back' in stripped or 'next_path' in stripped, line
+    # …and every one of those names was itself produced by safe_next.
+    assert "handed_back = safe_next(" in claim
+    assert "next_path = safe_next(" in claim
 
 
 # --- shared open-redirect guard -----------------------------------------------
