@@ -1,10 +1,15 @@
 # Device Notifications (Web Push)
 
-Users enable native push notifications per device from **Profile → Edit Your
-Information → Device Notifications**. Every Discord DM the app sends — match
-scheduled/rescheduled, acknowledgment requests, crew signups, seed URLs, watcher
-updates, volunteer reminders — is mirrored to that user's subscribed devices, so
-iOS and Android users get notified without the Discord app installed.
+Users enable native push notifications per device from **Profile → Notifications →
+Your devices**. Every Discord DM the app sends — match scheduled/rescheduled,
+acknowledgment requests, crew signups, seed URLs, watcher updates, volunteer
+reminders — is mirrored to that user's subscribed devices, so iOS and Android users
+get notified without the Discord app installed.
+
+Because it is a mirror of the DM path, a device is **not** an independent channel:
+the same **Delivery** checkbox (`User.dm_notifications`) that silences DMs silences
+mirrored pushes, since every notification call site gates on it before reaching
+`send_dm`. The profile UI states this and warns while delivery is off.
 
 The feature is **off until VAPID keys are configured** (see Setup); without them
 the settings section hides itself and every send is a silent no-op.

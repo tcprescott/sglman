@@ -151,11 +151,12 @@ async def render_web_push_section(user: User) -> None:
     # Rendered inline as a subsection of the unified Notifications card (no card
     # of its own); self-hides above when VAPID keys aren't configured.
     with ui.column().classes('w-full gap-2'):
-        ui.label('On this device').classes('subsection-title')
+        ui.label('Your devices').classes('subsection-title')
         ui.label(
-            'Get match and crew notifications directly on this device — no Discord app '
-            'needed. Works on iPhone/iPad (iOS 16.4+, added to the Home Screen), Android, '
-            'and desktop browsers. Notifications mirror the Discord DMs you already receive.'
+            'Add a device to get match and crew notifications on it directly — no Discord '
+            'app needed. Works on iPhone/iPad (iOS 16.4+, added to the Home Screen), '
+            'Android, and desktop browsers. Devices mirror the notifications you already '
+            'receive, so they go quiet too if you turn notifications off above.'
         ).classes('text-muted text-caption')
         with ui.row().classes('items-center gap-2 q-mt-sm'):
             ui.button('Enable on this device', icon='notifications_active').props('color=primary dense').on(

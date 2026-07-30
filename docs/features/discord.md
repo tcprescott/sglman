@@ -95,9 +95,17 @@ Users subscribe per tournament to hear about matches beyond their own.
 | `streamed_and_candidates` | stream-assigned + stream-candidate matches |
 | `all` | every scheduled match in the tournament |
 
+A subscription is a **follow** and does not require enrollment — the fan-out never
+checks the player pool — so the picker spans every active tournament and merely
+badges the ones the user is enrolled in.
+
 Stored as `TournamentNotificationPreference` (user × tournament × level), set inline
-on the player info panel (`pages/home_tabs/player_edit_info.py`) via
-`TournamentNotificationService.upsert_preference`. Fan-out reads subscribers
+under Profile → Notifications → **Match alerts by tournament**
+(`pages/home_tabs/player_edit_info.py`) via
+`TournamentNotificationService.upsert_preference`. The card's **Delivery**
+checkbox (`User.dm_notifications`) is the master switch above it: the subscriber
+queries filter on it, so with delivery off no level sends anything — on Discord or
+on a mirrored device. Fan-out reads subscribers
 directly from `TournamentNotificationRepository` —
 `get_match_notification_subscribers` and `get_stream_candidate_subscribers`; there
 is no service-level `get_subscribers()` abstraction.
