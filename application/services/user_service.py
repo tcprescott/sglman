@@ -135,7 +135,10 @@ class UserService:
         return user
 
     async def get_active_tournaments_categorized(self) -> Dict[str, List[Tournament]]:
-        tournaments = await Tournament.filter(is_active=True, tenant_id=require_tenant_id())
+        # Ordered by name to match TournamentNotificationService.get_active_tournaments:
+        # the profile page renders both lists, and an unordered one reads as a
+        # differently-shuffled duplicate of the other.
+        tournaments = await Tournament.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name')
         staff_tournaments = [t for t in tournaments if t.staff_administered]
         player_tournaments = [t for t in tournaments if not t.staff_administered]
         return {

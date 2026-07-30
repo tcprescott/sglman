@@ -5,6 +5,7 @@ import asyncio
 from nicegui import app, ui
 
 from application.services import (
+    AuthService,
     ChallongeService,
     FeatureFlagService,
     TournamentNotificationService,
@@ -69,7 +70,10 @@ async def render_edit_info_tab():
         status_label.set_text(message)
         status_label.classes(replace='text-warning')
 
-    with ui.column().classes('page-container-form gap-4'):
+    # gap-2, not gap-4: .card-full-width already carries margin-bottom: 1.5em, so a
+    # 1rem column gap on top of it double-spaced every card down a page that is
+    # already mostly whitespace. The gap still separates the header/status rows.
+    with ui.column().classes('page-container-form gap-2'):
         discord_id = app.storage.user.get('discord_id', None)
         if not discord_id:
             with ui.card().classes('card-centered'):
@@ -84,6 +88,10 @@ async def render_edit_info_tab():
                 ui.icon('error', size='3em').classes('icon-error')
                 ui.label('User not found in the database.').classes('text-italic')
             return
+
+        # Per-tenant grants, for the identity header (excludes the global
+        # SUPER_ADMIN, which isn't a community role).
+        roles = await AuthService.get_roles(user)
 
         # Get tournaments and user registrations from service
         tournament_data = await user_service.get_active_tournaments_categorized()
@@ -175,6 +183,8 @@ async def render_edit_info_tab():
             personal_dirty['v'] = True
             personal_token['n'] += 1
             await save_personal()
+            # Defined further down (the notifications card); resolved at call time.
+            delivery_off_note.refresh()
 
         async def on_tournament_change():
             mark_dirty()
@@ -222,15 +232,22 @@ async def render_edit_info_tab():
                     .classes('shrink-0')
             else:
                 ui.icon('account_circle', size='64px').classes('text-primary shrink-0')
-            with ui.column().classes('gap-0 col'):
+            with ui.column().classes('gap-0 col min-w-0'):
                 ui.label(user.preferred_name).classes('page-title')
                 with ui.row().classes('items-center gap-2'):
                     ui.label(f'@{user.username}').classes('text-muted text-caption')
                     if user.pronouns:
                         ui.badge(user.pronouns).props('outline color=grey')
+                # Roles this community has granted, so the header carries something
+                # the app bar doesn't already show. Per-tenant, so it reads as
+                # "who you are *here*"; a player with no grants gets nothing.
+                if roles:
+                    with ui.row().classes('items-center gap-1 wrap q-mt-xs'):
+                        for role in sorted(r.value for r in roles):
+                            ui.badge(role.replace('_', ' ').title()).props('outline color=primary')
 
         # Auto-save status indicator (updated by the on_change handlers above).
-        with ui.row().classes('items-center gap-1'):
+        with ui.row().classes('items-center gap-1 q-mt-sm'):
             status_icon = ui.icon('check_circle', size='xs').classes('text-muted')
             status_label = ui.label('Changes save automatically').classes('text-muted text-caption')
 
@@ -240,53 +257,82 @@ async def render_edit_info_tab():
 
             # Two-up on desktop; the .form-grid media query collapses it to a
             # single column below 600px so neither field is squeezed on a phone.
+            #
+            # Each field carries its caption as its own Quasar label rather than a
+            # preceding ui.label: an empty label prop still sets q-field--labeled,
+            # which suppresses the placeholder entirely (so the hints below never
+            # rendered) and overwrites the input's accessible name with ''.
+            # ``stack-label`` keeps the caption above the box, as the old layout had it.
             with ui.grid(columns=2).classes('form-grid'):
-                display_name_hint = f"Default: {user.username}" if not user.display_name else ""
-                with ui.column().classes('gap-1'):
-                    ui.label('Display Name').classes('input-label')
-                    display_name_input = ui.input(
-                        '',
-                        value=user.display_name or '',
-                        placeholder=display_name_hint,
-                        on_change=on_personal_typing,
-                    ).classes('input-full-width').props('outlined dense')
-                    display_name_input.on('blur', flush_personal)
+                display_name_input = ui.input(
+                    'Display name',
+                    value=user.display_name or '',
+                    placeholder=user.username,
+                    on_change=on_personal_typing,
+                ).props('outlined dense stack-label').classes('input-full-width')
+                display_name_input.props(
+                    f'hint="Shown on schedules, brackets, and crew lists. Defaults to {user.username}."'
+                )
+                display_name_input.on('blur', flush_personal)
 
-                with ui.column().classes('gap-1'):
-                    ui.label('Pronouns').classes('input-label')
-                    pronouns_input = ui.input(
-                        '',
-                        value=user.pronouns or '',
-                        placeholder='e.g. they/them',
-                        on_change=on_personal_typing,
-                    ).classes('input-full-width').props('outlined dense')
-                    pronouns_input.on('blur', flush_personal)
+                pronouns_input = ui.input(
+                    'Pronouns',
+                    value=user.pronouns or '',
+                    placeholder='e.g. they/them',
+                    on_change=on_personal_typing,
+                ).props('outlined dense stack-label hint="Shown next to your name. Leave blank to omit."') \
+                    .classes('input-full-width')
+                pronouns_input.on('blur', flush_personal)
 
-        # Notifications — all channels together (Discord DM, this device) plus
+        # Notifications — the delivery master switch, the per-device channel, and
         # per-tournament granularity, so "how do I get notified" lives in one place.
         with ui.card().classes('card-full-width'):
             ui.label('Notifications').classes('section-title')
-            ui.label('Choose how Wizzrobe reaches you about matches, crew, and shifts.') \
+            ui.label('Choose whether and where Wizzrobe reaches you about your matches.') \
                 .classes('text-muted text-caption')
 
-            ui.label('Discord').classes('subsection-title q-mt-sm')
+            # Not labelled "Discord": device push is a *mirror* of the DM send path
+            # (discord_service.send_dm), and every call site gates on
+            # dm_notifications before reaching it — so this one checkbox governs
+            # both channels. Presenting it as Discord-only made unchecking it look
+            # like a way to move notifications onto the phone instead of silencing
+            # them everywhere.
+            ui.label('Delivery').classes('subsection-title q-mt-sm')
             dm_checkbox = ui.checkbox(
-                'Receive Discord DM notifications for match updates',
+                'Send me notifications about match updates',
                 value=user.dm_notifications,
                 on_change=on_dm_change,
             )
+            ui.label('Delivered as a Discord DM, and mirrored to any devices you add below.') \
+                .classes('text-caption text-grey-7 q-ml-lg')
 
-            # Device notifications (web push) render inline here as a second
-            # channel; the section self-hides when VAPID keys aren't configured.
+            @ui.refreshable
+            def delivery_off_note() -> None:
+                if dm_checkbox.value:
+                    return
+                with ui.row().classes('items-center gap-2 q-mt-sm no-wrap'):
+                    ui.icon('notifications_off', size='sm').classes('text-warning')
+                    ui.label(
+                        'Notifications are off. Neither Discord DMs nor device '
+                        'notifications will be sent, whatever the settings below say.'
+                    ).classes('text-caption text-warning col')
+
+            delivery_off_note()
+
+            # Device notifications (web push) render inline here as a delivery
+            # target; the section self-hides when VAPID keys aren't configured.
             await render_web_push_section(user)
 
-            # Per-tournament match alerts can be a long list, so tuck them behind
-            # an expansion; the Discord toggle above is the master switch.
-            with ui.expansion('Per-tournament match alerts', icon='tune').classes('w-full q-mt-sm') \
+            # An alert level is a *follow*, not a consequence of enrollment —
+            # get_match_notification_subscribers never checks the player pool — so
+            # the list deliberately spans every active tournament and marks the ones
+            # the player is enrolled in rather than filtering down to them.
+            with ui.expansion('Match alerts by tournament', icon='tune').classes('w-full q-mt-sm') \
                     .props('header-class=text-weight-bold'):
                 ui.label(
-                    'Fine-tune which matches trigger a DM, per tournament. '
-                    '"Streamed & Candidates" also alerts you when a match may be streamed.'
+                    'Follow a tournament to hear when its matches are scheduled — you do not '
+                    'have to be playing in it. "Streamed & Candidates" also alerts you when a '
+                    'match may be streamed.'
                 ).classes('text-caption text-grey-7')
                 if not active_tournaments:
                     ui.label('No active tournaments.').classes('text-muted')
@@ -295,7 +341,10 @@ async def render_edit_info_tab():
                         existing = prefs_by_tournament.get(tournament.id)
                         current_level = existing.match_notifications if existing else 'none'
                         with ui.row().classes('items-center justify-between w-full q-my-xs gap-2'):
-                            ui.label(tournament.name).classes('col')
+                            with ui.row().classes('items-center gap-2 col min-w-0'):
+                                ui.label(tournament.name).classes('ellipsis')
+                                if tournament.id in selected_tournament_ids:
+                                    ui.badge('Enrolled').props('outline color=primary')
                             pref_widgets[tournament.id] = ui.select(
                                 options=level_options,
                                 value=current_level,
@@ -316,23 +365,34 @@ async def render_edit_info_tab():
             linked their Challonge account get a call to action to do so.
             """
             in_bracket = t.id in challonge_participant_ids
-            checkbox = ui.checkbox(t.name, value=in_bracket).classes('input-full-width')
-            checkbox.props('disable')
-            checkbox.tooltip('Enrollment for this tournament is managed automatically through Challonge.')
-            if t.challonge_tournament_url:
-                ui.link('View bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
-            if account_linked:
-                ui.label('Enrollment managed automatically via Challonge.').classes(
-                    'text-caption text-grey-7'
-                )
-            else:
-                ui.label('Link your Challonge account to be enrolled automatically.').classes(
-                    'text-caption text-grey-7'
-                )
-                ui.button(
-                    'Link Challonge account', icon='link',
-                    on_click=lambda: ui.navigate.to('/challonge/link'),
-                ).props('flat dense color=primary size=sm')
+            # Quasar's disabled checkbox is only a slight opacity change, so on its
+            # own the row is indistinguishable from the editable ones beside it. A
+            # lock glyph and an "Automatic" badge carry the read-only state, and the
+            # explanatory lines are indented under the row rather than emitted as
+            # card-level siblings where they read as unattached prose.
+            with ui.row().classes('items-center gap-2 no-wrap w-full'):
+                checkbox = ui.checkbox(t.name, value=in_bracket)
+                checkbox.props('disable')
+                checkbox.tooltip('Enrollment for this tournament is managed automatically through Challonge.')
+                ui.icon('lock', size='xs').classes('text-grey-6')
+                ui.badge('Automatic').props('outline color=grey')
+            with ui.column().classes('gap-1 q-ml-lg'):
+                if account_linked:
+                    ui.label(
+                        'Enrolled from the Challonge bracket — nothing to change here.'
+                        if in_bracket else
+                        'You are not in this bracket yet. Enrollment follows the bracket automatically.'
+                    ).classes('text-caption text-grey-7')
+                else:
+                    ui.label('Link your Challonge account to be enrolled automatically.').classes(
+                        'text-caption text-grey-7'
+                    )
+                    ui.button(
+                        'Link Challonge account', icon='link',
+                        on_click=lambda: ui.navigate.to('/challonge/link'),
+                    ).props('flat dense color=primary size=sm')
+                if t.challonge_tournament_url:
+                    ui.link('View bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
 
         def render_tournament_group(tournament_list, label, icon):
             if not tournament_list:
@@ -352,7 +412,13 @@ async def render_edit_info_tab():
 
         with ui.card().classes('card-full-width'):
             ui.label('Tournament enrollment').classes('section-title')
-            blurb = 'Join a tournament to appear in its player pool and get scheduled.'
+            # Says what enrollment is *not*, because the same tournaments also
+            # appear under Match alerts above and the two lists look like duplicates.
+            blurb = (
+                'Join a tournament to appear in its player pool and get scheduled. '
+                'This is separate from match alerts — you can follow a tournament '
+                'without playing in it.'
+            )
             if challonge_live:
                 blurb += ' Challonge-linked tournaments enroll you automatically from the bracket.'
             ui.label(blurb).classes('text-muted text-caption')
