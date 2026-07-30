@@ -12,7 +12,6 @@ the truth and git history keeps the rationale.
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [match-operations-ux.md](match-operations-ux.md) | Admin Schedule board + match dialog, across five roles | Four service-level authorization gates compressed into one `can_crud` boolean: a crew coordinator gets 37 controls that all refuse |
 | [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
-| [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
@@ -31,6 +30,10 @@ The volunteer-hub audit — its findings became the draft/publish split
 (`auto_generated=True` now means nobody has been told), the `DraftPolicy` that
 makes availability a constraint and hours a ceiling, the volunteer's own
 release/brief on My Shifts, and the coordinator's coverage strip.
+The new-tenant-onboarding audit — four waves: the first-admin grant on
+`/platform` and the derived setup checklist, `TenantMembership` made real and
+every person picker scoped to it, enrolment given a home on the tournament, and
+the membership gate with the join door beside it.
 The admin-reports audit — its findings became the per-row route out of every
 report that names work (and the `?match_id=` / `?day=` params the destinations
 grew to receive it), the scroll position that survives a filter change, and the
@@ -57,7 +60,9 @@ Findings that recur across the audits, worth fixing once rather than nine times:
 - **Capabilities nobody wired are invisible.** `update_bracket`,
   `state_readonly_slot()` — each exists, is tested, and is reachable from no
   surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
-  now wired, which is what the fix for it looks like.) `LinkSectionConfig`'s
+  now wired, which is what the fix for it looks like. `TenantService.bootstrap_staff`
+  was the costliest instance — the only way to give a new community its first
+  admin, wired to nothing — and now has a button on `/platform`.) `LinkSectionConfig`'s
   `description` and `link_button_label` were the same thing in config form —
   declared, populated three times, read by nothing, and praised by an audit that
   had only read the source. Now fixed, with
@@ -71,14 +76,20 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   [`theme/notice.py`](../../theme/notice.py), and
   `test_no_link_page_notifies_immediately_before_navigating` keeps the shape from
   coming back.
-- **The global `User` table leaks into per-community pickers.** The Users tab and
-  the match dialog's "Choose any players" still offer every user on the platform,
-  `System` included
-  ([onboarding F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform)).
-  The equipment borrower and owner selects were the first to be fixed;
-  `UserService.get_community_people` is the read the other two want next.
-- **The dev seed cannot produce every role that exposes a bug.** Three audits
-  needed a single-capability user they had to grant by hand
+- **The global `User` table leaks into per-community pickers.** *Discharged.*
+  Every per-community picker — the Users tab, the match dialog's players/
+  commentators/trackers, bracket entrants, the equipment borrower and owner —
+  plus `GET /users` and the MCP `list_users` tool now read
+  `UserService.get_community_people`, and
+  `test_every_person_picker_is_member_scoped` blocks a new caller of the global
+  list. Two allowlisted exceptions remain, both deliberate and both labelled on
+  screen: `/platform`'s first-admin dialog (a super-admin choosing from every
+  account, precisely because the target community has none yet) and the checkout
+  dialog's **Include people outside this community** toggle (the venue case —
+  lending to someone who just walked in).
+- **The dev seed cannot produce the roles that expose the worst bugs.** A
+  coordinator-only or stream-manager-only user has to be granted by hand; three
+  audits needed one
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
   Three of those now seed — `equip_manager` (EQUIPMENT_MANAGER only), `vc_user`
   (VOLUNTEER_COORDINATOR only) and `cc_user` (crew coordinator, no role row at

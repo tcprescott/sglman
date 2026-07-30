@@ -13,12 +13,14 @@ from application.services import (
     RacetimeBotService,
     ServiceHealthService,
     TenantService,
+    TenantSetupService,
     get_user_from_discord_id,
 )
 from application.services.auth_service import AuthService
 from application.feature_flags import all_specs, spec_for
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
+from pages.platform_tenant_admins import open_tenant_admins_dialog
 from theme.chrome import render_platform_chrome
 
 _bot_service = RacetimeBotService()
@@ -30,6 +32,15 @@ _ACTIVE_ICON_SLOT = '''
         <q-icon :name="props.row.active_bool ? 'check_circle' : 'cancel'"
                 :color="props.row.active_bool ? 'positive' : 'negative'" size="sm" />
     </q-td>
+'''
+
+# Readiness chip, shared by the desktop Setup cell and the mobile card. Rows must
+# carry ``setup`` (text), ``setup_ready`` and ``setup_missing`` (tooltip).
+_SETUP_CHIP = '''
+    <span class="wiz-chip" :class="props.row.setup_ready ? 'wiz-chip--ok' : 'wiz-chip--neutral'">
+        {{ props.row.setup }}
+        <q-tooltip>{{ props.row.setup_missing }}</q-tooltip>
+    </span>
 '''
 
 # Colored bot-health chip, shared by the desktop status cell and the mobile card
@@ -96,17 +107,24 @@ def create() -> None:
                 {'name': 'domain', 'label': 'Domain', 'field': 'domain', 'align': 'left'},
                 {'name': 'guild', 'label': 'Guild', 'field': 'guild', 'align': 'left'},
                 {'name': 'active', 'label': 'Active', 'field': 'active', 'align': 'left'},
+                {'name': 'setup', 'label': 'Setup', 'field': 'setup', 'align': 'left'},
                 {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
             ]
             table = ui.table(columns=columns, rows=[], row_key='id').classes(
                 'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
             table.add_slot('body-cell-active', _ACTIVE_ICON_SLOT)
+            table.add_slot('body-cell-setup', f'<q-td :props="props">{_SETUP_CHIP}</q-td>')
+            # Icon actions, not labels: a third action pushed the labelled row
+            # past the card width and clipped it. The mobile card below has room
+            # and keeps the words.
             table.add_slot('body-cell-actions', '''
                 <q-td :props="props">
-                    <q-btn dense flat color="primary" label="Edit"
-                           @click="$parent.$emit('edit', props.row)" />
-                    <q-btn dense flat color="secondary" label="Features"
-                           @click="$parent.$emit('features', props.row)" />
+                    <q-btn dense flat round icon="edit" color="primary"
+                           @click="$parent.$emit('edit', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
+                    <q-btn dense flat round icon="toggle_on" color="secondary"
+                           @click="$parent.$emit('features', props.row)"><q-tooltip>Features</q-tooltip></q-btn>
+                    <q-btn dense flat round icon="shield" color="accent"
+                           @click="$parent.$emit('admins', props.row)"><q-tooltip>Admins</q-tooltip></q-btn>
                 </q-td>
             ''')
             table.add_slot('item', '''
@@ -128,11 +146,17 @@ def create() -> None:
                             <div class="col-4 text-grey-7 text-caption">Guild</div>
                             <div class="col-8" style="overflow-wrap:anywhere">{{ props.row.guild }}</div>
                         </div>
+                        <div class="row items-center q-mb-xs">
+                            <div class="col-4 text-grey-7 text-caption">Setup</div>
+                            <div class="col-8">''' + _SETUP_CHIP + '''</div>
+                        </div>
                         <div class="row justify-end q-gutter-x-sm q-mt-xs">
                             <q-btn dense flat color="primary" label="Edit"
                                    @click="$parent.$emit('edit', props.row)" />
                             <q-btn dense flat color="secondary" label="Features"
                                    @click="$parent.$emit('features', props.row)" />
+                            <q-btn dense flat color="accent" label="Admins"
+                                   @click="$parent.$emit('admins', props.row)" />
                         </div>
                     </q-card>
                 </div>
@@ -146,8 +170,12 @@ def create() -> None:
             async def _on_features(e) -> None:
                 await _open_tenant_features_dialog(user, e.args)
 
+            async def _on_admins(e) -> None:
+                await open_tenant_admins_dialog(user, e.args['id'], e.args['name'])
+
             table.on('edit', _on_edit)
             table.on('features', _on_features)
+            table.on('admins', _on_admins)
 
             await _refresh(table)
 
@@ -316,16 +344,29 @@ def create() -> None:
 
 async def _refresh(table) -> None:
     tenants = await TenantService.list_tenants()
-    table.rows = [
-        {
+    rows = []
+    for t in tenants:
+        # Five existence checks per tenant, so N×5 queries. Deliberate: /platform
+        # is super-admin-only, lists tens of tenants and is not a hot path, and
+        # this is simpler than a bespoke aggregate. Past a few hundred tenants
+        # the fix is one grouped query in TenantSetupService, not caching here.
+        steps = await TenantSetupService.status_for(t.id)
+        outstanding = TenantSetupService.outstanding(steps)
+        required = sum(1 for s in steps if s.required)
+        rows.append({
             'id': t.id, 'name': t.name, 'slug': t.slug,
             'domain': t.domain or '—',
             'guild': str(t.discord_guild_id) if t.discord_guild_id else '—',
             'active': 'yes' if t.is_active else 'no',
             'active_bool': t.is_active,
-        }
-        for t in tenants
-    ]
+            'setup': (
+                'Ready' if not outstanding
+                else f'{required - len(outstanding)} of {required}'
+            ),
+            'setup_ready': not outstanding,
+            'setup_missing': ', '.join(s.label for s in outstanding) or 'Nothing outstanding',
+        })
+    table.rows = rows
     table.update()
 
 
@@ -345,7 +386,7 @@ def _open_create_dialog(actor, table) -> None:
                 ui.notify('Guild id must be numeric', color='warning')
                 return
             try:
-                await TenantService.create_tenant(
+                tenant = await TenantService.create_tenant(
                     actor, name=name.value, slug=slug.value,
                     domain=(domain.value or None), discord_guild_id=guild_id,
                 )
@@ -355,6 +396,10 @@ def _open_create_dialog(actor, table) -> None:
             ui.notify('Tenant created', color='positive')
             dialog.close()
             await _refresh(table)
+            # A community with no staff cannot be administered, so ask who runs
+            # it now rather than leaving the super-admin to find the Admins row
+            # action on their own.
+            await open_tenant_admins_dialog(actor, tenant.id, tenant.name)
 
         with ui.row().classes('w-full justify-end'):
             ui.button('Cancel', on_click=dialog.close).props('flat')

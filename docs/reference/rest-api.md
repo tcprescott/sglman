@@ -92,7 +92,7 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 - `GET /stream-rooms?active_only=` (`active_only` returns only active rooms, default `false`) · `GET /stream-rooms/{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}` (Staff or Stream Manager).
 
 ### Users & roles (`/api/users`) · `users.py`
-- `GET /users?role=` (Staff; `role` optionally filters to users holding that role **in the token's tenant**) · `GET /users/me` · `GET /users/{id}` (self or Staff).
+- `GET /users?role=` (Staff) returns the **members of the token's community**, not every account on the platform — identity is global but this list is not. `role` filters to users holding that role in the token's tenant. **Behaviour change:** it previously returned every `User` row on the deployment; there is deliberately no `?scope=all`, which would re-open the leak behind a parameter. A user appears once they are a member — granted a role, added from the Users tab, or created there. · `GET /users/me` · `GET /users/{id}` (self or Staff).
 - `POST /users` (Staff) · `PATCH /users/me` · `PATCH /users/{id}` · `PATCH /users/{id}/admin` (Staff) · `PUT /users/{id}/tournaments`.
 - `POST /users/{id}/roles` · `DELETE /users/{id}/roles/{role}` (Staff) — grant/revoke a role. Roles are per-tenant except `SUPER_ADMIN`; see [authentication.md § Roles](authentication.md#roles). (The Swagger `summary` strings still say "global role" — a stale docstring, not a different behaviour.)
 

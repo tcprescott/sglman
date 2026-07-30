@@ -24,13 +24,10 @@ from pathlib import Path
 # Ensure project root is on the path when run as a script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dotenv import load_dotenv
-load_dotenv()
-
 from tortoise import Tortoise
-from tortoise.functions import Max
 from models import (
     Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
+    TenantJoinRequest, JoinRequestStatus,
     User, UserRole, Role,
     Tournament, TournamentPlayers,
     Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
@@ -39,7 +36,6 @@ from models import (
     Station, StreamRoom, SystemConfiguration,
     ApiToken, ApiTokenOrigin, McpOAuthClient,
     Feedback, FeedbackCategory, FeedbackStatus,
-    Equipment, EquipmentLoan, EquipmentStatus,
     AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
     VolunteerAvailabilityStatus,
     RacetimeBot,
@@ -50,6 +46,7 @@ from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
+from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
@@ -80,6 +77,11 @@ async def seed_users() -> dict[str, User]:
         ("100000000000000005", "player_two",   "Player Two"),
         ("100000000000000006", "player_three", "Player Three"),
         ("100000000000000007", "player_four",  "Player Four"),
+        # A member of **no** community, with a pending join request against
+        # 'fledgling' (see seed_fledgling): the fixture for the membership gate's
+        # own door. Without it the only way to see the join page in dev is to
+        # delete your own membership.
+        ("100000000000000011", "outsider",      "Hopeful Outsider"),
         # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
         # the dev fixture for "platform authority, zero local grants", which is
         # what /platform and the super-admin's in-tenant access need to be
@@ -89,10 +91,10 @@ async def seed_users() -> dict[str, User]:
         # staff_user holds both, so nothing else proves the manager path works
         # on its own — three audits had to grant a role like this by hand.
         ("100000000000000009", "equip_manager", "Equipment Manager"),
-        # Granted a role in the 'default' tenant only (see seed_for_tenant), and
-        # enrolled in nothing: the fixture that makes per-community people
-        # scoping visible in the dev loop. They must appear in tenant A's
-        # borrower/owner pickers and in neither of tenant B's.
+        # A member of the 'default' tenant only (see seed_for_tenant), holding a
+        # role there and enrolled in nothing: the fixture that makes
+        # per-community people scoping visible in the dev loop. They must appear
+        # in tenant A's borrower/owner pickers and in neither of tenant B's.
         ("100000000000000010", "local_only",   "Local Only"),
         # Two more single-capability operators, for the same reason as
         # equip_manager: staff satisfies every predicate in the admin area, so a
@@ -103,10 +105,17 @@ async def seed_users() -> dict[str, User]:
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
-        u, _ = await User.get_or_create(
+        u, created = await User.get_or_create(
             discord_id=discord_id,
             defaults={"username": username, "display_name": display_name, "is_active": True},
         )
+        # The discord id is the identity key; the name is fixture metadata, so a
+        # renamed or renumbered fixture has to converge on re-seed rather than
+        # leave the previous occupant of that id wearing the wrong name in every
+        # dev picker.
+        if not created and (u.username != username or u.display_name != display_name):
+            u.username, u.display_name = username, display_name
+            await u.save()
         users[username] = u
     await link_racetime_identities(users)
     await link_twitch_identities(users)
@@ -204,8 +213,19 @@ async def seed_for_tenant(
     script mirrors that contract.
     """
     with tenant_scope(tenant.id):
-        # Every scoped user is a member of this tenant.
-        for u in users.values():
+        for uname, u in users.items():
+            # Every scoped user is a member of this tenant, bar the two fixtures
+            # that exist to be absent: local_only is the "member of one community
+            # and not another" case, outsider the "member of nothing at all" one,
+            # which is what the membership gate's join page needs to be reachable
+            # in dev.
+            if uname == 'outsider' or (uname == 'local_only' and tenant.slug != 'default'):
+                # Deleted, not merely skipped: these two fixtures are defined by
+                # an *absence*, and a create-only seed can never converge one —
+                # a stale row from an earlier fixture layout would leave them
+                # members here and quietly stop proving anything.
+                await TenantMembership.filter(user=u, tenant=tenant).delete()
+                continue
             await TenantMembership.get_or_create(user=u, tenant=tenant)
 
         # Roles (per tenant). The VOLUNTEER grants below mirror the opted-in +
@@ -229,9 +249,9 @@ async def seed_for_tenant(
             ("vc_user", Role.VOLUNTEER_COORDINATOR),
         ]
         if tenant.slug == "default":
-            # Deliberately one tenant only — the per-community people read
-            # derives membership from grants like this one, so a user who holds
-            # nothing in tenant B must be absent from tenant B's pickers.
+            # Deliberately one tenant only — a role grant implies membership, so
+            # a user who holds nothing in tenant B and is a member of nothing
+            # there must be absent from tenant B's pickers.
             role_grants.append(("local_only", Role.VOLUNTEER))
         for uname, role in role_grants:
             await UserRole.get_or_create(
@@ -659,6 +679,21 @@ async def seed_for_tenant(
                 )
         print(f"    [{tenant.slug}] audit log ok")
 
+        # A *decided* join request, so both states of the model exist in dev: the
+        # pending one lives in 'fledgling' (the staff queue), this denied one is
+        # the re-openable case — asking again updates this row rather than
+        # appending a second.
+        await TenantJoinRequest.get_or_create(
+            user=users['outsider'], tenant=tenant,
+            defaults={
+                'status': JoinRequestStatus.DENIED,
+                'message': 'Can I get in?',
+                'decided_by': staff,
+                'decided_at': now_eastern(),
+            },
+        )
+        print(f"    [{tenant.slug}] join requests ok")
+
 
 
 async def seed_mcp_oauth(users: dict[str, User]) -> None:
@@ -745,6 +780,7 @@ async def seed_all() -> None:
         # lacks the feature), so availability has to be settled before seeding.
         await assign_feature_group(tenant, groups)
         await seed_for_tenant(tenant, users, bots)
+    await seed_fledgling_tenant(users, groups)
     # Last, because the per-tenant Challonge mirror above also links identities:
     # the unlinked fixtures have to be unlinked after everything that could link
     # them has run.
@@ -752,8 +788,14 @@ async def seed_all() -> None:
 
 
 async def seed() -> None:
-    # Lazy: building TORTOISE_ORM requires DB_* env vars, and importing this
-    # module must stay env-free so tests can import seed_all.
+    # Lazy, both of them: building TORTOISE_ORM requires DB_* env vars, and
+    # importing this module must stay env-free so tests can import seed_all.
+    # load_dotenv() at import time was not env-free — it pushed the dev .env
+    # (MOCK_DISCORD, MOCK_SEEDGEN) into os.environ for the whole pytest worker,
+    # so any later test on that worker silently ran in mock mode.
+    from dotenv import load_dotenv
+    load_dotenv()
+
     from migrations.tortoise_config import TORTOISE_ORM
 
     await Tortoise.init(config=TORTOISE_ORM)

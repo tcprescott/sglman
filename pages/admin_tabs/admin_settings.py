@@ -7,6 +7,7 @@ from application.services import AuthService, StreamRoomService, get_user_from_d
 from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog import TournamentDialog
+from theme.empty_state import no_data_slot
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
 from theme.tables.tournament import TournamentTableView
 
@@ -183,6 +184,10 @@ async def admin_stream_rooms_page() -> None:
                     </q-td>
                 </q-tr>
             ''')
+
+            table.add_slot('no-data', no_data_slot(
+                'No stream rooms yet — add one for each stage or capture station '
+                'you run matches on.', icon='tv'))
             
             # Add grid item slot for mobile/card view
             table.add_slot('item', '''

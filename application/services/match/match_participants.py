@@ -48,17 +48,25 @@ class MatchParticipants:
             resolved.append(require_found(users_by_id.get(uid), f"User {uid}"))
         return resolved
 
-    async def ensure_enrolled(self, tournament_id: int, users: List[User]) -> None:
-        """Enroll any of ``users`` not already in the tournament (one lookup query)."""
+    async def ensure_enrolled(self, tournament_id: int, users: List[User]) -> List[User]:
+        """Enroll any of ``users`` not already in the tournament (one lookup query).
+
+        Returns the users this call actually enrolled, so the caller can *say
+        so*: scheduling someone into a tournament they are not in genuinely
+        should enrol them, but it used to happen silently.
+        """
         if not users:
-            return
+            return []
         enrolled = await self.tournament_repository.get_enrolled_user_ids(tournament_id)
+        newly: List[User] = []
         for user in users:
             if user.id not in enrolled:
                 await self.tournament_repository.enroll_player_by_id(
                     tournament_id=tournament_id, user=user,
                 )
                 enrolled.add(user.id)
+                newly.append(user)
+        return newly
 
     async def sync_players(
         self, match: Match, new_player_ids: List[int], tournament_id: int

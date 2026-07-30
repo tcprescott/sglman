@@ -49,7 +49,6 @@ from application.services.async_qualifier.async_qualifier_reads import PlayerRea
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
-from application.utils.timezone import format_eastern_display
 from application.feature_flags import requires_feature
 from models import (
     FeatureFlag,

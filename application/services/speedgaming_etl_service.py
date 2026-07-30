@@ -41,6 +41,7 @@ from application.repositories import (
 from application.repositories.racetime_room_repository import RacetimeRoomRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.match.match_participants import MatchParticipants
+from application.services.tenant_membership_service import TenantMembershipService
 from application.utils.hashing import stable_content_hash
 from application.utils.clients.speedgaming_client import (
     SpeedGamingAPIError,
@@ -260,6 +261,18 @@ class SpeedGamingETLService:
     # -------------------------------------------------------------- transform
 
     async def _find_or_create_user(self, player: Dict[str, Any], *, actor: User) -> User:
+        """Resolve an SG player to a ``User``, and make them a member here.
+
+        Membership is what every per-community person list joins through, so an
+        imported player who is not a member would be invisible in the very
+        community whose schedule they appear on. Idempotent and unaudited — the
+        import itself is audited.
+        """
+        user = await self._resolve_sg_user(player, actor=actor)
+        await TenantMembershipService.ensure_member(user)
+        return user
+
+    async def _resolve_sg_user(self, player: Dict[str, Any], *, actor: User) -> User:
         """Resolve an SG player to a ``User`` (placeholder pattern).
 
         Resolution order (decided, from sahabot2):

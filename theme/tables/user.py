@@ -8,12 +8,17 @@ from theme.empty_state import no_data_slot
 class UserTableView:
     """Encapsulates the user table UI and logic for admin/player dashboards."""
 
-    def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None, show_toolbar=True):
+    def __init__(self, columns, get_query, extra_slots=None, submit_user_callback=None,
+                 show_toolbar=True, row_actions=None, empty_message='No users match this filter.'):
         self.columns = columns
         self.get_query = get_query
         self.extra_slots = extra_slots
         self.submit_user_callback = submit_user_callback
         self.show_toolbar = show_toolbar
+        # Vue template for per-row buttons, rendered in both the desktop actions
+        # cell and the mobile card so the two never drift.
+        self.row_actions = row_actions
+        self.empty_message = empty_message
         self.table = None
         # Capture the tenant while the request context is live; background tasks
         # (initial load, pagination refresh) run detached from the client slot, so
@@ -44,7 +49,10 @@ class UserTableView:
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('user-table user-table-container').props(':grid="Quasar.Screen.lt.md"')
-        self.table.add_slot('no-data', no_data_slot('No users match this filter.'))
+        self.table.add_slot('no-data', no_data_slot(self.empty_message, icon='group'))
+        if self.row_actions:
+            self.table.add_slot(
+                'body-cell-actions', f'<q-td :props="props">{self.row_actions}</q-td>')
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable username
         self.table.add_slot('body-cell-username', '''<q-td :props="props">
@@ -130,6 +138,8 @@ class UserTableView:
                 </template>
                 </div>
             </div>
+            ''' + (f'<div class="row justify-end q-gutter-x-sm q-mt-xs">{self.row_actions}</div>'
+                   if self.row_actions else '') + '''
             </div>
             ''')
 

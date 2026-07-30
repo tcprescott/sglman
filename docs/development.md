@@ -124,9 +124,10 @@ Two things to check first when it dead-ends:
 poetry run python scripts/seed_dev.py
 ```
 
-The script loads `.env` itself and connects using the same Tortoise config as the app. Because the app is multitenant, it seeds **two tenants** so leak tests and manual dev checks have cross-tenant data from day one:
+The script loads `.env` itself and connects using the same Tortoise config as the app. Because the app is multitenant, it seeds **two fully-provisioned tenants** so leak tests and manual dev checks have cross-tenant data from day one, plus a third that is deliberately half-set-up:
 
 - **Tenant A** reuses the migration's `default` slug (on a fresh DB the additive backfill creates it empty and the script adopts it); **Tenant B** is a second community. Each gets a different feature tier (A → Full Access with one feature switched off; B → Online Tournaments with one force-granted exception) so the [feature-flag](features/feature-flags.md) states are visible.
+- **`fledgling`** ("Fledgling Community") is stopped part-way on purpose: `staff_user` holds STAFF and a membership, and there is **nothing else** — no tournament, no enrolment, no stream room. Both other tenants pass the setup checklist, so without this one the Setup tab, `/platform`'s `1 of 3` readiness column and the disabled Tournament select would all be invisible in dev. Log in there to see the unready state; log in to `default` to confirm it disappears.
 - **Global (tenant-agnostic):** users, the feature-flag groups (Default / Online Tournaments / Full Access), and the racetime bots. Exactly one user — **`super_admin`** ("Platform Owner") — holds the global `SUPER_ADMIN` role and **no tenant role anywhere**, the fixture for `/platform` and for a platform admin acting inside a community they have no grants in. Three more hold **exactly one capability each** — `cc_user` is a crew coordinator on the fixture tournament with no role row at all, `vc_user` holds `VOLUNTEER_COORDINATOR` and nothing else, and `equip_manager` holds `EQUIPMENT_MANAGER` and nothing else. `staff_user` satisfies every predicate in the admin area, so a surface that gates on staff-ness where it means to gate on a capability looks correct until one of these logs in; drive admin checks as them, not only as staff. `local_only` holds a role in `default` and nothing in `second` — the fixture for per-community people scoping.
 - **Per tenant (everything else is tenant-scoped):** stream rooms, system config, three tournaments (below) with their matches + crew, volunteers and shifts, player availability, equipment, an API token (the printed **dev bearer** the `api-validation` skill uses), feedback, triforce texts, Discord role mappings, webhooks, and seeded audit-log + telemetry rows. Per-domain fixtures live in sibling modules called from inside the same `tenant_scope` — `seed_volunteers.py`, `seed_observability.py`, `seed_brackets.py`, `seed_online.py`, `seed_onsite.py`, `seed_challonge.py` — which is also how `seed_dev.py` stays under the 800-line budget.
 
@@ -167,6 +168,27 @@ poetry run pytest -n0 tests/services/test_match_service.py   # serial, for -s / 
 Pytest is configured in [`pyproject.toml`](../pyproject.toml) with `asyncio_mode = "auto"` (async test functions need no `@pytest.mark.asyncio`) and `testpaths = ["tests"]`. No PostgreSQL or Discord connection is required.
 
 **The suite runs in parallel by default** — `addopts = "-n auto --dist loadfile"` (pytest-xdist). `loadfile` keeps every test in a module on one worker, so module-level state stays as contained as it is in a serial run. Pass `-n0` to go serial when you need `-s`, a debugger, or readable live output from a single file.
+
+### The `db` fixture stamps the tenant for you — and what that hides
+
+Almost every scoped model in the suite is created bare (`Match.create(...)`), so
+the `db` fixture in [`tests/conftest.py`](../tests/conftest.py) wraps each
+tenant-scoped model's `.create` to stamp the ambient tenant when the caller
+omits it. That keeps ~700 call sites free of per-call edits, and the production
+contract — **never auto-stamp** — is untouched, because the wrapper exists only
+in the harness.
+
+The cost: **no DB-backed test can fail on an unstamped write.** A production
+write that forgets `tenant_id` on a non-null FK raises `IntegrityError` against
+Postgres and passes silently here. That is exactly how the enrolment write in
+`UserService` shipped broken. Two things guard it now:
+
+- `check_tenant_scoping.py` reads service modules as well as repositories
+  (writes only) — see [`.claude/README.md`](../.claude/README.md).
+- [`tests/tenancy/test_enrolment_tenant_stamping.py`](../tests/tenancy/test_enrolment_tenant_stamping.py)
+  has an `unstamped_creates` fixture that restores Tortoise's own `Model.create`
+  for one model, so the write is tested as production runs it. Copy that pattern
+  when a write path's tenant stamping is the thing under test.
 
 ### Keeping it fast
 

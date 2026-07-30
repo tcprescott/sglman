@@ -7,9 +7,20 @@ read on a tenant-scoped model goes through ``scoped(Model.filter(...))`` and
 every write stamps ``tenant_id=current_tenant_id()``. A forgotten scope is a
 silent cross-tenant leak (reads) or an orphaned/unstamped row (writes).
 
-This inspects the resulting file after a Write/Edit to a repository module.
-Tenant-scoped model names are discovered from the ``models/`` package at
-runtime (any Tortoise ``Model`` subclass with a ``tenant`` field). Flags:
+This inspects the resulting file after a Write/Edit to a **repository or
+service** module. Tenant-scoped model names are discovered from the ``models/``
+package at runtime (any Tortoise ``Model`` subclass with a ``tenant`` field).
+
+In a **service** module only *writes* are flagged. Services legitimately read a
+scoped model directly (the sanctioned load-or-404 shape passes ``tenant_id=``
+and is checked like any other), but a direct unstamped write is never right: the
+tenant FK is non-null, so the insert fails outright — a production bug the test
+suite cannot see, because ``tests/conftest.py``'s ``db`` fixture stamps the
+tenant for any caller that omits it. That is exactly how the enrolment write in
+``UserService`` shipped broken. Route service writes through the repository that
+stamps them.
+
+Flags:
 
 - a read root — ``Model.filter/get/get_or_none/all/first/exists(...)`` — that
   is neither wrapped in a ``scoped(...)`` call nor passing a ``tenant``/
@@ -48,7 +59,7 @@ WRITE_ROOTS = {"create", "get_or_create", "update_or_create"}
 EXEMPT_MARKERS = ("cross-tenant", "unscoped", "global")
 # tenant is the subject of these rows (which tenants does X belong to / may X
 # act in), not a scoping stamp — reads legitimately span or select tenants.
-EXEMPT_MODELS = {"TenantMembership", "RacetimeBotTenant"}
+EXEMPT_MODELS = {"TenantMembership", "TenantJoinRequest", "RacetimeBotTenant"}
 
 
 def find_models_source(start_path: str) -> str | None:
@@ -128,7 +139,12 @@ def exempt_spans(tree: ast.AST, source_lines: list[str]) -> list[tuple[int, int]
     return spans
 
 
-def find_violations(tree: ast.AST, tenant_models: set[str], spans: list[tuple[int, int]]):
+def find_violations(
+    tree: ast.AST,
+    tenant_models: set[str],
+    spans: list[tuple[int, int]],
+    writes_only: bool = False,
+):
     # Map each node to its parent so a read can be recognised inside scoped(...).
     parents: dict[ast.AST, ast.AST] = {}
     for parent in ast.walk(tree):
@@ -159,6 +175,12 @@ def find_violations(tree: ast.AST, tenant_models: set[str], spans: list[tuple[in
             continue
         if method not in READ_ROOTS and method not in WRITE_ROOTS:
             continue
+        # Services legitimately read a tenant-scoped model directly (the
+        # sanctioned load-or-404 shape passes tenant_id= and is caught below);
+        # what they must never do is *write* one unstamped, because the tenant
+        # FK is non-null and the row simply fails to insert.
+        if writes_only and method not in WRITE_ROOTS:
+            continue
         if any(start <= node.lineno <= end for start, end in spans):
             continue
         if has_tenant_kwarg(node):
@@ -180,7 +202,9 @@ def main() -> None:
         sys.exit(0)
 
     norm = file_path.replace("\\", "/")
-    if "/application/repositories/" not in norm or "/.claude/" in norm:
+    in_repository = "/application/repositories/" in norm
+    in_service = "/application/services/" in norm
+    if (not in_repository and not in_service) or "/.claude/" in norm:
         sys.exit(0)
     if norm.endswith(("/_tenant.py", "/__init__.py")):
         sys.exit(0)
@@ -203,10 +227,18 @@ def main() -> None:
     if not tenant_models:
         sys.exit(0)
 
-    violations = find_violations(tree, tenant_models, exempt_spans(tree, source.splitlines()))
+    violations = find_violations(
+        tree, tenant_models, exempt_spans(tree, source.splitlines()),
+        writes_only=in_service,
+    )
     if violations:
         for line, model, method, is_write in violations:
-            if is_write:
+            if is_write and in_service:
+                fix = (
+                    "  Route the write through the repository that stamps it, or pass\n"
+                    "  tenant_id=require_tenant_id() explicitly."
+                )
+            elif is_write:
                 fix = (
                     f"  Stamp the row: {model}.{method}(..., tenant_id=current_tenant_id())\n"
                     f"  (from application.repositories._tenant import current_tenant_id)"

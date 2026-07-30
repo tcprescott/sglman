@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 
 from application.randomizer_credentials import all_specs, credentials_for
 from models import (
-    User, Tenant, Tournament, Match, MatchPlayers, TournamentPlayers,
+    User, Tenant, TenantMembership, Tournament, Match, MatchPlayers, TournamentPlayers,
     Preset, RandomizerCredential,
     RacetimeBot, RacetimeBotTenant, RacetimeRoom, RaceRoomProfile,
     SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
@@ -710,8 +710,11 @@ async def _seed_speedgaming(
     if real_player is not None:
         roster.append(real_player.user)
     for user in roster:
-        # Enroll first (the real ETL does the same), then add to the match, so a
-        # sourced match's roster shows both real and placeholder entrants.
+        # Membership first, then enrol, then add to the match — the order the
+        # real ETL uses. Without the membership the placeholder is a person on
+        # this community's schedule who does not belong to it, which the
+        # membership-coverage audit reports as a gap.
+        await TenantMembership.get_or_create(user=user, tenant=tenant)
         await TournamentPlayers.get_or_create(tournament=tournament, user=user, tenant=tenant)
         await MatchPlayers.get_or_create(match=sourced_match, user=user, tenant=tenant)
 

@@ -297,3 +297,19 @@ class AsyncQualifierLiveRaceStatus(str, Enum):
     PENDING = 'pending'
     IN_PROGRESS = 'in_progress'
     FINISHED = 'finished'
+
+
+class JoinRequestStatus(str, Enum):
+    """Where a request to join a community stands.
+
+    ``(str, Enum)`` (not ``StrEnum``) — render ``.value`` in f-strings, never the
+    bare member.
+
+    One row per ``(user, tenant)``: a denied request is **re-opened** by moving
+    it back to ``PENDING``, not appended to. An append-only log of attempts is a
+    spam vector with no reader.
+    """
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    DENIED = 'denied'

@@ -130,16 +130,79 @@ Because PKs are global, every tenant-aware `AuthService` check adds a `tenant_id
 filter; `SUPER_ADMIN` is the one role that may have `tenant=NULL` and bypasses the
 per-tenant gate.
 
-**Authorization is tenant-scoped, not membership-gated.** A `@protected_page` with
-a role requirement (or `allow_tournament_membership`) authorizes on the user's
-tenant-scoped roles / tournament-admin membership / super-admin, so a role in
-another tenant grants nothing here; role-less protected pages need only
-authentication. There is deliberately **no** separate "must be a
-`TenantMembership`" gate — the app has no self-serve or invite enrollment path, so
-such a gate would lock out every new user. `TenantMembership` records who belongs
-to a tenant (managed on `/platform`) but does not gate pages. A page reached with
-*no* tenant (a bare `/admin` on the platform host) 404s: every `@protected_page`
-is a tenant page.
+**Membership answers "who is in this community".** `TenantMembership` is the
+join between a global `User` and the tenants they belong to, and it carries one
+invariant:
+
+> **Holding any role in a tenant implies membership in that tenant.**
+
+Membership is the *wider* set — a member may hold no roles (a player), but
+nobody holds a role without being a member. It is enforced where roles are
+written (`UserService.grant_role`, `UserService.create_user`,
+`TenantService.bootstrap_staff`, the Discord role sync), not by a reconciler.
+`SUPER_ADMIN` is the exception: its row carries `tenant=NULL` and it belongs to
+no community, so the grant is guarded on the role rather than on whether a
+tenant happens to be in scope. `TenantMembershipService.remove_member` defends
+the invariant from the other side — it refuses to eject someone who still holds
+roles rather than cascading a revoke. `scripts/backfill_memberships.py` catches
+up rows granted before the invariant existed.
+
+Every **per-community person list** joins through it —
+`UserService.get_community_people`, which is what the match, equipment and
+bracket pickers, the Users tab, `GET /users` and the MCP `list_users` tool all
+read. That is the same basis the access gate below checks, so a picker cannot
+offer someone the app would turn away at the door. `get_all_users` still answers
+"every account on the platform" and has two deliberate callers, both labelled on
+screen: `/platform`'s first-admin picker, choosing from every account precisely
+because the target community has no members yet, and the checkout dialog's
+**Include people outside this community** toggle, for lending to someone who
+just walked in. The reserved `System` automation actor is excluded from the
+community list — the migration made it a member of everywhere, and it was
+measured being offered as a player. It is excluded by **both** its flag and its
+sentinel discord id, spelled as a positive filter: written as
+`.exclude(discord_id=SENTINEL)` it also drops every SpeedGaming placeholder,
+whose discord id is NULL, because `NULL = <sentinel>` is NULL and NOT NULL is
+not true.
+
+**Authorization is tenant-scoped *and* membership-gated.** A tenant page runs
+four checks in order — tenant → feature → **membership** → role:
+
+| Check | Failure renders |
+|---|---|
+| A tenant is in scope | 404 (a bare `/admin` on the platform host is not a tenant page) |
+| The feature is live here | 404 — a subsystem the tenant has off is hidden from everyone, member or not, so an unreleased feature never leaks |
+| The viewer is a member | the **join door** (`theme/join_page.py`) — not a 403 |
+| The viewer holds a required role | 403 |
+
+The membership check is `middleware.auth.enforce_membership`. It renders a door
+rather than a 403 on purpose: forbidden-by-role is a dead end, but not-a-member
+is a state with a remedy, and the page whose whole job is to offer that remedy
+should not open by saying no. It is rendered **in place**, at the URL that was
+asked for, so a Discord deep link survives — approve the request, reload, and
+you land where the link pointed. `SUPER_ADMIN` bypasses it, exactly as it
+bypasses the role gate; it belongs to no community by design. It is deliberately
+**not** gated on `Tenant.is_active` — an inactive community is a separate
+concern with its own handling.
+
+Two surfaces sit outside it. `@public_page` routes (the spectator bracket views)
+are world-readable and always were. And the tenant home is registered with a
+bare `ui.page` — the same function also renders the platform community picker,
+which has no tenant and must stay anonymous — so it calls `enforce_membership`
+itself rather than getting it from the decorator.
+
+**Membership is acquired three ways:** a staff grant (Users tab → Add Member),
+any role grant (the invariant above), or an approved **join request**.
+`TenantJoinRequest` is the self-serve enrollment path whose absence used to be
+the documented reason no gate existed: one row per `(user, tenant)` — a denied
+request is re-opened, never appended to — with the community's staff notified
+when it arrives and the requester notified on **both** outcomes.
+
+The gate is a page-level check on a *person*. It does not apply to the REST API
+or MCP (a token belongs to a tenant, and wave 2 scoped what those return), to the
+Discord bot (an interaction handler acts for someone already assigned), or to
+workers (they run in `tenant_scope`, not as a user). The one service that
+enforces it directly is **crew signup**, because the measured symptom was a
+non-member being offered *Sign Up* — and UI-only gating is not gating.
 
 See [authentication.md](../reference/authentication.md) and
 [role-based-auth.md](../reference/authentication.md#roles).
@@ -183,11 +246,38 @@ Served on the bare `PLATFORM_HOST` with **no** tenant context:
   community.
 - **`/platform`** — [`pages/platform.py`](../../pages/platform.py), gated on
   *no tenant context* **and** `is_super_admin`. Tenant CRUD (name, slug, domain,
-  guild id, active) **and Racetime Bot CRUD + per-tenant authorization grants**
-  (`RacetimeBotService`; client secrets are write-only and never shown). Its
-  queries pass explicit ids (intended cross-tenant capability), backed by
-  `TenantService` / `RacetimeBotService`, whose CRUD/grant methods are
-  super-admin-gated and audited as platform-level rows (`tenant=NULL`).
+  guild id, active), the **first-admin grant** (below), a **Setup** column, **and
+  Racetime Bot CRUD + per-tenant authorization grants** (`RacetimeBotService`;
+  client secrets are write-only and never shown). Its queries pass explicit ids
+  (intended cross-tenant capability), backed by `TenantService` /
+  `RacetimeBotService`, whose CRUD/grant methods are super-admin-gated and
+  audited as platform-level rows (`tenant=NULL`).
+
+## Provisioning a community
+
+Creating a tenant writes exactly one row — no starter tournament, no stream
+room. What it needs next is a *first admin* and an order to work in:
+
+| Step | Where |
+|---|---|
+| Grant the first `STAFF` + `TenantMembership` | `/platform` → a tenant's **Admins** action (`TenantService.bootstrap_staff`), offered automatically at the end of creation. `scripts/seed_tenant.py --operator-discord-id` does the same from a shell. |
+| Everything after that | The **Setup** tab on the community's `/admin` |
+
+`TenantSetupService` derives the checklist on every read — five existence
+checks, nothing stored. Three steps are **required** (a staff member, a
+tournament, an enrolled player: a match cannot be scheduled without all three);
+a stream room and an event window are shown but advisory, because a match
+schedules without either. A community that deletes its last tournament becomes
+un-set-up again and the checklist says so.
+
+While a community is not ready, `build_admin_tabs`
+([`pages/admin.py`](../../pages/admin.py)) prepends a `Setup` tab, which
+`BaseLayout` then makes the landing view; once the required steps are done the
+tab is not built at all. The same derivation feeds `/platform`'s Setup column
+(`Ready`, or `1 of 3` with a tooltip naming what is outstanding) via
+`TenantSetupService.status_for(tenant_id)`, which wraps `tenant_scope` because
+the platform surface has no ambient tenant — the same shape as
+`TenantService.list_staff`.
 
 ## Discord: one bot, many guilds
 
@@ -261,8 +351,10 @@ updated, a `TenantMembership` per existing user), then constraint-tighten
 
 Bootstrap and ongoing tenant management run through `scripts/grant_super_admin.py`,
 `scripts/seed_tenant.py` and `scripts/grant_staff.py` — invocations in
-[deployment.md](../deployment.md#tenant-and-role-bootstrap). `scripts/seed_dev.py`
-seeds **two** tenants of fixtures for local dev.
+[deployment.md](../deployment.md#tenant-and-role-bootstrap) — though the first
+STAFF grant is now reachable from `/platform` itself. `scripts/seed_dev.py` seeds
+two fully-provisioned tenants plus `fledgling`, deliberately stopped after its
+staff grant so the setup checklist is visible in a half-done state.
 
 ## Testing and avoiding leaks
 

@@ -8,6 +8,7 @@ from application.tenant_context import (
     stash_client_host_mode,
     stash_client_tenant_id,
 )
+from middleware.auth import enforce_membership
 from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.brackets import brackets_tab
@@ -107,6 +108,18 @@ def create() -> None:
         # the login flow, and the REST API) rather than still being shown its
         # personalized home and admin/volunteer nav affordances.
         user = await get_user_from_discord_id(discord_id)
+        # The membership gate. This page is registered with a bare ``ui.page``
+        # (the same function also renders the platform community picker, which
+        # has no tenant and must stay anonymous), so it applies the gate itself
+        # rather than getting it from ``_tenant_page``.
+        #
+        # This is where the audit measured the symptom: a platform user with no
+        # roles and no membership loaded a brand-new community's home schedule,
+        # saw its first match with both players' names, and was offered Sign Up
+        # as commentator and tracker. The community's own spectator surface —
+        # the bracket views — stays public on its own routes.
+        if await enforce_membership(tid, user):
+            return
         if user is None and discord_id is not None:
             with ui.row():
                 # log the user out if they are not found / no longer active

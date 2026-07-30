@@ -75,6 +75,8 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `SystemConfigService` | [system_config_service.py](../../application/services/system_config_service.py) | Typed access to `SystemConfiguration` keys | [admin-reports.md](../features/admin-reports.md) |
 | `TelemetryService` / `TelemetryCategory` / `TelemetryEventType` | [telemetry_service.py](../../application/services/telemetry_service.py) | Engagement telemetry capture + Staff-gated engagement report | [telemetry.md](../features/telemetry.md) |
 | `TenantService` | [tenant_service.py](../../application/services/tenant_service.py) | Tenant resolution (cached slug/guild/domain lookup), tenant CRUD, membership, super-admin grant | [multitenancy.md](../features/multitenancy.md) |
+| `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
+| `TenantSetupService` | [tenant_setup_service.py](../../application/services/tenant_setup_service.py) | The derived new-community setup checklist (`SetupStep`); nothing stored | [multitenancy.md](../features/multitenancy.md#provisioning-a-community) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
@@ -671,13 +673,45 @@ The tenancy machinery: resolves a `Tenant` from a URL slug (`TenantMiddleware`),
 | `list_tenants()` | `list[Tenant]` | All tenants (platform admin table + community picker). |
 | `create_tenant(actor, *, name, slug, domain=None, discord_guild_id=None, ...)` | `Tenant` | Super-admin create; validates slug/domain uniqueness and format; audited `tenant.created`. |
 | `update_tenant(actor, tenant, **fields)` | `Tenant` | Super-admin partial update; re-validates slug/domain; audited `tenant.updated`. |
-| `is_member(user_id, tenant_id)` | `bool` | Membership check (`TenantMembership` lookup; used by `/platform` membership management). |
-| `add_member(actor, user, tenant_id)` / `list_members(tenant_id)` / `list_memberships_for_user(user)` | — / `list` / `list` | Membership management. |
+| `is_member(user_id, tenant_id)` | `bool` | Membership check by explicit ids, for tenancy machinery. Community-facing membership management lives in `TenantMembershipService`. |
 | `grant_super_admin(actor, user)` / `revoke_super_admin(actor, user)` | `None` | Super-admin gated; grant/revoke the global `SUPER_ADMIN` role (`UserRole` with `tenant=NULL`); audited `super_admin.*`. |
-| `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. |
+| `bootstrap_staff(actor, tenant_id, user)` | `None` | Grant a tenant its first `STAFF` + membership. Wired to `/platform`'s **Admins** row action and offered at the end of tenant creation. |
+| `list_staff(actor, tenant_id)` | `list[User]` | Who holds STAFF in a named tenant, read from `/platform`. Wraps `tenant_scope` because the role tables are scoped and the platform surface has no ambient tenant. |
 | `slugify(name)` (module fn) | `str` | Best-effort URL-safe slug suggestion from a display name. |
 
 Collaborators: `TenantRepository`, `TenantMembershipRepository`, `UserRoleRepository`, `AuthService`, `AuditService`.
+
+### tenant_membership_service.py — TenantMembershipService
+
+Who belongs to a community, and who may change that. Membership is the **wider set**: every role-holder is a member, not every member holds a role — the invariant enforced wherever roles are written (see [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership)). `TenantMembership` is exempt from `check_tenant_scoping` (cross-tenant by nature: the row *is* the tenant linkage), so its queries pass tenant ids explicitly. Writes authorize on `AuthService.can_grant_roles` — the same gate the Users tab's role grants use, because member management and role management need identical authority.
+
+| Method | Returns | Description |
+|---|---|---|
+| `list_members()` | `list[User]` | Everyone in the tenant in scope, by username. |
+| `is_member(user)` | `bool` | Membership check for the tenant in scope. |
+| `addable_users()` | `list[User]` | Accounts not in this community yet — the Add Member picker. Deliberately reads the *global* list (identity is shared), which is why it is a named service method rather than a bare `get_all_users()` in the page. |
+| `add_member(actor, user)` | `None` | Idempotent; audited `tenant.member_added` + `EventType.TENANT_MEMBER_ADDED`. |
+| `remove_member(actor, user)` | `None` | **Refuses** while the user holds any role here — silently cascading a revoke because staff clicked Remove is the invisible side effect this defends against. Audited `tenant.member_removed` + event. |
+| `ensure_member(user)` | `None` | Idempotent, **unaudited** membership for the in-scope tenant. The invariant's hook, called from role grants that are audited in their own right. |
+| `request_to_join(user, tenant_id, message=None)` | `TenantJoinRequest` | The door. Takes an **explicit** `tenant_id` — the caller is a page the requester is not a member of, so nothing membership-scoped is available. Refuses an existing member; re-opens a denied row rather than creating a second; bounds the message at 500 chars. Audits + publishes `tenant.join_requested` inside `tenant_scope(tenant_id)` with the **requester** as actor, and DMs the community's staff. |
+| `get_request(user, tenant_id)` | `TenantJoinRequest \| None` | This user's request in a named tenant — what the join page reads to know it is already pending. |
+| `list_pending()` | `list[TenantJoinRequest]` | The staff queue for the tenant in scope. |
+| `approve_request(actor, request_id)` / `deny_request(actor, request_id)` | `TenantJoinRequest` | `can_grant_roles` gated. Approve creates the membership. A request in another community is **not_found**, not forbidden — the message must not confirm it exists. The requester is DM'd on **both** outcomes. |
+
+### tenant_setup_service.py — TenantSetupService
+
+Whether a community has what it needs to run, **derived on every read** — there is no `setup_complete` column, no dismissal flag and no per-step state, so a tenant that deletes its last tournament becomes un-set-up again and the checklist says so. Read-only: it takes no `actor` and writes no audit row. Five `.exists()` calls against `UserRoleRepository`, `TournamentRepository` and `StreamRoomRepository` plus the event-window config keys. Feature doc: [multitenancy.md § Provisioning a community](../features/multitenancy.md#provisioning-a-community).
+
+| Method | Returns | Description |
+|---|---|---|
+| `status()` | `list[SetupStep]` | The checklist for the tenant in scope. |
+| `status_for(tenant_id)` | `list[SetupStep]` | The same derivation inside `tenant_scope(tenant_id)` — the `/platform` caller, which has no ambient tenant. |
+| `is_ready(steps)` | `bool` | Every **required** step done. The advisory ones never block. |
+| `outstanding(steps)` | `list[SetupStep]` | The required steps still undone (the `/platform` tooltip). |
+
+`SetupStep` is a frozen dataclass: `key`, `label`, `done`, `hint`, `tab` (which admin tab completes it) and `required`. Required: `staff`, `tournament`, `enrolment`. Advisory: `stream_room`, `event_window` — a match schedules without a stream room, and Settings' own copy says the window is derivable from match times, so marking either required would put the UI at odds with the service.
+
+Rendered by `theme/setup_checklist.py` (the `Setup` admin tab) and `pages/platform.py`'s Setup column.
 
 ### tenant_theme_service.py — TenantThemeService
 
@@ -721,8 +755,19 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `add_crew_coordinator(tournament, target, actor=None)` | `None` | Grant Crew Coordinator. |
 | `remove_crew_coordinator(tournament, target, actor=None)` | `None` | Revoke Crew Coordinator. |
 | `get_all_tournaments(active_only=False)` / `get_tournament_by_id(id)` | reads | Tournament list (optionally active only); one tournament by id. |
+| `enroll_player(tournament, target, actor)` / `unenroll_player(tournament, target, actor)` | `None` | Entrant management from the tournament's own screen (`can_grant_roles` gated). `enroll_player` refuses a non-member of the community and a duplicate — the picker being member-scoped is a convenience, not the gate. |
 
-Collaborators: `TournamentRepository`, `AuditService`.
+**Enrolment has three entry points** — the per-user edit dialog
+(`UserService.update_user_tournament_registrations` / `manage_tournament_enrollments`),
+the tournament's own entrants dialog (above), and the match dialog's create path
+(`MatchService.ensure_players_enrolled`, which returns the users it enrolled so
+the UI can report the side effect instead of hiding it). All three write the
+**same** audit action, `user.tournament_enrollment_updated`: one fact reached
+from three screens, and a parallel action per screen is how an audit log stops
+being answerable. All three write through `TournamentRepository`, which is what
+stamps the non-null tenant FK.
+
+Collaborators: `TournamentRepository`, `TenantMembershipService`, `AuditService`.
 
 ### tournament_config.py + tournament_strategies/ — hybrid-config substrate
 
@@ -917,9 +962,10 @@ User lookup, profile edits (self- and admin-driven), activation, global role gra
 | Method | Returns | Description |
 |---|---|---|
 | `get_user_by_discord_id(discord_id)` / `get_user_by_id(user_id)` | `User \| None` | Lookups the entry surfaces use instead of touching `UserRepository`. |
+| `get_all_users(role=None, has_discord=False)` | `list[User]` | **Every account on the platform.** Identity is global, so this is a platform-level list; the only caller is `/platform`'s first-admin picker. |
 | `get_system_user()` | `User` | Resolve the reserved automation actor (get-or-create on the sentinel `discord_id`, idempotent). Workers/bots pass it as `actor` so audit rows snapshot a real username. |
 | `get_current_user_from_storage(storage_discord_id)` | `User \| None` | Resolve a storage-held Discord id to a `User` (`UserService` variant of the module-level `get_user_from_discord_id`). |
-| `get_community_people(*, include_user_ids=None)` | `list[User]` | **The people of the tenant in scope**, for a per-community person picker. `User` is global, so this is derived from what the app actually writes: a `UserRole` granted in this tenant ∪ enrolment in one of its tournaments — deliberately *not* `TenantMembership`, whose `add_member` has no caller, so scoping to it would hide anyone a Discord login provisioned. `include_user_ids` force-includes specific people (the actor; an asset's current holder) so they stay resolvable. Excludes the system account and deactivated accounts, in the query. **A picker default, not an authorization rule** — the hard rules live in the acting service and are narrower. |
+| `get_community_people(*, role=None, has_discord=False, include_user_ids=None, include_inactive=False)` | `list[User]` | **The people of the tenant in scope** — every per-community picker, the Users tab, `GET /users` and MCP `list_users`. `User` is global, so belonging is derived, and `TenantMembership` derives it: the same basis the access gate checks, so a picker cannot offer someone the app would turn away. (It used to union role-holders with tournament entrants, because membership was a frozen backfill nothing wrote to; the membership work closed that and the old union is a strict subset.) `include_user_ids` force-includes specific people (the actor; an asset's current holder) so they stay resolvable. Excludes the system account by **both** its flag and its sentinel id, and deactivated accounts unless `include_inactive` — which the match dialog passes, since a SpeedGaming placeholder is inactive by construction. Raises with no tenant in scope. **A picker default, not an authorization rule** — the hard rules live in the acting service and are narrower. |
 | `provision_from_discord_login(discord_id, username)` | `(User, bool)` | Get-or-create the account for a real Discord OAuth login; returns `(user, created)`. A new account writes a self-attributed `user.provisioned` audit entry; an existing active account has its username synced (inactive accounts are returned untouched for the caller to reject). |
 | `create_mock_login_user(discord_id, username, display_name=None, role_values=None)` | `User` | Dev-only (`MOCK_DISCORD`) account + role provisioning for the mock login picker; no permission check, but writes a `user.provisioned` audit entry (`source: mock_login`). |
 | `get_active_tournaments_categorized()` | `dict[str, list[Tournament]]` | Active tournaments split into `staff_tournaments` / `player_tournaments` / `all_tournaments`. |

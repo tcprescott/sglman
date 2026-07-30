@@ -60,6 +60,12 @@ def patch_deps(monkeypatch):
             get_member_role_ids=AsyncMock(return_value=member_result)
         )
         monkeypatch.setattr(drms, 'DiscordService', lambda: fake_discord)
+        # "A role implies membership" writes a real row; this suite has no DB.
+        membership = AsyncMock()
+        monkeypatch.setattr(
+            drms.TenantMembershipService, 'ensure_member', membership,
+        )
+        return membership
 
     return _apply
 
@@ -71,7 +77,7 @@ def patch_deps(monkeypatch):
 
 class TestSyncUserRoles:
     async def test_grants_mapped_role(self, patch_deps):
-        patch_deps(member_result=(True, {111}), current_roles=set())
+        membership = patch_deps(member_result=(True, {111}), current_roles=set())
         svc = make_service()
         svc.mapping_repository.list_for_guild = AsyncMock(
             return_value=[mapping(111, Role.PROCTOR)]
@@ -83,6 +89,9 @@ class TestSyncUserRoles:
         svc.role_repository.add.assert_awaited_once_with(
             user, Role.PROCTOR, granted_by=None, source=RoleSource.DISCORD
         )
+        # A role in a tenant implies membership in it — the sync is a role-grant
+        # path like any other.
+        membership.assert_awaited_once_with(user)
         svc.role_repository.remove.assert_not_awaited()
         assert summary['granted'] == ['proctor']
         assert summary['revoked'] == []

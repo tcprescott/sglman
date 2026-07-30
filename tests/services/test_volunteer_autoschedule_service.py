@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.volunteer.volunteer_autoschedule_service import (
-    DEFAULT_MAX_HOURS,
     DraftPolicy,
     VolunteerAutoscheduleService,
 )

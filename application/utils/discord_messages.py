@@ -571,3 +571,37 @@ def unwatch_confirmation(player_names: str, was_watching: bool) -> str:
     if was_watching:
         return f'You are no longer watching the match{match_ref}.'
     return f'You were not watching the match{match_ref}.'
+
+
+# ---------------------------------------------------------------------------
+# Community join requests  (TenantMembershipService)
+# ---------------------------------------------------------------------------
+
+def join_requested_dm(community_name: str, requester_name: str, message: str = '') -> str:
+    """DM to a community's staff when someone asks to join.
+
+    A request nobody sees is worse than no request, which is why this exists at
+    all — the staff queue alone would be a page nobody visits.
+    """
+    lines = [f'**{requester_name}** has asked to join **{community_name}**.']
+    if message:
+        lines.append(f'> {message}')
+    lines.append('Approve or deny it on the Users tab.')
+    return '\n\n'.join(lines)
+
+
+def join_decided_dm(community_name: str, approved: bool) -> str:
+    """DM to the requester once staff decide.
+
+    Sent on **both** outcomes: notification that only fires on success leaves the
+    other half of the people who asked wondering whether anyone saw it.
+    """
+    if approved:
+        return (
+            f'Your request to join **{community_name}** was approved. '
+            f'You can open the community now.'
+        )
+    return (
+        f'Your request to join **{community_name}** was not approved. '
+        f'Ask the community for details if you think that is a mistake.'
+    )

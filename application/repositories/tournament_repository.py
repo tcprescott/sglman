@@ -85,6 +85,16 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         return await query
     
     @staticmethod
+    async def any_exists() -> bool:
+        """Whether this tenant has any tournament at all."""
+        return await scoped(Tournament.all()).exists()
+
+    @staticmethod
+    async def any_enrolment() -> bool:
+        """Whether anyone is enrolled in any of this tenant's tournaments."""
+        return await scoped(TournamentPlayers.all()).exists()
+
+    @staticmethod
     async def get_player_requestable(
         user_id: Optional[int] = None,
     ) -> List[Tournament]:

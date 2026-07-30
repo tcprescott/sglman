@@ -20,7 +20,14 @@ def bypass_transactions(monkeypatch):
 
 
 @pytest.fixture
-def service():
+def service(monkeypatch):
+    # Crew signup now refuses a non-member; this suite is mock-only with no DB,
+    # so stand the membership check in as satisfied. The refusal itself is
+    # covered against a real DB in tests/tenancy/test_membership_gate.py.
+    monkeypatch.setattr(
+        'application.services.tenant_membership_service.TenantMembershipService.is_member',
+        AsyncMock(return_value=True),
+    )
     svc = object.__new__(CrewService)
     svc.commentator_repository = MagicMock()
     svc.commentator_repository.acknowledge = AsyncMock(side_effect=lambda c: c)

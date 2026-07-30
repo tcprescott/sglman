@@ -123,6 +123,19 @@ class EventType:
     BRACKET_ENTRY_RETIRED = 'bracket.entry_retired'
     BRACKET_CANCELLED = 'bracket.cancelled'
 
+    # Community membership (mirrors AuditActions.TENANT_MEMBER_*). Who belongs to
+    # a community is exactly what an external roster or Discord-side subscriber
+    # needs to mirror, so both directions are announced. Tenant CRUD itself stays
+    # audit-only — it is a platform-level act, not something a tenant's own
+    # webhook subscriber can see or act on.
+    TENANT_MEMBER_ADDED = 'tenant.member_added'
+    TENANT_MEMBER_REMOVED = 'tenant.member_removed'
+    # The join-request lifecycle. A subscriber routing "someone wants in" to a
+    # staff channel is the point; the decisions close the loop for it.
+    TENANT_JOIN_REQUESTED = 'tenant.join_requested'
+    TENANT_JOIN_APPROVED = 'tenant.join_approved'
+    TENANT_JOIN_DENIED = 'tenant.join_denied'
+
     # Every published event name; drives the webhook UI multiselect + validation.
     ALL: FrozenSet[str] = frozenset({
         MATCH_CREATED, MATCH_UPDATED, MATCH_DELETED, MATCH_CANCELLED, MATCH_RESCHEDULED,
@@ -148,6 +161,8 @@ class EventType:
         BRACKET_ENTRY_RETIRED, BRACKET_CANCELLED,
         BRACKET_GAME_SCHEDULED, BRACKET_GAME_COMPLETED, BRACKET_GAME_CANCELLED,
         BRACKET_GAME_LINKED, BRACKET_GAME_UNLINKED, BRACKET_GAME_RELEASED,
+        TENANT_MEMBER_ADDED, TENANT_MEMBER_REMOVED,
+        TENANT_JOIN_REQUESTED, TENANT_JOIN_APPROVED, TENANT_JOIN_DENIED,
     })
 
     # Wildcard a subscriber can register to receive every event.

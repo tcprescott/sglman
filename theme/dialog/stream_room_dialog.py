@@ -3,7 +3,7 @@ from nicegui import app, ui
 from application.services import get_user_from_discord_id
 from models import Match
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
-from theme.dialog.match_dialog import BaseMatchDialog
+from theme.dialog.match_dialog_base import BaseMatchDialog
 from theme.notify import notify_error
 
 

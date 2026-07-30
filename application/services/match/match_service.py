@@ -645,7 +645,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         self,
         tournament_id: int,
         player_ids: List[int]
-    ) -> None:
+    ) -> List[User]:
         """
         Ensure all players are enrolled in the tournament.
 
@@ -653,11 +653,15 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
             tournament_id: Tournament ID
             player_ids: List of user IDs to enroll
 
+        Returns:
+            The users this call enrolled (empty when all were already entrants),
+            so the caller can report the side effect rather than hiding it.
+
         Raises:
             ValueError: If any user is not found
         """
         users = await self.participants.resolve_users(player_ids)
-        await self.participants.ensure_enrolled(tournament_id, users)
+        return await self.participants.ensure_enrolled(tournament_id, users)
 
     # Match lifecycle transitions (seat / start / finish / confirm) live solely
     # in MatchScheduleService._transition, which enforces the ordering rules and

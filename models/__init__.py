@@ -28,6 +28,7 @@ from .enums import (
     FeatureFlag,
     FeedbackCategory,
     FeedbackStatus,
+    JoinRequestStatus,
     MatchNotificationLevel,
     RaceRoomStatus,
     Role,
@@ -37,7 +38,7 @@ from .enums import (
     SyncStatus,
     VolunteerAvailabilityStatus,
 )
-from .tenant import Tenant, TenantMembership
+from .tenant import Tenant, TenantJoinRequest, TenantMembership
 from .feature_flag import FeatureFlagGroup, TenantFeatureFlag
 from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
 from .mcp import McpAuthorizationCode, McpOAuthClient
@@ -112,6 +113,8 @@ __all__ = [
     # enums
     'ApiTokenOrigin',
     'AsyncQualifierLiveRaceStatus',
+    'JoinRequestStatus',
+    'TenantJoinRequest',
     'AsyncQualifierReviewStatus',
     'AsyncQualifierRunStatus',
     'BotStatus',

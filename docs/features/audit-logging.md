@@ -55,8 +55,14 @@ not a reason to skip the audit.
 | Community content | `triforce_text.*`, `feedback.*` |
 | Integrations & platform | `discord.*` (server link), `discord_event.*`, `webhook.*`, `apitoken.*`, `web_push.*`, `twitch.*`, `system_config.*`, `theme.updated`, `feature_flag.*`, `feature_group.*`, `tenant.*`, `platform.super_admin_*` |
 
-Platform-level rows (`tenant.*`, `platform.*`, feature-group and availability
-grants) carry `tenant=NULL`; everything else is stamped with the acting tenant.
+Platform-level rows (`tenant.created` / `.updated` / `.deleted`, `platform.*`,
+feature-group and availability grants) carry `tenant=NULL`; everything else is
+stamped with the acting tenant — including `tenant.member_*` and `tenant.join_*`,
+which a community's own staff (or a would-be member) write inside that community
+and which are mirrored as events. `tenant.join_requested` is the one written by
+someone who is **not** scoped to its tenant, so the service wraps it in an
+explicit `tenant_scope(tenant_id)`; without that the row would land in whatever
+community the requester happened to be looking at.
 
 ## Viewing the log
 

@@ -22,8 +22,6 @@ _DEBT = 'pre-ratchet debt (2026-07): needs a two-tenant read-isolation test'
 BACKLOG: dict[str, str] = {
     # Leak coverage exists but lives outside the tests/*isolation* glob:
     'TenantFeatureFlag': 'covered by test_feature_flags.py::test_flags_do_not_leak_across_tenants',
-    # The membership row *is* the tenant linkage (repo-exempt in check_tenant_scoping):
-    'TenantMembership': 'cross-tenant by nature; reads are always membership checks',
     # Models that predate the leak-test rule:
     'ApiToken': _DEBT,
     'AsyncQualifierReviewNote': _DEBT,

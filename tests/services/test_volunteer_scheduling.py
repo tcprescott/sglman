@@ -209,7 +209,7 @@ async def test_acknowledge_sets_timestamp_and_guards_owner(db):
 # --- drafts: hidden until published --------------------------------------
 
 async def test_draft_is_hidden_from_the_volunteers_own_list(db):
-    staff = await _staff()
+    await _staff()
     pos = await VolunteerPosition.create(name='Check-in')
     shift = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     vol = await _opted_in_volunteer('drafted')
@@ -249,7 +249,7 @@ async def test_acknowledging_a_draft_is_refused(db):
 
 
 async def test_count_drafts_counts_only_drafts_in_the_window(db):
-    staff = await _staff()
+    await _staff()
     pos = await VolunteerPosition.create(name='Check-in')
     today = await VolunteerShift.create(position=pos, starts_at=_at(8), ends_at=_at(12))
     tomorrow = await VolunteerShift.create(

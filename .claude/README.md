@@ -325,10 +325,11 @@ whose value is a hardcoded string literal. Low false-positive bias: requires the
 literal to be ≥12 chars and not a placeholder (`your…`, `changeme`, `example`,
 `<…>`, …). Skips `tests/`, `/.claude/`, and `.env.example`.
 
-### Tenant scoping in repositories — `scripts/check_tenant_scoping.py` (PostToolUse: Write|Edit)
+### Tenant scoping in repositories and services — `scripts/check_tenant_scoping.py` (PostToolUse: Write|Edit)
 CLAUDE.md > Multitenancy: there is no auto-scoping manager, so a forgotten
-`scoped(...)` is a **silent cross-tenant leak**. AST-based, scoped to
-`application/repositories/*.py` (skips `_tenant.py`, `__init__.py`). Discovers
+`scoped(...)` is a **silent cross-tenant leak**. AST-based, covering
+`application/repositories/*.py` and `application/services/**.py` (skips
+`_tenant.py`, `__init__.py`). Discovers
 tenant-scoped models at runtime (any `Model` subclass in `models/` with a
 `tenant` field), then flags a read root (`Model.filter/get/get_or_none/all/
 first/exists`) that is neither inside a `scoped(...)` call nor passing a
@@ -336,11 +337,19 @@ first/exists`) that is neither inside a `scoped(...)` call nor passing a
 with no `tenant*` kwarg (checks `defaults={...}` keys too). Escape hatches match
 the convention `_tenant.py` documents: a function whose source says
 **"cross-tenant"**, **"unscoped"**, or **"global"** is exempt, and
-`EXEMPT_MODELS` (`TenantMembership`, `RacetimeBotTenant`) covers junction
-tables where the tenant FK is the row's *subject*, not a scoping stamp.
+`EXEMPT_MODELS` (`TenantMembership`, `TenantJoinRequest`, `RacetimeBotTenant`)
+covers junction tables where the tenant FK is the row's *subject*, not a scoping
+stamp.
+In a **service** module only *writes* are flagged: services legitimately read a
+scoped model directly (the sanctioned load-or-404 shape passes `tenant_id=` and
+is checked like any other read), but an unstamped service write is never right —
+the tenant FK is non-null, so the insert simply fails, and the `db` fixture's
+auto-stamp means no test can see it. That is how the enrolment write in
+`UserService` shipped broken.
 **Deliberately misses** (precision over recall): `bulk_create` (rows built
-elsewhere), instance `obj.save()`, queries built outside a repository module.
-Measured **0 false positives** across all 40 repository files.
+elsewhere), instance `obj.save()`, queries built outside these two layers.
+Measured **0 false positives** across all 40 repository files and all 108
+service files.
 
 ### EventType registry & literals — `scripts/check_event_types.py` (PostToolUse: Write|Edit)
 CLAUDE.md > Event publishing: `EventType` names are an **external webhook

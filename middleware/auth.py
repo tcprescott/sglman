@@ -12,6 +12,7 @@ from starlette.responses import RedirectResponse
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.telemetry_service import TelemetryService
+from application.services.tenant_service import TenantService
 from application.tenant_context import (
     get_current_tenant_id,
     is_host_mode,
@@ -90,6 +91,50 @@ def _matches_protected_route(path: str) -> bool:
             return True
     return False
 
+async def enforce_membership(
+    tenant_id: int,
+    user,
+    *,
+    is_super_admin: Optional[bool] = None,
+) -> bool:
+    """Render the join door when ``user`` does not belong to ``tenant_id``.
+
+    Returns True when it rendered — the caller must then return without building
+    its own body.
+
+    A non-member gets the **door**, not a 403: forbidden-by-role is a dead end,
+    but not-a-member is a state with a remedy, and the page whose whole job is to
+    offer that remedy should not open by saying no.
+
+    ``SUPER_ADMIN`` bypasses, exactly as it bypasses the role gate — it belongs
+    to no community by design. Deliberately **not** gated on ``Tenant.is_active``:
+    an inactive community is a separate concern with its own handling, and
+    folding the two together makes both harder to reason about.
+
+    Lives here rather than inside ``_tenant_page`` because the tenant home is
+    registered with a bare ``ui.page`` (the same function also serves the
+    platform community picker, which has no tenant and must stay anonymous), so
+    it applies the gate itself against this one implementation.
+    """
+    from theme.join_page import render_join_page, resolve_join_state
+
+    if is_super_admin is None:
+        is_super_admin = await AuthService.is_super_admin(user)
+    if is_super_admin:
+        return False
+    if user is not None and await TenantService.is_member(user.id, tenant_id):
+        return False
+
+    tenant = await TenantService.get_by_id(tenant_id)
+    render_join_page(
+        tenant_id=tenant_id,
+        tenant_name=tenant.name if tenant else 'this community',
+        user=user,
+        pending=await resolve_join_state(user, tenant_id),
+    )
+    return True
+
+
 def _tenant_page(
     path: str,
     *,
@@ -159,16 +204,29 @@ def _tenant_page(
                 )
                 return
 
+            # Membership gate: a community is visible to the people who belong
+            # to it. Only for auth-requiring routes — a @public_page (the
+            # spectator bracket views) stays world-readable.
+            user = None
+            is_super_admin = False
+            if require_auth:
+                user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                is_super_admin = await AuthService.is_super_admin(user)
+                if await enforce_membership(tid, user, is_super_admin=is_super_admin):
+                    return
+
             # Authorization for a *gated* page comes from the user's tenant-scoped
             # roles / tournament-admin membership / super-admin — all evaluated in
             # this tenant's context, so a role in another tenant grants nothing
             # here. Role-less protected pages need only authentication (which
-            # AuthMiddleware already enforced), matching pre-multitenancy access;
-            # there is no separate "must be a member" gate, since the app has no
-            # self-serve/invite enrollment path and it would lock out new users.
+            # AuthMiddleware already enforced) plus the membership gate above.
             if gated:
-                user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
-                allowed = await AuthService.is_super_admin(user)
+                # Resolved once, above, on every auth-requiring page; a
+                # @public_page with a role gate would still need to load it.
+                if user is None and not require_auth:
+                    user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                    is_super_admin = await AuthService.is_super_admin(user)
+                allowed = is_super_admin
                 if not allowed and user is not None and role_list:
                     held = await AuthService.get_roles(user)
                     allowed = bool(held.intersection(role_list))

@@ -309,6 +309,10 @@ class TestCrewAndAck:
     async def test_signup_approve_acknowledge(self, db, app):
         _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])
         caster, caster_raw = await create_user_token(username='caster')
+        # Crew signup refuses a non-member at the service, so the caster has to
+        # belong to the community they are volunteering for.
+        from models import TenantMembership
+        await TenantMembership.create(user=caster, tenant_id=1)
         t, p1, p2 = await _tournament_and_players()
 
         async with client_for(app, staff_raw) as staff, client_for(app, caster_raw) as caster_c:

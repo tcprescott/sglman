@@ -5,33 +5,56 @@ stays that way. But a per-community *picker* built from `User.all()` offers ever
 person on the platform, service accounts included; the equipment checkout dialog
 did exactly that, and the audit's own checkout landed on `System`.
 
-So "belongs to this community" is derived, and it is derived from what the
-running app actually writes: a ``UserRole`` granted in this tenant, or enrolment
-in one of this tenant's tournaments. Notably **not** the tenant-membership table
-— ``TenantService.add_member`` has no caller, so a user provisioned by a Discord
-login today has no membership row, and scoping to it would hide real people.
-These tests pin both halves: the scoping, and the two exclusions that hold
+So "belongs to this community" is derived, and ``TenantMembership`` is what
+derives it. It was not always: this query used to union role-holders with
+tournament entrants precisely *because* membership was a frozen backfill nothing
+wrote to. The membership work closed that — a role in a tenant now implies
+membership in it, staff can add a member directly, an approved join request
+creates one, and an imported SpeedGaming player gets one — and made membership
+the thing the access gate itself checks. So the picker and the door now agree:
+a picker cannot offer someone the app would turn away.
+
+The fixtures below therefore make their people members the way the app does.
+These tests pin both halves: the scoping, and the exclusions that hold
 regardless of tenant.
 """
 
 from application.repositories.user_repository import UserRepository
 from application.services.user_service import UserService
 from application.tenant_context import tenant_scope
-from models import SYSTEM_USER_DISCORD_ID, Role, Tenant, Tournament, TournamentPlayers, User, UserRole
+from models import (
+    SYSTEM_USER_DISCORD_ID,
+    Role,
+    Tenant,
+    TenantMembership,
+    Tournament,
+    TournamentPlayers,
+    User,
+    UserRole,
+)
 from tests.factories import make_user
 
 
 async def _role_holder(tenant: Tenant, discord_id: int, username: str) -> User:
+    """A role holder — and therefore, by the invariant, a member."""
     user = await make_user(discord_id=discord_id, username=username)
     await UserRole.create(user=user, role=Role.VOLUNTEER, tenant=tenant)
+    await TenantMembership.create(user=user, tenant=tenant)
     return user
 
 
 async def _entrant(tenant: Tenant, discord_id: int, username: str) -> User:
+    """An entrant in one of the tenant's tournaments, and a member of it.
+
+    Both writes: enrolment is what the tournament screen does, membership is
+    what the picker and the gate read. The backfill script exists to reconcile
+    any historical row where the two came apart.
+    """
     user = await make_user(discord_id=discord_id, username=username)
     with tenant_scope(tenant.id):
         tournament = await Tournament.create(name=f'{tenant.slug} Cup', tenant=tenant)
         await TournamentPlayers.create(tournament=tournament, user=user, tenant=tenant)
+    await TenantMembership.create(user=user, tenant=tenant)
     return user
 
 
@@ -91,6 +114,23 @@ async def test_the_system_account_is_excluded_even_when_it_holds_a_role(two_tena
     with tenant_scope(a.id):
         ids = {u.id for u in await UserRepository.get_community_people()}
     assert ids == {kept.id}
+
+
+async def test_a_member_with_no_discord_id_survives_the_system_exclusion(two_tenants):
+    """The system account is excluded by a sentinel id; NULL is not that id.
+
+    Written as an `.exclude(discord_id=SENTINEL)` this fails: `NULL = <sentinel>`
+    is NULL, NOT NULL is not true, so every placeholder disappears alongside the
+    system row — and a SpeedGaming placeholder has a NULL discord id by
+    construction, which is exactly the person a synced roster needs to offer.
+    """
+    a, _ = two_tenants
+    placeholder = await make_user(discord_id=None, username='sg_placeholder', is_placeholder=True)
+    await TenantMembership.create(user=placeholder, tenant=a)
+
+    with tenant_scope(a.id):
+        ids = {u.id for u in await UserRepository.get_community_people()}
+    assert placeholder.id in ids
 
 
 async def test_a_deactivated_account_is_excluded(two_tenants):

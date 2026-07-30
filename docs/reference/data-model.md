@@ -33,7 +33,7 @@ community owns or produces is tenant-scoped.**
 |---|---|---|
 | **Global** — no `tenant` FK | `User`, `WebPushSubscription`, `Tenant`, `FeatureFlagGroup`, `RacetimeBot`, `McpOAuthClient`, `McpAuthorizationCode` | `User.discord_id` / `challonge_user_id` / `twitch_user_id` / `racetime_user_id` uniques stay global — identity links are to the person. `RacetimeBot.category` is globally unique. An OAuth grant authenticates a user platform-wide |
 | **Nullable `tenant`** — stamped from context, NULL = platform-level row | `AuditLog`, `TelemetryEvent` (`SET NULL` on tenant delete), `UserRole` (`CASCADE`; NULL only for the global `SUPER_ADMIN`), `ApiToken` (`CASCADE`; NULL only for platform-wide OAuth tokens) | |
-| **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `RacetimeBotTenant` | Both answer "which tenants?" and so are queried across tenants with explicit ids |
+| **Has a `tenant` FK but is never auto-scoped** | `TenantMembership`, `TenantJoinRequest`, `RacetimeBotTenant` | All answer "which tenants?" and so are queried across tenants with explicit ids |
 | **Tenant-scoped** — `tenant` FK, NOT NULL, `CASCADE` | every other model | The default (see conventions above) |
 
 **Per-tenant uniqueness** — formerly-global uniques are composite with `tenant`:
@@ -66,6 +66,8 @@ erDiagram
     Tenant ||--o{ Tournament : "tenant"
     Tenant ||--o{ TenantMembership : "tenant"
     User ||--o{ TenantMembership : "user"
+    Tenant ||--o{ TenantJoinRequest : "tenant"
+    User ||--o{ TenantJoinRequest : "user"
 
     User ||--o{ UserRole : "user"
     User |o--o{ UserRole : "granted_by"
@@ -273,6 +275,13 @@ Lifecycle of a synchronous racetime qualifier race: `SCHEDULED` = `'scheduled'`
 (before a room opens) → `PENDING` = `'pending'` (room open, not started) →
 `IN_PROGRESS` = `'in_progress'` → `FINISHED` = `'finished'` (results captured into runs).
 
+### `JoinRequestStatus`
+
+Where a request to join a community stands (`TenantJoinRequest.status`,
+`max_length=20`): `PENDING` = `'pending'` → `APPROVED` = `'approved'` or
+`DENIED` = `'denied'`. There is one row per `(user, tenant)`, so a denied
+request is **re-opened** by moving it back to `PENDING` rather than appended to.
+
 ### `BracketFormat`
 
 The pairing/progression format of a single native-bracket stage (`Bracket.format`,
@@ -348,6 +357,28 @@ tenants, so it is never auto-scoped.
 | `user` | FK → `User` | not null, `CASCADE` | `related_name='tenant_memberships'` |
 
 Constraints: `unique_together (('user', 'tenant'),)`; index on `tenant` (the composite is user-first, leaving per-tenant member enumeration uncovered).
+
+#### `TenantJoinRequest`
+
+Someone asking to join a community they can see the door of — the self-serve
+enrollment path that makes the membership gate safe to close. Cross-tenant like
+`TenantMembership`: the row is written by someone who is not in the target
+tenant at all, so its queries pass tenant ids explicitly (and it is in
+`check_tenant_scoping`'s `EXEMPT_MODELS`).
+
+| Field | Type | Null / default | Notes |
+|---|---|---|---|
+| `tenant` | FK → `Tenant` | not null, `CASCADE` | `related_name='join_requests'` |
+| `user` | FK → `User` | not null, `CASCADE` | `related_name='join_requests'` |
+| `status` | `CharEnumField(JoinRequestStatus)` | default `PENDING` | |
+| `message` | `CharField(500)` | null | Free text from the requester; rendered as **text, never markup** |
+| `decided_by` | FK → `User` | null, `SET_NULL` | Deleting a staff account must not delete the record of their decision |
+| `decided_at` | `DatetimeField` | null | |
+
+Constraints: `unique_together (('user', 'tenant'),)` — **one row per person per
+community**: a denied request is re-opened by moving it back to `PENDING`, not
+appended to, because an append-only log of attempts is a spam vector with no
+reader. Index on `(tenant, status)`, the staff queue's query.
 
 #### `FeatureFlagGroup`
 
@@ -1427,6 +1458,7 @@ Consult the source for full signatures.
 | `DiscordRoleMappingRepository` | [`discord_role_mapping_repository.py`](../../application/repositories/discord_role_mapping_repository.py) | `DiscordRoleMapping` | `get_by_id`, `get_all`, `list_for_guild`, `get_match` (exact-tuple lookup used to reject duplicates), `create`, `delete` |
 | `TenantRepository` | [`tenant_repository.py`](../../application/repositories/tenant_repository.py) | `Tenant` | **Never scoped** — it resolves which tenant a request belongs to. `get_by_id`, `get_by_slug`, `get_by_domain`, `list_by_guild_id`, `list_all`, `slug_exists`, `domain_exists`, `create`, `update`, `delete` |
 | `TenantMembershipRepository` | [`tenant_membership_repository.py`](../../application/repositories/tenant_membership_repository.py) | `TenantMembership` | **Never scoped** — queried across tenants. `is_member`, `add`, `remove`, `list_for_user`, `list_for_tenant`, `tenant_ids_for_user` |
+| `TenantJoinRequestRepository` | [`tenant_join_request_repository.py`](../../application/repositories/tenant_join_request_repository.py) | `TenantJoinRequest` | **Never scoped** — the requester is not in the target tenant. `get`, `get_by_id`, `upsert_pending` (re-opens a decided row in place), `list_pending`, `decide` |
 | `ApiTokenRepository` | [`api_token_repository.py`](../../application/repositories/api_token_repository.py) | `ApiToken` | `create`, `create_oauth_token`, `get_by_id`, `get_by_hash`, `get_by_refresh_hash`, `rotate_refresh`, `list_for_user`, `touch_last_used`, `revoke`. Reads match this tenant's PATs **or** the user's tenant-less OAuth tokens, so MCP connections stay revocable from any community. |
 | `McpAuthRepository` | [`mcp_auth_repository.py`](../../application/repositories/mcp_auth_repository.py) | `McpOAuthClient`, `McpAuthorizationCode` | `create_client`, `get_client`, `create_code`, `get_code`, `consume_code`, `purge_expired_codes`. Global by design — neither model carries a tenant. |
 | `FeedbackRepository` | [`feedback_repository.py`](../../application/repositories/feedback_repository.py) | `Feedback` | `create`, `get_by_id`, `list_recent`, `set_status` |
@@ -1474,7 +1506,7 @@ src_folder = "./."
 
 **Migration history.** The history was squashed into a single init migration, [`migrations/models/0_20260608213149_init.py`](../../migrations/models/0_20260608213149_init.py), with migrations 1–19 adding the equipment, volunteering, availability, Challonge, API-token, feedback, web-push, and Twitch-linking tables/columns plus the FK-hotpath indexes (below). Together they create all model tables, the two M2M through tables (`"TournamentAdmins"`, `"TournamentCrewCoordinators"` with unique `(tournament_id, user_id)` indexes), and the `aerich` bookkeeping table. Its `downgrade()` returns empty SQL, so the init migration is not reversible.
 
-**Multitenancy onward (migrations 20 to head).** The head is **migration 40**. In order: **20** — the additive multitenancy migration (adds `Tenant`/`TenantMembership` and a `tenant` FK across the scoped models: nullable FK → `default`-tenant backfill → `SET NOT NULL`; see [features/multitenancy.md](../features/multitenancy.md)); **21** — online-tournament foundations (system user, the `PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN` roles, the hybrid-config substrate); **22** — user-managed `Preset`; **23** — racetime identity fields on `User`; **24** — `RacetimeBot`/`RacetimeBotTenant`/`RaceRoomProfile`/`RacetimeRoom`; **25** — `matchplayers.finish_time`; **26** — SpeedGaming ETL (placeholder `User`, `SpeedGamingEventLink`/`Episode`, the `Match` source marker); **27** — `DiscordScheduledEvent`; **28** — the `AsyncQualifier*` tables; **29** — `AsyncQualifierLiveRace`; **30–31** — per-tenant feature flags (`TenantFeatureFlag`, then `FeatureFlagGroup` + `Tenant.feature_group`; see [features/feature-flags.md](../features/feature-flags.md)); **32** — per-tournament event days/hours; **33–35** — native brackets (tables, then match scores/forfeit, then the `BracketMatchGame` series seam); **36** — `Tournament.allow_player_match_requests` (backfilled off for Challonge-linked and bracket-run tournaments); **37** — `RandomizerCredential`; **38** — retires the `dk64_randomizer` flag rows that per-tenant credentials replaced; **39** — MCP OAuth (`McpOAuthClient`, `McpAuthorizationCode`, the `ApiToken` OAuth columns); **40** — the venue `Station` pool.
+**Multitenancy onward (migrations 20 to head).** The head is **migration 43**. In order: **20** — the additive multitenancy migration (adds `Tenant`/`TenantMembership` and a `tenant` FK across the scoped models: nullable FK → `default`-tenant backfill → `SET NOT NULL`; see [features/multitenancy.md](../features/multitenancy.md)); **21** — online-tournament foundations (system user, the `PRESET_MANAGER`/`SYNC_ADMIN`/`QUALIFIER_ADMIN` roles, the hybrid-config substrate); **22** — user-managed `Preset`; **23** — racetime identity fields on `User`; **24** — `RacetimeBot`/`RacetimeBotTenant`/`RaceRoomProfile`/`RacetimeRoom`; **25** — `matchplayers.finish_time`; **26** — SpeedGaming ETL (placeholder `User`, `SpeedGamingEventLink`/`Episode`, the `Match` source marker); **27** — `DiscordScheduledEvent`; **28** — the `AsyncQualifier*` tables; **29** — `AsyncQualifierLiveRace`; **30–31** — per-tenant feature flags (`TenantFeatureFlag`, then `FeatureFlagGroup` + `Tenant.feature_group`; see [features/feature-flags.md](../features/feature-flags.md)); **32** — per-tournament event days/hours; **33–35** — native brackets (tables, then match scores/forfeit, then the `BracketMatchGame` series seam); **36** — `Tournament.allow_player_match_requests` (backfilled off for Challonge-linked and bracket-run tournaments); **37** — `RandomizerCredential`; **38** — retires the `dk64_randomizer` flag rows that per-tenant credentials replaced; **39** — MCP OAuth (`McpOAuthClient`, `McpAuthorizationCode`, the `ApiToken` OAuth columns); **40** — the `BracketState.CANCELLED` state; **41** — the venue `Station` pool; **42** — `Match.needs_review`; **43** — `TenantJoinRequest`, the self-serve enrollment path behind the membership gate.
 
 **Foreign-key / reverse-lookup indexes (migration 19).** Tortoise does not index FK columns on Postgres, and a `unique_together` composite only serves lookups on its *leftmost* column — so single-column reverse-relation reads (e.g. `matchwatcher` by `match_id`, `tournamentplayers` by `user_id`) previously sequential-scanned. [`migrations/models/19_20260711000000_add_fk_hotpath_indexes.py`](../../migrations/models/19_20260711000000_add_fk_hotpath_indexes.py) adds single-column indexes on the hot FK/reverse-lookup columns of the growing tables (`match.tournament_id`/`stream_room_id`, `matchplayers.user_id`, `matchwatcher.match_id`, `tournamentplayers.user_id`, `tournamentnotificationpreference.tournament_id`, `equipmentloan.equipment_id`/`borrower_id`, `challongematch.match_id`/`participant1_id`/`participant2_id`, `challongeparticipant.user_id`, `volunteerassignment.user_id`, `volunteerqualification.position_id`, `volunteershift.position_id`, `volunteeravailability.user_id`, `playeravailability.user_id`, `userrole.role`, `feedback.created_at`) plus a composite `triforcetext(tournament_id, user_id)`. Each is mirrored by a `Meta.indexes` (or field-level `index=True`) declaration in the `models/` package so `generate_schemas()` builds the same schema in tests.
 

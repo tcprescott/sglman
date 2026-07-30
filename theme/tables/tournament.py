@@ -197,5 +197,6 @@ class TournamentTableView:
         if not t:
             ui.notify('Tournament not found.', color='warning')
             return
-        dialog = TournamentPlayersDialog(t)
+        # The dialog writes now, so the player-count column has to follow it.
+        dialog = TournamentPlayersDialog(t, on_change=self.refresh)
         await dialog.open()

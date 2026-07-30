@@ -1,10 +1,19 @@
 """Admin Dashboard Page"""
 
+from dataclasses import dataclass
+
 from fastapi import Request
 from nicegui import app, ui
 from middleware.auth import protected_tab_page
 
-from application.services import AuthService, FeatureFlagService, TenantService, get_user_from_discord_id
+from application.services import (
+    AuthService,
+    FeatureFlagService,
+    SetupStep,
+    TenantService,
+    TenantSetupService,
+    get_user_from_discord_id,
+)
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag, Role
 from pages.admin_tabs.admin_schedule import admin_schedule_page
@@ -30,7 +39,117 @@ from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_discord_events import admin_discord_events_page
 from pages.admin_tabs.admin_service_health import admin_service_health_page
 from pages.admin_tabs.admin_features import admin_features_page
+from pages.admin_tabs.admin_setup import admin_setup_page
 from theme.base import BaseLayout
+
+_ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'Integrations', 'System']
+
+
+@dataclass(frozen=True)
+class AdminAccess:
+    """What the viewer may reach in this tenant, resolved once per page load."""
+
+    is_staff: bool = False
+    is_stream_manager: bool = False
+    is_volunteer_coordinator: bool = False
+    is_equipment_manager: bool = False
+    is_preset_manager: bool = False
+    is_sync_admin: bool = False
+    is_qualifier_admin: bool = False
+    is_tournament_admin: bool = False
+    is_crew_coordinator: bool = False
+    is_qualifier_owner: bool = False
+
+    def any(self) -> bool:
+        return any(getattr(self, f) for f in self.__dataclass_fields__)
+
+
+def build_admin_tabs(
+    access: AdminAccess,
+    live: set,
+    reports_kwargs: dict,
+    setup_steps: list[SetupStep] | None = None,
+    base_path: str = '/admin',
+    *,
+    match_id: int = None,
+    day: str = None,
+) -> list[dict]:
+    """The admin drawer's tabs, ordered by group.
+
+    Module-level and pure so the ordering rules — notably which tab a new
+    community lands on — are testable without a browser.
+    """
+    is_staff = access.is_staff
+    is_ta_any = access.is_tournament_admin
+    is_cc_any = access.is_crew_coordinator
+    is_qa_any = access.is_qualifier_owner
+    can_crud = is_staff or is_ta_any
+    # Each tab that can be deep-linked gets its own params. `state` in
+    # reports_kwargs is the Reports tab's own filter and deliberately not
+    # reused for the board's state filter — one param must not mean two things.
+    schedule_kwargs = {'can_crud': can_crud, 'match_id': match_id}
+
+    tabs = []
+    # Each tab carries a drawer 'group'; the list is stable-sorted by
+    # _ADMIN_GROUP_ORDER below so the drawer reads as labeled sections
+    # instead of a flat scroll. Icons are unique per destination (no repeats).
+    #
+    # Setup comes first while the community is not ready: BaseLayout defaults to
+    # tabs[0], so a new community lands on the checklist rather than on Create
+    # Match, which cannot yet succeed. It disappears on its own once the
+    # required steps are done — nothing stores that it was seen.
+    if setup_steps and not TenantSetupService.is_ready(setup_steps) and (is_staff or is_ta_any):
+        tabs.append({'label': 'Setup', 'icon': 'checklist', 'group': 'Operations',
+                     'content': (admin_setup_page, (), {'steps': setup_steps, 'base_path': base_path})})
+    if is_staff or is_ta_any or is_cc_any:
+        tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
+    if is_staff:
+        tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
+    if is_staff or is_ta_any:
+        tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
+    if is_staff or access.is_stream_manager:
+        tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'group': 'Operations', 'content': admin_stream_rooms_page})
+    if is_staff or access.is_preset_manager:
+        tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
+        tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})
+    if (is_staff or access.is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
+        tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'group': 'Online play', 'content': admin_qualifiers_page})
+    if (is_staff or access.is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
+        tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'group': 'Online play', 'content': admin_racetime_page})
+    if (is_staff or access.is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
+        tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'group': 'Online play', 'content': admin_speedgaming_page})
+    if is_staff and FeatureFlag.CHALLONGE in live:
+        tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'group': 'Online play', 'content': admin_challonge_page})
+    if is_staff and FeatureFlag.BRACKETS in live:
+        tabs.append({'label': 'Brackets', 'icon': 'schema', 'group': 'Online play', 'content': admin_brackets_page})
+    if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
+        tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
+    if (is_staff or access.is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
+        tabs.append({'label': 'Vol. Roster', 'icon': 'groups', 'group': 'Community', 'content': admin_volunteer_roster_page})
+        tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
+    if (is_staff or access.is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
+        tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
+    if is_staff:
+        tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
+    if is_staff or access.is_sync_admin:
+        tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})
+    if is_staff:
+        tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'group': 'Integrations', 'content': admin_discord_roles_page})
+    if is_staff:
+        tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'group': 'Integrations', 'content': admin_webhooks_page})
+    if is_staff or is_ta_any or is_cc_any:
+        tabs.append({'label': 'Reports', 'icon': 'analytics', 'group': 'System', 'content': (reports_page, (), reports_kwargs)})
+    if is_staff:
+        tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'group': 'System', 'content': admin_service_health_page})
+    if is_staff:
+        tabs.append({'label': 'Features', 'icon': 'toggle_on', 'group': 'System', 'content': admin_features_page})
+    if is_staff:
+        tabs.append({'label': 'Settings', 'icon': 'settings', 'group': 'System', 'content': admin_system_config_page})
+    if is_staff:
+        tabs.append({'label': 'Appearance', 'icon': 'palette', 'group': 'System', 'content': admin_theme_page})
+
+    tabs.sort(key=lambda t: _ADMIN_GROUP_ORDER.index(t['group']))
+    return tabs
 
 
 def create() -> None:
@@ -71,31 +190,32 @@ def create() -> None:
             return
 
         roles = await AuthService.get_roles(user)
-        # Staff-equivalence (not the literal grant) so a platform super-admin has
-        # full authority in this tenant; every tab below is `is_staff or <role>`.
-        is_staff = await AuthService.is_staff(user)
-        is_stream_manager = Role.STREAM_MANAGER in roles
-        is_volunteer_coordinator = Role.VOLUNTEER_COORDINATOR in roles
-        is_equipment_manager = Role.EQUIPMENT_MANAGER in roles
-        is_preset_manager = Role.PRESET_MANAGER in roles
-        is_sync_admin = Role.SYNC_ADMIN in roles
-        is_qualifier_admin = Role.QUALIFIER_ADMIN in roles
         # Tenant-filtered: these reverse relations hang off the *global* User, so
         # unfiltered they let a tournament admin in one community through this
         # gate in every other one.
         tid = get_current_tenant_id()
-        is_ta_any = await user.admin_tournaments.filter(tenant_id=tid).exists()
-        is_cc_any = await user.crew_coordinated_tournaments.filter(tenant_id=tid).exists()
-        is_qa_any = await user.admin_async_qualifiers.filter(tenant_id=tid).exists()
+        access = AdminAccess(
+            # Staff-equivalence (not the literal grant) so a platform super-admin
+            # has full authority in this tenant.
+            is_staff=await AuthService.is_staff(user),
+            is_stream_manager=Role.STREAM_MANAGER in roles,
+            is_volunteer_coordinator=Role.VOLUNTEER_COORDINATOR in roles,
+            is_equipment_manager=Role.EQUIPMENT_MANAGER in roles,
+            is_preset_manager=Role.PRESET_MANAGER in roles,
+            is_sync_admin=Role.SYNC_ADMIN in roles,
+            is_qualifier_admin=Role.QUALIFIER_ADMIN in roles,
+            is_tournament_admin=await user.admin_tournaments.filter(tenant_id=tid).exists(),
+            is_crew_coordinator=await user.crew_coordinated_tournaments.filter(tenant_id=tid).exists(),
+            is_qualifier_owner=await user.admin_async_qualifiers.filter(tenant_id=tid).exists(),
+        )
 
         # Per-tenant feature flags: a subsystem's tab only appears when the
         # tenant has that feature live (available AND enabled), in addition to
-        # the role gate. Loaded once for all tabs.
+        # the role gate. Loaded once for all tabs, as is the setup checklist.
         live = await FeatureFlagService().enabled_flags()
+        setup_steps = await TenantSetupService().status()
 
-        if not (is_staff or is_stream_manager or is_equipment_manager
-                or is_volunteer_coordinator or is_preset_manager or is_sync_admin
-                or is_qualifier_admin or is_qa_any or is_ta_any or is_cc_any):
+        if not access.any():
             from theme.error_page import render_error_page
             render_error_page(
                 status_code=403, headline='Forbidden',
@@ -120,66 +240,12 @@ def create() -> None:
             'page': page,
         }
 
-        can_crud = is_staff or is_ta_any
-        # Each tab that can be deep-linked gets its own params. `state` above is
-        # the Reports tab's own filter and deliberately not reused for the
-        # board's state filter — one param must not mean two things.
-        schedule_kwargs = {'can_crud': can_crud, 'match_id': match_id}
-        tabs = []
-        # Each tab carries a drawer 'group'; the list is stable-sorted by
-        # _ADMIN_GROUP_ORDER below so the 22-item drawer reads as labeled sections
-        # instead of a flat scroll. Icons are unique per destination (no repeats).
-        if is_staff or is_ta_any or is_cc_any:
-            tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
-        if is_staff:
-            tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
-        if is_staff or is_ta_any:
-            tabs.append({'label': 'Tournaments', 'icon': 'emoji_events', 'group': 'Operations', 'content': admin_tournaments_page})
-        if is_staff or is_stream_manager:
-            tabs.append({'label': 'Stream Rooms', 'icon': 'tv', 'group': 'Operations', 'content': admin_stream_rooms_page})
-        if is_staff or is_preset_manager:
-            tabs.append({'label': 'Presets', 'icon': 'tune', 'group': 'Online play', 'content': admin_presets_page})
-            tabs.append({'label': 'Randomizer Keys', 'icon': 'key', 'group': 'Online play', 'content': admin_randomizer_keys_page})
-        if (is_staff or is_qualifier_admin or is_qa_any) and FeatureFlag.ASYNC_QUALIFIERS in live:
-            tabs.append({'label': 'Qualifiers', 'icon': 'timer', 'group': 'Online play', 'content': admin_qualifiers_page})
-        if (is_staff or is_sync_admin) and FeatureFlag.RACETIME_ROOMS in live:
-            tabs.append({'label': 'Racetime', 'icon': 'sports_esports', 'group': 'Online play', 'content': admin_racetime_page})
-        if (is_staff or is_sync_admin) and FeatureFlag.SPEEDGAMING_ETL in live:
-            tabs.append({'label': 'SpeedGaming', 'icon': 'sync_alt', 'group': 'Online play', 'content': admin_speedgaming_page})
-        if is_staff and FeatureFlag.CHALLONGE in live:
-            tabs.append({'label': 'Challonge', 'icon': 'account_tree', 'group': 'Online play', 'content': admin_challonge_page})
-        if is_staff and FeatureFlag.BRACKETS in live:
-            tabs.append({'label': 'Brackets', 'icon': 'schema', 'group': 'Online play', 'content': admin_brackets_page})
-        if (is_staff or is_ta_any) and FeatureFlag.TRIFORCE_TEXTS in live:
-            tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
-        if (is_staff or is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
-            tabs.append({'label': 'Vol. Roster', 'icon': 'groups', 'group': 'Community', 'content': admin_volunteer_roster_page})
-            tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
-        if (is_staff or is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
-            tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
-        if is_staff:
-            tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
-        if is_staff or is_sync_admin:
-            tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})
-        if is_staff:
-            tabs.append({'label': 'Discord Roles', 'icon': 'hub', 'group': 'Integrations', 'content': admin_discord_roles_page})
-        if is_staff:
-            tabs.append({'label': 'Webhooks', 'icon': 'webhook', 'group': 'Integrations', 'content': admin_webhooks_page})
-        if is_staff or is_ta_any or is_cc_any:
-            tabs.append({'label': 'Reports', 'icon': 'analytics', 'group': 'System', 'content': (reports_page, (), reports_kwargs)})
-        if is_staff:
-            tabs.append({'label': 'Service Health', 'icon': 'monitor_heart', 'group': 'System', 'content': admin_service_health_page})
-        if is_staff:
-            tabs.append({'label': 'Features', 'icon': 'toggle_on', 'group': 'System', 'content': admin_features_page})
-        if is_staff:
-            tabs.append({'label': 'Settings', 'icon': 'settings', 'group': 'System', 'content': admin_system_config_page})
-        if is_staff:
-            tabs.append({'label': 'Appearance', 'icon': 'palette', 'group': 'System', 'content': admin_theme_page})
-
-        _ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'Integrations', 'System']
-        tabs.sort(key=lambda t: _ADMIN_GROUP_ORDER.index(t['group']))
-
         base_path = f"{request.scope.get('root_path', '')}/admin" if request else '/admin'
+        tabs = build_admin_tabs(
+            access, live, reports_kwargs, setup_steps, base_path,
+            match_id=match_id, day=day,
+        )
+
         base_layout = BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='admin', user=user,
             show_admin=True,

@@ -9,8 +9,8 @@ from typing import List, Optional
 from tortoise.expressions import Q
 
 from application.repositories._base import TenantScopedRepository
-from application.repositories._tenant import current_tenant_id, scoped
-from models import SYSTEM_USER_DISCORD_ID, Role, TournamentPlayers, User, UserRole
+from application.repositories._tenant import current_tenant_id
+from models import SYSTEM_USER_DISCORD_ID, Role, User
 
 
 class UserRepository(TenantScopedRepository[User]):
@@ -68,37 +68,67 @@ class UserRepository(TenantScopedRepository[User]):
     @staticmethod
     async def get_community_people(
         *,
+        role: Optional[Role] = None,
+        has_discord: bool = False,
         include_user_ids: Optional[List[int]] = None,
+        include_inactive: bool = False,
     ) -> List[User]:
         """The people of the tenant in scope, for a per-community person picker.
 
-        ``User`` is global, so "belongs to this community" has to be derived. It
-        is derived from the two things the running app actually writes: a
-        ``UserRole`` granted in this tenant, and enrolment in one of this
-        tenant's tournaments (``TournamentPlayers``). Deliberately **not**
-        ``TenantMembership`` — ``TenantService.add_member`` has no caller, so
-        those rows exist only where a seed or the multitenancy backfill put
-        them, and scoping to them would hide a user a Discord login provisioned
-        five minutes ago. At a venue that is the volunteer standing in front of
-        you.
+        ``User`` is global, so "belongs to this community" has to be derived —
+        and ``TenantMembership`` is what derives it. That was not always true:
+        this query used to union role-holders with tournament entrants
+        precisely *because* membership was a frozen backfill nothing wrote to,
+        so scoping to it would have hidden a user a Discord login provisioned
+        five minutes ago. The membership work closed that: holding any role in
+        a tenant now implies membership in it, staff can add a member directly,
+        an approved join request creates one, and an imported SpeedGaming player
+        gets one. The old union is a strict subset of the new basis, and the
+        basis is now the same thing the access gate uses — so a picker cannot
+        offer someone the app would turn away at the door.
 
         ``include_user_ids`` force-includes specific people regardless — the
         caller's own actor, or the current holder of an asset, who must stay
         displayable even if they later fall out of the set.
 
-        The system account and deactivated accounts are excluded here, in the
-        query, because no caller should have to remember to.
+        The system account is always excluded — by **both** its flag and its
+        sentinel discord id, because either alone identifies it and a row
+        carrying one without the other is still the automation account. It is an
+        audit actor, not a person, and the multitenancy backfill made it a member
+        of everywhere.
+        Deactivated accounts are excluded too, unless ``include_inactive`` —
+        which the match dialog passes, because a SpeedGaming placeholder entrant
+        is inactive by construction and must stay selectable on the roster it is
+        already on.
+
+        This is a **default for a picker, not an authorization rule.** The hard
+        rules are enforced by whichever service acts on the choice.
+
+        ``current_tenant_id()`` raising with no tenant in scope is wanted: a
+        per-community picker rendered outside a tenant is a bug, and this is
+        where it should surface loudly.
         """
-        role_holders = await scoped(UserRole.all()).values_list('user_id', flat=True)
-        entrants = await TournamentPlayers.filter(
-            tournament__tenant_id=current_tenant_id(),
-        ).values_list('user_id', flat=True)
-        ids = set(role_holders) | set(entrants) | set(include_user_ids or ())
-        if not ids:
-            return []
-        return await User.filter(id__in=ids, is_active=True).exclude(
-            discord_id=SYSTEM_USER_DISCORD_ID,
-        ).order_by('username')
+        tenant_id = current_tenant_id()
+        query = User.filter(tenant_memberships__tenant_id=tenant_id)
+        if include_user_ids:
+            query = User.filter(
+                Q(tenant_memberships__tenant_id=tenant_id) | Q(id__in=list(include_user_ids))
+            )
+        # Spelled positively rather than as `.exclude(discord_id=SENTINEL)`:
+        # a placeholder's discord id is NULL, `NULL = <sentinel>` is NULL, and
+        # NOT NULL is not true — so the exclude form silently drops every
+        # placeholder along with the system account.
+        query = query.filter(
+            Q(is_system=False),
+            Q(discord_id__isnull=True) | Q(discord_id__not=SYSTEM_USER_DISCORD_ID),
+        )
+        if not include_inactive:
+            query = query.filter(is_active=True)
+        if role is not None:
+            query = query.filter(roles__role=role, roles__tenant_id=tenant_id)
+        if has_discord:
+            query = query.exclude(discord_id=None)
+        return await query.order_by('username').distinct()
 
     @staticmethod
     async def search_by_name(
