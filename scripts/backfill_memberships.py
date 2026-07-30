@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
-"""Give every tenant-scoped role-holder a ``TenantMembership``.
+"""Give everyone who participates in a community a ``TenantMembership``.
 
 Run from the project root:
     poetry run python scripts/backfill_memberships.py [--dry-run]
 
-The invariant is *"holding any role in a tenant implies membership in that
-tenant"*, now enforced wherever roles are written. Roles granted before that —
-through the Users tab or the Discord role sync, both of which wrote a role and
-no membership — need catching up once.
+Two populations need catching up, both created by the same gap: the
+multitenancy migration wrote a membership per user *at that point*, and nothing
+wrote one afterwards until the "a role in a tenant implies membership in it"
+invariant landed.
+
+- **Role holders** granted through the Users tab or the Discord role sync, both
+  of which wrote a role and no membership.
+- **Ordinary participants** — accounts created since that migration that never
+  received a role: enrolled players, match players, crew signups, volunteers.
+  These are the ones the membership gate would lock out.
+
+The signals are defined in ``scripts/membership_coverage.py`` and shared with
+``scripts/audit_membership_coverage.py``, so the report and the fix can never
+disagree. The audit-log signal is deliberately **not** among them: appearing in
+an audit row can mean somebody acted *on* you.
 
 ``SUPER_ADMIN`` is skipped: its ``UserRole`` carries ``tenant=NULL`` and it
 belongs to no community.
 
-Idempotent and safe to re-run; the membership gate's go/no-go audit re-runs it.
+Idempotent and safe to re-run; the membership gate's go/no-go re-runs it.
 """
 import argparse
 import asyncio
@@ -23,30 +34,25 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tortoise import Tortoise
 
-from models import Role, TenantMembership, UserRole
-
-
-async def find_gaps() -> list[tuple[int, int]]:
-    """``(user_id, tenant_id)`` pairs holding a role with no membership."""
-    rows = await UserRole.filter(tenant_id__not_isnull=True).exclude(role=Role.SUPER_ADMIN)
-    wanted = {(r.user_id, r.tenant_id) for r in rows}
-    existing = {
-        (m.user_id, m.tenant_id)
-        for m in await TenantMembership.filter(
-            user_id__in=[u for u, _ in wanted] or [0],
-        )
-    }
-    return sorted(wanted - existing)
+from models import TenantMembership
+from scripts.membership_coverage import coverage_gaps, grantable_gaps
 
 
 async def backfill(dry_run: bool = False) -> int:
-    gaps = await find_gaps()
+    gaps = await grantable_gaps()
     if not gaps:
-        print('No gaps: every tenant-scoped role-holder is already a member.')
+        print('No gaps: every participant is already a member of the communities '
+              'they take part in.')
         return 0
-    print(f'{len(gaps)} role-holder(s) with no membership:')
+
+    by_signal = await coverage_gaps(include_report_only=False)
+    print(f'{len(gaps)} (user, tenant) pair(s) with participation but no membership:')
+    for label, pairs in by_signal.items():
+        if pairs:
+            print(f'  via {label}: {len(pairs)}')
     for user_id, tenant_id in gaps:
         print(f'  user={user_id} tenant={tenant_id}')
+
     if dry_run:
         print('--dry-run: nothing written.')
         return len(gaps)
