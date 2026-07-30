@@ -7,6 +7,8 @@ Repositories perform no Discord I/O, so no queue stub is needed.
 
 from datetime import date
 
+import pytest
+
 from application.repositories.match_acknowledgment_repository import MatchAcknowledgmentRepository
 from application.repositories.match_repository import MatchRepository
 from application.repositories.tournament_notification_repository import TournamentNotificationRepository
@@ -112,26 +114,18 @@ class TestUserRepository:
         await UserRepository.delete(u)
         assert await User.get_or_none(id=u.id) is None
 
-    async def test_update_discord_info_all_fields(self, db):
+    async def test_update_discord_info_persists_username(self, db):
         u = await make_user(1, "alice")
-        await UserRepository.update_discord_info(u, username="alice_dc", discriminator="0001", avatar="abc")
-        refreshed = await User.get(id=u.id)
-        # username is a real column and persists.
-        assert refreshed.username == "alice_dc"
-        # discriminator/avatar are NOT model fields (documented in data-model.md):
-        # they are assigned to the in-memory instance but silently dropped on save,
-        # so the reloaded row never gains them.
-        assert u.discriminator == "0001"  # in-memory only
-        assert not hasattr(refreshed, "discriminator")  # never persisted
-        assert not hasattr(refreshed, "avatar")
+        await UserRepository.update_discord_info(u, username="alice_dc")
+        assert (await User.get(id=u.id)).username == "alice_dc"
 
-    async def test_update_discord_info_optional_fields_skipped(self, db):
+    async def test_update_discord_info_takes_no_non_field_arguments(self, db):
+        # The signature used to accept discriminator/avatar and assign them to
+        # the instance, where save() silently dropped them — a write that looked
+        # like it landed. Neither is a column, so neither is accepted.
         u = await make_user(1, "alice")
-        await UserRepository.update_discord_info(u, username="renamed")
-        assert (await User.get(id=u.id)).username == "renamed"
-        # None args leave the non-field attributes entirely unset.
-        assert not hasattr(u, "discriminator")
-        assert not hasattr(u, "avatar")
+        with pytest.raises(TypeError):
+            await UserRepository.update_discord_info(u, username="alice_dc", avatar="abc")
 
 
 # ---------------------------------------------------------------------------
