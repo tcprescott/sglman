@@ -177,3 +177,53 @@ class TestOwnerLabel:
         owned = await service.create_asset(manager, name='Owned asset', owner_user_id=owner.id)
         fetched = await service.get_asset(owned.id)
         assert fetched.owner_label('Acme Community') == owner.preferred_name
+
+
+class TestLoanHistoryBound:
+    """The history is bounded at the read, not just at the render.
+
+    An asset lent two hundred times used to fetch two hundred rows with three
+    prefetched users each, and paint every one, on the phone where scrolling
+    costs most.
+    """
+
+    @staticmethod
+    async def _asset_with_loans(service, count: int):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        borrower = await _user(2, 'vol', Role.VOLUNTEER)
+        asset = await service.create_asset(manager, name='Well-travelled cable')
+        for _ in range(count):
+            await service.checkout(borrower, asset.id)
+            await service.checkin(manager, asset.id)
+        return asset, manager, borrower
+
+    async def test_limit_is_honoured(self, db, service):
+        asset, _, _ = await self._asset_with_loans(service, 12)
+        assert len(await service.loan_history(asset, limit=5)) == 5
+
+    async def test_no_limit_returns_everything(self, db, service):
+        asset, _, _ = await self._asset_with_loans(service, 12)
+        assert len(await service.loan_history(asset)) == 12
+
+    async def test_count_is_the_total_not_the_page(self, db, service):
+        asset, _, _ = await self._asset_with_loans(service, 12)
+        await service.loan_history(asset, limit=5)
+        assert await service.loan_count(asset) == 12
+
+    async def test_the_bounded_page_is_the_most_recent(self, db, service):
+        asset, _, _ = await self._asset_with_loans(service, 12)
+        every = await service.loan_history(asset)
+        page = await service.loan_history(asset, limit=3)
+        assert [loan.id for loan in page] == [loan.id for loan in every[:3]]
+        # Newest first, so the page's oldest row is no older than the rest.
+        assert page[0].checked_out_at >= page[-1].checked_out_at
+
+    async def test_an_asset_with_no_loans_is_clean(self, db, service):
+        manager = await _user(1, 'manager', Role.EQUIPMENT_MANAGER)
+        asset = await service.create_asset(manager, name='Never lent')
+        assert await service.loan_history(asset, limit=5) == []
+        assert await service.loan_count(asset) == 0
+
+    async def test_a_limit_larger_than_the_history_is_fine(self, db, service):
+        asset, _, _ = await self._asset_with_loans(service, 2)
+        assert len(await service.loan_history(asset, limit=50)) == 2

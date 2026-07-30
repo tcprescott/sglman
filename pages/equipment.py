@@ -19,12 +19,37 @@ from application.utils.timezone import format_eastern_display
 from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
+from theme.equipment_copy import equipment_guidance
 
 _STATUS_LABELS = {
     'available': 'Available',
     'checked_out': 'Checked out',
     'retired': 'Retired',
 }
+
+#: Loan rows painted before the "Show all" expansion. An asset lent two hundred
+#: times used to fetch and render all two hundred, on a phone.
+_HISTORY_PREVIEW = 5
+
+
+def _render_loans(loans) -> None:
+    """One caption line per loan; the still-open one gets a badge, not prose.
+
+    Presentation only — the *limit* is the repository's job, this is the shape.
+    """
+    for loan in loans:
+        out = format_eastern_display(loan.checked_out_at)
+        with ui.row().classes('items-baseline gap-2'):
+            if loan.checked_in_at is None:
+                ui.badge('Out now', color='warning')
+            back = (
+                format_eastern_display(loan.checked_in_at)
+                if loan.checked_in_at else 'not yet returned'
+            )
+            ui.label(
+                f'{loan.borrower.preferred_name}: {out} → {back} '
+                f'(out by {loan.checked_out_by.preferred_name})'
+            ).classes('text-caption')
 
 
 def create() -> None:
@@ -56,7 +81,8 @@ def create() -> None:
                 return
 
             open_loan = await service.current_loan(asset)
-            history = await service.loan_history(asset)
+            history = await service.loan_history(asset, limit=_HISTORY_PREVIEW)
+            total_loans = await service.loan_count(asset)
 
             # Tenant-qualified deep link so a scanned QR resolves to this
             # community: its own custom domain when set, else the path-mode form
@@ -128,21 +154,51 @@ def create() -> None:
                         ui.button('Edit', icon='edit', on_click=edit_asset).props(
                             'flat').classes(REQUIRES_SOCKET_CLASS)
 
+                guidance = equipment_guidance(
+                    status=asset.status.value,
+                    is_checked_out=open_loan is not None,
+                    viewer_is_holder=(
+                        open_loan is not None and open_loan.borrower_id == user.id
+                    ),
+                    can_checkout=can_checkout,
+                    can_checkin=can_checkin,
+                    can_manage=can_manage,
+                )
+                if guidance:
+                    ui.label(guidance).classes('italic-note q-mt-sm')
+
                 # --- History ---
                 if history:
                     ui.separator().classes('separator-spacing')
-                    ui.label('Loan history').classes('section-title q-mt-md')
+                    with ui.row().classes('items-baseline gap-2 q-mt-md'):
+                        ui.label('Loan history').classes('section-title')
+                        if total_loans > len(history):
+                            ui.label(f'{len(history)} of {total_loans}').classes('text-caption')
                     with ui.column().classes('gap-1 w-full'):
-                        for loan in history:
-                            out = format_eastern_display(loan.checked_out_at)
-                            back = (
-                                format_eastern_display(loan.checked_in_at)
-                                if loan.checked_in_at else 'still out'
-                            )
-                            ui.label(
-                                f'{loan.borrower.preferred_name}: {out} → {back} '
-                                f'(out by {loan.checked_out_by.preferred_name})'
-                            ).classes('text-caption')
+                        _render_loans(history)
+                    if total_loans > len(history):
+                        # Fetched on first open, not at build time: the whole
+                        # point of the bound is not paying for rows nobody asked
+                        # to see.
+                        with ui.expansion(f'Show all {total_loans}').classes('w-full') as expansion:
+                            rest = ui.column().classes('gap-1 w-full')
+                        loaded = {'value': False}
+
+                        async def load_rest(client) -> None:
+                            with client:
+                                loaded['value'] = True
+                                every = await service.loan_history(asset)
+                                with rest:
+                                    # Only what is not already painted above, so
+                                    # "Show all 15" leaves fifteen on screen, not
+                                    # the first five twice.
+                                    _render_loans(every[len(history):])
+
+                        def on_expand(event) -> None:
+                            if event.value and not loaded['value']:
+                                background_tasks.create(load_rest(context.client))
+
+                        expansion.on_value_change(on_expand)
 
         async def do_checkout():
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))

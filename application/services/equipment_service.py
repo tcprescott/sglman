@@ -262,8 +262,16 @@ class EquipmentService:
         return await self.repository.open_loans_by_equipment_id()
 
     @requires_feature(FeatureFlag.EQUIPMENT)
-    async def loan_history(self, equipment: Equipment) -> List[EquipmentLoan]:
-        return await self.repository.list_loans_for_equipment(equipment)
+    async def loan_history(
+        self, equipment: Equipment, *, limit: Optional[int] = None,
+    ) -> List[EquipmentLoan]:
+        """Loan history, newest first, optionally bounded to ``limit`` rows."""
+        return await self.repository.list_loans_for_equipment(equipment, limit=limit)
+
+    @requires_feature(FeatureFlag.EQUIPMENT)
+    async def loan_count(self, equipment: Equipment) -> int:
+        """Total loans against this asset — the ``N`` in a bounded view's "5 of N"."""
+        return await self.repository.count_loans_for_equipment(equipment)
 
     @requires_feature(FeatureFlag.EQUIPMENT)
     async def my_checkouts(self, user: User) -> List[EquipmentLoan]:

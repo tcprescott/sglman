@@ -28,18 +28,47 @@ _MINE_COLUMNS = [
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
 
-# Each of these emits to the server, so each needs the socket and carries the
-# offline guard's class (theme/connection.py) — including View, whose navigation
-# is a server round trip, not an <a href>. The desktop cell and the mobile card
-# below are built from the same three strings so they cannot drift apart.
-_CHECKOUT_BTN = f'''<q-btn v-if="props.row.status_value === 'available'" dense flat round icon="logout" color="primary"
-               class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('checkout', props.row)"><q-tooltip>Check out</q-tooltip></q-btn>'''
-_CHECKIN_BTN = f'''<q-btn v-if="props.row.status_value === 'checked_out'" dense flat round icon="login" color="secondary"
-               class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('checkin', props.row)"><q-tooltip>Check in</q-tooltip></q-btn>'''
-_VIEW_BTN = f'''<q-btn dense flat round icon="open_in_new" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('view', props.row)"><q-tooltip>View asset</q-tooltip></q-btn>'''
+# Desktop keeps icons — a tooltip opens on a mouse, and the wide row has no space
+# for labels. The mobile card carries text, because this tab is read on a phone
+# where a tooltip never opens; same reason the proctor card's buttons are
+# labelled (theme/tables/match_slots.py). Both forms come from one spec, so the
+# two copies cannot drift on which actions exist, and every one of them carries
+# the offline guard's class (theme/connection.py) — including View, whose
+# navigation is a server round trip, not an <a href>.
+_ACTIONS = (
+    {'event': 'checkout', 'icon': 'logout', 'color': 'primary', 'label': 'Check out',
+     'tooltip': 'Check out', 'when': "props.row.status_value === 'available'"},
+    {'event': 'checkin', 'icon': 'login', 'color': 'secondary', 'label': 'Check in',
+     'tooltip': 'Check in', 'when': "props.row.status_value === 'checked_out'"},
+    {'event': 'view', 'icon': 'open_in_new', 'color': 'primary', 'label': 'View',
+     'tooltip': 'View asset', 'when': None},
+)
+
+
+def _icon_btn(spec: dict) -> str:
+    guard = f'v-if="{spec["when"]}" ' if spec['when'] else ''
+    return (
+        f'<q-btn {guard}dense flat round icon="{spec["icon"]}" color="{spec["color"]}"\n'
+        f'               class="{REQUIRES_SOCKET_CLASS}"\n'
+        f'               @click="$parent.$emit(\'{spec["event"]}\', props.row)">'
+        f'<q-tooltip>{spec["tooltip"]}</q-tooltip></q-btn>'
+    )
+
+
+def _label_btn(spec: dict) -> str:
+    guard = f'v-if="{spec["when"]}" ' if spec['when'] else ''
+    return (
+        f'<q-btn {guard}dense no-caps flat icon="{spec["icon"]}" color="{spec["color"]}"\n'
+        f'               label="{spec["label"]}" class="{REQUIRES_SOCKET_CLASS}"\n'
+        f'               @click="$parent.$emit(\'{spec["event"]}\', props.row)" />'
+    )
+
+
+_ICON_BTNS = {spec['event']: _icon_btn(spec) for spec in _ACTIONS}
+_LABEL_BTNS = {spec['event']: _label_btn(spec) for spec in _ACTIONS}
+# "My Checkouts" offers only View; its own card is labelled the same way.
+_MINE_ICON_BTN = _ICON_BTNS['view']
+_MINE_LABEL_BTN = _LABEL_BTNS['view']
 
 
 async def equipment_tab() -> None:
@@ -87,9 +116,12 @@ async def equipment_tab() -> None:
                     ).classes('equipment-table equipment-table-container w-full').props(
                         ':grid="Quasar.Screen.lt.md"'
                     )
-                    checkout_btn = _CHECKOUT_BTN if can_checkout else ''
-                    checkin_btn = _CHECKIN_BTN if can_checkin else ''
-                    view_btn = _VIEW_BTN
+                    def actions(btns: dict) -> str:
+                        return (
+                            (btns['checkout'] if can_checkout else '')
+                            + (btns['checkin'] if can_checkin else '')
+                            + btns['view']
+                        )
 
                     table.add_slot('body-cell-status', '''<q-td :props="props">
                         <q-badge :color="props.row.status_value === 'available' ? 'positive'
@@ -98,7 +130,7 @@ async def equipment_tab() -> None:
                         </q-badge>
                     </q-td>''')
                     table.add_slot('body-cell-actions',
-                        '<q-td :props="props">' + checkout_btn + checkin_btn + view_btn + '</q-td>')
+                        '<q-td :props="props">' + actions(_ICON_BTNS) + '</q-td>')
                     table.add_slot('item', '''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">
                         <div class="row items-center q-mb-xs">
                             <div class="col-4 text-grey-7">#:</div>
@@ -121,7 +153,7 @@ async def equipment_tab() -> None:
                             <div class="col-4 text-grey-7">Checked out to:</div>
                             <div class="col-8">{{ props.row.holder }}</div>
                         </div>
-                        <div class="row items-center justify-end">''' + checkout_btn + checkin_btn + view_btn + '''</div>
+                        <div class="row items-center justify-end q-gutter-xs">''' + actions(_LABEL_BTNS) + '''</div>
                     </div>''')
 
                     async def handle_checkout(row, client):
@@ -160,7 +192,7 @@ async def equipment_tab() -> None:
                         'equipment-table equipment-table-container w-full'
                     ).props(':grid="Quasar.Screen.lt.md"')
                     table.add_slot('body-cell-actions',
-                        '<q-td :props="props">' + _VIEW_BTN + '</q-td>')
+                        '<q-td :props="props">' + _MINE_ICON_BTN + '</q-td>')
                     table.add_slot('item', '''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">
                         <div class="row items-center q-mb-xs">
                             <div class="col-4 text-grey-7">#:</div>
@@ -174,7 +206,7 @@ async def equipment_tab() -> None:
                             <div class="col-4 text-grey-7">Checked out:</div>
                             <div class="col-8">{{ props.row.checked_out_at }}</div>
                         </div>
-                        <div class="row items-center justify-end">''' + _VIEW_BTN + '''</div>
+                        <div class="row items-center justify-end">''' + _MINE_LABEL_BTN + '''</div>
                     </div>''')
                     table.on('view', lambda e: ui.navigate.to(f"/equipment/{e.args['id']}"))
 

@@ -12,11 +12,13 @@ this.
 """
 
 from pages.admin_tabs.admin_equipment import _ACTIONS_CELL, _GRID_CARD
-from pages.home_tabs.equipment import _CHECKIN_BTN, _CHECKOUT_BTN, _VIEW_BTN
+from pages.home_tabs.equipment import _ICON_BTNS, _LABEL_BTNS
 from theme.connection import REQUIRES_SOCKET_CLASS
 
 _REGISTER_TEMPLATES = {'body-cell-actions': _ACTIONS_CELL, 'item': _GRID_CARD}
-_HOME_BUTTONS = {'checkout': _CHECKOUT_BTN, 'checkin': _CHECKIN_BTN, 'view': _VIEW_BTN}
+_HOME_BUTTONS = {f'{form}:{event}': html
+                 for form, btns in (('icon', _ICON_BTNS), ('label', _LABEL_BTNS))
+                 for event, html in btns.items()}
 
 
 class TestAdminRegister:
@@ -45,4 +47,8 @@ class TestHomeInventory:
     def test_the_view_button_is_marked_too(self):
         # It looks like a link but is a server round trip: the click emits, and
         # the server answers with an `open` message.
-        assert REQUIRES_SOCKET_CLASS in _VIEW_BTN
+        assert REQUIRES_SOCKET_CLASS in _ICON_BTNS['view']
+        assert REQUIRES_SOCKET_CLASS in _LABEL_BTNS['view']
+
+    def test_both_forms_offer_the_same_actions(self):
+        assert set(_ICON_BTNS) == set(_LABEL_BTNS) == {'checkout', 'checkin', 'view'}

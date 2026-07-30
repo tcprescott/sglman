@@ -373,7 +373,8 @@ Lending-asset management (create/edit/delete, bulk creation with auto-assigned a
 | `get_assets_by_ids(ids)` | `list[Equipment]` | Tenant-scoped fetch of the given assets (ordered by asset number) for the bulk QR-label sheet; unknown/foreign ids are silently dropped. |
 | `current_loan(equipment)` | `EquipmentLoan \| None` | The open loan for an asset, if any. |
 | `open_loans_by_equipment_id()` | `dict[int, EquipmentLoan]` | All open loans keyed by equipment id (table batch-load). |
-| `loan_history(equipment)` | `list[EquipmentLoan]` | Full loan history for an asset. |
+| `loan_history(equipment, *, limit=None)` | `list[EquipmentLoan]` | Loan history, newest first; `limit` bounds the fetch. Each row prefetches three users, so an asset lent hundreds of times is worth bounding — the asset page asks for the five it paints. |
+| `loan_count(equipment)` | `int` | Total loans against an asset — the `N` a bounded view reports as "5 of N". |
 | `my_checkouts(user)` | `list[EquipmentLoan]` | A user's currently-open loans. |
 
 Collaborators: `EquipmentRepository`, `AuthService`, `AuditService`. The equipment detail pages render QR codes via [`qrcode_util.py`](#qrcode_utilpy).

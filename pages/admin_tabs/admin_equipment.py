@@ -76,19 +76,28 @@ _GRID_CARD = f'''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 
         <div class="col-4 text-grey-7">Checked out to:</div>
         <div class="col-8">{{{{ props.row.holder }}}}</div>
     </div>
+    <!-- Labelled, not icon-only: this register is read on a phone at the venue,
+         where a tooltip never opens — the same reason the proctor card's buttons
+         carry text (theme/tables/match_slots.py). Delete is on its own line, so
+         the destructive control is not a thumb-width from Edit. -->
     <div class="row items-center justify-end q-gutter-xs">
-        <q-btn v-if="props.row.status_value === 'available'" dense flat round icon="logout" color="primary"
+        <q-btn v-if="props.row.status_value === 'available'" dense no-caps icon="logout" color="primary"
+               label="Check out" class="{REQUIRES_SOCKET_CLASS}"
+               @click="$parent.$emit('checkout', props.row)" />
+        <q-btn v-if="props.row.status_value === 'checked_out'" dense no-caps icon="login" color="secondary"
+               label="Check in" class="{REQUIRES_SOCKET_CLASS}"
+               @click="$parent.$emit('checkin', props.row)" />
+        <q-btn dense no-caps flat icon="qr_code_2" color="primary" label="Open"
                class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('checkout', props.row)"><q-tooltip>Check out</q-tooltip></q-btn>
-        <q-btn v-if="props.row.status_value === 'checked_out'" dense flat round icon="login" color="secondary"
+               @click="$parent.$emit('view', props.row)" />
+        <q-btn dense no-caps flat icon="edit" color="primary" label="Edit"
                class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('checkin', props.row)"><q-tooltip>Check in</q-tooltip></q-btn>
-        <q-btn dense flat round icon="qr_code_2" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('view', props.row)"><q-tooltip>Open asset page</q-tooltip></q-btn>
-        <q-btn dense flat round icon="edit" color="primary" class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('edit', props.row)"><q-tooltip>Edit</q-tooltip></q-btn>
-        <q-btn dense flat round icon="delete" color="negative" class="{REQUIRES_SOCKET_CLASS}"
-               @click="$parent.$emit('remove', props.row)"><q-tooltip>Delete</q-tooltip></q-btn>
+               @click="$parent.$emit('edit', props.row)" />
+    </div>
+    <div class="row items-center justify-end q-mt-sm">
+        <q-btn dense no-caps outline icon="delete" color="negative" label="Delete"
+               class="{REQUIRES_SOCKET_CLASS}"
+               @click="$parent.$emit('remove', props.row)" />
     </div>
 </div>'''
 

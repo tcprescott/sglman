@@ -211,7 +211,7 @@ The public event schedule with crew signup.
 
 - Two inner Quasar tabs: **Inventory** (all assets via `EquipmentService.list_assets` + `open_loans_by_equipment_id`, status badge, current holder) and **My Checkouts** (`EquipmentService.my_checkouts`).
 - Per-row action buttons gated by `AuthService.can_checkout_equipment` / `can_checkin_equipment` (going through `open_checkout` / `quick_checkin`, with `can_manage` from `can_manage_equipment`); a **View asset** button navigates to `/equipment/{id}`.
-- Both tables use the `.equipment-table` family and switch to grid cards on small screens. The three button snippets are module constants shared by the desktop cell and the mobile card, so the two copies cannot drift; each carries `wiz-requires-socket` ([Offline honesty](#offline-honesty-themeconnectionpy)).
+- Both tables use the `.equipment-table` family and switch to grid cards on small screens. The row actions come from one `_ACTIONS` spec rendered two ways — `_ICON_BTNS` for the desktop cell, `_LABEL_BTNS` (visible text) for the mobile card — so the two copies cannot drift on which actions exist; each carries `wiz-requires-socket` ([Offline honesty](#offline-honesty-themeconnectionpy)).
 
 ## Volunteer hub (`/volunteer`, `pages/volunteer.py`)
 
@@ -437,7 +437,17 @@ All colour/size routes through `--bracket-*` custom properties in [`static/css/b
 - A `@ui.refreshable` `ui.table` of all assets (`EquipmentService.list_assets` + `open_loans_by_equipment_id`): #, Name, Owner, Status badge, current holder, with grid-card mode on small screens.
 - Per-row buttons: **Check out** / **Check in** (`open_checkout` with `can_manage=True` / `quick_checkin`), **Open asset page**, **Edit** (`EquipmentDialog`), **Delete** (guarded by `ConfirmationDialog` → `EquipmentService.delete_asset`). **Add Asset** opens `EquipmentDialog` in create mode.
 - The desktop `body-cell-actions` cell and the mobile `item` card are module-level constants (`_ACTIONS_CELL`, `_GRID_CARD`) built from the same class name; every emitting button in both carries `wiz-requires-socket`, so a dropped socket refuses the tap out loud instead of eating it ([Offline honesty](#offline-honesty-themeconnectionpy)). `tests/theme/test_equipment_offline_guard.py` asserts the mark count equals the `$emit` count in each copy.
+- **The card's buttons are labelled; the desktop row's are not.** Text on a phone, icons + `q-tooltip` on a mouse — the same split, for the same reason, as the proctor card (`theme/tables/match_slots.py`: *"the proctor reads this board on a tablet, where a tooltip never opens"*). **Delete sits on its own line** below the others, `outline negative`, so the destructive control is not a thumb-width from Edit; the `ConfirmationDialog` still guards it. `tests/theme/test_equipment_card_labels.py` locks both halves.
 - **Print QR labels** opens `QrLabelDialog` — a checklist of assets (all pre-selected), quick-select filters, a template picker (plain grid with Letter/A4 + column count, or an Avery peel-off preset), and "Also show" toggles. It opens [`/equipment/qr-labels`](../../pages/equipment_labels.py) in a new tab (a bare path, so `ui.navigate.to` re-adds the tenant `root_path`) with the chosen `ids`/`template`/`show`. The single-asset page also has a manager-only **Print label** button for one asset.
+
+### Asset detail (`/equipment/{asset_id}`, `pages/equipment.py`)
+
+`equipment_detail(asset_id)` — the QR target. A `@ui.refreshable` body: name + status badge, description/owner/holder, manager-only private notes, the QR image with its tenant-qualified link (`tenant_url`), Download QR / Print label, the action row, a guidance line, and the loan history.
+
+- **Actions**: **Check out…** / **Check out to me** (`open_checkout`, wording depends on `can_manage`), **Check in** (`quick_checkin`, manager-only gate), **Edit** (`EquipmentDialog`). All three carry `wiz-requires-socket`; Download QR (a data URI already in the page) and Print label (a new tab) deliberately do not.
+- **A viewer with no button gets a sentence**, from the pure `equipment_guidance(...)` in [`theme/equipment_copy.py`](../../theme/equipment_copy.py). The check-in gate is asymmetric on purpose — `can_checkout_equipment` admits volunteers, `can_checkin_equipment` is manager-only — and this line is the one place that *reason* is written for users: *"Returns are recorded by staff or an equipment manager — hand it to them to check in."*, prefixed with *"You have this checked out."* when the viewer is the holder. It also covers a retired asset and a signed-in user who cannot borrow. A manager never sees it.
+- **Loan history is bounded at the read**: the page fetches the most recent 5 (`loan_history(asset, limit=5)`) plus `loan_count(asset)`, shows "5 of N", and a **Show all N** `ui.expansion` fetches the remainder on first open — not at build time. An open loan carries an *Out now* badge instead of the old `→ still out` text. The limit belongs to the repository; the "5 of N" string and the expansion are presentation.
+- **On reconnect it re-reads.** A `client.on_connect` handler refreshes the body after a short blip (the first handshake is skipped, so the initial render is not doubled). A blip longer than `reconnect_timeout` is the framework's own page reload.
 
 ### Admin feedback (`pages/admin_tabs/admin_feedback.py`)
 
