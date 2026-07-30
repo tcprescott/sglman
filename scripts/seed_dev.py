@@ -96,6 +96,12 @@ async def seed_users() -> dict[str, User]:
         # per-community people scoping visible in the dev loop. They must appear
         # in tenant A's borrower/owner pickers and in neither of tenant B's.
         ("100000000000000010", "local_only",   "Local Only"),
+        # Two more single-capability operators, for the same reason as
+        # equip_manager: staff satisfies every predicate in the admin area, so a
+        # surface that gates on staff-ness where it means to gate on a
+        # capability looks correct until one of these logs in.
+        ("100000000000000011", "cc_user",      "Crew Coordinator"),
+        ("100000000000000012", "vc_user",      "Volunteer Coordinator"),
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
@@ -237,6 +243,10 @@ async def seed_for_tenant(
             ("player_two", Role.VOLUNTEER),
             ("player_three", Role.VOLUNTEER),
             ("player_four", Role.VOLUNTEER),
+            # Deliberately the only grant vc_user gets: a coordinator with no
+            # staff role. cc_user gets no role row at all — crew coordination is
+            # a per-tournament relation, granted below.
+            ("vc_user", Role.VOLUNTEER_COORDINATOR),
         ]
         if tenant.slug == "default":
             # Deliberately one tenant only — a role grant implies membership, so
@@ -309,6 +319,7 @@ async def seed_for_tenant(
         )
         await tournament.admins.add(staff)
         await tournament.crew_coordinators.add(staff)
+        await tournament.crew_coordinators.add(users["cc_user"])
 
         # The general-purpose fixture tournament is deliberately **on-premises**:
         # its matches are the proctor-lifecycle fixtures, and attaching a

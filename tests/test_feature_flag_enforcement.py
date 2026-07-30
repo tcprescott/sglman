@@ -183,6 +183,23 @@ async def test_qualifier_service_refuses_when_feature_off(bare_tenant):
             await AsyncQualifierService().list_open_qualifiers()
 
 
+async def test_volunteer_coverage_refuses_when_feature_off(bare_tenant):
+    """The Volunteer Coverage *report* was the one entry surface that read
+    volunteer data without checking the flag — REST and MCP were both gated."""
+    from datetime import datetime, timezone
+
+    from application.services.volunteer.volunteer_schedule_service import (
+        VolunteerScheduleService,
+    )
+
+    with tenant_scope(bare_tenant.id):
+        with pytest.raises(FeatureDisabledError):
+            await VolunteerScheduleService().coverage(
+                datetime(2026, 1, 1, tzinfo=timezone.utc),
+                datetime(2026, 1, 2, tzinfo=timezone.utc),
+            )
+
+
 async def test_speedgaming_service_refuses_when_feature_off(bare_tenant):
     from application.services.speedgaming_sync_service import SpeedGamingSyncService
 

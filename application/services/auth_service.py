@@ -159,6 +159,30 @@ class AuthService:
             return True
         return await cc_q.exists()
 
+    @staticmethod
+    async def can_view_schedule_board(user: Optional[User]) -> bool:
+        """Whether the admin Schedule tab is reachable for ``user``.
+
+        Staff, any tournament admin, or any crew coordinator in this tenant —
+        the same three predicates ``pages/admin.py`` appends the Schedule tab
+        on. The reports resolve their drill-out links against this so they never
+        offer a route the destination would refuse. (What the board *lets* them
+        do once there is a separate question: ``can_crud`` is narrower.)
+        """
+        if user is None:
+            return False
+        if await AuthService.is_staff(user):
+            return True
+        tid = get_current_tenant_id()
+        admin_q = user.admin_tournaments.all()
+        cc_q = user.crew_coordinated_tournaments.all()
+        if tid is not None:
+            admin_q = admin_q.filter(tenant_id=tid)
+            cc_q = cc_q.filter(tenant_id=tid)
+        if await admin_q.exists():
+            return True
+        return await cc_q.exists()
+
     # Roles that have something to do on the Volunteer hub; mirrors the
     # ``roles=`` list on ``@protected_tab_page('/volunteer')``.
     _VOLUNTEER_ROLES = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}

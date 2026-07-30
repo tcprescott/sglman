@@ -12,7 +12,6 @@ the truth and git history keeps the rationale.
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [match-operations-ux.md](match-operations-ux.md) | Admin Schedule board + match dialog, across five roles | Four service-level authorization gates compressed into one `can_crud` boolean: a crew coordinator gets 37 controls that all refuse |
 | [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
-| [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
@@ -35,6 +34,11 @@ The new-tenant-onboarding audit — four waves: the first-admin grant on
 `/platform` and the derived setup checklist, `TenantMembership` made real and
 every person picker scoped to it, enrolment given a home on the tournament, and
 the membership gate with the join door beside it.
+The admin-reports audit — its findings became the per-row route out of every
+report that names work (and the `?match_id=` / `?day=` params the destinations
+grew to receive it), the scroll position that survives a filter change, and the
+`FeatureFlag.VOLUNTEERS` gate the Volunteer Coverage report was the last entry
+surface to ignore.
 
 ## Cross-cutting themes
 
@@ -53,9 +57,6 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   stays silent on purpose because its creation was. **Crew withdrawal and crew
   un-approval are still silent** — the same fix, not yet applied, and
   `VolunteerScheduleService`'s notification matrix is the worked example.
-- **Discovery and action live on different pages.** Reports can see pending crew,
-  understaffed shifts and over-capacity peaks; none of them link to the surface that
-  fixes it ([reports F1](admin-reports-ux.md#f1--major--nine-reports-zero-actions)).
 - **Capabilities nobody wired are invisible.** `update_bracket`,
   `state_readonly_slot()` — each exists, is tested, and is reachable from no
   surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
@@ -90,7 +91,9 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   coordinator-only or stream-manager-only user has to be granted by hand; three
   audits needed one
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
-  The equipment-manager-only case now seeds (`equip_manager`).
+  Three of those now seed — `equip_manager` (EQUIPMENT_MANAGER only), `vc_user`
+  (VOLUNTEER_COORDINATOR only) and `cc_user` (crew coordinator, no role row at
+  all) — but a stream-manager-only user still does not.
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
   revoking an approval and arming five lifecycle-clear buttons get none. (The
   qualifier forfeit was the worst case and now confirms.)

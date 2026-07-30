@@ -46,7 +46,7 @@ def stored_or_default_day(
     return stored if stored in day_options else fallback
 
 
-async def admin_volunteers_page() -> None:
+async def admin_volunteers_page(day: str = None) -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if not await AuthService.can_manage_volunteers(actor):
         ui.label('You do not have permission to manage volunteers.').classes('text-error')
@@ -68,9 +68,15 @@ async def admin_volunteers_page() -> None:
     # Per-page state, never module level: NiceGUI shares one process across users.
     # ``last_run`` holds the most recent auto-fill result for the summary panel;
     # the durable record of a run is its audit row, not this.
+    #
+    # A deep link (``?day=``) is a deliberate destination, so it outranks the
+    # remembered day — but only when it names a day this event actually has; an
+    # out-of-window or malformed date falls through to the stored one rather
+    # than opening an empty grid for a day that isn't real.
     state = {
         'day': stored_or_default_day(
-            tenant_session_get(_DAY_KEY), day_options,
+            day if day in day_options else tenant_session_get(_DAY_KEY),
+            day_options,
             day_options[0] if day_options else event_start.isoformat(),
         ),
         'last_run': None,

@@ -205,10 +205,10 @@ async def telemetry_page(
             page_size=PAGE_SIZE,
             on_page=lambda new_page: _nav(page=new_page),
             csv_filename_prefix=f'telemetry-page-{page_int}-{start_d}-to-{end_d}',
-            count_label=f'{total:,} events',
+            count_noun='events',
             note=(
-                'Click a user in "Most active users" to filter. Category filters the '
-                'log; the "Event contains" box matches the path.'
+                'Click a row to filter by that user. Category filters the log; '
+                'the "Event contains" box matches the path.'
             ),
             card_classes='full-width q-pa-md q-mt-md',
         )
@@ -240,3 +240,5 @@ def _leaderboard(title, columns, rows, *, row_key, on_row_click=None) -> None:
                     on_row_click(uid)
             table.on('lb-click', _handle)
         enable_mobile_grid(table, columns, row_click_event='lb-click' if on_row_click is not None else None)
+        if on_row_click is not None:
+            ui.label('Click a row to filter the log to that person.').classes('italic-note')

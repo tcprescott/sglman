@@ -46,6 +46,24 @@ def make_assignment(**overrides):
 
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
+
+
+@pytest.fixture(autouse=True)
+def volunteers_feature_live():
+    """Treat ``FeatureFlag.VOLUNTEERS`` as live for these DB-less unit tests.
+
+    ``coverage`` and ``day_summary`` are ``@requires_feature``-gated, and the
+    guard reads the flag from the database — which these tests do not have. That
+    the guard *refuses* without the flag is covered in
+    test_feature_flag_enforcement.py against a real bare tenant.
+    """
+    with patch(
+        'application.services.feature_flag_service.FeatureFlagService.ensure_enabled',
+        new=AsyncMock(return_value=None),
+    ):
+        yield
+
+
 @pytest.fixture
 def service():
     svc = object.__new__(VolunteerScheduleService)

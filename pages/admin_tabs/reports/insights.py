@@ -31,18 +31,54 @@ from .shared import (
 )
 
 
-# Default trailing window when no range is supplied: trends need history, so a
-# single event weekend (the reports default) would collapse to one bucket.
+# Fallback trailing window for a community with no history at all: trends need
+# history, so a single event weekend (the reports default) would collapse to one
+# bucket. When there *is* history the window comes from the data's own extent.
 DEFAULT_TREND_DAYS = 90
 
+# Below this a single-day extent would render as one bucket with nothing either
+# side of it — pad out to something that reads as a trend.
+MIN_TREND_DAYS = 28
+# And above it, three years of history should not open on 156 weekly buckets;
+# keep the most recent slice.
+MAX_TREND_DAYS = 400
+# Weekly buckets past this many days become unreadable; switch to monthly.
+WEEKLY_BUCKET_LIMIT_DAYS = 180
 
-def _default_range(start: Optional[str], end: Optional[str]) -> tuple[date, date]:
+
+async def _default_range(
+    analytics, start: Optional[str], end: Optional[str],
+    tournament_id: Optional[int] = None,
+) -> tuple[date, date]:
+    """The window to open on. Explicit dates win; otherwise follow the data.
+
+    Measured before this: the fixed 90-day window bucketed weekly gave 13 empty
+    buckets and everything in the last one — eight charts that were each one
+    spike at the right edge. The crew report's instinct (default to the event
+    window) is right but not reusable here, since this page trends *across*
+    events; the data's own extent is its equivalent.
+    """
     s = parse_date(start)
     e = parse_date(end)
     if s and e:
         return s, e
+
     today = now_eastern().date()
-    return today - timedelta(days=DEFAULT_TREND_DAYS), today
+    first, last = await analytics.activity_extent(tournament_id=tournament_id)
+    if first is None or last is None:
+        return today - timedelta(days=DEFAULT_TREND_DAYS), today
+
+    if (last - first).days > MAX_TREND_DAYS:
+        first = last - timedelta(days=MAX_TREND_DAYS)
+    if (last - first).days < MIN_TREND_DAYS:
+        pad = (MIN_TREND_DAYS - (last - first).days) // 2 + 1
+        first, last = first - timedelta(days=pad), last + timedelta(days=pad)
+    return first, last
+
+
+def _default_bucket(start_d: date, end_d: date) -> str:
+    """Weekly for a window a week's granularity can render, monthly beyond."""
+    return 'week' if (end_d - start_d).days <= WEEKLY_BUCKET_LIMIT_DAYS else 'month'
 
 
 def _normalize_bucket(bucket: Optional[str]) -> str:
@@ -57,8 +93,9 @@ async def insights_page(
     **_unused,
 ) -> None:
     analytics = AnalyticsService()
-    start_d, end_d = _default_range(start, end)
-    bucket = _normalize_bucket(bucket)
+    start_d, end_d = await _default_range(analytics, start, end, tournament_id)
+    # Only *default* the bucket — an explicit choice is the operator's.
+    bucket = _normalize_bucket(bucket) if bucket else _default_bucket(start_d, end_d)
     bounds_start, bounds_end = eastern_bounds(start_d, end_d)
 
     def nav(**overrides) -> None:

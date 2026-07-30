@@ -70,6 +70,9 @@ def build_admin_tabs(
     reports_kwargs: dict,
     setup_steps: list[SetupStep] | None = None,
     base_path: str = '/admin',
+    *,
+    match_id: int = None,
+    day: str = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
 
@@ -81,6 +84,10 @@ def build_admin_tabs(
     is_cc_any = access.is_crew_coordinator
     is_qa_any = access.is_qualifier_owner
     can_crud = is_staff or is_ta_any
+    # Each tab that can be deep-linked gets its own params. `state` in
+    # reports_kwargs is the Reports tab's own filter and deliberately not
+    # reused for the board's state filter — one param must not mean two things.
+    schedule_kwargs = {'can_crud': can_crud, 'match_id': match_id}
 
     tabs = []
     # Each tab carries a drawer 'group'; the list is stable-sorted by
@@ -95,7 +102,7 @@ def build_admin_tabs(
         tabs.append({'label': 'Setup', 'icon': 'checklist', 'group': 'Operations',
                      'content': (admin_setup_page, (), {'steps': setup_steps, 'base_path': base_path})})
     if is_staff or is_ta_any or is_cc_any:
-        tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), {'can_crud': can_crud})})
+        tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
     if is_staff:
         tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
     if is_staff or is_ta_any:
@@ -119,7 +126,7 @@ def build_admin_tabs(
         tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'group': 'Community', 'content': admin_triforce_texts_page})
     if (is_staff or access.is_volunteer_coordinator) and FeatureFlag.VOLUNTEERS in live:
         tabs.append({'label': 'Vol. Roster', 'icon': 'groups', 'group': 'Community', 'content': admin_volunteer_roster_page})
-        tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': admin_volunteers_page})
+        tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
     if (is_staff or access.is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
     if is_staff:
@@ -163,6 +170,8 @@ def create() -> None:
         focus: str = None,
         category: str = None,
         page: int = None,
+        match_id: int = None,
+        day: str = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)
@@ -232,7 +241,10 @@ def create() -> None:
         }
 
         base_path = f"{request.scope.get('root_path', '')}/admin" if request else '/admin'
-        tabs = build_admin_tabs(access, live, reports_kwargs, setup_steps, base_path)
+        tabs = build_admin_tabs(
+            access, live, reports_kwargs, setup_steps, base_path,
+            match_id=match_id, day=day,
+        )
 
         base_layout = BaseLayout(
             tabs=tabs, section=section, base_path=base_path, page_name='admin', user=user,

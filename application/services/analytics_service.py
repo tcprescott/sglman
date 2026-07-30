@@ -14,6 +14,7 @@ Like :class:`ReportsService`, this queries the ORM models directly rather than
 going through repositories — the aggregations are read-only and self-contained.
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -531,11 +532,65 @@ class AnalyticsService:
             'total': total,
         }
 
+    # --- Activity extent ---------------------------------------------------
+
+    async def activity_extent(
+        self, tournament_id: Optional[int] = None,
+    ) -> Tuple[Optional[date], Optional[date]]:
+        """Earliest and latest **Eastern dates** with any activity this trends.
+
+        The four sections above read matches, volunteer shifts and audit logs;
+        this reports the span they cover so the page can open on a window that
+        has data in it rather than a fixed trailing range. ``(None, None)`` for
+        a community with no history at all.
+
+        Volunteer shifts and audit logs are not tournament-scoped in the data
+        model (the page says so where it renders them), so a ``tournament_id``
+        narrows the extent to the sources that *are* scoped — otherwise a
+        "narrowed" window would silently widen back out to every other event's
+        shifts.
+        """
+        tid = require_tenant_id()
+        match_q = Match.filter(tenant_id=tid, scheduled_at__isnull=False)
+        if tournament_id:
+            match_q = match_q.filter(tournament_id=tournament_id)
+
+        sources = [match_q.order_by('scheduled_at').first(),
+                   match_q.order_by('-scheduled_at').first()]
+        if not tournament_id:
+            shift_q = VolunteerShift.filter(tenant_id=tid)
+            log_q = AuditLog.filter(tenant_id=tid)
+            sources += [
+                shift_q.order_by('starts_at').first(),
+                shift_q.order_by('-starts_at').first(),
+                log_q.order_by('created_at').first(),
+                log_q.order_by('-created_at').first(),
+            ]
+
+        rows = await asyncio.gather(*sources)
+        stamps = [
+            to_eastern(when).date()
+            for row, attr in zip(rows, _EXTENT_FIELDS[:len(rows)])
+            if row is not None and (when := getattr(row, attr, None)) is not None
+        ]
+        if not stamps:
+            return None, None
+        return min(stamps), max(stamps)
+
     # --- Internal ----------------------------------------------------------
 
     @staticmethod
     def _duration_hours(starts_at: datetime, ends_at: datetime) -> float:
         return window_hours(starts_at, ends_at)
+
+
+# The timestamp each ``activity_extent`` probe reads, in the order they are
+# gathered: match window, then (unscoped only) shifts and audit logs.
+_EXTENT_FIELDS = (
+    'scheduled_at', 'scheduled_at',
+    'starts_at', 'starts_at',
+    'created_at', 'created_at',
+)
 
 
 def _new_contributor(user) -> Dict:

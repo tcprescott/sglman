@@ -6,9 +6,10 @@ Falls back to the summary dashboard.
 
 from typing import Optional
 
-from nicegui import app, background_tasks
+from nicegui import app, background_tasks, ui
 
-from application.services import TelemetryService
+from application.services import FeatureFlagService, TelemetryService
+from models import FeatureFlag
 from .audit import audit_page
 from .capacity import capacity_page
 from .crew import crew_page
@@ -29,6 +30,15 @@ _REPORT_HANDLERS = {
     'volunteers': volunteers_page,
     'audit': audit_page,
     'telemetry': telemetry_page,
+}
+
+# Reports whose subsystem is behind a per-tenant flag. A community that has
+# never enabled volunteer scheduling used to get a Volunteer Coverage card, open
+# it, and read volunteer data — the report was the only entry surface that did
+# not check (REST mounts behind require_feature, the MCP tool declares the flag,
+# both Vol. tabs test it). The service now refuses too; this is the surface half.
+_REPORT_FEATURES = {
+    'volunteers': FeatureFlag.VOLUNTEERS,
 }
 
 
@@ -58,9 +68,25 @@ async def reports_page(
     **params,
 ) -> None:
     """Top-level entry called from the admin tabs config."""
+    # Keeps the operator's scroll position across the filter reload and
+    # acknowledges the click while they wait. Installed once here rather than
+    # per report so the dashboard gets it too; the script keys off the URL's
+    # ``report`` param and no-ops outside /admin/reports.
+    ui.add_head_html('<script src="/static/js/report-nav.js"></script>')
+
+    # One query for every report and every dashboard card, rather than an
+    # is_enabled call in each module.
+    live = await FeatureFlagService().enabled_flags()
+    feature = _REPORT_FEATURES.get(report)
+    if feature is not None and feature not in live:
+        report = None
     handler = _REPORT_HANDLERS.get(report)
     if handler is None:
-        await dashboard_page()
+        # The dashboard takes a window like every other report now; the rest of
+        # the filter params belong to reports it is not rendering.
+        await dashboard_page(
+            live=live, start=params.get('start'), end=params.get('end'),
+        )
         return
     _track_report_view(report)
     await handler(**params)
