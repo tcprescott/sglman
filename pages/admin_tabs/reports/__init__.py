@@ -6,7 +6,7 @@ Falls back to the summary dashboard.
 
 from typing import Optional
 
-from nicegui import app, background_tasks
+from nicegui import app, background_tasks, ui
 
 from application.services import FeatureFlagService, TelemetryService
 from models import FeatureFlag
@@ -68,6 +68,12 @@ async def reports_page(
     **params,
 ) -> None:
     """Top-level entry called from the admin tabs config."""
+    # Keeps the operator's scroll position across the filter reload and
+    # acknowledges the click while they wait. Installed once here rather than
+    # per report so the dashboard gets it too; the script keys off the URL's
+    # ``report`` param and no-ops outside /admin/reports.
+    ui.add_head_html('<script src="/static/js/report-nav.js"></script>')
+
     # One query for every report and every dashboard card, rather than an
     # is_enabled call in each module.
     live = await FeatureFlagService().enabled_flags()

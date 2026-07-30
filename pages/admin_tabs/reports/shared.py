@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
-from nicegui import ui
+from nicegui import context, ui
 
 from application.services import SystemConfigService, TournamentService
 from application.utils.csv_export import rows_to_csv_bytes, timestamped_filename
@@ -207,8 +207,35 @@ def csv_export_button(
     return ui.button(label, icon='download', on_click=_click).props('flat dense')
 
 
+def show_navigating() -> None:
+    """Acknowledge a click that is about to cost a full page navigation.
+
+    A measured filter change costs ~4.4 s; without this the page sits stale and
+    a second click queues a second navigation. Built as a NiceGUI element rather
+    than ``ui.run_javascript``, which is deliberate: the outbox emits element
+    *updates* before *messages* in a batch, so an element created here reaches
+    the browser ahead of the ``open`` that navigates — a fire-and-forget
+    ``run_javascript`` is deferred to a background task and loses that race.
+
+    The overlay dies with the page, which is what is wanted: the next page
+    renders fresh. Flagged on the client so a fast double-change is a no-op
+    rather than a second overlay (never module state — one module is shared by
+    every operator in every tenant).
+    """
+    client = context.client
+    if getattr(client, '_wiz_report_navigating', False):
+        return
+    client._wiz_report_navigating = True
+    with client.content:
+        with ui.element('div').classes('wiz-report-busy'):
+            with ui.element('div').classes('wiz-report-busy__box'):
+                ui.spinner(size='sm')
+                ui.label('Updating report…')
+
+
 def navigate_with_params(report: Optional[str] = None, **params) -> None:
     """Reload the admin page with new query params (used for filter changes)."""
+    show_navigating()
     ui.navigate.to(reports_url(report=report, **params))
 
 
@@ -331,6 +358,9 @@ def enable_drill_link(
 def _follow_drill(e) -> None:
     url = clicked_row(e).get(DRILL_FIELD)
     if url:
+        # Same acknowledgment a filter change gets: this is a full navigation
+        # to another admin tab, not an in-page update.
+        show_navigating()
         ui.navigate.to(url)
 
 

@@ -102,6 +102,20 @@ latency. The scroll reset is cheaper to fix than the reload — preserving and
 restoring `scrollY` across the navigation would remove most of the felt cost
 without touching the render path.
 
+**Closed** (wave 3). The reload stays. Re-instrumented on the same seeded
+tenant, timing from the change event to the row set rendering rather than to a
+fixed sleep — which is also why these numbers are smaller than the 4,447 ms
+above, not because the reload got faster:
+
+| One date-filter change | before | after |
+|---|---:|---:|
+| crew (1,859 px) | 1,145 ms · 1 nav · 28 req · scrollY **600 → 0** | 1,215 ms · 1 nav · 29 req · scrollY **600 → 600** |
+| telemetry (3,558 px) | 1,296 ms · 1 nav · 28 req · scrollY **600 → 0** | 1,432 ms · 1 nav · 29 req · scrollY **600 → 600** |
+
+The extra request is `report-nav.js` itself. Switching to a *different* report
+still lands at the top, which is right — that is a different page, not a moved
+position.
+
 ### F3 — Minor · Insights' default window is much wider than the data, so every chart is one spike at the right edge
 
 Measured on the default view: a ~90-day window bucketed weekly, with 13 empty
