@@ -90,6 +90,11 @@ Design B's session keys and guards: `/login` on the custom domain mints a `hando
 
 The Discord `access_token` is **never persisted** — not on the `User` row, not in the session — so there is nothing token-shaped to revoke at logout. The post-login target is `referrer_path` (default `/`), falling back to `/` when it names one of the auth routes.
 
+**How the target is delivered matters.** `referrer_path` is stored *tenant-qualified* (`AuthMiddleware` writes `f'{root_path}{path}'`), and the two delivery mechanisms treat that differently:
+
+- An HTTP `RedirectResponse` is resolved by the browser against the origin, so it takes the fully qualified path — `tenant_home(root_path)`, `referrer_path` as stored.
+- `ui.navigate.to` is **client-side**, and `nicegui.js` prepends the client's `options.prefix` (`X-Forwarded-Prefix` + `root_path`) to any absolute path. A navigate issued from a page served under `/t/<slug>` must therefore be given the **tenant-local** path via `strip_root_path(root_path, path)`, or it lands on `/t/<slug>/t/<slug>/…`. The mock-login picker (`_login_as`) does this. The real `/oauth/callback` and `/session/claim` deliberately do not: both run where the prefix is empty — the callback on the bare platform host, the claim on the tenant's own domain — so the qualified path is the correct one there.
+
 `User` row writes go through `UserService.provision_from_discord_login(discord_id, username)` (the presentation layer performs no direct ORM write):
 
 - **New user** — created with `discord_id` + `username`, and a `user.provisioned` audit entry self-attributed to the new user.

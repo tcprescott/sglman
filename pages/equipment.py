@@ -6,24 +6,51 @@ its QR code, and loan history; those with the right roles can check the asset
 out or back in, and managers can edit/delete it.
 """
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, context, ui
 from middleware.auth import protected_page
 
 from application.services import AuthService, EquipmentService, TenantService, get_user_from_discord_id
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
 from application.utils.environment import get_base_url
+from application.utils.hostname import effective_request_host
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
-from application.utils.tenant_urls import tenant_url
+from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
 from application.utils.timezone import format_eastern_display
 from theme.base import BaseLayout
+from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
+from theme.equipment_copy import equipment_guidance
 
 _STATUS_LABELS = {
     'available': 'Available',
     'checked_out': 'Checked out',
     'retired': 'Retired',
 }
+
+#: Loan rows painted before the "Show all" expansion. An asset lent two hundred
+#: times used to fetch and render all two hundred, on a phone.
+_HISTORY_PREVIEW = 5
+
+
+def _render_loans(loans) -> None:
+    """One caption line per loan; the still-open one gets a badge, not prose.
+
+    Presentation only — the *limit* is the repository's job, this is the shape.
+    """
+    for loan in loans:
+        out = format_eastern_display(loan.checked_out_at)
+        with ui.row().classes('items-baseline gap-2'):
+            if loan.checked_in_at is None:
+                ui.badge('Out now', color='warning')
+            back = (
+                format_eastern_display(loan.checked_in_at)
+                if loan.checked_in_at else 'not yet returned'
+            )
+            ui.label(
+                f'{loan.borrower.preferred_name}: {out} → {back} '
+                f'(out by {loan.checked_out_by.preferred_name})'
+            ).classes('text-caption')
 
 
 def create() -> None:
@@ -55,7 +82,8 @@ def create() -> None:
                 return
 
             open_loan = await service.current_loan(asset)
-            history = await service.loan_history(asset)
+            history = await service.loan_history(asset, limit=_HISTORY_PREVIEW)
+            total_loans = await service.loan_count(asset)
 
             # Tenant-qualified deep link so a scanned QR resolves to this
             # community: its own custom domain when set, else the path-mode form
@@ -97,6 +125,19 @@ def create() -> None:
                     with ui.column().classes('items-center gap-1'):
                         ui.image(asset_qr_data_uri(asset_link)).classes('w-40 h-40')
                         ui.label(asset_link).classes('text-caption')
+                        # Manager-only: a volunteer scanning a label cannot act
+                        # on a BASE_URL misconfiguration and does not need the
+                        # noise. Compared against the tenant's canonical base —
+                        # a custom-domain community's links are meant to differ
+                        # from the platform host.
+                        wrong_host = encoded_host_mismatch(
+                            asset_link,
+                            effective_request_host(context.client.request.headers),
+                        ) if can_manage else None
+                        if wrong_host:
+                            ui.label(
+                                f'Encodes {wrong_host}, not the host you are on — check BASE_URL.'
+                            ).classes('text-warning text-caption')
 
                         def download_qr():
                             ui.download(asset_qr_png_bytes(asset_link), f'asset-{asset.asset_number}-qr.png')
@@ -111,30 +152,67 @@ def create() -> None:
                                 ).props('flat dense').tooltip('Open a printable label for this asset')
 
                 # --- Actions ---
+                # Every button here needs a round trip, so each carries the
+                # offline guard's class (theme/connection.py). Download QR and
+                # Print label above deliberately do not: the data URI is already
+                # in the page, and a new tab fails on its own terms.
                 with ui.row().classes('q-mt-md gap-2'):
                     if open_loan is None and can_checkout and asset.status.value != 'retired':
                         label = 'Check out…' if can_manage else 'Check out to me'
-                        ui.button(label, icon='logout', on_click=do_checkout).props('color=primary')
+                        ui.button(label, icon='logout', on_click=do_checkout).props(
+                            'color=primary').classes(REQUIRES_SOCKET_CLASS)
                     if open_loan is not None and can_checkin:
-                        ui.button('Check in', icon='login', on_click=do_checkin).props('color=secondary')
+                        ui.button('Check in', icon='login', on_click=do_checkin).props(
+                            'color=secondary').classes(REQUIRES_SOCKET_CLASS)
                     if can_manage:
-                        ui.button('Edit', icon='edit', on_click=edit_asset).props('flat')
+                        ui.button('Edit', icon='edit', on_click=edit_asset).props(
+                            'flat').classes(REQUIRES_SOCKET_CLASS)
+
+                guidance = equipment_guidance(
+                    status=asset.status.value,
+                    is_checked_out=open_loan is not None,
+                    viewer_is_holder=(
+                        open_loan is not None and open_loan.borrower_id == user.id
+                    ),
+                    can_checkout=can_checkout,
+                    can_checkin=can_checkin,
+                    can_manage=can_manage,
+                )
+                if guidance:
+                    ui.label(guidance).classes('italic-note q-mt-sm')
 
                 # --- History ---
                 if history:
                     ui.separator().classes('separator-spacing')
-                    ui.label('Loan history').classes('section-title q-mt-md')
+                    with ui.row().classes('items-baseline gap-2 q-mt-md'):
+                        ui.label('Loan history').classes('section-title')
+                        if total_loans > len(history):
+                            ui.label(f'{len(history)} of {total_loans}').classes('text-caption')
                     with ui.column().classes('gap-1 w-full'):
-                        for loan in history:
-                            out = format_eastern_display(loan.checked_out_at)
-                            back = (
-                                format_eastern_display(loan.checked_in_at)
-                                if loan.checked_in_at else 'still out'
-                            )
-                            ui.label(
-                                f'{loan.borrower.preferred_name}: {out} → {back} '
-                                f'(out by {loan.checked_out_by.preferred_name})'
-                            ).classes('text-caption')
+                        _render_loans(history)
+                    if total_loans > len(history):
+                        # Fetched on first open, not at build time: the whole
+                        # point of the bound is not paying for rows nobody asked
+                        # to see.
+                        with ui.expansion(f'Show all {total_loans}').classes('w-full') as expansion:
+                            rest = ui.column().classes('gap-1 w-full')
+                        loaded = {'value': False}
+
+                        async def load_rest(client) -> None:
+                            with client:
+                                loaded['value'] = True
+                                every = await service.loan_history(asset)
+                                with rest:
+                                    # Only what is not already painted above, so
+                                    # "Show all 15" leaves fifteen on screen, not
+                                    # the first five twice.
+                                    _render_loans(every[len(history):])
+
+                        def on_expand(event) -> None:
+                            if event.value and not loaded['value']:
+                                background_tasks.create(load_rest(context.client))
+
+                        expansion.on_value_change(on_expand)
 
         async def do_checkout():
             actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
@@ -152,4 +230,34 @@ def create() -> None:
                 return
             await EquipmentDialog(actor, equipment=asset, on_saved=render_detail.refresh).open()
 
+        _refresh_on_reconnect(render_detail)
         await render_detail()
+
+
+def _refresh_on_reconnect(refreshable) -> None:
+    """Re-read the asset when the socket comes back, rather than resume.
+
+    This is only the *short* blip. An outage longer than ``reconnect_timeout``
+    (3.0 s by default) means the server has already dropped the client, and the
+    framework then does a full page reload (``try_reconnect`` →
+    ``window.location.reload()``) which re-reads everything on its own. This
+    handler covers the case where the same client survives and would otherwise
+    keep showing pre-blip state — including a status the operator's own eaten
+    click never changed.
+    """
+    client = context.client
+    # on_connect also fires for the initial handshake, where the page has just
+    # been built; refreshing there would double every first render.
+    seen_first = {'value': False}
+
+    async def reread() -> None:
+        with client:
+            await refreshable.refresh()
+
+    def handle_connect() -> None:
+        if not seen_first['value']:
+            seen_first['value'] = True
+            return
+        background_tasks.create(reread())
+
+    client.on_connect(handle_connect)

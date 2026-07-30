@@ -15,11 +15,14 @@ the truth and git history keeps the rationale.
 | [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
 | [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
-| [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
 | [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
+The equipment lending audit — its findings became the offline banner and the
+socket guard, the labelled mobile cards, the guidance line under an actionless
+asset page, the bounded loan history, the per-community borrower/owner pickers,
+and the encoded-host check on the label sheet.
 
 ## Cross-cutting themes
 
@@ -38,14 +41,18 @@ Findings that recur across the audits, worth fixing once rather than nine times:
 - **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
   `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
   reachable from no surface.
-- **The global `User` table leaks into per-community pickers.** The Users tab, the
-  match dialog's "Choose any players", and the equipment borrower select all offer
-  every user on the platform, `System` included
+- **The global `User` table leaks into per-community pickers.** The Users tab and
+  the match dialog's "Choose any players" still offer every user on the platform,
+  `System` included
   ([onboarding F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform)).
-- **The dev seed cannot produce every role that exposes a bug.** `cc_user` and
-  `vc_user` are seeded now, but a stream-manager-only or equipment-manager-only
-  user still has to be granted by hand
+  The equipment borrower and owner selects were the first to be fixed;
+  `UserService.get_community_people` is the read the other two want next.
+- **The dev seed cannot produce every role that exposes a bug.** Three audits
+  needed a single-capability user they had to grant by hand
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
+  Three of those now seed — `equip_manager` (EQUIPMENT_MANAGER only), `vc_user`
+  (VOLUNTEER_COORDINATOR only) and `cc_user` (crew coordinator, no role row at
+  all) — but a stream-manager-only user still does not.
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
   forfeiting a qualifier run, revoking an approval and arming five lifecycle-clear
   buttons get none.
