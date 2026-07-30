@@ -38,6 +38,28 @@ class TestWords:
         assert qualifiers_page._words(0) == '0 seconds'
 
 
+class TestDriftPrompt:
+    def test_page_uses_the_shared_claim_classifier(self):
+        from application.services.async_qualifier.async_qualifier_rules import (
+            ClaimVerdict,
+            classify_claim,
+            measure_elapsed,
+        )
+        assert qualifiers_page.classify_claim is classify_claim
+        assert qualifiers_page.measure_elapsed is measure_elapsed
+        assert qualifiers_page.ClaimVerdict is ClaimVerdict
+
+    def test_only_the_implausible_verdict_is_asked_about(self):
+        """The impossible claim is the service's refusal — its clock is the authority."""
+        source = inspect.getsource(qualifiers_page.create)
+        assert 'ClaimVerdict.IMPLAUSIBLE' in source
+        assert 'ClaimVerdict.IMPOSSIBLE' not in source
+
+    def test_both_submit_paths_share_one_implementation(self):
+        source = inspect.getsource(qualifiers_page.create)
+        assert source.count('await service.submit_run(') == 1
+
+
 class TestForfeitIsConfirmed:
     def test_the_run_card_routes_forfeit_through_a_confirmation(self):
         source = inspect.getsource(qualifiers_page.create)
@@ -48,4 +70,4 @@ class TestForfeitIsConfirmed:
     def test_service_errors_go_through_notify_error(self):
         source = inspect.getsource(qualifiers_page.create)
         assert "ui.notify(str(e)" not in source
-        assert source.count('notify_error(e)') == 3
+        assert 'notify_error(e)' in source

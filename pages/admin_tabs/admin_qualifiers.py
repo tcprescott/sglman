@@ -23,6 +23,7 @@ from application.services import (
     PresetService,
     get_user_from_discord_id,
 )
+from application.services.async_qualifier.async_qualifier_rules import ClaimVerdict, classify_claim
 from application.utils.duration import format_hms
 from application.utils.timezone import format_eastern_display, parse_eastern_datetime
 
@@ -448,6 +449,17 @@ async def admin_qualifiers_page() -> None:
                     ui.button('Reject', icon='close',
                               on_click=lambda rid=run.id: _review(rid, False)
                               ).props('flat color=negative')
+                with ui.row().classes('items-center gap-2'):
+                    ui.label(f'Claimed {format_hms(run.elapsed_seconds)}  ·  '
+                             f'Timed {format_hms(run.measured_seconds)}').classes(
+                        'text-caption text-grey')
+                    if classify_claim(run.elapsed_seconds or 0,
+                                      run.measured_seconds) is ClaimVerdict.IMPLAUSIBLE:
+                        drift = run.measured_seconds - (run.elapsed_seconds or 0)
+                        ui.badge(f'drift {format_hms(drift)}', color='orange').tooltip(
+                            'The runner confirmed this time against their own timer.')
+                ui.label(f'Started {_fmt(run.started_at)} · Finished {_fmt(run.finished_at)}').classes(
+                    'text-caption text-grey')
                 if run.runner_vod_url:
                     ui.link('VoD', run.runner_vod_url, new_tab=True).classes('text-caption')
 

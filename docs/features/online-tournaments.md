@@ -123,6 +123,17 @@ commits.
 run scores 0 and the pool slot is spent — so it opens a `ConfirmationDialog` naming
 those consequences. Submit does not: it is the happy path.
 
+**The server's clock is evidence, not authority.** `start_run` stamps `started_at`
+inside the draw transaction, and submit records the wall clock since then as
+`measured_seconds` beside the runner's claim. Because the timer keeps running while the
+player reads the seed and gets around to submitting, measured is an upper bound and
+*measured ≥ claimed* is the normal case — so the measurement gets three jobs and no
+more: the service **refuses** a claim longer than the run has existed (past a two-minute
+clock grace), the run surface **asks** about a claim 15+ minutes under the clock
+("Your timer says 1:14:22. You typed 0:14:22.") without ever blocking it, and the
+review queue **shows** both numbers with a drift badge on the ones the runner
+confirmed. Nothing auto-corrects a submitted time.
+
 **Review is adversarial by construction.** Reviewers are the qualifier's own `admins`,
 runs are claim-locked so two reviewers cannot double-handle one, and **self-review is
 blocked** — an admin who ran the qualifier cannot approve their own run. Live racetime

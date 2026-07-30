@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.tenant_context import tenant_scope
-from models import AsyncQualifier, Role, Tenant, User
+from models import AsyncQualifier, AsyncQualifierRun, Role, Tenant, User
 from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 UTC = timezone.utc
@@ -22,6 +22,18 @@ def past_iso():
 
 def future_iso():
     return (datetime.now(UTC) + timedelta(days=1)).isoformat()
+
+
+
+async def _backdate(run_id: int, seconds: int):
+    """Make a run look ``seconds`` old so a claim of that length is possible.
+
+    ``submit_run`` compares the claim against the server-stamped ``started_at``
+    and refuses a time longer than the run has existed.
+    """
+    await AsyncQualifierRun.filter(id=run_id).update(
+        started_at=datetime.now(UTC) - timedelta(seconds=seconds),
+    )
 
 
 async def _admin_token(username='qadmin', read_only=False):
@@ -248,6 +260,7 @@ class TestRunLifecycle:
             assert active.status_code == 200
             assert active.json()['id'] == run_id
 
+            await _backdate(run_id, 1200)
             submit = await c.post(
                 f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 1200},
             )
@@ -258,6 +271,32 @@ class TestRunLifecycle:
             my_runs = await c.get(f'/api/async-qualifiers/{qid}/me/runs')
             assert run_id in {r['id'] for r in my_runs.json()}
 
+    async def test_submit_refuses_a_time_longer_than_the_run(self, db, app):
+        """The server timed the run; a claim above that wall clock is impossible."""
+        _, raw = await _admin_token(username='qadmin_drift')
+        async with client_for(app, raw) as c:
+            qid = await _open_qualifier(c)
+            pool_id = await _pool_with_permalink(c, qid)
+            start = await c.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
+            run_id = start.json()['id']
+
+            await _backdate(run_id, 900)
+            resp = await c.post(
+                f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 4462},
+            )
+            assert resp.status_code == 400, resp.text
+            assert 'longer than the run itself' in resp.json()['detail']
+
+            # Refused, not terminated — the run is still submittable.
+            active = await c.get(f'/api/async-qualifiers/{qid}/me/active-run')
+            assert active.json()['id'] == run_id
+
+            ok = await c.post(
+                f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 880},
+            )
+            assert ok.status_code == 200, ok.text
+            assert ok.json()['measured_seconds'] >= 900
+
     async def test_self_review_blocked(self, db, app):
         _, raw = await _admin_token()
         async with client_for(app, raw) as c:
@@ -265,6 +304,7 @@ class TestRunLifecycle:
             pool_id = await _pool_with_permalink(c, qid)
             start = await c.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
             run_id = start.json()['id']
+            await _backdate(run_id, 900)
             await c.post(f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 900})
 
             review = await c.post(

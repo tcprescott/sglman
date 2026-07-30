@@ -195,6 +195,11 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 - **Reads:** `GET /async-qualifiers` · `/open` · `/{id}` · `/{id}/public` · `/{id}/admins` · `/{id}/pools` · `/{id}/pools/available` · `/{id}/review-queue` · `/{id}/leaderboard` · `/{id}/me/runs` · `/{id}/me/active-run` · `/runs/{run_id}/notes`.
 - **Qualifier/admin/pool/permalink writes:** `POST /async-qualifiers` · `PATCH`/`DELETE /{id}`; `POST`/`DELETE /{id}/admins[/{user_id}]`; `POST /{id}/pools`, `PATCH`/`DELETE /pools/{pool_id}`; `POST /pools/{pool_id}/permalinks` (+ `/bulk`, `/roll`), `PATCH`/`DELETE /permalinks/{permalink_id}`.
 - **Player run lifecycle:** `POST /{id}/runs` (start) · `POST /runs/{run_id}/submit|forfeit|reattempt`.
+  `submit` 400s when the claimed `elapsed_seconds` exceeds the wall clock since the
+  server stamped `started_at` — a run cannot have taken longer than it has existed.
+  The run stays in progress, so the client can correct the time and resubmit. Every
+  successful submit records `measured_seconds` (that wall clock) on the run response
+  beside the runner's claim.
 - **Review:** `POST /runs/{run_id}/claim|release|review`.
 
 ### Async qualifier live races (`/api/async-qualifiers/live-races`) · `async_qualifier_live_races.py`

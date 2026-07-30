@@ -517,17 +517,24 @@ class AsyncQualifierService:
             raise ValueError("Finish time must be a positive number of seconds")
         if elapsed_seconds > MAX_RUN_SECONDS:
             raise ValueError("Finish time is longer than a week — check the value you entered.")
+        # Both bounds above come before the clock is read: a nonsense value is
+        # refused as nonsense, not as a discrepancy.
+        measured = rules.measure_elapsed(run.started_at)
+        if rules.classify_claim(elapsed_seconds, measured) is rules.ClaimVerdict.IMPOSSIBLE:
+            raise ValueError(rules.describe_claim(elapsed_seconds, measured))
         run = await self.run_repository.update(
             run,
             status=AsyncQualifierRunStatus.FINISHED,
             finished_at=datetime.now(timezone.utc),
             elapsed_seconds=elapsed_seconds,
+            measured_seconds=measured,
             runner_vod_url=(runner_vod_url or '').strip() or None,
             review_status=AsyncQualifierReviewStatus.PENDING,
         )
         await self.audit_service.write_log(
             user, AuditActions.ASYNC_QUALIFIER_RUN_SUBMITTED,
-            {'run_id': run.id, 'qualifier_id': run.qualifier_id, 'elapsed_seconds': elapsed_seconds},
+            {'run_id': run.id, 'qualifier_id': run.qualifier_id, 'elapsed_seconds': elapsed_seconds,
+             'measured_seconds': measured},
         )
         event_bus.publish(Event.create(EventType.ASYNC_QUALIFIER_RUN_SUBMITTED, {
             'run_id': run.id, 'qualifier_id': run.qualifier_id, 'user_id': user.id,

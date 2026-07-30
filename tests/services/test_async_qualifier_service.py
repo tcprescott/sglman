@@ -8,6 +8,7 @@ from application.events import EventType, event_bus
 from application.services.async_qualifier.async_qualifier_service import AsyncQualifierService
 from models import (
     AsyncQualifierPermalink,
+    AsyncQualifierRun,
     AsyncQualifierRunStatus,
     Role,
     User,
@@ -25,6 +26,19 @@ async def _staff() -> User:
 
 async def _player(discord_id: int, name: str) -> User:
     return await User.create(discord_id=discord_id, username=name)
+
+
+async def _submit(service, player, run, seconds: int):
+    """Submit ``seconds`` on ``run``, backdating the draw so the wall clock agrees.
+
+    ``submit_run`` refuses a claim longer than the run has existed (the server
+    stamps ``started_at`` at the draw and measures against it), so a fixture that
+    starts a run and immediately claims twenty minutes is claiming the impossible.
+    """
+    await AsyncQualifierRun.filter(id=run.id).update(
+        started_at=datetime.now(timezone.utc) - timedelta(seconds=seconds),
+    )
+    return await service.submit_run(player, run.id, elapsed_seconds=seconds)
 
 
 async def _open_qualifier(service, staff, *, runs_per_pool=1, allowed_reattempts=0):
@@ -78,7 +92,7 @@ async def test_no_repeat_and_runs_per_pool_cap(db):
     player = await _player(900012, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
-    await service.submit_run(player, run.id, elapsed_seconds=1000)
+    await _submit(service, player, run, 1000)
     # runs_per_pool=1 → no more runs allowed in this pool
     with pytest.raises(ValueError):
         await service.start_run(player, q.id, pool.id)
@@ -95,7 +109,7 @@ async def test_no_repeat_permalink_across_runs(db):
     for _ in range(2):
         run = await service.start_run(player, q.id, pool.id)
         seen.add(run.permalink.url)
-        await service.submit_run(player, run.id, elapsed_seconds=1000)
+        await _submit(service, player, run, 1000)
     assert seen == {'u1', 'u2'}          # both distinct permalinks drawn
     # pool exhausted (2 permalinks, both played)
     with pytest.raises(ValueError):
@@ -110,7 +124,7 @@ async def test_submit_then_review_scores_and_sets_par(db):
     player = await _player(900014, 'p1')
 
     run = await service.start_run(player, q.id, pool.id)
-    await service.submit_run(player, run.id, elapsed_seconds=1200)
+    await _submit(service, player, run, 1200)
     reviewed = await service.review_run(staff, run.id, approved=True, note='looks good')
 
     assert reviewed.review_status.value == 'approved'
@@ -127,7 +141,7 @@ async def test_self_review_blocked(db):
     # staff is also the runner and a qualifier admin → self-review must be blocked
     await service.add_admin(staff, q.id, staff)
     run = await service.start_run(staff, q.id, pool.id)
-    await service.submit_run(staff, run.id, elapsed_seconds=1200)
+    await _submit(service, staff, run, 1200)
     with pytest.raises(ValueError):
         await service.review_run(staff, run.id, approved=True)
 
@@ -145,7 +159,7 @@ async def test_forfeit_is_terminal_and_scores_zero(db):
     assert forfeited.score == 0.0
     # can't submit a forfeited run
     with pytest.raises(ValueError):
-        await service.submit_run(player, run.id, elapsed_seconds=1000)
+        await _submit(service, player, run, 1000)
 
 
 async def test_reattempt_requires_reason_and_is_limited(db):
@@ -179,7 +193,7 @@ async def test_leaderboard_locked_down_while_active(db):
     await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
     player = await _player(900017, 'p1')
     run = await service.start_run(player, q.id, pool.id)
-    await service.submit_run(player, run.id, elapsed_seconds=1200)
+    await _submit(service, player, run, 1200)
     await service.review_run(staff, run.id, approved=True)
 
     # Non-staff cannot see the board while the qualifier is open.
@@ -209,7 +223,7 @@ async def test_submit_and_review_publish_events(db):
     )
 
     run = await service.start_run(player, q.id, pool.id)
-    await service.submit_run(player, run.id, elapsed_seconds=1200)
+    await _submit(service, player, run, 1200)
     await service.review_run(staff, run.id, approved=True)
     assert EventType.ASYNC_QUALIFIER_RUN_SUBMITTED in seen
     assert EventType.ASYNC_QUALIFIER_RUN_REVIEWED in seen
@@ -251,3 +265,74 @@ async def test_roll_permalinks_blocked_when_credential_missing(db):
             await service.roll_permalinks(staff, pool.id, count=2)
 
         assert await AsyncQualifierPermalink.filter(pool_id=pool.id).count() == 0
+
+
+# --- the server's own clock as evidence -----------------------------------
+
+async def test_submit_stores_the_server_measured_duration(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900030, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    submitted = await _submit(service, player, run, 1200)
+
+    # Measured is the wall clock from the draw, not a copy of the claim.
+    assert submitted.measured_seconds is not None
+    assert 1200 <= submitted.measured_seconds <= 1230
+    assert submitted.elapsed_seconds == 1200
+
+
+async def test_submit_refuses_a_claim_longer_than_the_run_has_existed(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900031, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    with pytest.raises(ValueError, match='longer than the run itself'):
+        await service.submit_run(player, run.id, elapsed_seconds=4462)
+
+    # The refusal must not terminate the run — the player fixes the time and retries.
+    still = await AsyncQualifierRun.get(id=run.id)
+    assert still.status == AsyncQualifierRunStatus.IN_PROGRESS
+    assert still.elapsed_seconds is None
+
+
+async def test_submit_accepts_an_implausible_claim_and_still_records_it(db):
+    """Only the impossible is refused. A large shortfall is the runner's call —
+    finishing and submitting an hour later is legitimate — so the service records
+    both numbers and lets the reviewer see the gap."""
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900032, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    await AsyncQualifierRun.filter(id=run.id).update(
+        started_at=datetime.now(timezone.utc) - timedelta(hours=2),
+    )
+    submitted = await service.submit_run(player, run.id, elapsed_seconds=862)
+
+    assert submitted.status == AsyncQualifierRunStatus.FINISHED
+    assert submitted.elapsed_seconds == 862
+    assert submitted.measured_seconds >= 7200
+
+
+async def test_submit_tolerates_a_run_with_no_started_at(db):
+    service = AsyncQualifierService()
+    staff = await _staff()
+    q, pool = await _open_qualifier(service, staff)
+    await service.add_permalinks_bulk(staff, pool.id, urls=['u1'])
+    player = await _player(900033, 'p1')
+
+    run = await service.start_run(player, q.id, pool.id)
+    await AsyncQualifierRun.filter(id=run.id).update(started_at=None)
+    submitted = await service.submit_run(player, run.id, elapsed_seconds=1200)
+
+    assert submitted.measured_seconds is None
+    assert submitted.elapsed_seconds == 1200

@@ -379,7 +379,8 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
                 status=AsyncQualifierRunStatus.FINISHED,
                 review_status=AsyncQualifierReviewStatus.APPROVED,
                 started_at=now - timedelta(hours=3), finished_at=now - timedelta(hours=1, minutes=30),
-                elapsed_seconds=5400, runner_vod_url="https://twitch.tv/videos/dev-a",
+                elapsed_seconds=5400, measured_seconds=5460,
+                runner_vod_url="https://twitch.tv/videos/dev-a",
                 reviewed_by=staff, reviewed_at=now - timedelta(hours=1), score=100.0,
             )
             if p1.par_time is None:
@@ -387,7 +388,9 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
                 p1.par_updated_at = now
                 await p1.save()
 
-    # A finished run awaiting review — populates the reviewer queue.
+    # A finished run awaiting review — populates the reviewer queue. Its claimed
+    # time is an hour under the server's own measurement, so the queue card shows
+    # a drift badge without anyone having to construct one by hand.
     if runner_b is not None:
         run_b = await AsyncQualifierRun.filter(
             qualifier=qualifier, user=runner_b, permalink=p1
@@ -398,7 +401,8 @@ async def _seed_qualifiers(tenant: Tenant, preset: Preset) -> None:
                 status=AsyncQualifierRunStatus.FINISHED,
                 review_status=AsyncQualifierReviewStatus.PENDING,
                 started_at=now - timedelta(hours=2), finished_at=now - timedelta(minutes=20),
-                elapsed_seconds=6000, runner_vod_url="https://twitch.tv/videos/dev-b",
+                elapsed_seconds=6000, measured_seconds=9600,
+                runner_vod_url="https://twitch.tv/videos/dev-b",
             )
         # A reviewer note on the pending run so the review surface renders notes.
         if staff is not None and not await AsyncQualifierReviewNote.filter(

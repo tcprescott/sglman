@@ -14,6 +14,11 @@ from nicegui import app, ui
 from middleware.auth import protected_page
 
 from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_discord_id
+from application.services.async_qualifier.async_qualifier_rules import (
+    ClaimVerdict,
+    classify_claim,
+    measure_elapsed,
+)
 from application.utils.duration import format_hms, parse_hms
 from application.utils.timezone import format_eastern_display
 from models import FeatureFlag
@@ -145,15 +150,10 @@ def create() -> None:
                 elapsed_label = ui.label('Elapsed: 0:00:00').classes('text-h6')
 
                 def _tick():
-                    started = run.started_at
-                    if started is None:
+                    measured = measure_elapsed(run.started_at)
+                    if measured is None:
                         return
-                    if started.tzinfo is None:
-                        started_aware = started.replace(tzinfo=timezone.utc)
-                    else:
-                        started_aware = started
-                    delta = int((datetime.now(timezone.utc) - started_aware).total_seconds())
-                    elapsed_label.text = f'Elapsed: {format_hms(max(0, delta))}'
+                    elapsed_label.text = f'Elapsed: {format_hms(measured)}'
 
                 ui.timer(1.0, _tick)
 
@@ -173,9 +173,8 @@ def create() -> None:
 
                 time_in.on_value_change(lambda _: _echo())
 
-                async def _submit():
+                async def _do_submit(seconds: int) -> None:
                     try:
-                        seconds = parse_hms(time_in.value)
                         await service.submit_run(user, run.id, elapsed_seconds=seconds,
                                                  runner_vod_url=vod_in.value)
                     except (ValueError, PermissionError) as e:
@@ -183,6 +182,40 @@ def create() -> None:
                         return
                     ui.notify('Submitted for review!', color='positive')
                     await render.refresh()
+
+                def _ask_about_drift(seconds: int, measured: int) -> None:
+                    async def _confirmed() -> None:
+                        confirm.dialog.close()
+                        await _do_submit(seconds)
+
+                    confirm = ConfirmationDialog(
+                        title='Is that the right time?',
+                        message=(f'Your timer says {format_hms(measured)}. '
+                                 f'You typed {format_hms(seconds)}.\n\n'
+                                 'If you finished a while ago and are only submitting now, '
+                                 'your time is fine — submit it. If you dropped a segment, '
+                                 'go back and fix it.'),
+                        confirm_text=f'Submit {format_hms(seconds)}',
+                        cancel_text='Let me fix it',
+                        tone='primary',
+                        on_confirm=_confirmed,
+                    )
+                    confirm.open()
+
+                async def _submit():
+                    try:
+                        seconds = parse_hms(time_in.value)
+                    except ValueError as e:
+                        notify_error(e)
+                        return
+                    # An impossible claim is the service's refusal to make — its
+                    # clock is the authority. The page only asks about the gap the
+                    # runner can explain.
+                    measured = measure_elapsed(run.started_at)
+                    if classify_claim(seconds, measured) is ClaimVerdict.IMPLAUSIBLE:
+                        _ask_about_drift(seconds, measured)
+                        return
+                    await _do_submit(seconds)
 
                 async def _forfeit():
                     try:

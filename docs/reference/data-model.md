@@ -1221,12 +1221,22 @@ Indexes on `tenant`, `pool`.
 A player's attempt. FKs → `qualifier` (`CASCADE`), `user`, `permalink` (`SET_NULL`
 so purging a permalink keeps run history), and nullable `reviewed_by` /
 `review_claimed_by` (`SET_NULL`). Carries `status` / `review_status` enums, timing
-(`started_at`, `finished_at`, `elapsed_seconds`), `runner_vod_url`, the one-attempt
+(`started_at`, `finished_at`, `elapsed_seconds`, `measured_seconds`), `runner_vod_url`, the one-attempt
 backstop (`reattempted` + `reattempt_reason`), `score` (0–105, null until scored),
 and review attribution/claim-lock timestamps. Indexes: `tenant`, `(qualifier,
 review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute).
 The nullable `live_race` FK (`SET_NULL`) marks a run captured from a synchronous
 racetime race.
+
+`elapsed_seconds` is the runner's **claim**; `measured_seconds` is the server's own
+wall clock from the `started_at` it stamped at the draw to the moment of submit. The
+two are kept side by side rather than one replacing the other: the timer runs through
+reading the seed, pausing, and the gap before submitting, so measured is an **upper
+bound** on the real run — evidence for the reviewer, not the result. A claim above it
+is refused (impossible), a claim far below it is confirmed by the runner, and both
+numbers reach the review queue. Null for live-race captures and for rows that predate
+the column; no backfill, because a measurement that was never taken cannot be
+reconstructed and a guess would be indistinguishable from a real one.
 
 #### `AsyncQualifierReviewNote`
 
