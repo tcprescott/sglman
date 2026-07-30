@@ -1781,3 +1781,53 @@ body.body--dark {
     font-weight: 600;
     color: #fff;
 }
+
+/* ---------------------------------------------------------------------------
+   Offline banner + socket-dependent controls (theme/connection.py)
+   The framework popup above only appears once the socket reports a disconnect,
+   which lags a dead link by ping_interval + ping_timeout and then waits out a
+   2s transition-delay. This banner is the fast, honest state in front of it: it
+   is driven from the browser's own offline/online events, so it shows while the
+   server still believes the client is there.
+--------------------------------------------------------------------------- */
+.wiz-connection-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom));
+    z-index: 9500;
+    padding: 0.75em 1em;
+    text-align: center;
+    background: var(--wiz-charcoal);
+    color: var(--wiz-gold);
+    border-top: 1px solid color-mix(in srgb, var(--wiz-gold) 45%, transparent);
+    box-shadow: var(--shadow-3);
+    font-family: var(--font-body);
+    font-weight: 600;
+}
+
+.wiz-connection-banner[hidden] {
+    display: none;
+}
+
+/* The recovery message sits on the same charcoal bar, so it takes the dark-mode
+   olive directly — light mode's --status-ok is too dark to read there. */
+.wiz-connection-banner--ok {
+    color: #A8C46B;
+}
+
+/* The framework popup is pinned to the same corner. Both are visible during a
+   long outage (by design — it carries the about-to-reload moment), so lift it
+   clear of the banner rather than hiding it. */
+body.wiz-offline .nicegui-error-popup {
+    margin-bottom: calc(var(--wiz-bottom-nav-h) + env(safe-area-inset-bottom) + 4.5rem);
+}
+
+/* A control the guard will refuse looks refused. Deliberately not
+   `pointer-events: none` — the tap has to reach the capture-phase listener so it
+   can say why nothing happened. */
+body.wiz-offline .wiz-requires-socket {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(70%);
+}

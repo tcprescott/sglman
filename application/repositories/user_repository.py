@@ -9,7 +9,8 @@ from typing import List, Optional
 from tortoise.expressions import Q
 
 from application.repositories._base import TenantScopedRepository
-from models import SYSTEM_USER_DISCORD_ID, Role, User
+from application.repositories._tenant import current_tenant_id, scoped
+from models import SYSTEM_USER_DISCORD_ID, Role, TournamentPlayers, User, UserRole
 
 
 class UserRepository(TenantScopedRepository[User]):
@@ -63,6 +64,41 @@ class UserRepository(TenantScopedRepository[User]):
             query = query.exclude(discord_id=None)
 
         return await query
+
+    @staticmethod
+    async def get_community_people(
+        *,
+        include_user_ids: Optional[List[int]] = None,
+    ) -> List[User]:
+        """The people of the tenant in scope, for a per-community person picker.
+
+        ``User`` is global, so "belongs to this community" has to be derived. It
+        is derived from the two things the running app actually writes: a
+        ``UserRole`` granted in this tenant, and enrolment in one of this
+        tenant's tournaments (``TournamentPlayers``). Deliberately **not**
+        ``TenantMembership`` — ``TenantService.add_member`` has no caller, so
+        those rows exist only where a seed or the multitenancy backfill put
+        them, and scoping to them would hide a user a Discord login provisioned
+        five minutes ago. At a venue that is the volunteer standing in front of
+        you.
+
+        ``include_user_ids`` force-includes specific people regardless — the
+        caller's own actor, or the current holder of an asset, who must stay
+        displayable even if they later fall out of the set.
+
+        The system account and deactivated accounts are excluded here, in the
+        query, because no caller should have to remember to.
+        """
+        role_holders = await scoped(UserRole.all()).values_list('user_id', flat=True)
+        entrants = await TournamentPlayers.filter(
+            tournament__tenant_id=current_tenant_id(),
+        ).values_list('user_id', flat=True)
+        ids = set(role_holders) | set(entrants) | set(include_user_ids or ())
+        if not ids:
+            return []
+        return await User.filter(id__in=ids, is_active=True).exclude(
+            discord_id=SYSTEM_USER_DISCORD_ID,
+        ).order_by('username')
 
     @staticmethod
     async def search_by_name(
