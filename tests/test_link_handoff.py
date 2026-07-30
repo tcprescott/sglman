@@ -210,6 +210,90 @@ def test_bind_matches_fails_closed(link, expected_commit, browser_secret):
     assert link._bind_matches(expected_commit, browser_secret) is False
 
 
+# --- the cross-host hand-back (T2.4) ------------------------------------------
+
+def test_handoff_failure_hands_back_through_the_claim_route(link):
+    # The platform host cannot stash a notice in the target domain's session, so
+    # a failure crosses as a reason code on the claim route rather than jumping
+    # straight to the return path with nothing said.
+    url = link._link_handback_url('foo.gg', 'racetime', 'denied', '/home/profile')
+    assert url.startswith('https://foo.gg/oauth/link/claim?')
+    assert 'r=denied' in url and 'p=racetime' in url and 'next=%2Fhome%2Fprofile' in url
+
+
+def test_handback_reasons_map_to_the_existing_wording(link):
+    provider = link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: '', exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
+    )
+    link.register_link_handoff_provider(provider)
+    assert link._handback_message('denied', 'demo') == 'Demo linking was cancelled or failed.'
+    assert link._handback_message('failed', 'demo') == 'Could not link Demo. Please try again.'
+
+
+def test_unknown_reason_code_falls_back_to_the_generic_message(link):
+    provider = link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: '', exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
+    )
+    link.register_link_handoff_provider(provider)
+    # `r` is a query parameter the user can edit; it selects from a fixed set.
+    for reason in ('', 'nonsense', '<script>', None):
+        assert link._handback_message(reason, 'demo') == 'Could not link Demo. Please try again.'
+    # An unknown provider key cannot name a provider, and must not guess one.
+    assert 'Demo' not in link._handback_message('denied', 'no-such-provider')
+
+
+def test_default_link_return_is_derived_not_hardcoded(link, monkeypatch):
+    # The expired-token branch of the claim route has no payload to read a return
+    # path from; three literal '/home/profile's is how the next provider's
+    # differing return silently stops working.
+    monkeypatch.setattr(link, '_HANDOFF_PROVIDERS', {}, raising=False)
+    assert link._default_link_return() == '/'
+    one = link.LinkHandoffProvider(
+        key='a', label='A', profile_return='/somewhere/else',
+        authorize_url=lambda s: '', exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/a/cb',
+    )
+    monkeypatch.setattr(link, '_HANDOFF_PROVIDERS', {'a': one}, raising=False)
+    assert link._default_link_return() == '/somewhere/else'
+
+
+def test_claim_route_is_disabled_in_path_mode(link, monkeypatch):
+    # Path mode cannot mint a claim token, so there is nothing to claim — the
+    # audit's F1 probe landed on the community picker because this route answered
+    # anyway. Its sibling /oauth/link/start already refused the same way.
+    import inspect
+    src = inspect.getsource(link.register_link_handoff_pages)
+    claim = src.index("@ui.page('/oauth/link/claim')")
+    guard = src.index('if not host_oauth_handoff_enabled():', claim)
+    connected = src.index('await client.connected()', claim)
+    assert guard < connected, 'the mode guard must run before the page does any work'
+    assert "RedirectResponse('/')" in src[guard:connected]
+
+
+def test_claim_failure_paths_are_all_safe_next_guarded(link):
+    # safe_next is the open-redirect guard on every return path the claim route
+    # takes; hoisting a default is exactly the kind of edit that drops it.
+    import inspect
+    src = inspect.getsource(link.register_link_handoff_pages)
+    claim = src[src.index("@ui.page('/oauth/link/claim')"):]
+    for line in claim.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith('ui.navigate.to('):
+            continue
+        # The one legitimate literal: a claim with no logged-in user goes to
+        # /login, which is not a return path the token could have supplied.
+        if stripped == "ui.navigate.to('/login')":
+            continue
+        assert 'safe_next(' in stripped or 'handed_back' in stripped or 'next_path' in stripped, line
+    # …and every one of those names was itself produced by safe_next.
+    assert "handed_back = safe_next(" in claim
+    assert "next_path = safe_next(" in claim
+
+
 # --- shared open-redirect guard -----------------------------------------------
 
 @pytest.mark.parametrize('raw,expected', [

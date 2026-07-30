@@ -7,6 +7,7 @@ from nicegui import app, ui
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import User
 from theme.chrome import dark_mode_button
+from theme.notice import drain_notice
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,9 @@ class BaseLayout:
 
     async def render(self) -> None:
         """Render the complete layout with header, drawer, footer, and optional tabbed content."""
+        # A message stashed before a redirect (theme/notice.py) is shown on the
+        # first framed page the browser lands on, whichever that turns out to be.
+        drain_notice()
         if self._wordmark is None:
             from application.services import TenantService
             self._wordmark = (await TenantService.current_community_name()) or 'Wizzrobe'

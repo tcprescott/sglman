@@ -39,6 +39,7 @@ from pages._oauth_link import (
     register_link_handoff_provider,
     returned_state,
 )
+from theme.notice import stash_notice
 
 logger = logging.getLogger(__name__)
 
@@ -163,9 +164,19 @@ def create() -> None:
         if handoff is not None:
             return handoff
         if is_mock_challonge():
+            # Mock mode records the link here rather than in the callback, so this
+            # page owns its outcome. A bare call answered an already-linked id
+            # with a 500.
             service = ChallongeService()
             me = await service.exchange_player_code('mock')
-            await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
+            try:
+                await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
+                stash_notice(f'{_PROVIDER_LABEL} account linked.', color='positive')
+            except ValueError as e:
+                stash_notice(str(e), color='warning')
+            except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+                logger.exception('Challonge mock player linking failed')
+                stash_notice(f'Could not link {_PROVIDER_LABEL}. Please try again.', color='negative')
             return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
         # Custom domain + Design A (handoff off): bounce to the platform-host
         # path-mode surface. No-op in path mode / platform surface.
@@ -180,33 +191,33 @@ def create() -> None:
 
 async def _finish_service_connect(user, code: str | None, return_path: str) -> None:
     if code is None:
-        ui.notify('Challonge connection was cancelled or failed.', color='warning')
+        stash_notice('Challonge connection was cancelled or failed.', color='warning')
     else:
         try:
             service = ChallongeService()
             payload = await service.exchange_service_code(code)
             await service.save_service_connection(payload, user)
-            ui.notify('Challonge account connected.', color='positive')
+            stash_notice('Challonge account connected.', color='positive')
         except ValueError as e:
-            ui.notify(str(e), color='warning')
+            stash_notice(str(e), color='warning')
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge service connection failed')
-            ui.notify('Could not connect Challonge. Please try again.', color='negative')
+            stash_notice('Could not connect Challonge. Please try again.', color='negative')
     ui.navigate.to(return_path)
 
 
 async def _finish_player_link(user, code: str | None, return_path: str) -> None:
     if code is None:
-        ui.notify('Challonge linking was cancelled or failed.', color='warning')
+        stash_notice('Challonge linking was cancelled or failed.', color='warning')
     else:
         try:
             service = ChallongeService()
             me = await service.exchange_player_code(code)
             await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
-            ui.notify('Challonge account linked.', color='positive')
+            stash_notice('Challonge account linked.', color='positive')
         except ValueError as e:
-            ui.notify(str(e), color='warning')
+            stash_notice(str(e), color='warning')
         except Exception:  # noqa: BLE001 - log detail server-side, show generic message
             logger.exception('Challonge player linking failed')
-            ui.notify('Could not link Challonge. Please try again.', color='negative')
+            stash_notice('Could not link Challonge. Please try again.', color='negative')
     ui.navigate.to(return_path)
