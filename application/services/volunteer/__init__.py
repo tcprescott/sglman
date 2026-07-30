@@ -9,6 +9,8 @@ resumes rather than double-notifies).
 
 from application.services.volunteer import volunteer_reminder
 from application.services.volunteer.volunteer_autoschedule_service import (
+    DEFAULT_MAX_HOURS,
+    DraftPolicy,
     VolunteerAutoscheduleService,
 )
 from application.services.volunteer.volunteer_availability_service import (
@@ -23,6 +25,8 @@ from application.services.volunteer.volunteer_qualification_service import (
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 
 __all__ = [
+    'DEFAULT_MAX_HOURS',
+    'DraftPolicy',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',

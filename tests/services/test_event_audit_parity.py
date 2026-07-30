@@ -193,6 +193,9 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.VOLUNTEER_AVAILABILITY_UPDATED,
     AuditActions.VOLUNTEER_DRAFT_GENERATED,
     AuditActions.VOLUNTEER_DRAFT_CLEARED,
+    # The coordinator's bulk decision; the per-volunteer commitments it makes are
+    # each emitted as VOLUNTEER_ASSIGNED by confirm_assignment.
+    AuditActions.VOLUNTEER_DRAFT_PUBLISHED,
     AuditActions.VOLUNTEER_SHIFTS_RESET,
     AuditActions.VOLUNTEER_QUALIFICATIONS_UPDATED,
     # Per-device push subscription state.
@@ -228,6 +231,10 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.ASYNC_QUALIFIER_RUN_STARTED,
     AuditActions.ASYNC_QUALIFIER_RUN_FORFEITED,
     AuditActions.ASYNC_QUALIFIER_RUN_REATTEMPTED,
+    # A reviewer's override of a runner's mis-click: the same shape as the
+    # runner's own reattempt above, and audited for the same reason (who voided
+    # what, and why). No subscriber cares that a pool slot reopened.
+    AuditActions.ASYNC_QUALIFIER_REATTEMPT_GRANTED,
     # Async Qualifier live races (PR 10): recording the finished race emits
     # ASYNC_QUALIFIER_LIVE_RACE_RECORDED; create/open/cancel are tenant-internal
     # scheduling no external subscriber needs.

@@ -113,6 +113,12 @@ class OptInRequest(BaseModel):
     note: Optional[str] = None
 
 
+class ReleaseAssignmentRequest(BaseModel):
+    """Why you can no longer cover a shift. The coordinators see it."""
+
+    reason: Optional[str] = None
+
+
 class VolunteerProfileResponse(BaseModel):
     user_id: int
     opted_in: bool

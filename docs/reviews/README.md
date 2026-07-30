@@ -12,8 +12,6 @@ the truth and git history keeps the rationale.
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [match-operations-ux.md](match-operations-ux.md) | Admin Schedule board + match dialog, across five roles | Four service-level authorization gates compressed into one `can_crud` boolean: a crew coordinator gets 37 controls that all refuse |
 | [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
-| [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
-| [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 
@@ -22,10 +20,18 @@ became the proctor board, the review queue, the dispute flag and the station poo
 The equipment lending audit — its findings became the offline banner and the
 socket guard, the labelled mobile cards, the guidance line under an actionless
 asset page, the bounded loan history, the per-community borrower/owner pickers,
-and the encoded-host check on the label sheet. The identity-linking audit — its
-findings became `theme/notice.py`, the Challonge callback's four named outcomes,
-the collision pre-check, and the Connected accounts card that finally renders the
-copy it was configured with.
+and the encoded-host check on the label sheet.
+The identity-linking audit — its findings became `theme/notice.py`, the Challonge
+callback's four named outcomes, the collision pre-check, and the Connected
+accounts card that finally renders the copy it was configured with.
+The async-qualifier run audit — four waves closed all seven findings: the confirmed
+forfeit and strict `H:MM:SS` entry, `measured_seconds` and the claimed-vs-measured
+check, the required rejection reason with both reattempt paths, and the explained
+score/estimate with per-reason run availability.
+The volunteer-hub audit — its findings became the draft/publish split
+(`auto_generated=True` now means nobody has been told), the `DraftPolicy` that
+makes availability a constraint and hours a ceiling, the volunteer's own
+release/brief on My Shifts, and the coordinator's coverage strip.
 
 ## Cross-cutting themes
 
@@ -36,21 +42,26 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   hides the crew coordinator's approval link and offers them 37 lifecycle controls
   the services refuse. The services' own gates are correct and more granular than
   the UI's.
-- **Notification is one-directional.** Assignment/approval DMs the person; every
-  reverse transition — crew withdrawal, crew un-approval, volunteer unassignment,
-  a cleared draft — is silent to everyone
-  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional),
-  [volunteer RC2](volunteer-hub-ux.md#rc2--notification-is-one-directional-the-same-shape-as-crew)).
+- **Notification is one-directional** — *half fixed.* Assignment/approval DMs the
+  person; the reverse transitions were silent to everyone
+  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional)). The
+  volunteer half now speaks in both directions: un-assignment and a moved shift DM
+  the volunteer, a volunteer's release DMs the coordinators, and a cleared draft
+  stays silent on purpose because its creation was. **Crew withdrawal and crew
+  un-approval are still silent** — the same fix, not yet applied, and
+  `VolunteerScheduleService`'s notification matrix is the worked example.
 - **Discovery and action live on different pages.** Reports can see pending crew,
   understaffed shifts and over-capacity peaks; none of them link to the surface that
   fixes it ([reports F1](admin-reports-ux.md#f1--major--nine-reports-zero-actions)).
-- **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
-  `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
-  reachable from no surface. `LinkSectionConfig`'s `description` and
-  `link_button_label` were the same thing in config form — declared, populated
-  three times, read by nothing, and praised by an audit that had only read the
-  source. Now fixed, with `test_every_link_section_config_field_is_rendered` as
-  the guard; that test is the shape worth copying elsewhere.
+- **Capabilities nobody wired are invisible.** `update_bracket`,
+  `state_readonly_slot()` — each exists, is tested, and is reachable from no
+  surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
+  now wired, which is what the fix for it looks like.) `LinkSectionConfig`'s
+  `description` and `link_button_label` were the same thing in config form —
+  declared, populated three times, read by nothing, and praised by an audit that
+  had only read the source. Now fixed, with
+  `test_every_link_section_config_field_is_rendered` as the guard; that test is
+  the shape worth copying elsewhere.
 - **A message written is not a message delivered.** Twenty-one failure strings
   across the linking and login pages were queued with `ui.notify` and then
   discarded by the `ui.navigate.to` on the next line — every one of them written
@@ -71,8 +82,8 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
   The equipment-manager-only case now seeds (`equip_manager`).
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
-  forfeiting a qualifier run, revoking an approval and arming five lifecycle-clear
-  buttons get none.
+  revoking an approval and arming five lifecycle-clear buttons get none. (The
+  qualifier forfeit was the worst case and now confirms.)
 
 ## Method
 

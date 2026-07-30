@@ -12,6 +12,7 @@ from api.schemas.volunteers import (
     AssignResponse,
     CoverageRow,
     OptInRequest,
+    ReleaseAssignmentRequest,
     SetAvailabilityRequest,
     VolunteerAssignmentResponse,
     VolunteerAvailabilityResponse,
@@ -219,3 +220,22 @@ async def my_assignments(
     after = datetime.now(timezone.utc) if upcoming_only else None
     assignments = await VolunteerScheduleService().assignments_for_user(actor, upcoming_after=after)
     return [_assignment_resp(a) for a in assignments]
+
+
+@router.delete(
+    "/me/assignments/{assignment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Give one of your own shifts back",
+)
+async def release_my_assignment(
+    assignment_id: int,
+    payload: ReleaseAssignmentRequest | None = None,
+    actor: User = Depends(require_write_actor),
+):
+    """Self-service, unlike the coordinator's `DELETE /volunteers/assignments/{id}`.
+
+    Frees the slot and DMs the coordinators.
+    """
+    await VolunteerScheduleService().release(
+        assignment_id, actor, payload.reason if payload else None,
+    )
