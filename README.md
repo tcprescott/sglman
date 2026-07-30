@@ -53,7 +53,7 @@ cp .env.example .env    # set STORAGE_SECRET and the DB_* values
 ./start.sh mock         # http://localhost:8000, auto-reload, no external credentials
 ```
 
-`./start.sh mock` forces `ENVIRONMENT=development` plus the `MOCK_DISCORD`/`MOCK_CHALLONGE`/`MOCK_SEEDGEN` flags: Discord OAuth becomes a local user-picker, Discord calls are stubbed, and seeds return fake permalinks — so the full app is developable with no Discord or randomizer credentials. Use `./start.sh dev` when you want real integrations. See the [development guide](docs/development.md) for the mock loop and dev fixtures (`scripts/seed_dev.py`).
+`./start.sh mock` forces `ENVIRONMENT=development` plus the `MOCK_DISCORD`/`MOCK_SEEDGEN`/`MOCK_CHALLONGE`/`MOCK_TWITCH`/`MOCK_RACETIME` flags: Discord OAuth becomes a local user-picker, Discord calls are stubbed, seeds return fake permalinks, and the three account-linking providers answer with canned identities — so the full app is developable with no Discord, randomizer or provider credentials. Use `./start.sh dev` when you want real integrations. See the [development guide](docs/development.md) for the mock loop and dev fixtures (`scripts/seed_dev.py`).
 
 ### Docker
 
