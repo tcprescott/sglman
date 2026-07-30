@@ -23,6 +23,7 @@ from application.services import (
     PresetService,
     get_user_from_discord_id,
 )
+from application.utils.duration import format_hms
 from application.utils.timezone import format_eastern_display, parse_eastern_datetime
 
 
@@ -271,7 +272,7 @@ async def admin_qualifiers_page() -> None:
                                  color='purple' if pl.live_race else 'teal')
                         ui.link(pl.url, pl.url, new_tab=True).classes('text-caption')
                         if pl.par_time:
-                            ui.badge(f'par {pl.par_time}s', color='green')
+                            ui.badge(f'par {format_hms(pl.par_time)}', color='green')
 
     def _open_pool_dialog(qid: int, preset_options: dict) -> None:
         with ui.dialog() as dialog, ui.card().classes('w-[30rem]'):
@@ -436,7 +437,7 @@ async def admin_qualifiers_page() -> None:
             with ui.card().classes('w-full'):
                 with ui.row().classes('items-center full-width'):
                     ui.label(runner).classes('text-subtitle1')
-                    ui.badge(f'{run.elapsed_seconds}s' if run.elapsed_seconds else '—', color='blue')
+                    ui.badge(format_hms(run.elapsed_seconds), color='blue')
                     ui.badge(pool_name, color='grey')
                     if run.review_claimed_by_id:
                         ui.badge('claimed', color='orange')

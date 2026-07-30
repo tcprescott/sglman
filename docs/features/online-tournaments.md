@@ -110,9 +110,18 @@ sample sizes, and par is a mean over the fastest runs — a thin permalink produ
 par (and therefore scores) nobody can trust. Forcing only past a threshold keeps the
 common case unpredictable.
 
-**Finish times are bounded.** A submitted time must be positive and under
-`MAX_RUN_SECONDS` (a week), so a typed-in typo is a readable validation error rather
-than an out-of-range column write.
+**Finish times are bounded, and typed as exactly `H:MM:SS`.** A submitted time must be
+positive and under `MAX_RUN_SECONDS` (a week), so a typed-in typo is a readable
+validation error rather than an out-of-range column write. The entry field is parsed by
+[`application/utils/duration.py`](../reference/services.md#durationpy), which requires
+all three segments: folding shorter input into base 60 made `1:23` mean 83 seconds — a
+time 60× too fast that reads as correct everywhere afterwards. The field echoes what it
+read (*"Submitting 1:23:45 — 1 hour, 23 minutes, 45 seconds"*) before the runner
+commits.
+
+**Forfeit is confirmed.** It is the one irreversible control on the run surface — the
+run scores 0 and the pool slot is spent — so it opens a `ConfirmationDialog` naming
+those consequences. Submit does not: it is the happy path.
 
 **Review is adversarial by construction.** Reviewers are the qualifier's own `admins`,
 runs are claim-locked so two reviewers cannot double-handle one, and **self-review is

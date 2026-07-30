@@ -1126,6 +1126,23 @@ Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the in
 
 Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, plus `USERS_URL` (Twitch) / `USERINFO_URL` + `IDENTITY_SCOPE` (racetime).
 
+### duration.py
+
+Whole-second duration parsing and display for typed finish times
+([duration.py](../../application/utils/duration.py)). Pure syntax — no ORM, no service
+rules (the `MAX_RUN_SECONDS` ceiling stays in `AsyncQualifierService`, so the hour
+segment is unbounded here). Shared by the player run surface, the reviewer queue and
+anything else that shows a run duration.
+
+| Function | Returns | Description |
+|---|---|---|
+| `format_hms(seconds, *, dash='—')` | `str` | `4325` → `'1:12:05'`; `None` → `dash`. Negatives clamp to zero. |
+| `parse_hms(text)` | `int` | Parse **exactly** `H:MM:SS` into whole seconds; raises `ValueError` with a sentence naming the shape. |
+
+`parse_hms` is deliberately strict. Accepting `SS` and `MM:SS` by folding parts into
+base 60 meant `1:23` — the likeliest typo in a field labelled `H:MM:SS` — silently
+submitted 83 seconds, and every later surface displayed it as a valid time.
+
 ### csv_export.py
 
 CSV rendering for the report tables ([csv_export.py](../../application/utils/csv_export.py)).

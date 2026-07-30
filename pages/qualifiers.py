@@ -14,9 +14,12 @@ from nicegui import app, ui
 from middleware.auth import protected_page
 
 from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_discord_id
+from application.utils.duration import format_hms, parse_hms
 from application.utils.timezone import format_eastern_display
 from models import FeatureFlag
 from theme.base import BaseLayout
+from theme.dialog.confirmation_dialog import ConfirmationDialog
+from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 
 
@@ -24,33 +27,14 @@ def _fmt(dt) -> str:
     return format_eastern_display(dt) if dt else '—'
 
 
-def _fmt_hms(seconds) -> str:
-    if not seconds:
-        return '—'
-    seconds = int(seconds)
-    h, rem = divmod(seconds, 3600)
-    m, s = divmod(rem, 60)
-    return f'{h}:{m:02d}:{s:02d}'
-
-
-def _parse_hms(text: str) -> int:
-    """Parse ``H:MM:SS`` / ``MM:SS`` / ``SS`` into whole seconds (raises on junk)."""
-    text = (text or '').strip()
-    if not text:
-        raise ValueError("Enter a finish time as H:MM:SS")
-    parts = text.split(':')
-    try:
-        nums = [int(p) for p in parts]
-    except ValueError as e:
-        raise ValueError("Finish time must be numbers separated by ':'") from e
-    if any(n < 0 for n in nums) or len(nums) > 3:
-        raise ValueError("Enter a finish time as H:MM:SS")
-    total = 0
-    for n in nums:
-        total = total * 60 + n
-    if total <= 0:
-        raise ValueError("Finish time must be greater than zero")
-    return total
+def _words(seconds: int) -> str:
+    """``5025`` → ``'1 hour, 23 minutes, 45 seconds'`` — display copy for the echo."""
+    parts = []
+    for value, unit in ((seconds // 3600, 'hour'), (seconds % 3600 // 60, 'minute'),
+                        (seconds % 60, 'second')):
+        if value:
+            parts.append(f'{value} {unit}' + ('' if value == 1 else 's'))
+    return ', '.join(parts) or '0 seconds'
 
 
 def create() -> None:
@@ -146,7 +130,7 @@ def create() -> None:
             try:
                 await service.start_run(user, qualifier_id, pool_id)
             except (ValueError, PermissionError) as e:
-                ui.notify(str(e), color='warning')
+                notify_error(e)
                 return
             ui.notify('Run started — good luck!', color='positive')
             await render.refresh()
@@ -169,22 +153,33 @@ def create() -> None:
                     else:
                         started_aware = started
                     delta = int((datetime.now(timezone.utc) - started_aware).total_seconds())
-                    elapsed_label.text = f'Elapsed: {_fmt_hms(max(0, delta))}'
+                    elapsed_label.text = f'Elapsed: {format_hms(max(0, delta))}'
 
                 ui.timer(1.0, _tick)
 
                 ui.separator()
                 ui.label('Submit your result').classes('text-subtitle2')
                 time_in = ui.input('Finish time (H:MM:SS)', placeholder='1:23:45').classes('w-full')
+                echo = ui.label('').classes('text-caption text-grey')
                 vod_in = ui.input('VoD URL (optional)').classes('w-full')
+
+                def _echo() -> None:
+                    try:
+                        seconds = parse_hms(time_in.value)
+                    except ValueError:
+                        echo.text = ''
+                        return
+                    echo.text = f'Submitting {format_hms(seconds)} — {_words(seconds)}'
+
+                time_in.on_value_change(lambda _: _echo())
 
                 async def _submit():
                     try:
-                        seconds = _parse_hms(time_in.value)
+                        seconds = parse_hms(time_in.value)
                         await service.submit_run(user, run.id, elapsed_seconds=seconds,
                                                  runner_vod_url=vod_in.value)
                     except (ValueError, PermissionError) as e:
-                        ui.notify(str(e), color='warning')
+                        notify_error(e)
                         return
                     ui.notify('Submitted for review!', color='positive')
                     await render.refresh()
@@ -193,13 +188,32 @@ def create() -> None:
                     try:
                         await service.forfeit_run(user, run.id)
                     except (ValueError, PermissionError) as e:
-                        ui.notify(str(e), color='warning')
+                        notify_error(e)
                         return
                     ui.notify('Run forfeited.', color='info')
                     await render.refresh()
 
+                def _confirm_forfeit() -> None:
+                    # ConfirmationDialog does not close itself once on_confirm is
+                    # supplied, so the handler closes it before refreshing.
+                    async def _confirmed() -> None:
+                        confirm.dialog.close()
+                        await _forfeit()
+
+                    confirm = ConfirmationDialog(
+                        title='Forfeit this run?',
+                        message=('Forfeiting ends this attempt now.\n\n'
+                                 'The run scores 0, the pool slot is spent, and this '
+                                 'cannot be undone.'),
+                        confirm_text='Forfeit run',
+                        tone='negative',
+                        on_confirm=_confirmed,
+                    )
+                    confirm.open()
+
                 with ui.row().classes('justify-end w-full'):
-                    ui.button('Forfeit', icon='flag', on_click=_forfeit).props('flat color=negative')
+                    ui.button('Forfeit', icon='flag',
+                              on_click=_confirm_forfeit).props('flat color=negative')
                     ui.button('Submit', icon='send', on_click=_submit).props('color=primary')
 
         async def _render_my_runs(current) -> None:
@@ -222,7 +236,7 @@ def create() -> None:
                     'pool': pool_name + (' (reattempted)' if r.reattempted else ''),
                     'status': r.status.value if hasattr(r.status, 'value') else str(r.status),
                     'review': r.review_status.value if hasattr(r.review_status, 'value') else str(r.review_status),
-                    'time': _fmt_hms(r.elapsed_seconds),
+                    'time': format_hms(r.elapsed_seconds),
                     'score': '' if r.score is None else round(r.score, 1),
                 })
             table = ui.table(columns=columns, rows=rows, row_key='pool').classes('w-full wiz-table')
