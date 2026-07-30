@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from application.tenant_context import tenant_scope
-from models import AsyncQualifier, Role, Tenant, User
+from models import AsyncQualifier, AsyncQualifierRun, Role, Tenant, User
 from tests.api_helpers import build_api_app, client_for, create_user_token, enable_all_features
 
 UTC = timezone.utc
@@ -22,6 +22,18 @@ def past_iso():
 
 def future_iso():
     return (datetime.now(UTC) + timedelta(days=1)).isoformat()
+
+
+
+async def _backdate(run_id: int, seconds: int):
+    """Make a run look ``seconds`` old so a claim of that length is possible.
+
+    ``submit_run`` compares the claim against the server-stamped ``started_at``
+    and refuses a time longer than the run has existed.
+    """
+    await AsyncQualifierRun.filter(id=run_id).update(
+        started_at=datetime.now(UTC) - timedelta(seconds=seconds),
+    )
 
 
 async def _admin_token(username='qadmin', read_only=False):
@@ -248,6 +260,7 @@ class TestRunLifecycle:
             assert active.status_code == 200
             assert active.json()['id'] == run_id
 
+            await _backdate(run_id, 1200)
             submit = await c.post(
                 f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 1200},
             )
@@ -258,6 +271,32 @@ class TestRunLifecycle:
             my_runs = await c.get(f'/api/async-qualifiers/{qid}/me/runs')
             assert run_id in {r['id'] for r in my_runs.json()}
 
+    async def test_submit_refuses_a_time_longer_than_the_run(self, db, app):
+        """The server timed the run; a claim above that wall clock is impossible."""
+        _, raw = await _admin_token(username='qadmin_drift')
+        async with client_for(app, raw) as c:
+            qid = await _open_qualifier(c)
+            pool_id = await _pool_with_permalink(c, qid)
+            start = await c.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
+            run_id = start.json()['id']
+
+            await _backdate(run_id, 900)
+            resp = await c.post(
+                f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 4462},
+            )
+            assert resp.status_code == 400, resp.text
+            assert 'longer than the run itself' in resp.json()['detail']
+
+            # Refused, not terminated — the run is still submittable.
+            active = await c.get(f'/api/async-qualifiers/{qid}/me/active-run')
+            assert active.json()['id'] == run_id
+
+            ok = await c.post(
+                f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 880},
+            )
+            assert ok.status_code == 200, ok.text
+            assert ok.json()['measured_seconds'] >= 900
+
     async def test_self_review_blocked(self, db, app):
         _, raw = await _admin_token()
         async with client_for(app, raw) as c:
@@ -265,6 +304,7 @@ class TestRunLifecycle:
             pool_id = await _pool_with_permalink(c, qid)
             start = await c.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
             run_id = start.json()['id']
+            await _backdate(run_id, 900)
             await c.post(f'/api/async-qualifiers/runs/{run_id}/submit', json={'elapsed_seconds': 900})
 
             review = await c.post(
@@ -272,6 +312,74 @@ class TestRunLifecycle:
             )
             assert review.status_code == 400
             assert 'own run' in review.json()['detail'].lower()
+
+    async def test_reject_without_a_reason_is_a_400(self, db, app):
+        _, raw = await _admin_token(username='qadmin_rej')
+        _, runner_raw = await create_user_token(username='rejected_runner')
+        async with client_for(app, raw) as c:
+            qid = await _open_qualifier(c)
+            pool_id = await _pool_with_permalink(c, qid)
+        async with client_for(app, runner_raw) as rc:
+            start = await rc.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
+            run_id = start.json()['id']
+            await _backdate(run_id, 900)
+            await rc.post(f'/api/async-qualifiers/runs/{run_id}/submit',
+                          json={'elapsed_seconds': 900})
+        async with client_for(app, raw) as c:
+            blank = await c.post(f'/api/async-qualifiers/runs/{run_id}/review',
+                                 json={'approved': False})
+            assert blank.status_code == 400, blank.text
+            assert 'needs a reason' in blank.json()['detail']
+
+            ok = await c.post(f'/api/async-qualifiers/runs/{run_id}/review',
+                              json={'approved': False, 'note': 'VoD ends early.'})
+            assert ok.status_code == 200, ok.text
+            assert ok.json()['review_status'] == 'rejected'
+
+            notes = await c.get(f'/api/async-qualifiers/runs/{run_id}/notes')
+            assert [n['note'] for n in notes.json()] == ['VoD ends early.']
+
+    async def test_grant_reattempt_and_the_runs_list(self, db, app):
+        """A forfeit never reaches the review queue, so the runs list is how a
+        reviewer finds one — and the grant ignores the runner's allowance."""
+        _, raw = await _admin_token(username='qadmin_grant')
+        _, runner_raw = await create_user_token(username='forfeit_runner')
+        async with client_for(app, raw) as c:
+            qid = await _open_qualifier(c)
+            pool_id = await _pool_with_permalink(c, qid)
+        async with client_for(app, runner_raw) as rc:
+            start = await rc.post(f'/api/async-qualifiers/{qid}/runs', json={'pool_id': pool_id})
+            run_id = start.json()['id']
+            await rc.post(f'/api/async-qualifiers/runs/{run_id}/forfeit')
+
+            # The runner has no allowance of their own (default 0).
+            own = await rc.post(f'/api/async-qualifiers/runs/{run_id}/reattempt',
+                                json={'reason': 'mis-click'})
+            assert own.status_code == 400
+            assert 'No reattempts remaining' in own.json()['detail']
+
+            forbidden = await rc.get(f'/api/async-qualifiers/{qid}/runs')
+            assert forbidden.status_code == 403
+
+        async with client_for(app, raw) as c:
+            queue = await c.get(f'/api/async-qualifiers/{qid}/review-queue')
+            assert queue.json() == []
+            runs = await c.get(f'/api/async-qualifiers/{qid}/runs')
+            assert [r['id'] for r in runs.json()] == [run_id]
+
+            blank = await c.post(f'/api/async-qualifiers/runs/{run_id}/grant-reattempt',
+                                 json={'reason': ' '})
+            assert blank.status_code == 400
+
+            granted = await c.post(f'/api/async-qualifiers/runs/{run_id}/grant-reattempt',
+                                   json={'reason': 'mis-click, confirmed on stream'})
+            assert granted.status_code == 200, granted.text
+            assert granted.json()['reattempted'] is True
+
+        async with client_for(app, runner_raw) as rc:
+            # The slot is free again despite the spent-nothing allowance.
+            pools = await rc.get(f'/api/async-qualifiers/{qid}/pools/available')
+            assert [p['id'] for p in pools.json()] == [pool_id]
 
     async def test_review_queue_forbidden_for_non_admin(self, db, app):
         _, admin_raw = await _admin_token()

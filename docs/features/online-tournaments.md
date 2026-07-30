@@ -110,9 +110,29 @@ sample sizes, and par is a mean over the fastest runs — a thin permalink produ
 par (and therefore scores) nobody can trust. Forcing only past a threshold keeps the
 common case unpredictable.
 
-**Finish times are bounded.** A submitted time must be positive and under
-`MAX_RUN_SECONDS` (a week), so a typed-in typo is a readable validation error rather
-than an out-of-range column write.
+**Finish times are bounded, and typed as exactly `H:MM:SS`.** A submitted time must be
+positive and under `MAX_RUN_SECONDS` (a week), so a typed-in typo is a readable
+validation error rather than an out-of-range column write. The entry field is parsed by
+[`application/utils/duration.py`](../reference/services.md#durationpy), which requires
+all three segments: folding shorter input into base 60 made `1:23` mean 83 seconds — a
+time 60× too fast that reads as correct everywhere afterwards. The field echoes what it
+read (*"Submitting 1:23:45 — 1 hour, 23 minutes, 45 seconds"*) before the runner
+commits.
+
+**Forfeit is confirmed.** It is the one irreversible control on the run surface — the
+run scores 0 and the pool slot is spent — so it opens a `ConfirmationDialog` naming
+those consequences. Submit does not: it is the happy path.
+
+**The server's clock is evidence, not authority.** `start_run` stamps `started_at`
+inside the draw transaction, and submit records the wall clock since then as
+`measured_seconds` beside the runner's claim. Because the timer keeps running while the
+player reads the seed and gets around to submitting, measured is an upper bound and
+*measured ≥ claimed* is the normal case — so the measurement gets three jobs and no
+more: the service **refuses** a claim longer than the run has existed (past a two-minute
+clock grace), the run surface **asks** about a claim 15+ minutes under the clock
+("Your timer says 1:14:22. You typed 0:14:22.") without ever blocking it, and the
+review queue **shows** both numbers with a drift badge on the ones the runner
+confirmed. Nothing auto-corrects a submitted time.
 
 **Review is adversarial by construction.** Reviewers are the qualifier's own `admins`,
 runs are claim-locked so two reviewers cannot double-handle one, and **self-review is
@@ -120,12 +140,70 @@ blocked** — an admin who ran the qualifier cannot approve their own run. Live 
 qualifier races are the deliberate exception: they skip sign-off entirely and are
 written `APPROVED`, because a racetime result is self-attributing.
 
+**A rejection needs a reason; an approval does not.** `review_run` refuses a rejection
+with a blank note, before it writes anything — rejection is the branch that owes the
+runner an explanation. The reason is stored as a run note and reaches the runner twice:
+a **Reviewer note** column on their own runs table (`get_run_notes` has always let a
+run's owner read its notes) and a DM carrying the reason plus a link back to the
+qualifier. The reviewer's card also shows the permalink played, the runner's other runs
+in this qualifier, and any notes already on the run — re-reviewing blind is how two
+reviewers reach opposite conclusions about the same person.
+
+**Two ways to spend a reattempt, both requiring a reason.** A reattempt voids one
+terminal run: it stops counting toward par and score, and its pool slot frees up for a
+fresh draw. It is not an undo — the voided attempt is gone, and the next run draws a new
+permalink.
+
+| Path | Who | Allowance | Where |
+|---|---|---|---|
+| `reattempt_run` | the runner, on their own run | spends `allowed_reattempts` | a row action on **My runs**, offered only while the window is open (voiding a run they can no longer re-run would just delete their own score) |
+| `grant_reattempt` | a qualifier admin, on anyone's run | **ignores** `allowed_reattempts` | the **Runs** tab of the Manage drill-down |
+
+The grant exists for a mis-clicked forfeit or a bad seed, so charging it to the runner's
+allowance would defeat the point; `reattempt_granted_by` records which of the two
+happened and is what keeps a granted void out of the runner's spent count. The Runs tab
+exists because a forfeit is written straight to `APPROVED`/score 0 and so never appears
+in the review queue — without it a reviewer cannot reach the very run the remedy is for.
+Both paths audit (`async_qualifier.run_reattempted` / `.reattempt_granted`) and the
+grant DMs the runner, because their pool availability changed without their doing
+anything.
+
+**Why a run cannot be started, specifically.** `get_player_pools` returns an empty list
+for five different situations, and the page used to collapse them into *"No pools
+available to run right now."* — leaving the runner unable to tell whether to wait, ask an
+organiser, or go home. `get_run_availability` answers instead: it never raises (a shut
+window is the answer, not an error) and carries a reason plus the sentence it owes.
+
+| Reason | What the runner is told |
+|---|---|
+| `NOT_ACTIVE` | This qualifier isn't accepting runs. |
+| `NOT_OPEN_YET` | This qualifier opens *{when}*. |
+| `CLOSED` | This qualifier closed *{when}*. The leaderboard is below. |
+| `NO_POOLS` | No pools have been set up yet — check back, or ask an organiser. |
+| `ALL_SLOTS_USED` | You've used all *N* of your runs in every pool. |
+| `PERMALINKS_EXHAUSTED` | You've played every seed available in the pools you have runs left in. An organiser needs to add more. |
+| `ANONYMOUS` | Sign in to start a run. |
+
+The last two are the distinction the surface could never make and the reason the split
+matters: only `PERMALINKS_EXHAUSTED` is something an organiser can fix. While a run *is*
+still possible, each pool also shows what is left ("1 of 2 runs used").
+
 **Scoring.** `compute_par` is the mean of the N fastest approved runs on a permalink;
 `compute_score` is `clamp(0, 105, (2 − elapsed/par) · 100)` — par scores 100, twice par
 scores 0, and the 105 ceiling caps what a single outlier run can be worth. Forfeits,
 non-finishers and unfilled pool slots score 0. Approving or rejecting a run recomputes
 that permalink's par and rescores every approved run on it, so a late submission
 retroactively corrects the board rather than grandfathering an early par.
+
+**And the surfaces say so.** Because par is a moving average, a runner's score changes
+when a *stranger's* run on a seed they played is approved — correct behaviour that the
+page never explained. Both the runs table and both leaderboards now carry the same
+captions (`theme/qualifier_copy.py`, shared so the player and admin boards cannot
+explain a column differently): scores are relative to par, 100 is par and 105 the cap;
+**Score** is the realised total with unrun slots counting zero, **Estimate** projects
+unrun slots at the player's own average, and ranking is by Score. The player's board
+also carries the `Slots` column the admin one always had — without it "unrun slots"
+names something the player cannot see.
 
 **Active-window information lockdown.** While the qualifier is open, the leaderboard,
 the pools, and the pars are staff-only (`is_results_public`). Publishing them mid-window
