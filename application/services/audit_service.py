@@ -316,6 +316,12 @@ class AuditActions:
     TENANT_DELETED = 'tenant.deleted'
     TENANT_MEMBER_ADDED = 'tenant.member_added'
     TENANT_MEMBER_REMOVED = 'tenant.member_removed'
+    # The self-serve enrollment path. The request is written by someone who is
+    # not yet in the tenant, so its audit row is stamped with the *target*
+    # tenant rather than the requester's ambient one.
+    TENANT_JOIN_REQUESTED = 'tenant.join_requested'
+    TENANT_JOIN_APPROVED = 'tenant.join_approved'
+    TENANT_JOIN_DENIED = 'tenant.join_denied'
     SUPER_ADMIN_GRANTED = 'platform.super_admin_granted'
     SUPER_ADMIN_REVOKED = 'platform.super_admin_revoked'
 

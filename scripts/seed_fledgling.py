@@ -6,7 +6,16 @@ A sibling of the other ``seed_*`` fixture modules, called from
 """
 
 from application.tenant_context import tenant_scope
-from models import Role, Tenant, TenantMembership, Tournament, User, UserRole
+from models import (
+    JoinRequestStatus,
+    Role,
+    Tenant,
+    TenantJoinRequest,
+    TenantMembership,
+    Tournament,
+    User,
+    UserRole,
+)
 
 
 async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
@@ -38,5 +47,16 @@ async def seed_fledgling_tenant(users: dict[str, User], groups: dict) -> None:
         await Tournament.get_or_create(
             name='First Tournament', tenant=tenant,
             defaults={'is_active': True, 'staff_administered': True},
+        )
+        # A pending request, so the staff queue has something in it. Its author
+        # is the one seeded account that belongs to no community at all — see
+        # seed_dev's `outsider` — which is also what makes the join page itself
+        # reachable in dev without hand-editing the database.
+        await TenantJoinRequest.get_or_create(
+            user=users['outsider'], tenant=tenant,
+            defaults={
+                'status': JoinRequestStatus.PENDING,
+                'message': 'I run commentary for a few events and would like to help out.',
+            },
         )
     print(f"  tenant 'fledgling' ({'created' if created else 'exists'}, id={tenant.id}) — setup deliberately incomplete")

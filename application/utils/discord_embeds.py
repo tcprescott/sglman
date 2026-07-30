@@ -29,6 +29,7 @@ COLOR_STREAM = 0xE0A82E       # gold — highlight
 COLOR_CREW = 0x5865F2         # blurple
 COLOR_SEED = 0x8250DF         # purple
 COLOR_VOLUNTEER = 0x0E7470    # teal
+COLOR_JOIN_REQUEST = 0x5865F2  # blurple — informational, like a new assignment
 COLOR_CANCELLED = 0x9B2C2C    # deep red — called off, nothing to attend
 
 # state_changed transitions → colour

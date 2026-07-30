@@ -12,15 +12,25 @@ nature: the row *is* the tenant linkage), so its queries pass tenant ids
 explicitly rather than going through ``scoped(...)``.
 """
 
-from typing import List
+from typing import List, Optional
 
+from application.errors import NotFoundError
 from application.events import EventType
+from application.repositories.tenant_join_request_repository import TenantJoinRequestRepository
 from application.repositories.tenant_membership_repository import TenantMembershipRepository
 from application.repositories.user_repository import UserRepository
+from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.tenant_context import require_tenant_id
-from models import User
+from application.tenant_context import require_tenant_id, tenant_scope
+from application.utils.discord_embeds import (
+    COLOR_CANCELLED,
+    COLOR_JOIN_REQUEST,
+    notification_embed,
+)
+from application.utils.discord_messages import join_decided_dm, join_requested_dm
+from application.utils.timezone import now_eastern
+from models import JoinRequestStatus, Role, TenantJoinRequest, User
 
 
 class TenantMembershipService:
@@ -96,6 +106,137 @@ class TenantMembershipService:
             {'target_user_id': user.id},
             EventType.TENANT_MEMBER_REMOVED,
         )
+
+    # ---- the door: requests to join --------------------------------------
+
+    async def request_to_join(
+        self, user: User, tenant_id: int, message: Optional[str] = None,
+    ) -> TenantJoinRequest:
+        """Ask to join a community you are not in.
+
+        Takes an explicit ``tenant_id``: this is called from a page the
+        requester is *not yet a member of*, so it must not depend on anything
+        membership-scoped.
+        """
+        if await TenantMembershipRepository.is_member(user.id, tenant_id):
+            raise ValueError('You are already a member of this community.')
+        text = (message or '').strip() or None
+        if text and len(text) > 500:
+            raise ValueError('Keep the message under 500 characters.')
+
+        request = await TenantJoinRequestRepository.upsert_pending(user, tenant_id, text)
+        # The requester acts on their own behalf, and the row belongs to the
+        # *target* tenant — which they are not scoped to, hence the explicit
+        # scope, exactly as bootstrap_staff does.
+        with tenant_scope(tenant_id):
+            await self.audit_service.write_and_publish(
+                user, AuditActions.TENANT_JOIN_REQUESTED,
+                {'target_user_id': user.id, 'request_id': request.id},
+                EventType.TENANT_JOIN_REQUESTED,
+            )
+            await self._notify_staff_of_request(user, tenant_id, text)
+        return request
+
+    async def get_request(self, user: User, tenant_id: int) -> Optional[TenantJoinRequest]:
+        """This user's request in a named tenant, if any.
+
+        Explicit ``tenant_id`` for the same reason ``request_to_join`` takes one:
+        the caller is a page the user is not a member of.
+        """
+        return await TenantJoinRequestRepository.get(user.id, tenant_id)
+
+    async def list_pending(self) -> List[TenantJoinRequest]:
+        """Pending requests for the tenant in scope — the staff queue."""
+        return await TenantJoinRequestRepository.list_pending(require_tenant_id())
+
+    async def approve_request(self, actor: User, request_id: int) -> TenantJoinRequest:
+        request = await self._decidable(actor, request_id)
+        await TenantMembershipRepository.add(request.user, request.tenant_id)
+        await TenantJoinRequestRepository.decide(
+            request, JoinRequestStatus.APPROVED, actor, now_eastern(),
+        )
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.TENANT_JOIN_APPROVED,
+            {'target_user_id': request.user_id, 'request_id': request.id},
+            EventType.TENANT_JOIN_APPROVED,
+        )
+        await self._notify_requester(request.user, approved=True)
+        return request
+
+    async def deny_request(self, actor: User, request_id: int) -> TenantJoinRequest:
+        request = await self._decidable(actor, request_id)
+        await TenantJoinRequestRepository.decide(
+            request, JoinRequestStatus.DENIED, actor, now_eastern(),
+        )
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.TENANT_JOIN_DENIED,
+            {'target_user_id': request.user_id, 'request_id': request.id},
+            EventType.TENANT_JOIN_DENIED,
+        )
+        # Both outcomes, not just the happy one: notification that only fires on
+        # success leaves everyone else wondering whether anyone saw it.
+        await self._notify_requester(request.user, approved=False)
+        return request
+
+    # ---- notification (best-effort; a DM failure never blocks a decision) --
+
+    async def _notify_staff_of_request(
+        self, requester: User, tenant_id: int, message: Optional[str],
+    ) -> None:
+        """DM the community's staff. A request nobody sees is worse than none."""
+        from application.services.discord import DiscordService, discord_queue
+        from application.services.tenant_service import TenantService
+
+        community = await TenantService.community_name(tenant_id)
+        staff = await UserRoleRepository.list_users_with_role(Role.STAFF)
+        body = join_requested_dm(
+            community, requester.display_name or requester.username, message or '',
+        )
+        embed = notification_embed(
+            title='🚪 Join request',
+            color=COLOR_JOIN_REQUEST,
+            community_name=community,
+            description=body,
+        )
+        service = DiscordService()
+        for member in staff:
+            if member.discord_id:
+                discord_queue.enqueue(
+                    service.send_dm(int(member.discord_id), body, embed=embed)
+                )
+
+    async def _notify_requester(self, requester: User, *, approved: bool) -> None:
+        from application.services.discord import DiscordService, discord_queue
+        from application.services.tenant_service import TenantService
+
+        if not requester.discord_id:
+            return
+        community = await TenantService.current_community_name()
+        body = join_decided_dm(community, approved)
+        embed = notification_embed(
+            title='🚪 Join request ' + ('approved' if approved else 'declined'),
+            color=COLOR_JOIN_REQUEST if approved else COLOR_CANCELLED,
+            community_name=community,
+            description=body,
+        )
+        discord_queue.enqueue(
+            DiscordService().send_dm(int(requester.discord_id), body, embed=embed)
+        )
+
+    async def _decidable(self, actor: User, request_id: int) -> TenantJoinRequest:
+        """Load a request this actor may decide, in the tenant in scope."""
+        await AuthService.ensure(
+            await AuthService.can_grant_roles(actor),
+            'Only Staff can decide join requests',
+        )
+        request = await TenantJoinRequestRepository.get_by_id(request_id)
+        # not_found rather than forbidden for another community's request: the
+        # message must not confirm that it exists.
+        if request is None or request.tenant_id != require_tenant_id():
+            raise NotFoundError('That join request no longer exists.')
+        if request.status is not JoinRequestStatus.PENDING:
+            raise ValueError('That request has already been decided.')
+        return request
 
     @staticmethod
     async def ensure_member(user: User) -> None:

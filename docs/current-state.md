@@ -20,7 +20,7 @@ Everything listed is **stable in production** unless marked otherwise.
 | **Online tournaments** | user-managed seed presets, racetime.gg room lifecycle + bot runtime, async qualifiers (incl. live races), SpeedGaming schedule ETL, Discord Events sync, per-tenant randomizer credentials | [online-tournaments](features/online-tournaments.md), [seed-generation](reference/seed-generation.md) |
 | **Volunteering** | opt-in, positions, shifts, assignments, availability, auto-scheduler, reminders, coordinator data export | [services](reference/services.md) |
 | **Equipment** | assets, checkout/check-in, loan history, QR codes | [services](reference/services.md) |
-| **Platform** | multitenancy (`/t/<slug>` + custom domains), per-tenant feature flags, `/platform` super-admin surface, service-health board | [multitenancy](features/multitenancy.md), [feature-flags](features/feature-flags.md) |
+| **Platform** | multitenancy (`/t/<slug>` + custom domains), the membership gate + self-serve join requests, per-tenant feature flags, `/platform` super-admin surface (incl. the first-admin grant and a setup-readiness column), the derived new-community setup checklist, service-health board | [multitenancy](features/multitenancy.md), [feature-flags](features/feature-flags.md) |
 | **Identity & access** | Discord OAuth, eleven roles, guild-role sync, Challonge/Twitch/racetime identity linking | [roles](reference/authentication.md#roles), [authentication](reference/authentication.md) |
 | **Integrations** | REST API + personal access tokens, MCP server at `/mcp`, event bus, signed outbound webhooks, web push, Challonge | [rest-api](reference/rest-api.md), [mcp-server](features/mcp-server.md), [webhooks](features/webhooks.md) |
 | **Observability** | audit logging, engagement telemetry, analytics/insights reports, in-app feedback, Sentry | [audit-logging](features/audit-logging.md), [telemetry](features/telemetry.md), [admin-reports](features/admin-reports.md) |
@@ -34,6 +34,9 @@ Everything listed is **stable in production** unless marked otherwise.
 ## Deliberately deferred
 
 Recorded so they read as decisions rather than gaps:
+
+- **The `System` service account is still offered as a person** wherever a picker is not membership-scoped. `UserRepository.get_members` excludes it (`is_system`), which covers every per-community picker; the platform-level `get_all_users` does not, because a super-admin's first-admin picker is choosing from every account. A general "service account" concept was out of scope.
+- **A brand-new community still shows the full admin drawer.** The setup checklist supplies the ordering the audit found missing, and nothing hides the other tabs — hiding tabs from a staff member who knows what they want is a worse failure than showing too many.
 
 - **Bracket automation stops at Challonge parity.** Humans schedule open matchups into `Match` rows. Auto-created matches, full round auto-scheduling, and bracket-driven crew/restream assignment were all left out of v1.
 - **No persisted `MatchState` column.** State stays derived from the five nullable timestamps via `match/match_status.py`. Worth revisiting only when the schedule needs to *filter* by state at scale — a stored column becomes a second source of truth needing reconciliation.

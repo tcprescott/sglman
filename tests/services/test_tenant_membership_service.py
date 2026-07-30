@@ -126,3 +126,158 @@ async def test_addable_users_never_offers_the_system_actor(staff, db):
     await UserRepository.get_or_create_system_user()
     names = {u.username for u in await TenantMembershipService().addable_users()}
     assert 'System' not in names
+
+
+# ---------------------------------------------------------------------------
+# The door: requests to join
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def captured_dms(monkeypatch):
+    """Collect what would have been DM'd, without a Discord connection."""
+    sent = []
+    from application.services import discord as discord_pkg
+
+    def _enqueue(coro):
+        coro.close()  # never awaited; we only care that it was queued
+        sent.append(True)
+
+    monkeypatch.setattr(discord_pkg.discord_queue, 'enqueue', _enqueue)
+    return sent
+
+
+async def test_request_to_join_is_refused_for_an_existing_member(staff, db):
+    outsider = await User.create(discord_id=4100, username='outsider')
+    await TenantMembershipService().add_member(staff, outsider)
+    with pytest.raises(ValueError) as exc:
+        await TenantMembershipService().request_to_join(outsider, 1)
+    assert 'already a member' in str(exc.value)
+
+
+async def test_a_denied_request_can_be_reopened_not_duplicated(staff, db):
+    from models import JoinRequestStatus, TenantJoinRequest
+
+    outsider = await User.create(discord_id=4101, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1, 'let me in')
+    await service.deny_request(staff, request.id)
+
+    reopened = await service.request_to_join(outsider, 1, 'asking again')
+    assert reopened.id == request.id
+    assert reopened.status is JoinRequestStatus.PENDING
+    assert reopened.message == 'asking again'
+    # The decision fields are cleared, not left pointing at the old verdict.
+    assert reopened.decided_by_id is None and reopened.decided_at is None
+    assert await TenantJoinRequest.filter(user=outsider, tenant_id=1).count() == 1
+
+
+async def test_approving_creates_the_membership(staff, db):
+    outsider = await User.create(discord_id=4102, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await service.approve_request(staff, request.id)
+    assert await service.is_member(outsider) is True
+
+
+async def test_denying_creates_no_membership(staff, db):
+    outsider = await User.create(discord_id=4103, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await service.deny_request(staff, request.id)
+    assert await service.is_member(outsider) is False
+
+
+async def test_a_decided_request_cannot_be_decided_twice(staff, db):
+    outsider = await User.create(discord_id=4104, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    await service.approve_request(staff, request.id)
+    with pytest.raises(ValueError) as exc:
+        await service.deny_request(staff, request.id)
+    assert 'already been decided' in str(exc.value)
+
+
+async def test_decisions_require_role_granting_authority(staff, db):
+    outsider = await User.create(discord_id=4105, username='outsider')
+    nobody = await User.create(discord_id=4106, username='nobody')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, 1)
+    with pytest.raises(PermissionError):
+        await service.approve_request(nobody, request.id)
+    with pytest.raises(PermissionError):
+        await service.deny_request(nobody, request.id)
+
+
+async def test_another_communitys_request_is_not_found_not_forbidden(staff, db):
+    """The message must not confirm that another community's request exists."""
+    from application.errors import NotFoundError
+
+    other = await Tenant.create(name='Other', slug='other')
+    outsider = await User.create(discord_id=4107, username='outsider')
+    service = TenantMembershipService()
+    request = await service.request_to_join(outsider, other.id)
+
+    with pytest.raises(NotFoundError):
+        await service.approve_request(staff, request.id)
+
+
+async def test_list_pending_is_scoped_and_excludes_decided(staff, db):
+    other = await Tenant.create(name='Other', slug='other')
+    here = await User.create(discord_id=4108, username='here')
+    there = await User.create(discord_id=4109, username='there')
+    decided = await User.create(discord_id=4110, username='decided')
+    service = TenantMembershipService()
+
+    await service.request_to_join(here, 1)
+    await service.request_to_join(there, other.id)
+    gone = await service.request_to_join(decided, 1)
+    await service.deny_request(staff, gone.id)
+
+    pending = await service.list_pending()
+    assert [r.user.username for r in pending] == ['here']
+
+
+async def test_the_join_audit_row_is_stamped_with_the_target_tenant(db):
+    """The requester is not scoped to the tenant they are asking to join.
+
+    Without the explicit scope the row would land in whatever community the
+    requester happened to be looking at — or nowhere.
+    """
+    from models import AuditLog
+
+    other = await Tenant.create(name='Other', slug='other')
+    outsider = await User.create(discord_id=4111, username='outsider')
+    await TenantMembershipService().request_to_join(outsider, other.id)
+
+    row = await AuditLog.get(action='tenant.join_requested')
+    assert row.tenant_id == other.id
+    # And the requester is the actor: they acted on their own behalf.
+    assert row.user_id == outsider.id
+
+
+async def test_an_over_long_message_is_refused_not_truncated(db):
+    outsider = await User.create(discord_id=4112, username='outsider')
+    with pytest.raises(ValueError) as exc:
+        await TenantMembershipService().request_to_join(outsider, 1, 'x' * 501)
+    assert '500' in str(exc.value)
+
+
+async def test_staff_are_notified_of_a_request(staff, captured_dms, db):
+    outsider = await User.create(discord_id=4113, username='outsider')
+    await TenantMembershipService().request_to_join(outsider, 1, 'hello')
+    assert len(captured_dms) == 1  # the one STAFF member
+
+
+async def test_the_requester_is_notified_on_approve_and_on_deny(staff, captured_dms, db):
+    one = await User.create(discord_id=4114, username='one')
+    two = await User.create(discord_id=4115, username='two')
+    service = TenantMembershipService()
+    r1 = await service.request_to_join(one, 1)
+    r2 = await service.request_to_join(two, 1)
+    captured_dms.clear()
+
+    await service.approve_request(staff, r1.id)
+    assert len(captured_dms) == 1
+    await service.deny_request(staff, r2.id)
+    assert len(captured_dms) == 2

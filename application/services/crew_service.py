@@ -58,6 +58,16 @@ class CrewService:
         if role not in ['commentator', 'tracker']:
             raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
 
+        # The audit's measured symptom was not that a stranger *saw* a new
+        # community's schedule — it was that they were offered Sign Up on it. The
+        # page gate stops them reaching the surface, but UI-only gating is not
+        # gating: this is reached from the REST API and a Discord button too.
+        from application.services.tenant_membership_service import TenantMembershipService
+        if not await TenantMembershipService().is_member(user):
+            raise ValueError(
+                'You are not a member of this community. Ask to join it first.'
+            )
+
         # Get match with crew prefetched
         match = require_found(
             await self.match_repository.get_by_id(match_id, prefetch_relations=True),
@@ -113,6 +123,16 @@ class CrewService:
         # Validate role
         if role not in ['commentator', 'tracker']:
             raise ValueError(f"Invalid role: {role}. Must be 'commentator' or 'tracker'")
+
+        # The audit's measured symptom was not that a stranger *saw* a new
+        # community's schedule — it was that they were offered Sign Up on it. The
+        # page gate stops them reaching the surface, but UI-only gating is not
+        # gating: this is reached from the REST API and a Discord button too.
+        from application.services.tenant_membership_service import TenantMembershipService
+        if not await TenantMembershipService().is_member(user):
+            raise ValueError(
+                'You are not a member of this community. Ask to join it first.'
+            )
 
         # Get match with crew prefetched
         match = require_found(

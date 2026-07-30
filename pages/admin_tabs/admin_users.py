@@ -4,6 +4,7 @@
 from nicegui import app, background_tasks, context, ui
 
 from application.services import (
+    NotFoundError,
     TenantMembershipService,
     UserService,
     get_user_from_discord_id,
@@ -25,7 +26,7 @@ _ROW_ACTIONS = '''
 '''
 
 
-def admin_users_page() -> None:
+async def admin_users_page() -> None:
     with ui.column().classes('page-container-narrow w-full'):
         with ui.row().classes('header-row'):
             ui.label('User Management').classes('page-title')
@@ -38,6 +39,56 @@ def admin_users_page() -> None:
             'existing account in, Add User creates a brand-new one. Click a '
             'username to edit it; filter by role to narrow the list.'
         ).classes('text-caption text-grey')
+
+        # Pending join requests, above the member table. The queue carries its
+        # own buttons on purpose: discovery and action on different pages is the
+        # mistake that makes a report nobody acts on.
+        @ui.refreshable
+        async def join_queue() -> None:
+            service = TenantMembershipService()
+            try:
+                pending = await service.list_pending()
+            except (ValueError, PermissionError):
+                return
+            if not pending:
+                return
+            actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+
+            async def decide(request_id: int, approve: bool) -> None:
+                try:
+                    if approve:
+                        await service.approve_request(actor, request_id)
+                    else:
+                        await service.deny_request(actor, request_id)
+                except (ValueError, PermissionError, NotFoundError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify('Approved.' if approve else 'Declined.', color='positive')
+                join_queue.refresh()
+                await table_view.refresh()
+
+            with ui.card().classes('w-full'):
+                ui.label(f'{len(pending)} pending join request'
+                         f"{'s' if len(pending) != 1 else ''}").classes('text-bold')
+                for request in pending:
+                    person = request.user
+                    with ui.row().classes('items-start justify-between no-wrap w-full gap-2'):
+                        with ui.column().classes('gap-0'):
+                            ui.label(person.display_name or person.username)
+                            if request.message:
+                                # Plain text, never markup — the requester writes it.
+                                ui.label(request.message).classes('text-caption text-grey')
+                        with ui.row().classes('no-wrap gap-1'):
+                            ui.button(
+                                'Approve', icon='check',
+                                on_click=lambda _=None, r=request.id: decide(r, True),
+                            ).props('flat dense color=positive')
+                            ui.button(
+                                'Decline', icon='close',
+                                on_click=lambda _=None, r=request.id: decide(r, False),
+                            ).props('flat dense color=negative')
+
+        await join_queue()
 
         selected = {'value': []}
 

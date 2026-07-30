@@ -149,16 +149,45 @@ no members yet. The reserved `System` automation actor is excluded from the
 community list — the migration made it a member of everywhere, and it was
 measured being offered as a player.
 
-**Authorization is tenant-scoped, not membership-gated.** A `@protected_page` with
-a role requirement (or `allow_tournament_membership`) authorizes on the user's
-tenant-scoped roles / tournament-admin membership / super-admin, so a role in
-another tenant grants nothing here; role-less protected pages need only
-authentication. There is deliberately **no** separate "must be a
-`TenantMembership`" gate — the app has no self-serve or invite enrollment path, so
-such a gate would lock out every new user. Membership decides who *appears* in a
-community, not yet who may *enter* it. A page reached with
-*no* tenant (a bare `/admin` on the platform host) 404s: every `@protected_page`
-is a tenant page.
+**Authorization is tenant-scoped *and* membership-gated.** A tenant page runs
+four checks in order — tenant → feature → **membership** → role:
+
+| Check | Failure renders |
+|---|---|
+| A tenant is in scope | 404 (a bare `/admin` on the platform host is not a tenant page) |
+| The feature is live here | 404 — a subsystem the tenant has off is hidden from everyone, member or not, so an unreleased feature never leaks |
+| The viewer is a member | the **join door** (`theme/join_page.py`) — not a 403 |
+| The viewer holds a required role | 403 |
+
+The membership check is `middleware.auth.enforce_membership`. It renders a door
+rather than a 403 on purpose: forbidden-by-role is a dead end, but not-a-member
+is a state with a remedy, and the page whose whole job is to offer that remedy
+should not open by saying no. It is rendered **in place**, at the URL that was
+asked for, so a Discord deep link survives — approve the request, reload, and
+you land where the link pointed. `SUPER_ADMIN` bypasses it, exactly as it
+bypasses the role gate; it belongs to no community by design. It is deliberately
+**not** gated on `Tenant.is_active` — an inactive community is a separate
+concern with its own handling.
+
+Two surfaces sit outside it. `@public_page` routes (the spectator bracket views)
+are world-readable and always were. And the tenant home is registered with a
+bare `ui.page` — the same function also renders the platform community picker,
+which has no tenant and must stay anonymous — so it calls `enforce_membership`
+itself rather than getting it from the decorator.
+
+**Membership is acquired three ways:** a staff grant (Users tab → Add Member),
+any role grant (the invariant above), or an approved **join request**.
+`TenantJoinRequest` is the self-serve enrollment path whose absence used to be
+the documented reason no gate existed: one row per `(user, tenant)` — a denied
+request is re-opened, never appended to — with the community's staff notified
+when it arrives and the requester notified on **both** outcomes.
+
+The gate is a page-level check on a *person*. It does not apply to the REST API
+or MCP (a token belongs to a tenant, and wave 2 scoped what those return), to the
+Discord bot (an interaction handler acts for someone already assigned), or to
+workers (they run in `tenant_scope`, not as a user). The one service that
+enforces it directly is **crew signup**, because the measured symptom was a
+non-member being offered *Sign Up* — and UI-only gating is not gating.
 
 See [authentication.md](../reference/authentication.md) and
 [role-based-auth.md](../reference/authentication.md#roles).

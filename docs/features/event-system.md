@@ -50,7 +50,7 @@ between "called off" and "shouldn't have existed".
 | `discord_event.*` | `discord/discord_event_reconciler_service.py` |
 | `async_qualifier.*` | `async_qualifier/` (run submitted/reviewed, live race recorded) |
 | `service_health.alert` | `service_health_service.py` — platform-level (no tenant), so tenant-scoped webhooks never receive it |
-| `tenant.member_*` | `tenant_membership_service.py` — who belongs to a community, which is what an external roster subscriber mirrors. The rest of `tenant.*` stays audit-only: it is platform-level super-admin work a tenant's own subscriber cannot see |
+| `tenant.member_*`, `tenant.join_*` | `tenant_membership_service.py` — who belongs to a community and who is asking to, which is what an external roster subscriber mirrors (and what routes "someone wants in" to a staff channel). The rest of `tenant.*` stays audit-only: it is platform-level super-admin work a tenant's own subscriber cannot see |
 
 ## Registering a subscriber at startup
 

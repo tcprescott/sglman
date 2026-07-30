@@ -327,8 +327,9 @@ first/exists`) that is neither inside a `scoped(...)` call nor passing a
 with no `tenant*` kwarg (checks `defaults={...}` keys too). Escape hatches match
 the convention `_tenant.py` documents: a function whose source says
 **"cross-tenant"**, **"unscoped"**, or **"global"** is exempt, and
-`EXEMPT_MODELS` (`TenantMembership`, `RacetimeBotTenant`) covers junction
-tables where the tenant FK is the row's *subject*, not a scoping stamp.
+`EXEMPT_MODELS` (`TenantMembership`, `TenantJoinRequest`, `RacetimeBotTenant`)
+covers junction tables where the tenant FK is the row's *subject*, not a scoping
+stamp.
 In a **service** module only *writes* are flagged: services legitimately read a
 scoped model directly (the sanctioned load-or-404 shape passes `tenant_id=` and
 is checked like any other read), but an unstamped service write is never right —

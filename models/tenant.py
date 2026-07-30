@@ -1,6 +1,8 @@
 from tortoise import fields
 from tortoise.models import Model
 
+from models.enums import JoinRequestStatus
+
 
 class Tenant(Model):
     """One independent tournament community hosted on the shared deployment.
@@ -59,3 +61,34 @@ class TenantMembership(Model):
         table = 'tenantmembership'
         unique_together = (('user', 'tenant'),)
         indexes = (('tenant',),)  # composite is user-first; per-tenant member enumeration uncovered
+
+
+class TenantJoinRequest(Model):
+    """Someone asking to join a community they can see the door of.
+
+    The enrollment path whose absence was the documented reason no membership
+    gate existed. Cross-tenant by nature, like :class:`TenantMembership`: a
+    user's own list of pending requests spans tenants, and the request is
+    written by someone who is not scoped to the target tenant at all.
+    """
+
+    id = fields.IntField(pk=True)
+    tenant = fields.ForeignKeyField('models.Tenant', related_name='join_requests', on_delete=fields.CASCADE)
+    user = fields.ForeignKeyField('models.User', related_name='join_requests', on_delete=fields.CASCADE)
+    status = fields.CharEnumField(JoinRequestStatus, default=JoinRequestStatus.PENDING, max_length=20)
+    message = fields.CharField(max_length=500, null=True)
+    # SET_NULL, like Tenant.feature_group: deleting a staff account must not
+    # delete the record of the decision they made.
+    decided_by = fields.ForeignKeyField(
+        'models.User', related_name='join_requests_decided', null=True, on_delete=fields.SET_NULL
+    )
+    decided_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = 'tenantjoinrequest'
+        # One row per person per community: a denied request is re-opened, not
+        # appended to.
+        unique_together = (('user', 'tenant'),)
+        indexes = (('tenant', 'status'),)  # the staff queue's query

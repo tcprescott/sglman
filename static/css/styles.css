@@ -781,6 +781,14 @@ body.body--dark {
     gap: 0.75rem;
 }
 
+/* The membership join door reuses the error page's centred card geometry but
+   deliberately not its red top rule: not-a-member is a state with a remedy, not
+   a failure, and the page whose whole job is to offer that remedy should not
+   open by looking like an error. */
+.join-card {
+    border-top-color: var(--wiz-gold-deep);
+}
+
 .error-status {
     font-family: var(--font-display);
     font-size: clamp(3rem, 10vw, 5rem);

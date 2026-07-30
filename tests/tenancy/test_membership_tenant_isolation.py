@@ -278,3 +278,42 @@ async def test_an_imported_speedgaming_player_becomes_a_member(db):
 
     offered = {u.username for u in await UserService().get_community_users()}
     assert resolved.username in offered
+
+
+# --- join requests ----------------------------------------------------------
+
+
+class TestJoinRequestIsolation:
+    async def test_join_requests_do_not_cross_communities(self, two_tenants, db):
+        tenant_a, tenant_b = two_tenants
+        from models import TenantJoinRequest
+
+        here = await User.create(discord_id=8314, username='here')
+        there = await User.create(discord_id=8315, username='there')
+        service = TenantMembershipService()
+        await service.request_to_join(here, tenant_a.id)
+        await service.request_to_join(there, tenant_b.id)
+
+        with tenant_scope(tenant_a.id):
+            assert [r.user.username for r in await service.list_pending()] == ['here']
+        with tenant_scope(tenant_b.id):
+            assert [r.user.username for r in await service.list_pending()] == ['there']
+        assert await TenantJoinRequest.all().count() == 2
+
+    async def test_approving_grants_membership_only_where_it_was_asked(
+        self, two_tenants, db,
+    ):
+        tenant_a, tenant_b = two_tenants
+        boss = await User.create(discord_id=8316, username='boss8316')
+        await TenantMembership.create(user=boss, tenant=tenant_a)
+        with tenant_scope(tenant_a.id):
+            await UserRole.create(user=boss, role=Role.STAFF, tenant=tenant_a)
+        hopeful = await User.create(discord_id=8317, username='hopeful')
+
+        service = TenantMembershipService()
+        request = await service.request_to_join(hopeful, tenant_a.id)
+        with tenant_scope(tenant_a.id):
+            await service.approve_request(boss, request.id)
+
+        assert await TenantMembership.filter(user=hopeful, tenant=tenant_a).count() == 1
+        assert await TenantMembership.filter(user=hopeful, tenant=tenant_b).count() == 0

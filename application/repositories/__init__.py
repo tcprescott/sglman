@@ -39,6 +39,7 @@ from .speedgaming_event_link_repository import SpeedGamingEventLinkRepository
 from .station_repository import StationRepository
 from .stream_room_repository import StreamRoomRepository
 from .tenant_repository import TenantRepository
+from .tenant_join_request_repository import TenantJoinRequestRepository
 from .tenant_membership_repository import TenantMembershipRepository
 from .tournament_notification_repository import TournamentNotificationRepository
 from .telemetry_repository import TelemetryRepository
@@ -90,6 +91,7 @@ __all__ = [
     'StationRepository',
     'StreamRoomRepository',
     'TenantRepository',
+    'TenantJoinRequestRepository',
     'TenantMembershipRepository',
     'TelemetryRepository',
     'TournamentNotificationRepository',

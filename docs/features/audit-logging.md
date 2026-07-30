@@ -57,9 +57,12 @@ not a reason to skip the audit.
 
 Platform-level rows (`tenant.created` / `.updated` / `.deleted`, `platform.*`,
 feature-group and availability grants) carry `tenant=NULL`; everything else is
-stamped with the acting tenant — including `tenant.member_added` /
-`tenant.member_removed`, which a community's own staff write inside their
-community and which are mirrored as events.
+stamped with the acting tenant — including `tenant.member_*` and `tenant.join_*`,
+which a community's own staff (or a would-be member) write inside that community
+and which are mirrored as events. `tenant.join_requested` is the one written by
+someone who is **not** scoped to its tenant, so the service wraps it in an
+explicit `tenant_scope(tenant_id)`; without that the row would land in whatever
+community the requester happened to be looking at.
 
 ## Viewing the log
 

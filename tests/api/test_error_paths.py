@@ -417,8 +417,13 @@ class TestGenerateSeed:
 
 class TestCrewSignup:
     async def test_signup_then_undo(self, db, app):
+        from models import TenantMembership
+
         _, staff_raw = await create_user_token(username='boss', roles=[Role.STAFF])
         caster, caster_raw = await create_user_token(username='caster')
+        # Crew signup refuses a non-member of the community, at the service, so a
+        # token holder who belongs to no community cannot sign up either.
+        await TenantMembership.create(user=caster, tenant_id=1)
         t, p1, p2 = await _tournament_and_players()
         async with client_for(app, staff_raw) as staff, client_for(app, caster_raw) as caster_c:
             mid = (await _create_match(staff, t, p1, p2)).json()['id']
@@ -429,6 +434,17 @@ class TestCrewSignup:
 
             undo = await caster_c.delete(f'/api/matches/{mid}/crew/commentator')
             assert undo.status_code == 204
+
+    async def test_signup_refuses_a_non_member(self, db, app):
+        """UI-only gating is not gating: the REST path hits the same wall."""
+        _, staff_raw = await create_user_token(username='boss2', roles=[Role.STAFF])
+        _, stranger_raw = await create_user_token(username='stranger')
+        t, p1, p2 = await _tournament_and_players()
+        async with client_for(app, staff_raw) as staff, client_for(app, stranger_raw) as stranger:
+            mid = (await _create_match(staff, t, p1, p2)).json()['id']
+            resp = await stranger.post(f'/api/matches/{mid}/crew', json={'role': 'commentator'})
+            assert resp.status_code == 400
+            assert 'not a member' in resp.json()['detail']
 
     async def test_invalid_crew_role_is_400(self, db, app):
         caster, raw = await create_user_token(username='caster')

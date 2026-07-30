@@ -14,7 +14,6 @@ the truth and git history keeps the rationale.
 | [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
 | [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
 | [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
-| [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
 | [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 | [identity-linking-ux.md](identity-linking-ux.md) | Challonge / Twitch / racetime linking | Four written failure messages, none of which reach the screen (partly code-read — no provider credentials in dev) |
@@ -41,11 +40,16 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   fixes it ([reports F1](admin-reports-ux.md#f1--major--nine-reports-zero-actions)).
 - **Capabilities nobody wired are invisible.** `reattempt_run`, `review_run`'s
   `note`, `update_bracket`, `state_readonly_slot()` — each exists, is tested, and is
-  reachable from no surface.
-- **The global `User` table leaks into per-community pickers.** The Users tab, the
-  match dialog's "Choose any players", and the equipment borrower select all offer
-  every user on the platform, `System` included
-  ([onboarding F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform)).
+  reachable from no surface. (`TenantService.bootstrap_staff` was the costliest
+  instance — the only way to give a new community its first admin, wired to
+  nothing — and now has a button on `/platform`.)
+- **The global `User` table leaks into per-community pickers.** *Largely
+  discharged:* every per-community picker, `GET /users` and the MCP `list_users`
+  tool now join through `TenantMembership` (`UserService.get_community_users`),
+  and a test blocks a new caller of the global list. What stands: the `System`
+  service account is still offered by the one legitimately platform-level picker
+  (`/platform`'s first-admin dialog), because `User` has no service-account
+  concept beyond `is_system`.
 - **The dev seed cannot produce the roles that expose the worst bugs.** A
   coordinator-only, stream-manager-only or equipment-manager-only user has to be
   granted by hand; three audits needed one

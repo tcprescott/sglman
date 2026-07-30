@@ -28,6 +28,7 @@ from tortoise import Tortoise
 from tortoise.functions import Max
 from models import (
     Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
+    TenantJoinRequest, JoinRequestStatus,
     User, UserRole, Role,
     Tournament, TournamentPlayers,
     Match, MatchPlayers, MatchAcknowledgment, MatchWatcher,
@@ -81,6 +82,11 @@ async def seed_users() -> dict[str, User]:
         # not another", which is what proves the person pickers are scoped —
         # every other seeded user is a member everywhere.
         ("100000000000000009", "default_only",  "Default Only"),
+        # A member of **no** community, with a pending join request against
+        # 'fledgling' (see seed_fledgling): the fixture for the membership gate's
+        # own door. Without it the only way to see the join page in dev is to
+        # delete your own membership.
+        ("100000000000000010", "outsider",      "Hopeful Outsider"),
         # Deliberately granted no *tenant* role anywhere (see seed_super_admin):
         # the dev fixture for "platform authority, zero local grants", which is
         # what /platform and the super-admin's in-tenant access need to be
@@ -189,6 +195,11 @@ async def seed_for_tenant(
         # Every scoped user is a member of this tenant — except default_only,
         # which is the fixture for a member of one community and not another.
         for uname, u in users.items():
+            # default_only is the "member of one community, not another" fixture;
+            # outsider is the "member of nothing at all" one, which is what the
+            # membership gate's join page needs to be reachable in dev.
+            if uname == 'outsider':
+                continue
             if uname == 'default_only' and tenant.slug != 'default':
                 continue
             await TenantMembership.get_or_create(user=u, tenant=tenant)
@@ -664,6 +675,21 @@ async def seed_for_tenant(
                     user=actor, action=action, details=json.dumps(details, sort_keys=True), tenant=tenant,
                 )
         print(f"    [{tenant.slug}] audit log ok")
+
+        # A *decided* join request, so both states of the model exist in dev: the
+        # pending one lives in 'fledgling' (the staff queue), this denied one is
+        # the re-openable case — asking again updates this row rather than
+        # appending a second.
+        await TenantJoinRequest.get_or_create(
+            user=users['outsider'], tenant=tenant,
+            defaults={
+                'status': JoinRequestStatus.DENIED,
+                'message': 'Can I get in?',
+                'decided_by': staff,
+                'decided_at': now_eastern(),
+            },
+        )
+        print(f"    [{tenant.slug}] join requests ok")
 
 
 

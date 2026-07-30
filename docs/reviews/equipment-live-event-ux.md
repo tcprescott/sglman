@@ -89,10 +89,13 @@ The seeded run above lost a check-in with no trace.
 
 The checkout dialog's Borrower select offers all 11 platform users including the
 `System` service account (measured — the audit's own checkout went to `System`).
-Same root as
-[new-tenant-onboarding-ux F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform):
 `User` is global, nothing narrows it to this community, and no surface filters out
 service accounts.
+
+**Fixed** by the tenant-onboarding work: the borrower select reads
+`UserService.get_community_users`, which joins through `TenantMembership` and
+excludes `is_system`. Kept here because the *measurement* stands — this audit is
+a record of what was seen, not a task list.
 
 ---
 

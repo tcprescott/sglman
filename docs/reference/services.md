@@ -691,6 +691,10 @@ Who belongs to a community, and who may change that. Membership is the **wider s
 | `add_member(actor, user)` | `None` | Idempotent; audited `tenant.member_added` + `EventType.TENANT_MEMBER_ADDED`. |
 | `remove_member(actor, user)` | `None` | **Refuses** while the user holds any role here — silently cascading a revoke because staff clicked Remove is the invisible side effect this defends against. Audited `tenant.member_removed` + event. |
 | `ensure_member(user)` | `None` | Idempotent, **unaudited** membership for the in-scope tenant. The invariant's hook, called from role grants that are audited in their own right. |
+| `request_to_join(user, tenant_id, message=None)` | `TenantJoinRequest` | The door. Takes an **explicit** `tenant_id` — the caller is a page the requester is not a member of, so nothing membership-scoped is available. Refuses an existing member; re-opens a denied row rather than creating a second; bounds the message at 500 chars. Audits + publishes `tenant.join_requested` inside `tenant_scope(tenant_id)` with the **requester** as actor, and DMs the community's staff. |
+| `get_request(user, tenant_id)` | `TenantJoinRequest \| None` | This user's request in a named tenant — what the join page reads to know it is already pending. |
+| `list_pending()` | `list[TenantJoinRequest]` | The staff queue for the tenant in scope. |
+| `approve_request(actor, request_id)` / `deny_request(actor, request_id)` | `TenantJoinRequest` | `can_grant_roles` gated. Approve creates the membership. A request in another community is **not_found**, not forbidden — the message must not confirm it exists. The requester is DM'd on **both** outcomes. |
 
 ### tenant_setup_service.py — TenantSetupService
 
