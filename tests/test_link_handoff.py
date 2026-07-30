@@ -109,9 +109,82 @@ def test_register_link_handoff_provider(link):
         key='demo', label='Demo', profile_return='/home/profile',
         authorize_url=lambda s: f'https://x/y?state={s}',
         exchange=None, record=None,
+        is_mock=lambda: False, callback_route='/demo/oauth/callback',
     )
     link.register_link_handoff_provider(provider)
     assert link._HANDOFF_PROVIDERS['demo'] is provider
+
+
+def test_link_handoff_provider_requires_its_mock_exit(link):
+    # The start leg needs both fields to reach a mocked provider's own callback;
+    # a provider registered without them would dead-end at an authorize URL that
+    # cannot answer under MOCK_*. No defaults, so a fourth provider cannot omit
+    # them silently.
+    import dataclasses
+    required = {
+        f.name for f in dataclasses.fields(link.LinkHandoffProvider)
+        if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
+    }
+    assert {'is_mock', 'callback_route'} <= required
+
+
+# --- the mock exit on the start leg (dev-drivable handoff) --------------------
+
+def test_mock_callback_url_targets_the_providers_own_callback(link, monkeypatch):
+    monkeypatch.setenv('PLATFORM_HOST', 'main.gg')
+    provider = link.LinkHandoffProvider(
+        key='demo', label='Demo', profile_return='/home/profile',
+        authorize_url=lambda s: 'https://provider.example/authorize',
+        exchange=None, record=None,
+        is_mock=lambda: True, callback_route='/demo/oauth/callback',
+    )
+    assert link._mock_callback_url(provider, 'st8') == (
+        'https://main.gg/demo/oauth/callback?code=mock&state=st8'
+    )
+
+
+def test_link_start_never_self_redirects_in_production(monkeypatch):
+    # The branch is reachable only through a provider's is_mock(), and every one
+    # of those raises rather than returning True under ENVIRONMENT=production —
+    # so the mock exit cannot be taken there. Assert it instead of trusting it.
+    from application.utils.mocks.mock_challonge import is_mock_challonge
+    from application.utils.mocks.mock_racetime import is_mock_racetime
+    from application.utils.mocks.mock_twitch import is_mock_twitch
+    monkeypatch.setenv('ENVIRONMENT', 'production')
+    for is_mock in (is_mock_challonge, is_mock_racetime, is_mock_twitch):
+        monkeypatch.setenv(f'MOCK_{is_mock.__name__.removeprefix("is_mock_").upper()}', 'true')
+        with pytest.raises(RuntimeError):
+            is_mock()
+
+
+async def test_maybe_start_link_handoff_is_none_in_path_mode(link, monkeypatch):
+    # The reorder in each /<provider>/link page puts this call ahead of the mock
+    # short-circuit, so "returns None in path mode" is what keeps path-mode dev
+    # and every handoff-off deployment on exactly the path they were on before.
+    monkeypatch.setenv('HOST_OAUTH_MODE', 'handoff')
+    monkeypatch.setattr(link, 'is_host_mode', lambda: False)
+    assert await link.maybe_start_link_handoff('racetime', '/home/profile') is None
+
+
+async def test_maybe_start_link_handoff_is_none_with_handoff_off(link, monkeypatch):
+    monkeypatch.delenv('HOST_OAUTH_MODE', raising=False)
+    monkeypatch.setattr(link, 'is_host_mode', lambda: True)
+    assert await link.maybe_start_link_handoff('racetime', '/home/profile') is None
+
+
+def test_link_page_prefers_handoff_over_mock(link):
+    # Source-level, because the ordering *is* the fix: maybe_start_link_handoff
+    # has to be reached before the is_mock() short-circuit returns, or the whole
+    # handoff stays unreachable in the one environment that can drive it.
+    import inspect
+
+    import pages.challonge_oauth as ch
+    for module, mock_call in ((link, 'flow.is_mock()'), (ch, 'is_mock_challonge()')):
+        src = inspect.getsource(module)
+        handoff = src.index('maybe_start_link_handoff(')
+        # The *link page's* mock branch, i.e. the last occurrence — challonge's
+        # /connect page has its own earlier one that is not part of this flow.
+        assert src.rindex(mock_call) > handoff, module.__name__
 
 
 # --- browser-binding guard (link-CSRF / forced-link) --------------------------

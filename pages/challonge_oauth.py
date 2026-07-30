@@ -87,6 +87,8 @@ def create() -> None:
         authorize_url=ChallongeService.player_authorize_url,
         exchange=_player_handoff_exchange,
         record=_player_handoff_record,
+        is_mock=is_mock_challonge,
+        callback_route='/challonge/oauth/callback',
     ))
 
     @ui.page('/challonge/connect')
@@ -153,16 +155,18 @@ def create() -> None:
             return RedirectResponse(f'{root_path}/login')
         if not await _challonge_live():
             return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
+        # Custom domain + handoff: run the player OAuth on the platform host and
+        # hand the verified identity back here (where the session/tenant live).
+        # Tried before the mock short-circuit so the handoff is reachable under
+        # MOCK_CHALLONGE; returns None in path mode and with handoff off.
+        handoff = await maybe_start_link_handoff(_PROVIDER_KEY, f'{root_path}{_PROFILE_RETURN}')
+        if handoff is not None:
+            return handoff
         if is_mock_challonge():
             service = ChallongeService()
             me = await service.exchange_player_code('mock')
             await service.record_player_link(user, me['user_id'], me.get('username'), actor=user)
             return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
-        # Custom domain + handoff: run the player OAuth on the platform host and
-        # hand the verified identity back here (where the session/tenant live).
-        handoff = await maybe_start_link_handoff(_PROVIDER_KEY, f'{root_path}{_PROFILE_RETURN}')
-        if handoff is not None:
-            return handoff
         # Custom domain + Design A (handoff off): bounce to the platform-host
         # path-mode surface. No-op in path mode / platform surface.
         detour = await platform_link_redirect(_PROFILE_RETURN)

@@ -132,6 +132,11 @@ class LinkHandoffProvider:
     the platform-host callback (code → ``{'user_id', 'name'}`` public identity);
     ``record`` runs on the custom domain (claim leg) where the user's session and
     tenant context live, so its audit row is stamped with the right tenant.
+
+    ``is_mock`` / ``callback_route`` exist only so the start leg can reach the
+    provider's own callback instead of an authorize URL that cannot answer under
+    a provider mock. Everything downstream of that redirect — state match,
+    exchange, mint, browser binding, claim — runs unmodified.
     """
 
     key: str
@@ -140,6 +145,8 @@ class LinkHandoffProvider:
     authorize_url: Callable[[str], str]
     exchange: Callable[[str], Awaitable[dict]]
     record: Callable[[User, dict], Awaitable[None]]
+    is_mock: Callable[[], bool]
+    callback_route: str
 
 
 # provider key -> config. Populated at each provider module's ``create()`` time.
@@ -166,6 +173,20 @@ def _link_handoff_start_url(
     platform = get_platform_host()
     query = urlencode({'p': provider_key, 'host': target_host, 'next': next_path, 'b': bind_commit})
     return f'{scheme_for_host(platform)}://{platform}/oauth/link/start?{query}'
+
+
+def _mock_callback_url(provider: LinkHandoffProvider, state: str) -> str:
+    """Platform-host URL that stands in for a mocked provider's authorize page.
+
+    Under ``MOCK_<PROVIDER>`` the provider's real authorize URL cannot answer, so
+    the start leg redirects straight to the callback it would have returned to.
+    The rest of the handoff is untouched: the callback matches the state the
+    start leg stored, exchanges the code through the mock client, and mints a
+    genuine host-bound single-use token the real claim code has to validate.
+    """
+    platform = get_platform_host()
+    query = urlencode({'code': 'mock', 'state': state})
+    return f'{scheme_for_host(platform)}://{platform}{provider.callback_route}?{query}'
 
 
 def _link_claim_url(target_host: str, token: str) -> str:
@@ -318,6 +339,8 @@ def register_link_handoff_pages() -> None:
         app.storage.user['oauth_link_host'] = target
         app.storage.user['oauth_link_next'] = next_path
         app.storage.user['oauth_link_bind_commit'] = bind_commit
+        if provider.is_mock():
+            return RedirectResponse(_mock_callback_url(provider, state))
         return RedirectResponse(provider.authorize_url(state))
 
     @ui.page('/oauth/link/claim')
@@ -413,6 +436,8 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
         authorize_url=flow.authorize_url,
         exchange=lambda code, f=flow: _flow_exchange(f, code),
         record=lambda user, data, f=flow: _flow_record(f, user, data),
+        is_mock=flow.is_mock,
+        callback_route=flow.callback_route,
     ))
 
     @ui.page(flow.link_route)
@@ -423,6 +448,14 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
         user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
         if user is None:
             return RedirectResponse(f'{root_path}/login')
+        # Custom domain + handoff: run the provider OAuth on the platform host and
+        # hand the verified identity back here, where the session and tenant live.
+        # Tried *before* the mock short-circuit so the handoff is reachable in the
+        # only environment that can drive it; a no-op (None) in path mode and
+        # wherever HOST_OAUTH_MODE is not `handoff`, so nothing else moves.
+        handoff = await maybe_start_link_handoff(flow.provider_key, f'{root_path}{flow.profile_return}')
+        if handoff is not None:
+            return handoff
         if flow.is_mock():
             service = flow.service_factory()
             me = await service.exchange_player_code('mock')
@@ -430,11 +463,6 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
                 user, me['user_id'], flow.display_name(me), actor=user,
             )
             return RedirectResponse(f'{root_path}{flow.profile_return}')
-        # Custom domain + handoff: run the provider OAuth on the platform host and
-        # hand the verified identity back here, where the session and tenant live.
-        handoff = await maybe_start_link_handoff(flow.provider_key, f'{root_path}{flow.profile_return}')
-        if handoff is not None:
-            return handoff
         # Custom domain + Design A (handoff off): the callback is on the platform
         # host; bounce to the platform-host path-mode surface where the cookie is
         # visible. No-op (returns None) in path mode / platform surface.
