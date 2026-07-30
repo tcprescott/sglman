@@ -405,7 +405,6 @@ async def seed_for_tenant(
             tenant, tournament, staff, players,
             {"stage1": stage1, "stage2": stage2, "stage3": stage3}, now,
         )
-        scheduled_match = fixtures["scheduled"]
         checked_in_match = fixtures["checked_in"]
         in_progress_match = fixtures["in_progress"]
         finished_match = fixtures["finished"]
