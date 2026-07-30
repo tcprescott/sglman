@@ -17,7 +17,7 @@ The API is served by the same Uvicorn process as the NiceGUI frontend. The inter
 
 ## Authentication
 
-**Every endpoint requires a personal bearer token**, with one exception: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth)).
+**Every endpoint requires a personal bearer token**, with two exceptions: the unauthenticated `GET /api/health` liveness probe (see [Health](#health-apihealth)) and `POST /api/web-push/rotate` (see [Web push](#web-push-apiweb-push)), whose only caller is a service worker with no session to present.
 
 Generate a token on the home **Profile** tab (the *API tokens & AI clients* card), then send it on each request:
 
@@ -66,6 +66,9 @@ One module per group under [`api/routers/`](../../api/routers/), named after the
 
 ### Health (`/api/health`) · `health.py`
 - `GET /health` — **unauthenticated** liveness probe. Performs a trivial DB round-trip and returns `{"status": "ok"}`; returns `503` when the database is unreachable. Used by the container `HEALTHCHECK`.
+
+### Web push (`/api/web-push`) · `web_push.py`
+- `POST /web-push/rotate` — **unauthenticated**. Called by `static/sw.js` on `pushsubscriptionchange` to re-point a stored device row at the subscription its push service reissued. There is no session or token in that context; the request authenticates by carrying the retired subscription's `auth` secret, and a wrong secret returns the same `404` as an unknown endpoint. Detail: [features/web-push.md](../features/web-push.md#authenticating-a-rotation).
 
 ### Matches (`/api/matches`) · `matches.py`, `match_actions.py`
 - `GET /matches` — list with filters (`match_id`, `stream_room_id`, `tournament_id`, `start_date`, `end_date`, `limit`); only approved crew are exposed.

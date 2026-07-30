@@ -203,6 +203,7 @@ class AuditActions:
     # Web push (device notifications)
     WEB_PUSH_SUBSCRIBED = 'web_push.subscribed'
     WEB_PUSH_UNSUBSCRIBED = 'web_push.unsubscribed'
+    WEB_PUSH_ROTATED = 'web_push.rotated'
 
     # Presets (seed-rolling settings)
     PRESET_CREATED = 'preset.created'

@@ -78,6 +78,13 @@ DiscordService.send_dm  ──(mirror, never raises)──▶  WebPushService.mi
 - **Subscription lifecycle.** Push services answer `404`/`410` for dead
   subscriptions; `WebPushService` prunes the row on either status. Users can
   also remove devices from the settings UI.
+- **Rotation.** A push service can retire a subscription on its own (key
+  rotation, a long idle period, a browser update) and fire
+  `pushsubscriptionchange` in the service worker. `static/sw.js` re-subscribes
+  and POSTs the reissued endpoint to `POST /api/web-push/rotate`, which moves
+  the *existing* row onto it — so the device keeps its identity and history
+  instead of going quiet until the user notices. See
+  [Authenticating a rotation](#authenticating-a-rotation).
 - **Subscribing (client).** Browser permission prompts must happen inside the
   click gesture (Safari enforces this), so the enable/disable buttons in
   [`pages/home_tabs/web_push_section.py`](../../pages/home_tabs/web_push_section.py)
@@ -88,6 +95,28 @@ DiscordService.send_dm  ──(mirror, never raises)──▶  WebPushService.mi
   without home-screen install it reports `ios_needs_install`, which the UI
   turns into instructions.
 
+### Authenticating a rotation
+
+`pushsubscriptionchange` wakes the worker with no page, no session and no user
+gesture, so the rotation request cannot present a bearer token or a logged-in
+actor the way subscribing does. It proves possession of the **retired
+subscription's `auth` secret** instead — one of the two RFC 8291 client keys,
+which never leaves the browser except over TLS and is never logged or rendered.
+A mismatch and an unknown endpoint return the *same* 404, so probing cannot
+distinguish them. Without that check the endpoint would be an unauthenticated
+"redirect this user's notifications to an endpoint of my choosing" primitive for
+anyone who learned a stored endpoint URL.
+
+The worker cannot rely on the event to supply those values — browsers have
+shipped `pushsubscriptionchange` with both `oldSubscription` and
+`newSubscription` null. So [`static/js/web-push-common.js`](../../static/js/web-push-common.js)
+keeps the device's endpoint, `auth` secret and application server key in
+IndexedDB, written by the page at subscribe time and read by the worker much
+later; the event's own values are used when present. Missing both records, the
+worker bails rather than registering a device the server cannot attribute.
+Disabling notifications clears the record, so a later rotation cannot resurrect
+a device the user just turned off.
+
 Source: model `WebPushSubscription` in [`models/user.py`](../../models/user.py)
 (user × device: unique `endpoint`, `p256dh`, `auth`, `user_agent`; the repository's
 endpoint upsert re-binds a device to the latest user),
@@ -95,7 +124,9 @@ endpoint upsert re-binds a device to the latest user),
 [`application/utils/web_push.py`](../../application/utils/web_push.py),
 [`pages/home_tabs/web_push_section.py`](../../pages/home_tabs/web_push_section.py),
 [`static/js/web-push.js`](../../static/js/web-push.js),
+[`static/js/web-push-common.js`](../../static/js/web-push-common.js),
 [`static/sw.js`](../../static/sw.js),
+[`api/routers/web_push.py`](../../api/routers/web_push.py),
 [`scripts/generate_vapid_keys.py`](../../scripts/generate_vapid_keys.py).
 
 ## Setup
@@ -114,16 +145,20 @@ exempt for development).
 
 ## Audit
 
-`web_push.subscribed` / `web_push.unsubscribed` (`AuditActions`), actor = the
-user, details = subscription id + endpoint host (full endpoints are
-capability URLs and are not logged).
+`web_push.subscribed` / `web_push.unsubscribed` / `web_push.rotated`
+(`AuditActions`), actor = the user (for a rotation, the owner of the row being
+moved — there is no session actor), details = subscription id + endpoint host
+(full endpoints are capability URLs and are not logged).
 
 ## Limitations
 
 - **`navigate` always opens the home page** — there are no per-match deep-link
   pages yet.
-- **`pushsubscriptionchange` is not handled**: if a push service rotates a
-  subscription, the old row 410-prunes and the user re-enables manually.
+- **Rotation needs the stored IndexedDB record**: a device that subscribed
+  before this shipped, or whose site data was cleared, has no record — and if
+  the browser also fires `pushsubscriptionchange` with null subscriptions, the
+  worker cannot authenticate the rotation and the row 410-prunes as before.
+  Re-enabling from the profile page writes the record.
 - **Interactive DM buttons don't translate**: pushes mirror the DM text only;
   acknowledge/signup actions still happen in Discord or the web UI.
 - **Markdown stripping covers `**` only** — the only token the DM templates
@@ -137,4 +172,6 @@ capability URLs and are not logged).
 signature verification) and
 [`tests/services/test_web_push_service.py`](../../tests/services/test_web_push_service.py)
 (config gating, subscription CRUD/auth/audit, declarative payload contents,
-410 pruning, mirror never-raises).
+410 pruning, rotation incl. the auth-secret requirement, mirror never-raises),
+plus [`tests/api/test_web_push.py`](../../tests/api/test_web_push.py) for the
+unauthenticated rotation endpoint.

@@ -52,6 +52,29 @@ class WebPushRepository:
         await subscription.save()
         return subscription
 
+    async def rotate(
+        self,
+        subscription: WebPushSubscription,
+        *,
+        endpoint: str,
+        p256dh: str,
+        auth: str,
+        user_agent: Optional[str],
+    ) -> WebPushSubscription:
+        """Move a device's row onto the endpoint its push service reissued."""
+        if endpoint != subscription.endpoint:
+            # The reissued endpoint can collide with a row we already hold — a
+            # stale row for this same device the push service has now recycled.
+            # The row being rotated is the live one, so the other loses.
+            await WebPushSubscription.filter(endpoint=endpoint).exclude(id=subscription.id).delete()
+        subscription.endpoint = endpoint
+        subscription.p256dh = p256dh
+        subscription.auth = auth
+        if user_agent:
+            subscription.user_agent = user_agent
+        await subscription.save()
+        return subscription
+
     async def delete(self, subscription: WebPushSubscription) -> None:
         await subscription.delete()
 

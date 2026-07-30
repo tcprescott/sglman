@@ -16,6 +16,11 @@ from tests.test_web_push_protocol import (
 
 ENDPOINT = 'https://push.example.net/send/abc123'
 
+# The subscription a push service hands back when it rotates the one above.
+NEW_ENDPOINT = 'https://push.example.net/send/def456'
+NEW_P256DH = generate_vapid_keys()[1]  # any valid 65-byte uncompressed P-256 point
+NEW_AUTH = 'MTIzNDU2Nzg5YWJjZGVmZw'  # 16 bytes, base64url unpadded
+
 
 from tests.factories import make_user as _user
 
@@ -242,6 +247,85 @@ class TestSubscriptions:
         subscription = (await WebPushService().list_subscriptions(owner))[0]
         with pytest.raises(ValueError, match='not found'):
             await WebPushService().remove_subscription(other, subscription.id)
+
+    # --- pushsubscriptionchange rotation ---
+
+    async def test_rotate_moves_row_to_reissued_endpoint(self, db):
+        user = await _subscribed_user()
+        rotated = await WebPushService().rotate_subscription(
+            old_endpoint=ENDPOINT, old_auth=RFC_AUTH,
+            endpoint=NEW_ENDPOINT, p256dh=NEW_P256DH, auth=NEW_AUTH,
+            user_agent='Mozilla/5.0 (Android)',
+        )
+        assert await WebPushSubscription.all().count() == 1
+        stored = await WebPushSubscription.get(id=rotated.id)
+        assert stored.endpoint == NEW_ENDPOINT
+        assert stored.auth == NEW_AUTH
+        assert stored.p256dh == NEW_P256DH
+        # Same row, same owner — the device keeps its history.
+        assert stored.user_id == user.id
+        assert await AuditLog.filter(action='web_push.rotated').count() == 1
+
+    async def test_rotate_requires_the_old_auth_secret(self, db):
+        # Without this, knowing a stored endpoint would be enough to redirect
+        # someone else's notifications to an endpoint of your choosing.
+        await _subscribed_user()
+        with pytest.raises(ValueError, match='not found'):
+            await WebPushService().rotate_subscription(
+                old_endpoint=ENDPOINT, old_auth=NEW_AUTH,
+                endpoint=NEW_ENDPOINT, p256dh=NEW_P256DH, auth=NEW_AUTH,
+            )
+        assert (await WebPushSubscription.get(endpoint=ENDPOINT)).auth == RFC_AUTH
+
+    async def test_rotate_rejects_unknown_old_endpoint(self, db):
+        await _subscribed_user()
+        with pytest.raises(ValueError, match='not found'):
+            await WebPushService().rotate_subscription(
+                old_endpoint='https://push.example.net/send/nope', old_auth=RFC_AUTH,
+                endpoint=NEW_ENDPOINT, p256dh=NEW_P256DH, auth=NEW_AUTH,
+            )
+
+    async def test_rotate_validates_the_new_subscription(self, db):
+        await _subscribed_user()
+        with pytest.raises(ValueError, match='https'):
+            await WebPushService().rotate_subscription(
+                old_endpoint=ENDPOINT, old_auth=RFC_AUTH,
+                endpoint='http://push.example.net/send/new', p256dh=NEW_P256DH, auth=NEW_AUTH,
+            )
+        with pytest.raises(ValueError, match='malformed'):
+            await WebPushService().rotate_subscription(
+                old_endpoint=ENDPOINT, old_auth=RFC_AUTH,
+                endpoint=NEW_ENDPOINT, p256dh='not-a-key', auth=NEW_AUTH,
+            )
+
+    async def test_rotate_displaces_a_stale_row_on_the_reissued_endpoint(self, db):
+        # The push service can hand back an endpoint we still hold a dead row
+        # for; the unique constraint allows one, and the rotating row is live.
+        user = await _subscribed_user(discord_id=1)
+        stale = await WebPushSubscription.create(
+            user=user, endpoint=NEW_ENDPOINT, p256dh=RFC_UA_PUBLIC, auth=RFC_AUTH,
+        )
+        rotated = await WebPushService().rotate_subscription(
+            old_endpoint=ENDPOINT, old_auth=RFC_AUTH,
+            endpoint=NEW_ENDPOINT, p256dh=NEW_P256DH, auth=NEW_AUTH,
+        )
+        assert await WebPushSubscription.filter(id=stale.id).count() == 0
+        assert await WebPushSubscription.all().count() == 1
+        assert rotated.endpoint == NEW_ENDPOINT
+
+    async def test_rotated_device_receives_the_next_push(self, db, vapid_env, monkeypatch):
+        user = await _subscribed_user()
+        await WebPushService().rotate_subscription(
+            old_endpoint=ENDPOINT, old_auth=RFC_AUTH,
+            endpoint=NEW_ENDPOINT, p256dh=NEW_P256DH, auth=NEW_AUTH,
+        )
+        client = FakeClient([201])
+        monkeypatch.setattr(
+            'application.services.web_push_service._get_http_client', lambda: client
+        )
+        delivered = await WebPushService().notify_user(user, title='Wizzrobe', body='hi')
+        assert delivered == 1
+        assert client.calls[0]['url'] == NEW_ENDPOINT
 
     async def test_upsert_recovers_from_lost_insert_race(self, db, monkeypatch):
         from application.repositories import WebPushRepository

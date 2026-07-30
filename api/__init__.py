@@ -39,6 +39,7 @@ from api.routers import (
     triforce,
     users,
     volunteers,
+    web_push,
     webhooks,
 )
 
@@ -67,6 +68,9 @@ router.include_router(
     dependencies=[Depends(require_feature(FeatureFlag.VOLUNTEERS))],
 )
 router.include_router(discord_role_mappings.router)
+# Also no auth dependency: the service worker that calls it has no session to
+# present, and proves ownership of the subscription instead (see the module).
+router.include_router(web_push.router)
 router.include_router(webhooks.router)
 
 # --- online-tournament feature routers ---
