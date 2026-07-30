@@ -20,6 +20,11 @@ button or link inside a table row** — they can all identify work and none of t
 can act on it — and the known filter-reload issue costs a measured **4.4 s, a full
 page navigation, 28 HTTP requests, and your scroll position**.
 
+**Status:** every finding below is scheduled in
+[`docs/plans/admin-reports-ux/`](../plans/admin-reports-ux/README.md) — wave 2
+closes F1, wave 3 closes F2, wave 4 closes F3–F5. This file is deleted when the
+last wave merges.
+
 ---
 
 ## The measured shape

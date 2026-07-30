@@ -70,6 +70,7 @@ feature docs become the truth.
 | Doc | What it is |
 |---|---|
 | [plans/match-runner/](plans/match-runner/README.md) | Making "how a match is run" a first-class type instead of a scattered `is_racetime` boolean, so a third race-management system can be added without touching sixteen call sites |
+| [plans/admin-reports-ux/](plans/admin-reports-ux/README.md) | Giving the nine admin reports a route to the work they find (measured: zero buttons and zero links in any row), and removing the cost a filter change imposes on the operator's place in the page |
 | [reviews/](reviews/README.md) | UX evaluations, one flow each, measured against the running app — with the cross-cutting themes that recur across them |
 
 ## Conventions for this directory
