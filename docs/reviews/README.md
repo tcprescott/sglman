@@ -15,14 +15,17 @@ the truth and git history keeps the rationale.
 | [volunteer-hub-ux.md](volunteer-hub-ux.md) | Coordinator grid + the volunteer's own tabs | "Draft" is a concept only the coordinator's screen honours — the volunteer sees provisional shifts as commitments and loses them silently |
 | [async-qualifier-run-ux.md](async-qualifier-run-ux.md) | A competitor's run, and the review of it | Forfeit is one unconfirmed click and its remedy (`reattempt_run`) is wired to nothing; claimed times are never compared to the server's own clock |
 | [new-tenant-onboarding-ux.md](new-tenant-onboarding-ux.md) | Day one for a new community | The first screen is the one action that cannot yet succeed; a new community's Users tab lists every user on the platform |
-| [equipment-live-event-ux.md](equipment-live-event-ux.md) | The on-site lending loop, at 390×844 | An action clicked during a network blip is silently lost — no error, no retry, the page still says "Checked out" |
 | [admin-reports-ux.md](admin-reports-ux.md) | Nine report surfaces and their shell | Zero buttons and zero links in any table row across all nine — they identify work and cannot act on it |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
-The identity-linking audit — its findings became `theme/notice.py`, the Challonge
-callback's four named outcomes, the collision pre-check, and the Connected
-accounts card that finally renders the copy it was configured with.
+The equipment lending audit — its findings became the offline banner and the
+socket guard, the labelled mobile cards, the guidance line under an actionless
+asset page, the bounded loan history, the per-community borrower/owner pickers,
+and the encoded-host check on the label sheet. The identity-linking audit — its
+findings became `theme/notice.py`, the Challonge callback's four named outcomes,
+the collision pre-check, and the Connected accounts card that finally renders the
+copy it was configured with.
 
 ## Cross-cutting themes
 
@@ -56,14 +59,17 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   [`theme/notice.py`](../../theme/notice.py), and
   `test_no_link_page_notifies_immediately_before_navigating` keeps the shape from
   coming back.
-- **The global `User` table leaks into per-community pickers.** The Users tab, the
-  match dialog's "Choose any players", and the equipment borrower select all offer
-  every user on the platform, `System` included
+- **The global `User` table leaks into per-community pickers.** The Users tab and
+  the match dialog's "Choose any players" still offer every user on the platform,
+  `System` included
   ([onboarding F2](new-tenant-onboarding-ux.md#f2--critical--a-brand-new-communitys-users-tab-lists-every-user-on-the-platform)).
+  The equipment borrower and owner selects were the first to be fixed;
+  `UserService.get_community_people` is the read the other two want next.
 - **The dev seed cannot produce the roles that expose the worst bugs.** A
-  coordinator-only, stream-manager-only or equipment-manager-only user has to be
-  granted by hand; three audits needed one
+  coordinator-only or stream-manager-only user has to be granted by hand; three
+  audits needed one
   ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
+  The equipment-manager-only case now seeds (`equip_manager`).
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
   forfeiting a qualifier run, revoking an approval and arming five lifecycle-clear
   buttons get none.

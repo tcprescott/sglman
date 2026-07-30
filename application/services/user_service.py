@@ -65,6 +65,27 @@ class UserService:
     ) -> List[User]:
         return await self.repository.get_all(role=role, has_discord=has_discord)
 
+    async def get_community_people(
+        self,
+        *,
+        include_user_ids: Optional[List[int]] = None,
+    ) -> List[User]:
+        """The people of the tenant in scope, for a per-community person picker.
+
+        Named for the concept, not the caller: the Users tab and the match
+        dialog's "Choose any players" have the same leak and want the same read.
+        It lives here rather than on ``EquipmentService`` deliberately — hanging
+        it there would drag ``FeatureFlag.EQUIPMENT``'s declared
+        ``service_modules`` gating onto a people query that has nothing to do
+        with equipment.
+
+        This is a **default for a picker, not an authorization rule.** The hard
+        rules (no service account, no deactivated account) are enforced
+        separately by whichever service acts on the choice, and are deliberately
+        narrower than this set — see ``EquipmentService.checkout``.
+        """
+        return await self.repository.get_community_people(include_user_ids=include_user_ids)
+
     async def get_current_user_from_storage(self, storage_discord_id: Optional[str]) -> Optional[User]:
         if not storage_discord_id:
             return None
