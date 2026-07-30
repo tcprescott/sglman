@@ -64,6 +64,36 @@ def tenant_home(root_path: str) -> str:
     return f'{root_path}/'
 
 
+def strip_root_path(root_path: Any, path: Any) -> str:
+    """``path`` made **tenant-local**, for handing to a client-side navigate.
+
+    ``ui.navigate.to`` is client-side, and ``nicegui.js`` unconditionally prepends
+    the client's ``options.prefix`` (``X-Forwarded-Prefix`` + ``root_path``, i.e.
+    ``/t/<slug>`` in path mode) to any absolute path::
+
+        open: (msg) => { const url = msg.path.startsWith("/") ? options.prefix + msg.path : msg.path; ... }
+
+    So a navigate issued from a page served under ``/t/<slug>`` must be given the
+    path *without* that prefix, or it lands on ``/t/<slug>/t/<slug>/…``. This
+    strips ``root_path`` when ``path`` sits under it and returns ``path``
+    unchanged otherwise (host mode, the bare platform host, or a path belonging
+    to somewhere else). Pure.
+
+    Do **not** use it for an HTTP ``RedirectResponse`` — the browser resolves
+    those against the origin, nothing prepends a prefix, and a stripped path
+    would leave the tenant.
+    """
+    if not isinstance(path, str) or not path:
+        return '/'
+    if not isinstance(root_path, str) or not root_path:
+        return path
+    if path == root_path:
+        return '/'
+    if path.startswith(root_path + '/'):
+        return path[len(root_path):]
+    return path
+
+
 def sanitize_return_path(
     root_path: str,
     referrer: Any,
@@ -79,12 +109,9 @@ def sanitize_return_path(
     home = tenant_home(root_path)
     if not isinstance(referrer, str) or not referrer:
         return home
-    if root_path:
-        if not (referrer == root_path or referrer.startswith(root_path + '/')):
-            return home
-        local = referrer[len(root_path):] or '/'
-    else:
-        local = referrer
+    if root_path and not (referrer == root_path or referrer.startswith(root_path + '/')):
+        return home
+    local = strip_root_path(root_path, referrer)
     if local.split('?', 1)[0] in auth_routes:
         return home
     return referrer

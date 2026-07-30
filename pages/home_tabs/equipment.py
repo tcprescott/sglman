@@ -4,6 +4,7 @@ from nicegui import app, background_tasks, context, ui
 
 from application.services import AuthService, EquipmentService, get_user_from_discord_id
 from application.utils.timezone import format_eastern_display
+from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import open_checkout, quick_checkin
 
 _STATUS_LABELS = {
@@ -26,6 +27,19 @@ _MINE_COLUMNS = [
     {'name': 'checked_out_at', 'label': 'Checked out', 'field': 'checked_out_at', 'align': 'left'},
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
+
+# Each of these emits to the server, so each needs the socket and carries the
+# offline guard's class (theme/connection.py) — including View, whose navigation
+# is a server round trip, not an <a href>. The desktop cell and the mobile card
+# below are built from the same three strings so they cannot drift apart.
+_CHECKOUT_BTN = f'''<q-btn v-if="props.row.status_value === 'available'" dense flat round icon="logout" color="primary"
+               class="{REQUIRES_SOCKET_CLASS}"
+               @click="$parent.$emit('checkout', props.row)"><q-tooltip>Check out</q-tooltip></q-btn>'''
+_CHECKIN_BTN = f'''<q-btn v-if="props.row.status_value === 'checked_out'" dense flat round icon="login" color="secondary"
+               class="{REQUIRES_SOCKET_CLASS}"
+               @click="$parent.$emit('checkin', props.row)"><q-tooltip>Check in</q-tooltip></q-btn>'''
+_VIEW_BTN = f'''<q-btn dense flat round icon="open_in_new" color="primary" class="{REQUIRES_SOCKET_CLASS}"
+               @click="$parent.$emit('view', props.row)"><q-tooltip>View asset</q-tooltip></q-btn>'''
 
 
 async def equipment_tab() -> None:
@@ -73,12 +87,9 @@ async def equipment_tab() -> None:
                     ).classes('equipment-table equipment-table-container w-full').props(
                         ':grid="Quasar.Screen.lt.md"'
                     )
-                    checkout_btn = '''<q-btn v-if="props.row.status_value === 'available'" dense flat round icon="logout" color="primary"
-                               @click="$parent.$emit('checkout', props.row)"><q-tooltip>Check out</q-tooltip></q-btn>''' if can_checkout else ''
-                    checkin_btn = '''<q-btn v-if="props.row.status_value === 'checked_out'" dense flat round icon="login" color="secondary"
-                               @click="$parent.$emit('checkin', props.row)"><q-tooltip>Check in</q-tooltip></q-btn>''' if can_checkin else ''
-                    view_btn = '''<q-btn dense flat round icon="open_in_new" color="primary"
-                               @click="$parent.$emit('view', props.row)"><q-tooltip>View asset</q-tooltip></q-btn>'''
+                    checkout_btn = _CHECKOUT_BTN if can_checkout else ''
+                    checkin_btn = _CHECKIN_BTN if can_checkin else ''
+                    view_btn = _VIEW_BTN
 
                     table.add_slot('body-cell-status', '''<q-td :props="props">
                         <q-badge :color="props.row.status_value === 'available' ? 'positive'
@@ -148,10 +159,8 @@ async def equipment_tab() -> None:
                     table = ui.table(columns=_MINE_COLUMNS, rows=rows, row_key='id').classes(
                         'equipment-table equipment-table-container w-full'
                     ).props(':grid="Quasar.Screen.lt.md"')
-                    table.add_slot('body-cell-actions', '''<q-td :props="props">
-                        <q-btn dense flat round icon="open_in_new" color="primary"
-                               @click="$parent.$emit('view', props.row)"><q-tooltip>View asset</q-tooltip></q-btn>
-                    </q-td>''')
+                    table.add_slot('body-cell-actions',
+                        '<q-td :props="props">' + _VIEW_BTN + '</q-td>')
                     table.add_slot('item', '''<div class="q-pa-sm q-mb-sm equipment-grid-card" style="width: 100%; box-sizing: border-box;">
                         <div class="row items-center q-mb-xs">
                             <div class="col-4 text-grey-7">#:</div>
@@ -165,10 +174,7 @@ async def equipment_tab() -> None:
                             <div class="col-4 text-grey-7">Checked out:</div>
                             <div class="col-8">{{ props.row.checked_out_at }}</div>
                         </div>
-                        <div class="row items-center justify-end">
-                            <q-btn dense flat round icon="open_in_new" color="primary"
-                                   @click="$parent.$emit('view', props.row)"><q-tooltip>View asset</q-tooltip></q-btn>
-                        </div>
+                        <div class="row items-center justify-end">''' + _VIEW_BTN + '''</div>
                     </div>''')
                     table.on('view', lambda e: ui.navigate.to(f"/equipment/{e.args['id']}"))
 

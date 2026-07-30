@@ -211,7 +211,7 @@ The public event schedule with crew signup.
 
 - Two inner Quasar tabs: **Inventory** (all assets via `EquipmentService.list_assets` + `open_loans_by_equipment_id`, status badge, current holder) and **My Checkouts** (`EquipmentService.my_checkouts`).
 - Per-row action buttons gated by `AuthService.can_checkout_equipment` / `can_checkin_equipment` (going through `open_checkout` / `quick_checkin`, with `can_manage` from `can_manage_equipment`); a **View asset** button navigates to `/equipment/{id}`.
-- Both tables use the `.equipment-table` family and switch to grid cards on small screens.
+- Both tables use the `.equipment-table` family and switch to grid cards on small screens. The three button snippets are module constants shared by the desktop cell and the mobile card, so the two copies cannot drift; each carries `wiz-requires-socket` ([Offline honesty](#offline-honesty-themeconnectionpy)).
 
 ## Volunteer hub (`/volunteer`, `pages/volunteer.py`)
 
@@ -436,6 +436,7 @@ All colour/size routes through `--bracket-*` custom properties in [`static/css/b
 
 - A `@ui.refreshable` `ui.table` of all assets (`EquipmentService.list_assets` + `open_loans_by_equipment_id`): #, Name, Owner, Status badge, current holder, with grid-card mode on small screens.
 - Per-row buttons: **Check out** / **Check in** (`open_checkout` with `can_manage=True` / `quick_checkin`), **Open asset page**, **Edit** (`EquipmentDialog`), **Delete** (guarded by `ConfirmationDialog` → `EquipmentService.delete_asset`). **Add Asset** opens `EquipmentDialog` in create mode.
+- The desktop `body-cell-actions` cell and the mobile `item` card are module-level constants (`_ACTIONS_CELL`, `_GRID_CARD`) built from the same class name; every emitting button in both carries `wiz-requires-socket`, so a dropped socket refuses the tap out loud instead of eating it ([Offline honesty](#offline-honesty-themeconnectionpy)). `tests/theme/test_equipment_offline_guard.py` asserts the mark count equals the `$emit` count in each copy.
 - **Print QR labels** opens `QrLabelDialog` — a checklist of assets (all pre-selected), quick-select filters, a template picker (plain grid with Letter/A4 + column count, or an Avery peel-off preset), and "Also show" toggles. It opens [`/equipment/qr-labels`](../../pages/equipment_labels.py) in a new tab (a bare path, so `ui.navigate.to` re-adds the tenant `root_path`) with the chosen `ids`/`template`/`show`. The single-asset page also has a manager-only **Print label** button for one asset.
 
 ### Admin feedback (`pages/admin_tabs/admin_feedback.py`)
@@ -570,6 +571,7 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 | [`realtime.py`](../../theme/realtime.py) | `register_view(on_change)` subscribes a view to [`application/events/match_live`](../features/event-system.md) and installs the client-disconnect cleanup |
 | [`empty_state.py`](../../theme/empty_state.py) | `empty_state(message)` and the `no_data_slot(...)` Quasar template, used by the table views and the On Air tab |
 | [`notify.py`](../../theme/notify.py) | `notify_error(exc)` — the one place service `ValueError`/`PermissionError` map to a coloured toast |
+| [`connection.py`](../../theme/connection.py) | `install_connection_watch()` — the client-side offline state, installed for every page by `BaseLayout.render_chrome`. See [Offline honesty](#offline-honesty-themeconnectionpy) |
 | [`chrome.py`](../../theme/chrome.py) | See [Tenant-less chrome](#tenant-less-chrome-themechromepy) |
 
 ## Table views (`theme/tables/`)
@@ -656,6 +658,23 @@ Two sanctioned ways to comply:
 2. **A bespoke `item` slot** with an inline `:grid="Quasar.Screen.lt.md"` prop — reserved for the four purpose-built family tables (match / user / tournament / equipment), whose cards are too custom for the generic helper.
 
 A table that legitimately must stay a table on mobile (a narrow 2-column reference) opts out with a `# mobile-grid: exempt` comment on the `ui.table` line. The generic card styling is `.wiz-grid-card` (the card counterpart of `.wiz-table`).
+
+## Offline honesty (`theme/connection.py`)
+
+`install_connection_watch()` — called by `BaseLayout.render_chrome()`, so every themed page has it. It injects one guarded `<script>` that gives the page a visible connection state and refuses the controls that cannot work without one.
+
+Why it is client-side: while the socket is down the server can say nothing. `ui.notify`, a `refreshable.refresh()` and a disabled-state update all travel over the same dead socket. So detection, the banner and the refusal all live in the browser, and the acceptance test is what an operator sees with the network off.
+
+| Piece | Behaviour |
+|---|---|
+| Detection | `window`'s `offline`/`online` **and** `window.socket`'s `disconnect`/`connect`. The window events fire the instant a link drops; the socket events cover a live link to an unreachable server, where `navigator.onLine` stays `true`. `window.socket` is assigned in `nicegui.js`'s `mounted()`, so the binding retries briefly instead of assuming it exists |
+| Banner | A fixed bar above the mobile bottom nav (`.wiz-connection-banner`), not a toast — a toast fired while the phone was pocketed has expired by the time anyone looks. Copy: *"No connection — actions won't be saved. Reconnecting…"*, then *"Reconnected."* for two seconds |
+| Body class | `wiz-offline` on `<body>` — the single hook the CSS and the click guard both read |
+| Refusal | A capture-phase `click` listener cancels any control carrying `wiz-requires-socket` and explains with `Quasar.Notify.create` (client-side, so it still works): *"No connection — not sent. Try again when the banner clears."* The CSS deliberately does **not** set `pointer-events: none` — the tap has to reach the listener to be explained |
+
+The framework's own `#popup` ("Connection lost / Trying to reconnect", branded in `styles.css`) is untouched: it carries the later about-to-reload moment. It is also the reason this exists — `#popup` only shows on socket `disconnect`, which lags a dead link by `ping_interval + ping_timeout`, plus a 2 s `transition-delay`. During a long outage both are visible, and `body.wiz-offline` lifts the popup clear of the banner.
+
+Marking a control is presentation's job: `.classes(REQUIRES_SOCKET_CLASS)` on a `ui.button`, or `class="wiz-requires-socket"` in a Quasar slot template. Mark anything whose effect is a round trip — including a "View"/"Open" button, whose navigation is a server `open` message rather than an `<a href>`. Do **not** mark what works offline: a `ui.download` of a data URI already in the page, or a `window.print()`.
 
 ## Static assets & styling (`static/`)
 

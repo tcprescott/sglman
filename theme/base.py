@@ -7,6 +7,7 @@ from nicegui import app, ui
 from application.tenant_context import get_current_tenant_id, tenant_scope
 from models import User
 from theme.chrome import dark_mode_button
+from theme.connection import install_connection_watch
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +207,8 @@ class BaseLayout:
             '</script>'
         )
         ui.on('wiz_konami', lambda _: self._open_cat_fact())
+        # A dropped socket eats a click silently; this makes the page say so.
+        install_connection_watch()
         # Phoenix brand palette: gold primary, ember secondary — overridable per
         # tenant (theme/base loads TenantThemeService.get_current_theme). Semantic
         # colors stay fixed, warm-tuned to match the --status-* tokens in

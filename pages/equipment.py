@@ -6,7 +6,7 @@ its QR code, and loan history; those with the right roles can check the asset
 out or back in, and managers can edit/delete it.
 """
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, context, ui
 from middleware.auth import protected_page
 
 from application.services import AuthService, EquipmentService, TenantService, get_user_from_discord_id
@@ -17,6 +17,7 @@ from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
 from application.utils.tenant_urls import tenant_url
 from application.utils.timezone import format_eastern_display
 from theme.base import BaseLayout
+from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin
 
 _STATUS_LABELS = {
@@ -111,14 +112,21 @@ def create() -> None:
                                 ).props('flat dense').tooltip('Open a printable label for this asset')
 
                 # --- Actions ---
+                # Every button here needs a round trip, so each carries the
+                # offline guard's class (theme/connection.py). Download QR and
+                # Print label above deliberately do not: the data URI is already
+                # in the page, and a new tab fails on its own terms.
                 with ui.row().classes('q-mt-md gap-2'):
                     if open_loan is None and can_checkout and asset.status.value != 'retired':
                         label = 'Check out…' if can_manage else 'Check out to me'
-                        ui.button(label, icon='logout', on_click=do_checkout).props('color=primary')
+                        ui.button(label, icon='logout', on_click=do_checkout).props(
+                            'color=primary').classes(REQUIRES_SOCKET_CLASS)
                     if open_loan is not None and can_checkin:
-                        ui.button('Check in', icon='login', on_click=do_checkin).props('color=secondary')
+                        ui.button('Check in', icon='login', on_click=do_checkin).props(
+                            'color=secondary').classes(REQUIRES_SOCKET_CLASS)
                     if can_manage:
-                        ui.button('Edit', icon='edit', on_click=edit_asset).props('flat')
+                        ui.button('Edit', icon='edit', on_click=edit_asset).props(
+                            'flat').classes(REQUIRES_SOCKET_CLASS)
 
                 # --- History ---
                 if history:
@@ -152,4 +160,34 @@ def create() -> None:
                 return
             await EquipmentDialog(actor, equipment=asset, on_saved=render_detail.refresh).open()
 
+        _refresh_on_reconnect(render_detail)
         await render_detail()
+
+
+def _refresh_on_reconnect(refreshable) -> None:
+    """Re-read the asset when the socket comes back, rather than resume.
+
+    This is only the *short* blip. An outage longer than ``reconnect_timeout``
+    (3.0 s by default) means the server has already dropped the client, and the
+    framework then does a full page reload (``try_reconnect`` →
+    ``window.location.reload()``) which re-reads everything on its own. This
+    handler covers the case where the same client survives and would otherwise
+    keep showing pre-blip state — including a status the operator's own eaten
+    click never changed.
+    """
+    client = context.client
+    # on_connect also fires for the initial handshake, where the page has just
+    # been built; refreshing there would double every first render.
+    seen_first = {'value': False}
+
+    async def reread() -> None:
+        with client:
+            await refreshable.refresh()
+
+    def handle_connect() -> None:
+        if not seen_first['value']:
+            seen_first['value'] = True
+            return
+        background_tasks.create(reread())
+
+    client.on_connect(handle_connect)
