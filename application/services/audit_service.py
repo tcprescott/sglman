@@ -248,6 +248,9 @@ class AuditActions:
     ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
     ASYNC_QUALIFIER_RUN_FORFEITED = 'async_qualifier.run_forfeited'
     ASYNC_QUALIFIER_RUN_REATTEMPTED = 'async_qualifier.run_reattempted'
+    # A reviewer voided someone else's run: distinct from the runner spending their
+    # own allowance, because it bypasses that allowance entirely.
+    ASYNC_QUALIFIER_REATTEMPT_GRANTED = 'async_qualifier.reattempt_granted'
     ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
     # Async Qualifier live races (PR 10). Create/open/cancel are tenant-internal
     # scheduling (event-less); recording the finished race captures runs and DOES

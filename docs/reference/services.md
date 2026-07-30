@@ -1094,17 +1094,22 @@ The self-paced permalink-pool qualifier — a peer aggregate of `Tournament` wit
 | `add_admin` / `remove_admin` / `list_admins` | — / `list[User]` | The per-qualifier `admins` M2M, who are also its reviewers. |
 | `list_pools` / `create_pool` / `update_pool` / `delete_pool` | `AsyncQualifierPool`(s) | Pool CRUD within a qualifier. |
 | `add_permalink` / `add_permalinks_bulk` / `roll_permalinks` / `update_permalink` / `delete_permalink` | `AsyncQualifierPermalink`(s) | Permalink management; `roll_permalinks` rolls N seeds from the pool's `Preset` via `SeedGenerationService`, `add_permalinks_bulk` pastes many at once. |
-| `list_open_qualifiers` / `get_qualifier_for_player` / `get_player_pools` / `list_user_runs` / `get_active_run` | reads | The player-facing surface. |
+| `list_open_qualifiers` / `get_qualifier_for_player` / `get_player_pools` / `list_user_runs` / `get_active_run` | reads | The player-facing surface. `get_player_pools` **raises** for a shut window and is retained for the REST client that depends on that. |
+| `get_run_availability(user, qualifier_id)` | `RunAvailability` | The web surface's read: the pools this player may draw from, every pool's spent/remaining counts, and — when none are available — a `RunUnavailableReason` with the sentence it owes the runner. Never raises for a closed window; a closed window is the answer. |
 | `start_run(user, qualifier_id, pool_id)` | `AsyncQualifierRun` | The **draw**: an atomic, row-locked transaction enforcing one active run per player, the `runs_per_pool` cap, and permalink no-repeat, then picking a permalink by imbalance-forcing fairness. Reveal == start. |
-| `submit_run(...)` / `forfeit_run(user, run_id)` / `reattempt_run(user, run_id, *, reason)` | `AsyncQualifierRun` | Run lifecycle: submit a finish time (positive and under `MAX_RUN_SECONDS`) for review; forfeit irreversibly for 0; or void the prior run and free the slot, within `allowed_reattempts`. |
-| `list_review_queue` / `claim_run` / `release_claim` / `review_run` / `get_run_notes` | — | Review: claim-locking, then approve/reject (**self-review blocked**), which recomputes the permalink's par and rescores its approved runs. |
+| `submit_run(...)` / `forfeit_run(user, run_id)` / `reattempt_run(user, run_id, *, reason)` | `AsyncQualifierRun` | Run lifecycle: submit a finish time (positive, under `MAX_RUN_SECONDS`, and not longer than the run has existed — see `classify_claim`) for review, recording `measured_seconds`; forfeit irreversibly for 0; or void the prior run and free the slot, within `allowed_reattempts`. |
+| `grant_reattempt(actor, run_id, *, reason)` | `AsyncQualifierRun` | A qualifier admin voids someone else's terminal run — the override for a mis-clicked forfeit or a bad seed. Requires a reason, **ignores** `allowed_reattempts` (recorded via `reattempt_granted_by`, so it does not shrink what the runner may still spend), and DMs the runner. Shares `_void_run` with `reattempt_run` so neither path can skip the par refresh. |
+| `get_reattempt_allowance(user, qualifier_id)` | `ReattemptAllowance` | `spent` / `allowed` / `remaining` for one player — what the run surface says out loud and what the forfeit dialog promises. Counts only self-spent reattempts. |
+| `list_review_queue` / `list_runs` / `claim_run` / `release_claim` / `review_run` / `get_run_notes` | — | Review: claim-locking, then approve/reject (**self-review blocked**), which recomputes the permalink's par and rescores its approved runs. A **rejection requires a note** — it is stored as a run note and DM'd to the runner. `list_runs` is every run in the qualifier (admin), because the queue holds only finished+pending rows and a forfeit is written straight to `APPROVED`. |
 | `is_results_public(qualifier, now=None)` / `get_leaderboard(...)` | `bool` / `dict` | The board, pools, and pars are staff-only until the qualifier closes (inactive or past `closes_at`). |
 | `recompute_par_and_scores(permalink_id)` | `None` | Recompute one permalink's par and rescore its approved runs; the public entry the live-race capture path reuses. |
 
-Four sibling modules keep the service under the file-length guideline:
+Sibling modules keep the service under the file-length guideline:
 
 - **async_qualifier_config.py** — `validate_async_qualifier_config`, the Pydantic `extra='forbid'` validator for `AsyncQualifier.config`.
-- **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window`, `ensure_window_open`, `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (tunables off `qualifier.config`, with defaults), and `display_name`.
+- **async_qualifier_rules.py** — side-effect-free rule functions: `validate_counts`/`validate_window`, `ensure_window_open`, `is_results_public` (the lockdown predicate), `par_sample_size`/`imbalance_threshold` (tunables off `qualifier.config`, with defaults), `display_name`, the `ReattemptAllowance` value object, the availability trio `window_reason`/`classify_availability`/`describe_unavailability` (with `RunUnavailableReason` and `PoolUsage`), and the claimed-vs-measured trio `measure_elapsed`/`classify_claim`/`describe_claim` (`ClaimVerdict.OK|IMPLAUSIBLE|IMPOSSIBLE`, thresholds `CLOCK_GRACE_SECONDS` and `IMPLAUSIBLE_DRIFT_SECONDS`) that the service, the run surface and the review queue all share.
+- **async_qualifier_reads.py** — `PlayerReadsMixin`, mixed into the service: the competitor-facing reads (open qualifiers, `get_run_availability`/`get_player_pools`, own runs, active run, reattempt allowance) and the leaderboard. Reads only — nothing here writes or audits.
+- **async_qualifier_notifications.py** — the two runner-facing DMs (`notify_run_reviewed`, `notify_reattempt_granted`), best-effort and swallowed here rather than at each call site; the copy itself lives in `application/utils/discord_messages.py`.
 - **async_qualifier_access.py** — shared gate + entity resolution both qualifier services use: `ensure_qualifier_admin(...)` and the `require_qualifier`/`require_pool`/`require_permalink`/`require_run` load-or-`NotFoundError` lookups.
 - **async_qualifier_draw.py** — `AsyncQualifierDraw`, the repository-touching draw and recompute engine (`draw_candidates`/`pick_permalink`/`recompute_par_and_scores`), composed as `self.draw`.
 - **async_qualifier_scoring.py** — the pure par/score math: `compute_par`, `compute_score`, `build_leaderboard`.
@@ -1159,6 +1164,23 @@ Thin async `aiohttp` wrapper over the Challonge v2.1 (JSON:API) endpoints the in
 | `MockTwitchClient` / `MockRacetimeClient` | — | Stubs returning a deterministic canned identity (chosen via `MOCK_TWITCH_IDENTITY` / `MOCK_RACETIME_IDENTITY`) so local dev can click through link/unlink. |
 
 Module constants: `AUTHORIZE_URL`, `OAUTH_EXCHANGE_URL`, plus `USERS_URL` (Twitch) / `USERINFO_URL` + `IDENTITY_SCOPE` (racetime).
+
+### duration.py
+
+Whole-second duration parsing and display for typed finish times
+([duration.py](../../application/utils/duration.py)). Pure syntax — no ORM, no service
+rules (the `MAX_RUN_SECONDS` ceiling stays in `AsyncQualifierService`, so the hour
+segment is unbounded here). Shared by the player run surface, the reviewer queue and
+anything else that shows a run duration.
+
+| Function | Returns | Description |
+|---|---|---|
+| `format_hms(seconds, *, dash='—')` | `str` | `4325` → `'1:12:05'`; `None` → `dash`. Negatives clamp to zero. |
+| `parse_hms(text)` | `int` | Parse **exactly** `H:MM:SS` into whole seconds; raises `ValueError` with a sentence naming the shape. |
+
+`parse_hms` is deliberately strict. Accepting `SS` and `MM:SS` by folding parts into
+base 60 meant `1:23` — the likeliest typo in a field labelled `H:MM:SS` — silently
+submitted 83 seconds, and every later surface displayed it as a valid time.
 
 ### csv_export.py
 

@@ -195,7 +195,17 @@ are public-but-authenticated; the leaderboard is hidden while the window is open
 - **Reads:** `GET /async-qualifiers` · `/open` · `/{id}` · `/{id}/public` · `/{id}/admins` · `/{id}/pools` · `/{id}/pools/available` · `/{id}/review-queue` · `/{id}/leaderboard` · `/{id}/me/runs` · `/{id}/me/active-run` · `/runs/{run_id}/notes`.
 - **Qualifier/admin/pool/permalink writes:** `POST /async-qualifiers` · `PATCH`/`DELETE /{id}`; `POST`/`DELETE /{id}/admins[/{user_id}]`; `POST /{id}/pools`, `PATCH`/`DELETE /pools/{pool_id}`; `POST /pools/{pool_id}/permalinks` (+ `/bulk`, `/roll`), `PATCH`/`DELETE /permalinks/{permalink_id}`.
 - **Player run lifecycle:** `POST /{id}/runs` (start) · `POST /runs/{run_id}/submit|forfeit|reattempt`.
-- **Review:** `POST /runs/{run_id}/claim|release|review`.
+  `submit` 400s when the claimed `elapsed_seconds` exceeds the wall clock since the
+  server stamped `started_at` — a run cannot have taken longer than it has existed.
+  The run stays in progress, so the client can correct the time and resubmit. Every
+  successful submit records `measured_seconds` (that wall clock) on the run response
+  beside the runner's claim.
+- **Review:** `POST /runs/{run_id}/claim|release|review` · `POST /runs/{run_id}/grant-reattempt`
+  (admin; voids a runner's terminal run ignoring their `allowed_reattempts`, reason
+  required) · `GET /{qualifier_id}/runs` (admin; every run, since the review queue holds
+  only finished+pending rows and a forfeit is written straight to approved).
+  `review` 400s on a rejection with a blank `note` — the reason is stored as a run note
+  and DM'd to the runner. An approval's note stays optional.
 
 ### Async qualifier live races (`/api/async-qualifiers/live-races`) · `async_qualifier_live_races.py`
 Synchronous racetime races for a qualifier pool (service gate `can_admin_qualifier`).

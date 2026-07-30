@@ -103,12 +103,12 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
     async def list_for_user(self, qualifier_id: int, user_id: int) -> List[AsyncQualifierRun]:
         return await scoped(
             AsyncQualifierRun.filter(qualifier_id=qualifier_id, user_id=user_id)
-        ).prefetch_related('permalink__pool').order_by('-created_at')
+        ).prefetch_related('permalink__pool', 'review_notes__author').order_by('-created_at')
 
     async def list_for_qualifier(self, qualifier_id: int) -> List[AsyncQualifierRun]:
         return await scoped(
             AsyncQualifierRun.filter(qualifier_id=qualifier_id)
-        ).prefetch_related('user', 'permalink__pool').order_by('-created_at')
+        ).prefetch_related('user', 'permalink__pool', 'review_notes__author').order_by('-created_at')
 
     async def list_valid_for_qualifier(self, qualifier_id: int) -> List[AsyncQualifierRun]:
         """Runs that count toward scoring/leaderboard: not voided by a reattempt."""
@@ -124,7 +124,9 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
                 review_status=AsyncQualifierReviewStatus.PENDING,
                 reattempted=False,
             )
-        ).prefetch_related('user', 'permalink__pool', 'review_claimed_by').order_by('finished_at')
+        ).prefetch_related(
+            'user', 'permalink__pool', 'review_claimed_by', 'review_notes__author',
+        ).order_by('finished_at')
 
     async def list_approved_finished_for_permalink(self, permalink_id: int) -> List[AsyncQualifierRun]:
         """Approved, finished, non-voided runs on a permalink — the par inputs."""

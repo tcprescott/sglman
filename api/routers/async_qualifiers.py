@@ -115,6 +115,15 @@ async def list_review_queue(qualifier_id: int, actor: User = Depends(require_api
 
 
 @router.get(
+    "/{qualifier_id}/runs",
+    response_model=List[AsyncQualifierRunResponse],
+    summary="Every run in the qualifier (admin)",
+)
+async def list_runs(qualifier_id: int, actor: User = Depends(require_api_actor)):
+    return await AsyncQualifierService().list_runs(actor, qualifier_id)
+
+
+@router.get(
     "/{qualifier_id}/leaderboard",
     response_model=List[LeaderboardEntryResponse],
     summary="Qualifier leaderboard (hidden while open for non-admins)",
@@ -307,6 +316,15 @@ async def forfeit_run(run_id: int, actor: User = Depends(require_write_actor)):
 @router.post("/runs/{run_id}/reattempt", response_model=AsyncQualifierRunResponse, summary="Reattempt a run")
 async def reattempt_run(run_id: int, body: ReattemptRequest, actor: User = Depends(require_write_actor)):
     return await AsyncQualifierService().reattempt_run(actor, run_id, reason=body.reason)
+
+
+@router.post(
+    "/runs/{run_id}/grant-reattempt",
+    response_model=AsyncQualifierRunResponse,
+    summary="Grant a reattempt on a runner's behalf (admin, ignores their allowance)",
+)
+async def grant_reattempt(run_id: int, body: ReattemptRequest, actor: User = Depends(require_write_actor)):
+    return await AsyncQualifierService().grant_reattempt(actor, run_id, reason=body.reason)
 
 
 # --- review ---

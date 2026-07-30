@@ -51,6 +51,17 @@ class AsyncQualifierDraw:
         played = await self.run_repository.played_permalink_ids_for_user_in_pool(pool.id, user_id)
         return [p for p in permalinks if not p.live_race and p.id not in played]
 
+    async def async_seed_count(self, pool: AsyncQualifierPool) -> int:
+        """How many of a pool's permalinks a self-paced runner could ever draw.
+
+        Distinct from :meth:`draw_candidates`, which excludes the ones this player
+        already played. A pool whose permalinks are all live-race has none — and
+        must not be reported as "you have played every seed", which is what an
+        exhausted-but-drawable pool means.
+        """
+        permalinks = await self.permalink_repository.list_for_pool(pool.id)
+        return sum(1 for p in permalinks if not p.live_race)
+
     async def pick_permalink(
         self, qualifier: AsyncQualifier, pool: AsyncQualifierPool, user_id: int
     ) -> Optional[AsyncQualifierPermalink]:
