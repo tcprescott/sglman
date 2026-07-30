@@ -113,10 +113,24 @@ class EquipmentRepository:
         )).order_by('-checked_out_at').prefetch_related('equipment')
 
     @staticmethod
-    async def list_loans_for_equipment(equipment: Equipment) -> List[EquipmentLoan]:
-        return await scoped(EquipmentLoan.filter(equipment=equipment)).order_by(
-            '-checked_out_at'
-        ).prefetch_related('borrower', 'checked_out_by', 'checked_in_by')
+    async def list_loans_for_equipment(
+        equipment: Equipment, *, limit: Optional[int] = None,
+    ) -> List[EquipmentLoan]:
+        """Loans against one asset, newest first. ``limit`` bounds the fetch.
+
+        Each row prefetches three users, so an asset lent two hundred times is
+        two hundred rows and six hundred joins — on the device where scrolling
+        costs most. The page asks for the handful it paints; use
+        :meth:`count_loans_for_equipment` for the total it reports alongside.
+        """
+        query = scoped(EquipmentLoan.filter(equipment=equipment)).order_by('-checked_out_at')
+        if limit is not None:
+            query = query.limit(limit)
+        return await query.prefetch_related('borrower', 'checked_out_by', 'checked_in_by')
+
+    @staticmethod
+    async def count_loans_for_equipment(equipment: Equipment) -> int:
+        return await scoped(EquipmentLoan.filter(equipment=equipment)).count()
 
     @staticmethod
     async def open_loans_by_equipment_id() -> dict[int, EquipmentLoan]:

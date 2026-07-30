@@ -49,6 +49,7 @@ from application.services.feature_flag_service import FeatureFlagService
 from application.utils.timezone import now_eastern, parse_eastern_datetime
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
+from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_volunteers import seed_volunteers_for_tenant
@@ -83,6 +84,15 @@ async def seed_users() -> dict[str, User]:
         # what /platform and the super-admin's in-tenant access need to be
         # exercised against.
         ("100000000000000008", "super_admin",  "Platform Owner"),
+        # EQUIPMENT_MANAGER *without* STAFF (granted per tenant below).
+        # staff_user holds both, so nothing else proves the manager path works
+        # on its own — three audits had to grant a role like this by hand.
+        ("100000000000000009", "equip_manager", "Equipment Manager"),
+        # Granted a role in the 'default' tenant only (see seed_for_tenant), and
+        # enrolled in nothing: the fixture that makes per-community people
+        # scoping visible in the dev loop. They must appear in tenant A's
+        # borrower/owner pickers and in neither of tenant B's.
+        ("100000000000000010", "local_only",   "Local Only"),
     ]
     users: dict[str, User] = {}
     for discord_id, username, display_name in user_specs:
@@ -203,10 +213,20 @@ async def seed_for_tenant(
             ("player_three", Role.VOLUNTEER),
             ("player_four", Role.VOLUNTEER),
         ]
+        if tenant.slug == "default":
+            # Deliberately one tenant only — the per-community people read
+            # derives membership from grants like this one, so a user who holds
+            # nothing in tenant B must be absent from tenant B's pickers.
+            role_grants.append(("local_only", Role.VOLUNTEER))
         for uname, role in role_grants:
             await UserRole.get_or_create(
                 user=users[uname], role=role, tenant=tenant, defaults={"granted_by": None},
             )
+        print(
+            f"    [{tenant.slug}] roles ok"
+            + (" (local_only is a VOLUNTEER here and nowhere else)"
+               if tenant.slug == "default" else " (local_only holds nothing here)")
+        )
 
         # Stream rooms
         for name, url in [
@@ -512,46 +532,8 @@ async def seed_for_tenant(
                 )
         print(f"    [{tenant.slug}] player availability ok")
 
-        # --- Equipment lending ----------------------------------------------
-        await UserRole.get_or_create(
-            user=staff, role=Role.EQUIPMENT_MANAGER, tenant=tenant, defaults={"granted_by": None},
-        )
-
-        equipment_specs = [
-            ("Capture Card A", "Elgato HD60 X", None),
-            ("Capture Card B", "Elgato HD60 X", None),
-            ("Console 1", "Super Nintendo (SNES)", staff),
-            ("HDMI Splitter", "4-way powered splitter", None),
-        ]
-        equipment: dict[str, Equipment] = {}
-        for name, description, owner in equipment_specs:
-            asset = await Equipment.get_or_none(name=name, tenant=tenant)
-            if asset is None:
-                # asset_number is unique per tenant; take this tenant's max + 1.
-                row = await Equipment.filter(tenant=tenant).annotate(m=Max("asset_number")).values("m")
-                next_number = (row[0]["m"] or 0) + 1
-                asset = await Equipment.create(
-                    asset_number=next_number, name=name, description=description,
-                    owner_user=owner, tenant=tenant,
-                )
-            equipment[name] = asset
-
-        card_a = equipment["Capture Card A"]
-        if not await EquipmentLoan.filter(equipment=card_a, tenant=tenant).exists():
-            await EquipmentLoan.create(
-                equipment=card_a, borrower=users["player_one"], checked_out_by=staff, tenant=tenant,
-            )
-            if card_a.status != EquipmentStatus.CHECKED_OUT:
-                card_a.status = EquipmentStatus.CHECKED_OUT
-                await card_a.save()
-
-        console = equipment["Console 1"]
-        if not await EquipmentLoan.filter(equipment=console, tenant=tenant).exists():
-            await EquipmentLoan.create(
-                equipment=console, borrower=users["player_two"], checked_out_by=staff,
-                checked_in_at=now, checked_in_by=staff, tenant=tenant,
-            )
-        print(f"    [{tenant.slug}] equipment ok")
+        # --- Equipment lending (scripts/seed_equipment.py) -------------------
+        equipment = await seed_equipment_for_tenant(tenant, users, staff, now)
 
         # --- API tokens ------------------------------------------------------
         # Deterministic dev bearer strings, one pair per tenant, so REST
@@ -651,7 +633,8 @@ async def seed_for_tenant(
             (staff, "match.created", {"match_id": finished_match.id, "title": finished_match.title}),
             (staff, "match.finished", {"match_id": finished_match.id}),
             (staff, "user.role_granted", {"user_id": proctor.id, "role": Role.PROCTOR.value}),
-            (staff, "equipment.checked_out", {"equipment_id": card_a.id, "borrower_id": users["player_one"].id}),
+            (staff, "equipment.checked_out",
+             {"equipment_id": equipment["Capture Card A"].id, "borrower_id": users["player_one"].id}),
         ]
         if await AuditLog.filter(tenant=tenant).count() == 0:
             for actor, action, details in audit_specs:
