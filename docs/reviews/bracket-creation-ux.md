@@ -2,7 +2,9 @@
 
 **Scope:** authoring a native bracket, from an empty tournament to a started
 stage — the Admin → Brackets tab
-([`pages/admin_tabs/admin_brackets.py`](../../pages/admin_tabs/admin_brackets.py)),
+([`pages/admin_tabs/admin_brackets/`](../../pages/admin_tabs/admin_brackets/) — a
+single `admin_brackets.py` when this was written; the `admin_brackets.py:NNN`
+references below are to that file, before the split),
 its Create dialog and its Manage dialog. Result reporting, the public view and
 the scheduling seam appear only where the authoring flow depends on them.
 
