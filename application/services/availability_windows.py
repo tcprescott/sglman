@@ -10,6 +10,7 @@ The functions operate over anything matching :class:`AvailabilityWindow` — the
 ORM ``PlayerAvailability`` and ``VolunteerAvailability`` rows both satisfy it.
 """
 
+import itertools
 from datetime import datetime
 from typing import Dict, List, Optional, Protocol, Sequence, Tuple, TypeVar
 
@@ -73,7 +74,7 @@ def effective_segments(
             boundaries.add(min(w.ends_at, end))
     points = sorted(boundaries)
     segments: List[Tuple[datetime, datetime, Optional[VolunteerAvailabilityStatus]]] = []
-    for seg_start, seg_end in zip(points, points[1:]):
+    for seg_start, seg_end in itertools.pairwise(points):
         status = covers(windows, seg_start, seg_end)
         if segments and segments[-1][2] == status:
             segments[-1] = (segments[-1][0], seg_end, status)

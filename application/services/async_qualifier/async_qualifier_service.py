@@ -32,6 +32,7 @@ from tortoise.transactions import in_transaction
 
 from application.errors import NotFoundError, require_found
 from application.events import EventType
+from application.feature_flags import requires_feature
 from application.repositories import (
     AsyncQualifierPermalinkRepository,
     AsyncQualifierPoolRepository,
@@ -49,15 +50,14 @@ from application.services.async_qualifier.async_qualifier_reads import PlayerRea
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
-from application.feature_flags import requires_feature
 from models import (
-    FeatureFlag,
     AsyncQualifier,
     AsyncQualifierPermalink,
     AsyncQualifierPool,
     AsyncQualifierReviewStatus,
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
+    FeatureFlag,
     User,
 )
 

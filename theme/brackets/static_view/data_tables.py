@@ -20,7 +20,6 @@ from models import BracketEntry, BracketEntryStatus, BracketMatch, BracketMatchS
 from ..render import entry_records, results_from_matches
 from .markup import _avatar_html, _esc, _tag
 
-
 _TB_LABEL = {'buchholz': 'BH', 'omw': 'OMW%'}
 _TB_TITLE = {
     'buchholz': "Buchholz — sum of opponents' match points",

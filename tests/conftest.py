@@ -6,7 +6,7 @@ from tortoise.models import Model
 from tortoise.utils import get_schema_sql
 
 import models as _models
-from application.tenant_context import require_tenant_id, set_tenant_id, reset_tenant_id
+from application.tenant_context import require_tenant_id, reset_tenant_id, set_tenant_id
 
 # Every DB-backed test runs inside a single default tenant. Because the default
 # Tenant is the first row inserted into the fresh in-memory schema, its id is 1,

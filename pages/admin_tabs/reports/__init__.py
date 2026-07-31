@@ -10,6 +10,7 @@ from nicegui import app, background_tasks, ui
 
 from application.services import FeatureFlagService, TelemetryService
 from models import FeatureFlag
+
 from .audit import audit_page
 from .capacity import capacity_page
 from .crew import crew_page
@@ -20,7 +21,6 @@ from .shared import bind_report_refresh
 from .stream_rooms import stream_rooms_page
 from .telemetry import telemetry_page
 from .volunteers import volunteers_page
-
 
 _REPORT_HANDLERS = {
     'insights': insights_page,

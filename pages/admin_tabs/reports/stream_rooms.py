@@ -12,6 +12,7 @@ from application.services import AuthService, ReportsService, get_user_from_disc
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+
 from .shared import (
     CHART_GOLD,
     CHART_NEUTRAL,

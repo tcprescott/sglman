@@ -15,7 +15,6 @@ from application.services.user_service import UserService
 from models import Role, RoleSource
 from tests.factories import make_audit_double
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
 def service(monkeypatch):

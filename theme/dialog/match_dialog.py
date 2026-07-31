@@ -7,15 +7,15 @@ from application.services import (
     RacetimeRoomService,
     get_user_from_discord_id,
 )
-from application.utils.timezone import format_local_display
 from application.tenant_context import require_tenant_id, tenant_scope
+from application.utils.timezone import format_local_display
 from models import FeatureFlag
+from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
     mobile_sheet,
 )
-from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog.match_dialog_base import BaseMatchDialog, enrolment_preview
 
 # The empty-Tournament hints differ by audience: an admin can go and make one, a

@@ -7,8 +7,8 @@ from application.services import AuthService, StreamRoomService, get_user_from_d
 from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog import TournamentDialog
-from theme.empty_state import no_data_slot
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
+from theme.empty_state import no_data_slot
 from theme.tables.tournament import TournamentTableView
 
 

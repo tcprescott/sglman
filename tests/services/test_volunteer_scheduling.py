@@ -20,7 +20,6 @@ from models import (
     VolunteerShift,
 )
 
-
 UTC = timezone.utc
 
 _next_discord_id = itertools.count(100000)
@@ -111,7 +110,7 @@ async def test_generate_day_shifts_staggered_position(db):
     assert len(shifts) == 6
     assert all(s.slots_needed == 1 and s.label is None for s in shifts)
     # Consecutive starts are offset by the 2h stagger (handoffs don't bunch up).
-    for earlier, later in zip(shifts, shifts[1:]):
+    for earlier, later in itertools.pairwise(shifts):
         assert later.starts_at - earlier.starts_at == timedelta(hours=2)
     # Full shifts run 4h; the final one is clamped to the 20:00 coverage end.
     assert all(s.ends_at - s.starts_at == timedelta(hours=4) for s in shifts[:-1])

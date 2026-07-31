@@ -13,6 +13,7 @@ from application.services.auth_service import AuthService, get_user_from_discord
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.telemetry_service import TelemetryService
 from application.services.tenant_service import TenantService
+from application.services.timezone_service import TimezoneService
 from application.tenant_context import (
     get_current_tenant_id,
     is_host_mode,
@@ -20,7 +21,6 @@ from application.tenant_context import (
     stash_client_tenant_id,
     tenant_scope,
 )
-from application.services.timezone_service import TimezoneService
 from application.timezone_context import (
     get_browser_timezone,
     set_timezone_name,

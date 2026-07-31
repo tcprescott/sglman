@@ -6,11 +6,11 @@ per-tenant authorization) are platform-level and managed on ``/platform``.
 """
 
 from nicegui import app, background_tasks, context, ui
+
+from application.services import RaceRoomProfileService, get_user_from_discord_id
 from theme.notify import notify_error
 from theme.tables.admin_crud import wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
-
-from application.services import RaceRoomProfileService, get_user_from_discord_id
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"

@@ -12,7 +12,6 @@ from application.services.volunteer.volunteer_autoschedule_service import (
     VolunteerAutoscheduleService,
 )
 
-
 # ---------------------------------------------------------------------------
 # _qualifications (static async) — exercised via the autoschedule service
 # ---------------------------------------------------------------------------
@@ -26,8 +25,9 @@ class TestQualificationsQuery:
         assert result == {}
 
     async def test_returns_position_ids_grouped_by_user(self, db):
-        from models import User, VolunteerPosition, VolunteerQualification
         import itertools
+
+        from models import User, VolunteerPosition, VolunteerQualification
 
         counter = itertools.count(9000)
         user = await User.create(
@@ -44,8 +44,9 @@ class TestQualificationsQuery:
         assert pos2.id in result[user.id]
 
     async def test_only_fetches_specified_users(self, db):
-        from models import User, VolunteerPosition, VolunteerQualification
         import itertools
+
+        from models import User, VolunteerPosition, VolunteerQualification
 
         counter = itertools.count(9100)
         u1 = await User.create(discord_id=next(counter), username='u1', display_name='u1')
@@ -73,8 +74,8 @@ class TestPickQualificationFiltering:
     POLICY = DraftPolicy(fill_outside_availability=True, max_hours=0)
 
     def _make_shift(self, position_id=5):
-        from types import SimpleNamespace
         from datetime import datetime, timezone
+        from types import SimpleNamespace
 
         UTC = timezone.utc
         return SimpleNamespace(

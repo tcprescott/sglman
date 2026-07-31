@@ -21,14 +21,13 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from application.services.reporting_shared import (
     ON_TIME_THRESHOLD_MIN,
-    to_display,
     is_crew_covered,
+    to_display,
     window_hours,
 )
 from application.tenant_context import require_tenant_id
 from application.utils.timezone import combine_local, now_local, to_local
 from models import AuditLog, Match, VolunteerShift
-
 
 # Weights for the composite tournament-health score. Components with no data
 # (e.g. no stream candidates) are dropped and the remaining weights renormalize,
@@ -572,7 +571,7 @@ class AnalyticsService:
         rows = await asyncio.gather(*sources)
         stamps = [
             to_local(when).date()
-            for row, attr in zip(rows, _EXTENT_FIELDS[:len(rows)])
+            for row, attr in zip(rows, _EXTENT_FIELDS[:len(rows)], strict=False)
             if row is not None and (when := getattr(row, attr, None)) is not None
         ]
         if not stamps:

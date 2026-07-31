@@ -23,7 +23,6 @@ from models import (
     User,
 )
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 def make_service(api=None, oauth=None) -> ChallongeService:
     service = ChallongeService()

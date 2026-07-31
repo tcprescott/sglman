@@ -14,7 +14,6 @@ from datetime import date, datetime
 from typing import Optional
 from urllib.parse import urlencode
 
-
 SCHEDULE = 'schedule'
 REPORTS = 'reports'
 VOL_SCHEDULE = 'vol-schedule'

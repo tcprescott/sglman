@@ -437,7 +437,7 @@ class SchedulingMixin:
         """The matchup's games, or [] when the caller didn't prefetch them."""
         try:
             return list(bracket_match.games)
-        except Exception:  # noqa: BLE001 - an unfetched relation renders as none
+        except Exception:
             return []
 
     @staticmethod

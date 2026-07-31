@@ -13,8 +13,8 @@ platform-level (``tenant=NULL``).
 import re
 from typing import List, Optional
 
-from application.repositories.tenant_repository import TenantRepository
 from application.repositories.tenant_membership_repository import TenantMembershipRepository
+from application.repositories.tenant_repository import TenantRepository
 from application.repositories.user_role_repository import UserRoleRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService

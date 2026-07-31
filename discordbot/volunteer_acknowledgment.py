@@ -9,11 +9,10 @@ import discord
 from application.utils.discord_messages import volunteer_ack_confirmation
 from discordbot._ack_common import (
     DMInteractionError,
+    SendFn,
     make_acknowledged_view,
     run_dm_interaction,
-    SendFn,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ def _parse(custom_id: str) -> int:
     try:
         return int(parts[1])
     except ValueError:
-        raise DMInteractionError('Invalid assignment ID.')
+        raise DMInteractionError('Invalid assignment ID.') from None
 
 
 async def handle_volunteer_acknowledgment_interaction(interaction: discord.Interaction) -> None:

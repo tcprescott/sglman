@@ -11,7 +11,6 @@ from application.services import (
 from application.tenant_context import require_tenant_id
 from models import Tournament
 
-
 _HELP_TEXT = (
     "Submit up to 3 lines (max 19 characters each) that may be embedded into "
     "the end-game triforce screen of an ALTTP randomizer seed. Allowed "

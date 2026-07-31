@@ -5,36 +5,35 @@ Initializes the database, sets up API and frontend routes, and manages applicati
 """
 
 # import api
-from contextlib import asynccontextmanager
+import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from application.services.discord.discord_service import get_discord_bot
-from application.services.discord import discord_queue
-from application.services.volunteer import volunteer_reminder
-from application.services import WebhookService
-from application.services import TelemetryService
-from application.services import web_push_service
-from application.events import event_bus
-from application.events import dispatch_queue as event_dispatch_queue
-from application.utils.easter_eggs import random_fact
-from application.utils.http_headers import header_safe
-from application.utils.mocks.mock_discord import is_mock_discord
-from application.utils.sentry import init_sentry
-import asyncio
 from aerich import Command
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
 from tortoise import Tortoise
 
-import frontend
 import api
+import frontend
+
 # Safe to import at module scope: mcpserver builds its FastMCP instance inside
 # mount(), not at import time. FastMCP.__init__ calls logging.basicConfig, which
 # would otherwise win the race against the basicConfig below and strip the log
 # format for the whole process.
 import mcpserver
+from application.events import dispatch_queue as event_dispatch_queue
+from application.events import event_bus
+from application.services import TelemetryService, WebhookService, web_push_service
+from application.services.discord import discord_queue
+from application.services.discord.discord_service import get_discord_bot
+from application.services.volunteer import volunteer_reminder
+from application.utils.easter_eggs import random_fact
+from application.utils.http_headers import header_safe
+from application.utils.mocks.mock_discord import is_mock_discord
+from application.utils.sentry import init_sentry
 from middleware.security_headers import SecurityHeadersMiddleware
 from migrations.tortoise_config import TORTOISE_ORM
 

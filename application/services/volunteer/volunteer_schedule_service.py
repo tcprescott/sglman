@@ -20,9 +20,9 @@ from application.repositories import (
     VolunteerPositionRepository,
     VolunteerShiftRepository,
 )
-from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
@@ -30,7 +30,6 @@ from application.utils.timezone import (
     parse_local_datetime,
 )
 from models import FeatureFlag, User, VolunteerAssignment, VolunteerPosition, VolunteerShift
-
 
 logger = logging.getLogger(__name__)
 

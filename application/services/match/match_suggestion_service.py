@@ -17,18 +17,18 @@ end alone a deadline), so rounds configured before ``scheduled_end`` existed kee
 working.
 """
 
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from typing import List, Optional, Sequence, Tuple
 
 from application.repositories.bracket_repository import BracketRepository
 from application.repositories.player_availability_repository import PlayerAvailabilityRepository
 from application.services.system_config_service import SystemConfigService
-from application.tenant_context import require_tenant_id
 from application.services.timezone_service import TimezoneService
+from application.tenant_context import require_tenant_id
 from application.timezone_context import get_zone
 from application.utils.timezone import now_local, parse_local_datetime, to_local
 from models import Match, PlayerAvailability, Tournament, VolunteerAvailabilityStatus
-
 
 _SLOT_INTERVAL_MIN = 30
 _PRIMARY_WINDOW_HOURS = 4

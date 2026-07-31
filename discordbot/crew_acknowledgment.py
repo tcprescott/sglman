@@ -7,16 +7,15 @@ import logging
 import discord
 
 from application.utils.discord_messages import (
-    crew_ack_confirmation,
     MSG_UNEXPECTED_ERROR_CREW,
+    crew_ack_confirmation,
 )
 from discordbot._ack_common import (
     DMInteractionError,
+    SendFn,
     make_acknowledged_view,
     run_dm_interaction,
-    SendFn,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def _parse(custom_id: str) -> tuple[str, int]:
     try:
         crew_id = int(parts[2])
     except ValueError:
-        raise DMInteractionError('Invalid crew ID.')
+        raise DMInteractionError('Invalid crew ID.') from None
     return crew_type, crew_id
 
 

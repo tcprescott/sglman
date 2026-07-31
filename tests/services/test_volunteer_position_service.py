@@ -7,7 +7,6 @@ import pytest
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from tests.factories import make_audit_double
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

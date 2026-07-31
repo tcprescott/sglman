@@ -220,7 +220,7 @@ async def admin_system_config_page() -> None:
                         try:
                             date.fromisoformat(raw)
                         except ValueError:
-                            raise ValueError(f'Event {label} date must be in YYYY-MM-DD format.')
+                            raise ValueError(f'Event {label} date must be in YYYY-MM-DD format.') from None
 
                 def int_str(value) -> str:
                     if value is None or value == '':

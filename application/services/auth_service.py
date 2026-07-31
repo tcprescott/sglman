@@ -7,7 +7,7 @@ should call get_user_from_discord_id() once at page entry to resolve the
 User, then pass it into the helpers.
 """
 
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from application.tenant_context import get_current_tenant_id
 from models import Match, Role, Tournament, User, UserRole
@@ -38,7 +38,9 @@ class AuthService:
 
     # Global roles that grant access to the Admin dashboard. Excludes PROCTOR
     # and VOLUNTEER, whose workflows live on the Volunteer page instead.
-    _ADMIN_ROLES = {Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR}
+    _ADMIN_ROLES: ClassVar[set[Role]] = {
+        Role.STAFF, Role.STREAM_MANAGER, Role.EQUIPMENT_MANAGER, Role.VOLUNTEER_COORDINATOR,
+    }
 
     @staticmethod
     def is_system(user: Optional[User]) -> bool:
@@ -185,7 +187,7 @@ class AuthService:
 
     # Roles that have something to do on the Volunteer hub; mirrors the
     # ``roles=`` list on ``@protected_tab_page('/volunteer')``.
-    _VOLUNTEER_ROLES = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
+    _VOLUNTEER_ROLES: ClassVar[set[Role]] = {Role.VOLUNTEER, Role.PROCTOR, Role.STAFF}
 
     @staticmethod
     async def can_view_volunteer(user: Optional[User]) -> bool:

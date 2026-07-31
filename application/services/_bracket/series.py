@@ -295,7 +295,7 @@ class SeriesMixin:
                 match = await service.get_by_id(game.match_id)
                 if match is not None:
                     await service._cancel_match(match, actor, reason=reason)
-            except Exception:  # noqa: BLE001 - one game must not block the rest
+            except Exception:
                 logger.exception(
                     'clinch cancel failed for match %s (game %s)',
                     game.match_id, game.id,
@@ -430,7 +430,7 @@ class SeriesMixin:
                 now=datetime.now(timezone.utc),
                 actor=await UserService().get_system_user(),
             )
-        except Exception:  # noqa: BLE001 - never block the settle path
+        except Exception:
             logger.exception(
                 'release_next_game failed for bracket match %s', bracket_match.id
             )

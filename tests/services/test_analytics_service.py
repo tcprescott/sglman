@@ -9,9 +9,9 @@ from datetime import date, datetime, timezone
 import pytest
 
 from application.services.analytics_service import (
-    AnalyticsService,
     HEALTH_WEIGHTS,
     MAX_BUCKETS,
+    AnalyticsService,
 )
 from application.utils.timezone import EASTERN_TZ
 from models import (

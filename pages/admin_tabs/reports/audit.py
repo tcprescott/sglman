@@ -8,8 +8,8 @@ from typing import Optional
 from nicegui import ui
 
 from application.services import AuditService
-from application.utils.timezone import format_local_display
-from application.utils.timezone import timezone_label
+from application.utils.timezone import format_local_display, timezone_label
+
 from .shared import (
     date_range_filter,
     default_date_range,
@@ -20,7 +20,6 @@ from .shared import (
     parse_int,
     report_page_shell,
 )
-
 
 PAGE_SIZE = 50
 

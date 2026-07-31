@@ -16,7 +16,6 @@ from application.tenant_context import tenant_scope
 from models import (
     AuditLog,
     Commentator,
-    Tracker,
     Match,
     MatchPlayers,
     Role,
@@ -24,6 +23,7 @@ from models import (
     TenantMembership,
     Tournament,
     TournamentPlayers,
+    Tracker,
     User,
     UserRole,
     VolunteerAssignment,

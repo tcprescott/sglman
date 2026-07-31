@@ -17,7 +17,6 @@ from application.services.tenant_theme_service import (
 from application.tenant_context import tenant_scope
 from models import Role, User, UserRole
 
-
 # ---------------------------------------------------------------------------
 # _merge / is_customized — pure
 # ---------------------------------------------------------------------------

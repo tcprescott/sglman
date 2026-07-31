@@ -30,9 +30,9 @@ class BaseLayout:
     def __init__(
         self,
         copyright_text: str | None = None,
-        section: str = None,
-        base_path: str = None,
-        tabs: list = None,
+        section: str | None = None,
+        base_path: str | None = None,
+        tabs: list | None = None,
         user: User = None,
         show_admin: bool = False,
         show_volunteer: bool | None = None,

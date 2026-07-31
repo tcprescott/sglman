@@ -6,7 +6,10 @@ referrer is still in the session.
 """
 
 from application.utils.tenant_urls import (
-    encoded_host_mismatch, sanitize_return_path, strip_root_path, tenant_home,
+    encoded_host_mismatch,
+    sanitize_return_path,
+    strip_root_path,
+    tenant_home,
 )
 
 

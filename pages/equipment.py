@@ -7,16 +7,16 @@ out or back in, and managers can edit/delete it.
 """
 
 from nicegui import app, background_tasks, context, ui
-from middleware.auth import protected_page
 
 from application.services import AuthService, EquipmentService, TenantService, get_user_from_discord_id
 from application.tenant_context import get_current_tenant_id
-from models import FeatureFlag
 from application.utils.environment import get_base_url
 from application.utils.hostname import effective_request_host
 from application.utils.qrcode_util import asset_qr_data_uri, asset_qr_png_bytes
 from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
 from application.utils.timezone import format_local_display
+from middleware.auth import protected_page
+from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import EquipmentDialog, open_checkout, quick_checkin

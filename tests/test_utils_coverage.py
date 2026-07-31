@@ -15,7 +15,6 @@ from application.utils import discord_messages as dm
 from application.utils import easter_eggs, environment, qrcode_util
 from application.utils.http_headers import header_safe
 
-
 # ---------------------------------------------------------------------------
 # environment.py
 # ---------------------------------------------------------------------------

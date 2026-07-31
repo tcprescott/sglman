@@ -6,7 +6,6 @@ from typing import List
 from fastapi import APIRouter, Depends, Query, status
 
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
-from application.errors import require_found
 from api.schemas.volunteers import (
     AssignRequest,
     AssignResponse,
@@ -23,6 +22,7 @@ from api.schemas.volunteers import (
     VolunteerShiftCreate,
     VolunteerShiftResponse,
 )
+from application.errors import require_found
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService

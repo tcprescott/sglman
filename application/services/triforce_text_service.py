@@ -12,15 +12,14 @@ import random
 import re
 from typing import List, Optional
 
+from application.feature_flags import requires_feature
 from application.repositories.triforce_text_repository import TriforceTextRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.feature_flag_service import FeatureFlagService
 from application.services.seedgen_service import SeedGenerationService
 from application.tenant_context import require_tenant_id
-from application.feature_flags import requires_feature
-from application.services.feature_flag_service import FeatureFlagService
 from models import FeatureFlag, Tournament, TriforceText, User
-
 
 # Same character set as sahasrahbot: A-Z, a-z, 0-9, space, common punctuation,
 # arrow glyphs, hiragana, and katakana. 19 chars max per line is an ALTTP

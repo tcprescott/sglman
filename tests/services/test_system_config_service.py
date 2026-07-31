@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from application.services.system_config_service import (
-    KEY_EVENT_START_DATE,
     KEY_EVENT_END_DATE,
+    KEY_EVENT_START_DATE,
     KEY_STATION_FORMAT,
     SystemConfigService,
 )

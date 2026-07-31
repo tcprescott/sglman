@@ -140,7 +140,7 @@ class RacetimeBotManager:
             await task
         except asyncio.CancelledError:
             pass
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception('racetime connection for bot %s errored during cancel', bot_id)
 
     async def stop(self) -> None:

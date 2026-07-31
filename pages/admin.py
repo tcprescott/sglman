@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from fastapi import Request
 from nicegui import app, ui
-from middleware.auth import protected_tab_page
 
 from application.services import (
     AuthService,
@@ -15,32 +14,33 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.tenant_context import get_current_tenant_id
+from middleware.auth import protected_tab_page
 from models import FeatureFlag, Role
+from pages.admin_tabs.admin_brackets import admin_brackets_page
+from pages.admin_tabs.admin_challonge import admin_challonge_page
+from pages.admin_tabs.admin_discord_events import admin_discord_events_page
+from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
+from pages.admin_tabs.admin_equipment import admin_equipment_page
+from pages.admin_tabs.admin_features import admin_features_page
+from pages.admin_tabs.admin_feedback import admin_feedback_page
+from pages.admin_tabs.admin_presets import admin_presets_page
+from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
+from pages.admin_tabs.admin_racetime import admin_racetime_page
+from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
 from pages.admin_tabs.admin_schedule import admin_schedule_page
+from pages.admin_tabs.admin_service_health import admin_service_health_page
 from pages.admin_tabs.admin_settings import admin_stream_rooms_page, admin_tournaments_page
-from pages.admin_tabs.admin_users import admin_users_page
-from pages.admin_tabs.admin_volunteer_roster import admin_volunteer_roster_page
-from pages.admin_tabs.admin_volunteers import admin_volunteers_page
-from pages.admin_tabs.reports import reports_page
-from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
+from pages.admin_tabs.admin_setup import admin_setup_page
+from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
 from pages.admin_tabs.admin_system_config import admin_system_config_page
 from pages.admin_tabs.admin_theme import admin_theme_page
 from pages.admin_tabs.admin_timezone import admin_timezone_page
-from pages.admin_tabs.admin_brackets import admin_brackets_page
-from pages.admin_tabs.admin_challonge import admin_challonge_page
-from pages.admin_tabs.admin_discord_roles import admin_discord_roles_page
+from pages.admin_tabs.admin_users import admin_users_page
+from pages.admin_tabs.admin_volunteer_roster import admin_volunteer_roster_page
+from pages.admin_tabs.admin_volunteers import admin_volunteers_page
 from pages.admin_tabs.admin_webhooks import admin_webhooks_page
-from pages.admin_tabs.admin_equipment import admin_equipment_page
-from pages.admin_tabs.admin_feedback import admin_feedback_page
-from pages.admin_tabs.admin_presets import admin_presets_page
-from pages.admin_tabs.admin_randomizer_keys import admin_randomizer_keys_page
-from pages.admin_tabs.admin_qualifiers import admin_qualifiers_page
-from pages.admin_tabs.admin_racetime import admin_racetime_page
-from pages.admin_tabs.admin_speedgaming import admin_speedgaming_page
-from pages.admin_tabs.admin_discord_events import admin_discord_events_page
-from pages.admin_tabs.admin_service_health import admin_service_health_page
-from pages.admin_tabs.admin_features import admin_features_page
-from pages.admin_tabs.admin_setup import admin_setup_page
+from pages.admin_tabs.reports import reports_page
+from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from theme.base import BaseLayout
 
 _ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'Integrations', 'System']
@@ -72,8 +72,8 @@ def build_admin_tabs(
     setup_steps: list[SetupStep] | None = None,
     base_path: str = '/admin',
     *,
-    match_id: int = None,
-    day: str = None,
+    match_id: int | None = None,
+    day: str | None = None,
 ) -> list[dict]:
     """The admin drawer's tabs, ordered by group.
 
@@ -157,23 +157,23 @@ def build_admin_tabs(
 def create() -> None:
     @protected_tab_page('/admin')
     async def admin_dashboard_page(
-        section: str = None,
+        section: str | None = None,
         request: Request = None,
-        report: str = None,
-        start: str = None,
-        end: str = None,
-        bucket: str = None,
-        tournament_id: int = None,
-        user_id: int = None,
-        stream_room_id: int = None,
-        state: str = None,
-        approval: str = None,
-        action: str = None,
-        focus: str = None,
-        category: str = None,
-        page: int = None,
-        match_id: int = None,
-        day: str = None,
+        report: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
+        bucket: str | None = None,
+        tournament_id: int | None = None,
+        user_id: int | None = None,
+        stream_room_id: int | None = None,
+        state: str | None = None,
+        approval: str | None = None,
+        action: str | None = None,
+        focus: str | None = None,
+        category: str | None = None,
+        page: int | None = None,
+        match_id: int | None = None,
+        day: str | None = None,
     ) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Admin')
         discord_id = app.storage.user.get('discord_id', None)

@@ -9,7 +9,6 @@ import pytest
 from application.services.volunteer.volunteer_profile_service import VolunteerProfileService
 from tests.factories import make_audit_double
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

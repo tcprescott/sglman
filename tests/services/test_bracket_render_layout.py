@@ -8,6 +8,8 @@ their feeders, and numbers matches uniquely. It lives under tests/services (it
 exercises the service) — the walker under test is theme/brackets/layout.py.
 """
 
+import itertools
+
 import pytest
 
 from application.services.bracket_service import BracketService
@@ -54,7 +56,7 @@ def _assert_no_overlap(layout):
         by_col.setdefault(p.col, []).append(p)
     for placements in by_col.values():
         ordered = sorted(placements, key=lambda p: p.top)
-        for a, b in zip(ordered, ordered[1:]):
+        for a, b in itertools.pairwise(ordered):
             assert a.top + CARD_HEIGHT <= b.top + 1e-9
 
 

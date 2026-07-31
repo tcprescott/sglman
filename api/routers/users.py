@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from api._helpers import load_user_or_404
 from api.dependencies import (
     ServiceErrorRoute,
     require_api_actor,
@@ -19,7 +20,6 @@ from api.schemas.user_actions import (
     UserSelfUpdate,
 )
 from api.schemas.users import UserDetailResponse, UserListItem
-from api._helpers import load_user_or_404
 from application.services import UserService
 from application.services.auth_service import AuthService
 from models import Role, User

@@ -15,7 +15,6 @@ from application.services.audit_service import AuditActions
 from application.services.station_service import StationService
 from tests.factories import make_audit_double
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 
 

@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from application.repositories._tenant import current_tenant_id, scoped
-from models import MatchNotificationLevel, TournamentNotificationPreference, Tournament, User
+from models import MatchNotificationLevel, Tournament, TournamentNotificationPreference, User
 
 
 class TournamentNotificationRepository:

@@ -8,14 +8,14 @@ The mirror needs a **linked Discord server** — the page surfaces that up front
 """
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
-from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     DiscordEventSyncService,
     get_user_from_discord_id,
 )
+from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 _ENABLED_ICON = '''
     <q-icon :name="props.row.enabled_bool ? 'check_circle' : 'cancel'"

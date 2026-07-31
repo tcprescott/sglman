@@ -10,7 +10,6 @@ events — those stay with the service methods that call it.
 
 from typing import List
 
-from models import Match, User
 from application.errors import require_found
 from application.repositories import (
     MatchAcknowledgmentRepository,
@@ -18,6 +17,7 @@ from application.repositories import (
     TournamentRepository,
     UserRepository,
 )
+from models import Match, User
 
 
 class MatchParticipants:

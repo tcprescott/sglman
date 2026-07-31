@@ -29,10 +29,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from migrations.tortoise_config import TORTOISE_ORM
 from tortoise import Tortoise
+
+from migrations.tortoise_config import TORTOISE_ORM
 from models import BracketMatchGame, BracketMatchGameState, BracketMatchState
 
 

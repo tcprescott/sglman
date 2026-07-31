@@ -374,7 +374,7 @@ class ServiceHealthService:
         bots = await RacetimeBotService().list_authorized_for_tenant(tenant_id)
         if bots:
             statuses = [_map_racetime_status(b.status, b.status_message) for b in bots]
-            issues = [f'{b.category} ({_status_value(b.status)})' for b, s in zip(bots, statuses) if s in _ALERTABLE]
+            issues = [f'{b.category} ({_status_value(b.status)})' for b, s in zip(bots, statuses, strict=False) if s in _ALERTABLE]
             message = (f'{len(bots)} bot(s); needs attention: {", ".join(issues)}'
                        if issues else f'{len(bots)} authorized bot(s), all healthy')
             results.append(ProbeResult(

@@ -14,7 +14,7 @@ from starlette.routing import Route
 
 from application.services import tenant_service
 from application.tenant_context import get_current_tenant_id, reset_tenant_id, set_tenant_id
-from middleware.tenant import TenantMiddleware, TransportPrefixMiddleware, _TENANT_TRANSPORT_RE
+from middleware.tenant import _TENANT_TRANSPORT_RE, TenantMiddleware, TransportPrefixMiddleware
 from models import Tenant
 
 

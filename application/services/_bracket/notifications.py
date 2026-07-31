@@ -100,7 +100,7 @@ class BracketNotificationMixin:
                 if e1 or e2:
                     parts.append(f'Series {max(e1, e2)}-{min(e1, e2)}')
             return ' · '.join(parts), frees
-        except Exception:  # noqa: BLE001 - a DM must not fail over its subtitle
+        except Exception:
             logger.exception('bracket DM context lookup failed for match %s', match_id)
             return '', False
 
@@ -197,7 +197,7 @@ class BracketNotificationMixin:
                     schedule_url=schedule_url,
                     rebook=rebook,
                 ))
-        except Exception:  # noqa: BLE001 - never block the advancement that fired it
+        except Exception:
             logger.exception(
                 'matchup-ready notification failed for bracket match %s',
                 getattr(bracket_match, 'id', None),

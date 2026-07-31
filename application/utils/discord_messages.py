@@ -12,7 +12,6 @@ time, and the stage (when assigned).
 
 from typing import Optional
 
-
 # ---------------------------------------------------------------------------
 # Shared error constants (used in multiple handlers)
 # ---------------------------------------------------------------------------

@@ -18,9 +18,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 from application.errors import require_found
+from application.feature_flags import requires_feature
 from application.repositories import ChallongeRepository, TournamentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.feature_flag_service import FeatureFlagService
 from application.services.match.match_service import MatchService
 from application.utils.clients.challonge_client import (
     ChallongeAPIError,
@@ -30,13 +32,11 @@ from application.utils.clients.challonge_client import (
 )
 from application.utils.environment import get_base_url
 from application.utils.mocks.mock_challonge import is_mock_challonge
-from application.feature_flags import requires_feature
-from application.services.feature_flag_service import FeatureFlagService
 from models import (
-    FeatureFlag,
     ChallongeConnection,
     ChallongeMatch,
     ChallongeMatchState,
+    FeatureFlag,
     Match,
     Tournament,
     User,

@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from application.utils.web_push import generate_vapid_keys  # noqa: E402
+from application.utils.web_push import generate_vapid_keys
 
 
 def main() -> None:

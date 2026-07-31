@@ -1,9 +1,9 @@
 """Tests for MockDiscordService and DiscordService error branches (unit)."""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 # Scheduled events must carry aware datetimes — discord.py raises ValueError on
 # naive ones. Tortoise hands back aware UTC, so this matches production.

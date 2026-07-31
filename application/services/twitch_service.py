@@ -13,18 +13,18 @@ plus a thin public shell that preserves the historical method surface.
 
 from typing import Any, Dict, Optional
 
+from application.services.audit_service import AuditActions
 from application.services.identity_link_service import (
     IdentityLinkProvider,
     IdentityLinkService,
 )
-from application.services.audit_service import AuditActions
-from application.utils.mocks.mock_twitch import is_mock_twitch
 from application.utils.clients.twitch_client import (
     MockTwitchClient,
     TwitchAPIError,
     TwitchClient,
     build_authorize_url,
 )
+from application.utils.mocks.mock_twitch import is_mock_twitch
 from models import User
 
 # Basic public identity (id / login / display name via helix/users) needs no

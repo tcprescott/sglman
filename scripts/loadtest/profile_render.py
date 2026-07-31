@@ -5,9 +5,9 @@ batch of renders so the hot path of the ~250ms/render CPU cost is visible.
 """
 import asyncio
 import cProfile
-import pstats
 import io
 import os
+import pstats
 
 import httpx
 

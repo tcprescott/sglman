@@ -10,9 +10,8 @@ Read-only: no writes, no audit, no Discord notifications.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from models import Match, MatchAcknowledgment
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
@@ -26,6 +25,7 @@ from application.utils.timezone import (
     format_local_time,
     to_utc_aware,
 )
+from models import Match, MatchAcknowledgment
 
 
 class MatchDisplayService:

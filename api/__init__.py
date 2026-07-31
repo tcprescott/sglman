@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends
 
 from api.dependencies import require_feature, tenant_context_scope
 from api.rate_limit import rate_limit
-from models import FeatureFlag
 from api.routers import (
     async_qualifier_live_races,
     async_qualifiers,
@@ -42,6 +41,7 @@ from api.routers import (
     web_push,
     webhooks,
 )
+from models import FeatureFlag
 
 router = APIRouter(dependencies=[Depends(rate_limit), Depends(tenant_context_scope)])
 # Unauthenticated liveness probe (no auth dependency on this router).

@@ -13,7 +13,6 @@ import pytest
 from application.services.auth_service import AuthService, get_user_from_discord_id
 from models import Role
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

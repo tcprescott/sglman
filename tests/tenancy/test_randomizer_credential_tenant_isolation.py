@@ -11,8 +11,8 @@ import pytest
 from application.repositories.randomizer_credential_repository import (
     RandomizerCredentialRepository,
 )
-from application.services.seedgen_service import SeedGenerationService
 from application.services.randomizer_credential_service import RandomizerCredentialService
+from application.services.seedgen_service import SeedGenerationService
 from application.tenant_context import tenant_scope
 from models import RandomizerCredential
 

@@ -46,9 +46,11 @@ def mapping(discord_role_id, app_role):
 def patch_deps(monkeypatch):
     """Helper to configure the module-level dependencies of sync_user_roles."""
 
-    def _apply(*, guild_id=42, member_result=(True, set()), current_roles=set()):
+    def _apply(*, guild_id=42, member_result=(True, set()), current_roles=None):
         # The guild id now lives on the tenant; login sync fans out over every
         # tenant that has one. No tenant with a guild -> "no_guild_configured".
+        if current_roles is None:
+            current_roles = set()
         tenants = [] if guild_id is None else [SimpleNamespace(id=1, discord_guild_id=guild_id)]
         monkeypatch.setattr(
             drms.TenantService, 'list_tenants', AsyncMock(return_value=tenants),

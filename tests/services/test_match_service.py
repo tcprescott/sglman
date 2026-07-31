@@ -8,7 +8,6 @@ import pytest
 from application.services.match.match_service import MatchService
 from tests.factories import make_audit_double, make_user
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 
 
@@ -465,7 +464,7 @@ async def _make_onsite_match(*, seated=False, finished=False, stations=()):
     for slot in (1, 2):
         user = await make_user(discord_id=n * 10 + slot, username=f'station-{n}-{slot}')
         players.append(await MatchPlayers.create(match=match, user=user))
-    for player, station in zip(players, stations):
+    for player, station in zip(players, stations, strict=False):
         player.assigned_station = station
         await player.save()
     return match, players

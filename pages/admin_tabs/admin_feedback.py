@@ -1,12 +1,12 @@
 """Admin Feedback Review Page"""
 
 from nicegui import app, background_tasks, ui
-from theme.empty_state import no_data_slot
-from theme.notify import notify_error
-from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
+from theme.empty_state import no_data_slot
+from theme.notify import notify_error
+from theme.tables.mobile_grid import enable_mobile_grid
 
 _CATEGORY_LABELS = {
     'bug': 'Bug',

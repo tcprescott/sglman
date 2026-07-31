@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 
 from nicegui import ui
 
-from application.utils.environment import get_base_url
 from application.services import ApiTokenService
+from application.utils.environment import get_base_url
 from models import ApiTokenOrigin, User
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 

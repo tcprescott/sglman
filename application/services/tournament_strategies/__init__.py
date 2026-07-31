@@ -59,4 +59,4 @@ def available_strategies(kind: str) -> List[str]:
     return sorted(name for k, name in _REGISTRY if k == kind)
 
 
-__all__ = ['register_strategy', 'get_strategy', 'available_strategies']
+__all__ = ['available_strategies', 'get_strategy', 'register_strategy']

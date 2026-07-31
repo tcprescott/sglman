@@ -3,9 +3,6 @@
 import json
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
-from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     PresetService,
@@ -13,6 +10,9 @@ from application.services import (
     SeedGenerationService,
     get_user_from_discord_id,
 )
+from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="edit" color="primary"
@@ -116,7 +116,7 @@ async def admin_presets_page() -> None:
                     randomizer_choices = list(available_randomizers)
                     # Never drop the row's current randomizer from its own editor.
                     if is_edit and existing['randomizer'] not in randomizer_choices:
-                        randomizer_choices = randomizer_choices + [existing['randomizer']]
+                        randomizer_choices = [*randomizer_choices, existing['randomizer']]
                     randomizer_input = ui.select(
                         randomizer_choices,
                         label='Randomizer',

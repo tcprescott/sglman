@@ -14,6 +14,7 @@ from nicegui import ui
 from application.services import AnalyticsService
 from application.utils.timezone import now_local
 from theme.tables.mobile_grid import enable_mobile_grid
+
 from .shared import (
     CHART_GOLD,
     CHART_NEUTRAL,
@@ -29,7 +30,6 @@ from .shared import (
     themed_chart_option,
     tournament_filter,
 )
-
 
 # Fallback trailing window for a community with no history at all: trends need
 # history, so a single event weekend (the reports default) would collapse to one

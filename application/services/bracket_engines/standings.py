@@ -280,8 +280,8 @@ def compute_standings(
 __all__ = [
     'KNOWN_TIEBREAKERS',
     'ResultRow',
-    'StandingsConfig',
     'Standing',
+    'StandingsConfig',
     'compute_standings',
     'standings_config_from',
 ]

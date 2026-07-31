@@ -22,9 +22,9 @@ from mcp.types import ToolAnnotations
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import tenant_scope
 from application.timezone_context import tz_scope
-from models import FeatureFlag
 from mcpserver.auth import Gate, authorize, current_actor, resolve_tenant
 from mcpserver.errors import map_service_error
+from models import FeatureFlag
 
 # name -> (gate, feature). Read by the catalogue test and by whoami.
 TOOL_GATES: Dict[str, Tuple[Gate, Optional[FeatureFlag]]] = {}

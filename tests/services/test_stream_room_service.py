@@ -12,7 +12,6 @@ import pytest
 from application.services.stream_room_service import StreamRoomService
 from tests.factories import make_audit_double
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
 def service():

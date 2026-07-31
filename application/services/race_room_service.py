@@ -31,8 +31,8 @@ from application.events import Event, EventType, event_bus
 from application.repositories import RacetimeRoomRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.tenant_context import require_tenant_id
 from application.services.user_service import UserService
+from application.tenant_context import require_tenant_id
 from application.utils.racetime_entrants import unmatched_handle
 from models import (
     Match,
@@ -276,7 +276,7 @@ class RaceRoomService:
             from application.services.match.match_schedule_service import MatchScheduleService
 
             await MatchScheduleService().generate_seed(match.id, actor)
-        except Exception:  # noqa: BLE001 - a seed failure must not block the room
+        except Exception:
             logger.exception('seed attach failed for match %s', match.id)
 
     def _publish_match_result(self, match: Match, results, actor: User) -> None:
@@ -308,7 +308,7 @@ class RaceRoomService:
             from application.services.bracket_service import BracketService
 
             await BracketService().settle_game_if_linked(match, actor)
-        except Exception:  # noqa: BLE001 - brackets are an optional downstream step
+        except Exception:
             logger.exception('bracket settle failed for match %s', match.id)
 
     async def _push_challonge(self, match: Match, actor: User) -> None:
@@ -316,7 +316,7 @@ class RaceRoomService:
             from application.services.challonge_service import ChallongeService
 
             await ChallongeService().push_result_if_linked(match, actor)
-        except Exception:  # noqa: BLE001 - Challonge is an optional downstream step
+        except Exception:
             logger.exception('challonge push failed for match %s', match.id)
 
     async def _system_actor(self) -> User:

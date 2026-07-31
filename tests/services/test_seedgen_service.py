@@ -4,7 +4,6 @@ import pytest
 
 from application.services.seedgen_service import SeedGenerationService
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

@@ -22,4 +22,4 @@ from application.events import dispatch_queue
 from application.events.event import Event
 from application.events.event_types import EventType
 
-__all__ = ['event_bus', 'dispatch_queue', 'Event', 'EventType']
+__all__ = ['Event', 'EventType', 'dispatch_queue', 'event_bus']

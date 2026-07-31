@@ -7,6 +7,14 @@ between repositories. They should NOT know about UI components.
 
 from application.errors import NotFoundError, require_found
 
+from . import (
+    availability_windows,
+    oauth_handoff_service,
+    race_room_worker,
+    reporting_shared,
+    service_health_worker,
+    speedgaming_sync_worker,
+)
 from .analytics_service import AnalyticsService
 from .api_token_service import ApiTokenService
 from .async_qualifier import (
@@ -35,19 +43,6 @@ from .discord import (
     discord_event_worker,
     discord_queue,
 )
-from .volunteer import (
-    DraftPolicy,
-    VolunteerAutoscheduleService,
-    VolunteerAvailabilityService,
-    VolunteerExportService,
-    VolunteerPositionService,
-    VolunteerProfileService,
-    VolunteerQualificationService,
-    VolunteerScheduleService,
-    volunteer_reminder,
-)
-from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
-from . import service_health_worker
 from .equipment_service import EquipmentService
 from .feature_flag_service import FeatureFlagService
 from .feedback_service import FeedbackService
@@ -62,132 +57,139 @@ from .match import (
     MatchWatcherService,
     assert_sg_fields_unchanged,
 )
-from . import availability_windows
 from .mcp_auth_service import McpAuthService
 from .player_availability_service import PlayerAvailabilityService
-from . import oauth_handoff_service
 from .preset_service import PresetService
-from .randomizer_credential_service import RandomizerCredentialService
 from .race_room_profile_service import RaceRoomProfileService
 from .race_room_service import RaceRoomService
-from . import race_room_worker
 from .racetime_bot_service import RacetimeBotService
 from .racetime_room_service import RacetimeRoomService
 from .racetime_service import RacetimeService
-from . import reporting_shared
+from .randomizer_credential_service import RandomizerCredentialService
 from .reports_service import ReportsService
 from .seedgen_service import SeedGenerationService
+from .service_health_service import ProbeResult, ServiceHealthService, ServiceStatus
 from .speedgaming_etl_service import SpeedGamingETLService
 from .speedgaming_sync_service import SpeedGamingSyncService
-from . import speedgaming_sync_worker
 from .station_service import StationService
 from .stream_room_service import StreamRoomService
 from .system_config_service import SystemConfigService
+from .telemetry_service import TelemetryService
 from .tenant_membership_service import TenantMembershipService
 from .tenant_service import TenantService
 from .tenant_setup_service import SetupStep, TenantSetupService
 from .tenant_theme_service import TenantThemeService
 from .timezone_service import TimezoneService
-from .telemetry_service import TelemetryService
+from .tournament_config import TournamentConfig, validate_tournament_config
 from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
 from .triforce_text_service import TriforceTextService
 from .twitch_service import TwitchService
 from .user_service import UserService
-from .tournament_config import TournamentConfig, validate_tournament_config
+from .volunteer import (
+    DraftPolicy,
+    VolunteerAutoscheduleService,
+    VolunteerAvailabilityService,
+    VolunteerExportService,
+    VolunteerPositionService,
+    VolunteerProfileService,
+    VolunteerQualificationService,
+    VolunteerScheduleService,
+    volunteer_reminder,
+)
 from .web_push_service import WebPushService
 from .webhook_service import WebhookService
 
 __all__ = [
-    'NotFoundError',
-    'require_found',
-    'TournamentConfig',
-    'validate_tournament_config',
     'AnalyticsService',
     'ApiTokenService',
     'AsyncQualifierConfig',
-    'validate_async_qualifier_config',
-    'async_qualifier_access',
-    'async_qualifier_scoring',
-    'availability_windows',
-    'reporting_shared',
     'AsyncQualifierDraw',
-    'AsyncQualifierService',
     'AsyncQualifierLiveRaceService',
-    'validate_counts',
-    'validate_window',
+    'AsyncQualifierService',
     'AuditService',
     'AuthService',
     'BracketConfig',
-    'validate_bracket_config',
     'BracketService',
+    'CancellationMixin',
     'ChallongeService',
     'CrewService',
-    'discord_queue',
-    'get_user_from_discord_id',
-    'volunteer_reminder',
     'DiscordEventReconcilerService',
-    'ServiceHealthService',
-    'ServiceStatus',
-    'ProbeResult',
-    'service_health_worker',
     'DiscordEventSyncService',
-    'discord_event_worker',
     'DiscordLinkService',
     'DiscordRoleMappingService',
     'DiscordService',
+    'DraftPolicy',
     'EquipmentService',
     'FeatureFlagService',
     'FeedbackService',
     'IdentityLinkProvider',
     'IdentityLinkService',
-    'CancellationMixin',
-    'MatchParticipants',
-    'MatchService',
-    'assert_sg_fields_unchanged',
     'MatchDisplayService',
+    'MatchParticipants',
     'MatchScheduleService',
+    'MatchService',
     'MatchSuggestionService',
     'MatchWatcherService',
     'McpAuthService',
-    'oauth_handoff_service',
+    'NotFoundError',
     'PlayerAvailabilityService',
     'PresetService',
-    'RandomizerCredentialService',
+    'ProbeResult',
     'RaceRoomProfileService',
     'RaceRoomService',
-    'race_room_worker',
     'RacetimeBotService',
     'RacetimeRoomService',
     'RacetimeService',
+    'RandomizerCredentialService',
     'ReportsService',
     'SeedGenerationService',
+    'ServiceHealthService',
+    'ServiceStatus',
+    'SetupStep',
     'SpeedGamingETLService',
     'SpeedGamingSyncService',
-    'speedgaming_sync_worker',
     'StationService',
     'StreamRoomService',
     'SystemConfigService',
+    'TelemetryService',
     'TenantMembershipService',
     'TenantService',
-    'SetupStep',
     'TenantSetupService',
     'TenantThemeService',
     'TimezoneService',
-    'TelemetryService',
+    'TournamentConfig',
     'TournamentNotificationService',
     'TournamentService',
     'TriforceTextService',
     'TwitchService',
     'UserService',
-    'DraftPolicy',
     'VolunteerAutoscheduleService',
     'VolunteerAvailabilityService',
     'VolunteerExportService',
-    'VolunteerQualificationService',
     'VolunteerPositionService',
     'VolunteerProfileService',
+    'VolunteerQualificationService',
     'VolunteerScheduleService',
     'WebPushService',
     'WebhookService',
+    'assert_sg_fields_unchanged',
+    'async_qualifier_access',
+    'async_qualifier_scoring',
+    'availability_windows',
+    'discord_event_worker',
+    'discord_queue',
+    'get_user_from_discord_id',
+    'oauth_handoff_service',
+    'race_room_worker',
+    'reporting_shared',
+    'require_found',
+    'service_health_worker',
+    'speedgaming_sync_worker',
+    'validate_async_qualifier_config',
+    'validate_bracket_config',
+    'validate_counts',
+    'validate_tournament_config',
+    'validate_window',
+    'volunteer_reminder',
 ]

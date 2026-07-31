@@ -7,7 +7,6 @@ from application.tenant_context import require_tenant_id
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
-
 _STATUS_OPTIONS = {
     'pending': 'Pending',
     'approved': 'Approved',

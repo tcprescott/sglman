@@ -7,6 +7,8 @@ connectors joining the right cards — across single-elim, the irregular
 double-elim losers bracket, byes, and the finals.
 """
 
+import itertools
+
 from theme.brackets.layout import (
     CARD_HEIGHT,
     MatchNode,
@@ -80,7 +82,7 @@ class TestElimination:
         # Adjacent cards in a column never overlap vertically.
         for col_placements in by_col.values():
             ordered = sorted(col_placements, key=lambda p: p.top)
-            for a, b in zip(ordered, ordered[1:]):
+            for a, b in itertools.pairwise(ordered):
                 assert a.top + CARD_HEIGHT <= b.top + 1e-9
 
     def test_connectors_form_elbow(self):

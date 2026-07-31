@@ -3,13 +3,13 @@
 import json
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
-from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
+from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 # Event-type options for the multiselect. '*' (all events) is offered first.
 _EVENT_OPTIONS = {EventType.WILDCARD: 'All events (*)'}

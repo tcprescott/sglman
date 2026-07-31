@@ -6,7 +6,8 @@ Handles Discord-related operations like sending DMs.
 
 import logging
 from datetime import datetime
-from typing import Awaitable, Callable, Tuple, Optional, List, Dict, Set, Union
+from typing import Awaitable, Callable, Dict, List, Optional, Set, Tuple, Union
+
 import discord
 from discord.ext import commands
 
@@ -101,8 +102,8 @@ async def _sync_member_roles(guild_id: int, discord_user_id: int) -> None:
     event can never crash the gateway connection.
     """
     try:
-        from application.services.tenant_service import TenantService
         from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
+        from application.services.tenant_service import TenantService
         from models import User
 
         # A guild may back several tenants (a shared server), so sync every one.
@@ -231,9 +232,9 @@ class DiscordService:
         except discord.Forbidden:
             return False, "Cannot send DM to this user (DMs may be disabled)"
         except discord.HTTPException as e:
-            return False, f"Failed to send message: {str(e)}"
+            return False, f"Failed to send message: {e!s}"
         except Exception as e:
-            return False, f"Discord bot error: {str(e)}"
+            return False, f"Discord bot error: {e!s}"
 
     # The five view-bearing senders below are thin wrappers over send_dm: each
     # resolves its registered view factory by kind (populated by the bot package
@@ -298,7 +299,7 @@ class DiscordService:
             data = [{"id": g.id, "name": g.name} for g in guilds]
             return True, data
         except Exception as e:
-            return False, f"Failed to retrieve guilds: {str(e)}"
+            return False, f"Failed to retrieve guilds: {e!s}"
 
     async def list_guild_roles(self, guild_id: int) -> Tuple[bool, Union[List[Dict[str, Union[int, str]]], str]]:
         """
@@ -340,9 +341,9 @@ class DiscordService:
             data = [{"id": r.id, "name": r.name} for r in roles_list]
             return True, data
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while retrieving roles: {str(e)}"
+            return False, f"Discord HTTP error while retrieving roles: {e!s}"
         except Exception as e:
-            return False, f"Failed to retrieve roles: {str(e)}"
+            return False, f"Failed to retrieve roles: {e!s}"
 
     async def _modify_role(
         self, guild_id: int, user_id: int, role_id: int, reason: Optional[str], *, add: bool,
@@ -388,9 +389,9 @@ class DiscordService:
         except discord.Forbidden:
             return False, "Bot lacks permissions or role hierarchy prevents this action"
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while {gerund} role: {str(e)}"
+            return False, f"Discord HTTP error while {gerund} role: {e!s}"
         except Exception as e:
-            return False, f"Failed to {verb} role: {str(e)}"
+            return False, f"Failed to {verb} role: {e!s}"
 
     async def add_role_to_user(self, guild_id: int, user_id: int, role_id: int, reason: Optional[str] = None) -> Tuple[bool, str]:
         """
@@ -454,9 +455,9 @@ class DiscordService:
         except discord.Forbidden:
             return False, "Bot lacks permissions to read guild members"
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while reading member roles: {str(e)}"
+            return False, f"Discord HTTP error while reading member roles: {e!s}"
         except Exception as e:
-            return False, f"Failed to read member roles: {str(e)}"
+            return False, f"Failed to read member roles: {e!s}"
 
     async def get_guild_summary(self, guild_id: int) -> Tuple[bool, Union[Dict[str, Union[int, str]], str]]:
         """Return ``{"id", "name"}`` for a guild the bot can see, else an error.
@@ -479,9 +480,9 @@ class DiscordService:
                     return False, "Insufficient permissions to access this guild"
             return True, {"id": guild.id, "name": guild.name}
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while reading guild: {str(e)}"
+            return False, f"Discord HTTP error while reading guild: {e!s}"
         except Exception as e:
-            return False, f"Failed to read guild: {str(e)}"
+            return False, f"Failed to read guild: {e!s}"
 
     async def member_can_manage_guild(self, guild_id: int, user_id: int) -> Tuple[bool, Union[bool, str]]:
         """Whether ``user_id`` may administer ``guild_id`` (owner / Administrator / Manage Server).
@@ -521,9 +522,9 @@ class DiscordService:
         except discord.Forbidden:
             return False, "Bot lacks permissions to read guild members"
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while checking permissions: {str(e)}"
+            return False, f"Discord HTTP error while checking permissions: {e!s}"
         except Exception as e:
-            return False, f"Failed to check permissions: {str(e)}"
+            return False, f"Failed to check permissions: {e!s}"
 
     # --- Scheduled events (PR 8) --------------------------------------------
     # The Discord Events reconciler mirrors Wizzrobe's schedule into the tenant
@@ -565,9 +566,9 @@ class DiscordService:
         except discord.Forbidden:
             return False, "Bot lacks permission to manage events in this server."
         except discord.HTTPException as e:
-            return False, f"Discord HTTP error while {gerund} event: {str(e)}"
+            return False, f"Discord HTTP error while {gerund} event: {e!s}"
         except Exception as e:
-            return False, f"Failed to {verb} event: {str(e)}"
+            return False, f"Failed to {verb} event: {e!s}"
 
     async def create_scheduled_event(
         self,
@@ -739,7 +740,7 @@ class MockDiscordService:
         return True, "Event cancelled."
 
 
-from application.utils.mocks.mock_discord import is_mock_discord  # noqa: E402
+from application.utils.mocks.mock_discord import is_mock_discord
 
 # Stable handle to the real implementation; survives the mock swap below so tests
 # can exercise the real error branches regardless of MOCK_DISCORD.

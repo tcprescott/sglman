@@ -20,8 +20,8 @@ or cached artifact, or a notification rendered for someone else. See
 """
 
 from datetime import date, datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo
 from typing import Optional, Union
+from zoneinfo import ZoneInfo
 
 from application.timezone_context import (
     FALLBACK_TIMEZONE,

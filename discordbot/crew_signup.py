@@ -7,7 +7,6 @@ import discord
 from application.utils.discord_messages import crew_signup_confirmation
 from discordbot._ack_common import DMInteractionError, SendFn, run_dm_interaction
 
-
 CUSTOM_ID_PREFIX = 'crew_signup'
 
 MSG_UNEXPECTED_ERROR = (
@@ -39,7 +38,7 @@ def _parse(custom_id: str) -> tuple[str, int]:
     try:
         match_id = int(match_id_str)
     except ValueError:
-        raise DMInteractionError('Invalid match ID.')
+        raise DMInteractionError('Invalid match ID.') from None
     if role not in ('commentator', 'tracker'):
         raise DMInteractionError('Invalid role.')
     return role, match_id

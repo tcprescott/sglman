@@ -12,8 +12,8 @@ from application.services.reporting_shared import (
     DEFAULT_MATCH_DURATION_MIN,
     ON_TIME_THRESHOLD_MIN,
     crew_requirement,
-    to_display,
     is_crew_covered,
+    to_display,
     window_hours,
 )
 from application.services.system_config_service import SystemConfigService
@@ -141,7 +141,7 @@ class ReportsService:
         counts: List[int],
         top_n: int = 5,
     ) -> List[Tuple[datetime, int]]:
-        return sorted(zip(intervals, counts), key=lambda x: x[1], reverse=True)[:top_n]
+        return sorted(zip(intervals, counts, strict=False), key=lambda x: x[1], reverse=True)[:top_n]
 
     async def matches_active_at(
         self,

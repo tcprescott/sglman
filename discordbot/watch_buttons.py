@@ -10,7 +10,6 @@ import discord
 from application.utils.discord_messages import unwatch_confirmation
 from discordbot._ack_common import DMInteractionError, SendFn, run_dm_interaction
 
-
 CUSTOM_ID_PREFIX = 'match_watch'
 
 MSG_UNEXPECTED_ERROR = (
@@ -36,7 +35,7 @@ def _parse(custom_id: str) -> int:
     try:
         return int(parts[2])
     except ValueError:
-        raise DMInteractionError('Invalid match ID.')
+        raise DMInteractionError('Invalid match ID.') from None
 
 
 async def handle_unwatch_interaction(interaction: discord.Interaction) -> None:

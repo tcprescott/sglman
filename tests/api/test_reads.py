@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 
-
 from models import (
     AuditLog,
     Match,
@@ -14,7 +13,6 @@ from models import (
     User,
 )
 from tests.api_helpers import client_for, create_user_token
-
 
 # ---------------------------------------------------------------------------
 # Tournaments / stream rooms — any authenticated user

@@ -2,10 +2,10 @@ from nicegui import ui
 from tortoise.functions import Count
 
 from application.tenant_context import get_current_tenant_id
-from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
+from theme.tables.admin_crud import capture_render_context, scoped_background
 
 
 class TournamentTableView:

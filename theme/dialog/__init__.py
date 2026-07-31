@@ -11,10 +11,9 @@ from theme.dialog.tournament_edit_dialog import TournamentDialog
 from theme.dialog.user_edit_dialog import AdminUserDialog, UserDialog
 
 __all__ = [
+    'AdminUserDialog',
     'CatFactDialog',
     'CheckoutDialog',
-    'open_checkout',
-    'quick_checkin',
     'ConfirmationDialog',
     'EquipmentDialog',
     'FeedbackDialog',
@@ -23,6 +22,7 @@ __all__ = [
     'SendMessageDialog',
     'StationAssignmentDialog',
     'TournamentDialog',
-    'AdminUserDialog',
     'UserDialog',
+    'open_checkout',
+    'quick_checkin',
 ]

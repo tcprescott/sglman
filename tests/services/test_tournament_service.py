@@ -14,7 +14,6 @@ import pytest
 from application.services.tournament_service import TournamentService
 from tests.factories import make_audit_double
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
 def service():

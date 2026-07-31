@@ -42,12 +42,12 @@ from application.repositories.racetime_room_repository import RacetimeRoomReposi
 from application.services.audit_service import AuditActions, AuditService
 from application.services.match.match_participants import MatchParticipants
 from application.services.tenant_membership_service import TenantMembershipService
-from application.utils.hashing import stable_content_hash
 from application.utils.clients.speedgaming_client import (
     SpeedGamingAPIError,
     SpeedGamingClient,
     get_speedgaming_client,
 )
+from application.utils.hashing import stable_content_hash
 from models import Match, SpeedGamingEventLink, SyncStatus, User
 
 logger = logging.getLogger(__name__)

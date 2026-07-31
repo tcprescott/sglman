@@ -8,7 +8,6 @@ import pytest
 from application.services.crew_service import CrewService
 from tests.factories import make_audit_double
 
-
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture(autouse=True)
 def bypass_transactions(monkeypatch):

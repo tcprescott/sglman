@@ -7,8 +7,15 @@ Must run inside the target tenant's ``tenant_scope`` — called from
 from datetime import date, datetime, timedelta
 
 from models import (
-    ChallongeApiUsage, ChallongeConnection, ChallongeMatch, ChallongeMatchState,
-    ChallongeParticipant, Match, Tenant, Tournament, User,
+    ChallongeApiUsage,
+    ChallongeConnection,
+    ChallongeMatch,
+    ChallongeMatchState,
+    ChallongeParticipant,
+    Match,
+    Tenant,
+    Tournament,
+    User,
 )
 
 

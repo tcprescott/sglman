@@ -25,23 +25,43 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tortoise import Tortoise
-from models import (
-    Tenant, TenantMembership, TenantFeatureFlag, FeatureFlagGroup, FeatureFlag,
-    TenantJoinRequest, JoinRequestStatus,
-    User, UserRole, Role, RoleSource,
-    Tournament, TournamentPlayers,
-    Commentator, Tracker,
-    Station, StreamRoom, SystemConfiguration,
-    ApiToken, ApiTokenOrigin, McpOAuthClient,
-    Feedback, FeedbackCategory, FeedbackStatus,
-    AuditLog, DiscordRoleMapping, TriforceText, PlayerAvailability,
-    VolunteerAvailabilityStatus,
-    RacetimeBot,
-)
-from application.tenant_context import tenant_scope
+
 from application.services.audit_service import AuditActions
 from application.services.feature_flag_service import FeatureFlagService
+from application.tenant_context import tenant_scope
 from application.utils.timezone import now_local, parse_local_datetime
+from models import (
+    ApiToken,
+    ApiTokenOrigin,
+    AuditLog,
+    Commentator,
+    DiscordRoleMapping,
+    FeatureFlag,
+    FeatureFlagGroup,
+    Feedback,
+    FeedbackCategory,
+    FeedbackStatus,
+    JoinRequestStatus,
+    McpOAuthClient,
+    PlayerAvailability,
+    RacetimeBot,
+    Role,
+    RoleSource,
+    Station,
+    StreamRoom,
+    SystemConfiguration,
+    Tenant,
+    TenantFeatureFlag,
+    TenantJoinRequest,
+    TenantMembership,
+    Tournament,
+    TournamentPlayers,
+    Tracker,
+    TriforceText,
+    User,
+    UserRole,
+    VolunteerAvailabilityStatus,
+)
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
@@ -49,17 +69,23 @@ from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_match_day import seed_match_day_for_tenant
 from scripts.seed_matches import seed_matches_for_tenant
 from scripts.seed_observability import seed_observability_for_tenant
+from scripts.seed_online import (
+    assert_unlinked_probe_users,
+    link_racetime_identities,
+    link_twitch_identities,
+    reset_unlinked_probe_users,
+    seed_online_for_tenant,
+    seed_racetime_bots,
+)
 from scripts.seed_onsite import seed_onsite_for_tenant
 from scripts.seed_play_in import seed_play_in_for_tenant
 from scripts.seed_support import (
-    RACER_SPECS, USER_SPECS, backfill, fixture_discord_id,
+    RACER_SPECS,
+    USER_SPECS,
+    backfill,
+    fixture_discord_id,
 )
 from scripts.seed_volunteers import seed_volunteers_for_tenant
-from scripts.seed_online import (
-    assert_unlinked_probe_users, link_racetime_identities, link_twitch_identities,
-    reset_unlinked_probe_users, seed_racetime_bots, seed_online_for_tenant,
-)
-
 
 # Two dev tenants. Tenant A reuses the migration's ``default`` slug; on a fresh
 # dev DB the backfill creates it empty and this adopts it. Tenant B carries a

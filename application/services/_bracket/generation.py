@@ -317,7 +317,7 @@ class GenerationMixin:
         used = {e.seed for e in entries if e.seed is not None}
         available = [s for s in range(1, n + 1) if s not in used]
         missing = sorted((e for e in entries if e.seed is None), key=lambda e: e.id)
-        filled = dict(zip((e.id for e in missing), available))
+        filled = dict(zip((e.id for e in missing), available, strict=False))
         seed_of: Dict[int, Optional[int]] = {
             e.id: (e.seed if e.seed is not None else filled.get(e.id)) for e in entries
         }

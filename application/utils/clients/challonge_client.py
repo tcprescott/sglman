@@ -326,7 +326,7 @@ _MOCK_MATCHES = [
 class MockChallongeClient(ChallongeClient):
     """Canned client used when MOCK_CHALLONGE is enabled."""
 
-    def __init__(self, *args, **kwargs):  # noqa: D401 - signature compat
+    def __init__(self, *args, **kwargs):
         super().__init__('mock', 'mock', kwargs.get('token_provider'))
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:

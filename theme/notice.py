@@ -22,7 +22,7 @@ no single universal hook — ``protected_page``'s wrapper is not one, because
 
 from nicegui import app, ui
 
-__all__ = ['stash_notice', 'drain_notice']
+__all__ = ['drain_notice', 'stash_notice']
 
 # One key, one slot, last write wins. A queue would let two notices pile up
 # across an aborted redirect chain and surface a stale one on a later page.
@@ -48,7 +48,7 @@ def drain_notice() -> None:
     """
     try:
         notice = app.storage.user.pop(_KEY, None)
-    except Exception:  # noqa: BLE001 - no user storage (no session yet): nothing to drain
+    except Exception:
         return
     if not isinstance(notice, dict):
         return

@@ -58,14 +58,14 @@ logger = logging.getLogger(__name__)
 __all__ = [
     'IdentityLinkFlow',
     'LinkHandoffProvider',
-    'register_identity_link_pages',
-    'register_link_handoff_provider',
-    'register_link_handoff_pages',
-    'maybe_start_link_handoff',
     'handle_link_handoff_callback',
-    'read_callback_code',
-    'returned_state',
+    'maybe_start_link_handoff',
     'platform_link_redirect',
+    'read_callback_code',
+    'register_identity_link_pages',
+    'register_link_handoff_pages',
+    'register_link_handoff_provider',
+    'returned_state',
 ]
 
 
@@ -337,7 +337,7 @@ async def handle_link_handoff_callback(url: str) -> bool:
         return True
     try:
         data = await provider.exchange(code)
-    except Exception:  # noqa: BLE001 - log server-side; hand the user back either way
+    except Exception:
         logger.exception('%s link handoff exchange failed', provider.label)
         ui.navigate.to(_link_handback_url(host, provider_key, _HANDBACK_FAILED, next_path))
         return True
@@ -454,7 +454,7 @@ def register_link_handoff_pages() -> None:
             stash_notice(f'{provider.label} account linked.', color='positive')
         except ValueError as e:
             stash_notice(str(e), color='warning')
-        except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+        except Exception:
             logger.exception('%s link handoff claim failed', provider.label)
             stash_notice(f'Could not link {provider.label}. Please try again.', color='negative')
         ui.navigate.to(next_path)
@@ -542,7 +542,7 @@ def register_identity_link_pages(flow: IdentityLinkFlow) -> None:
                 stash_notice(f'{flow.provider_label} account linked.', color='positive')
             except ValueError as e:
                 stash_notice(str(e), color='warning')
-            except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+            except Exception:
                 logger.exception('%s mock linking failed', flow.provider_label)
                 stash_notice(
                     f'Could not link {flow.provider_label}. Please try again.', color='negative',
@@ -591,7 +591,7 @@ async def _finish_link(
             stash_notice(f'{flow.provider_label} account linked.', color='positive')
         except ValueError as e:
             stash_notice(str(e), color='warning')
-        except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+        except Exception:
             logger.exception('%s linking failed', flow.provider_label)
             stash_notice(f'Could not link {flow.provider_label}. Please try again.', color='negative')
     ui.navigate.to(return_path)

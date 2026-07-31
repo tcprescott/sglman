@@ -5,8 +5,8 @@ Handles all database queries related to matches.
 Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 """
 
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User

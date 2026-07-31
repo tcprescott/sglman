@@ -21,7 +21,7 @@ import pytest
 
 from application.events import EventType, event_bus
 from application.services.match.match_service import MatchService
-from application.services.system_config_service import KEY_TOURNAMENT_HOURS, KEY_STATION_FORMAT
+from application.services.system_config_service import KEY_STATION_FORMAT, KEY_TOURNAMENT_HOURS
 from models import (
     Commentator,
     Match,

@@ -1,11 +1,11 @@
 """Admin Equipment Management Page (Equipment Manager / Staff)."""
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
 
 from application.services import EquipmentService, TenantService, get_user_from_discord_id
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
+from theme.notify import notify_error
 
 _STATUS_LABELS = {
     'available': 'Available',

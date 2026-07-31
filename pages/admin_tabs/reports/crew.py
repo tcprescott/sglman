@@ -11,6 +11,7 @@ from application.services import AuthService, ReportsService, get_user_from_disc
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+
 from .shared import (
     clicked_row,
     csv_export_button,
@@ -23,7 +24,6 @@ from .shared import (
     report_page_shell,
     tournament_filter,
 )
-
 
 APPROVAL_OPTIONS = ['All', 'Approved only', 'Pending only']
 

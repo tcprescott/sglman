@@ -12,9 +12,11 @@ from nicegui import ui
 from application.tenant_context import tenant_scope
 from application.utils.timezone import timezone_label
 from models import BracketMatch
-from theme.dialog._helpers import dialog_actions  # noqa: F401  (kept for parity)
+from theme.dialog._helpers import (
+    dialog_actions,  # noqa: F401  (kept for parity)
+    native_datetime_input,
+)
 from theme.notify import notify_error
-from theme.dialog._helpers import native_datetime_input
 
 from .shared import iso_to_local_input, local_input_to_iso, round_display_names
 

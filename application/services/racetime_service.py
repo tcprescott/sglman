@@ -13,12 +13,11 @@ plus a thin public shell that preserves the historical method surface.
 
 from typing import Any, Dict, Optional
 
+from application.services.audit_service import AuditActions
 from application.services.identity_link_service import (
     IdentityLinkProvider,
     IdentityLinkService,
 )
-from application.services.audit_service import AuditActions
-from application.utils.mocks.mock_racetime import is_mock_racetime
 from application.utils.clients.racetime_client import (
     IDENTITY_SCOPE,
     MockRacetimeClient,
@@ -26,6 +25,7 @@ from application.utils.clients.racetime_client import (
     RacetimeClient,
     build_authorize_url,
 )
+from application.utils.mocks.mock_racetime import is_mock_racetime
 from models import User
 
 _PROVIDER = IdentityLinkProvider(

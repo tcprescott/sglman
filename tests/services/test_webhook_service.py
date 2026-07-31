@@ -8,7 +8,7 @@ import pytest
 
 from application.events import Event, EventType
 from application.services.webhook_service import WebhookService
-from models import AuditLog, User, UserRole, Webhook, WebhookDelivery, Role
+from models import AuditLog, Role, User, UserRole, Webhook, WebhookDelivery
 
 
 async def _staff() -> User:

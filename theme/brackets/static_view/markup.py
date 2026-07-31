@@ -17,13 +17,14 @@ from __future__ import annotations
 import html
 from typing import Dict, List, Optional
 
-from application.services.match.match_status import MatchStatus, label as status_label
+from application.services.match.match_status import MatchStatus
+from application.services.match.match_status import label as status_label
 from application.services.match.match_status import tone as status_tone
 from models import BracketMatch, BracketMatchState
 
 from ..cards import (
-    BracketContext,
     LIVE_STATUS_CLASS,
+    BracketContext,
     card_state_class,
     placeholder_text,
 )

@@ -1,6 +1,6 @@
 """Match Result Dialog - Enter match results and finish rankings"""
 
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 from nicegui import app, ui
 

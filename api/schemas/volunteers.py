@@ -10,7 +10,6 @@ from api.schemas.common import AvailabilityWindowInput as AvailabilityWindowInpu
 from api.schemas.common import SetAvailabilityRequest as SetAvailabilityRequest
 from models import VolunteerAvailabilityStatus
 
-
 # --- Positions ------------------------------------------------------------
 
 class VolunteerPositionResponse(BaseModel):

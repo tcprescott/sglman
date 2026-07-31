@@ -5,53 +5,53 @@ Coordinates match-related operations, enforces business rules,
 and orchestrates between repositories.
 """
 
-from datetime import datetime, date
-from typing import List, Optional, Dict, Any, Tuple
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Tuple
 
-from models import (
-    STATION_REGEXES,
-    Match,
-    MatchAcknowledgment,
-    MatchPlayers,
-    Tournament,
-    User,
-    StreamRoom,
-)
-from application.events import match_live
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import Event, EventType, event_bus, match_live
 from application.repositories import (
+    CommentatorRepository,
     MatchAcknowledgmentRepository,
     MatchRepository,
     StationRepository,
     StreamRoomRepository,
     TournamentRepository,
-    UserRepository,
-    CommentatorRepository,
     TrackerRepository,
+    UserRepository,
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.discord import discord_queue
 from application.services.match.bracket_result_guard import (
     assert_bracket_result_editable,
 )
-from application.services.match.match_source_guard import assert_sg_fields_unchanged
-from application.services.discord import discord_queue
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_review import MatchReviewMixin
 from application.services.match.match_schedule_service import MatchScheduleService
+from application.services.match.match_source_guard import assert_sg_fields_unchanged
 from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
-from application.tenant_context import require_tenant_id
 from application.services.timezone_service import TimezoneService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
     local_day_bounds,
-    timezone_label,
     parse_local_datetime,
+    timezone_label,
     to_local,
 )
+from models import (
+    STATION_REGEXES,
+    Match,
+    MatchAcknowledgment,
+    MatchPlayers,
+    StreamRoom,
+    Tournament,
+    User,
+)
+
 
 class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
     """Service for match-related business operations."""

@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from application.errors import require_found
 from application.events import EventType
+from application.feature_flags import requires_feature
 from application.repositories import BracketRepository, TournamentRepository, UserRepository
 from application.services._bracket.advancement import AdvancementMixin
 from application.services._bracket.completion import CompletionMixin
@@ -33,9 +34,7 @@ from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.bracket_config import validate_bracket_config
 from application.tenant_context import require_tenant_id
-from application.feature_flags import requires_feature
 from models import (
-    FeatureFlag,
     Bracket,
     BracketEntrant,
     BracketEntrantStatus,
@@ -44,6 +43,7 @@ from models import (
     BracketFormat,
     BracketMatch,
     BracketState,
+    FeatureFlag,
     Tournament,
     User,
 )

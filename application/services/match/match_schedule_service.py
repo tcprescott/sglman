@@ -12,16 +12,14 @@ resolution shared by both halves lives in ``_match_recipients``.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Callable, Dict, Tuple, Optional
+from typing import Callable, ClassVar, Dict, Optional, Tuple
 
 from application.errors import MissingCredentialError
-from application.events import match_live
-from application.events import EventType
-from application.tenant_context import require_tenant_id
+from application.events import EventType, match_live
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
-from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.match._dm_context import (  # noqa: F401  (re-exported)
     _community_name,
@@ -35,6 +33,7 @@ from application.services.match._match_recipients import (  # noqa: F401  (re-ex
 from application.services.match._schedule_notifications import MatchNotificationMixin
 from application.services.match.match_status import has_recorded_result
 from application.services.seedgen_service import SeedGenerationService
+from application.tenant_context import require_tenant_id
 from application.utils.discord_embeds import (
     COLOR_CHECKED_IN,
     COLOR_SEED,
@@ -47,7 +46,7 @@ from application.utils.discord_messages import (
     seed_dm,
     state_changed_dm,
 )
-from models import Match, GeneratedSeeds, User
+from models import GeneratedSeeds, Match, User
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,7 @@ class MatchScheduleService(MatchNotificationMixin):
     """Service for match scheduling operations."""
 
     # Class-level lock dictionary for seed generation
-    _seed_locks: Dict[int, asyncio.Lock] = {}
+    _seed_locks: ClassVar[Dict[int, asyncio.Lock]] = {}
 
     def __init__(self) -> None:
         self.match_repository = MatchRepository()
@@ -288,7 +287,7 @@ class MatchScheduleService(MatchNotificationMixin):
             from application.services.challonge_service import ChallongeService
             try:
                 await ChallongeService().push_result_if_linked(match, actor)
-            except Exception:  # noqa: BLE001 - logged, retried manually
+            except Exception:
                 logger.exception("challonge auto-push failed for match %s", match.id)
 
         discord_queue.enqueue(_push_challonge_result())
@@ -300,7 +299,7 @@ class MatchScheduleService(MatchNotificationMixin):
             from application.services.bracket_service import BracketService
             try:
                 await BracketService().advance_if_linked(match, actor)
-            except Exception:  # noqa: BLE001 - logged, retried manually
+            except Exception:
                 logger.exception("bracket auto-advance failed for match %s", match.id)
 
         discord_queue.enqueue(_advance_bracket_result())

@@ -204,7 +204,7 @@ def create() -> None:
                 stash_notice(f'{_PROVIDER_LABEL} account linked.', color='positive')
             except ValueError as e:
                 stash_notice(str(e), color='warning')
-            except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+            except Exception:
                 logger.exception('Challonge mock player linking failed')
                 stash_notice(f'Could not link {_PROVIDER_LABEL}. Please try again.', color='negative')
             return RedirectResponse(f'{root_path}{_PROFILE_RETURN}')
@@ -230,7 +230,7 @@ async def _finish_service_connect(user, code: str | None, return_path: str) -> N
             stash_notice('Challonge account connected.', color='positive')
         except ValueError as e:
             stash_notice(str(e), color='warning')
-        except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+        except Exception:
             logger.exception('Challonge service connection failed')
             stash_notice('Could not connect Challonge. Please try again.', color='negative')
     ui.navigate.to(return_path)
@@ -247,7 +247,7 @@ async def _finish_player_link(user, code: str | None, return_path: str) -> None:
             stash_notice('Challonge account linked.', color='positive')
         except ValueError as e:
             stash_notice(str(e), color='warning')
-        except Exception:  # noqa: BLE001 - log detail server-side, show generic message
+        except Exception:
             logger.exception('Challonge player linking failed')
             stash_notice('Could not link Challonge. Please try again.', color='negative')
     ui.navigate.to(return_path)

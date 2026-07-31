@@ -8,6 +8,7 @@ per-tenant scoping never applies.
 
 from nicegui import app, ui
 
+from application.feature_flags import all_specs, spec_for
 from application.services import (
     FeatureFlagService,
     RacetimeBotService,
@@ -17,7 +18,6 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.services.auth_service import AuthService
-from application.feature_flags import all_specs, spec_for
 from application.tenant_context import get_current_tenant_id
 from models import FeatureFlag
 from pages.platform_tenant_admins import open_tenant_admins_dialog

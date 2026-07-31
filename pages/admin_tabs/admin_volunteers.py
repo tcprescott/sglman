@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import List, Optional
 
 from nicegui import app, ui
-from theme.notify import notify_error
 
 from application.services import AuthService, SystemConfigService, get_user_from_discord_id
 from application.services.volunteer.volunteer_autoschedule_service import VolunteerAutoscheduleService
@@ -24,7 +23,7 @@ from theme.dialog.volunteer_autofill_dialog import VolunteerAutofillDialog
 from theme.dialog.volunteer_export_dialog import VolunteerExportDialog
 from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
-
+from theme.notify import notify_error
 
 # Standard four 4-hour shift blocks, in the community's own timezone (the
 # generator resolves them against it), matching the 2025 schedule.
@@ -47,7 +46,7 @@ def stored_or_default_day(
     return stored if stored in day_options else fallback
 
 
-async def admin_volunteers_page(day: str = None) -> None:
+async def admin_volunteers_page(day: str | None = None) -> None:
     actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
     if not await AuthService.can_manage_volunteers(actor):
         ui.label('You do not have permission to manage volunteers.').classes('text-error')

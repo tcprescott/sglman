@@ -23,7 +23,6 @@ from application.utils.timezone import (
 from models import VolunteerAvailabilityStatus
 from theme.dialog._helpers import native_date_input, native_time_input
 
-
 _STATUS_OPTIONS = {
     VolunteerAvailabilityStatus.PREFERRED.value: 'Preferred',
     VolunteerAvailabilityStatus.AVAILABLE.value: 'Available',

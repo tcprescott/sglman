@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
+from api._helpers import load_user_or_404
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.match_actions import MatchSuggestionResponse
 from api.schemas.tournament_actions import (
@@ -12,7 +13,6 @@ from api.schemas.tournament_actions import (
     TournamentUpdateRequest,
 )
 from api.schemas.tournaments import TournamentResponse
-from api._helpers import load_user_or_404
 from application.errors import require_found
 from application.services import MatchSuggestionService, TournamentService
 from application.tenant_context import require_tenant_id

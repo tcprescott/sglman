@@ -125,7 +125,7 @@ class CategoryConnection:
             except asyncio.CancelledError:
                 await self._safe_mark_disconnected()
                 raise
-            except Exception as exc:  # noqa: BLE001 - never let the loop die
+            except Exception as exc:
                 logger.exception('racetime connection for %s crashed', self.category)
                 await self.bot_service.record_error(self.bot_id, self.system_user, str(exc))
                 outcome, connected = 'transient', False
@@ -147,7 +147,7 @@ class CategoryConnection:
     async def _safe_mark_disconnected(self) -> None:
         try:
             await self.bot_service.mark_disconnected(self.bot_id, self.system_user)
-        except Exception:  # noqa: BLE001 - shutdown path, best-effort
+        except Exception:
             logger.exception('failed to mark racetime bot %s disconnected', self.category)
 
     def request_stop(self) -> None:
@@ -157,5 +157,5 @@ class CategoryConnection:
             # Best-effort: unblock a live run() loop.
             try:
                 asyncio.get_event_loop().create_task(transport.close())
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
