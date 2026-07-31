@@ -261,12 +261,16 @@ Recorded so a later pass does not re-derive it:
 - **`/platform`'s tenant and bot id columns.** A super-admin genuinely refers to
   tenants by id in support and logs; this is an operator surface, not a community
   one, and the rule in finding 3 is about community-facing copy.
-- **The admin Schedule board's ID column.** It is the board's edit affordance
-  (`match_slots.py`'s `cell-id` link) and the same id appears in `?match_id=`
-  deep links, the reports and the audit log, so it is a real operator handle
-  rather than a leaked key. Changing the edit affordance on the most-used board
-  in the app is a larger change than this audit should carry — but it is the same
-  shape as the Stream Rooms fix, and worth revisiting deliberately.
+- **The proctor board's `#` column.** The one place a match id is doing a job
+  for a human: a proctor calls a match out by number across a room. It stays,
+  read-only, and the board keeps no edit link.
+
+  Its neighbour did *not* stay. The admin Schedule board's ID column was the
+  same shape as Stream Rooms' — the primary key as the only edit affordance —
+  and after review it got the same treatment: the column is now a labelled
+  pencil in the same first-column slot, on the desktop table and the mobile
+  card alike. The id remains what `?match_id=`, the reports and the audit log
+  key on; it is just no longer a control nobody can guess is a control.
 - **`Showing match #17 only`**, the board's deep-link filter chip. Naming the
   match would need the (currently sync) page builder to load it, and the row it
   is explaining is directly below.
