@@ -426,7 +426,7 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
 | `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
 
-Two crew keys sit on every row and are easy to confuse. **`crew_wanted`** is whether the tournament uses the role at all (`required_* > 0`); **`crew_need`** is how many more *approved* people it still wants, per role — required minus approved, floored at zero, counted from approved because an unapproved signup has covered nothing yet. `crew_need` is what lets the board say *"Needs 2 more"*: before it, coverage existed only as a report-time computation, so the one surface that knew about a gap was the one that could not act on it.
+**`crew_wanted`** sits on every row: whether the tournament uses the role at all (`required_* > 0`), which is what lets the board stop offering **Sign up** for a role nobody is needed in.
 
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`.
 

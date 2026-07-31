@@ -36,7 +36,6 @@ def _fill(template: str, *, admin_controls: bool, access: MatchBoardAccess,
         .replace('__CREW__', _bool_js(access.approve_crew))
         .replace('__DID__', discord_id_js)
         .replace('__WANTED__', crew_wanted_js(role))
-        .replace('__SHORT__', crew_short_js(role))
         .replace('__KEY__', role)
         .replace('__SING__', singular)
     )
@@ -245,20 +244,33 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
     <span v-else>{{ props.value }}</span>
 </q-td>'''
 
-STREAM_ROOM_ADMIN_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-    <q-btn v-if="!props.value && !props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
-           icon="movie" color="primary" size="sm">
-        Assign
-    </q-btn>
-    <template v-else>
-        <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.value }}</a>
-        <span v-else-if="props.value">{{ props.value }}</span>
-        <span v-if="props.row.is_stream_candidate && !props.value" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
-        <q-btn v-if="!props.value && props.row.is_stream_candidate" @click="$parent.$emit('edit-stream-room', props)"
-               icon="movie" color="primary" size="sm" class="q-ml-xs">
-            Assign
-        </q-btn>
-    </template>
+# The value the Stage select carries for "streamed, stage not decided yet".
+# ``Candidate`` is not a StreamRoom — it is the ``is_stream_candidate`` flag
+# wearing a stage's clothes, so that the one question the cell asks ("where is
+# this being streamed?") has one control instead of a button, a dialog and a
+# checkbox. ``on_set_stage`` maps it back to the flag.
+CANDIDATE_STAGE = 'candidate'
+
+# Vue expression for the select's current value: the assigned room wins, the
+# candidate flag stands in when there is none. A staged match stops reading as a
+# candidate — the stage is the more specific answer — while the flag itself
+# survives underneath, because the coverage reports still count it.
+STAGE_VALUE_JS = (
+    f"props.row.stream_room_id || (props.row.is_stream_candidate ? '{CANDIDATE_STAGE}' : null)"
+)
+
+STREAM_ROOM_ADMIN_SLOT = f'''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <div style="display: flex; align-items: center; gap: 4px;">
+        <q-select :model-value="{STAGE_VALUE_JS}" :options="props.row.stage_options || []"
+                  @update:model-value="val => $parent.$emit('set_stage', {{ key: props.row.id, stage: val }})"
+                  dense options-dense outlined clearable emit-value map-options
+                  style="min-width: 132px;" label="Stage" />
+        <a v-if="props.value && props.row.stream_room_url" :href="props.row.stream_room_url"
+           target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);">
+            <q-icon name="open_in_new" size="18px" />
+            <q-tooltip>Open the stream</q-tooltip>
+        </a>
+    </div>
 </q-td>'''
 
 STREAM_ROOM_READONLY_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
@@ -402,28 +414,8 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
 # name that opens the user (the same split players already have — a name reads as
 # a name, not as a control that mutates approval); everyone else a plain name.
 # Non-admins get signup/undo + self-ack.
-# Vue test for "this role still needs people on this row". Built from the row's
-# ``crew_need`` (MatchDisplayService), so the board's idea of coverage and the
-# report's are one computation. Only meaningful while signup is still open — a
-# match that has started cannot be staffed.
-def crew_short_js(role: str) -> str:
-    if not role:
-        return 'false'
-    return (f"(((props.row.crew_need || {{}}).{role} || 0) > 0"
-            f" && props.row.crew_signup_open)")
-
-
 CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div class="wrap">
-        <!-- What this row still wants. Coverage used to exist only as a
-             report-time computation, so a stream-candidate match with no
-             commentators looked exactly like a non-streamed one with none, and
-             a fully covered match still offered Sign up to everybody. -->
-        <div v-if="__SHORT__" style="margin-bottom: 4px;">
-            <span class="wiz-chip wiz-chip--pending">
-                <q-icon name="person_add" size="14px" />Needs {{ (props.row.crew_need || {}).__KEY__ }} more
-            </span>
-        </div>
         <div v-if="!__IA__" style="margin-bottom: 6px;">
             <q-btn v-if="props.value && props.value.some(item => item.discord_id == __DID__)"
                    icon="undo" color="negative" size="sm" no-caps dense label="Withdraw"

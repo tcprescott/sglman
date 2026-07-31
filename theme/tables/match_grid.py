@@ -36,7 +36,7 @@ depend on — do not change):
     seat/start/finish/confirm      -> { key: props.row.id }
     edit_result                    -> { key: props.row.id }
     roll                           -> { key: props.row.id }   (+ _generating_seed)
-    edit-stream-room               -> { key: props.row.id }
+    set_stage                      -> { key: props.row.id, stage: <id|'candidate'|null> }
     assign_stations                -> { row: props.row }
     toggle_watch                   -> props.row
 """
@@ -44,8 +44,8 @@ depend on — do not change):
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_slots import (
     SEED_ROLLABLE,
+    STAGE_VALUE_JS,
     _bool_js,
-    crew_short_js,
     crew_wanted_js,
 )
 
@@ -127,10 +127,6 @@ _CREW_DETAIL = '''
         <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (__WANTED__ && props.row.crew_signup_open && !__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <!-- Mirrors the desktop cell's shortfall chip; see match_slots. -->
-                <span v-if="__SHORT__" class="wiz-chip wiz-chip--pending">
-                    <q-icon name="person_add" size="14px" />Needs {{ (props.row.crew_need || {}).__KEY__ }} more
-                </span>
                 <template v-for="(item, idx) in props.row.__KEY__">
                     <span class="mgc-crew-item">
                         <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
@@ -182,19 +178,25 @@ _CREW_DETAIL = '''
         </div>'''
 
 # Stage / stream room. Shows when assigned, a candidate, or an admin who can
-# assign; otherwise nothing. Emits { key: props.row.id } for the assign action.
+# assign; otherwise nothing. The admin's copy is the desktop cell's select —
+# stages plus the ``Candidate`` pseudo-stage — emitting
+# { key: props.row.id, stage: <room id | 'candidate' | null> }; everyone else
+# reads the name, or the candidate chip while no stage is set.
 _STREAM_DETAIL = '''
         <div class="mgc-detail" v-if="props.row.stream_room || props.row.is_stream_candidate || __STREAM__">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
-                <a v-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
+                <q-select v-if="__STREAM__" :model-value="__STAGEVAL__" :options="props.row.stage_options || []"
+                          @update:model-value="val => $parent.$emit('set_stage', { key: props.row.id, stage: val })"
+                          dense options-dense outlined clearable emit-value map-options
+                          style="min-width: 140px;" label="Stage" />
+                <a v-else-if="props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url" target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link); text-decoration: underline;">{{ props.row.stream_room }}</a>
                 <span v-else-if="props.row.stream_room">{{ props.row.stream_room }}</span>
-                <span v-if="props.row.is_stream_candidate && !props.row.stream_room" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
-                <q-btn v-if="__STREAM__ && !props.row.stream_room"
-                       icon="movie" color="primary" size="sm" dense outline class="q-ml-xs"
-                       @click="$parent.$emit('edit-stream-room', { key: props.row.id })">
-                    Assign Stage
-                </q-btn>
+                <span v-if="!__STREAM__ && props.row.is_stream_candidate && !props.row.stream_room" class="wiz-chip wiz-chip--candidate q-ml-xs">candidate</span>
+                <a v-if="__STREAM__ && props.row.stream_room && props.row.stream_room_url" :href="props.row.stream_room_url"
+                   target="_blank" rel="noopener noreferrer" style="color: var(--wiz-link);" class="q-ml-xs">
+                    <q-icon name="open_in_new" size="18px" />
+                </a>
             </span>
         </div>'''
 
@@ -367,7 +369,6 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
             details += (
                 _CREW_DETAIL
                 .replace('__WANTED__', crew_wanted_js(role))
-                .replace('__SHORT__', crew_short_js(role))
                 .replace('__KEY__', role)
                 .replace('__SING__', role[:-1])
                 .replace('__LABEL__', labels.get(role, role))
@@ -403,6 +404,9 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
         .replace('__CONFIRM__', _bool_js(access.confirm))
         .replace('__CREW__', _bool_js(access.approve_crew))
         .replace('__STREAM__', _bool_js(access.assign_stream))
+        # Shared with the desktop stage cell so both boards read the same row
+        # keys for "which stage is this on" (match_slots.STAGE_VALUE_JS).
+        .replace('__STAGEVAL__', STAGE_VALUE_JS)
         .replace('__WATCH__', watch_js)
         .replace('__DID__', did)
         .replace('__ACTCLS__', act_cls)
