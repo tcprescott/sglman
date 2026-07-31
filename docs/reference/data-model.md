@@ -1190,9 +1190,9 @@ unchanged-since-last check). The materialized `Match` is reached via the reverse
 |---|---|---|---|
 | `event_link` | FK → `SpeedGamingEventLink` | null, `SET_NULL` | `related_name='episodes'` |
 | `sg_episode_id` | `CharField(64)` | not null | SG-side episode id |
-| `title` / `scheduled_at` | | null | Normalized from the payload |
-| `payload` | `JSONField` | null | Raw upstream snapshot |
-| `content_hash` | `CharField(64)` | null | SHA-256 of the payload |
+| `title` / `scheduled_at` | | null | Normalized from the payload. SG leaves its episode-level `title` empty, so the label falls back through `match1`/`match2` `title` then `note`, truncated to 255 |
+| `payload` | `JSONField` | null | Raw upstream snapshot, refreshed on every poll — including polls that change nothing the ETL reads |
+| `content_hash` | `CharField(64)` | null | SHA-256 of the **ETL-relevant projection** of the payload (`when`, title, players), not the whole blob — crew `approved`/`ready` flags churn upstream and must not force a re-import |
 | `sync_status` | `CharEnumField(SyncStatus)` | default `PENDING` | `pending`/`synced`/`skipped`/`cancelled`/`error` |
 | `synced_at` / `sync_error` | | null | Per-episode outcome |
 
