@@ -160,6 +160,18 @@ FEATURE_FLAG_REGISTRY: Dict[FeatureFlag, FeatureFlagSpec] = {
             'Online tournaments',
             service_modules=('application/services/bracket_service.py',),
         ),
+        FeatureFlagSpec(
+            FeatureFlag.FEEDBACK,
+            'In-app Feedback',
+            'A feedback form in the sidebar, a staff review queue, and each '
+            "person's own list of what they sent and whether it has been read.",
+            'Community',
+            # Already in live use, so it backfills available+enabled rather than
+            # disappearing for communities currently collecting feedback
+            # (migration 51).
+            established=True,
+            service_modules=('application/services/feedback_service.py',),
+        ),
     )
 }
 

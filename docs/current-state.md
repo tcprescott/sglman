@@ -23,7 +23,7 @@ Everything listed is **stable in production** unless marked otherwise.
 | **Platform** | multitenancy (`/t/<slug>` + custom domains), the membership gate + self-serve join requests, per-tenant feature flags, `/platform` super-admin surface (incl. the first-admin grant and a setup-readiness column), the derived new-community setup checklist, service-health board | [multitenancy](features/multitenancy.md), [feature-flags](features/feature-flags.md) |
 | **Identity & access** | Discord OAuth, eleven roles, guild-role sync, Challonge/Twitch/racetime identity linking | [roles](reference/authentication.md#roles), [authentication](reference/authentication.md) |
 | **Integrations** | REST API + personal access tokens, MCP server at `/mcp`, event bus, signed outbound webhooks, web push, Challonge | [rest-api](reference/rest-api.md), [mcp-server](features/mcp-server.md), [webhooks](features/webhooks.md) |
-| **Observability** | audit logging, engagement telemetry, analytics/insights reports, in-app feedback, Sentry | [audit-logging](features/audit-logging.md), [telemetry](features/telemetry.md), [admin-reports](features/admin-reports.md) |
+| **Observability** | audit logging, engagement telemetry, analytics/insights reports, in-app feedback (reversible review + the submitter's own status list; behind `FeatureFlag.FEEDBACK`), Sentry | [audit-logging](features/audit-logging.md), [telemetry](features/telemetry.md), [admin-reports](features/admin-reports.md) |
 
 ## Known issues
 

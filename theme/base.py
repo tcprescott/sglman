@@ -5,7 +5,7 @@ import re
 from nicegui import app, ui
 
 from application.tenant_context import get_current_tenant_id, tenant_scope
-from models import User
+from models import FeatureFlag, User
 from theme.chrome import dark_mode_button, install_timezone_detection
 from theme.connection import install_connection_watch
 from theme.notice import drain_notice
@@ -80,6 +80,11 @@ class BaseLayout:
         # render_chrome() path (the error page) working without a DB round-trip.
         self._show_admin = show_admin
         self._show_volunteer = show_volunteer
+        # Same shape as _show_volunteer: resolved in render() because the drawer
+        # must not offer a Feedback item whose dialog the service would refuse.
+        # False on the synchronous render_chrome() path (the error page), which
+        # has no DB round-trip to spend and no need for the link.
+        self._show_feedback = False
         self.top_menu: list[dict] = []
 
         if tabs:
@@ -105,6 +110,9 @@ class BaseLayout:
         if self._show_volunteer is None:
             from application.services import AuthService
             self._show_volunteer = await AuthService.can_view_volunteer(self.user)
+        if self.user:
+            from application.services import FeatureFlagService
+            self._show_feedback = await FeatureFlagService().is_enabled(FeatureFlag.FEEDBACK)
         await self._load_theme_colors()
         self.render_chrome()
         if self.tabs:
@@ -352,7 +360,9 @@ class BaseLayout:
                             tab_item.props(add='active')
                         self._tab_item_refs[tab['label']] = tab_item
 
-            if self.user:
+            # Feedback is flag-gated: no item where the community has it off,
+            # because the dialog's submit would be refused by the service.
+            if self.user and self._show_feedback:
                 ui.separator()
                 with ui.list().props('padding'):
                     with ui.item(

@@ -26,16 +26,23 @@ _COLUMNS = [
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
 
+# The stored value is a machine key; the badge says it the way a person would.
 _STATUS_BADGE = '''
     <q-badge :color="props.row.status === 'reviewed' ? 'positive' : 'warning'">
-        {{ props.row.status }}
+        {{ props.row.status === 'reviewed' ? 'Reviewed' : 'New' }}
     </q-badge>
 '''
 
+# Reversible: marking reviewed used to be one-way, so a mis-click dropped a
+# submission out of the only queue anyone looks at with no way back.
 _ROW_ACTIONS = '''
     <q-btn v-if="props.row.status !== 'reviewed'" dense flat color="primary"
            label="Mark reviewed"
-           @click="$parent.$emit('mark_reviewed', props.row)" />
+           @click="$parent.$emit('set_reviewed', props.row)" />
+    <q-btn v-else dense flat color="grey" icon="undo" label="Reopen"
+           @click="$parent.$emit('reopen', props.row)">
+        <q-tooltip>Put this back in the queue</q-tooltip>
+    </q-btn>
 '''
 
 
@@ -82,17 +89,21 @@ async def admin_feedback_page() -> None:
             enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS,
                                field_slots={'status': _STATUS_BADGE})
 
-            async def handle_mark_reviewed(event):
+            async def set_reviewed(event, reviewed: bool):
                 row = event.args
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 try:
-                    await service.mark_reviewed(actor, row['id'])
+                    await service.set_reviewed(actor, row['id'], reviewed=reviewed)
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                ui.notify('Marked as reviewed.', color='positive')
+                ui.notify(
+                    'Marked as reviewed.' if reviewed else 'Back in the queue.',
+                    color='positive',
+                )
                 await _render_table.refresh()
 
-            table.on('mark_reviewed', handle_mark_reviewed)
+            table.on('set_reviewed', lambda e: set_reviewed(e, True))
+            table.on('reopen', lambda e: set_reviewed(e, False))
 
         await _render_table()

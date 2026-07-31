@@ -123,9 +123,12 @@ _EXCLUDED_BY_DESIGN = frozenset({
     AuditActions.WEBHOOK_UPDATED,
     AuditActions.WEBHOOK_DELETED,
     AuditActions.WEBHOOK_SECRET_REGENERATED,
-    # In-app feedback triage.
+    # In-app feedback triage. Reopening is the reverse of reviewing and stays
+    # in the same bucket — the submitter learns the state from their own list on
+    # the profile, not from a broadcast.
     AuditActions.FEEDBACK_SUBMITTED,
     AuditActions.FEEDBACK_REVIEWED,
+    AuditActions.FEEDBACK_REOPENED,
     # A coordinator's free-text note on a volunteer profile: tenant-internal
     # staffing detail, and potentially personal — not for arbitrary receivers.
     AuditActions.VOLUNTEER_NOTE_UPDATED,

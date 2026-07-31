@@ -280,12 +280,26 @@ Recorded so a later pass does not re-derive it:
 
 ## Still open
 
-- **Feedback is one-directional.** A user asks *"Who do I ask about getting my
-  racetime name fixed?"* through the in-app form; staff can only **Mark
-  reviewed**, which DMs nobody, cannot be undone, and leaves the submitter with
-  no way to learn anything happened. This is the
-  [notification-is-one-directional](README.md#cross-cutting-themes) theme in its
-  purest form, but closing it is a feature (a reply channel, or at minimum a
-  "your feedback was read" DM and a list of your own submissions), not a defect
-  fix, so it is recorded rather than shipped — and it wants a decision on scope
-  before anyone builds it.
+*(Nothing. The one item left open at first write — feedback's one-directional
+loop — was scoped and shipped; see below.)*
+
+## Shipped after review
+
+**Feedback was one-directional.** A user asks *"Who do I ask about getting my
+racetime name fixed?"* through the in-app form; staff could only **Mark
+reviewed**, which was one-way, and the submitter had no way to learn anything
+had happened. The [notification-is-one-directional](README.md#cross-cutting-themes)
+theme in its purest form, and the one finding this audit recorded rather than
+fixed, because closing it is a feature and the scope was the owner's call.
+
+The scope chosen: **no DM**, in-app status only. **Review is reversible** (a
+mis-click used to drop a submission out of the only queue anyone looks at, with
+no way back), and a person's own submissions carry their status on their
+profile — *Read by staff* / *Not read yet*. The staff queue's badges stopped
+printing the raw enum too.
+
+The subsystem is now gated behind `FeatureFlag.FEEDBACK`, `established=True`
+with a backfill migration so gating it does not make it vanish for communities
+already collecting feedback. Both halves of the gate are real: the drawer item,
+the admin tab and the profile card all hide, *and* every public method on
+`FeedbackService` carries `@requires_feature`.
