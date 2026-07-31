@@ -8,7 +8,7 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.services import AuthService, ReportsService, get_user_from_discord_id
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
@@ -16,7 +16,7 @@ from .shared import (
     csv_export_button,
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     enable_drill_link,
     navigate_with_params,
     parse_int,
@@ -95,7 +95,7 @@ async def crew_page(
                         ),
                     ).props('flat dense')
 
-        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+        bounds_start, bounds_end = display_bounds(start_d, end_d)
         data = await ReportsService().crew_coverage(
             bounds_start, bounds_end,
             tournament_id=tournament_id,
@@ -122,7 +122,7 @@ async def crew_page(
                     {
                         'match_id': r['match_id'],
                         'tournament': r['tournament_name'],
-                        'scheduled_at': format_eastern_display(r['scheduled_at']),
+                        'scheduled_at': format_local_display(r['scheduled_at']),
                         'stream_room': r['stream_room'],
                         'stream_candidate': 'yes' if r['is_stream_candidate'] else '',
                         # The requirement is per-tournament, so "0/0" only means a

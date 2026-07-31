@@ -1,8 +1,8 @@
 """
 Reports Service - Business Logic Layer
 
-One method per report. All time math runs in US/Eastern; inputs and outputs
-are timezone-aware datetimes.
+One method per report. Day boundaries resolve on the viewer's display clock;
+inputs and outputs are timezone-aware datetimes (UTC on the wire).
 """
 
 from datetime import date, datetime, time, timedelta
@@ -12,13 +12,13 @@ from application.services.reporting_shared import (
     DEFAULT_MATCH_DURATION_MIN,
     ON_TIME_THRESHOLD_MIN,
     crew_requirement,
-    eastern,
+    to_display,
     is_crew_covered,
     window_hours,
 )
 from application.services.system_config_service import SystemConfigService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import EASTERN_TZ
+from application.utils.timezone import combine_local
 from models import (
     Match,
     StreamRoom,
@@ -32,25 +32,25 @@ class ReportsService:
     # --- Capacity Forecast -------------------------------------------------
 
     @staticmethod
-    def _eastern(dt: Optional[datetime]) -> Optional[datetime]:
-        return eastern(dt)
+    def _local(dt: Optional[datetime]) -> Optional[datetime]:
+        return to_display(dt)
 
     @staticmethod
     def _match_window(match: Match) -> Optional[Tuple[datetime, datetime]]:
         if not match.scheduled_at:
             return None
-        scheduled = ReportsService._eastern(match.scheduled_at)
+        scheduled = ReportsService._local(match.scheduled_at)
         if match.seated_at:
-            start = ReportsService._eastern(match.seated_at)
+            start = ReportsService._local(match.seated_at)
         else:
             start = scheduled - timedelta(hours=1)
         if match.finished_at:
-            end = ReportsService._eastern(match.finished_at)
+            end = ReportsService._local(match.finished_at)
         else:
             duration = DEFAULT_MATCH_DURATION_MIN
             if match.tournament_id and match.tournament and match.tournament.average_match_duration:
                 duration = match.tournament.average_match_duration
-            anchor = ReportsService._eastern(match.started_at) if match.started_at else scheduled
+            anchor = ReportsService._local(match.started_at) if match.started_at else scheduled
             end = anchor + timedelta(minutes=duration)
         if end < start:
             end = start
@@ -72,8 +72,8 @@ class ReportsService:
         tournament_id: Optional[int] = None,
     ) -> Dict:
         """Compute concurrent-player counts at intervals across [start, end]."""
-        start = self._eastern(start)
-        end = self._eastern(end)
+        start = self._local(start)
+        end = self._local(end)
         if end < start:
             end = start
         interval_min = self._auto_interval_minutes(start, end)
@@ -148,7 +148,7 @@ class ReportsService:
         instant: datetime,
         tournament_id: Optional[int] = None,
     ) -> List[Match]:
-        instant = self._eastern(instant)
+        instant = self._local(instant)
         query = Match.all().filter(
             scheduled_at__gte=instant - timedelta(hours=24),
             scheduled_at__lte=instant + timedelta(hours=24),
@@ -175,8 +175,8 @@ class ReportsService:
         end: datetime,
         tournament_id: Optional[int] = None,
     ) -> Dict:
-        start = self._eastern(start)
-        end = self._eastern(end)
+        start = self._local(start)
+        end = self._local(end)
         query = Match.all().filter(
             scheduled_at__gte=start,
             scheduled_at__lte=end,
@@ -189,10 +189,10 @@ class ReportsService:
         rows: List[Dict] = []
         per_tournament: Dict[int, Dict] = {}
         for match in matches:
-            scheduled = self._eastern(match.scheduled_at)
-            started = self._eastern(match.started_at)
-            finished = self._eastern(match.finished_at)
-            confirmed = self._eastern(match.confirmed_at)
+            scheduled = self._local(match.scheduled_at)
+            started = self._local(match.started_at)
+            finished = self._local(match.finished_at)
+            confirmed = self._local(match.confirmed_at)
 
             start_delay = None
             if scheduled and started:
@@ -272,8 +272,8 @@ class ReportsService:
         user_id: Optional[int] = None,
         approved_only: bool = False,
     ) -> Dict:
-        start = self._eastern(start)
-        end = self._eastern(end)
+        start = self._local(start)
+        end = self._local(end)
 
         match_query = Match.all().filter(
             scheduled_at__gte=start,
@@ -307,7 +307,7 @@ class ReportsService:
                 coverage_rows.append({
                     'match_id': match.id,
                     'tournament_name': match.tournament.name if match.tournament else '',
-                    'scheduled_at': self._eastern(match.scheduled_at),
+                    'scheduled_at': self._local(match.scheduled_at),
                     'stream_room': match.stream_room.name if match.stream_room else '',
                     'is_stream_candidate': match.is_stream_candidate,
                     'commentators_approved': comm_approved,
@@ -376,8 +376,8 @@ class ReportsService:
         tournament_id: Optional[int] = None,
         stream_room_id: Optional[int] = None,
     ) -> Dict:
-        start = self._eastern(start)
-        end = self._eastern(end)
+        start = self._local(start)
+        end = self._local(end)
 
         rooms = await StreamRoom.filter(is_active=True, tenant_id=require_tenant_id()).order_by('name')
         if stream_room_id:
@@ -426,7 +426,7 @@ class ReportsService:
                 'tournament_name': match.tournament.name if match.tournament else '',
                 'start': ws,
                 'end': we,
-                'scheduled_at': self._eastern(match.scheduled_at),
+                'scheduled_at': self._local(match.scheduled_at),
             })
 
         for block in per_room.values():
@@ -465,7 +465,7 @@ def _new_crew_entry(user: Optional[User]) -> Dict:
 
 
 def event_day_bounds(d: date) -> Tuple[datetime, datetime]:
-    """Return midnight-to-next-midnight Eastern aware bounds for a date."""
-    start = datetime.combine(d, time(0, 0), tzinfo=EASTERN_TZ)
+    """Midnight-to-next-midnight UTC bounds for a date on the display clock."""
+    start = combine_local(d, time(0, 0))
     end = start + timedelta(days=1)
     return start, end

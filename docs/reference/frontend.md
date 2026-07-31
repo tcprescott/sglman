@@ -172,8 +172,8 @@ The public event schedule with crew signup.
 `stage_timeline_tab()` — a per-day timeline of streamed matches grouped by stream room.
 
 - Header: previous/next-day arrows, a Today button, a date input with calendar popup and Go button, plus a floating refresh button (`.refresh-button`). All handlers dispatch through `background_tasks.create`.
-- Data: `MatchService.get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)`, grouped via `MatchService.group_matches_by_stream_room(matches)`; rooms sorted by name. The current date is tracked in US/Eastern (see [../timezone-handling.md](../timezone-handling.md)).
-- Each room renders a card (name, optional "Watch Stream" link, match count) and one `match-card` per match: Eastern time, status badge, tournament, players, approved commentators/trackers. Card borders are colour-coded by state (`.border-left-*`).
+- Data: `MatchService.get_matches_for_date(target_date, exclude_finished=True, require_stream_room=True)`, grouped via `MatchService.group_matches_by_stream_room(matches)`; rooms sorted by name. The current date is the viewer's local today (see [../timezone-handling.md](../timezone-handling.md)).
+- Each room renders a card (name, optional "Watch Stream" link, match count) and one `match-card` per match: local time, status badge, tournament, players, approved commentators/trackers. Card borders are colour-coded by state (`.border-left-*`).
 - Match IDs link to `/admin/schedule` when `AuthService.can_view_admin(user)`; otherwise they are plain labels.
 
 ### Profile (`pages/home_tabs/player_edit_info.py`)
@@ -230,7 +230,7 @@ The two self-service tabs read the *signed-in* user's own data, so they are safe
 
 `my_shifts_tab()` is a `@ui.refreshable` list of `VolunteerScheduleService.assignments_for_user(user, upcoming_after=now, with_shiftmates=True)`, which **excludes unpublished drafts** — a coordinator's sketch is not this page's business. Each card answers the three questions a volunteer brings to the page:
 
-- **What am I down for** — position/label, the Eastern start→end, and a provenance caption ("Scheduled by …", when, and the acknowledgment time once given).
+- **What am I down for** — position/label, the local start→end, and a provenance caption ("Scheduled by …", when, and the acknowledgment time once given).
 - **What does it involve** — the position's `description` as the standing brief, `shift.notes` in a bordered **For this shift** block (the per-shift instruction must not merge visually with the standing one), and a "With: …" line naming the others on the slot, drafts excluded.
 - **How do I get out of it** — a **Can't make this** button beside **Acknowledge**, offered whether or not the shift is acknowledged, opening a dialog that restates the shift, takes an optional reason the coordinator sees, and warns when the shift falls inside the reminder lead or 24 hours (whichever is longer). Its copy is the module-level pure `release_warning(starts_at, lead_minutes)`, so the decision is unit-testable. Confirming calls `service.release`.
 
@@ -366,7 +366,7 @@ Two tab functions live in this module.
 
 `admin_volunteer_roster_page()` — the "Vol. Roster" tab (refuses unless `AuthService.can_manage_volunteers(actor)`).
 
-- A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (Eastern, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
+- A `ui.table` (grid-card mode on small screens) of the assignable pool (`VolunteerProfileService.assignable_volunteers`): Name, Opted In, Qualifications (position-name chips from `VolunteerQualificationService.list_all_qualifications`), declared Availability windows (display-local, from `VolunteerAvailabilityService.availability_map`), and a per-row manage button.
 - The manage button emits `manage_volunteer`, opening `VolunteerProfileDialog` (active positions from `VolunteerPositionService.list_active`) to view availability and edit qualifications; the table reloads on submit and via a refresh button.
 - An **Export data** button opens `VolunteerExportDialog`; the same button sits on the Vol. Schedule tab, since the coordinator may start from either.
 
@@ -530,7 +530,7 @@ CSV export (`csv_export_button`) downloads the currently rendered rows using `ro
 | `themed_chart_option(option)` | Overlay the mode-neutral chrome colours onto an ECharts option without clobbering what the chart already sets |
 | `reports_url(report=None, **params)` | Build `/admin/reports[?report=…]` URLs — `admin_url('reports', …)` from [`pages/admin_tabs/links.py`](../../pages/admin_tabs/links.py), which drops empty params and ISO-formats dates |
 | `parse_date(value)` / `parse_int(value)` | Lenient parsing; `None` on garbage |
-| `eastern_bounds(start_d, end_d)` | Eastern date range → half-open aware datetime bounds (end clamped ≥ start) |
+| `display_bounds(start_d, end_d)` | picked date range → half-open UTC bounds on the display clock (end clamped ≥ start) |
 | `async default_date_range(start_param, end_param)` | The URL dates if both parse, else `SystemConfigService.get_event_window()` |
 | `report_page_shell(title, back_to_dashboard=True)` | Context manager: page container, "← Reports" back link, title, separator |
 | `date_range_filter(default_start, default_end, on_change)` | Start/End inputs with calendar popups; fires `on_change(start, end)` on either change |
@@ -609,7 +609,7 @@ On save it validates required fields, runs `MatchService.ensure_players_enrolled
 
 | Module | Purpose |
 |---|---|
-| [`availability_editor.py`](../../theme/availability_editor.py) | `render_availability_editor(service, *, help_text)` — the window-row + effective-graph UI behind **both** My Availability tabs. A `@ui.refreshable` row per window (Date / Start / End + a Preferred / Available / Unavailable select + delete), **Add window**, and **Save availability** through the injected service's `set_windows`; plus a second `@ui.refreshable` per-day coloured bar from `effective_segments(...)` (overlap resolves Unavailable > Preferred > Available), refreshed live as any input changes. The home tab injects `PlayerAvailabilityService`, the volunteer tab `VolunteerAvailabilityService`; both span the configured event window (`SystemConfigService.get_event_window()`), one Eastern calendar day per graph row |
+| [`availability_editor.py`](../../theme/availability_editor.py) | `render_availability_editor(service, *, help_text)` — the window-row + effective-graph UI behind **both** My Availability tabs. A `@ui.refreshable` row per window (Date / Start / End + a Preferred / Available / Unavailable select + delete), **Add window**, and **Save availability** through the injected service's `set_windows`; plus a second `@ui.refreshable` per-day coloured bar from `effective_segments(...)` (overlap resolves Unavailable > Preferred > Available), refreshed live as any input changes. The home tab injects `PlayerAvailabilityService`, the volunteer tab `VolunteerAvailabilityService`; both span the configured event window (`SystemConfigService.get_event_window()`), one local calendar day per graph row |
 | [`realtime.py`](../../theme/realtime.py) | `register_view(on_change)` subscribes a view to [`application/events/match_live`](../features/event-system.md) and installs the client-disconnect cleanup |
 | [`empty_state.py`](../../theme/empty_state.py) | `empty_state(message)` and the `no_data_slot(...)` Quasar template, used by the table views and the On Air tab |
 | [`notify.py`](../../theme/notify.py) | `notify_error(exc)` — the one place service `ValueError`/`PermissionError` map to a coloured toast |
@@ -670,7 +670,7 @@ Crew signup/undo and acknowledge buttons only render for the logged-in user's ow
 
 - Optional toolbar (`show_toolbar=False` lets the caller render its own, as the admin Users tab does).
 - Slots: clickable Username (emits `edit_user` → `AdminUserDialog`), Active icon, truncated Discord ID, linked Challonge account, and Roles rendered as `q-chip`s.
-- `refresh()` orders by username and prefetches `roles`, `admin_tournaments`, `crew_coordinated_tournaments`; `_format_user_row` title-cases role names and appends `TA(n)` / `CC(n)` markers for tournament-scoped roles. Timestamps format through `format_eastern_display`.
+- `refresh()` orders by username and prefetches `roles`, `admin_tournaments`, `crew_coordinated_tournaments`; `_format_user_row` title-cases role names and appends `TA(n)` / `CC(n)` markers for tournament-scoped roles. Timestamps format through `format_local_display`.
 
 ### Shared kit (`admin_crud.py`)
 

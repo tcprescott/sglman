@@ -87,6 +87,7 @@ from .tenant_membership_service import TenantMembershipService
 from .tenant_service import TenantService
 from .tenant_setup_service import SetupStep, TenantSetupService
 from .tenant_theme_service import TenantThemeService
+from .timezone_service import TimezoneService
 from .telemetry_service import TelemetryService
 from .tournament_notification_service import TournamentNotificationService
 from .tournament_service import TournamentService
@@ -172,6 +173,7 @@ __all__ = [
     'SetupStep',
     'TenantSetupService',
     'TenantThemeService',
+    'TimezoneService',
     'TelemetryService',
     'TournamentNotificationService',
     'TournamentService',

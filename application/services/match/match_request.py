@@ -12,7 +12,7 @@ from application.errors import require_found
 from application.events import Event, EventType, event_bus, match_live
 from application.services.audit_service import AuditActions
 from application.services.match.match_request_guard import assert_player_requests_allowed
-from application.utils.timezone import parse_eastern_datetime
+from application.utils.timezone import parse_local_datetime
 from models import Match, User
 
 
@@ -61,7 +61,7 @@ class MatchRequestMixin:
             assert_player_requests_allowed(tournament)
 
         try:
-            scheduled_at = parse_eastern_datetime(scheduled_date, scheduled_time)
+            scheduled_at = parse_local_datetime(scheduled_date, scheduled_time)
         except ValueError as e:
             raise ValueError(f"Invalid date/time format: {e}") from e
 

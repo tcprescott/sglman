@@ -1,7 +1,8 @@
-from nicegui import background_tasks, ui
+from nicegui import ui
 
-from application.tenant_context import get_current_tenant_id, tenant_scope
-from application.utils.timezone import format_eastern_display
+from application.tenant_context import get_current_tenant_id
+from application.utils.timezone import format_local_display
+from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.empty_state import no_data_slot
 
 
@@ -24,14 +25,12 @@ class UserTableView:
         # (initial load, pagination refresh) run detached from the client slot, so
         # scoped reads would otherwise raise require_tenant_id(). _bg rebinds it.
         self._tenant_id = get_current_tenant_id()
+        self._render_context = capture_render_context()
         self._setup_ui()
 
     def _bg(self, coro) -> None:
-        """Schedule ``coro`` as a background task with this view's tenant bound."""
-        async def _run():
-            with tenant_scope(self._tenant_id):
-                await coro
-        background_tasks.create(_run())
+        """Schedule ``coro`` with this view's tenant *and* display zone rebound."""
+        scoped_background(self._render_context, coro)
 
     def _setup_ui(self):
         # Toolbar with actions (skipped when caller renders it externally)
@@ -189,8 +188,8 @@ class UserTableView:
             'challonge': u.challonge_username or u.challonge_user_id or '',
             'is_active': u.is_active,
             'roles': ', '.join(role_labels),
-            'created_at': format_eastern_display(u.created_at),
-            'updated_at': format_eastern_display(u.updated_at),
+            'created_at': format_local_display(u.created_at),
+            'updated_at': format_local_display(u.updated_at),
         }
 
     def _on_page_change(self, _event):

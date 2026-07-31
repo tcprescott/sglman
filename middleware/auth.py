@@ -20,7 +20,43 @@ from application.tenant_context import (
     stash_client_tenant_id,
     tenant_scope,
 )
+from application.services.timezone_service import TimezoneService
+from application.timezone_context import (
+    get_browser_timezone,
+    set_timezone_name,
+    stash_client_browser_timezone,
+    stash_client_timezone,
+)
 from models import FeatureFlag, Role
+
+
+def _bind_display_timezone(name: str) -> None:
+    """Make ``name`` the display clock for this page build and this connection.
+
+    Both halves are needed and neither is redundant: the contextvar serves the
+    rest of *this* HTTP request (the page builder and everything it awaits), and
+    the client stash serves every later websocket event handler on the same
+    connection, which runs after the request — and its contextvar — is gone.
+    """
+    set_timezone_name(name)
+    stash_client_timezone(name)
+
+
+async def bind_display_timezone(tenant_id: int, user=None) -> str:
+    """Resolve and bind this viewer's display clock. Returns the bound zone.
+
+    The entry point for any page that does **not** go through
+    :func:`_tenant_page` — currently the tenant home, which is a bare
+    ``ui.page`` so that the same function can also serve the tenant-less
+    community picker. A page that binds no zone silently renders on the
+    fallback, which looks like the feature simply not working.
+    """
+    browser_tz = get_browser_timezone()
+    stash_client_browser_timezone(browser_tz)
+    settings = await TimezoneService.get_settings(tenant_id)
+    name = TimezoneService.pick(settings, user=user, browser_timezone=browser_tz)
+    _bind_display_timezone(name)
+    return name
 
 
 async def _run_in_tenant(tenant_id, coro) -> None:
@@ -191,6 +227,18 @@ def _tenant_page(
             # Discord-connect button) can hide in websocket event handlers.
             stash_client_host_mode(is_host_mode())
 
+            # Bind the display clock before anything renders a time — including
+            # the 404/403/join pages below, which show none today but must not
+            # be the surface that reintroduces a hardcoded zone. Resolved without
+            # the user here (they may not be loaded, or may not exist); the
+            # auth branch below refines it once a signed-in user is known.
+            tz_settings = await TimezoneService.get_settings(tid)
+            browser_tz = get_browser_timezone()
+            stash_client_browser_timezone(browser_tz)
+            _bind_display_timezone(
+                TimezoneService.pick(tz_settings, user=None, browser_timezone=browser_tz)
+            )
+
             # Feature gate (before the role gate): a subsystem the tenant hasn't
             # enabled is hidden from everyone — 404, like an unknown route — so a
             # not-yet-released feature never leaks and role has no bearing.
@@ -212,6 +260,11 @@ def _tenant_page(
             if require_auth:
                 user = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 is_super_admin = await AuthService.is_super_admin(user)
+                # Now that the viewer is known, their saved preference can
+                # outrank the browser hint the first pass used.
+                _bind_display_timezone(
+                    TimezoneService.pick(tz_settings, user=user, browser_timezone=browser_tz)
+                )
                 if await enforce_membership(tid, user, is_super_admin=is_super_admin):
                     return
 

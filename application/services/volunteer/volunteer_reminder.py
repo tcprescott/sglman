@@ -41,9 +41,8 @@ async def _tick() -> None:
     from application.services.feature_flag_service import FeatureFlagService
     from application.services.system_config_service import SystemConfigService
     from application.services.tenant_service import TenantService
-    from application.utils.discord_embeds import volunteer_embed
+    from application.utils.discord_embeds import time_field, volunteer_embed
     from application.utils.discord_messages import volunteer_reminder_dm
-    from application.utils.timezone import format_eastern_display
     from models import FeatureFlag
 
     now = datetime.now(timezone.utc)
@@ -85,8 +84,8 @@ async def _tick() -> None:
         message = volunteer_reminder_dm(
             position_name=position_name,
             label=shift.label,
-            starts_display=format_eastern_display(shift.starts_at),
-            ends_display=format_eastern_display(shift.ends_at),
+            starts_display=time_field(shift.starts_at),
+            ends_display=time_field(shift.ends_at),
         )
         description = 'Your shift is coming up. Tap **Acknowledge** to confirm you are covering it.'
         if shift.label:

@@ -26,11 +26,12 @@ from application.services import (
 )
 from application.services.async_qualifier.async_qualifier_rules import ClaimVerdict, classify_claim
 from application.utils.duration import format_hms
-from application.utils.timezone import format_eastern_display, parse_eastern_datetime
+from application.utils.timezone import format_local_display, parse_local_datetime
+from theme.dialog._helpers import native_date_input, native_time_input
 
 
 def _fmt(dt) -> str:
-    return format_eastern_display(dt) if dt else '—'
+    return format_local_display(dt) if dt else '—'
 
 
 def _enum_value(value) -> str:
@@ -198,13 +199,13 @@ async def admin_qualifiers_page() -> None:
             desc_in = ui.textarea(
                 'Description', value=(existing.description or '') if is_edit else ''
             ).classes('w-full').props('rows=2')
-            ui.label('Window (US/Eastern; leave date blank for open-ended)').classes('text-caption text-grey')
+            ui.label('Window (leave a date blank for open-ended)').classes('text-caption text-grey')
             with ui.row().classes('w-full'):
-                opens_date = ui.input('Opens date').props('type=date').classes('flex-1')
-                opens_time = ui.input('Opens time', value='00:00').props('type=time').classes('flex-1')
+                opens_date = native_date_input('Opens date').classes('flex-1')
+                opens_time = native_time_input('Opens time', '00:00').classes('flex-1')
             with ui.row().classes('w-full'):
-                closes_date = ui.input('Closes date').props('type=date').classes('flex-1')
-                closes_time = ui.input('Closes time', value='23:59').props('type=time').classes('flex-1')
+                closes_date = native_date_input('Closes date').classes('flex-1')
+                closes_time = native_time_input('Closes time', '23:59').classes('flex-1')
             with ui.row().classes('w-full'):
                 rpp_in = ui.number('Runs per pool', value=existing.runs_per_pool if is_edit else 1,
                                    min=1, precision=0).classes('flex-1')
@@ -216,7 +217,7 @@ async def admin_qualifiers_page() -> None:
             def _parse(date_in, time_in):
                 if not date_in.value:
                     return None
-                return parse_eastern_datetime(date_in.value, time_in.value or '00:00')
+                return parse_local_datetime(date_in.value, time_in.value or '00:00')
 
             async def submit():
                 try:

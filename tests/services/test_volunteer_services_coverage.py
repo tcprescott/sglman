@@ -15,7 +15,7 @@ import pytest
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from application.services.volunteer.volunteer_qualification_service import VolunteerQualificationService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
-from application.utils.timezone import EASTERN_TZ, parse_eastern_datetime
+from application.utils.timezone import EASTERN_TZ, parse_local_datetime
 from models import (
     Role,
     User,
@@ -36,7 +36,7 @@ UTC = timezone.utc
 _next_discord_id = itertools.count(500000)
 
 
-def eastern(hour, minute=0, day=4):
+def to_display(hour, minute=0, day=4):
     return datetime(2026, 10, day, hour, minute, tzinfo=EASTERN_TZ)
 
 
@@ -109,7 +109,7 @@ class TestStaggeredMidnight:
         )
         assert shifts
         assert all(s.ends_at > s.starts_at for s in shifts)
-        expected_end = parse_eastern_datetime('2026-10-04', '00:00') + timedelta(days=1)
+        expected_end = parse_local_datetime('2026-10-04', '00:00') + timedelta(days=1)
         latest_end = max(s.ends_at for s in shifts)
         assert latest_end == expected_end
 

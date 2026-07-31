@@ -8,6 +8,7 @@ from application.services import (
     AuthService,
     StationService,
     SystemConfigService,
+    TimezoneService,
     get_user_from_discord_id,
 )
 from application.services.system_config_service import (
@@ -18,8 +19,9 @@ from application.services.system_config_service import (
     KEY_STATION_FORMAT,
     KEY_VOLUNTEER_REMINDER_LEAD_MINUTES,
 )
+from application.utils.timezone import timezone_label
 from models import StationFormat
-from theme.dialog._helpers import native_date_input
+from theme.dialog._helpers import native_date_input, native_time_input
 from theme.notify import notify_error
 
 
@@ -125,6 +127,11 @@ async def admin_system_config_page() -> None:
     station_format = await SystemConfigService.get_station_format()
     tournament_hours = await SystemConfigService.get_tournament_hours()
     event_start, event_end = await SystemConfigService.get_event_window()
+    # Operating hours are the community's rule, so they are written and enforced
+    # on the community's clock — never the admin's. Labelled with that zone so an
+    # admin abroad is not silently reading the numbers as their own local time.
+    tenant_tz = await TimezoneService.tenant_timezone_name()
+    tenant_tz_label = timezone_label(tenant_tz)
 
     with ui.column().classes('page-container-narrow'):
         with ui.row().classes('header-row'):
@@ -173,7 +180,9 @@ async def admin_system_config_page() -> None:
         ui.label('Tournament Hours').classes('section-title q-mt-md')
         ui.label(
             'Set the window during which matches may start each day. '
-            'Matches cannot be scheduled outside these hours. Leave a day blank to allow any time.'
+            f'Matches cannot be scheduled outside these hours, given in {tenant_tz_label} — '
+            f'the community\'s own timezone, so the rule means the same thing for '
+            f'everyone. Leave a day blank to allow any time.'
         ).classes('text-caption text-grey')
 
         hours_inputs: dict[date, dict] = {}
@@ -184,8 +193,12 @@ async def admin_system_config_page() -> None:
             close_val = window[1].strftime('%H:%M') if window else ''
             with ui.row().classes('items-center gap-3 q-mb-xs'):
                 ui.label(current.isoformat()).classes('w-28 text-mono')
-                open_input = ui.input('Open', value=open_val).props('type=time dense').classes('w-28')
-                close_input = ui.input('Close', value=close_val).props('type=time dense').classes('w-28')
+                open_input = native_time_input(
+                    'Open', open_val, dense=True, stack_label=False, show_timezone=False,
+                ).classes('w-28')
+                close_input = native_time_input(
+                    'Close', close_val, dense=True, stack_label=False, show_timezone=False,
+                ).classes('w-28')
                 hours_inputs[current] = {'open': open_input, 'close': close_input}
             current += timedelta(days=1)
 

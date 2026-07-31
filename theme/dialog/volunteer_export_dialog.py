@@ -14,7 +14,7 @@ from application.utils.csv_export import (
     rows_to_csv_bytes,
     timestamped_filename,
 )
-from application.utils.timezone import parse_eastern_datetime
+from application.utils.timezone import parse_local_datetime
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -61,9 +61,9 @@ class VolunteerExportDialog:
 
             async def download() -> None:
                 try:
-                    start = parse_eastern_datetime(start_input.value, '00:00')
+                    start = parse_local_datetime(start_input.value, '00:00')
                     # Inclusive end date: the window runs to midnight *after* it.
-                    end = parse_eastern_datetime(end_input.value, '00:00') + timedelta(days=1)
+                    end = parse_local_datetime(end_input.value, '00:00') + timedelta(days=1)
                 except ValueError:
                     ui.notify('Enter both dates as YYYY-MM-DD.', color='warning')
                     return

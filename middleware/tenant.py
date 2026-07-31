@@ -45,6 +45,12 @@ from application.tenant_context import (
     set_host_mode,
     set_tenant_id,
 )
+from application.timezone_context import (
+    TZ_COOKIE,
+    read_timezone_cookie,
+    reset_browser_timezone,
+    set_browser_timezone,
+)
 from application.utils.environment import get_platform_host
 from application.utils.hostname import effective_request_host, normalize_hostname
 
@@ -133,6 +139,17 @@ class TransportPrefixMiddleware:
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # The device's own zone, reported by a snippet in the page chrome and
+        # carried on a cookie. Bound around *every* path — platform surface
+        # included, and before the tenant is known — because it is a property of
+        # the browser, not of the community. Resolution consumes it later.
+        tz_token = set_browser_timezone(read_timezone_cookie(request.cookies.get(TZ_COOKIE)))
+        try:
+            return await self._dispatch(request, call_next)
+        finally:
+            reset_browser_timezone(tz_token)
+
+    async def _dispatch(self, request, call_next):
         scope = request.scope
         path = scope.get('path', '/')
 

@@ -19,7 +19,7 @@ Coding conventions and the rules to follow while writing code are in
 | [development.md](development.md) | Local setup, the `MOCK_DISCORD` loop, dev fixtures, migrations, tests, CI |
 | [deployment.md](deployment.md) | Docker topology, the authoritative environment-variable table, GHCR, operations, backups |
 | [refactoring-guide.md](refactoring-guide.md) | The three-layer pattern with worked examples from current code |
-| [timezone-handling.md](timezone-handling.md) | UTC storage, US/Eastern display, and the utilities that convert |
+| [timezone-handling.md](timezone-handling.md) | UTC storage, per-viewer local display, the tenant pin, and the utilities that convert |
 | [scaling-roadmap.md](scaling-roadmap.md) | Measured capacity, why `--workers N` is unreachable, remaining phases |
 
 ## Code reference (`reference/`)

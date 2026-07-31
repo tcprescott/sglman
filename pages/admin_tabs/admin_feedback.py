@@ -6,7 +6,7 @@ from theme.notify import notify_error
 from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import FeedbackService, get_user_from_discord_id
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 
 _CATEGORY_LABELS = {
     'bug': 'Bug',
@@ -63,7 +63,7 @@ async def admin_feedback_page() -> None:
             rows = [
                 {
                     'id': fb.id,
-                    'created_at': format_eastern_display(fb.created_at),
+                    'created_at': format_local_display(fb.created_at),
                     'user': fb.user.preferred_name if fb.user else '-',
                     'category': _CATEGORY_LABELS.get(fb.category.value, fb.category.value),
                     'message': fb.message,

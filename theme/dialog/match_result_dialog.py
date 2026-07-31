@@ -139,8 +139,8 @@ class MatchResultDialog:
                     ui.label(f'Tournament: {self.match.tournament.name}').classes('text-subtitle1')
 
                 if self.match.scheduled_at:
-                    from application.utils.timezone import format_eastern_datetime
-                    ui.label(f'Scheduled: {format_eastern_datetime(self.match.scheduled_at)}').classes('text-body2 text-grey-7')
+                    from application.utils.timezone import format_local_datetime
+                    ui.label(f'Scheduled: {format_local_datetime(self.match.scheduled_at)}').classes('text-body2 text-grey-7')
 
             ui.separator()
 

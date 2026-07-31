@@ -134,7 +134,7 @@ module — `enforce_architecture.py` blocks both directions).
   [frontend.md](../../../docs/reference/frontend.md#responsive-tables--the-mobile-grid-rule).
 - API routers: **never add a `_load_*_or_404` preload** (DRY hook blocks new
   ones) — the service raises `NotFoundError` and `ServiceErrorRoute` 404s.
-- Datetimes: store UTC, display Eastern — use `application/utils/timezone.py`
+- Datetimes: store UTC, display viewer-local — use `application/utils/timezone.py` (never bare `datetime.combine`/`date.today()`)
   helpers only (hook-enforced).
 - NiceGUI: `background_tasks.create(...)` not `asyncio.create_task`; capture
   `context.client` before background tasks that touch UI; `@ui.refreshable`

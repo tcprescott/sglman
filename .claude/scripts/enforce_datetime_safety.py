@@ -2,10 +2,12 @@
 """
 PreToolUse hook: block naive / non-UTC datetime construction.
 
-CLAUDE.md: all datetimes are stored in UTC and shown in US/Eastern. A *naive*
-datetime (no tzinfo) or `datetime.utcnow()` silently violates that — it has no
-timezone, so storing or comparing it corrupts the UTC invariant. Reads a Claude
-Code tool payload from stdin and exits with:
+CLAUDE.md: all datetimes are stored in UTC and rendered on a per-request local
+clock. A *naive* datetime (no tzinfo) or `datetime.utcnow()` silently violates
+that — it has no timezone, so storing or comparing it corrupts the UTC
+invariant. A naive *date* boundary is the same bug one level up: it silently
+picks UTC's day instead of the viewer's. Reads a Claude Code tool payload from
+stdin and exits with:
   0 — no violation (or not applicable)
   2 — violation found (stderr explains the timezone-safe fix)
 
@@ -13,9 +15,12 @@ Blocked (any .py file outside tests/ and timezone.py):
   datetime.utcnow(...)              → always tz-naive; use datetime.now(timezone.utc)
   datetime.now()  / datetime.now() .x   → naive; pass a tz or use the helpers
   datetime.today()                  → naive; same fix
+  datetime.combine(...) w/o tzinfo= → naive; use combine_local / local_day_bounds
+  date.today()                      → UTC's day, not the viewer's; use today_local()
 
 Deliberately NOT flagged (correct, used widely):
-  datetime.now(timezone.utc), datetime.now(eastern)  — a tz argument is present.
+  datetime.now(timezone.utc), datetime.now(tz)       — a tz argument is present.
+  datetime.combine(d, t, tzinfo=zone)                — explicitly zoned.
 """
 
 import json
@@ -25,6 +30,31 @@ import sys
 from _hook_paths import anchor
 
 anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
+
+class _NaiveCombine:
+    """Matches ``datetime.combine(...)`` calls that pass no ``tzinfo=``.
+
+    Scans forward from each ``datetime.combine(`` and reads to its matching
+    close paren, tracking depth so a nested call (``time(0, 0)``) does not end
+    the argument list early. Exposes ``.search`` so it drops into ``RULES``
+    beside the compiled patterns.
+    """
+
+    _START = re.compile(r"\bdatetime\.combine\s*\(")
+
+    def search(self, content: str):
+        for m in self._START.finditer(content):
+            depth, i = 1, m.end()
+            while i < len(content) and depth:
+                if content[i] == "(":
+                    depth += 1
+                elif content[i] == ")":
+                    depth -= 1
+                i += 1
+            if "tzinfo=" not in content[m.end():i]:
+                return m
+        return None
+
 
 # (compiled pattern, short name, fix hint). Each anchors on a *naive* call.
 RULES = [
@@ -39,7 +69,28 @@ RULES = [
         re.compile(r"\bdatetime\.(?:now|today)\s*\(\s*\)"),
         "naive datetime.now()/today()",
         "pass a timezone (`datetime.now(timezone.utc)`) or use application/utils/timezone.py "
-        "(now_eastern, parse_eastern_datetime)",
+        "(now_local, parse_local_datetime)",
+    ),
+    (
+        # ``datetime.combine(...)`` with no ``tzinfo=``. The result is naive, and
+        # the ORM reads a naive value as UTC — so a range bound built this way
+        # silently selects the UTC day rather than the display-clock day. This
+        # was a live bug in MatchRepository.get_for_date.
+        # Matched call-by-call (below) rather than by one regex: "a combine()
+        # whose own argument list lacks tzinfo=" is not a regular language, and
+        # a lookbehind for it has to be fixed-width.
+        _NaiveCombine(),
+        "naive datetime.combine(...)",
+        "use `combine_local(day, moment)` or `local_day_bounds(start, end)` from "
+        "application/utils/timezone.py, or pass `tzinfo=` explicitly",
+    ),
+    (
+        # ``date.today()`` is whatever day the *server process* is on, which is
+        # UTC in every deployment — never the viewer's day.
+        re.compile(r"\bdate\.today\s*\(\s*\)"),
+        "date.today()",
+        "use `today_local()` from application/utils/timezone.py — a calendar date "
+        "has no meaning without a timezone",
     ),
 ]
 
@@ -49,8 +100,11 @@ def is_exempt(path: str) -> bool:
     return (
         "/tests/" in norm
         or norm.startswith("tests/")
-        or norm.endswith("/timezone.py")
-        or norm == "application/utils/timezone.py"
+        # Only the canonical helper module, not any file that happens to be
+        # named timezone.py — the exemption exists so the helpers can build the
+        # zoned values everyone else must ask them for.
+        or norm.endswith("application/utils/timezone.py")
+        or norm.endswith("application/timezone_context.py")
     )
 
 

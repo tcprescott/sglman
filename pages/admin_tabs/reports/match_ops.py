@@ -9,14 +9,14 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.services import AuthService, ReportsService, get_user_from_discord_id
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     csv_export_button,
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     enable_drill_link,
     navigate_with_params,
     report_page_shell,
@@ -76,7 +76,7 @@ async def match_ops_page(
                     )
                 state_select.on('update:model-value', _on_state)
 
-        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+        bounds_start, bounds_end = display_bounds(start_d, end_d)
         ops = await ReportsService().match_operations(
             bounds_start, bounds_end, tournament_id=tournament_id,
         )
@@ -125,7 +125,7 @@ async def match_ops_page(
                 detail_rows = [
                     {
                         **r,
-                        'scheduled_at': format_eastern_display(r['scheduled_at']),
+                        'scheduled_at': format_local_display(r['scheduled_at']),
                     }
                     for r in rows
                 ]

@@ -11,7 +11,7 @@ from nicegui import app, ui
 from application.services import (
     AuthService, ReportsService, SystemConfigService, get_user_from_discord_id,
 )
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
@@ -24,7 +24,7 @@ from .shared import (
     csv_export_button,
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     enable_drill_link,
     navigate_with_params,
     report_page_shell,
@@ -96,7 +96,7 @@ async def capacity_page(
                         ),
                     ).props('flat dense')
 
-        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+        bounds_start, bounds_end = display_bounds(start_d, end_d)
         forecast = await reports_service.generate_capacity_forecast(
             bounds_start, bounds_end, tournament_id=tournament_id,
         )
@@ -182,7 +182,7 @@ async def capacity_page(
             else:
                 for peak_time, count in peaks:
                     with ui.row().classes('items-center q-gutter-xs'):
-                        ui.label(f'{format_eastern_display(peak_time)} — {count} players')
+                        ui.label(f'{format_local_display(peak_time)} — {count} players')
                         ui.link(
                             'Inspect',
                             f'/admin/reports?report=capacity'
@@ -193,7 +193,7 @@ async def capacity_page(
 
         if focus_dt:
             with ui.card().classes('full-width q-pa-md'):
-                ui.label(f'Matches active at {format_eastern_display(focus_dt)}').classes('text-h6')
+                ui.label(f'Matches active at {format_local_display(focus_dt)}').classes('text-h6')
                 focused_matches = await reports_service.matches_active_at(focus_dt, tournament_id=tournament_id)
                 if not focused_matches:
                     ui.label('No active matches at this instant.').classes('italic-note')
@@ -202,7 +202,7 @@ async def capacity_page(
                         {
                             'match_id': m.id,
                             'tournament': m.tournament.name if m.tournament else '',
-                            'scheduled_at': format_eastern_display(m.scheduled_at),
+                            'scheduled_at': format_local_display(m.scheduled_at),
                             'players': len(m.players),
                             'stream_room': m.stream_room.name if m.stream_room else '',
                             'state': m.current_state,
@@ -233,7 +233,7 @@ async def capacity_page(
                 ui.label('Forecast data').classes('text-h6')
                 rows = [
                     {
-                        'time': format_eastern_display(intervals[i]),
+                        'time': format_local_display(intervals[i]),
                         'active_players': player_counts[i],
                         'on_stream_players': on_stream_counts[i],
                         'match_ids': ','.join(str(m) for m in forecast['match_ids_per_interval'][i]),

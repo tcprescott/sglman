@@ -14,7 +14,7 @@ import json
 from nicegui import ui
 
 from application.services import WebPushService
-from application.utils.timezone import format_eastern_date
+from application.utils.timezone import format_local_date
 from models import User
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 
@@ -69,9 +69,9 @@ async def render_web_push_section(user: User) -> None:
                 with ui.row().classes('row-centered').style('justify-content: space-between; width: 100%;'):
                     with ui.column().classes('gap-0'):
                         ui.label(_device_label(sub.user_agent)).classes('text-weight-medium')
-                        added = f'Added {format_eastern_date(sub.created_at)}'
+                        added = f'Added {format_local_date(sub.created_at)}'
                         if sub.last_used_at:
-                            added += f' · Last notified {format_eastern_date(sub.last_used_at)}'
+                            added += f' · Last notified {format_local_date(sub.last_used_at)}'
                         ui.label(added).classes('text-muted text-caption')
                     ui.button(icon='delete', on_click=lambda _, sid=sub.id: remove(sid)) \
                         .props('flat dense color=negative')

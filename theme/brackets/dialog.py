@@ -21,7 +21,7 @@ from application.services.match.match_status import MatchStatus
 from application.services.match.match_status import label as status_label
 from application.services.match.match_status import tone as status_tone
 from application.tenant_context import tenant_scope
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from models import BracketMatch, BracketMatchGameState, BracketMatchState, User
 from theme.dialog._helpers import dialog_actions, mobile_sheet
 from theme.notify import notify_error
@@ -152,7 +152,7 @@ def _scheduled_label(game) -> str:
     match = getattr(game, 'match', None)
     if match is None or getattr(match, 'scheduled_at', None) is None:
         return ''
-    return format_eastern_display(match.scheduled_at)
+    return format_local_display(match.scheduled_at)
 
 
 async def _open_match_editor(

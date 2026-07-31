@@ -2,16 +2,18 @@
 
 import asyncio
 
-from nicegui import app, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AuthService,
     ChallongeService,
     FeatureFlagService,
+    TimezoneService,
     TournamentNotificationService,
     UserService,
     get_user_from_discord_id,
 )
+from application.services.timezone_service import COMMON_TIMEZONES, MODE_PINNED
 from models import FeatureFlag
 from pages.home_tabs._link_section import render_connected_accounts_section
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
@@ -25,6 +27,12 @@ async def render_edit_info_tab():
     """Render the profile tab for players to update their information."""
     # Initialize service
     user_service = UserService()
+
+    tz_settings = await TimezoneService.get_settings()
+    tz_pinned = tz_settings['mode'] == MODE_PINNED
+    # '' is "detect from my device" — the default, and what clearing returns to.
+    tz_options = {'': 'Detect automatically from my device'}
+    tz_options.update({name: name for name in COMMON_TIMEZONES})
 
     # Install a beforeunload guard so unsaved edits prompt before navigation.
     ui.add_head_html("""
@@ -170,6 +178,24 @@ async def render_edit_info_tab():
                 return
             await save_personal()
 
+        async def save_timezone(client):
+            # Its own save path, not part of the debounced personal-info bundle:
+            # the zone changes what every timestamp on the page reads, so it takes
+            # effect on a reload rather than silently mid-session.
+            with client:
+                chosen = tz_select.value or None
+                if (chosen or None) == (user.timezone or None):
+                    return
+                show_saving()
+                try:
+                    await TimezoneService.set_user_timezone(user, chosen)
+                except ValueError as e:
+                    show_error(str(e))
+                    ui.notify(str(e), color='warning')
+                    return
+                show_saved()
+                ui.navigate.reload()
+
         async def flush_personal():
             # Bump the token so an in-flight debounce coroutine bails instead of
             # firing a duplicate save after this immediate one.
@@ -283,6 +309,30 @@ async def render_edit_info_tab():
                 ).props('outlined dense stack-label hint="Shown next to your name. Leave blank to omit."') \
                     .classes('input-full-width')
                 pronouns_input.on('blur', flush_personal)
+
+                # Only meaningful when the community follows each member's clock;
+                # when it pins one, this control would promise something it cannot
+                # deliver, so it is replaced by a note saying so.
+                if tz_pinned:
+                    ui.label(
+                        f'Times are shown in {tz_settings["name"]} for everyone in '
+                        'this community.'
+                    ).classes('text-caption text-grey q-mt-sm')
+                else:
+                    # A saved zone outside the shortlist must survive a re-save.
+                    if user.timezone and user.timezone not in tz_options:
+                        tz_options[user.timezone] = user.timezone
+                    tz_select = ui.select(
+                        tz_options, value=user.timezone or '',
+                        label='Timezone', with_input=True,
+                        on_change=lambda _: background_tasks.create(
+                            save_timezone(context.client)
+                        ),
+                    ).props('outlined dense stack-label').classes('input-full-width')
+                    tz_select.props(
+                        'hint="Times are shown in this timezone. '
+                        'Leave on Detect automatically to follow your device."'
+                    )
 
         # Notifications — the delivery master switch, the per-device channel, and
         # per-tournament granularity, so "how do I get notified" lives in one place.

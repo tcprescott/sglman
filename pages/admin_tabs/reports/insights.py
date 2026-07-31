@@ -12,7 +12,7 @@ from typing import List, Optional
 from nicegui import ui
 
 from application.services import AnalyticsService
-from application.utils.timezone import now_eastern
+from application.utils.timezone import now_local
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     CHART_GOLD,
@@ -21,7 +21,7 @@ from .shared import (
     CHART_TEAL,
     csv_export_button,
     date_range_filter,
-    eastern_bounds,
+    display_bounds,
     kpi_card,
     navigate_with_params,
     parse_date,
@@ -63,7 +63,7 @@ async def _default_range(
     if s and e:
         return s, e
 
-    today = now_eastern().date()
+    today = now_local().date()
     first, last = await analytics.activity_extent(tournament_id=tournament_id)
     if first is None or last is None:
         return today - timedelta(days=DEFAULT_TREND_DAYS), today
@@ -96,7 +96,7 @@ async def insights_page(
     start_d, end_d = await _default_range(analytics, start, end, tournament_id)
     # Only *default* the bucket — an explicit choice is the operator's.
     bucket = _normalize_bucket(bucket) if bucket else _default_bucket(start_d, end_d)
-    bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+    bounds_start, bounds_end = display_bounds(start_d, end_d)
 
     def nav(**overrides) -> None:
         params = {
@@ -132,7 +132,7 @@ async def insights_page(
             with ui.row().classes('q-mt-sm items-center gap-2'):
                 ui.label('Range:').classes('text-caption')
                 for days, label in ((30, 'Last 30d'), (90, 'Last 90d'), (365, 'Last year')):
-                    today = now_eastern().date()
+                    today = now_local().date()
                     ui.button(
                         label,
                         on_click=lambda d=days, t=today: nav(start=t - timedelta(days=d), end=t),

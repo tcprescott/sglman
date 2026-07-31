@@ -25,6 +25,47 @@ _PRELOAD_FONTS = (
 )
 
 
+def install_timezone_detection() -> None:
+    """Report the device's IANA timezone to the server on a cookie.
+
+    The server renders times before any websocket exists, so the zone has to
+    arrive with the HTTP request itself — a cookie, not a ``run_javascript``
+    round-trip. This snippet writes it on every load (cheap and idempotent), and
+    ``TenantMiddleware`` reads it back into the request's timezone context.
+
+    On a browser's **first** visit there is no cookie yet, so that one page
+    renders on the community's default clock and then reloads once to pick up
+    the real zone. The reload is guarded twice over: ``sessionStorage`` caps it
+    at one per tab even when cookies are blocked outright (otherwise the missing
+    cookie would look like a first visit forever), and the window flag stops a
+    double-fire within a single load. A zone that merely *changed* — someone
+    travelled — updates the cookie silently and takes effect on the next
+    navigation, because a surprise reload mid-session is worse than a stale
+    clock for a few seconds.
+
+    Ignored entirely when the community pins a timezone: the cookie is still
+    written, but resolution never reads it.
+    """
+    ui.add_body_html(
+        '<script>'
+        'if(!window.__wizTzInstalled){'
+        'window.__wizTzInstalled=true;'
+        'try{'
+        'var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;'
+        'if(tz){'
+        "var m=document.cookie.match(/(?:^|;\\s*)wiz_tz=([^;]*)/);"
+        'var cur=m?decodeURIComponent(m[1]):null;'
+        'if(cur!==tz){'
+        "document.cookie='wiz_tz='+encodeURIComponent(tz)+"
+        "';path=/;max-age=31536000;samesite=Lax';"
+        "if(!m&&!sessionStorage.getItem('wizTzReload')){"
+        "sessionStorage.setItem('wizTzReload','1');location.reload();}"
+        '}}}catch(e){}'
+        '}'
+        '</script>'
+    )
+
+
 def dark_mode_button(dark: ui.dark_mode) -> ui.button:
     """The header's dark-mode toggle, bound to ``dark`` and the user's session.
 
@@ -74,6 +115,7 @@ def render_platform_chrome(
     ui.add_head_html('<link rel="stylesheet" href="/static/css/styles.css">')
     ui.add_head_html('<meta name="robots" content="noindex, nofollow">')
     ui.add_head_html('<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">')
+    install_timezone_detection()
     # The shipped phoenix defaults, not a tenant override: these surfaces belong
     # to the platform, and the consent screen in particular grants a credential
     # that is not scoped to any one community.

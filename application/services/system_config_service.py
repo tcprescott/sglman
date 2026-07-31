@@ -5,13 +5,13 @@ Typed accessors over the SystemConfiguration key/value table.
 """
 
 import json
-from datetime import date, datetime, time
+from datetime import date, time
 from typing import Dict, Optional, Tuple
 
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import EASTERN_TZ, to_eastern
+from application.utils.timezone import today_local, to_local
 from models import Match, StationFormat, StreamRoom, SystemConfiguration, Tournament, User
 
 
@@ -103,15 +103,15 @@ class SystemConfigService:
             first = await Match.filter(tenant_id=require_tenant_id()).order_by('scheduled_at').first()
             last = await Match.filter(tenant_id=require_tenant_id()).order_by('-scheduled_at').first()
             derived_start = (
-                to_eastern(first.scheduled_at).date()
+                to_local(first.scheduled_at).date()
                 if first and first.scheduled_at else None
             )
             derived_end = (
-                to_eastern(last.scheduled_at).date()
+                to_local(last.scheduled_at).date()
                 if last and last.scheduled_at else None
             )
             if start is None:
-                start = derived_start or datetime.now(EASTERN_TZ).date()
+                start = derived_start or today_local()
             if end is None:
                 end = derived_end or start
 

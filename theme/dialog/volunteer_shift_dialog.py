@@ -6,12 +6,12 @@ from application.services import get_user_from_discord_id
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.timezone import (
-    format_eastern_date,
-    format_eastern_time,
-    parse_eastern_datetime,
+    format_local_date,
+    format_local_time,
+    parse_local_datetime,
 )
 from models import VolunteerPosition, VolunteerShift
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, native_date_input, native_time_input, submit_on_enter
 from theme.notify import notify_error
 
 
@@ -38,10 +38,10 @@ class VolunteerShiftDialog:
 
         if editing:
             default_position = self.shift.position_id
-            default_start_date = format_eastern_date(self.shift.starts_at)
-            default_start_time = format_eastern_time(self.shift.starts_at)
-            default_end_date = format_eastern_date(self.shift.ends_at)
-            default_end_time = format_eastern_time(self.shift.ends_at)
+            default_start_date = format_local_date(self.shift.starts_at)
+            default_start_time = format_local_time(self.shift.starts_at)
+            default_end_date = format_local_date(self.shift.ends_at)
+            default_end_time = format_local_time(self.shift.ends_at)
             default_label = self.shift.label or ''
             default_slots = self.shift.slots_needed
             default_notes = self.shift.notes or ''
@@ -66,14 +66,14 @@ class VolunteerShiftDialog:
                     position_options, value=default_position, label='Position',
                 ).classes('input-full-width')
                 with ui.row().classes('gap-2 items-center full-width'):
-                    start_date_input = ui.input('Start date', value=default_start_date).props('type=date')
-                    start_time_input = ui.input('Start time', value=default_start_time).props('type=time')
+                    start_date_input = native_date_input('Start date', default_start_date)
+                    start_time_input = native_time_input('Start time', default_start_time)
                 # Keep the end date aligned with the start date until the user edits it.
                 end_date_edited = {'value': editing}
 
                 with ui.row().classes('gap-2 items-center full-width'):
-                    end_date_input = ui.input('End date', value=default_end_date).props('type=date')
-                    end_time_input = ui.input('End time', value=default_end_time).props('type=time')
+                    end_date_input = native_date_input('End date', default_end_date)
+                    end_time_input = native_time_input('End time', default_end_time)
                 end_date_input.on('change', lambda: end_date_edited.update(value=True))
 
                 def _sync_end_date(e):
@@ -95,8 +95,8 @@ class VolunteerShiftDialog:
                     if not (start_date_input.value and start_time_input.value
                             and end_date_input.value and end_time_input.value):
                         raise ValueError('Set a start and end date/time.')
-                    starts_at = parse_eastern_datetime(start_date_input.value, start_time_input.value)
-                    ends_at = parse_eastern_datetime(end_date_input.value, end_time_input.value)
+                    starts_at = parse_local_datetime(start_date_input.value, start_time_input.value)
+                    ends_at = parse_local_datetime(end_date_input.value, end_time_input.value)
                     label = (label_input.value or '').strip() or None
                     notes = (notes_input.value or '').strip() or None
                     slots = int(slots_input.value or 1)

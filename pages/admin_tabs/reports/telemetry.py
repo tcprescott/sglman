@@ -13,12 +13,13 @@ from nicegui import app, ui
 
 from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
+from application.utils.timezone import timezone_label
 from theme.tables.mobile_grid import enable_mobile_grid
 from .shared import (
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     kpi_card,
     navigate_with_params,
     paginated_event_log,
@@ -61,7 +62,7 @@ async def telemetry_page(
     category_filter = (category or '').strip()
     if category_filter not in _CATEGORY_OPTIONS:
         category_filter = ''
-    bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+    bounds_start, bounds_end = display_bounds(start_d, end_d)
 
     def _nav(**overrides):
         params = {
@@ -177,7 +178,7 @@ async def telemetry_page(
             truncated = display[:200] + ('…' if len(display) > 200 else '')
             rows.append({
                 'ev_id': ev.id,
-                'created_at': format_eastern_display(ev.created_at),
+                'created_at': format_local_display(ev.created_at),
                 'user': ev.user.preferred_name if ev.user else (
                     f'User {ev.user_id}' if ev.user_id else '—'
                 ),
@@ -188,7 +189,7 @@ async def telemetry_page(
                 'full_details': display,
             })
         columns = [
-            {'name': 'created_at', 'label': 'When (ET)', 'field': 'created_at', 'sortable': False},
+            {'name': 'created_at', 'label': f'When ({timezone_label()})', 'field': 'created_at', 'sortable': False},
             {'name': 'user', 'label': 'User', 'field': 'user', 'sortable': False},
             {'name': 'category', 'label': 'Category', 'field': 'category', 'sortable': False},
             {'name': 'event_type', 'label': 'Event', 'field': 'event_type', 'sortable': False},

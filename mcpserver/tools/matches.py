@@ -101,7 +101,7 @@ async def get_schedule(
 ) -> List[StreamRoomBlock]:
     """Get one day's schedule, grouped by stream room.
 
-    `date` is YYYY-MM-DD, interpreted in the community's local time (US/Eastern).
+    `date` is YYYY-MM-DD, interpreted in the community's own timezone.
     """
     try:
         parsed = datetime.strptime(date, '%Y-%m-%d').date()

@@ -23,7 +23,9 @@ from application.services.api_token_service import ApiTokenService
 from application.services.auth_service import AuthService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_service import TenantService
+from application.services.timezone_service import TimezoneService
 from application.tenant_context import reset_tenant_id, set_tenant_id
+from application.timezone_context import set_timezone_name
 from models import ApiToken, ApiTokenOrigin, FeatureFlag, User
 
 
@@ -107,6 +109,12 @@ async def resolve_token(
             detail="This tenant is inactive",
         )
     set_tenant_id(tenant.id)
+    # REST responses stay UTC — timezone is a presentation concern and a
+    # programmatic client should get one canonical instant. But a few endpoints
+    # accept or derive a calendar *date*, and a date has no meaning without a
+    # zone; those resolve on the community's clock, matching what its members
+    # see, rather than silently on UTC's.
+    set_timezone_name(await TimezoneService.tenant_timezone_name(tenant.id))
     return user, token
 
 

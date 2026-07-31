@@ -20,7 +20,7 @@ from application.services.async_qualifier.async_qualifier_rules import (
     measure_elapsed,
 )
 from application.utils.duration import format_hms, parse_hms
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -30,7 +30,7 @@ from theme.tables.mobile_grid import enable_mobile_grid
 
 
 def _fmt(dt) -> str:
-    return format_eastern_display(dt) if dt else '—'
+    return format_local_display(dt) if dt else '—'
 
 
 # Run states a reattempt can void — an in-progress run is finished or forfeited

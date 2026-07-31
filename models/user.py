@@ -25,6 +25,12 @@ class User(Model):
     # via ``UserService.get_system_user()``, never construct it ad hoc.
     is_system = fields.BooleanField(default=False)
     dm_notifications = fields.BooleanField(default=True)
+    # Display-timezone preference (IANA name). NULL means "detect from my
+    # device" — the browser reports its zone and that is used. Only consulted
+    # when the community leaves the choice to its members; a community that
+    # pins one clock overrides this. Global, like the rest of identity: a
+    # person carries one timezone across every community they belong to.
+    timezone = fields.CharField(max_length=64, null=True)
     # Verified Challonge identity (captured via one-time OAuth, scope ``me``).
     # Identity only — we do not retain a player's Challonge access token.
     # Unique so bracket sync can resolve a Challonge id to exactly one user

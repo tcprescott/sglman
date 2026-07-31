@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from application.utils.timezone import format_eastern_display, to_eastern
+from application.utils.timezone import format_local_display, to_local
 from models import Bracket, BracketEntry, BracketFormat, BracketMatch, BracketState
 
 from ..labels import config_summary, format_label, stage_label, state_label
@@ -126,7 +126,7 @@ def _document(
         if primary_color else ''
     )
     stamp = (
-        f'Updated {_esc(format_eastern_display(to_eastern(generated_at)))}'
+        f'Updated {_esc(format_local_display(to_local(generated_at)))}'
         if generated_at else ''
     )
     refresh = (

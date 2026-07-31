@@ -11,12 +11,12 @@ from nicegui import app, ui
 from application.services import (
     AuthService, ReportsService, SystemConfigService, get_user_from_discord_id,
 )
-from application.utils.timezone import format_eastern_date, format_eastern_display
+from application.utils.timezone import format_local_date, format_local_display, timezone_label
 from models import FeatureFlag
 from .shared import (
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     kpi_card,
     navigate_with_params,
     reports_url,
@@ -102,9 +102,9 @@ async def dashboard_page(
         # An absent pair still means the event window, so the label below keeps
         # telling the truth and an unfiltered dashboard is unchanged.
         start_d, end_d = await default_date_range(start, end)
-        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+        bounds_start, bounds_end = display_bounds(start_d, end_d)
         ui.label(
-            f'Window: {format_eastern_date(start_d)} → {format_eastern_date(end_d)} (US/Eastern)'
+            f'Window: {format_local_date(start_d)} → {format_local_date(end_d)} ({timezone_label()})'
         ).classes('italic-note')
 
         # `Peak players 14 / 12` is the loudest number here and the one most
@@ -230,4 +230,4 @@ def _report_card(card: dict) -> None:
 def _peak_subtitle(peak_time) -> str:
     if peak_time is None:
         return 'no scheduled matches in window'
-    return f'at {format_eastern_display(peak_time)}'
+    return f'at {format_local_display(peak_time)}'

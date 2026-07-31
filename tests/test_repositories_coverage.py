@@ -5,7 +5,7 @@ repositories in isolation against the in-memory SQLite ``db`` fixture.
 Repositories perform no Discord I/O, so no queue stub is needed.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -29,6 +29,16 @@ from models import (
     UserRole,
 )
 from tests.factories import make_user, utc
+
+
+def _utc_day(d: date) -> tuple:
+    """The UTC calendar day of ``d`` as half-open bounds.
+
+    The repository takes instants now — which instants make up "a day" is the
+    service's rule (see tests/services/test_match_service_day_window.py). These
+    repository tests only need *a* window, so UTC's is the simplest one.
+    """
+    return utc(d.year, d.month, d.day), utc(d.year, d.month, d.day) + timedelta(days=1)
 
 
 # ---------------------------------------------------------------------------
@@ -657,7 +667,7 @@ class TestMatchRepository:
         await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
         # different day -> excluded
         await Match.create(tournament=t, scheduled_at=utc(2025, 3, 11, 15), stream_room=sr)
-        result = await MatchRepository.get_for_date(target)
+        result = await MatchRepository.scheduled_between(*_utc_day(target))
         assert [m.id for m in result] == [keep.id]
 
     async def test_get_for_date_include_finished_and_no_stream_room(self, db):
@@ -669,7 +679,9 @@ class TestMatchRepository:
             tournament=t, scheduled_at=utc(2025, 3, 10, 16), stream_room=sr, finished_at=utc(2025, 3, 10, 18)
         )
         no_room = await Match.create(tournament=t, scheduled_at=utc(2025, 3, 10, 17))
-        result = await MatchRepository.get_for_date(target, exclude_finished=False, require_stream_room=False)
+        result = await MatchRepository.scheduled_between(
+            *_utc_day(target), exclude_finished=False, require_stream_room=False
+        )
         assert {m.id for m in result} == {with_room.id, finished.id, no_room.id}
 
     async def test_get_for_player(self, db):

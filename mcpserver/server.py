@@ -29,7 +29,8 @@ Wizzrobe hosts many independent communities. Every tool except `whoami` and \
 returned by `list_tenants`. A tool that reports `not_found` for a feature means \
 that community has not enabled it, not that you asked incorrectly.
 
-All times are returned in UTC. Users see them in US/Eastern.\
+All times are returned in UTC. Each community chooses the timezone its \
+members read them in, so convert before quoting a time to a person.\
 """
 
 

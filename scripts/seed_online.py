@@ -40,7 +40,7 @@ from models import (
     BotStatus, RaceRoomStatus,
 )
 from application.services.preset_service import PresetService
-from application.utils.timezone import now_eastern
+from application.utils.timezone import now_local
 from scripts.seed_qualifiers import seed_qualifiers_for_tenant
 from scripts.seed_support import backfill
 
@@ -78,7 +78,7 @@ async def link_racetime_identities(users: dict[str, User]) -> None:
         if u.racetime_user_id is None:
             u.racetime_user_id = rt_id
             u.racetime_username = rt_name
-            u.racetime_linked_at = now_eastern()
+            u.racetime_linked_at = now_local()
             await u.save()
 
 
@@ -99,7 +99,7 @@ async def link_twitch_identities(users: dict[str, User]) -> None:
         if u.twitch_user_id is None:
             u.twitch_user_id = tw_id
             u.twitch_username = tw_name
-            u.twitch_linked_at = now_eastern()
+            u.twitch_linked_at = now_local()
             await u.save()
 
 
@@ -158,7 +158,7 @@ async def seed_racetime_bots() -> dict[str, RacetimeBot]:
     managed at ``/platform`` and authorized per tenant. Seed one healthy,
     connected bot plus one per remaining ``BotStatus``, so the /platform health
     table shows every variant it can render."""
-    now = now_eastern()
+    now = now_local()
     alttpr, _ = await RacetimeBot.get_or_create(
         category="alttpr",
         defaults={
@@ -331,7 +331,7 @@ async def _seed_online_matches(
     the race room drives the lifecycle, which is exactly why these matches live
     apart from the on-site ones.
     """
-    now = now_eastern()
+    now = now_local()
 
     async def make_match(
         title: str,

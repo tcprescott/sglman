@@ -445,7 +445,7 @@ class TestSetTournamentHours:
 class TestMatchSchedulingHonorsTournamentHours:
     async def test_tournament_override_bounds_scheduling(self, db):
         from application.services.match.match_service import MatchService
-        from application.utils.timezone import parse_eastern_datetime
+        from application.utils.timezone import parse_local_datetime
 
         # Tenant has no hours; the tournament restricts 12:00–20:00 on this date.
         tournament = await Tournament.create(
@@ -454,16 +454,16 @@ class TestMatchSchedulingHonorsTournamentHours:
         )
         svc = object.__new__(MatchService)
 
-        outside = parse_eastern_datetime('2025-10-20', '10:00')
+        outside = parse_local_datetime('2025-10-20', '10:00')
         with pytest.raises(ValueError, match='can only start between'):
             await svc._assert_within_tournament_hours(outside, tournament.id)
 
-        inside = parse_eastern_datetime('2025-10-20', '13:00')
+        inside = parse_local_datetime('2025-10-20', '13:00')
         await svc._assert_within_tournament_hours(inside, tournament.id)  # no raise
 
     async def test_falls_back_to_tenant_hours_when_tournament_unset(self, db):
         from application.services.match.match_service import MatchService
-        from application.utils.timezone import parse_eastern_datetime
+        from application.utils.timezone import parse_local_datetime
 
         await set_config(KEY_TOURNAMENT_HOURS, json.dumps({
             '2025-10-20': {'open': '12:00', 'close': '20:00'},
@@ -471,7 +471,7 @@ class TestMatchSchedulingHonorsTournamentHours:
         tournament = await Tournament.create(name='NoOverride')  # tournament_hours is None
         svc = object.__new__(MatchService)
 
-        outside = parse_eastern_datetime('2025-10-20', '10:00')
+        outside = parse_local_datetime('2025-10-20', '10:00')
         with pytest.raises(ValueError, match='can only start between'):
             await svc._assert_within_tournament_hours(outside, tournament.id)
 

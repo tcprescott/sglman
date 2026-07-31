@@ -123,7 +123,7 @@ Read each rendered card + DM against these (the recurring issues on this surface
   twice. Guard by suppressing the redundant field when the values match.
 - **Times use `<t:>` tokens** — embed Time/Start/End fields must come from
   `time_field()` (raw UTC → `<t:unix:F>·<t:unix:R>`), never a pre-formatted
-  Eastern string. The plain-text mirror still uses the Eastern string — that's
+  native `<t:…>` markup. The plain-text mirror uses the same markup — that's
   correct, because `<t:>` tokens only render inside Discord, not in web push.
 - **Consistent block spacing (text mirror)** — the plain-text DMs should share one
   rhythm: intro, detail block, call-to-action, separated by blank lines (`\n\n`).

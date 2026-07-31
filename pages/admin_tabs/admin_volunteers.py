@@ -15,8 +15,8 @@ from application.services.volunteer.volunteer_qualification_service import Volun
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
 from application.utils.timezone import (
-    format_eastern_time,
-    parse_eastern_datetime,
+    format_local_time,
+    parse_local_datetime,
 )
 from models import VolunteerAssignment, VolunteerAvailabilityStatus
 from theme.dialog.confirmation_dialog import ConfirmationDialog
@@ -26,7 +26,8 @@ from theme.dialog.volunteer_position_dialog import VolunteerPositionDialog
 from theme.dialog.volunteer_shift_dialog import VolunteerShiftDialog
 
 
-# Standard four 4-hour shift blocks (Eastern), matching the 2025 schedule.
+# Standard four 4-hour shift blocks, in the community's own timezone (the
+# generator resolves them against it), matching the 2025 schedule.
 STANDARD_BLOCKS = [
     ('Shift 1', '08:00', '12:00'),
     ('Shift 2', '12:00', '16:00'),
@@ -85,7 +86,7 @@ async def admin_volunteers_page(day: str = None) -> None:
     }
 
     def _day_window(day_str: str):
-        start = parse_eastern_datetime(day_str, '00:00')
+        start = parse_local_datetime(day_str, '00:00')
         return start, start + timedelta(hours=30)
 
     with ui.column().classes('page-container-wide'):
@@ -241,7 +242,7 @@ async def admin_volunteers_page(day: str = None) -> None:
         def _slot_title(row) -> str:
             label = f" — {row['label']}" if row.get('label') else ''
             return (f"{row['position']}{label}   "
-                    f"{format_eastern_time(row['starts_at'])} ET")
+                    f"{format_local_time(row['starts_at'])} ET")
 
         async def assign_from_panel(shift_id: int) -> None:
             shift = await schedule_service.get_shift(shift_id)
@@ -360,7 +361,7 @@ async def admin_volunteers_page(day: str = None) -> None:
             filled = len(shift.assignments)
             understaffed = filled < shift.slots_needed
             with ui.card().classes('q-pa-sm').style('min-width: 220px; flex: 0 0 auto;'):
-                header = shift.label or f'{format_eastern_time(shift.starts_at)}'
+                header = shift.label or f'{format_local_time(shift.starts_at)}'
                 with ui.row().classes('items-center justify-between full-width'):
                     ui.label(header).classes('text-weight-medium')
                     badge = ui.badge(f'{filled}/{shift.slots_needed}',
@@ -373,7 +374,7 @@ async def admin_volunteers_page(day: str = None) -> None:
                         # reads it on their card, the coordinator could not.
                         ui.icon('sticky_note_2', size='xs').tooltip(shift.notes)
                 ui.label(
-                    f'{format_eastern_time(shift.starts_at)}–{format_eastern_time(shift.ends_at)} ET'
+                    f'{format_local_time(shift.starts_at)}–{format_local_time(shift.ends_at)} ET'
                 ).classes('text-caption')
                 for assignment in shift.assignments:
                     _render_assignment_chip(shift, assignment)
@@ -438,7 +439,7 @@ async def admin_volunteers_page(day: str = None) -> None:
             with ui.dialog() as dialog, ui.card().classes('dialog-card'):
                 title = shift.position.name if shift.position else 'Shift'
                 ui.label(f'Assign to {title} '
-                         f'({format_eastern_time(shift.starts_at)}–{format_eastern_time(shift.ends_at)} ET)') \
+                         f'({format_local_time(shift.starts_at)}–{format_local_time(shift.ends_at)} ET)') \
                     .classes('text-subtitle1 q-pa-sm')
                 ui.separator()
                 if not pool:

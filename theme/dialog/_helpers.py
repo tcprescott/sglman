@@ -2,6 +2,8 @@ from contextlib import contextmanager
 
 from nicegui import ui
 
+from application.utils.timezone import timezone_label
+
 
 @contextmanager
 def form_dialog(title: str, *, card_classes: str = 'dialog-card'):
@@ -52,26 +54,98 @@ def dialog_actions():
     return ui.row().classes('dialog-actions items-center gap-2')
 
 
-def native_date_input(label: str, value: str = '', *, required: bool = False, clearable: bool = False):
+def _native_props(
+    input_type: str, *, required: bool, clearable: bool, dense: bool, stack_label: bool
+) -> str:
+    """Build the props string for a native date/time input."""
+    props = f'type={input_type}'
+    if stack_label:
+        props += ' stack-label'
+    if required:
+        props += ' required'
+    if clearable:
+        props += ' clearable'
+    if dense:
+        props += ' dense'
+    return props
+
+
+def native_date_input(
+    label: str,
+    value: str = '',
+    *,
+    required: bool = False,
+    clearable: bool = False,
+    dense: bool = False,
+    stack_label: bool = True,
+):
     """A native ``type=date`` input (YYYY-MM-DD), so mobile gets the OS date picker.
 
     Returns the ``ui.input``; read/write its ``.value`` as a ``YYYY-MM-DD`` string.
     Centralizes the props string so the native-picker recipe lives in one place.
     """
-    props = 'type=date stack-label'
-    if required:
-        props += ' required'
-    if clearable:
-        props += ' clearable'
-    return ui.input(label, value=value).props(props)
+    return ui.input(label, value=value).props(_native_props(
+        'date', required=required, clearable=clearable, dense=dense, stack_label=stack_label,
+    ))
 
 
-def native_time_input(label: str, value: str = '', *, required: bool = False):
-    """A native ``type=time`` input (HH:MM), so mobile gets the OS time picker."""
-    props = 'type=time stack-label'
-    if required:
-        props += ' required'
-    return ui.input(label, value=value).props(props)
+def native_time_input(
+    label: str,
+    value: str = '',
+    *,
+    required: bool = False,
+    dense: bool = False,
+    stack_label: bool = True,
+    tz=None,
+    show_timezone: bool = True,
+):
+    """A native ``type=time`` input (HH:MM), so mobile gets the OS time picker.
+
+    The label carries the zone the time will be read in — ``Time (EDT)``. A bare
+    "Time" field was unambiguous only while the whole app ran on one clock; now
+    that two people in different zones can fill in the same form, the field has
+    to say which clock it means, or the value it stores is a guess.
+
+    ``tz=None`` labels it with the viewer's own zone, which is what the paired
+    ``parse_local_datetime`` will use. Pass an explicit ``tz`` where the field is
+    **not** read on the viewer's clock — a tenant-anchored rule like tournament
+    operating hours — so the label matches the zone that actually applies.
+    ``show_timezone=False`` opts out for a field whose surrounding copy already
+    says it, or one that is a duration rather than a wall clock.
+
+    ``dense``/``stack_label`` exist because their absence is what drove callers to
+    hand-roll the props string in the first place — and a hand-rolled field is one
+    the zone label can never reach.
+    """
+    if show_timezone:
+        label = f'{label} ({timezone_label(tz)})'
+    return ui.input(label, value=value).props(_native_props(
+        'time', required=required, clearable=False, dense=dense, stack_label=stack_label,
+    ))
+
+
+def native_datetime_input(
+    label: str,
+    value: str = '',
+    *,
+    required: bool = False,
+    dense: bool = False,
+    stack_label: bool = True,
+    tz=None,
+    show_timezone: bool = True,
+):
+    """A native ``type=datetime-local`` input (``YYYY-MM-DDTHH:MM``).
+
+    One control for a date and a time together, where a separate pair would be
+    noise. Carries the zone in its label for the same reason
+    :func:`native_time_input` does — it names a wall clock, so it has to name the
+    clock.
+    """
+    if show_timezone:
+        label = f'{label} ({timezone_label(tz)})'
+    return ui.input(label, value=value).props(_native_props(
+        'datetime-local', required=required, clearable=False, dense=dense, stack_label=stack_label,
+    ))
 
 
 def mobile_sheet(dialog) -> None:

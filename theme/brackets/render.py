@@ -20,7 +20,7 @@ from application.services.bracket_engines.round_names import (
     detect_finals_ids,
 )
 from application.services.bracket_engines.standings import ResultRow
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from models import BracketMatch, BracketMatchState
 
 from .cards import BracketContext, render_mobile_card, render_section
@@ -34,14 +34,18 @@ from .layout import (
 
 
 def format_scheduled(iso: str) -> str:
-    """A round's stored UTC ISO time → the app's Eastern display string."""
+    """A round's stored UTC ISO time → a display string on the ambient clock.
+
+    Bound by the caller: the cached spectator pages render in the community's
+    zone (``pages/static_brackets.py``), the admin views in the viewer's.
+    """
     try:
         dt = datetime.fromisoformat(iso)
     except (TypeError, ValueError):
         return iso
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return format_eastern_display(dt)
+    return format_local_display(dt)
 
 
 def match_nodes(matches: List[BracketMatch]) -> List[MatchNode]:

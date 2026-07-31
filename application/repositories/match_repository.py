@@ -6,7 +6,7 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 """
 
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime
 
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User
@@ -305,28 +305,30 @@ class MatchRepository:
         ).order_by('scheduled_at')
 
     @staticmethod
-    async def get_for_date(
-        target_date: date,
+    async def scheduled_between(
+        start: datetime,
+        end: datetime,
         exclude_finished: bool = True,
         require_stream_room: bool = True,
     ) -> List[Match]:
         """
-        Get matches scheduled on a given date, with optional filters.
+        Get matches scheduled in the half-open window ``[start, end)``.
+
+        Takes instants, not a date: which instants make up "a day" depends on a
+        timezone, and choosing one is a business rule the service layer owns.
 
         Args:
-            target_date: The date to fetch matches for
+            start: Inclusive lower bound (aware UTC)
+            end: Exclusive upper bound (aware UTC)
             exclude_finished: If True, exclude matches that are finished
             require_stream_room: If True, only include matches with a stream room
 
         Returns:
             List of matches with all related data prefetched
         """
-        start_of_day = datetime.combine(target_date, datetime.min.time())
-        end_of_day = datetime.combine(target_date, datetime.max.time())
-
         query = scoped(Match.filter(
-            scheduled_at__gte=start_of_day,
-            scheduled_at__lte=end_of_day
+            scheduled_at__gte=start,
+            scheduled_at__lt=end
         ))
 
         if exclude_finished:

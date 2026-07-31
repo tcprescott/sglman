@@ -1,6 +1,6 @@
 """DB-backed tests for the async report methods of ``ReportsService``.
 
-The pure helpers (_eastern, _match_window, _auto_interval_minutes, peak_times,
+The pure helpers (_local, _match_window, _auto_interval_minutes, peak_times,
 event_day_bounds) are covered in ``test_reports_service.py``. This module
 exercises the five async methods that query the ``db`` fixture:
 ``generate_capacity_forecast``, ``matches_active_at``, ``match_operations``,
@@ -28,7 +28,7 @@ UTC = timezone.utc
 from tests.factories import utc
 
 
-def eastern(y, mo, d, h=0, mi=0):
+def to_display(y, mo, d, h=0, mi=0):
     return datetime(y, mo, d, h, mi, tzinfo=EASTERN_TZ)
 
 
@@ -37,12 +37,12 @@ async def _user(discord_id, name):
 
 
 # A three-hour Eastern window on 2025-10-23 (EDT, UTC-4): 13:00 -> 16:00.
-FORECAST_START = eastern(2025, 10, 23, 13, 0)
-FORECAST_END = eastern(2025, 10, 23, 16, 0)
+FORECAST_START = to_display(2025, 10, 23, 13, 0)
+FORECAST_END = to_display(2025, 10, 23, 16, 0)
 
 # A full-day Eastern window used for operations / crew / utilization reports.
-DAY_START = eastern(2025, 10, 23, 0, 0)
-DAY_END = eastern(2025, 10, 24, 0, 0)
+DAY_START = to_display(2025, 10, 23, 0, 0)
+DAY_END = to_display(2025, 10, 24, 0, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +148,7 @@ class TestMatchesActiveAt:
         # B: window [17:00, 19:30] -> not live at 14:00.
         await Match.create(tournament=t, scheduled_at=utc(2025, 10, 23, 22, 0))
 
-        active = await ReportsService().matches_active_at(eastern(2025, 10, 23, 14, 0))
+        active = await ReportsService().matches_active_at(to_display(2025, 10, 23, 14, 0))
         assert [m.id for m in active] == [m_a.id]
 
     async def test_tournament_filter(self, db):
@@ -158,7 +158,7 @@ class TestMatchesActiveAt:
         await Match.create(tournament=t2, scheduled_at=utc(2025, 10, 23, 18, 0))
 
         active = await ReportsService().matches_active_at(
-            eastern(2025, 10, 23, 14, 0), tournament_id=t1.id,
+            to_display(2025, 10, 23, 14, 0), tournament_id=t1.id,
         )
         assert [m.id for m in active] == [m1.id]
 
@@ -166,7 +166,7 @@ class TestMatchesActiveAt:
         t = await Tournament.create(name='Cup', average_match_duration=90)
         await Match.create(tournament=t, scheduled_at=utc(2025, 10, 23, 18, 0))
         # 20:00 ET is after A's window end (15:30) but still inside the prefetch band.
-        active = await ReportsService().matches_active_at(eastern(2025, 10, 23, 20, 0))
+        active = await ReportsService().matches_active_at(to_display(2025, 10, 23, 20, 0))
         assert active == []
 
 

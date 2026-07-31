@@ -104,15 +104,15 @@ class TestBuild:
         assert row['availability_windows'] == 2
         assert row['available_hours'] == 8.0
 
-    async def test_availability_rows_carry_eastern_and_utc_times(self, db):
+    async def test_availability_rows_carry_local_and_utc_times(self, db):
         actor = await _coordinator()
         await _fixture_data()
 
         bundle = await VolunteerExportService().build(actor, WINDOW_START, WINDOW_END)
         row = bundle.sheet('availability').rows[0]
 
-        assert row['date_et'] == '2026-10-04'
-        assert row['start_et'] == '08:00'  # 12:00 UTC in EDT
+        assert row['date_local'] == '2026-10-04'
+        assert row['start_local'] == '08:00'  # 12:00 UTC in EDT
         assert row['starts_at_utc'] == '2026-10-04T12:00:00+00:00'
         assert row['note'] == 'Happy to close'
 

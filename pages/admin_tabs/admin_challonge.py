@@ -8,7 +8,7 @@ from nicegui import app, ui
 
 from application.services import AuthService, ChallongeService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from models import Tournament
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
@@ -45,7 +45,7 @@ async def admin_challonge_page() -> None:
                         ui.label(f"Scopes: {status['scopes']}").classes('text-caption text-muted')
                     if status.get('token_expires_at'):
                         ui.label(
-                            f"Token expires: {format_eastern_display(status['token_expires_at'])}"
+                            f"Token expires: {format_local_display(status['token_expires_at'])}"
                         ).classes('text-caption text-muted')
                     quota = status.get('request_quota')
                     used = status.get('request_usage', 0)
@@ -89,7 +89,7 @@ async def admin_challonge_page() -> None:
                     if t.challonge_tournament_url:
                         ui.link('bracket', t.challonge_tournament_url, new_tab=True).classes('text-caption')
                     synced = (
-                        format_eastern_display(t.challonge_last_synced_at)
+                        format_local_display(t.challonge_last_synced_at)
                         if t.challonge_last_synced_at else 'never'
                     )
                     ui.label(f'Last synced: {synced}').classes('text-caption text-muted')

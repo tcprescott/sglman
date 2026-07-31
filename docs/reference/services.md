@@ -67,7 +67,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `PresetService` | [preset_service.py](../../application/services/preset_service.py) | Tenant-authored seed-rolling presets (CRUD + built-in import) | [seed-generation.md](seed-generation.md#presets-db-backed) |
 | `RandomizerCredentialService` | [randomizer_credential_service.py](../../application/services/randomizer_credential_service.py) | Per-tenant randomizer API credentials | [seed-generation.md](seed-generation.md#per-tenant-credentials) |
 | `ReportsService` | [reports_service.py](../../application/services/reports_service.py) | Capacity, operations, crew, and stage reports | [admin-reports.md](../features/admin-reports.md) |
-| `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `eastern`/`window_hours`/`crew_requirement`/`is_crew_covered` helpers used by both Reports and Insights (so on-time % and crew coverage can't drift) | — |
+| `reporting_shared` (module) | [reporting_shared.py](../../application/services/reporting_shared.py) | Shared reporting constants (`DEFAULT_MATCH_DURATION_MIN`, `ON_TIME_THRESHOLD_MIN`) + `to_display`/`window_hours`/`crew_requirement`/`is_crew_covered` helpers used by both Reports and Insights (so on-time % and crew coverage can't drift) | — |
 | `SeedGenerationService` | [seedgen_service.py](../../application/services/seedgen_service.py) | Randomizer seed generation | [seed-generation.md](seed-generation.md) |
 | `ServiceHealthService` | [service_health_service.py](../../application/services/service_health_service.py) | Platform external-service health probes (computed + cached, no model) | — |
 | `StationService` | [station_service.py](../../application/services/station_service.py) | Venue station pool CRUD | [match-participation.md](../features/match-participation.md#the-station-pool) |
@@ -78,6 +78,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
 | `TenantSetupService` | [tenant_setup_service.py](../../application/services/tenant_setup_service.py) | The derived new-community setup checklist (`SetupStep`); nothing stored | [multitenancy.md](../features/multitenancy.md#provisioning-a-community) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
+| `TimezoneService` | [timezone_service.py](../../application/services/timezone_service.py) | Per-tenant display-timezone policy (pin vs. follow-the-viewer) and per-viewer resolution | [timezone-handling.md](../timezone-handling.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -417,7 +418,7 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 
 | Method | Returns | Description |
 |---|---|---|
-| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, Eastern-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL, `is_racetime` — true when the tournament is racetime.gg-enabled, which hides on-site controls — plus `scheduled_ts`, an epoch sort key, and `is_overdue`, true when the aware-UTC scheduled time has passed with no check-in and no finish). |
+| `get_match_for_display(match_id)` | `dict \| None` | One match formatted for the UI (state, local-formatted times, players with rank/station, acknowledgment summary, crew with approval/ack state, seed URL, `is_racetime` — true when the tournament is racetime.gg-enabled, which hides on-site controls — plus `scheduled_ts`, an epoch sort key, and `is_overdue`, true when the aware-UTC scheduled time has passed with no check-in and no finish). |
 | `get_matches_for_display(*, tournament_ids=None, stream_room_ids=None, only_upcoming=False, user_discord_id=None, exclude_racetime=False)` | `list[dict]` | Filtered match list in the same display shape, with acknowledgments batch-loaded. `exclude_racetime` drops matches in racetime.gg tournaments at the query (the proctor board's rows are the ones an on-site proctor can act on). |
 | `get_tournaments_for_filter()` | `dict[int, str]` | Tournament id → name for filter dropdowns. |
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
@@ -530,7 +531,7 @@ Collaborators: `PlayerAvailabilityRepository`, `AuditService`, `availability_win
 
 ### reports_service.py — ReportsService
 
-Aggregation queries behind the admin Reports tabs. All time math runs in US/Eastern via [`application/utils/timezone.py`](../../application/utils/timezone.py); each match contributes an estimated active window (`seated_at` or scheduled−1h → `finished_at` or start+expected duration, default 90 min). The duration and on-time thresholds are imported from `reporting_shared`. Feature doc: [admin-reports.md](../features/admin-reports.md).
+Aggregation queries behind the admin Reports tabs. Day boundaries resolve on the viewer's display clock via [`application/utils/timezone.py`](../../application/utils/timezone.py); each match contributes an estimated active window (`seated_at` or scheduled−1h → `finished_at` or start+expected duration, default 90 min). The duration and on-time thresholds are imported from `reporting_shared`. Feature doc: [admin-reports.md](../features/admin-reports.md).
 
 | Method | Returns | Description |
 |---|---|---|
@@ -541,13 +542,13 @@ Aggregation queries behind the admin Reports tabs. All time math runs in US/East
 | `crew_coverage(start, end, tournament_id=None, user_id=None, approved_only=False)` | `dict` | Per-match crew slot coverage (flagging stream candidates whose approved crew falls short of the tournament's `required_commentators`/`required_trackers`, via `reporting_shared.is_crew_covered`) and per-user contribution rows with covered hours. |
 | `stream_room_utilization(start, end, tournament_id=None, stream_room_id=None)` | `dict` | Per-room scheduled hours, back-to-back counts (<15 min gaps), idle gap hours, plus unplaced stream-candidate matches. |
 
-**Module-level helper:** `event_day_bounds(d) -> (datetime, datetime)` — midnight-to-midnight Eastern-aware bounds for a date.
+**Module-level helper:** `event_day_bounds(d) -> (datetime, datetime)` — midnight-to-next-midnight UTC bounds for a date on the display clock.
 
 Collaborators: `SystemConfigService` (capacity limit); queries `Match`/`StreamRoom` ORM directly (read-only aggregation).
 
 ### analytics_service.py — AnalyticsService
 
-Longitudinal / cross-event analytics behind the admin Reports → **Insights & Trends** page — the trend counterpart to `ReportsService`'s point-in-time snapshots. Events are bucketed by the US/Eastern calendar date of when they happened (`week` = Monday-anchored, `month` = 1st-anchored) into contiguous buckets (capped at `MAX_BUCKETS = 240`). Module constants: `HEALTH_WEIGHTS` (completion 0.30, on-time 0.25, coverage 0.25, duration 0.20) and `MAX_BUCKETS = 240`; `ON_TIME_THRESHOLD_MIN` is imported from `reporting_shared`.
+Longitudinal / cross-event analytics behind the admin Reports → **Insights & Trends** page — the trend counterpart to `ReportsService`'s point-in-time snapshots. Events are bucketed by the local calendar date of when they happened (`week` = Monday-anchored, `month` = 1st-anchored) into contiguous buckets (capped at `MAX_BUCKETS = 240`). Module constants: `HEALTH_WEIGHTS` (completion 0.30, on-time 0.25, coverage 0.25, duration 0.20) and `MAX_BUCKETS = 240`; `ON_TIME_THRESHOLD_MIN` is imported from `reporting_shared`.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -555,11 +556,11 @@ Longitudinal / cross-event analytics behind the admin Reports → **Insights & T
 | `volunteer_hour_trends(start, end, bucket='week')` | `dict` | Per-bucket scheduled vs checked-in volunteer-hours, needed-hours and fill-rate %, a per-position breakdown, and top-15 volunteers (bucketed by shift `starts_at`). |
 | `tournament_health(start, end)` | `dict` | Per-tournament scorecards: completion % (past matches only), on-time %, crew coverage % (against the tournament's own crew requirement — same `is_crew_covered` the crew report uses), avg duration vs expected, and a composite 0–100 `health_score`. |
 | `activity_trends(start, end, bucket='week')` | `dict` | Per-bucket audit-log volume grouped by action namespace (the `verb.object` prefix). |
-| `activity_extent(tournament_id=None)` | `(date \| None, date \| None)` | Earliest and latest **Eastern dates** with any activity the four trends above read, so the page can open on a window that has data in it. `(None, None)` for a community with no history. A `tournament_id` narrows it to the tournament-scoped sources only — shifts and audit logs carry no tournament, so including them would widen the "narrowed" window back out. |
+| `activity_extent(tournament_id=None)` | `(date \| None, date \| None)` | Earliest and latest **local dates** with any activity the four trends above read, so the page can open on a window that has data in it. `(None, None)` for a community with no history. A `tournament_id` narrows it to the tournament-scoped sources only — shifts and audit logs carry no tournament, so including them would widen the "narrowed" window back out. |
 
 **Pure helpers (unit-tested without a DB):** `bucket_start`, `iter_bucket_starts`, `bucket_label`, `_bucket_index`, `health_score` (weighted average of present `(value, weight)` components, renormalized so missing dimensions don't dilute the score; `None` when no component has data), `_finalize_health`, `_duration_hours`.
 
-Collaborators: queries `Match`/`Commentator`/`Tracker`/`VolunteerShift`/`VolunteerAssignment`/`AuditLog` ORM directly (read-only aggregation, same pattern as `ReportsService`); `now_eastern` for the past-match cutoff.
+Collaborators: queries `Match`/`Commentator`/`Tracker`/`VolunteerShift`/`VolunteerAssignment`/`AuditLog` ORM directly (read-only aggregation, same pattern as `ReportsService`); `now_local` for the past-match cutoff.
 
 ### seedgen_service.py — SeedGenerationService
 
@@ -728,6 +729,25 @@ The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/
 | `contrast_warnings(colors)` | `list[str]` | Human-readable warnings for colours below the 4.5:1 AA target. |
 
 Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset field passes, so a preset can never ship failing AA. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`.
+
+### timezone_service.py — TimezoneService
+
+Which wall clock each viewer reads times on. Datetimes are stored UTC everywhere; this service owns the **policy** and the **resolution**, and [`application/timezone_context.py`](../../application/timezone_context.py) owns the request-scoped plumbing (contextvar + NiceGUI client stash, same two-tier shape as `tenant_context.py`).
+
+Two tiers. `Tenant.config['timezone']` holds `{'mode': 'pinned'|'user', 'name': '<IANA>'}`: a **pinned** community renders one clock for everybody (right for an on-site event, where "14:30" means 14:30 at the venue); a **user** community defers to each viewer — their `User.timezone`, else the zone their browser reported via the `wiz_tz` cookie, else the community's own. `name` matters in both modes: pinned uses it as *the* clock, `user` mode as the floor everything falls back to. Writes are STAFF-gated and audited `timezone.updated`; the per-user preference is self-service and audited `user.timezone_updated`. `Tenant` is the tenancy discriminator (never tenant-scoped), so this goes through the cross-tenant `TenantRepository`. Full rules: [timezone-handling.md](../timezone-handling.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_settings(tenant_id=None)` | `dict` | The community's `{mode, name}`, defaults applied. Defaults to the in-scope tenant. |
+| `tenant_timezone_name(tenant_id=None)` | `str` | The community's **own** clock — the zone for anything not viewer-specific (cached spectator pages, tournament hours, workers, MCP/REST date params). Never raises. |
+| `set_settings(actor, mode, name)` | `dict` | STAFF-gated; validates the mode and that the zone loads; persists to `Tenant.config['timezone']`; audits. |
+| `set_user_timezone(actor, name)` | `str \| None` | Save or clear (`None`/blank) the actor's own preference. Self-service — the actor is the subject, so no role check. |
+| `pick(settings, user=None, browser_timezone=None)` | `str` | Pure, sync resolution given already-loaded settings: pinned short-circuits, else profile → browser → community default. Lets the page builder re-resolve after the user loads without a second tenant read. |
+| `resolve(user=None, browser_timezone=None, tenant_id=None)` | `str` | `get_settings` + `pick`. Never raises. |
+
+Every read path is **total**: an unknown mode, a missing key, or a zone this system's tzdata cannot load degrades to the defaults rather than raising, because the settings are read on every page build and a hand-edited blob must not be able to take the app down. Module constants: `MODE_PINNED`/`MODE_USER`, `DEFAULT_MODE` (`user` — new communities follow the viewer; existing ones were migrated to an explicit Eastern pin), `COMMON_TIMEZONES` (the picker shortlist; both pickers still accept any IANA name), `CONFIG_KEY`.
+
+Collaborators: `TenantRepository`, `UserRepository`, `AuthService`, `AuditService`, `timezone_context`. Bound at the edges by `middleware/auth.py` (`bind_display_timezone`, page build), `middleware/tenant.py` (the cookie), `api/dependencies.py`, `mcpserver/registry.py`, and `application/utils/background_loop.py` (worker ticks).
 
 ### tournament_notification_service.py — TournamentNotificationService
 
@@ -1028,7 +1048,7 @@ Collaborators: `VolunteerPositionRepository`, `AuthService`, `AuditService`.
 
 ### volunteer_schedule_service.py — VolunteerScheduleService
 
-Core shift/assignment operations: creating shifts (including bulk day generation with optional staggered rolling shifts), placing and removing volunteers, self-acknowledgment, and coverage. Mirrors the crew signup/approve/acknowledge flow for Discord notifications. Assignment acknowledgment timestamps are stamped in Eastern.
+Core shift/assignment operations: creating shifts (including bulk day generation with optional staggered rolling shifts), placing and removing volunteers, self-acknowledgment, and coverage. Mirrors the crew signup/approve/acknowledge flow for Discord notifications. Assignment acknowledgment timestamps are stamped in UTC.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -1106,7 +1126,7 @@ Read-only. Flattens the coordinator's volunteer data into plain tables so an ini
 |---|---|---|
 | `build(actor, start, end)` | `VolunteerExportBundle` | Coordinator-only. Every sheet covering `[start, end]`; raises `ValueError` when the window is inverted. |
 
-`VolunteerExportBundle` carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()`. Six sheets: **`volunteers`** (the roster — pool/opt-in state, opt-in note, qualified positions, declared and assigned hours; **never windowed**, since a volunteer with no availability is exactly the gap to fill), **`availability`** (every window overlapping the range, `unavailable` ones included, in both Eastern and ISO-8601 UTC), **`positions`**, **`shifts`** (filled/open counts + assigned names), **`assignments`** (one row per placement, its source `Auto-draft`/`Coordinator`, and whether it matches stated availability), and **`schedule`** (one row per **slot**, open slots included — the grid to draft on, which `assignments` cannot express because an unfilled slot has no record; states `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`).
+`VolunteerExportBundle` carries `sheets` (a list of `ExportSheet`: `name`, `title`, `description`, NiceGUI-style `columns`, `rows`), a `sheet(name)` lookup, and `readme()`. Six sheets: **`volunteers`** (the roster — pool/opt-in state, opt-in note, qualified positions, declared and assigned hours; **never windowed**, since a volunteer with no availability is exactly the gap to fill), **`availability`** (every window overlapping the range, `unavailable` ones included, in both display-local and ISO-8601 UTC), **`positions`**, **`shifts`** (filled/open counts + assigned names), **`assignments`** (one row per placement, its source `Auto-draft`/`Coordinator`, and whether it matches stated availability), and **`schedule`** (one row per **slot**, open slots included — the grid to draft on, which `assignments` cannot express because an unfilled slot has no record; states `Open`, `Draft`, `Assigned`, `Confirmed`, `Extra`).
 
 `VolunteerExportDialog` renders the bundle as `README.txt` + one CSV per sheet in a single ZIP (`files_to_zip_bytes`). Collaborators: the volunteer repositories, `UserRepository`, `VolunteerProfileService.assignable_volunteers`, `VolunteerAvailabilityService.covers`, `AuthService`, `AuditService`, `TenantService`.
 
@@ -1300,18 +1320,23 @@ Sentry error-monitoring initialization ([sentry.py](../../application/utils/sent
 
 ### timezone.py
 
-Canonical UTC-storage / Eastern-display utilities. Full rules and rationale: [timezone-handling.md](../timezone-handling.md) ([timezone.py](../../application/utils/timezone.py)).
+Canonical UTC-storage / local-display utilities. Every builder takes an optional `tz`; `tz=None` means the viewer's resolved zone (see [`timezone_context.py`](../../application/timezone_context.py) and `TimezoneService` above). Pass an explicit `tz` for output that is **not** for the current viewer — a cached page, a notification for someone else. Full rules and rationale: [timezone-handling.md](../timezone-handling.md) ([timezone.py](../../application/utils/timezone.py)).
 
 | Function | Returns | Description |
 |---|---|---|
-| `EASTERN_TZ` (constant) | `ZoneInfo` | `America/New_York`, the application display timezone. |
-| `now_eastern()` | `datetime` | Current Eastern-aware datetime. |
-| `parse_eastern_datetime(date_str, time_str)` | `datetime` | Parse `YYYY-MM-DD` + `HH:MM` as Eastern and return UTC (the storage path; `ValueError` on bad format). |
-| `to_eastern(dt)` | `datetime \| None` | Convert any datetime to Eastern; naive inputs are assumed UTC. |
-| `format_eastern_datetime(dt, fmt='%Y-%m-%d %H:%M')` | `str` | Eastern-formatted string; empty for `None`. |
-| `format_eastern_date(dt)` | `str` | `YYYY-MM-DD` in Eastern; plain `date` values format as-is. |
-| `format_eastern_time(dt)` | `str` | `HH:MM` (24-hour) in Eastern. |
-| `format_eastern_display(dt)` | `str` | `YYYY-MM-DD HH:MM EST/EDT` with DST-aware abbreviation. |
+| `EASTERN_TZ` (constant) | `ZoneInfo` | `America/New_York` — the historical fixed zone, retained as the fallback when nothing resolves. Not the display zone. |
+| `now_local(tz=None)` | `datetime` | Current local-aware datetime. |
+| `today_local(tz=None)` | `date` | The current calendar date on the display clock. Use instead of `date.today()`. |
+| `parse_local_datetime(date_str, time_str, tz=None)` | `datetime` | Parse `YYYY-MM-DD` + `HH:MM` as local wall clock and return UTC (the storage path). `ValueError` on bad format **or on a wall clock the zone skips over a DST spring-forward**. |
+| `combine_local(day, moment, tz=None)` | `datetime` | `date`+`time` objects → UTC. The programmatic twin of `parse_local_datetime`; use instead of bare `datetime.combine`, which yields a naive value the ORM reads as UTC. |
+| `local_day_bounds(start, end, tz=None)` | `(datetime, datetime)` | A date range → half-open UTC query bounds on the display clock. |
+| `to_local(dt, tz=None)` | `datetime \| None` | Convert any datetime to local; naive inputs are assumed UTC. |
+| `to_utc_aware(dt)` | `datetime` | Normalize to UTC-aware. Deliberately takes no `tz` — normalization, not presentation. |
+| `format_local_datetime(dt, fmt='%Y-%m-%d %H:%M', tz=None)` | `str` | Local-formatted string; empty for `None`. |
+| `format_local_date(dt, tz=None)` | `str` | `YYYY-MM-DD` local; plain `date` values format as-is. |
+| `format_local_time(dt, tz=None)` | `str` | `HH:MM` (24-hour) local. |
+| `format_local_display(dt, tz=None)` | `str` | `YYYY-MM-DD HH:MM <label>` with a DST-aware zone label. |
+| `timezone_label(tz=None, at=None)` | `str` | The zone's short label (`EST`, `AEDT`, `+05:30`) for captions and column headers. |
 
 ### web_push.py
 

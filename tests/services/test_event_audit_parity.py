@@ -96,6 +96,14 @@ _EXCLUDED_BY_DESIGN = frozenset({
     # Per-tenant brand palette — tenant-internal appearance setting, no external
     # subscriber interest.
     AuditActions.THEME_UPDATED,
+    # Display-timezone policy, and a member's own timezone preference. Both are
+    # presentation settings: they change which clock a time is *rendered* on and
+    # never the stored instant, so a webhook receiver — which is served UTC —
+    # has nothing to react to. The per-user one is also PII-adjacent (it
+    # discloses roughly where someone is), which is the same reasoning that
+    # excludes the account internals above.
+    AuditActions.TIMEZONE_UPDATED,
+    AuditActions.USER_TIMEZONE_UPDATED,
     AuditActions.TRIFORCE_TEXT_DELETED,
     # Seed-preset catalog CRUD — tenant-internal settings authoring, no external
     # subscriber interest (the seed roll itself already emits MATCH_SEED_ROLLED).

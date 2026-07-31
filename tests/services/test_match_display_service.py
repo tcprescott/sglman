@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from application.services.match.match_display_service import MatchDisplayService
-from application.utils.timezone import format_eastern_datetime
+from application.utils.timezone import format_local_datetime
 from models import Match, RacetimeBot, Tournament
 
 
@@ -145,7 +145,7 @@ class TestFormatMatchForDisplay:
 
     def test_state_timestamp_falls_back_to_created_at_when_scheduled(self, display_service):
         result = display_service._format_match_for_display(make_match())
-        assert result["state_timestamp"] == format_eastern_datetime(
+        assert result["state_timestamp"] == format_local_datetime(
             datetime(2025, 1, 1, 12, 0)
         )
 

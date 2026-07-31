@@ -8,11 +8,12 @@ from typing import Optional
 from nicegui import ui
 
 from application.services import AuditService
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
+from application.utils.timezone import timezone_label
 from .shared import (
     date_range_filter,
     default_date_range,
-    eastern_bounds,
+    display_bounds,
     navigate_with_params,
     paginated_event_log,
     parse_details,
@@ -74,7 +75,7 @@ async def audit_page(
                         ),
                     ).props('flat dense')
 
-        bounds_start, bounds_end = eastern_bounds(start_d, end_d)
+        bounds_start, bounds_end = display_bounds(start_d, end_d)
         service = AuditService()
         total = await service.count_logs(
             start=bounds_start, end=bounds_end,
@@ -92,7 +93,7 @@ async def audit_page(
             truncated = display[:200] + ('…' if len(display) > 200 else '')
             rows.append({
                 'log_id': log.id,
-                'created_at': format_eastern_display(log.created_at),
+                'created_at': format_local_display(log.created_at),
                 'user_id': log.user_id,
                 'user': log.user.preferred_name if log.user else f'User {log.user_id}',
                 'action': log.action,
@@ -100,7 +101,7 @@ async def audit_page(
                 'full_details': display,
             })
         columns = [
-            {'name': 'created_at', 'label': 'When (ET)', 'field': 'created_at', 'sortable': False},
+            {'name': 'created_at', 'label': f'When ({timezone_label()})', 'field': 'created_at', 'sortable': False},
             {'name': 'user', 'label': 'User', 'field': 'user', 'sortable': False},
             {'name': 'action', 'label': 'Action', 'field': 'action', 'sortable': False},
             {'name': 'details', 'label': 'Details', 'field': 'details', 'sortable': False},

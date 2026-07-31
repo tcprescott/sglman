@@ -15,7 +15,7 @@ from application.services.reports_service import (
     ReportsService,
     event_day_bounds,
 )
-from application.utils.timezone import EASTERN_TZ
+from application.utils.timezone import EASTERN_TZ, to_local
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +52,7 @@ def make_match(
     )
 
 
-def eastern(year, month, day, hour=0, minute=0) -> datetime:
+def to_display(year, month, day, hour=0, minute=0) -> datetime:
     return datetime(year, month, day, hour, minute, tzinfo=EASTERN_TZ)
 
 
@@ -64,18 +64,18 @@ def naive(year, month, day, hour=0, minute=0) -> datetime:
 
 
 # ---------------------------------------------------------------------------
-# _eastern: naive treated as UTC
+# _local: naive treated as UTC
 # ---------------------------------------------------------------------------
 
 
 class TestEastern:
     def test_returns_none_for_none(self):
-        assert ReportsService._eastern(None) is None
+        assert ReportsService._local(None) is None
 
     def test_naive_treated_as_utc_winter(self):
         # Naive 2025-01-15 19:30 should be interpreted as UTC → 14:30 ET (EST = UTC-5)
         dt = naive(2025, 1, 15, 19, 30)
-        result = ReportsService._eastern(dt)
+        result = ReportsService._local(dt)
         assert result.tzinfo is not None
         assert result.hour == 14
         assert result.minute == 30
@@ -83,19 +83,19 @@ class TestEastern:
     def test_naive_treated_as_utc_summer(self):
         # Naive 2025-07-15 18:00 should be interpreted as UTC → 14:00 ET (EDT = UTC-4)
         dt = naive(2025, 7, 15, 18, 0)
-        result = ReportsService._eastern(dt)
+        result = ReportsService._local(dt)
         assert result.hour == 14
 
     def test_aware_utc_is_converted(self):
         # UTC 2025-01-15 19:30 → ET 14:30
         dt = utc(2025, 1, 15, 19, 30)
-        result = ReportsService._eastern(dt)
+        result = ReportsService._local(dt)
         assert result.hour == 14
         assert result.minute == 30
 
     def test_already_eastern_is_unchanged(self):
-        dt = eastern(2025, 1, 15, 14, 30)
-        result = ReportsService._eastern(dt)
+        dt = to_display(2025, 1, 15, 14, 30)
+        result = ReportsService._local(dt)
         assert result.hour == 14
         assert result.minute == 30
 
@@ -110,33 +110,33 @@ class TestMatchWindow:
         assert ReportsService._match_window(make_match()) is None
 
     def test_no_seated_start_is_one_hour_before_scheduled(self):
-        sched = eastern(2025, 10, 23, 14, 0)
+        sched = to_display(2025, 10, 23, 14, 0)
         m = make_match(scheduled_at=sched)
         ws, we = ReportsService._match_window(m)
-        assert ws == eastern(2025, 10, 23, 13, 0)
+        assert ws == to_display(2025, 10, 23, 13, 0)
 
     def test_seated_at_overrides_start(self):
-        sched = eastern(2025, 10, 23, 14, 0)
-        seated = eastern(2025, 10, 23, 13, 30)
+        sched = to_display(2025, 10, 23, 14, 0)
+        seated = to_display(2025, 10, 23, 13, 30)
         m = make_match(scheduled_at=sched, seated_at=seated)
         ws, _ = ReportsService._match_window(m)
         assert ws == seated
 
     def test_finished_at_sets_end(self):
-        sched = eastern(2025, 10, 23, 14, 0)
-        finished = eastern(2025, 10, 23, 15, 45)
+        sched = to_display(2025, 10, 23, 14, 0)
+        finished = to_display(2025, 10, 23, 15, 45)
         m = make_match(scheduled_at=sched, finished_at=finished)
         _, we = ReportsService._match_window(m)
         assert we == finished
 
     def test_no_finished_uses_tournament_avg_duration(self):
-        sched = eastern(2025, 10, 23, 14, 0)
+        sched = to_display(2025, 10, 23, 14, 0)
         m = make_match(scheduled_at=sched, avg_duration=60)
         ws, we = ReportsService._match_window(m)
         assert (we - ws) == timedelta(hours=1 + 1)  # start is sched-1h, end is sched+60min
 
     def test_no_finished_defaults_to_90_min_when_no_tournament_avg(self):
-        sched = eastern(2025, 10, 23, 14, 0)
+        sched = to_display(2025, 10, 23, 14, 0)
         m = make_match(scheduled_at=sched, avg_duration=None)
         ws, we = ReportsService._match_window(m)
         assert (we - ws) == timedelta(minutes=60 + DEFAULT_MATCH_DURATION_MIN)
@@ -150,9 +150,9 @@ class TestMatchWindow:
 
     def test_end_not_before_start(self):
         # Edge case: finished_at before seated_at
-        sched = eastern(2025, 10, 23, 14, 0)
-        seated = eastern(2025, 10, 23, 14, 0)
-        finished = eastern(2025, 10, 23, 13, 0)  # before seated
+        sched = to_display(2025, 10, 23, 14, 0)
+        seated = to_display(2025, 10, 23, 14, 0)
+        finished = to_display(2025, 10, 23, 13, 0)  # before seated
         m = make_match(scheduled_at=sched, seated_at=seated, finished_at=finished)
         ws, we = ReportsService._match_window(m)
         assert we >= ws
@@ -165,27 +165,27 @@ class TestMatchWindow:
 
 class TestAutoIntervalMinutes:
     def test_less_than_24h_gives_15min(self):
-        s = eastern(2025, 10, 23, 0, 0)
+        s = to_display(2025, 10, 23, 0, 0)
         e = s + timedelta(hours=12)
         assert ReportsService._auto_interval_minutes(s, e) == 15
 
     def test_exactly_24h_gives_15min(self):
-        s = eastern(2025, 10, 23, 0, 0)
+        s = to_display(2025, 10, 23, 0, 0)
         e = s + timedelta(hours=24)
         assert ReportsService._auto_interval_minutes(s, e) == 15
 
     def test_25h_gives_30min(self):
-        s = eastern(2025, 10, 23, 0, 0)
+        s = to_display(2025, 10, 23, 0, 0)
         e = s + timedelta(hours=25)
         assert ReportsService._auto_interval_minutes(s, e) == 30
 
     def test_exactly_72h_gives_30min(self):
-        s = eastern(2025, 10, 23, 0, 0)
+        s = to_display(2025, 10, 23, 0, 0)
         e = s + timedelta(hours=72)
         assert ReportsService._auto_interval_minutes(s, e) == 30
 
     def test_more_than_72h_gives_60min(self):
-        s = eastern(2025, 10, 23, 0, 0)
+        s = to_display(2025, 10, 23, 0, 0)
         e = s + timedelta(hours=96)
         assert ReportsService._auto_interval_minutes(s, e) == 60
 
@@ -197,7 +197,7 @@ class TestAutoIntervalMinutes:
 
 class TestPeakTimes:
     def _times(self):
-        return [eastern(2025, 10, 23, h) for h in range(5)]
+        return [to_display(2025, 10, 23, h) for h in range(5)]
 
     def test_returns_top_n(self):
         intervals = self._times()
@@ -230,16 +230,20 @@ class TestPeakTimes:
 
 
 class TestEventDayBounds:
-    def test_start_is_midnight_eastern(self):
+    def test_start_is_local_midnight(self):
         from datetime import date
         s, e = event_day_bounds(date(2025, 10, 23))
-        assert s == eastern(2025, 10, 23, 0, 0)
-        assert s.tzinfo == EASTERN_TZ
+        assert s == to_display(2025, 10, 23, 0, 0)
+        # The bound is returned UTC-aware; it is midnight *on the display clock*,
+        # which is what the equality above pins. Asserting the tzinfo object
+        # would only re-assert the storage convention.
+        assert s.utcoffset() == timedelta(0)
+        assert to_local(s).hour == 0
 
     def test_end_is_next_midnight(self):
         from datetime import date
         s, e = event_day_bounds(date(2025, 10, 23))
-        assert e == eastern(2025, 10, 24, 0, 0)
+        assert e == to_display(2025, 10, 24, 0, 0)
 
     def test_window_is_24_hours(self):
         from datetime import date

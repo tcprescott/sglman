@@ -141,7 +141,7 @@ def test_a_linked_row_shows_the_link_date():
 
 def test_the_link_date_is_rendered_in_eastern_not_utc():
     # 01:00 UTC on the 4th is still the 3rd in US/Eastern — the point of going
-    # through format_eastern_date rather than printing the stored value.
+    # through format_local_date rather than printing the stored value.
     text = render(link_holder('x1', 'XName', utc(2024, 3, 4, 1)), make_config())
     assert 'on 2024-03-03' in text
 

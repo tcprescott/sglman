@@ -14,7 +14,7 @@ so the Vol. Roster tab and the auto-scheduler have something real to show
 
 from datetime import date, datetime, timedelta
 
-from application.utils.timezone import parse_eastern_datetime
+from application.utils.timezone import parse_local_datetime
 from scripts.seed_support import FULL_RACERS
 from models import (
     Tenant,
@@ -136,8 +136,8 @@ async def seed_volunteers_for_tenant(
         for day in event_days:
             day_str = day.isoformat()
             for start_hhmm, end_hhmm, status in windows:
-                starts_at = parse_eastern_datetime(day_str, start_hhmm)
-                ends_at = parse_eastern_datetime(day_str, end_hhmm)
+                starts_at = parse_local_datetime(day_str, start_hhmm)
+                ends_at = parse_local_datetime(day_str, end_hhmm)
                 if ends_at <= starts_at:
                     ends_at = ends_at + timedelta(days=1)
                 await VolunteerAvailability.create(
@@ -155,8 +155,8 @@ async def seed_volunteers_for_tenant(
         day_str = day.isoformat()
         for pos_name, pos in positions.items():
             if pos.is_staggered:
-                coverage_start = parse_eastern_datetime(day_str, blocks[0][1])
-                coverage_end = parse_eastern_datetime(day_str, blocks[-1][2])
+                coverage_start = parse_local_datetime(day_str, blocks[0][1])
+                coverage_end = parse_local_datetime(day_str, blocks[-1][2])
                 if coverage_end <= coverage_start:
                     coverage_end = coverage_end + timedelta(days=1)
                 length = timedelta(minutes=pos.shift_length_minutes)
@@ -171,8 +171,8 @@ async def seed_volunteers_for_tenant(
                     cursor += stagger
                 continue
             for label, start_hhmm, end_hhmm in blocks:
-                starts_at = parse_eastern_datetime(day_str, start_hhmm)
-                ends_at = parse_eastern_datetime(day_str, end_hhmm)
+                starts_at = parse_local_datetime(day_str, start_hhmm)
+                ends_at = parse_local_datetime(day_str, end_hhmm)
                 if ends_at <= starts_at:
                     ends_at = ends_at + timedelta(days=1)
                 shift, _ = await VolunteerShift.get_or_create(

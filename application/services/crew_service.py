@@ -20,7 +20,6 @@ from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
 from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CREW, notification_embed, time_field
 from application.utils.discord_messages import crew_approval_withdrawn_dm, crew_assignment_dm
-from application.utils.timezone import format_eastern_display
 from models import Commentator, Tracker, User
 
 
@@ -316,7 +315,7 @@ class CrewService:
         player_names = [p.user.preferred_name for p in players] if players else []
         message_kwargs = {
             'match_title': match.title or None,
-            'scheduled_at_display': format_eastern_display(match.scheduled_at) if match.scheduled_at else '',
+            'scheduled_at_display': time_field(match.scheduled_at),
             'stream_room_name': match.stream_room.name if match.stream_room else None,
             'player_names': player_names or None,
         }

@@ -27,7 +27,7 @@ from nicegui import ui
 
 from application.services import BracketService, MatchSuggestionService
 from application.tenant_context import tenant_scope
-from application.utils.timezone import format_eastern_date, format_eastern_time, now_eastern
+from application.utils.timezone import format_local_date, format_local_time, now_local
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
@@ -79,7 +79,7 @@ class BracketScheduleDialog:
         return f'{game} vs {self.opponent_name}' if self.opponent_name else game
 
     async def _defaults(self) -> tuple:
-        now = now_eastern()
+        now = now_local()
         fallback = (now.strftime('%Y-%m-%d'), now.strftime('%H:%M'))
         if not (self.tournament_id and len(self.player_ids) == 2):
             return fallback
@@ -90,7 +90,7 @@ class BracketScheduleDialog:
                 )
         except ValueError:
             return fallback
-        return format_eastern_date(suggested), format_eastern_time(suggested)
+        return format_local_date(suggested), format_local_time(suggested)
 
     async def open(self):
         default_date, default_time = await self._defaults()

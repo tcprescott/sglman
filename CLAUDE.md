@@ -85,7 +85,16 @@ Use bare `event_bus.publish(Event.create(EventType.X, {...}, actor))` (`from app
 
 ## Timezone handling
 
-**All datetimes are stored in UTC; all user-facing times are US/Eastern.** Never store localized datetimes; never display raw UTC. Every conversion goes through `application/utils/timezone.py` (`parse_eastern_datetime`, `format_eastern_time`/`_date`/`_display`, `now_eastern`, `to_eastern`, `to_utc_aware`, …) — full table and DST/storage notes: [docs/timezone-handling.md](docs/timezone-handling.md).
+**All datetimes are stored in UTC; user-facing times render on a per-request local clock.** Never store localized datetimes; never display raw UTC. Every conversion goes through `application/utils/timezone.py` (`parse_local_datetime`, `combine_local`, `local_day_bounds`, `format_local_time`/`_date`/`_display`, `now_local`, `today_local`, `to_local`, `to_utc_aware`, `timezone_label`).
+
+Which clock is resolved once per page build and read back synchronously from `application/timezone_context.py` — the same contextvar + client-stash shape as `tenant_context.py`. A community either **pins** one zone (`Tenant.config['timezone']`, Admin → Timezone) or **follows each viewer** (their `User.timezone`, else the browser's zone from the `wiz_tz` cookie, else the community default).
+
+Three rules that are easy to get wrong:
+- **Every builder takes an optional `tz`; `tz=None` means "the current viewer".** Output that is *not* for the request's viewer must pass one explicitly — a cached/shared page, a tenant-anchored rule (tournament hours), a worker render. Use `TimezoneService.tenant_timezone_name()` + `tz_scope(...)`.
+- **Discord gets native `<t:unix:F>` markup** (`discord_embeds.time_field`), never a formatted string — each recipient's client localizes it. **REST and webhooks stay UTC.**
+- **A date derived from an instant moves with the zone.** Never bare `datetime.combine` (naive → read as UTC) or `date.today()`; use `combine_local` / `local_day_bounds` / `today_local`.
+
+Full table, DST edges (nonexistent times raise), and storage notes: [docs/timezone-handling.md](docs/timezone-handling.md).
 
 ## Multitenancy
 

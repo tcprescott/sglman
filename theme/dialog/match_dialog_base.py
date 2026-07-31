@@ -20,9 +20,9 @@ from application.services import (
     get_user_from_discord_id,
 )
 from application.utils.timezone import (
-    format_eastern_date,
-    format_eastern_time,
-    now_eastern,
+    format_local_date,
+    format_local_time,
+    now_local,
 )
 from models import Match
 from theme.dialog._helpers import (
@@ -80,12 +80,12 @@ class BaseMatchDialog:
         self.bracket_service = BracketService()
 
     def _get_default_values(self):
-        now = now_eastern()
+        now = now_local()
         if self.match:
             return {
                 'tournament': self.match.tournament_id if self.match.tournament_id else None,
-                'date': format_eastern_date(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%Y-%m-%d'),
-                'time': format_eastern_time(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%H:%M'),
+                'date': format_local_date(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%Y-%m-%d'),
+                'time': format_local_time(self.match.scheduled_at) if self.match.scheduled_at else now.strftime('%H:%M'),
                 'comment': self.match.comment or '',
                 'stream_room': self.match.stream_room_id if self.match.stream_room_id else None,
             }
@@ -146,8 +146,8 @@ class BaseMatchDialog:
                     tournament_id=tournament_id,
                     player_ids=player_ids,
                 )
-                date.value = format_eastern_date(suggested)
-                time.value = format_eastern_time(suggested)
+                date.value = format_local_date(suggested)
+                time.value = format_local_time(suggested)
                 with self.dialog:
                     ui.notify('Suggested time filled in — review and save.', color='info')
             except ValueError as e:

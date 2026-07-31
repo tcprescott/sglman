@@ -7,7 +7,7 @@ from nicegui import app, ui
 
 from application.services import SystemConfigService, get_user_from_discord_id
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
-from application.utils.timezone import format_eastern_display
+from application.utils.timezone import format_local_display
 from theme.notify import notify_error
 
 
@@ -57,8 +57,8 @@ async def my_shifts_tab() -> None:
                         position + (f' — {shift.label}' if shift.label else '')
                     ).classes('text-body2 text-weight-medium')
                     ui.label(
-                        f'{format_eastern_display(shift.starts_at)} → '
-                        f'{format_eastern_display(shift.ends_at)}'
+                        f'{format_local_display(shift.starts_at)} → '
+                        f'{format_local_display(shift.ends_at)}'
                     ).classes('text-caption')
                     warning = release_warning(shift.starts_at, lead_minutes)
                     if warning:
@@ -126,18 +126,18 @@ async def my_shifts_tab() -> None:
                         title = position + (f' — {shift.label}' if shift.label else '')
                         ui.label(title).classes('text-subtitle1')
                         ui.label(
-                            f'{format_eastern_display(shift.starts_at)} → '
-                            f'{format_eastern_display(shift.ends_at)}'
+                            f'{format_local_display(shift.starts_at)} → '
+                            f'{format_local_display(shift.ends_at)}'
                         ).classes('text-caption')
                         assigned_by = assignment.assigned_by
                         provenance = 'Scheduled'
                         if assigned_by is not None:
                             provenance = f'Scheduled by {assigned_by.preferred_name}'
-                        provenance += f' · {format_eastern_display(assignment.created_at)}'
+                        provenance += f' · {format_local_display(assignment.created_at)}'
                         if assignment.acknowledged_at:
                             provenance += (
                                 f' · you acknowledged '
-                                f'{format_eastern_display(assignment.acknowledged_at)}'
+                                f'{format_local_display(assignment.acknowledged_at)}'
                             )
                         ui.label(provenance).classes('text-caption text-grey')
                         _render_brief(assignment)
