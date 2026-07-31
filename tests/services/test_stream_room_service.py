@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.stream_room_service import StreamRoomService
+from tests.factories import make_audit_double
 
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -21,8 +22,7 @@ def service():
     svc.repository.update = AsyncMock(side_effect=lambda room, **f: room)
     svc.repository.get_by_id = AsyncMock()
     svc.repository.count_matches = AsyncMock(return_value=0)
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

@@ -13,6 +13,7 @@ import pytest
 from application.services.discord import discord_role_mapping_service as drms
 from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
 from models import Role, RoleSource
+from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 
@@ -29,8 +30,7 @@ def make_service():
     svc.role_repository.add = AsyncMock()
     svc.role_repository.remove = AsyncMock()
     svc.role_repository.list_for_user_by_source = AsyncMock(return_value=[])
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

@@ -13,6 +13,7 @@ import pytest
 from application.errors import NotFoundError
 from application.services.audit_service import AuditActions
 from application.services.station_service import StationService
+from tests.factories import make_audit_double
 
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -35,8 +36,7 @@ def service():
     svc.repository.get_all = AsyncMock(return_value=[])
     svc.repository.get_active = AsyncMock(return_value=[])
     svc.repository.get_by_id = AsyncMock(return_value=None)
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

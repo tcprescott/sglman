@@ -8,6 +8,7 @@ import pytest
 
 from application.services.volunteer.volunteer_availability_service import VolunteerAvailabilityService
 from models import VolunteerAvailabilityStatus
+from tests.factories import make_audit_double
 
 UTC = timezone.utc
 
@@ -36,8 +37,7 @@ def service():
     svc = object.__new__(VolunteerAvailabilityService)
     svc.repository = MagicMock()
     svc.profile_repository = MagicMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

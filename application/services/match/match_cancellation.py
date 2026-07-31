@@ -17,7 +17,7 @@ import logging
 from typing import Optional
 
 from application.events import match_live
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
@@ -57,13 +57,11 @@ class CancellationMixin:
         tournament_id = match.tournament_id
         await self._release_bracket_slot(match, actor, reason)
         await self.repository.delete(match)
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
+            EventType.MATCH_DELETED, event_extra={'tournament_id': tournament_id},
         )
         match_live.publish(match_id, match_live.DELETED)
-        event_bus.publish(Event.create(EventType.MATCH_DELETED, {
-            'match_id': match_id, 'tournament_id': tournament_id,
-        }, actor))
 
     @staticmethod
     async def _release_bracket_slot(

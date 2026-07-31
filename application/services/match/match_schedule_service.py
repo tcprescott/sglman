@@ -16,7 +16,7 @@ from typing import Callable, Dict, Tuple, Optional
 
 from application.errors import MissingCredentialError
 from application.events import match_live
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.tenant_context import require_tenant_id
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services.discord import discord_queue
@@ -160,21 +160,20 @@ class MatchScheduleService(MatchNotificationMixin):
 
         setattr(match, timestamp_field, datetime.now(timezone.utc))
         await match.save()
-        await self.audit_service.write_log(
-            actor, audit_action, {'match_id': match.id},
-        )
         await match.fetch_related('tournament', 'players__user', 'stream_room')
+        await self.audit_service.write_and_publish(
+            actor, audit_action, {'match_id': match.id}, event_type,
+            event_extra={
+                'tournament_id': match.tournament_id,
+                'tournament': match.tournament.name,
+            },
+        )
         # Resolve the community name here (request context) rather than in the
         # queue worker, and pass the pre-built embed down with the text.
         community = await _community_name()
         message, embed = build_message(match, community, await bracket_line_for(match.id))
         discord_queue.enqueue(self.notify_match_participants(match, message, embed))
         match_live.publish(match.id)
-        event_bus.publish(Event.create(event_type, {
-            'match_id': match.id,
-            'tournament_id': match.tournament_id,
-            'tournament': match.tournament.name,
-        }, actor))
 
     async def seat_match(self, match: Match, actor: Optional[User] = None) -> None:
         # ``check`` below is synchronous and runs before ``_transition`` fetches
@@ -415,7 +414,7 @@ class MatchScheduleService(MatchNotificationMixin):
 
                 message = f"Seed generated successfully for match ID {match.id}"
 
-                await self.audit_service.write_log(
+                await self.audit_service.write_and_publish(
                     actor,
                     AuditActions.MATCH_SEED_ROLLED,
                     {
@@ -424,14 +423,15 @@ class MatchScheduleService(MatchNotificationMixin):
                         'preset': preset.name if preset is not None else None,
                         'seed_url': seed_url,
                     },
+                    EventType.MATCH_SEED_ROLLED,
+                    event_details={
+                        'match_id': match.id,
+                        'tournament_id': match.tournament_id,
+                        'seed_url': seed_url,
+                    },
                 )
 
                 match_live.publish(match.id)
-                event_bus.publish(Event.create(EventType.MATCH_SEED_ROLLED, {
-                    'match_id': match.id,
-                    'tournament_id': match.tournament_id,
-                    'seed_url': seed_url,
-                }, actor))
 
                 return True, message, seed_url
 

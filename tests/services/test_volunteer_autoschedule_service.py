@@ -12,6 +12,7 @@ from application.services.volunteer.volunteer_autoschedule_service import (
     VolunteerAutoscheduleService,
 )
 from models import VolunteerAvailabilityStatus
+from tests.factories import make_audit_double
 
 UTC = timezone.utc
 
@@ -63,8 +64,7 @@ def service():
     svc.profile_service = MagicMock()
     svc.availability_service = MagicMock()
     svc.schedule_service = MagicMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

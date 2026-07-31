@@ -13,6 +13,7 @@ from application.utils.discord_messages import (
     stream_candidate_dm,
     _players_label,
 )
+from tests.factories import make_audit_double
 
 
 class TestPlayersLabel:
@@ -110,8 +111,7 @@ def service():
     svc.discord_service = MagicMock()
     svc.seedgen_service = MagicMock()
     svc._seed_locks = {}
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     svc.notify_match_participants = AsyncMock()
     return svc
 

@@ -9,7 +9,7 @@ composed class, the same way :class:`CancellationMixin` does.
 from typing import List, Optional
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus, match_live
+from application.events import EventType, match_live
 from application.services.audit_service import AuditActions
 from application.services.match.match_request_guard import assert_player_requests_allowed
 from application.utils.timezone import parse_local_datetime
@@ -81,7 +81,7 @@ class MatchRequestMixin:
         for user in players:
             await self.repository.add_player(match, user)
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_REQUESTED,
             {
@@ -89,6 +89,7 @@ class MatchRequestMixin:
                 'tournament_id': tournament_id,
                 'player_ids': player_ids,
             },
+            EventType.MATCH_CREATED,
         )
 
         await self._seed_acknowledgments(match, player_ids, actor)
@@ -96,8 +97,5 @@ class MatchRequestMixin:
         await self.match_schedule_service.notify_match_scheduled(match, rescheduled=False)
 
         match_live.publish(match.id, match_live.CREATED)
-        event_bus.publish(Event.create(EventType.MATCH_CREATED, {
-            'match_id': match.id, 'tournament_id': tournament_id, 'player_ids': player_ids,
-        }, actor))
 
         return match

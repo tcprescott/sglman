@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.volunteer.volunteer_schedule_service import VolunteerScheduleService
+from tests.factories import make_audit_double
 
 UTC = timezone.utc
 
@@ -70,8 +71,7 @@ def service():
     svc.shift_repository = MagicMock()
     svc.assignment_repository = MagicMock()
     svc.position_repository = MagicMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     svc.discord_service = MagicMock()
     return svc
 

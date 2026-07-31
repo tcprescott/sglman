@@ -353,8 +353,9 @@ class VolunteerScheduleService:
         shift = assignment.shift
         user = assignment.user
         await self.assignment_repository.delete(assignment)
-        await self.audit_service.write_log(actor, AuditActions.VOLUNTEER_UNASSIGNED, details)
-        event_bus.publish(Event.create(EventType.VOLUNTEER_UNASSIGNED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.VOLUNTEER_UNASSIGNED, details, EventType.VOLUNTEER_UNASSIGNED,
+        )
         # An unpublished draft's removal is silent because its creation was.
         if not was_draft:
             await self._notify_removed(user, shift)
@@ -374,13 +375,11 @@ class VolunteerScheduleService:
             return assignment
         assignment.acknowledged_at = datetime.now(timezone.utc)
         await self.assignment_repository.save(assignment)
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             user, AuditActions.VOLUNTEER_ACKNOWLEDGED,
             {'assignment_id': assignment.id, 'shift_id': assignment.shift_id},
+            EventType.VOLUNTEER_ACKNOWLEDGED, event_extra={'user_id': user.id},
         )
-        event_bus.publish(Event.create(EventType.VOLUNTEER_ACKNOWLEDGED, {
-            'assignment_id': assignment.id, 'shift_id': assignment.shift_id, 'user_id': user.id,
-        }, user))
         return assignment
 
     async def release(

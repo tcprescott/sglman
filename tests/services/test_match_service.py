@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.match.match_service import MatchService
-from tests.factories import make_user
+from tests.factories import make_audit_double, make_user
 
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
@@ -51,8 +51,7 @@ def service():
     svc.ack_repository.list_for_match = AsyncMock(return_value=[])
     svc.ack_repository.list_for_matches = AsyncMock(return_value={})
     svc.ack_repository.get = AsyncMock(return_value=None)
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     svc.match_schedule_service = MagicMock()
     svc.match_schedule_service.notify_acknowledgment_request = AsyncMock()
     svc.match_schedule_service.notify_match_crew = AsyncMock()

@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.repositories import (
     AsyncQualifierLiveRaceRepository,
     AsyncQualifierPermalinkRepository,
@@ -268,10 +268,10 @@ class AsyncQualifierLiveRaceService:
             'captured': len(captured),
             'unmatched_handles': unmatched,
         }
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor, AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED, detail,
+            EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
         )
-        event_bus.publish(Event.create(EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED, detail, actor))
         return captured
 
     # ============================================================= internals

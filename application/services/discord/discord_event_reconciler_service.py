@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.repositories import DiscordScheduledEventRepository, MatchRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.discord.discord_service import DiscordService
@@ -169,15 +169,16 @@ class DiscordEventReconcilerService:
             link, title=name, scheduled_at=start, content_hash=content_hash, synced_at=now,
         )
         result.updated += 1
-        await self.audit.write_log(
+        await self.audit.write_and_publish(
             actor, AuditActions.DISCORD_EVENT_UPDATED,
             {'tenant_id': tenant.id, 'guild_id': guild_id, 'match_id': match.id,
              'discord_event_id': link.discord_event_id},
+            EventType.DISCORD_EVENT_UPDATED,
+            event_details={
+                'tenant_id': tenant.id, 'match_id': match.id,
+                'discord_event_id': link.discord_event_id,
+            },
         )
-        event_bus.publish(Event.create(EventType.DISCORD_EVENT_UPDATED, {
-            'tenant_id': tenant.id, 'match_id': match.id,
-            'discord_event_id': link.discord_event_id,
-        }, actor))
 
     async def _create(
         self, tenant: Tenant, guild_id: int, match: Match, name: str, description: str,
@@ -196,15 +197,16 @@ class DiscordEventReconcilerService:
             title=name, scheduled_at=start, content_hash=content_hash, synced_at=now,
         )
         result.created += 1
-        await self.audit.write_log(
+        await self.audit.write_and_publish(
             actor, AuditActions.DISCORD_EVENT_CREATED,
             {'tenant_id': tenant.id, 'guild_id': guild_id, 'match_id': match.id,
              'discord_event_id': created.discord_event_id},
+            EventType.DISCORD_EVENT_CREATED,
+            event_details={
+                'tenant_id': tenant.id, 'match_id': match.id,
+                'discord_event_id': created.discord_event_id,
+            },
         )
-        event_bus.publish(Event.create(EventType.DISCORD_EVENT_CREATED, {
-            'tenant_id': tenant.id, 'match_id': match.id,
-            'discord_event_id': created.discord_event_id,
-        }, actor))
 
     async def _cancel(
         self, tenant: Tenant, guild_id: int, link: DiscordScheduledEvent,
@@ -215,15 +217,16 @@ class DiscordEventReconcilerService:
             raise RuntimeError(message)
         await self.repo.delete(link)
         result.cancelled += 1
-        await self.audit.write_log(
+        await self.audit.write_and_publish(
             actor, AuditActions.DISCORD_EVENT_CANCELLED,
             {'tenant_id': tenant.id, 'guild_id': guild_id, 'source_id': link.source_id,
              'discord_event_id': link.discord_event_id},
+            EventType.DISCORD_EVENT_CANCELLED,
+            event_details={
+                'tenant_id': tenant.id, 'source_id': link.source_id,
+                'discord_event_id': link.discord_event_id,
+            },
         )
-        event_bus.publish(Event.create(EventType.DISCORD_EVENT_CANCELLED, {
-            'tenant_id': tenant.id, 'source_id': link.source_id,
-            'discord_event_id': link.discord_event_id,
-        }, actor))
 
     # ------------------------------------------------------------------ render
 
