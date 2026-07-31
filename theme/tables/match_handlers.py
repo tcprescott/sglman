@@ -319,10 +319,13 @@ class MatchTableHandlersMixin:
         if match_id is not None and self.on_assign_stations:
             await self.on_assign_stations(match_id)
 
-    async def _handle_edit_stream_room(self, event):
+    async def _handle_set_stage(self, event):
+        """The Stage select wrote a value: a room id, ``'candidate'``, or null."""
         match_id = self._event_match_id(event)
-        if match_id is not None and self.on_edit_stream_room:
-            await self.on_edit_stream_room(match_id)
+        args = getattr(event, 'args', None)
+        stage = args.get('stage') if isinstance(args, dict) else None
+        if match_id is not None and self.on_set_stage:
+            await self.on_set_stage(match_id, stage)
 
     async def _handle_toggle_watch(self, event):
         row = event.args if isinstance(event.args, dict) else {}

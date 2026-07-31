@@ -12,7 +12,7 @@ from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
-from theme.tables.match_slots import register_body_slots
+from theme.tables.match_slots import CANDIDATE_STAGE, register_body_slots
 
 # Pagination, sorting, and filtering can be implemented server-side if needed for large datasets.
 
@@ -65,7 +65,7 @@ class MatchTableView(MatchTableHandlersMixin):
 
     def __init__(self, columns, get_query, admin_controls=False, access=None, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
-                 on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
+                 on_edit_result=None, on_set_stage=None, on_assign_stations=None,
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
                  storage_key='match', default_state_filter=None, match_ids=None,
@@ -118,7 +118,9 @@ class MatchTableView(MatchTableHandlersMixin):
         # records their best guess". Reaches the same service as on_finish's
         # dialog, but must never re-finish the match.
         self.on_edit_result = on_edit_result
-        self.on_edit_stream_room = on_edit_stream_room
+        # Where this match is streamed, written from the row's Stage select —
+        # a real stage, the ``Candidate`` pseudo-stage, or nothing.
+        self.on_set_stage = on_set_stage
         self.on_assign_stations = on_assign_stations
         self.table = None
         self.tournament_filter = None
@@ -392,8 +394,8 @@ class MatchTableView(MatchTableHandlersMixin):
             # viewer can run nothing: it carries the chips and timestamps, and
             # the capability flags inside it decide which buttons appear.
             want_state_slot=self.admin_controls,
-            want_stream_room_admin=self.admin_controls and self.on_edit_stream_room is not None,
-            want_stream_room_readonly=self.on_edit_stream_room is None,
+            want_stream_room_admin=self.admin_controls and self.on_set_stage is not None,
+            want_stream_room_readonly=self.on_set_stage is None,
         )
 
         # Register the mobile grid slot (see match_grid).
@@ -455,8 +457,8 @@ class MatchTableView(MatchTableHandlersMixin):
                     self.table.on('confirm', lambda event: self._bg(self._handle_confirm(event)))
                 if self.on_edit_result is not None:
                     self.table.on('edit_result', lambda event: self._bg(self._handle_edit_result(event)))
-            if self.on_edit_stream_room is not None:
-                self.table.on('edit-stream-room', lambda event: self._bg(self._handle_edit_stream_room(event)))
+            if self.on_set_stage is not None:
+                self.table.on('set_stage', lambda event: self._bg(self._handle_set_stage(event)))
 
         if self.on_edit is not None:
             self.table.on('edit_match', lambda event: self._bg(self._handle_edit(event)))
@@ -531,8 +533,11 @@ class MatchTableView(MatchTableHandlersMixin):
             ]
 
         watched_ids = await self._fetch_watched_ids()
+        stage_options = self._stage_options()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
+            if stage_options is not None:
+                row['stage_options'] = stage_options
 
         if self.row_sort is not None:
             rows = self.row_sort(rows)
@@ -540,6 +545,25 @@ class MatchTableView(MatchTableHandlersMixin):
         self.table.rows = rows
         self.table.update()
         self._notify_rows_changed()
+
+    def _stage_options(self):
+        """The Stage select's choices, or ``None`` for a board that cannot set one.
+
+        Carried on every row rather than baked into the slot template: the rooms
+        load in a background task *after* the templates are registered, so a
+        template built at registration time would offer an empty list forever.
+        One shared list object per refresh, not a copy per row.
+
+        ``Candidate`` leads because it is the answer before a stage is decided —
+        it writes ``is_stream_candidate`` rather than a room (see
+        ``match_slots.CANDIDATE_STAGE``).
+        """
+        if self.on_set_stage is None:
+            return None
+        return [{'label': 'Candidate', 'value': CANDIDATE_STAGE}] + [
+            {'label': name, 'value': room_id}
+            for room_id, name in (self.stream_rooms_list or {}).items()
+        ]
 
     async def focus_matches(self, match_ids) -> None:
         """Narrow the board to ``match_ids`` (or restore it with ``None``).
@@ -593,6 +617,9 @@ class MatchTableView(MatchTableHandlersMixin):
             return
 
         match_data['_watching'] = self.table.rows[idx].get('_watching', False)
+        stage_options = self._stage_options()
+        if stage_options is not None:
+            match_data['stage_options'] = stage_options
         if flash:
             match_data['_flash'] = True
         self.table.rows[idx] = match_data

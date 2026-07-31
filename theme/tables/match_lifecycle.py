@@ -17,17 +17,19 @@ the sanctioned presentation-layer load-or-404 shape (CLAUDE.md, entry surfaces);
 every *write* goes through a service.
 """
 
+from typing import Any
+
 from nicegui import app, ui
 
-from application.services import MatchScheduleService, get_user_from_discord_id
+from application.services import MatchScheduleService, MatchService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
 from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog import ConfirmationDialog, MatchResultDialog, StationAssignmentDialog
 from theme.dialog.match_dialog import AdminMatchDialog
-from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.notify import notify_error
 from theme.tables.match_access import MatchBoardAccess
+from theme.tables.match_slots import CANDIDATE_STAGE
 
 
 def confirm_result_message(match: Match) -> str:
@@ -76,8 +78,12 @@ class MatchLifecycleHandlers:
     def __init__(self, page_container, *, access: MatchBoardAccess):
         self.page_container = page_container
         self.access = access
-        self.table_view = None          # assigned by the caller after the view exists
+        # Assigned by the caller after the view exists (the two-phase construction
+        # above). Untyped because the view imports these handlers' module — naming
+        # ``MatchTableView`` here would close the import cycle.
+        self.table_view: Any = None
         self.schedule_service = MatchScheduleService()
+        self.match_service = MatchService()
 
     def callbacks(self) -> dict:
         """The ``on_*`` kwargs for ``MatchTableView``, one group per capability.
@@ -104,7 +110,7 @@ class MatchLifecycleHandlers:
             cb['on_confirm'] = self.on_confirm
             cb['on_edit_result'] = self.on_edit_result
         if self.access.assign_stream:
-            cb['on_edit_stream_room'] = self.on_edit_stream_room
+            cb['on_set_stage'] = self.on_set_stage
         return cb
 
     async def _actor(self):
@@ -259,14 +265,31 @@ class MatchLifecycleHandlers:
             dialog = MatchResultDialog(match=match, on_submit=after_edit, mode='edit')
             await dialog.open()
 
-    async def on_edit_stream_room(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id())
+    async def on_set_stage(self, match_id: int, stage):
+        """Write the row's Stage select: a stage, ``Candidate``, or neither.
 
-        async def after_edit(_):
-            await self.table_view.update_row_by_id(match_id)
-        with self.page_container:
-            dialog = StreamRoomDialog(match=match, on_submit=after_edit)
-            await dialog.open()
+        ``Candidate`` is not a room — it is ``is_stream_candidate``, the answer
+        for "this is going out, we have not picked a stage yet". Choosing a real
+        stage leaves that flag alone: the cell stops *showing* candidate because
+        the stage is the more specific answer, but the coverage reports still
+        count the match, which clearing the flag would silently stop.
+
+        The select is driven by the row, so every path ends in a row refresh —
+        that is also what snaps it back when a service refuses the write.
+        """
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id())
+        want_candidate = stage == CANDIDATE_STAGE
+        room_id = None if (stage is None or want_candidate) else int(stage)
+        try:
+            actor = await self._actor()
+            if match.stream_room_id != room_id:  # type: ignore[attr-defined]
+                await self.match_service.assign_stage(match_id, room_id, actor=actor)
+            if room_id is None and match.is_stream_candidate != want_candidate:
+                await self.match_service.set_stream_candidate(match_id, want_candidate, actor=actor)
+        except (PermissionError, ValueError) as e:
+            with self.page_container:
+                notify_error(e)
+        await self.table_view.update_row_by_id(match_id)
 
     async def on_assign_stations(self, match_id: int):
         match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')

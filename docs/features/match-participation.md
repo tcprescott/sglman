@@ -21,7 +21,6 @@ Each side has a surface of its own for the work it owns:
 |---|---|---|
 | Staff / TA / crew coordinator | Admin → Schedule, the crew strip | *"3 commentators and 1 tracker awaiting approval"* with a one-click filter to exactly those matches |
 | The volunteer | Home → **My Crew** (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
-| Anyone reading the board | the crew cell, both layouts | *"Needs 2 more"* when the role is short, from `crew_need` on the row |
 
 My Crew is on Home rather than the Volunteer hub deliberately: crew signup is
 behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up
@@ -70,10 +69,7 @@ not use that role at all. The schedule board renders no **Sign up** for it, and
 hidden control, so the rule lives in the service. `undo_crew_signup` is
 deliberately *not* gated: a signup made before the requirement changed has to
 stay removable. The same numbers drive the coverage reports
-([admin-reports](admin-reports.md#what-covered-means)) **and** the board's own
-shortfall chip: `MatchDisplayService` puts a per-role `crew_need` on every row
-(required minus *approved* — an unapproved signup has covered nothing yet), so
-the surface that can act on a gap no longer has to be told about it by a report.
+([admin-reports](admin-reports.md#what-covered-means)).
 
 ## Acknowledgment
 

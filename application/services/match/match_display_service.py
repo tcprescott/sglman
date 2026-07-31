@@ -28,19 +28,6 @@ from application.utils.timezone import (
 from models import Match, MatchAcknowledgment
 
 
-def _crew_shortfall(crew, required: int) -> int:
-    """How many more *approved* crew this role still needs; never negative.
-
-    Approved, not merely signed-up: an unapproved signup has not covered
-    anything yet, and counting it would mark a match staffed while the decision
-    that staffs it is still outstanding.
-    """
-    if not required:
-        return 0
-    approved = sum(1 for c in crew if getattr(c, 'approved', False))
-    return max(0, required - approved)
-
-
 class MatchDisplayService:
     """Service for reading and formatting matches for table display."""
 
@@ -291,6 +278,9 @@ class MatchDisplayService:
             ],
             'acknowledgments': acknowledgments_summary,
             'stream_room': match.stream_room.name if match.stream_room else '',
+            # The id, not just the name: the board's Stage cell is a select whose
+            # value is the assigned room, so it needs what the service takes back.
+            'stream_room_id': match.stream_room_id,  # type: ignore[attr-defined]
             'stream_room_url': (
                 match.stream_room.stream_url
                 if match.stream_room and match.stream_room.stream_url
@@ -328,23 +318,6 @@ class MatchDisplayService:
                 ),
                 'trackers': (
                     match.tournament.required_trackers > 0 if match.tournament else True
-                ),
-            },
-            # How far this match is from staffed, per role. Coverage existed
-            # only as a *report-time* computation, which is why the only surface
-            # that knew about gaps was the one that could not act on them: a
-            # stream-candidate match with no commentators looked identical to a
-            # non-streamed one with none, and a fully covered match still
-            # offered Sign up. Counting approved (not merely signed-up) crew,
-            # because an unapproved signup has not covered anything yet.
-            'crew_need': {
-                'commentators': _crew_shortfall(
-                    match.commentators,  # type: ignore[attr-defined]
-                    match.tournament.required_commentators if match.tournament else 0,
-                ),
-                'trackers': _crew_shortfall(
-                    match.trackers,  # type: ignore[attr-defined]
-                    match.tournament.required_trackers if match.tournament else 0,
                 ),
             },
             'commentators': [

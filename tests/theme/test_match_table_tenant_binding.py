@@ -19,12 +19,12 @@ from theme.tables.user import UserTableView
 
 # Events whose handlers reach tenant-scoped data and which are NOT given a
 # client context to run inside. These must go through ``_bg``.
-# Note the hyphens in 'edit-stream-room' — that is the name the template emits.
+# The event name must be the one the template emits, verbatim.
 # An entry naming an event that is never registered would make the check below
 # pass vacuously, which is why test_listed_events_are_actually_registered exists.
 TENANT_BOUND_EVENTS = [
     'roll', 'seat', 'start', 'finish', 'confirm', 'edit_result',
-    'assign_stations', 'edit-stream-room',
+    'assign_stations', 'set_stage',
 ]
 
 
@@ -78,8 +78,8 @@ def test_listed_events_are_actually_registered():
     ``test_tenant_bound_events_are_scheduled_through_bg`` scans registration
     lines for each listed event; an event that is never registered has no line
     to offend, so it passes for the wrong reason. ``'edit_stream_room'`` sat in
-    the list for exactly that reason until the real name turned out to be
-    ``'edit-stream-room'``.
+    the list for exactly that reason — the emitted name was ``'edit-stream-room'``
+    — until this check caught it.
     """
     src = _setup_source()
     missing = [e for e in TENANT_BOUND_EVENTS if f"self.table.on('{e}'" not in src]
