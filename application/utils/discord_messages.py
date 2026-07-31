@@ -12,6 +12,8 @@ time, and the stage (when assigned).
 
 from typing import Optional
 
+from application.utils.match_labels import players_label
+
 # ---------------------------------------------------------------------------
 # Shared error constants (used in multiple handlers)
 # ---------------------------------------------------------------------------
@@ -31,13 +33,9 @@ MSG_UNEXPECTED_ERROR_CREW = (
 # Shared formatting helpers
 # ---------------------------------------------------------------------------
 
-def _players_label(player_names: Optional[list[str]]) -> str:
-    """Human-readable list of players: "A vs B" for two, comma-joined otherwise."""
-    if not player_names:
-        return ''
-    if len(player_names) == 2:
-        return ' vs '.join(player_names)
-    return ', '.join(player_names)
+# Shared with the web copy, which identifies a match the same way — see
+# application/utils/match_labels.py.
+_players_label = players_label
 
 
 def _match_info_lines(
@@ -314,20 +312,19 @@ def seed_dm(
 # Crew assignment DMs  (sent by CrewService)
 # ---------------------------------------------------------------------------
 
-def crew_assignment_dm(
-    crew_type: str,
+def _crew_match_lines(
     match_title: Optional[str],
     scheduled_at_display: str,
     stream_room_name: Optional[str],
     player_names: Optional[list[str]],
-) -> str:
-    """DM with crew-acknowledgment button sent when a crew member is approved.
+) -> list[str]:
+    """Identifying block shared by every crew DM.
 
-    Pass None or '' for optional fields to suppress them from the message.
-    Blank lines separate the intro, the detail block, and the call to action —
-    matching the match-notification rhythm elsewhere in this module.
+    All three describe the same assignment to a different reader, so they have
+    to identify it from the same fields. Pass None or '' for optional fields to
+    suppress them.
     """
-    players = _players_label(player_names)
+    players = players_label(player_names)
     details: list[str] = []
     # Only show the title when it adds information beyond the roster line — some
     # schedule feeds set the match title to the matchup itself, which would
@@ -340,11 +337,32 @@ def crew_assignment_dm(
         details.append(f"**Scheduled:** {scheduled_at_display}")
     if stream_room_name:
         details.append(f"**Stage:** {stream_room_name}")
-    blocks = [f"You've been approved as {crew_type}."]
+    return details
+
+
+def _crew_dm(intro: str, details: list[str], call_to_action: str) -> str:
+    """Intro / detail block / call to action, blank-line separated — the
+    match-notification rhythm used elsewhere in this module."""
+    blocks = [intro]
     if details:
         blocks.append("\n".join(details))
-    blocks.append("Please click below to acknowledge your assignment.")
+    blocks.append(call_to_action)
     return "\n\n".join(blocks)
+
+
+def crew_assignment_dm(
+    crew_type: str,
+    match_title: Optional[str],
+    scheduled_at_display: str,
+    stream_room_name: Optional[str],
+    player_names: Optional[list[str]],
+) -> str:
+    """DM with crew-acknowledgment button sent when a crew member is approved."""
+    return _crew_dm(
+        f"You've been approved as {crew_type}.",
+        _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
+        "Please click below to acknowledge your assignment.",
+    )
 
 
 def crew_approval_withdrawn_dm(
@@ -354,27 +372,46 @@ def crew_approval_withdrawn_dm(
     stream_room_name: Optional[str],
     player_names: Optional[list[str]],
 ) -> str:
-    """DM sent when an admin withdraws a crew member's approval.
+    """DM sent when an admin withdraws a crew member's approval."""
+    return _crew_dm(
+        f"Your approval as {crew_type} has been withdrawn — "
+        "you're no longer on the crew for this match.",
+        _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
+        "Check with an admin if this looks wrong.",
+    )
 
-    Same detail block and suppression rules as :func:`crew_assignment_dm` — the
-    recipient is being told about the same assignment, so it has to be
-    identifiable from the same fields.
+
+def crew_withdrawn_dm(
+    crew_type: str,
+    volunteer_name: str,
+    match_title: Optional[str],
+    scheduled_at_display: str,
+    stream_room_name: Optional[str],
+    player_names: Optional[list[str]],
+    hours_notice: Optional[float] = None,
+) -> str:
+    """DM to whoever owns crew for a match when an *approved* member drops it.
+
+    The mirror of :func:`crew_approval_withdrawn_dm`: that one tells the crew
+    member an admin removed them, this one tells the admins the crew member
+    removed themselves. ``hours_notice`` is how long until the match starts —
+    the thing that decides whether this needs acting on now.
     """
-    players = _players_label(player_names)
-    details: list[str] = []
-    if match_title and match_title != players:
-        details.append(f"**Match:** {match_title}")
-    if players:
-        details.append(f"**Players:** {players}")
-    if scheduled_at_display:
-        details.append(f"**Scheduled:** {scheduled_at_display}")
-    if stream_room_name:
-        details.append(f"**Stage:** {stream_room_name}")
-    blocks = [f"Your approval as {crew_type} has been withdrawn — you're no longer on the crew for this match."]
-    if details:
-        blocks.append("\n".join(details))
-    blocks.append("Check with an admin if this looks wrong.")
-    return "\n\n".join(blocks)
+    notice = ''
+    if hours_notice is None:
+        pass
+    elif hours_notice < 0:
+        notice = ' — already past its scheduled time'
+    elif hours_notice < 1:
+        notice = ' — in under an hour'
+    elif hours_notice < 48:
+        hours = round(hours_notice)
+        notice = f" — in about {hours} hour{'' if hours == 1 else 's'}"
+    return _crew_dm(
+        f"**{volunteer_name}** has withdrawn as {crew_type}{notice}.",
+        _crew_match_lines(match_title, scheduled_at_display, stream_room_name, player_names),
+        "The slot is open again — the match needs someone else on it.",
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -383,7 +383,7 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
                    @click="$parent.$emit('undo___SING__', props.row)" style="margin-right: 6px;">
                    <q-tooltip>Withdraw my __SING__ signup</q-tooltip>
             </q-btn>
-            <q-btn v-if="__WANTED__ && props.value && !props.value.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
+            <q-btn v-if="__WANTED__ && props.row.crew_signup_open && props.value && !props.value.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
                    icon="assignment_ind" color="primary" size="sm" no-caps dense label="Sign up"
                    @click="$parent.$emit('signup___SING__', props.row)" style="margin-right: 6px;">
                    <q-tooltip>Sign up as __SING__</q-tooltip>
@@ -416,10 +416,14 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
                 <q-icon v-if="__IA__ && __CC__ && item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                 </q-icon>
+                <!-- Labelled, not icon-only: a bare `check` beside a name reads as
+                     a status mark rather than a control, and the tooltip that was
+                     its only explanation never opens on the tablets this board is
+                     read on (the same lesson the Stations button records above). -->
                 <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
-                       icon="check" color="primary" size="xs" dense flat
+                       icon="check" color="primary" size="sm" dense flat no-caps label="Acknowledge"
                        @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
-                    <q-tooltip>Acknowledge</q-tooltip>
+                    <q-tooltip>Confirm you can cover this __SING__ slot</q-tooltip>
                 </q-btn>
             </div>
         </template>

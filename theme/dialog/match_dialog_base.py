@@ -196,14 +196,16 @@ class BaseMatchDialog:
                 if new_value:
                     await watcher_service.watch(match_id, user)
                     with client:
+                        # The dialog *is* the match — naming it again (or worse,
+                        # quoting its id) tells the reader nothing.
                         ui.notify(
-                            f'Now watching match ID {match_id}. You will receive Discord DMs on updates.',
+                            'Now watching this match. You will receive Discord DMs on updates.',
                             color='positive',
                         )
                 else:
                     await watcher_service.unwatch(match_id, user)
                     with client:
-                        ui.notify(f'No longer watching match ID {match_id}.', color='positive')
+                        ui.notify('No longer watching this match.', color='positive')
             except ValueError as e:
                 switch_ref['widget'].value = not new_value
                 switch_ref['widget'].update()

@@ -119,7 +119,18 @@ computation (`coverage_gap`, `commentators_approved/total` in
 [`reports/crew.py:110-140`](../../pages/admin_tabs/reports/crew.py#L110)), which
 is why the only surface that knows about gaps is the one that cannot act on them.
 
-### RC3 — Notification is one-directional
+### RC3 — Notification is one-directional — **closed**
+
+Both reverse transitions now speak. Un-approving DMs the crew member
+(`_notify_crew_approval_withdrawn`), and withdrawing an *approved* commitment
+DMs the people who can refill it — the tournament's admins and crew
+coordinators plus whoever approved it — with the hours of notice they have
+(`_notify_crew_withdrawal`, the shape
+`VolunteerScheduleService._notify_coordinators_of_release` established). An
+*unapproved* signup still withdraws silently, on purpose: nobody was told it
+existed, so its removal corrects nothing.
+
+The original finding, for the record:
 
 `update_crew_approval` sends a well-built DM — colour-coded embed, match, time,
 stage, players, and an Acknowledge button
@@ -181,7 +192,13 @@ column, and is the right place to *discover* this work — but measured 0 button
 and 0 links in both table bodies, it is a dead end for acting on it, and it is
 date-range scoped rather than "everything outstanding".
 
-### F3 — Critical · An approved commitment evaporates in two clicks, and nobody is told
+### F3 — Critical · An approved commitment evaporates in two clicks, and nobody is told — **fixed**
+
+The withdrawal now reaches the crew owners (RC3), and the dialog stops treating
+the two withdrawals as the same act: dropping an approved slot is titled
+**Withdraw as commentator**, confirms in the negative tone, and says *"Staff
+approved you for this slot — they will be told you have withdrawn so they can
+find cover."* Un-approving already confirmed and DMed.
 
 `undo_crew_signup` is allowed until `finished_at` and does not care whether the
 signup was approved
@@ -197,7 +214,14 @@ The reverse is equally silent: un-ticking Approved clears the volunteer's
 (`:179-207`) — while the approval that put them on it did send one. The dialog is
 titled "Approve Commentator" and is in fact a two-way toggle.
 
-### F4 — Major · Every message names a database id, not a match
+### F4 — Major · Every message names a database id, not a match — **fixed**
+
+[`application/utils/match_labels.py`](../../application/utils/match_labels.py)
+names a match the way the Discord side already did — *"Alice vs Bob (Wizzrobe
+Cup, 2025-08-03 19:00)"* in a dialog that has to be decided, the matchup alone
+in a toast that answers a click. Every crew, acknowledgment and watch string on
+the board and in the match dialog reads from it, and
+`test_no_crew_or_watch_copy_quotes_a_match_id` keeps the id from coming back.
 
 Measured strings, verbatim: *"Do you want to sign up as a commentator for match
 ID 17?"*, *"Successfully signed up as a commentator for match ID 17. Awaiting
@@ -221,7 +245,15 @@ Volunteers who work *shifts* have exactly this page already: My Shifts, with
 acknowledge and check-in per card. Commentators and trackers are the same people
 doing the same kind of work through a different door.
 
-### F6 — Major · Signup is offered where it cannot help, and never says what is wanted
+### F6 — Major · Signup is offered where it cannot help, and never says what is wanted — **half fixed**
+
+Signup now closes when the match *starts*: `CrewService.signup_crew` refuses it
+(so the REST route and the Discord button honour it too) and the row carries
+`crew_signup_open` — the same predicate, not a second spelling — which both the
+table cell and the mobile card gate their Sign up control on. Checked In stays
+open deliberately: that is exactly when a stream discovers it still needs a
+commentator. **The second half is untouched** — nothing marks a match as
+*wanting* crew, because demand is unmodelled (RC2).
 
 Measured: 8 of the 28 offers are on matches that have already begun — 6 on
 Checked In rows, 2 on Started rows — because the only ceiling in the service is
@@ -248,15 +280,24 @@ overlap-aware code in the codebase is `MatchSuggestionService`, for player
 availability). A coordinator staffing a stream day approves N people, three
 clicks each, from a dialog that tells them nothing they need in order to decide.
 
-### F8 — Minor · The confirmation budget is spent on the reversible action
+### F8 — Minor · The confirmation budget is spent on the reversible action — **fixed**
 
-Signing up — free, reversible, low-stakes — gets a modal confirm. Withdrawing an
-approved commitment gets the same modal, with the same weight. Revoking someone
-else's approval gets none, and neither does the acknowledgment-clearing side
-effect that comes with it. The one control that could use a second look is the
-only one without one.
+Revoking an approval now confirms, in the negative tone, and names the
+acknowledgment it clears and the DM it sends. Withdrawing an approved commitment
+confirms differently from withdrawing an unapproved one (F3). Signing up keeps
+its modal — one click on a shared board is easy to hit by accident — but it is
+no longer the *heaviest* confirmation on the surface.
 
-### F9 — Minor · Acknowledge is an unlabelled icon
+The original finding, for the record: signing up — free, reversible, low-stakes
+— got a modal confirm. Withdrawing an approved commitment got the same modal,
+with the same weight. Revoking someone else's approval got none, and neither did
+the acknowledgment-clearing side effect that came with it.
+
+### F9 — Minor · Acknowledge is an unlabelled icon — **fixed**
+
+The control now reads **Acknowledge** in both the table cell and the mobile
+card, with the tooltip demoted to the explanation ("Confirm you can cover this
+commentator slot") rather than the only label.
 
 Measured buttons on an approved crew row: `undo Withdraw`, **`check`**,
 `assignment_ind Sign up`, `notifications_none`. The acknowledge control is a bare

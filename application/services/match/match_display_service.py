@@ -234,6 +234,10 @@ class MatchDisplayService:
 
         return {
             'id': match.id,
+            # Not rendered as a column — it is how the surfaces *name* the match
+            # in their copy, so a confirmation dialog can say what it is about
+            # instead of quoting a primary key (``match_labels.match_row_label``).
+            'title': match.title or '',
             'tournament': match.tournament.name if match.tournament else '',
             # None unless a bracket scheduled this match; drives the schedule's
             # link into the (publicly readable) bracket view.
@@ -296,6 +300,11 @@ class MatchDisplayService:
                 p.user.preferred_name for p in match.players
                 if not (p.user.discord_id and p.user.dm_notifications)
             ],
+            # Whether crew signup is still open on this match — the *same*
+            # predicate ``CrewService.signup_crew`` enforces, not a second
+            # spelling of it, so the table stops offering a control whose only
+            # outcome is a refusal. Withdrawing is deliberately not gated on it.
+            'crew_signup_open': match.started_at is None and match.finished_at is None,
             # Which crew roles this tournament actually uses. A tournament that
             # requires none of a role has no use for volunteers in it, so the
             # table stops offering Sign up (existing signups still render, and
