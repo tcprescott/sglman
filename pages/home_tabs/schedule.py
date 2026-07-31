@@ -5,6 +5,7 @@ from nicegui import app, ui
 from application.services import MatchService
 from theme.dialog.match_dialog import UserMatchDialog
 from theme.tables.match import MatchTableView
+from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
 
 
 def schedule():
@@ -38,58 +39,8 @@ def schedule():
             return await match_service.get_all_matches_for_schedule()
 
         extra_slots = {
-            'body-cell-state': '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-                <!-- Confirmed state -->
-                <div v-if="props.value === 'Confirmed'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="verified" class="st-ok" size="sm" />
-                        <span style="font-weight: 500;">{{ props.value }}</span>
-                    </div>
-                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
-                </div>
-                <!-- Finished state -->
-                <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="flag" class="st-pending" size="sm" />
-                        <span>{{ props.value }}</span>
-                    </div>
-                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
-                </div>
-                <!-- Started state -->
-                <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="play_arrow" class="st-live" size="sm" />
-                        <span>{{ props.value }}</span>
-                    </div>
-                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
-                </div>
-                <!-- Checked In state -->
-                <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="check" class="st-neutral" size="sm" />
-                        <span>{{ props.value }}</span>
-                    </div>
-                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
-                </div>
-                <!-- Scheduled state -->
-                <div v-else style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                        <q-icon name="schedule" class="st-neutral" size="sm" />
-                        <span>{{ props.value || 'Scheduled' }}</span>
-                    </div>
-                    <span class="cell-timestamp">{{ props.row.state_timestamp }}</span>
-                </div>
-            </q-td>''',
-            'body-cell-generated_seed': '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
-                <span v-if="props.value">
-                    <template v-if="/^https?:\\/\\//.test(props.value)">
-                        <a :href="props.value" target="_blank" style="color: var(--wiz-link); text-decoration: underline;" :title="props.value">
-                            {{ props.value.length > 40 ? props.value.substring(0, 37) + '...' : props.value }}
-                        </a>
-                    </template>
-                    <template v-else>{{ props.value }}</template>
-                </span>
-            </q-td>''',
+            'body-cell-state': state_readonly_slot(scheduled_detailed=True),
+            'body-cell-generated_seed': SEED_SLOT_READONLY,
         }
 
         async def on_edit(match_id: int):

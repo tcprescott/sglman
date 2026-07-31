@@ -5,7 +5,7 @@ Handles crew (commentator and tracker) related operations.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
 from tortoise.transactions import in_transaction
@@ -25,7 +25,7 @@ from application.utils.discord_messages import (
     crew_withdrawn_dm,
 )
 from application.utils.match_labels import players_label
-from application.utils.timezone import to_utc_aware
+from application.utils.timezone import format_local_display, to_utc_aware
 from models import Commentator, Tracker, User
 
 logger = logging.getLogger(__name__)
@@ -201,6 +201,101 @@ class CrewService:
             return await self.tracker_repository.get_by_id(crew_id)
         else:
             raise ValueError(f"Invalid crew_type: {crew_type}. Must be 'commentator' or 'tracker'")
+
+    async def list_my_commitments(
+        self, user: User, upcoming_only: bool = True,
+    ) -> list[dict]:
+        """Everything ``user`` has signed up to crew, both roles, soonest first.
+
+        The volunteer's side of the loop had no surface at all: the Player tab
+        is players-only, there was no My Commitments anywhere, and after signing
+        up the only handle on the commitment was a Withdraw button in one row of
+        a 17-row shared board. Volunteers who work *shifts* have had exactly this
+        page (My Shifts) the whole time; commentators and trackers are the same
+        people doing the same kind of work through a different door.
+
+        Returns plain dicts — the presentation layer needs a merged, sorted view
+        across two models, and merging ORM rows of different types in the page
+        would put the join in the wrong layer.
+        """
+        since = datetime.now(timezone.utc) if upcoming_only else None
+        rows = []
+        for role, repository in (
+            ('commentator', self.commentator_repository),
+            ('tracker', self.tracker_repository),
+        ):
+            for entry in await repository.get_for_user(user, since=since):
+                match = entry.match
+                rows.append({
+                    'id': entry.id,
+                    'role': role,
+                    'match_id': match.id,
+                    'scheduled_at': match.scheduled_at,
+                    'tournament': match.tournament.name if match.tournament else '',
+                    'stream_room': match.stream_room.name if match.stream_room else '',
+                    'players': [p.user.preferred_name for p in match.players],
+                    'approved': bool(entry.approved),
+                    'acknowledged': entry.acknowledged_at is not None,
+                    # The state of the *match*, so a commitment to something
+                    # already played reads as history rather than as a duty.
+                    'started': match.started_at is not None,
+                    'finished': match.finished_at is not None,
+                })
+        # A match with no time sorts last: it is real, but it is not "next".
+        rows.sort(key=lambda r: (r['scheduled_at'] is None, r['scheduled_at']))
+        return rows
+
+    #: How long a match occupies its crew when the tournament says nothing.
+    #: Same default ``MatchSuggestionService`` uses for player availability.
+    DEFAULT_MATCH_MINUTES = 90
+
+    async def find_scheduling_conflicts(
+        self, user: User, match, role: str = 'commentator',
+    ) -> list[str]:
+        """What else ``user`` is committed to while ``match`` is running.
+
+        No conflict check existed anywhere in the crew path — the only
+        overlap-aware code in the codebase was player availability — so a
+        coordinator staffing a stream day approved N people from a dialog that
+        told them nothing they needed in order to decide. Being a *player* in
+        the overlapping match counts: someone racing at 19:00 cannot commentate
+        at 19:00 either.
+
+        Returns one human sentence per clash, ready to print; an empty list is
+        the common answer and costs one query.
+        """
+        if match is None or not getattr(match, 'scheduled_at', None):
+            return []
+        start = to_utc_aware(match.scheduled_at)
+        await match.fetch_related('tournament')
+        minutes = (
+            getattr(match.tournament, 'average_match_duration', None)
+            or self.DEFAULT_MATCH_MINUTES
+        )
+        window = timedelta(minutes=minutes)
+        # Widened both ways so a match starting shortly *before* this one, and
+        # still running, is caught — a window anchored only forward would miss
+        # the overlap that matters most.
+        others = await self.match_repository.commitments_for_user(
+            user.id, start - window, start + window, exclude_match_id=match.id,
+        )
+
+        clashes = []
+        for other in others:
+            other_start = to_utc_aware(other.scheduled_at)
+            other_minutes = (
+                getattr(other.tournament, 'average_match_duration', None)
+                or self.DEFAULT_MATCH_MINUTES
+            )
+            if other_start >= start + window or other_start + timedelta(
+                    minutes=other_minutes) <= start:
+                continue
+            names = players_label(
+                [p.user.preferred_name for p in other.players],  # type: ignore[attr-defined]
+            )
+            when = format_local_display(other_start)
+            clashes.append(f'{names or "a match"} at {when}' if names else f'a match at {when}')
+        return clashes
 
     async def update_crew_approval(
         self,

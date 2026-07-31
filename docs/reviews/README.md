@@ -10,11 +10,21 @@ the truth and git history keeps the rationale.
 | Evaluation | Scope | Headline finding |
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
-| [match-operations-ux.md](match-operations-ux.md) | Admin Schedule board + match dialog, across five roles | Four service-level authorization gates compressed into one `can_crud` boolean: a crew coordinator gets 37 controls that all refuse |
-| [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it. **Wave 1 shipped** — RC3/F3/F4/F8/F9 closed and F6 halved; F1, F2, F5 and the demand model (RC2) remain |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
 
-Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
+Shipped and deleted: the match-operations audit — its findings became
+`MatchBoardAccess` (one field per service gate, replacing the `can_crud`
+boolean), the STREAM_MANAGER's Schedule tab and the TA/CC-scoped board, the
+edit dialog's state strip and honest acknowledgment copy, the SpeedGaming
+sync's reconciled acknowledgment rows, the labelled and reversible rewind
+buttons, the schedulable-tournaments list with its entrant counts, the
+optimistic lock's two named exits, the Day filter, the shared read-only state
+cell, and `match_model_label` for the dialogs that still quoted an id.
+The crew-signup audit — its findings became the crew coordinator's approval
+link, the board's pending-crew strip, the conflict check behind an approval,
+the per-role coverage shortfall on every row, and **My Crew** on Home (the
+volunteer's own list, modelled on My Shifts).
+The proctor workflow audit (PR #145 → #146) — its findings
 became the proctor board, the review queue, the dispute flag and the station pool.
 The equipment lending audit — its findings became the offline banner and the
 socket guard, the labelled mobile cards, the guidance line under an actionless
@@ -45,14 +55,21 @@ surface to ignore.
 
 Findings that recur across the audits, worth fixing once rather than nine times:
 
-- **One boolean for several capabilities.** `can_crud` on the match board
-  ([match-ops RC1](match-operations-ux.md#rc1--can_crud-is-one-boolean-standing-in-for-six-capabilities))
-  hides the crew coordinator's approval link and offers them 37 lifecycle controls
-  the services refuse. The services' own gates are correct and more granular than
-  the UI's.
+- **One boolean for several capabilities.** *Discharged.* `can_crud` on the
+  match board hid the crew coordinator's approval link and offered them 37
+  lifecycle controls the services refused, while the STREAM_MANAGER — the role
+  `assign_stage` names in its own docstring — had no surface at all. The
+  services' gates were correct and more granular than the UI's throughout, which
+  is the shape of the fix: [`match_access.py`](../../theme/tables/match_access.py)
+  carries one field per gate, `test_every_capability_matches_the_service_gate`
+  pins each field to the `AuthService` predicate that decides the same question,
+  and the slot templates branch on `__RUN__`/`__CONFIRM__`/`__CREW__`/`__STREAM__`
+  where they shared one `__CC__`. Worth copying: when a surface and a service
+  disagree about who may act, the service is usually right — derive the surface
+  from it rather than restating it.
 - **Notification is one-directional** — *discharged.* Assignment/approval DMs the
   person; the reverse transitions were silent to everyone
-  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional--closed)).
+  (crew RC3).
   Both halves now speak in both directions. Volunteers: un-assignment and a moved
   shift DM the volunteer, a release DMs the coordinators. Crew: un-approval DMs
   the crew member, and withdrawing an *approved* commitment DMs the tournament's
@@ -75,7 +92,7 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   watch string on the schedule board quoted a primary key — *"sign up as a
   commentator for match ID 17"* — while the DM built by the same service named the
   players, the time and the stage
-  ([crew F4](crew-signup-ux.md#f4--major--every-message-names-a-database-id-not-a-match--fixed)).
+  (crew F4).
   The rule already existed, written down in `discord_messages`' module docstring;
   only one of the two surfaces had read it. Fixed by
   [`match_labels.py`](../../application/utils/match_labels.py), which both now
@@ -104,14 +121,26 @@ Findings that recur across the audits, worth fixing once rather than nine times:
 - **The dev seed cannot produce the roles that expose the worst bugs.** A
   coordinator-only or stream-manager-only user has to be granted by hand; three
   audits needed one
-  ([match-ops F9](match-operations-ux.md#f9--minor--the-dev-seed-cannot-reproduce-the-two-role-failures-above)).
-  Three of those now seed — `equip_manager` (EQUIPMENT_MANAGER only), `vc_user`
-  (VOLUNTEER_COORDINATOR only) and `cc_user` (crew coordinator, no role row at
-  all) — but a stream-manager-only user still does not.
-- **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
-  arming five lifecycle-clear buttons gets none. (The qualifier forfeit was the
-  worst case and now confirms; so do revoking a crew approval and withdrawing an
-  approved commitment, each with copy naming what the other party will be told.)
+  (match-ops F9). *Discharged:* `seed_support.USER_SPECS` now holds one user per
+  per-tenant role and nothing else — `cc_user`, `sm_only`, `equip_manager`,
+  `vc_user`, `proctor_only` and the rest — and `tests/test_seed_coverage.py`
+  fails when a new `Role` arrives without a holder. Both role failures the
+  match-ops audit had to grant by hand are reproducible from a plain seed.
+- **Confirmation is spent on the reversible actions.** *Discharged.* Crew signup
+  got a modal while arming five lifecycle-clear buttons got none. The qualifier
+  forfeit was the worst case and now confirms; so do revoking a crew approval and
+  withdrawing an approved commitment, each naming what the other party will be
+  told. The five rewind buttons now say what they do, toggle instead of arming
+  one-way, and summarise at Save what they are about to undo.
+
+- **An arming mechanism needs every one of its halves.** The five Clear buttons
+  set a flag and greyed themselves out: no label saying they roll a match's
+  lifecycle backwards, no way to un-arm short of closing the dialog and losing
+  every other edit, and no summary at Save. The optimistic lock had the same
+  shape from the other end — a correct refusal with no reload, discard or
+  overwrite anywhere in the dialog, repeating forever. Both are now
+  *decisions with named exits*. Worth grepping for: a control that changes
+  nothing on screen but changes what Save will do.
 
 ## Method
 

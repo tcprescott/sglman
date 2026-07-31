@@ -340,8 +340,7 @@ class SpeedGamingETLService:
         return placeholder
 
     def _participants(self) -> MatchParticipants:
-        """Roster orchestrator bound to the ETL's repositories (no ack seeding
-        happens here, but the collaborator requires the repo)."""
+        """Roster orchestrator bound to the ETL's repositories."""
         return MatchParticipants(
             match_repository=MatchRepository(),
             user_repository=UserRepository(),
@@ -358,10 +357,18 @@ class SpeedGamingETLService:
         enroll+add new users, remove players no longer in the episode. Delegates
         to :class:`MatchParticipants` (the shared batch roster syncer), which
         dedupes so a player listed twice upstream yields one row.
+
+        Acknowledgment rows are then *reconciled*, not seeded: a sourced match
+        used to carry none at all, which made its players invisible to the
+        entire acknowledgment surface — no icon on the board, no Acknowledge
+        button for the player, and an admin dialog that reported nobody
+        assigned. Reconciling preserves the answers already given, which is what
+        lets a poll that runs every few minutes do this at all.
         """
-        await self._participants().sync_players(
-            match, [user.id for user in users], tournament_id
-        )
+        participants = self._participants()
+        user_ids = [user.id for user in users]
+        await participants.sync_players(match, user_ids, tournament_id)
+        await participants.reconcile_acknowledgments(match, user_ids)
 
     # ------------------------------------------------------------ reconciliation
 

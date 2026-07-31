@@ -121,3 +121,46 @@ async def test_ensure_players_enrolled_reports_nothing_for_an_empty_roster(tourn
     from application.services import MatchService
 
     assert await MatchService().ensure_players_enrolled(tournament.id, []) == []
+
+
+# --- The admin match dialog's Tournament options ---------------------------
+#
+# Two thirds of the unfiltered list could not be scheduled into, and the dialog
+# said so only after Create was pressed: an inactive tournament was offered on
+# equal footing with a live one, and six of ten options opened an empty player
+# menu with no message.
+
+async def test_an_inactive_tournament_is_not_offered(staff, tournament, db):
+    await Tournament.create(name='Last Year', is_active=False)
+    offered, _counts = await TournamentService().list_schedulable()
+    assert [t.name for t in offered] == ['Spring Open']
+
+
+async def test_editing_a_match_keeps_its_own_tournament_in_the_list(staff, db):
+    """Dropping it would blank the chip on the match being edited."""
+    retired = await Tournament.create(name='Last Year', is_active=False)
+    offered, _counts = await TournamentService().list_schedulable(keep_id=retired.id)
+    assert retired.id in {t.id for t in offered}
+
+
+async def test_the_kept_tournament_is_not_duplicated_when_it_is_already_live(
+    staff, tournament, db,
+):
+    offered, _counts = await TournamentService().list_schedulable(keep_id=tournament.id)
+    assert [t.id for t in offered].count(tournament.id) == 1
+
+
+async def test_a_missing_keep_id_is_not_an_error(staff, tournament, db):
+    offered, _counts = await TournamentService().list_schedulable(keep_id=99999)
+    assert [t.name for t in offered] == ['Spring Open']
+
+
+async def test_entrant_counts_let_the_dialog_predict_an_empty_player_menu(
+    staff, tournament, member, db,
+):
+    empty = await Tournament.create(name='Nobody Yet')
+    await TournamentService().enroll_player(tournament, member, staff)
+
+    _offered, counts = await TournamentService().list_schedulable()
+    assert counts.get(tournament.id) == 1
+    assert counts.get(empty.id, 0) == 0

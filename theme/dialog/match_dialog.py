@@ -16,7 +16,11 @@ from theme.dialog._helpers import (
     dialog_header,
     mobile_sheet,
 )
-from theme.dialog.match_dialog_base import BaseMatchDialog, enrolment_preview
+from theme.dialog.match_dialog_base import (
+    BaseMatchDialog,
+    acknowledgment_empty_state,
+    enrolment_preview,
+)
 
 # The empty-Tournament hints differ by audience: an admin can go and make one, a
 # player requesting a match cannot.
@@ -74,7 +78,9 @@ class AdminMatchDialog(BaseMatchDialog):
         # it out of the options would blank an existing player's chip.
         users = await self.user_service.get_community_people(include_inactive=True)
         stream_rooms = await self.stream_room_service.get_all_stream_rooms()
-        tournaments = await self.tournament_service.get_all_tournaments()
+        tournaments, entrant_counts = await self.tournament_service.list_schedulable(
+            keep_id=self.match.tournament_id if self.match else None,
+        )
 
         defaults = self._get_default_values()
 
@@ -84,6 +90,7 @@ class AdminMatchDialog(BaseMatchDialog):
             commentator_ids = [c.user_id for c in await self.match.commentators]
             tracker_ids = [t.user_id for t in await self.match.trackers]
         else:
+            players = []
             player_ids = []
             commentator_ids = []
             tracker_ids = []
@@ -118,8 +125,13 @@ class AdminMatchDialog(BaseMatchDialog):
                             'updated by the next SpeedGaming sync.'
                         ).classes('text-caption text-grey')
 
+                # Lead with what the match *is*. Everything below edits it.
+                if self.match:
+                    self._render_state_summary(players)
+
                 selected_tournament = self._render_tournament_select(
-                    tournaments, defaults['tournament'], _ADMIN_NO_TOURNAMENTS_HINT)
+                    tournaments, defaults['tournament'], _ADMIN_NO_TOURNAMENTS_HINT,
+                    entrant_counts=entrant_counts)
 
                 stream_room_options = {None: '(None)'}
                 stream_room_options.update({s.id: s.name for s in stream_rooms})
@@ -157,6 +169,9 @@ class AdminMatchDialog(BaseMatchDialog):
                     choose_any_players = ui.checkbox(
                         'Include players not enrolled in this tournament', value=False,
                     )
+
+                players_note = ui.label('').classes('text-caption st-pending')
+                players_note.set_visibility(False)
 
                 # Scheduling someone into a tournament they are not in does enrol
                 # them, which is right — it was just invisible. Name it before the
@@ -202,6 +217,7 @@ class AdminMatchDialog(BaseMatchDialog):
 
                 async def update_selection_options():
                     tournament_id = selected_tournament.value
+                    empty_reason = ''
                     if choose_any_players.value and tournament_id:
                         selected_players.disable()
                         selected_players.options = {u.id: u.preferred_name for u in users}
@@ -211,9 +227,21 @@ class AdminMatchDialog(BaseMatchDialog):
                         opted_in_users = await get_opted_in_users(tournament_id)
                         selected_players.options = {u.id: u.preferred_name for u in opted_in_users}
                         selected_players.enable()
+                        # An empty menu with no message is how the old dialog
+                        # reported "nobody is enrolled" — after Create had been
+                        # pressed, as "Match must have at least one player",
+                        # which names neither the cause nor either fix.
+                        if not opted_in_users:
+                            empty_reason = (
+                                'Nobody is enrolled in this tournament. Enrol '
+                                'entrants on the Tournaments tab, or tick the '
+                                'box beside this list to schedule anyway.'
+                            )
                     else:
                         selected_players.options = {}
                         selected_players.disable()
+                    players_note.text = empty_reason
+                    players_note.set_visibility(bool(empty_reason))
 
                 async def refresh_selection_and_note():
                     await update_selection_options()
@@ -275,7 +303,9 @@ class AdminMatchDialog(BaseMatchDialog):
                     with ui.column():
                         ui.label('Player Acknowledgments').classes('text-bold')
                         if not acks:
-                            ui.label('No players assigned.').classes('text-grey-6')
+                            ui.label(
+                                acknowledgment_empty_state(len(players), is_sg_sourced),
+                            ).classes('text-grey-6')
                         else:
                             for ack in acks:
                                 with ui.row().classes('items-center'):
@@ -358,7 +388,7 @@ class AdminMatchDialog(BaseMatchDialog):
                     required_fields={'Tournament': tournament_id, 'Date': date_value, 'Time': time_value},
                     tournament_id=tournament_id,
                     player_ids=new_player_ids,
-                    stale_message='This match has been modified by another admin. Please reload and try again.',
+                    stale_message='Another admin saved this match while you had it open.',
                     do_update=do_update,
                     do_create=do_create,
                     create_success_message='Match created successfully',
@@ -532,7 +562,7 @@ class UserMatchDialog(BaseMatchDialog):
                     },
                     tournament_id=tournament_id,
                     player_ids=new_player_ids,
-                    stale_message='This match has been modified. Please reload and try again.',
+                    stale_message='This match was changed while you had it open.',
                     do_update=do_update,
                     do_create=do_create,
                     create_success_message='Match submitted successfully',

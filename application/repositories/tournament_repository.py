@@ -85,6 +85,23 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         return await query
     
     @staticmethod
+    async def enrolment_counts() -> dict[int, int]:
+        """``{tournament_id: entrants}`` for this tenant, in one query.
+
+        The admin match dialog's Tournament select needs it: an option whose
+        player menu will open empty is not a choice, and finding that out by
+        pressing Create and reading "Match must have at least one player" is the
+        long way round.
+        """
+        rows: list[int] = await scoped(
+            TournamentPlayers.all()
+        ).values_list('tournament_id', flat=True)  # type: ignore[assignment]
+        counts: dict[int, int] = {}
+        for tournament_id in rows:
+            counts[tournament_id] = counts.get(tournament_id, 0) + 1
+        return counts
+
+    @staticmethod
     async def any_exists() -> bool:
         """Whether this tenant has any tournament at all."""
         return await scoped(Tournament.all()).exists()

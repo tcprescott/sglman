@@ -12,8 +12,21 @@ member approves them. Signup works from the web or from Discord DM buttons — b
 land in the same service, so the rules and audit trail are identical.
 
 1. Signup inserts a `Commentator` or `Tracker` row with `approved=False`, either from the web UI or from the buttons on a stream-candidate DM (`discordbot/crew_signup.py`).
-2. A staff member approves from the approval toggle beside the crew member's name in the match table (both directions confirm first).
-3. The approved crew member acknowledges — web UI or DM button.
+2. Whoever `can_approve_crew` admits — staff, the tournament's admin, **or its crew coordinator** — approves from the toggle beside the crew member's name in the match table (both directions confirm first).
+3. The approved crew member acknowledges — from **My Crew**, the schedule board, or the DM button.
+
+Each side has a surface of its own for the work it owns:
+
+| Who | Where | What it carries |
+|---|---|---|
+| Staff / TA / crew coordinator | Admin → Schedule, the crew strip | *"3 commentators and 1 tracker awaiting approval"* with a one-click filter to exactly those matches |
+| The volunteer | Home → **My Crew** (`home_tabs/my_crew.py`) | Their own signups across both roles, soonest first, each card naming the match and its state — awaiting approval / approved-please-confirm / confirmed / played — with Confirm and Withdraw |
+| Anyone reading the board | the crew cell, both layouts | *"Needs 2 more"* when the role is short, from `crew_need` on the row |
+
+My Crew is on Home rather than the Volunteer hub deliberately: crew signup is
+behind neither a role nor `FeatureFlag.VOLUNTEERS`, so anyone who can sign up
+must be able to see what they signed up for. It is the crew twin of
+**My Shifts**, which volunteers who work shifts have had all along.
 
 Both directions DM the crew member: approving sends the assignment DM with the
 Acknowledge button, and withdrawing approval sends a withdrawal notice — a
@@ -30,7 +43,20 @@ crew = await CrewService().get_crew_member_by_id(crew_id, 'commentator')
 await CrewService().approve_crew_member(crew, 'commentator', actor=actor)
 await CrewService().update_crew_approval(crew, 'commentator', approved=False, actor=actor)
 await CrewService().acknowledge_crew_assignment(crew_id, 'commentator', user)
+
+# The volunteer's own list (My Crew), both roles merged and sorted by when.
+await CrewService().list_my_commitments(user, upcoming_only=True)
+# What else this person is committed to while that match runs — players count,
+# because someone racing at 19:00 cannot commentate at 19:00 either.
+await CrewService().find_scheduling_conflicts(user, match, 'commentator')
 ```
+
+**Approving checks for a clash.** `find_scheduling_conflicts` answers, in one
+query across all three roles, what else the person is committed to in the
+match's window (the tournament's `average_match_duration`, or 90 minutes), and
+the approval confirmation names what it found. Approval used to be decided from
+a dialog showing one line — the person's name — and no conflict check existed
+anywhere in the crew path.
 
 The REST crew endpoints return only `approved=True` rows — enforced by a Pydantic
 validator, so an unapproved signup is never exposed. Signup, approval and undo all
@@ -44,7 +70,10 @@ not use that role at all. The schedule board renders no **Sign up** for it, and
 hidden control, so the rule lives in the service. `undo_crew_signup` is
 deliberately *not* gated: a signup made before the requirement changed has to
 stay removable. The same numbers drive the coverage reports
-([admin-reports](admin-reports.md#what-covered-means)).
+([admin-reports](admin-reports.md#what-covered-means)) **and** the board's own
+shortfall chip: `MatchDisplayService` puts a per-role `crew_need` on every row
+(required minus *approved* — an unapproved signup has covered nothing yet), so
+the surface that can act on a gap no longer has to be told about it by a report.
 
 ## Acknowledgment
 
@@ -55,12 +84,22 @@ match is scheduled. The handler in `discordbot/match_acknowledgment.py` calls
 `MatchService.acknowledge_match(match_id, user)`, which upserts a
 `MatchAcknowledgment` row — one per player per match.
 
-**Crew** acknowledge after approval, via the web UI prompt on their assignments view
-or the DM button in `discordbot/crew_acknowledgment.py`, routing to
+**Crew** acknowledge after approval, from **My Crew**, the schedule board's crew
+cell, or the DM button in `discordbot/crew_acknowledgment.py` — all three route to
 `CrewService.acknowledge_crew_assignment`.
 
 The admin schedule highlights matches with unacknowledged players; per-player state
 comes from `MatchAcknowledgmentRepository.list_for_match()` / `list_for_matches()`.
+
+**A player with no acknowledgment row is invisible to all of it** — no icon in the
+board's players cell, no Acknowledge button (it is gated on the row existing), and
+an admin dialog that reports nobody assigned. The SpeedGaming sync used to produce
+exactly that, syncing players and no rows; it now calls
+`MatchParticipants.reconcile_acknowledgments`, which creates the missing rows and
+drops the stale ones **without rewriting the answers already given**. That is the
+distinction to keep: `seed_acknowledgments` is destructive by design (an admin
+rewriting the roster is restarting the question), so a caller that runs repeatedly
+over the same match wants the reconciling one.
 
 ## Watching
 

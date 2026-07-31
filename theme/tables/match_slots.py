@@ -3,28 +3,41 @@
 One template per cell type. The three admin / admin+crud / non-admin variants
 that ``theme/tables/match.py`` used to register separately are collapsed here into
 a single template per cell, driven by server-injected boolean flags
-(``__IA__`` → admin_controls, ``__CC__`` → can_crud) and the current user's
-discord id (``__DID__``) — the same server-side boolean-injection the grid slot
-(``match_grid.py``) already relies on. ``__SING__`` is the singular crew role
-(``commentator`` / ``tracker``).
+(``__IA__`` → admin_controls, plus one flag per capability in
+``MatchBoardAccess``) and the current user's discord id (``__DID__``) — the same
+server-side boolean-injection the grid slot (``match_grid.py``) already relies
+on. ``__SING__`` is the singular crew role (``commentator`` / ``tracker``).
+
+The capability flags are ``__RUN__`` (Check In / Start / Finish / Stations),
+``__CONFIRM__`` (Confirm, Record/Change Winner) and ``__CREW__`` (the crew
+approval toggle and name link); the grid adds ``__STREAM__``. They replaced a
+single ``__CC__`` that stood in for all of them — see ``match_access.py`` for why
+that was wrong. ``__IA__`` is not a capability: it means "this is an operator's
+board", and still gates the station chips and the absence of self-signup.
 
 The presentation layer owns these strings; they contain no business logic and no
 data access. ``register_body_slots`` wires them onto a ``ui.table``.
 """
+
+from theme.tables.match_access import MatchBoardAccess
 
 
 def _bool_js(value: bool) -> str:
     return 'true' if value else 'false'
 
 
-def _fill(template: str, *, admin_controls: bool, can_crud: bool,
+def _fill(template: str, *, admin_controls: bool, access: MatchBoardAccess,
           discord_id_js: str, singular: str = '', role: str = '') -> str:
     return (
         template
         .replace('__IA__', _bool_js(admin_controls))
-        .replace('__CC__', _bool_js(can_crud))
+        .replace('__RUN__', _bool_js(access.run))
+        .replace('__CONFIRM__', _bool_js(access.confirm))
+        .replace('__CREW__', _bool_js(access.approve_crew))
         .replace('__DID__', discord_id_js)
         .replace('__WANTED__', crew_wanted_js(role))
+        .replace('__SHORT__', crew_short_js(role))
+        .replace('__KEY__', role)
         .replace('__SING__', singular)
     )
 
@@ -115,30 +128,32 @@ SEED_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
     </span>
 </q-td>'''.replace('__ROLLABLE__', SEED_ROLLABLE)
 
-# Carries __CC__ — must be registered through ``_fill``, not raw.
+# Carries the capability flags — must be registered through ``_fill``, not raw.
 STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <!-- Scheduled state: show Check In button (on-site only, and only once the
          match has players; racetime rooms drive the lifecycle, so racetime
-         matches show a note instead) -->
+         matches show a note instead). A viewer who cannot run the match reads
+         the state rather than being offered a button the service refuses. -->
     <div v-if="props.value === 'Scheduled'" style="display: flex; justify-content: center;">
-        <q-btn v-if="!props.row.is_racetime && props.row.players && props.row.players.length"
+        <q-btn v-if="__RUN__ && !props.row.is_racetime && props.row.players && props.row.players.length"
                @click="$parent.$emit('seat', props)"
                icon="chair" color="primary" size="sm">
             Check In
         </q-btn>
-        <span v-else-if="!props.row.is_racetime" class="st-neutral italic-note">
+        <span v-else-if="__RUN__ && !props.row.is_racetime" class="st-neutral italic-note">
             awaiting players
             <q-tooltip>This match has no players yet</q-tooltip>
         </span>
-        <span v-else class="st-neutral italic-note">
+        <span v-else-if="__RUN__" class="st-neutral italic-note">
             racetime.gg
             <q-tooltip>Managed by the racetime.gg room</q-tooltip>
         </span>
+        <span v-else>{{ props.value }}</span>
     </div>
 
     <!-- Checked In: show Start button and timestamp -->
     <div v-else-if="props.value === 'Checked In'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-        <q-btn @click="$parent.$emit('start', props)"
+        <q-btn v-if="__RUN__" @click="$parent.$emit('start', props)"
                icon="play_arrow" color="primary" size="sm">
             Start
         </q-btn>
@@ -150,7 +165,7 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
 
     <!-- Started: show Finish button and timestamp -->
     <div v-else-if="props.value === 'Started'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-        <q-btn @click="$parent.$emit('finish', props)"
+        <q-btn v-if="__RUN__" @click="$parent.$emit('finish', props)"
                icon="sports_score" color="primary" size="sm">
             Finish
         </q-btn>
@@ -160,17 +175,18 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
         </div>
     </div>
 
-    <!-- Finished: Confirm (+ correct the winner) for staff/TA; everyone else
-         sees it is awaiting review. Correcting a result is the admin's call,
-         so the pencil is crud-only — a proctor records, they do not amend.
-         The dispute chip sits above both, since "an admin should look at this"
-         is the first thing to read about a recorded result. -->
+    <!-- Finished: Confirm (+ correct the winner) for whoever can_confirm_match
+         admits; everyone else sees it is awaiting review. Correcting a result is
+         the admin's call, so the pencil is confirm-gated — a proctor records,
+         they do not amend. The dispute chip sits above both, since "an admin
+         should look at this" is the first thing to read about a recorded
+         result. -->
     <div v-else-if="props.value === 'Finished'" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
         <span v-if="props.row.needs_review" class="wiz-chip wiz-chip--pending">
             <q-icon name="report_problem" size="14px" />Needs review
             <q-tooltip v-if="props.row.review_note">{{ props.row.review_note }}</q-tooltip>
         </span>
-        <div v-if="__CC__" style="display: flex; align-items: center; gap: 4px;">
+        <div v-if="__CONFIRM__" style="display: flex; align-items: center; gap: 4px;">
             <!-- No winner on the board: confirming is refused by the service, so
                  say what is missing and lead with the pencil, which is the
                  control that fixes it. Offering Confirm here only teaches the
@@ -183,10 +199,10 @@ STATE_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' 
                    icon="check_circle" color="primary" size="sm">
                 Confirm
             </q-btn>
-            <!-- Carries __CC__ itself, not just via the wrapping div: correcting
-                 a result is the admin's call, and that gate belongs on the
-                 control so it cannot be lost by re-nesting the markup. -->
-            <q-btn v-if="__CC__" @click="$parent.$emit('edit_result', props)"
+            <!-- Carries __CONFIRM__ itself, not just via the wrapping div:
+                 correcting a result is the admin's call, and that gate belongs
+                 on the control so it cannot be lost by re-nesting the markup. -->
+            <q-btn v-if="__CONFIRM__" @click="$parent.$emit('edit_result', props)"
                    :icon="props.row.has_result ? 'edit' : 'emoji_events'"
                    :flat="props.row.has_result" :round="props.row.has_result"
                    :outline="!props.row.has_result" :no-caps="!props.row.has_result"
@@ -362,7 +378,7 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
              where a tooltip never opens, and `switch_access_shortcut` at size xs
              read as an unidentifiable squiggle. `chair` is the same icon the
              station chips above use, so the button and what it sets match. -->
-        <q-btn v-if="__IA__ && !props.row.is_racetime && props.row.players && props.row.players.length"
+        <q-btn v-if="__RUN__ && !props.row.is_racetime && props.row.players && props.row.players.length"
                @click="$parent.$emit('assign_stations', props)"
                icon="chair" color="primary" size="sm" dense flat no-caps>
             Stations
@@ -375,8 +391,28 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
 # name that opens the user (the same split players already have — a name reads as
 # a name, not as a control that mutates approval); everyone else a plain name.
 # Non-admins get signup/undo + self-ack.
+# Vue test for "this role still needs people on this row". Built from the row's
+# ``crew_need`` (MatchDisplayService), so the board's idea of coverage and the
+# report's are one computation. Only meaningful while signup is still open — a
+# match that has started cannot be staffed.
+def crew_short_js(role: str) -> str:
+    if not role:
+        return 'false'
+    return (f"(((props.row.crew_need || {{}}).{role} || 0) > 0"
+            f" && props.row.crew_signup_open)")
+
+
 CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div class="wrap">
+        <!-- What this row still wants. Coverage used to exist only as a
+             report-time computation, so a stream-candidate match with no
+             commentators looked exactly like a non-streamed one with none, and
+             a fully covered match still offered Sign up to everybody. -->
+        <div v-if="__SHORT__" style="margin-bottom: 4px;">
+            <span class="wiz-chip wiz-chip--pending">
+                <q-icon name="person_add" size="14px" />Needs {{ (props.row.crew_need || {}).__KEY__ }} more
+            </span>
+        </div>
         <div v-if="!__IA__" style="margin-bottom: 6px;">
             <q-btn v-if="props.value && props.value.some(item => item.discord_id == __DID__)"
                    icon="undo" color="negative" size="sm" no-caps dense label="Withdraw"
@@ -391,7 +427,7 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
         </div>
         <template v-for="(item, idx) in props.value">
             <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 2px;">
-                <q-btn v-if="__IA__ && __CC__" dense flat size="xs" class="wiz-crew-approve"
+                <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
                        :icon="item.approved ? 'check_circle' : 'radio_button_unchecked'"
                        :color="item.approved ? 'positive' : 'grey-7'"
                        @click="$parent.$emit('toggle___SING__', { row: props.row, idx })">
@@ -403,17 +439,17 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
                 <q-icon v-else-if="item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                 </q-icon>
-                <a v-if="__IA__ && __CC__" href="#" @click="$parent.$emit('view___SING__', { row: props.row, idx })"
+                <a v-if="__CREW__" href="#" @click="$parent.$emit('view___SING__', { row: props.row, idx })"
                    class="table-link" style="margin-right: 4px;">
                     {{ item.name }}
                 </a>
                 <span v-else :class="item.approved ? 'st-ok-strong' : 'st-pending'" style="margin-right: 4px;">
                     {{ item.name }}
                 </span>
-                <q-icon v-if="__IA__ && __CC__ && item.approved && item.acknowledged" name="how_to_reg" class="st-ok" size="xs">
+                <q-icon v-if="__CREW__ && item.approved && item.acknowledged" name="how_to_reg" class="st-ok" size="xs">
                     <q-tooltip>Acknowledged{{ item.ack_ts ? ' ' + item.ack_ts : '' }}</q-tooltip>
                 </q-icon>
-                <q-icon v-if="__IA__ && __CC__ && item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
+                <q-icon v-if="__CREW__ && item.approved && !item.acknowledged" name="schedule" class="st-pending" size="xs">
                     <q-tooltip>Approved, awaiting acknowledgment</q-tooltip>
                 </q-icon>
                 <!-- Labelled, not icon-only: a bare `check` beside a name reads as
@@ -431,18 +467,24 @@ CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' :
 </q-td>'''
 
 
-def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_id,
+def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess, discord_id,
                         extra_slots=None, has_edit: bool = True,
                         want_seed_slot: bool = False,
+                        want_seed_readonly: bool = False,
                         want_state_slot: bool = False,
                         want_stream_room_admin: bool = False,
                         want_stream_room_readonly: bool = False) -> None:
     """Register every body-cell slot on ``table``.
 
     ``discord_id`` is the current user's id (or None); the watch slot is only
-    added for a logged-in user. The ``want_*`` flags mirror the caller's callback
-    availability so the seed/state/stream-room slots register exactly as before;
-    ``has_edit`` does the same for the id cell's edit link.
+    added for a logged-in user. ``access`` supplies the capability flags the
+    templates branch on. The ``want_*`` flags mirror the caller's callback
+    availability so the seed/state/stream-room slots register as the board needs
+    them; ``has_edit`` does the same for the id cell's edit link.
+
+    An operator's board that cannot roll a seed still gets a seed *cell*
+    (``want_seed_readonly``): with no slot at all Quasar prints the raw column
+    value, which for a seed is an untruncated URL.
     """
     discord_id_js = f"'{discord_id}'" if discord_id else 'null'
 
@@ -451,11 +493,11 @@ def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_
     table.add_slot('body-cell-scheduled_at', SCHEDULED_AT_SLOT)
 
     table.add_slot('body-cell-players', _fill(
-        PLAYERS_SLOT, admin_controls=admin_controls, can_crud=can_crud, discord_id_js=discord_id_js,
+        PLAYERS_SLOT, admin_controls=admin_controls, access=access, discord_id_js=discord_id_js,
     ))
     for role in ('commentators', 'trackers'):
         table.add_slot(f'body-cell-{role}', _fill(
-            CREW_SLOT, admin_controls=admin_controls, can_crud=can_crud,
+            CREW_SLOT, admin_controls=admin_controls, access=access,
             discord_id_js=discord_id_js, singular=role[:-1], role=role,
         ))
 
@@ -468,9 +510,11 @@ def register_body_slots(table, *, admin_controls: bool, can_crud: bool, discord_
 
     if want_seed_slot:
         table.add_slot('body-cell-generated_seed', SEED_SLOT)
+    elif want_seed_readonly:
+        table.add_slot('body-cell-generated_seed', SEED_SLOT_READONLY)
     if want_state_slot:
         table.add_slot('body-cell-state', _fill(
-            STATE_SLOT, admin_controls=admin_controls, can_crud=can_crud,
+            STATE_SLOT, admin_controls=admin_controls, access=access,
             discord_id_js=discord_id_js,
         ))
     if want_stream_room_admin:

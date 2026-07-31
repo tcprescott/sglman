@@ -124,8 +124,18 @@ class MatchTableHandlersMixin:
                 dialog.dialog.close()
 
         if approving:
+            # The dialog used to show one line — the name — and a checkbox, for a
+            # decision that needs to know whether this person is already spoken
+            # for. No conflict check existed anywhere in the crew path.
+            clashes = await CrewService().find_scheduling_conflicts(
+                crew_member.user, m, role,
+            )
             message = (f'Approve {name} as {role} for {match_row_label(row)}?\n\n'
                        "They'll get a Discord message asking them to acknowledge the assignment.")
+            if clashes:
+                listed = '\n'.join(f'• {clash}' for clash in clashes)
+                message += (f'\n\n⚠ {name} is already committed at the same time:\n'
+                            f'{listed}')
             title, confirm_text, tone = f'Approve {role}', 'Approve', 'primary'
         else:
             message = (f'Remove approval for {name} as {role} for {match_row_label(row)}?\n\n'

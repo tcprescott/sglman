@@ -295,8 +295,10 @@ Crew (commentator/tracker) self-signup, the approval workflow, and crew-side ack
 | `update_crew_approval(crew_member, crew_type, approved, actor=None)` | `Commentator \| Tracker` | Approve/unapprove. Gated by `can_approve_crew`; refreshes from DB to narrow approval races; no-ops (no audit, no DM) when state already matches; unapproval clears `acknowledged_at`; approval enqueues an acknowledgment-request DM. |
 | `approve_crew_member(crew_member, crew_type, actor=None)` | `Commentator \| Tracker` | Convenience wrapper for `update_crew_approval(..., approved=True)`. |
 | `acknowledge_crew_assignment(crew_id, crew_type, user)` | `Commentator \| Tracker` | Crew member confirms their own approved assignment. Rejects other users and unapproved rows (`ValueError`); already-acknowledged rows are a silent no-op. |
+| `list_my_commitments(user, upcoming_only=True)` | `list[dict]` | Both roles merged and sorted by when they happen — the query behind **My Crew** on Home. Returns plain dicts because the view is a join across two models, and merging ORM rows of different types in the page would put that join in the wrong layer. |
+| `find_scheduling_conflicts(user, match, role)` | `list[str]` | What else this person is already committed to while `match` runs, one printable sentence each. One query across **all three** roles — someone racing at 19:00 cannot commentate at 19:00 either — over the tournament's `average_match_duration` (90 min default), widened both ways so a match that started earlier and is still running is caught. The approval confirmation prints what it finds; before this, no conflict check existed anywhere in the crew path. |
 
-Collaborators: `CommentatorRepository`, `TrackerRepository`, `MatchRepository` (signup match lookup), `AuditService`, `DiscordService` (via `discord_queue`).
+Collaborators: `CommentatorRepository`, `TrackerRepository`, `MatchRepository` (signup match lookup, `commitments_for_user`), `AuditService`, `DiscordService` (via `discord_queue`).
 
 ### discord_role_mapping_service.py — DiscordRoleMappingService
 
@@ -424,6 +426,8 @@ Read-only view-model assembly for the match tables: fetches matches (and their a
 | `get_stream_rooms_for_filter()` | `dict[int, str]` | Stream room id → name for filter dropdowns. |
 | `_bracket_ref(match)` | `dict \| None` | The `{id, name, game}` of the bracket stage a match is a game of, for the schedule's link into the bracket view — `None` for an ordinary match, and `None` (not an exception) when the caller skipped `prefetch_relations`, since `bracket_match_game` is a reverse OneToOne. |
 
+Two crew keys sit on every row and are easy to confuse. **`crew_wanted`** is whether the tournament uses the role at all (`required_* > 0`); **`crew_need`** is how many more *approved* people it still wants, per role — required minus approved, floored at zero, counted from approved because an unapproved signup has covered nothing yet. `crew_need` is what lets the board say *"Needs 2 more"*: before it, coverage existed only as a report-time computation, so the one surface that knew about a gap was the one that could not act on it.
+
 Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRepository`, `StreamRoomRepository`.
 
 ### match_schedule_service.py — MatchScheduleService
@@ -490,7 +494,9 @@ Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRe
 
 **match_status.py** — the **one derived status vocabulary** shared by the schedule table, the bracket cards, the REST bracket payloads, and the Discord embeds. Pure and ORM-free. `MatchStatus` has nine members (`PENDING`, `UNSCHEDULED`, `SCHEDULED`, `CHECKED_IN`, `LIVE`, `AWAITING_RESULT`, `COMPLETE`, `CANCELLED`, `NEEDS_RESCHEDULE`); `resolve(*, match, game_state=None, bracket_match_state=None, room_status=None)` projects a `Match` onto it — a settled/cancelled **game** state outranks the timestamps, the timestamps are read newest-first, and the racetime room is a **tiebreaker only** (an `IN_PROGRESS` room with no `started_at` still reads `LIVE`). `resolve_matchup` folds a series' game statuses into one. **Derived, never stored** — the timestamps stay the source of truth. `legacy_label` adapts a status back to the schedule table's five historical strings; `STATUS_TONES` names the colour semantically once, mapped to Quasar in `theme/` and to `COLOR_*` ints in `discord_embeds.py`. Detail: [brackets.md](../features/brackets.md#live-match-state-on-the-cards).
 
-**match_participants.py** — `MatchParticipants`, the participant-row orchestration split out of `MatchService`. Pure repository plumbing, no audit or events: `resolve_users` (id list → `User`s in one query, `ValueError` on the first missing id), `ensure_enrolled`, `sync_players`/`sync_crew` (reconcile player and commentator/tracker rows to a target id set), and `seed_acknowledgments` (reset and re-create per-player ack rows, auto-acking the actor). `MatchService` composes it lazily via a `participants` property, so create/update/request share one roster path.
+**match_participants.py** — `MatchParticipants`, the participant-row orchestration split out of `MatchService`. Pure repository plumbing, no audit or events: `resolve_users` (id list → `User`s in one query, `ValueError` on the first missing id), `ensure_enrolled`, `sync_players`/`sync_crew` (reconcile player and commentator/tracker rows to a target id set), and the ack-row pair: `seed_acknowledgments` (reset and re-create, auto-acking the actor — destructive by design, because an admin rewriting the roster is restarting the question) and `reconcile_acknowledgments` (create the missing, drop the stale, **keep the answers already given** — what the SpeedGaming sync needs, since it runs over the same match every poll). `MatchService` composes it lazily via a `participants` property, so create/update/request share one roster path.
+
+A player with **no** ack row is invisible to the whole acknowledgment surface — no icon on the board, no Acknowledge button (gated on the row existing), and an admin dialog that reports nobody assigned — which is what a sourced match used to look like.
 
 ### match_suggestion_service.py — MatchSuggestionService
 
@@ -775,6 +781,7 @@ Tournament CRUD plus Tournament Admin / Crew Coordinator membership. Creation an
 | `add_crew_coordinator(tournament, target, actor=None)` | `None` | Grant Crew Coordinator. |
 | `remove_crew_coordinator(tournament, target, actor=None)` | `None` | Revoke Crew Coordinator. |
 | `get_all_tournaments(active_only=False)` / `get_tournament_by_id(id)` | reads | Tournament list (optionally active only); one tournament by id. |
+| `list_schedulable(keep_id=None)` | `(tournaments, {id: entrants})` | The admin match dialog's Tournament options: active only (`keep_id` spares the one an edited match already points at, so editing does not blank its own chip) plus each tournament's entrant count, so an option whose player menu will open empty says so *before* the choice. |
 | `enroll_player(tournament, target, actor)` / `unenroll_player(tournament, target, actor)` | `None` | Entrant management from the tournament's own screen (`can_grant_roles` gated). `enroll_player` refuses a non-member of the community and a duplicate — the picker being member-scoped is a convenience, not the gate. |
 
 **Enrolment has three entry points** — the per-user edit dialog

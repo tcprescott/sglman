@@ -29,7 +29,7 @@ The UI is built entirely with NiceGUI (Quasar/Vue under the hood) mounted into t
 
 Constructor: `BaseLayout(copyright_text=…, section=None, base_path=None, tabs=None, user=None, show_admin=False, show_volunteer=None, wordmark=None, **_kwargs)`.
 
-- `tabs` is a list of dicts `{'label', 'icon', 'content'}`, optionally `'slug'` and `'group'`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass `can_crud` and the report query params. A `'group'` turns the drawer's flat tab list into labeled sections.
+- `tabs` is a list of dicts `{'label', 'icon', 'content'}`, optionally `'slug'` and `'group'`. `content` is either a callable (sync or async, detected via `inspect.iscoroutinefunction`) or a tuple `(callable, args, kwargs)` for parameterized tabs — the admin page uses the tuple form to pass the board's `MatchBoardAccess` and the report query params. A `'group'` turns the drawer's flat tab list into labeled sections.
 - `section` is the URL **slug** of the initially active tab (e.g. `reports`); it resolves to a label via the auto-derived slug map (`tab_slug()`, or an explicit `'slug'`). An unknown or missing slug falls back to the first tab.
 - `base_path` is the section URL base **including any `/t/<slug>` root_path** (e.g. `/t/foo/admin`); tab switches rewrite the URL to `{base_path}/{slug}`. `None` on tab-less pages, which never touch the URL.
 - `show_admin=True` adds an "Admin" entry to the drawer's top menu (Home is always present).
@@ -222,7 +222,7 @@ The public event schedule with crew signup.
 |---|---|---|---|
 | My Availability | volunteer or staff | `volunteer_tabs/availability.py:availability_tab` | Volunteer availability windows, persisted via `VolunteerAvailabilityService.set_windows` |
 | My Shifts | volunteer or staff | `volunteer_tabs/my_shifts.py:my_shifts_tab` | Upcoming assigned shifts, with acknowledgment |
-| Proctor Station | proctor or staff | `volunteer_tabs/proctor_station.py:proctor_station_tab` | The on-site room board — check in, seat, roll the seed, start, record the winner. Always `can_crud=False` |
+| Proctor Station | proctor or staff | `volunteer_tabs/proctor_station.py:proctor_station_tab` | The on-site room board — check in, seat, roll the seed, start, record the winner. Always `MatchBoardAccess(run=True)`: exactly what `can_run_match` admits them to |
 
 The two self-service tabs read the *signed-in* user's own data, so they are safe (and empty) for someone who volunteers for nothing; saving availability still requires a volunteer opt-in, which the service enforces.
 
@@ -273,7 +273,7 @@ Tab visibility — a user sees the union of every row they match. "(any)" means 
 
 Tabs are appended in role order, then **stable-sorted by `_ADMIN_GROUP_ORDER`** (Operations → Online play → Community → Integrations → System), which the drawer renders as labeled sections.
 
-`can_crud = staff or tournament-admin-of-any` is passed into the Schedule tab; crew coordinators get a read-mostly Schedule — lifecycle buttons but no create/edit/stage-assign (see [Admin schedule](#admin-schedule-pagesadmin_tabsadmin_schedulepy)). Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
+A **`MatchBoardAccess`** is passed into the Schedule tab — one field per `AuthService` gate (`edit`/`run`/`confirm`/`assign_stream`/`approve_crew`), resolved from the viewer's roles. See [Match board capabilities](#match-board-capabilities-themetablesmatch_accesspy). STREAM_MANAGER reaches the tab for exactly one control (`assign_stream`); a crew coordinator for exactly one (`approve_crew`), and their board is narrowed to the tournaments they run. Proctors do **not** reach this tab at all: they get their own [Proctor Station](#volunteer-hub-volunteer-pagesvolunteerpy) board on `/volunteer`, which shares the lifecycle handlers but not the frame.
 
 **Deep-link query params.** Besides the `section` path segment, the page declares every tab's params in one signature and forwards each as a kwargs dict to the tab that owns it:
 
@@ -317,19 +317,21 @@ Triforce texts has no standalone route: player submission lives in the home **Tr
 
 ### Admin schedule (`pages/admin_tabs/admin_schedule.py`)
 
-`admin_schedule_page(can_crud: bool = True)` — the operational heart of the app: a `MatchTableView` over `Match.all()` with `admin_controls=True`. Columns: ID, Tournament, Scheduled At, State, Players, Commentators, Trackers, Stage, Seed. The lifecycle handlers themselves live in `theme/tables/match_lifecycle.py:MatchLifecycleHandlers` (shared with the volunteer Proctor Station board, so the two surfaces cannot diverge on lifecycle behaviour); the page keeps only `submit_admin_match`, since creating a match is a scheduling action rather than a lifecycle one. Every handler calls `MatchScheduleService` with the current user as `actor`, catches `PermissionError` (negative notify) and `ValueError` (warning notify) through `notify_error`, and refreshes just the affected row via `table_view.update_row_by_id`. Construction is two-phase — `MatchLifecycleHandlers(page_container, can_crud=...)`, then `MatchTableView(..., **handlers.callbacks())`, then `handlers.table_view = table_view` — because the view needs the callbacks and the callbacks need the view. `callbacks()` *omits* `on_edit` / `on_confirm` / `on_edit_result` / `on_edit_stream_room` when `can_crud` is false rather than passing `None`, since `MatchTableView` keys its slot registration off callback presence.
+`admin_schedule_page(access, match_id=None, tournament_ids=None)` — the operational heart of the app: a `MatchTableView` over `Match.all()` with `admin_controls=True`. Columns: ID, Tournament, Scheduled At, State, Players, Commentators, Trackers, Stage, Seed. The lifecycle handlers themselves live in `theme/tables/match_lifecycle.py:MatchLifecycleHandlers` (shared with the volunteer Proctor Station board, so the two surfaces cannot diverge on lifecycle behaviour); the page keeps only `submit_admin_match`, since creating a match is a scheduling action rather than a lifecycle one. Every handler calls `MatchScheduleService` with the current user as `actor`, catches `PermissionError` (negative notify) and `ValueError` (warning notify) through `notify_error`, and refreshes just the affected row via `table_view.update_row_by_id`. Construction is two-phase — `MatchLifecycleHandlers(page_container, access=...)`, then `MatchTableView(..., access=..., **handlers.callbacks())`, then `handlers.table_view = table_view` — because the view needs the callbacks and the callbacks need the view. `callbacks()` returns one *group* per capability and **omits** the rest rather than passing `None`, since `MatchTableView` keys its event wiring and part of its slot registration off callback presence.
+
+Two strips sit above the board, each shown only to whoever can act on what it counts: the **review queue** (`access.confirm` — flagged / no-result / awaiting-confirmation, with a filter to them) and the **crew queue** (`access.approve_crew` — pending signups per role, with a filter to exactly those matches via `MatchTableView.focus_matches`). `tournament_ids` narrows the board for a TA or crew coordinator, whose authority is per tournament; staff and the stream manager operate community-wide and get the whole board.
 
 | Action | Trigger | Dialog | Service call |
 |---|---|---|---|
-| Create match | "Create Match" button (`can_crud` only) | `AdminMatchDialog` | `MatchService.create_match` (via dialog) |
-| Edit match | Match-ID link (`can_crud` only) | `AdminMatchDialog` | `MatchService.update_match` (via dialog) |
+| Create match | "Create Match" button (`access.edit`) | `AdminMatchDialog` | `MatchService.create_match` (via dialog) |
+| Edit match | Match-ID link (`access.edit`) | `AdminMatchDialog` | `MatchService.update_match` (via dialog) |
 | Generate seed | "Generate" button in Seed column | — | `MatchScheduleService.generate_seed` |
 | Check In (seat) | "Check In" button in State column | `StationAssignmentDialog`, then confirm | `MatchScheduleService.seat_match` |
 | Start | "Start" button | `ConfirmationDialog` | `MatchScheduleService.start_match` |
 | Finish | "Finish" button | `MatchResultDialog` | `MatchScheduleService.finish_match` |
 | Confirm | "Confirm" button | `ConfirmationDialog` | `MatchScheduleService.confirm_match` |
-| Change recorded winner | Pencil beside Confirm / "Change Winner" on the card (`can_crud` only) | `MatchResultDialog(mode='edit')` | `MatchService.record_match_result` (via dialog) |
-| Assign stage | "Assign" button in Stage column (`can_crud` only) | `StreamRoomDialog` | `MatchService.assign_stage` (via dialog) |
+| Change recorded winner | Pencil beside Confirm / "Change Winner" on the card (`access.confirm`) | `MatchResultDialog(mode='edit')` | `MatchService.record_match_result` (via dialog) |
+| Assign stage | "Assign" button in Stage column (`access.assign_stream`) | `StreamRoomDialog` | `MatchService.assign_stage` (via dialog) |
 | Assign stations | Button next to players | `StationAssignmentDialog` | `MatchService.assign_stations` (via dialog) |
 
 On-site-only controls are hidden for racetime.gg tournaments (`Tournament.is_racetime_enabled`): the display row carries an `is_racetime` flag, and the slot templates replace **Check In** with a muted "racetime.gg" note and drop **Assign stations** — the race room drives the lifecycle. The services enforce the same rule (`seat_match` / `assign_stations` raise `ValueError`), so the guard holds for API callers too.
@@ -624,7 +626,7 @@ Three view classes — `MatchTableView`, `TournamentTableView`, `UserTableView` 
 
 The largest UI component, used by the home Schedule and Player tabs and the admin Schedule tab. Split across `match.py` (view), `match_slots.py` (Vue templates), `match_grid.py` (cards), and `match_handlers.py`.
 
-**Constructor flags**: `admin_controls` (admin slots and lifecycle buttons), `can_crud` (edit/approve affordances within admin mode), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_edit_stream_room`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided. Four **board-shaping** options exist for surfaces that need a different frame around the same rows (only the Proctor Station board uses them today): `row_sort` (a `list[dict] -> list[dict]` applied just before the rows reach the table), `exclude_racetime` (threaded down to `MatchRepository.get_all`, dropping matches whose tournament runs on racetime.gg), `on_rows_changed` (called with the visible rows after every `refresh()` and `update_row_by_id()`, for a summary strip), and `actions_first` (mobile card renders its actions row directly under the players).
+**Constructor flags**: `admin_controls` (this is an operator's board — station chips, no self-signup), `access` (a `MatchBoardAccess`; see below), `extra_slots` (caller-supplied cell templates), `submit_match_callback` (renders the Create Match / Request Match button), `player_discord_id` (scopes data to one player), and per-action callbacks `on_edit`, `on_generate_seed`, `on_seat`, `on_start`, `on_finish`, `on_confirm`, `on_edit_stream_room`, `on_assign_stations` — slots and event handlers are registered only for callbacks that are provided. Four **board-shaping** options exist for surfaces that need a different frame around the same rows (only the Proctor Station board uses them today): `row_sort` (a `list[dict] -> list[dict]` applied just before the rows reach the table), `exclude_racetime` (threaded down to `MatchRepository.get_all`, dropping matches whose tournament runs on racetime.gg), `on_rows_changed` (called with the visible rows after every `refresh()` and `update_row_by_id()`, for a summary strip), and `actions_first` (mobile card renders its actions row directly under the players).
 
 **Filters** — a card with three multi-selects (Tournament, Stage, State) and a refresh button; options load asynchronously from `MatchDisplayService.get_tournaments_for_filter` / `get_stream_rooms_for_filter`. Values persist **per user per tenant** through `tenant_session_get` / `tenant_session_set` ([`application/utils/tenant_session.py`](../../application/utils/tenant_session.py)), which key under `app.storage.user['by_tenant'][<tenant_id>]` — a filter is meaningful only within its own community. State defaults to `DEFAULT_STATE_FILTER` (Scheduled + Checked In + Started). Below 1024px the filter card collapses behind a toggle with an active-filter count badge.
 
@@ -656,9 +658,29 @@ The largest UI component, used by the home Schedule and Player tabs and the admi
 
 Crew signup/undo and acknowledge buttons only render for the logged-in user's own entries; the templates compare row data against the user's `discord_id`, interpolated into the slot HTML at build time. See [../features/match-participation.md](../features/match-participation.md).
 
-**Grid mode** — `match_grid.render_grid_slot()` generates a label/value card per row from the column list (JS field descriptors built in Python), re-implementing the ID link, acknowledgment icons, crew signup/acknowledge buttons, lifecycle state buttons, seed generation/links, watch toggle, and stage assignment for mobile, with admin/crud behavior baked in via template interpolation (`__IA__`, `__CC__`, `__DID__`, `__WATCH__`, `__ACTCLS__`). Card order is headline → players → caption → details → actions; with `actions_first=True` it becomes headline → players → actions → caption → details, and the actions row gains `mgc-actions--first`, which moves its divider from top to bottom.
+**Grid mode** — `match_grid.render_grid_slot()` generates a label/value card per row from the column list (JS field descriptors built in Python), re-implementing the ID link, acknowledgment icons, crew signup/acknowledge buttons, lifecycle state buttons, seed generation/links, watch toggle, and stage assignment for mobile, with board-kind and capability behaviour baked in via template interpolation (`__IA__`, `__RUN__`, `__CONFIRM__`, `__CREW__`, `__STREAM__`, `__DID__`, `__WATCH__`, `__ACTCLS__`). Card order is headline → players → caption → details → actions; with `actions_first=True` it becomes headline → players → actions → caption → details, and the actions row gains `mgc-actions--first`, which moves its divider from top to bottom.
 
 **Overdue rows** — `MatchDisplayService` puts `is_overdue` (scheduled time passed, not checked in, not finished) and `scheduled_ts` (an epoch sort key; the formatted `scheduled_at` string does not sort) on every row. The desktop `scheduled_at` cell and the mobile card headline tint the time amber and add a clock icon when it is set; `scheduled_ts` is what `row_sort` implementations order within a bucket.
+
+**The Day filter** — `Day` sits first in the filter row: `All dates` (the default — nothing is hidden until asked), `Today`, `Tomorrow`, `Next 7 days`. `day_scope_window()` resolves the scope on the *display* clock through `local_day_bounds`, so "today" follows the viewer, and the window is half-open. It counts toward the mobile filter badge and is suspended under a deep link, for the same reason the State filter is: a link to one match must not land on an empty board.
+
+### Match board capabilities (`theme/tables/match_access.py`)
+
+`MatchBoardAccess` is what the board may **offer**, one frozen field per gate in `AuthService`:
+
+| Field | Gate | Controls |
+|---|---|---|
+| `edit` | `can_crud_match` | the id link, the match dialog, Create Match |
+| `run` | `can_run_match` | Check In, Start, Finish, Generate, Stations |
+| `confirm` | `can_confirm_match` | Confirm, Record/Change Winner |
+| `assign_stream` | `can_assign_match_stream` | Assign (stage) |
+| `approve_crew` | `can_approve_crew` | the crew approval toggle and name link |
+
+These are **page-level approximations of per-match gates** — a tournament admin's board answers "may you do this to *some* match here", and the service re-checks the actual match on every call. That is deliberate: the board is the cheap filter, the service is the enforcement. It is also why a TA's or coordinator's board is *scoped* to the tournaments they run.
+
+It replaced a single `can_crud = is_staff or is_ta_any`, which stood in for all five. The measured consequence: a crew coordinator was handed 37 lifecycle controls that every service refused and none of the one they were authorized for, and the STREAM_MANAGER — the role `assign_stage` names in its own docstring — had no surface that assigned a stage. `tests/theme/test_match_board_access.py::test_every_capability_matches_the_service_gate` pins each field to the `AuthService` predicate that decides the same question, for every role the board admits.
+
+`MatchLifecycleHandlers.callbacks()` hands over one group per field. The slot templates branch on `__RUN__` / `__CONFIRM__` / `__CREW__` / `__STREAM__`, baked to `true`/`false` at registration — so *"is this control for me?"* is answered by reading the guard, never by whether the markup is present (`_guard_on` in the slot tests exists for that).
 
 ### `TournamentTableView` (`theme/tables/tournament.py`)
 

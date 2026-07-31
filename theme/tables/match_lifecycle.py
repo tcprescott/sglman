@@ -8,8 +8,8 @@ instance of this, so their lifecycle behaviour cannot drift.
 Construction is two-phase because the dependency is circular — the view needs
 the callbacks, and the callbacks need the view to refresh a row::
 
-    handlers = MatchLifecycleHandlers(page_container, can_crud=can_crud)
-    table_view = MatchTableView(columns=..., get_query=..., **handlers.callbacks())
+    handlers = MatchLifecycleHandlers(page_container, access=access)
+    table_view = MatchTableView(columns=..., get_query=..., access=access, **handlers.callbacks())
     handlers.table_view = table_view
 
 The read-only ``Match.get(id=..., tenant_id=require_tenant_id())`` loads here are
@@ -21,11 +21,13 @@ from nicegui import app, ui
 
 from application.services import MatchScheduleService, get_user_from_discord_id
 from application.tenant_context import require_tenant_id
+from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog import ConfirmationDialog, MatchResultDialog, StationAssignmentDialog
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.notify import notify_error
+from theme.tables.match_access import MatchBoardAccess
 
 
 def confirm_result_message(match: Match) -> str:
@@ -48,7 +50,7 @@ def confirm_result_message(match: Match) -> str:
         return player.user.preferred_name if player else ''
 
     if winner is not None:
-        lines = [f'Record {name(winner)} as the winner of match #{match.id}?']
+        lines = [f'Record {name(winner)} as the winner of {match_model_label(match)}?']
         if len(others) == 1:
             lines.append(f'{name(winner)} beat {name(others[0])}.')
         elif others:
@@ -56,7 +58,7 @@ def confirm_result_message(match: Match) -> str:
     else:
         # Reachable from a stale row (someone else cleared the result between the
         # render and the click); confirm_match refuses it, so say so up front.
-        lines = [f'No winner is recorded for match #{match.id}.',
+        lines = [f'No winner is recorded for {match_model_label(match)}.',
                  'Record one before confirming.']
     if match.needs_review:
         lines.append(
@@ -71,30 +73,37 @@ def confirm_result_message(match: Match) -> str:
 class MatchLifecycleHandlers:
     """The ``on_*`` callbacks a match table needs to run a match's lifecycle."""
 
-    def __init__(self, page_container, *, can_crud: bool):
+    def __init__(self, page_container, *, access: MatchBoardAccess):
         self.page_container = page_container
-        self.can_crud = can_crud
+        self.access = access
         self.table_view = None          # assigned by the caller after the view exists
         self.schedule_service = MatchScheduleService()
 
     def callbacks(self) -> dict:
-        """The ``on_*`` kwargs for ``MatchTableView``, gated by ``can_crud``.
+        """The ``on_*`` kwargs for ``MatchTableView``, one group per capability.
 
-        The crud-only three are omitted entirely rather than passed as ``None``:
-        ``MatchTableView`` keys its slot registration off callback presence, so
-        omission is what hides the control.
+        A callback the viewer's capability does not cover is omitted entirely
+        rather than passed as ``None``: ``MatchTableView`` keys its event wiring
+        and part of its slot registration off callback presence, so omission is
+        what stops the control from reaching a service that would refuse it.
+
+        These five groups mirror ``MatchBoardAccess`` field for field; the board
+        offering a control the service then refuses is precisely the failure this
+        replaced.
         """
-        cb = {
-            'on_generate_seed': self.on_generate_seed,
-            'on_seat': self.on_seat,
-            'on_start': self.on_start,
-            'on_finish': self.on_finish,
-            'on_assign_stations': self.on_assign_stations,
-        }
-        if self.can_crud:
+        cb: dict = {}
+        if self.access.run:
+            cb['on_generate_seed'] = self.on_generate_seed
+            cb['on_seat'] = self.on_seat
+            cb['on_start'] = self.on_start
+            cb['on_finish'] = self.on_finish
+            cb['on_assign_stations'] = self.on_assign_stations
+        if self.access.edit:
             cb['on_edit'] = self.on_edit
+        if self.access.confirm:
             cb['on_confirm'] = self.on_confirm
             cb['on_edit_result'] = self.on_edit_result
+        if self.access.assign_stream:
             cb['on_edit_stream_room'] = self.on_edit_stream_room
         return cb
 
@@ -128,7 +137,7 @@ class MatchLifecycleHandlers:
         await self.table_view.update_row_by_id(match_id)
 
     async def on_seat(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
             dialog.dialog.close()
@@ -147,13 +156,16 @@ class MatchLifecycleHandlers:
             await self.schedule_service.seat_match(match, actor=actor)
             await self.table_view.update_row_by_id(match.id)
             with self.page_container:
-                ui.notify(f'Match #{match.id} checked in.', color='positive')
+                ui.notify(
+                    f'{match_model_label(match, with_context=False)} checked in.',
+                    color='positive',
+                )
         except (PermissionError, ValueError) as e:
             with self.page_container:
                 notify_error(e)
 
     async def on_start(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
         player_names = ', '.join(
             [p.user.preferred_name for p in match.players])
 
@@ -162,8 +174,8 @@ class MatchLifecycleHandlers:
             await self.confirm_starting(match)
         with self.page_container:
             dialog = ConfirmationDialog(
-                title=f'Start match #{match.id}',
-                message=f'Start match #{match.id}?\n\n{player_names}',
+                title='Start match',
+                message=f'Start {match_model_label(match)}?\n\n{player_names}',
                 confirm_text='Start match',
                 tone='primary',
                 on_confirm=handle_confirm,
@@ -180,7 +192,7 @@ class MatchLifecycleHandlers:
                 notify_error(e)
 
     async def on_finish(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
             dialog.dialog.close()
@@ -202,14 +214,14 @@ class MatchLifecycleHandlers:
                 notify_error(e)
 
     async def on_confirm(self, match_id: int):
-        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('players', 'players__user')
+        match = await Match.get(id=match_id, tenant_id=require_tenant_id()).prefetch_related('tournament', 'players', 'players__user')
 
         async def handle_confirm(_):
             dialog.dialog.close()
             await self.confirm_confirming(match)
         with self.page_container:
             dialog = ConfirmationDialog(
-                title=f'Confirm match #{match.id}',
+                title='Confirm result',
                 message=confirm_result_message(match),
                 confirm_text='Confirm result',
                 tone='primary',
@@ -238,7 +250,7 @@ class MatchLifecycleHandlers:
         """
         match = await Match.get(
             id=match_id, tenant_id=require_tenant_id(),
-        ).prefetch_related('players', 'players__user')
+        ).prefetch_related('tournament', 'players', 'players__user')
 
         async def after_edit(_):
             await self.table_view.update_row_by_id(match_id)

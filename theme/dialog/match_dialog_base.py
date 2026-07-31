@@ -27,6 +27,7 @@ from application.utils.timezone import (
 from models import Match
 from theme.dialog._helpers import (
     dialog_actions,
+    dialog_header,
     native_date_input,
     native_time_input,
     submit_on_enter,
@@ -47,6 +48,39 @@ def enrolment_preview(names: list, tournament_name: str) -> str:
         return f'{names[0]} will be enrolled in {tournament_name}.'
     listed = ', '.join(names[:-1]) + f' and {names[-1]}'
     return f'{listed} will be enrolled in {tournament_name}.'
+
+
+#: Semantic tone (``match_status.STATUS_TONES``) → the chip class ``styles.css``
+#: already defines. One mapping so the dialog's chip and the board's cell cannot
+#: colour the same state differently.
+_TONE_CHIP = {
+    'neutral': 'wiz-chip--neutral',
+    'info': 'wiz-chip--neutral',
+    'imminent': 'wiz-chip--candidate',
+    'live': 'wiz-chip--live',
+    'done': 'wiz-chip--pending',
+    'settled': 'wiz-chip--ok',
+    'cancelled': 'wiz-chip--cancelled',
+    'attention': 'wiz-chip--pending',
+}
+
+
+def acknowledgment_empty_state(player_count: int, sg_sourced: bool) -> str:
+    """What to say when a match has no acknowledgment rows.
+
+    The old copy said "No players assigned." for a match with two players and
+    zero rows — describing the wrong thing entirely, and on the exact matches a
+    SpeedGaming sync produced. Distinguish the two states, and on a sourced
+    match name the cause rather than leaving the operator to guess.
+    """
+    if player_count == 0:
+        return 'No players assigned yet.'
+    plural = 'player is' if player_count == 1 else 'players are'
+    base = (f'{player_count} {plural} assigned, but nobody has been asked to '
+            f'confirm — there are no acknowledgment rows on this match.')
+    if sg_sourced:
+        return base + ' Re-syncing this episode from SpeedGaming creates them.'
+    return base
 
 
 def enrolment_report(names: list, tournament_name: str) -> str:
@@ -98,10 +132,27 @@ class BaseMatchDialog:
                 'stream_room': None,
             }
 
-    def _render_tournament_select(self, tournaments, default_value, empty_hint):
+    def _render_tournament_select(
+        self, tournaments, default_value, empty_hint, entrant_counts=None,
+    ):
+        """The Tournament select, optionally labelled with each entrant count.
+
+        ``entrant_counts`` turns *"why is the Players menu empty?"* into a fact
+        readable before the choice is made — the admin dialog passes it, the
+        player's request dialog has no use for it (its own list is already
+        enrolment-scoped).
+        """
+        def option_label(t) -> str:
+            if entrant_counts is None:
+                return t.name
+            n = entrant_counts.get(t.id, 0)
+            if n == 0:
+                return f'{t.name} — nobody enrolled'
+            return f'{t.name} — {n} entrant{"" if n == 1 else "s"}'
+
         select = ui.select(
             label='Tournament *',
-            options={t.id: t.name for t in tournaments},
+            options={t.id: option_label(t) for t in tournaments},
             value=default_value,
             with_input=True,
         ).props('required').classes('input-full-width')
@@ -156,30 +207,121 @@ class BaseMatchDialog:
 
         ui.button('Suggest a time', icon='lightbulb', on_click=suggest_time).props('flat color=secondary').classes('mt-1')
 
+    def _render_state_summary(self, players) -> None:
+        """Where this match currently stands, at the top of the edit dialog.
+
+        The dialog used to read none of it: opening a Finished, disputed match
+        with a winner already recorded showed a Comment field, five Clear
+        buttons and the sentence "No players assigned." The four facts that
+        explain why the match is in front of you — its state, the recorded
+        winner, the proctor's dispute flag and note — all lived on the board
+        behind it, and the dispute note lived in a hover tooltip at that.
+        """
+        from application.services.match.match_status import (
+            LEGACY_STATE_LABELS,
+            STATUS_LABELS,
+            STATUS_TONES,
+            resolve,
+        )
+
+        status = resolve(match=self.match)
+        text = LEGACY_STATE_LABELS.get(status) or STATUS_LABELS.get(status, '')
+        chip = _TONE_CHIP.get(STATUS_TONES.get(status, 'neutral'), 'wiz-chip--neutral')
+        winner = next((p for p in players if getattr(p, 'finish_rank', None) == 1), None)
+
+        with ui.row().classes('items-center gap-2 flex-wrap'):
+            with ui.element('span').classes(f'wiz-chip {chip}'):
+                ui.label(text)
+            if winner is not None:
+                with ui.element('span').classes('wiz-chip wiz-chip--ok'):
+                    ui.icon('emoji_events', size='14px')
+                    ui.label(f'Winner: {winner.user.preferred_name}')
+            if getattr(self.match, 'needs_review', False):
+                with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
+                    ui.icon('report_problem', size='14px')
+                    ui.label('Needs review')
+        # As text, not a tooltip: this is the one fact that explains why the
+        # match was flagged, and the board already hides it behind a hover.
+        if getattr(self.match, 'needs_review', False):
+            note = getattr(self.match, 'review_note', None)
+            ui.label(
+                f'Flagged by the proctor: {note}' if note
+                else 'Flagged by the proctor, with no note.'
+            ).classes('text-caption st-pending')
+
     def _render_clear_buttons(self):
-        def make_clear_button(label, icon, attr_flag, match_attr, is_relation=False):
-            def clear():
-                setattr(self, attr_flag, True)
-                btn.disable()
-                btn.props('outline')
+        """The five buttons that rewind a match's lifecycle on Save.
 
+        They arm rather than act, which is right — the change belongs in the one
+        transaction the Save runs. What was missing was every other half of an
+        arming mechanism: nothing said the buttons rolled the lifecycle
+        backwards, a click only greyed the button out, there was no way to
+        change your mind short of closing the dialog and losing every other
+        edit, and Save never summarised what it was about to undo. All three are
+        here now; the buttons toggle, and ``_clear_summary`` is the sentence the
+        Save confirmation reads back.
+        """
+        armed: dict = {}
+
+        def make_clear_button(label, noun, icon, attr_flag, match_attr, is_relation=False):
             if is_relation:
-                btn_disabled = getattr(self.match, f'{match_attr}_id', None) is None
+                unavailable = getattr(self.match, f'{match_attr}_id', None) is None
             else:
-                btn_disabled = getattr(self.match, match_attr) is None
+                unavailable = getattr(self.match, match_attr) is None
 
-            btn_color = 'gray' if btn_disabled else 'negative'
-            btn = ui.button(label, icon=icon, on_click=clear).props(f'outline color={btn_color}').classes('ml-1')
-            if btn_disabled:
+            def toggle():
+                now_armed = not getattr(self, attr_flag)
+                setattr(self, attr_flag, now_armed)
+                armed[noun] = now_armed
+                if now_armed:
+                    btn.props(remove='outline')
+                    btn.props('color=negative')
+                    btn.set_text(f'{label} — armed')
+                else:
+                    btn.props('outline color=negative')
+                    btn.set_text(label)
+                refresh_summary()
+
+            btn = ui.button(label, icon=icon, on_click=toggle).props(
+                f"outline color={'grey-7' if unavailable else 'negative'}",
+            ).classes('ml-1')
+            if unavailable:
                 btn.disable()
+                btn.tooltip(f'{noun} is not set on this match')
             return btn
 
-        with ui.row().classes('items-center flex-wrap gap-1'):
-            make_clear_button('Clear Check In', 'chair', '_clear_seated', 'seated_at')
-            make_clear_button('Clear Started', 'play_arrow', '_clear_started', 'started_at')
-            make_clear_button('Clear Finish', 'sports_score', '_clear_finished', 'finished_at')
-            make_clear_button('Clear Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
-            make_clear_button('Clear Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
+        def refresh_summary() -> None:
+            summary.text = self._clear_summary(armed)
+            summary.set_visibility(bool(summary.text))
+
+        with ui.column().classes('gap-1'):
+            ui.label('Rewind the lifecycle').classes('text-bold')
+            ui.label(
+                'Each button arms a step to be undone when you press Save. '
+                'Click it again to change your mind.'
+            ).classes('text-caption text-grey')
+            with ui.row().classes('items-center flex-wrap gap-1'):
+                make_clear_button('Clear Check In', 'Check In', 'chair', '_clear_seated', 'seated_at')
+                make_clear_button('Clear Started', 'Started', 'play_arrow', '_clear_started', 'started_at')
+                make_clear_button('Clear Finish', 'Finish', 'sports_score', '_clear_finished', 'finished_at')
+                make_clear_button('Clear Confirmed', 'Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
+                make_clear_button('Clear Seed', 'Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
+            summary = ui.label('').classes('text-caption st-pending')
+            summary.set_visibility(False)
+
+    @staticmethod
+    def _clear_summary(armed: dict) -> str:
+        """"Save will undo: X and Y." — empty when nothing is armed.
+
+        Static and dict-driven so the sentence is testable without a browser;
+        the five buttons above and the Save confirmation both read it, so they
+        cannot describe the same arming differently.
+        """
+        names = [noun for noun, is_armed in armed.items() if is_armed]
+        if not names:
+            return ''
+        listed = names[0] if len(names) == 1 else ', '.join(names[:-1]) + f' and {names[-1]}'
+        return f'Save will undo: {listed}.'
 
     async def _render_watch_switch(self, user):
         if not self.match:
@@ -271,6 +413,70 @@ class BaseMatchDialog:
         tournament = await self.tournament_service.get_tournament_by_id(tournament_id)
         return tournament.name if tournament else 'this tournament'
 
+    @staticmethod
+    def stale_edit_message(base: str, latest) -> str:
+        """The refusal, plus what the other admin actually changed.
+
+        Naming the fields turns "someone got there first" into a decision the
+        operator can make: overwriting a comment is not the same as overwriting
+        a result somebody just confirmed.
+        """
+        changed = [
+            label for label, value in (
+                ('checked it in', getattr(latest, 'seated_at', None)),
+                ('started it', getattr(latest, 'started_at', None)),
+                ('finished it', getattr(latest, 'finished_at', None)),
+                ('confirmed the result', getattr(latest, 'confirmed_at', None)),
+                ('cancelled it', getattr(latest, 'cancelled_at', None)),
+            ) if value is not None
+        ]
+        lines = [base]
+        if changed:
+            listed = (changed[0] if len(changed) == 1
+                      else ', '.join(changed[:-1]) + f' and {changed[-1]}')
+            lines.append(f'The match has since been {listed}.')
+        return '\n\n'.join(lines)
+
+    def _offer_stale_resolution(self, dialog, latest, stale_message: str, *, overwrite) -> None:
+        """A way out of the optimistic lock, instead of a refusal on a loop.
+
+        The lock is right; the recovery was missing. Saving over a match another
+        admin had already saved answered "modified by another admin — reload and
+        try again" with no reload, discard or overwrite anywhere in the dialog,
+        and every subsequent Save repeated it forever. The only way forward was
+        to select the typed text by hand, copy it out, close, reopen and retype.
+
+        Two named exits: keep this edit (re-baseline against what is now stored
+        and save over it) or drop it (close, their version stands).
+        """
+        async def take_mine() -> None:
+            choice.close()
+            # Re-baseline: the operator has now been told what they are
+            # overwriting, so the guard has done its job and must not fire again.
+            self._initial_updated_at = latest.updated_at
+            await overwrite()
+
+        def take_theirs() -> None:
+            # Their version stands, so this dialog has nothing left to show —
+            # every input in it is the losing copy.
+            choice.close()
+            dialog.close()
+
+        # Built inline rather than through ConfirmationDialog: both exits act,
+        # and its cancel button only closes itself.
+        with ui.dialog() as choice, ui.card().classes('dialog-card'):
+            dialog_header('Someone else saved this match first', choice)
+            with ui.column().classes('q-pa-md'):
+                ui.label(self.stale_edit_message(stale_message, latest)).style(
+                    'white-space: pre-line')
+            with dialog_actions().classes('justify-end'):
+                ui.button('Discard mine', on_click=take_theirs).props('flat')
+                ui.button(
+                    'Save mine anyway',
+                    on_click=lambda: background_tasks.create(take_mine()),
+                ).props('color=negative')
+        choice.open()
+
     async def _run_submit(
         self,
         dialog,
@@ -309,22 +515,27 @@ class BaseMatchDialog:
             return
 
         if self.match:
+            async def save() -> None:
+                try:
+                    await do_update()
+                    with self.dialog:
+                        ui.notify('Match updated successfully', color='positive')
+                        dialog.close()
+                    if self.on_submit:
+                        await self.on_submit(self.match)
+                except (ValueError, PermissionError) as e:
+                    with self.dialog:
+                        notify_error(e)
+
             latest_match = await self.match_service.get_match_by_id(self.match.id)
             if latest_match and latest_match.updated_at != self._initial_updated_at:
                 with self.dialog:
-                    ui.notify(stale_message, color='warning')
+                    self._offer_stale_resolution(
+                        dialog, latest_match, stale_message, overwrite=save,
+                    )
                 return
 
-            try:
-                await do_update()
-                with self.dialog:
-                    ui.notify('Match updated successfully', color='positive')
-                    dialog.close()
-                if self.on_submit:
-                    await self.on_submit(self.match)
-            except (ValueError, PermissionError) as e:
-                with self.dialog:
-                    notify_error(e)
+            await save()
         else:
             try:
                 await do_create()

@@ -1,11 +1,15 @@
+from datetime import timedelta
+
 from nicegui import app, background_tasks, context, ui
 
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
 from application.tenant_context import get_current_tenant_id
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
+from application.utils.timezone import local_day_bounds, today_local
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
+from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
 from theme.tables.match_slots import register_body_slots
@@ -18,6 +22,36 @@ from theme.tables.match_slots import register_body_slots
 ALL_MATCH_STATES = ['Scheduled', 'Checked In', 'Started', 'Finished', 'Confirmed']
 DEFAULT_STATE_FILTER = ['Scheduled', 'Checked In', 'Started']
 
+# Day scopes for the Day filter. The board had no day or now anchor at all, so
+# an operator standing at a venue scrolled ~8 screenfuls of phone to find a
+# match by eye — the cards carry every detail and nothing narrowed them to the
+# day being run. ``ALL_DAYS`` is the default, so nothing is hidden until asked.
+ALL_DAYS = 'All dates'
+DAY_SCOPES = [ALL_DAYS, 'Today', 'Tomorrow', 'Next 7 days']
+
+#: A tournament-id list no row can match. ``tournament_ids=None`` means "every
+#: tournament", so an *empty* narrowing has to be spelled some other way or a
+#: scoped board would fall open to the whole community.
+_MATCHES_NOTHING = [0]
+#: ``scope -> (days from today for the first day, for the last day)``, inclusive.
+_DAY_OFFSETS = {'Today': (0, 0), 'Tomorrow': (1, 1), 'Next 7 days': (0, 6)}
+
+
+def day_scope_window(scope: str):
+    """UTC ``(start, end)`` epoch seconds for a day scope, or ``None`` for all.
+
+    Resolved on the *display* clock — "today" at 21:00 in New York is not today
+    in London — and through ``local_day_bounds`` so the window is half-open and
+    does not lose its final second.
+    """
+    offsets = _DAY_OFFSETS.get(scope)
+    if offsets is None:
+        return None
+    first, last = offsets
+    today = today_local()
+    start, end = local_day_bounds(today + timedelta(days=first), today + timedelta(days=last))
+    return start.timestamp(), end.timestamp()
+
 
 class MatchTableView(MatchTableHandlersMixin):
     """
@@ -29,17 +63,21 @@ class MatchTableView(MatchTableHandlersMixin):
     (``match_handlers``). Uses MatchService for all data operations.
     """
 
-    def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
+    def __init__(self, columns, get_query, admin_controls=False, access=None, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
                  on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
-                 storage_key='match', default_state_filter=None, match_ids=None):
+                 storage_key='match', default_state_filter=None, match_ids=None,
+                 scope_tournament_ids=None):
         self.columns = columns
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
-        self.can_crud = can_crud
+        # What this viewer may do, one field per service gate (match_access).
+        # Defaults to a spectator: the player-facing boards pass nothing, and
+        # every capability-gated control is also behind ``admin_controls``.
+        self.access = access or MatchBoardAccess()
         self.player_discord_id = player_discord_id
         # Every board gets its own filter namespace and its own default state
         # set — see _skey. Pass a distinct storage_key from each construction
@@ -58,6 +96,12 @@ class MatchTableView(MatchTableHandlersMixin):
         # it never writes to the stored filters, so leaving the focus restores
         # whatever the operator had chosen.
         self.match_ids = list(match_ids) if match_ids else None
+        # A hard bound on which tournaments this board may show at all — set for
+        # a viewer whose authority is per tournament. Distinct from the
+        # Tournament *filter*, which is the operator's own choice **within** the
+        # scope; ``refresh`` intersects the two, so choosing a tournament cannot
+        # widen the board past what the viewer operates.
+        self.scope_tournament_ids = list(scope_tournament_ids) if scope_tournament_ids is not None else None
         self.exclude_racetime = exclude_racetime
         self.on_rows_changed = on_rows_changed
         self.actions_first = actions_first
@@ -82,6 +126,7 @@ class MatchTableView(MatchTableHandlersMixin):
         self.stream_room_filter = None
         self.stream_rooms_list = []  # Will be populated in _setup_ui
         self.state_filter = None
+        self.day_filter = None
         # Mobile collapsible-filter state (CSS gates the toggle/card to <1024px)
         self.filters_card = None
         self.filter_badge = None
@@ -147,6 +192,11 @@ class MatchTableView(MatchTableHandlersMixin):
         self._update_filter_badge()
         self._refresh_unless_initializing()
 
+    def _on_day_filter_change(self, *_args, **_kwargs):
+        tenant_session_set(self._skey('day_filter'), self.day_filter.value)
+        self._update_filter_badge()
+        self._refresh_unless_initializing()
+
     def _on_tournament_filter_change(self, *_args, **_kwargs):
         # Store the tournament ID value (namespaced by tenant — ids are global).
         tenant_session_set(self._skey('tournament_filter'), self.tournament_filter.value)
@@ -197,6 +247,8 @@ class MatchTableView(MatchTableHandlersMixin):
         default_states = set(self.default_state_filter or DEFAULT_STATE_FILTER)
         if self.state_filter and set(self.state_filter.value or []) != default_states:
             count += 1
+        if self.day_filter and self.day_filter.value not in (None, ALL_DAYS):
+            count += 1
         return count
 
     def _update_filter_badge(self):
@@ -210,6 +262,14 @@ class MatchTableView(MatchTableHandlersMixin):
     async def _load_tournaments(self):
         """Load all tournament names for the filter using service layer."""
         self.tournaments_list = await self.display_service.get_tournaments_for_filter()
+        # A scoped board offers only its own tournaments: the filter is a choice
+        # within the scope, and listing the rest invites picking one that yields
+        # an empty board for no visible reason.
+        if self.scope_tournament_ids is not None:
+            allowed = set(self.scope_tournament_ids)
+            self.tournaments_list = {
+                tid: name for tid, name in self.tournaments_list.items() if tid in allowed
+            }
         # Set initial value from storage or default to None (All Tournaments)
         default_tournament_id = tenant_session_get(self._skey('tournament_filter'), None)
         if self.tournament_filter:
@@ -252,6 +312,16 @@ class MatchTableView(MatchTableHandlersMixin):
         self.filters_card = ui.card().classes('match-filters-card')
         with self.filters_card:
             with ui.row().classes('match-filter-row'):
+                # Day filter, first because it is the coarsest narrowing and
+                # the one an operator working a venue reaches for.
+                with ui.column().classes('match-filter-column'):
+                    ui.label('Day').classes('match-filter-label')
+                    self.day_filter = ui.select(
+                        options=list(DAY_SCOPES),
+                        value=tenant_session_get(self._skey('day_filter'), ALL_DAYS),
+                        on_change=self._on_day_filter_change,
+                    ).classes('full-width').props('outlined dense')
+
                 # Tournament filter
                 with ui.column().classes('match-filter-column'):
                     ui.label('Tournament').classes('match-filter-label')
@@ -312,16 +382,16 @@ class MatchTableView(MatchTableHandlersMixin):
         register_body_slots(
             self.table,
             admin_controls=self.admin_controls,
-            can_crud=self.can_crud,
+            access=self.access,
             discord_id=discord_id,
             extra_slots=self.extra_slots,
             has_edit=self.on_edit is not None,
             want_seed_slot=self.admin_controls and self.on_generate_seed is not None,
-            want_state_slot=self.admin_controls and (
-                self.on_seat is not None or self.on_start is not None
-                or self.on_finish is not None or self.on_confirm is not None
-                or self.on_edit_result is not None
-            ),
+            want_seed_readonly=self.admin_controls and self.on_generate_seed is None,
+            # Every operator's board gets the state cell, including one whose
+            # viewer can run nothing: it carries the chips and timestamps, and
+            # the capability flags inside it decide which buttons appear.
+            want_state_slot=self.admin_controls,
             want_stream_room_admin=self.admin_controls and self.on_edit_stream_room is not None,
             want_stream_room_readonly=self.on_edit_stream_room is None,
         )
@@ -329,7 +399,7 @@ class MatchTableView(MatchTableHandlersMixin):
         # Register the mobile grid slot (see match_grid).
         render_grid_slot(
             self.table, self.columns,
-            admin_controls=self.admin_controls, can_crud=self.can_crud, discord_id=discord_id,
+            admin_controls=self.admin_controls, access=self.access, discord_id=discord_id,
             has_edit=self.on_edit is not None,
             actions_first=self.actions_first,
         )
@@ -409,6 +479,15 @@ class MatchTableView(MatchTableHandlersMixin):
         tournament_ids = None
         if self.tournament_filter and self.tournament_filter.value:
             tournament_ids = self.tournament_filter.value
+        if self.scope_tournament_ids is not None:
+            # The scope wins: an empty intersection is an empty board, which is
+            # the honest answer for "the tournament you picked is not yours".
+            tournament_ids = (
+                [t for t in tournament_ids if t in self.scope_tournament_ids]
+                if tournament_ids else list(self.scope_tournament_ids)
+            )
+            if not tournament_ids:
+                tournament_ids = _MATCHES_NOTHING
 
         stream_room_ids = None
         if self.stream_room_filter and self.stream_room_filter.value:
@@ -439,6 +518,18 @@ class MatchTableView(MatchTableHandlersMixin):
         if state_filter:
             rows = [row for row in rows if row.get('state') in state_filter]
 
+        # ...then by day. Suspended under a deep link for the reason the state
+        # filter is: a link to one match must not land on an empty board.
+        window = None if self.match_ids else day_scope_window(
+            self.day_filter.value if self.day_filter else ALL_DAYS)
+        if window:
+            start, end = window
+            rows = [
+                row for row in rows
+                if row.get('scheduled_ts') is not None
+                and start <= row['scheduled_ts'] < end
+            ]
+
         watched_ids = await self._fetch_watched_ids()
         for row in rows:
             row['_watching'] = row.get('id') in watched_ids
@@ -449,6 +540,18 @@ class MatchTableView(MatchTableHandlersMixin):
         self.table.rows = rows
         self.table.update()
         self._notify_rows_changed()
+
+    async def focus_matches(self, match_ids) -> None:
+        """Narrow the board to ``match_ids`` (or restore it with ``None``).
+
+        The same mechanism a deep link uses, offered to a summary strip: a
+        count of outstanding work is only half a queue if there is no way to
+        get to it. Suspends the State filter for the same reason the deep link
+        does — a pending signup on a Finished match must not vanish because the
+        board's default set hides it.
+        """
+        self.match_ids = list(match_ids) if match_ids else None
+        await self.refresh()
 
     def _notify_rows_changed(self) -> None:
         """Tell the caller the visible row set changed (drives a summary strip)."""

@@ -149,38 +149,63 @@ class AuthService:
             return True
         if await AuthService.get_roles(user) & AuthService._ADMIN_ROLES:
             return True
-        # user.admin_tournaments / crew_coordinated_tournaments span tenants (the
-        # reverse relation is off the global User) — filter to this tenant.
-        tid = get_current_tenant_id()
-        admin_q = user.admin_tournaments.all()
-        cc_q = user.crew_coordinated_tournaments.all()
-        if tid is not None:
-            admin_q = admin_q.filter(tenant_id=tid)
-            cc_q = cc_q.filter(tenant_id=tid)
+        admin_q, cc_q = AuthService._tournament_relations(user)
         if await admin_q.exists():
             return True
         return await cc_q.exists()
 
     @staticmethod
-    async def can_view_schedule_board(user: Optional[User]) -> bool:
-        """Whether the admin Schedule tab is reachable for ``user``.
+    def _tournament_relations(user: User) -> tuple[Any, Any]:
+        """This tenant's slice of ``user``'s TA and CC tournament relations.
 
-        Staff, any tournament admin, or any crew coordinator in this tenant —
-        the same three predicates ``pages/admin.py`` appends the Schedule tab
-        on. The reports resolve their drill-out links against this so they never
-        offer a route the destination would refuse. (What the board *lets* them
-        do once there is a separate question: ``can_crud`` is narrower.)
+        ``user.admin_tournaments`` / ``crew_coordinated_tournaments`` hang off the
+        *global* ``User``, so unfiltered they carry a grant made in one community
+        into every other one.
         """
-        if user is None:
-            return False
-        if await AuthService.is_staff(user):
-            return True
         tid = get_current_tenant_id()
         admin_q = user.admin_tournaments.all()
         cc_q = user.crew_coordinated_tournaments.all()
         if tid is not None:
             admin_q = admin_q.filter(tenant_id=tid)
             cc_q = cc_q.filter(tenant_id=tid)
+        return admin_q, cc_q
+
+    @staticmethod
+    async def tournament_scope(user: Optional[User]) -> tuple[set[int], set[int]]:
+        """``(admin_ids, coordinated_ids)`` — the tournaments ``user`` operates here.
+
+        The *ids*, not just whether any exist, because a non-staff operator's
+        surfaces should be scoped to them: a crew coordinator of one tournament
+        has no business reading the whole community's board. Staff and the
+        globally-scoped roles (STREAM_MANAGER) are deliberately not expressed
+        here — their authority is community-wide, so they have no id set.
+        """
+        if user is None:
+            return set(), set()
+        admin_q, cc_q = AuthService._tournament_relations(user)
+        return (
+            {t.id for t in await admin_q},
+            {t.id for t in await cc_q},
+        )
+
+    @staticmethod
+    async def can_view_schedule_board(user: Optional[User]) -> bool:
+        """Whether the admin Schedule tab is reachable for ``user``.
+
+        Staff, a STREAM_MANAGER, any tournament admin, or any crew coordinator in
+        this tenant — the same predicates ``pages/admin.py`` appends the Schedule
+        tab on. The reports resolve their drill-out links against this so they
+        never offer a route the destination would refuse. (What the board *lets*
+        them do once there is a separate question, answered per capability by
+        ``MatchBoardAccess``.)
+        """
+        if user is None:
+            return False
+        if await AuthService.is_staff(user):
+            return True
+        if await AuthService.has_role(user, Role.STREAM_MANAGER):
+            return True
+        admin_q, cc_q = AuthService._tournament_relations(user)
         if await admin_q.exists():
             return True
         return await cc_q.exists()

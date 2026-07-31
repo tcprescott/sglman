@@ -497,3 +497,105 @@ class TestWithdrawalNotifiesCrewOwners:
         await service.undo_crew_signup(match_id=1, user=user, role="tracker")
 
         service.discord_service.send_dm.assert_not_called()
+
+
+# --- Scheduling conflicts (crew F7) ----------------------------------------
+#
+# No conflict check existed anywhere in the crew path — the only overlap-aware
+# code in the codebase was player availability — so a coordinator staffing a
+# stream day approved N people from a dialog that told them nothing they needed
+# in order to decide.
+
+def _conflict_match(match_id, when, minutes=90, players=('Alice', 'Bob')):
+    return SimpleNamespace(
+        id=match_id,
+        scheduled_at=when,
+        tournament=SimpleNamespace(average_match_duration=minutes),
+        players=[SimpleNamespace(user=SimpleNamespace(preferred_name=n)) for n in players],
+        fetch_related=AsyncMock(),
+    )
+
+
+@pytest.fixture
+def conflict_service(service):
+    service.match_repository.commitments_for_user = AsyncMock(return_value=[])
+    return service
+
+
+async def test_a_match_with_no_time_cannot_clash(conflict_service):
+    subject = _conflict_match(1, None)
+    assert await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject) == []
+
+
+async def test_a_clear_diary_produces_no_warning(conflict_service):
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0))
+    assert await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject) == []
+
+
+async def test_an_overlapping_commitment_is_named_with_its_players_and_time(
+    conflict_service,
+):
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0))
+    conflict_service.match_repository.commitments_for_user = AsyncMock(return_value=[
+        _conflict_match(2, datetime(2026, 8, 1, 19, 30), players=('Cy', 'Dee')),
+    ])
+    clashes = await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject)
+    assert len(clashes) == 1
+    assert 'Cy vs Dee' in clashes[0]
+
+
+async def test_a_match_that_ends_before_this_one_starts_is_not_a_clash(
+    conflict_service,
+):
+    """The query widens the window both ways, so the service has to do the
+    actual overlap arithmetic — otherwise every neighbouring match warns."""
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0))
+    conflict_service.match_repository.commitments_for_user = AsyncMock(return_value=[
+        _conflict_match(2, datetime(2026, 8, 1, 17, 0), minutes=60),
+    ])
+    assert await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject) == []
+
+
+async def test_a_match_starting_earlier_and_still_running_is_a_clash(
+    conflict_service,
+):
+    """The overlap that matters most, and the one a forward-only window misses."""
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0))
+    conflict_service.match_repository.commitments_for_user = AsyncMock(return_value=[
+        _conflict_match(2, datetime(2026, 8, 1, 18, 30), minutes=120),
+    ])
+    assert len(await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject)) == 1
+
+
+async def test_a_match_starting_after_this_one_ends_is_not_a_clash(conflict_service):
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0), minutes=60)
+    conflict_service.match_repository.commitments_for_user = AsyncMock(return_value=[
+        _conflict_match(2, datetime(2026, 8, 1, 22, 0)),
+    ])
+    assert await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject) == []
+
+
+async def test_the_match_being_approved_is_excluded_from_its_own_conflicts(
+    conflict_service,
+):
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0))
+    await conflict_service.find_scheduling_conflicts(SimpleNamespace(id=7), subject)
+    _args, kwargs = conflict_service.match_repository.commitments_for_user.call_args
+    assert kwargs['exclude_match_id'] == 1
+
+
+async def test_a_tournament_without_a_duration_falls_back_to_the_default(
+    conflict_service,
+):
+    subject = _conflict_match(1, datetime(2026, 8, 1, 19, 0), minutes=None)
+    conflict_service.match_repository.commitments_for_user = AsyncMock(return_value=[
+        _conflict_match(2, datetime(2026, 8, 1, 19, 30), minutes=None),
+    ])
+    assert len(await conflict_service.find_scheduling_conflicts(
+        SimpleNamespace(id=7), subject)) == 1

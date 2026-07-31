@@ -42,6 +42,7 @@ from pages.admin_tabs.admin_webhooks import admin_webhooks_page
 from pages.admin_tabs.reports import reports_page
 from pages.admin_tabs.triforce_texts import admin_triforce_texts_page
 from theme.base import BaseLayout
+from theme.tables.match_access import MatchBoardAccess
 
 _ADMIN_GROUP_ORDER = ['Operations', 'Online play', 'Community', 'Integrations', 'System']
 
@@ -60,9 +61,14 @@ class AdminAccess:
     is_tournament_admin: bool = False
     is_crew_coordinator: bool = False
     is_qualifier_owner: bool = False
+    # The tournaments this viewer administers or coordinates, for the surfaces
+    # that scope to them. Excluded from ``any()``: it is derived from the two
+    # booleans above, and a set is not an access grant of its own.
+    operated_tournament_ids: frozenset[int] = frozenset()
 
     def any(self) -> bool:
-        return any(getattr(self, f) for f in self.__dataclass_fields__)
+        return any(getattr(self, f) for f in self.__dataclass_fields__
+                   if f != 'operated_tournament_ids')
 
 
 def build_admin_tabs(
@@ -84,11 +90,30 @@ def build_admin_tabs(
     is_ta_any = access.is_tournament_admin
     is_cc_any = access.is_crew_coordinator
     is_qa_any = access.is_qualifier_owner
-    can_crud = is_staff or is_ta_any
+    is_sm = access.is_stream_manager
+    # What the board may offer, resolved per capability rather than from one
+    # can-do-everything boolean — the services have always been this granular.
+    board_access = MatchBoardAccess.for_roles(
+        is_staff=is_staff,
+        is_tournament_admin=is_ta_any,
+        is_stream_manager=is_sm,
+        is_crew_coordinator=is_cc_any,
+    )
+    # Staff and the stream manager operate community-wide; a TA/CC's authority is
+    # per tournament, so their board is narrowed to the ones they run rather than
+    # showing every match in the community with controls that refuse.
+    board_tournament_ids = (
+        None if (is_staff or is_sm)
+        else sorted(access.operated_tournament_ids)
+    )
     # Each tab that can be deep-linked gets its own params. `state` in
     # reports_kwargs is the Reports tab's own filter and deliberately not
     # reused for the board's state filter — one param must not mean two things.
-    schedule_kwargs = {'can_crud': can_crud, 'match_id': match_id}
+    schedule_kwargs = {
+        'access': board_access,
+        'match_id': match_id,
+        'tournament_ids': board_tournament_ids,
+    }
 
     tabs = []
     # Each tab carries a drawer 'group'; the list is stable-sorted by
@@ -102,7 +127,11 @@ def build_admin_tabs(
     if setup_steps and not TenantSetupService.is_ready(setup_steps) and (is_staff or is_ta_any):
         tabs.append({'label': 'Setup', 'icon': 'checklist', 'group': 'Operations',
                      'content': (admin_setup_page, (), {'steps': setup_steps, 'base_path': base_path})})
-    if is_staff or is_ta_any or is_cc_any:
+    # STREAM_MANAGER is here because assigning a stage is a match-board action
+    # and this is the only board that offers it — the role existed for that job
+    # with no surface that did it. What they get once here is one control:
+    # ``board_access`` grants them ``assign_stream`` and nothing else.
+    if is_staff or is_ta_any or is_cc_any or is_sm:
         tabs.append({'label': 'Schedule', 'icon': 'schedule', 'group': 'Operations', 'content': (admin_schedule_page, (), schedule_kwargs)})
     if is_staff:
         tabs.append({'label': 'Users', 'icon': 'manage_accounts', 'group': 'Operations', 'content': admin_users_page})
@@ -192,10 +221,11 @@ def create() -> None:
             return
 
         roles = await AuthService.get_roles(user)
-        # Tenant-filtered: these reverse relations hang off the *global* User, so
-        # unfiltered they let a tournament admin in one community through this
-        # gate in every other one.
-        tid = get_current_tenant_id()
+        # Tenant-filtered inside the service: these reverse relations hang off
+        # the *global* User, so unfiltered they let a tournament admin in one
+        # community through this gate in every other one. The ids (not just
+        # "any?") because the Schedule board scopes to them.
+        admin_tournament_ids, cc_tournament_ids = await AuthService.tournament_scope(user)
         access = AdminAccess(
             # Staff-equivalence (not the literal grant) so a platform super-admin
             # has full authority in this tenant.
@@ -206,9 +236,11 @@ def create() -> None:
             is_preset_manager=Role.PRESET_MANAGER in roles,
             is_sync_admin=Role.SYNC_ADMIN in roles,
             is_qualifier_admin=Role.QUALIFIER_ADMIN in roles,
-            is_tournament_admin=await user.admin_tournaments.filter(tenant_id=tid).exists(),
-            is_crew_coordinator=await user.crew_coordinated_tournaments.filter(tenant_id=tid).exists(),
-            is_qualifier_owner=await user.admin_async_qualifiers.filter(tenant_id=tid).exists(),
+            is_tournament_admin=bool(admin_tournament_ids),
+            is_crew_coordinator=bool(cc_tournament_ids),
+            is_qualifier_owner=await user.admin_async_qualifiers.filter(
+                tenant_id=get_current_tenant_id()).exists(),
+            operated_tournament_ids=frozenset(admin_tournament_ids | cc_tournament_ids),
         )
 
         # Per-tenant feature flags: a subsystem's tab only appears when the

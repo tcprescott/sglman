@@ -11,6 +11,7 @@ from nicegui import ui
 from application.tenant_context import require_tenant_id
 from models import Match
 from theme.tables.match import MatchTableView
+from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
 
 # Action-bearing columns first: on a phone-width table the right-hand columns are
@@ -84,12 +85,16 @@ async def proctor_station_tab() -> None:
 
         summary()
 
-        handlers = MatchLifecycleHandlers(page_container, can_crud=False)
+        # The proctor runs matches and nothing else: no edit dialog, no confirm,
+        # no stage, no crew approval — exactly what ``can_run_match`` admits them
+        # to and every other gate refuses.
+        access = MatchBoardAccess(run=True)
+        handlers = MatchLifecycleHandlers(page_container, access=access)
         table_view = MatchTableView(
             columns=PROCTOR_COLUMNS,
             get_query=get_query,
             admin_controls=True,
-            can_crud=False,
+            access=access,
             storage_key='proctor',
             exclude_racetime=True,
             row_sort=proctor_row_order,
