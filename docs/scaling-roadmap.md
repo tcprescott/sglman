@@ -124,9 +124,26 @@ renders vary **±15 %** run to run, and the 16 tabs/s burst is past the knee and
 chaotic — five runs of an identical configuration gave 92, 219, 255, 288 and
 304 connections out of 500. **Anything under a ~20 % improvement cannot be validated
 here.** Prefer **queries per render** as the primary metric: exact and
-machine-independent. The regression guard should assert an upper bound on
-queries-per-render for the home page (counted via a Tortoise query hook) — **never
-assert on wall time in CI**. No such test exists yet.
+machine-independent, and **never assert on wall time in CI**.
+
+The guard is [`tests/test_query_budget.py`](../tests/test_query_budget.py). It
+counts statements on the default connection around
+`MatchDisplayService.get_matches_for_display` — what `MatchTableView.refresh`
+actually calls, unfiltered and filtered to one player — and asserts two things:
+
+- **Shape:** the same call issues the *same* count over 3 matches and over 12.
+  A dropped `prefetch_related` turns that into "grows with rows", with no magic
+  constant to re-tune when the fixture changes. Verified by removing
+  `players__user` from `MatchRepository.get_all` and watching it fail.
+- **Ceiling:** ≤11 against a measured 9, which bounds the *other* regression
+  recorded above — the same set loaded twice would be 18.
+
+The formatter walking every prefetched relation is what makes this work. A loader
+whose result nothing walks counts the same with or without its prefetches, so
+guarding one proves nothing — which is why `MatchService.get_all_matches_for_schedule`
+is not guarded here. (That method is also, as of this writing, unreachable: the
+pages pass it to `MatchTableView` as `get_query`, which the view stores and never
+calls.)
 
 ## Already tried, measurably useless
 
