@@ -12,10 +12,14 @@ the Discord service.
 """
 
 import logging
+from datetime import datetime
 from typing import Optional
 
+from application.utils.discord_embeds import time_field
 from application.utils.discord_messages import (
     qualifier_reattempt_granted_dm,
+    qualifier_run_expired_dm,
+    qualifier_run_expiring_dm,
     qualifier_run_reviewed_dm,
 )
 from application.utils.tenant_urls import tenant_url
@@ -60,6 +64,46 @@ async def notify_reattempt_granted(run: AsyncQualifierRun, reason: str) -> None:
         )
     except Exception:
         logger.debug("Failed to DM reattempt-granted notification", exc_info=True)
+
+
+async def notify_run_expiring(run: AsyncQualifierRun, deadline: datetime) -> None:
+    """Warn the runner once, before the worker forfeits their open run."""
+    try:
+        await run.fetch_related('user', 'qualifier', 'tenant')
+        discord_id = run.user.discord_id
+        if not discord_id or run.user.is_placeholder:
+            return
+        from application.services.discord.discord_service import DiscordService
+        await DiscordService().send_dm(
+            int(discord_id),
+            qualifier_run_expiring_dm(
+                run.qualifier.name,
+                # Discord's own timestamp markup, so each recipient reads the
+                # deadline on their own clock rather than the server's.
+                deadline_display=time_field(deadline),
+                qualifier_url=_qualifier_url(run),
+            ),
+        )
+    except Exception:
+        logger.debug("Failed to DM run-expiring notification", exc_info=True)
+
+
+async def notify_run_expired(run: AsyncQualifierRun, limit_hours: int) -> None:
+    """Tell the runner their open run was forfeited, and that it is appealable."""
+    try:
+        await run.fetch_related('user', 'qualifier', 'tenant')
+        discord_id = run.user.discord_id
+        if not discord_id or run.user.is_placeholder:
+            return
+        from application.services.discord.discord_service import DiscordService
+        await DiscordService().send_dm(
+            int(discord_id),
+            qualifier_run_expired_dm(
+                run.qualifier.name, hours=limit_hours, qualifier_url=_qualifier_url(run),
+            ),
+        )
+    except Exception:
+        logger.debug("Failed to DM run-expired notification", exc_info=True)
 
 
 def _qualifier_url(run: AsyncQualifierRun) -> Optional[str]:

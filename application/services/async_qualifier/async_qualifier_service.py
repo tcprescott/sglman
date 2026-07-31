@@ -46,10 +46,12 @@ from application.services.async_qualifier import async_qualifier_notifications a
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_config import validate_async_qualifier_config
 from application.services.async_qualifier.async_qualifier_draw import AsyncQualifierDraw
+from application.services.async_qualifier.async_qualifier_expiry import RunExpiryMixin
 from application.services.async_qualifier.async_qualifier_reads import PlayerReadsMixin
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
+from application.tenant_context import require_tenant_id
 from models import (
     AsyncQualifier,
     AsyncQualifierPermalink,
@@ -58,6 +60,7 @@ from models import (
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
     FeatureFlag,
+    GeneratedSeeds,
     User,
 )
 
@@ -77,12 +80,14 @@ _TERMINAL = {
 }
 
 
-class AsyncQualifierService(PlayerReadsMixin):
+class AsyncQualifierService(PlayerReadsMixin, RunExpiryMixin):
     """CRUD + run execution + review + scoring for async qualifiers.
 
     The competitor-facing reads (open qualifiers, run availability, own runs,
     reattempt allowance, the leaderboard) come from
-    :class:`~application.services.async_qualifier.async_qualifier_reads.PlayerReadsMixin`.
+    :class:`~application.services.async_qualifier.async_qualifier_reads.PlayerReadsMixin`;
+    the automatic forfeit of an abandoned run, and its warning, from
+    :class:`~application.services.async_qualifier.async_qualifier_expiry.RunExpiryMixin`.
     """
 
     def __init__(self) -> None:
@@ -378,8 +383,25 @@ class AsyncQualifierService(PlayerReadsMixin):
         seedgen = SeedGenerationService()
         created: List[AsyncQualifierPermalink] = []
         for _ in range(count):
-            url = await seedgen.generate_seed(pool.preset.randomizer, pool.preset)
-            created.append(await self.permalink_repository.create(pool_id=pool_id, url=url))
+            call = await seedgen.generate_seed_call(
+                pool.preset.randomizer, pool.preset, surface='qualifier',
+            )
+            # Same provenance record a match seed gets: the pool records which
+            # preset it rolls from, but only the snapshot records what that preset
+            # *said* at the moment this permalink was made.
+            seed = await GeneratedSeeds.create(
+                tenant_id=require_tenant_id(),
+                seed_url=call.value.url,
+                seed_info=f"Rolled for qualifier pool {pool_id}",
+                randomizer=pool.preset.randomizer,
+                preset_id=pool.preset_id,
+                settings_snapshot=call.value.settings,
+                rolled_by_id=actor.id if actor is not None else None,
+                provider_meta=call.as_meta(),
+            )
+            created.append(await self.permalink_repository.create(
+                pool_id=pool_id, url=call.value.url, generated_seed_id=seed.id,
+            ))
         await self.audit_service.write_log(
             actor, AuditActions.ASYNC_QUALIFIER_PERMALINK_ADDED,
             {'pool_id': pool_id, 'count': len(created), 'rolled': True},

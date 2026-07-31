@@ -142,10 +142,20 @@ async def seed_matches_for_tenant(
     print(f"    [{tenant.slug}] matches ok")
 
     # Generated seeds, attached to matches that have already been rolled.
+    # Both carry provenance, because that is what the seed card renders: which
+    # randomizer, the settings as rolled, and what the roll cost.
     seed, _ = await GeneratedSeeds.get_or_create(
         seed_url="https://alttpr.com/en/h/DevSeed0",
         tenant=tenant,
-        defaults={"seed_info": json.dumps({"logic": "NoGlitches", "spoilers": "off"})},
+        defaults={
+            "seed_info": json.dumps({"logic": "NoGlitches", "spoilers": "off"}),
+            "randomizer": "alttpr",
+            "settings_snapshot": {"glitches": "none", "mode": "open", "goal": "ganon"},
+            "provider_meta": {
+                "provider": "alttpr", "operation": "generate_seed",
+                "attempts": 1, "latency_ms": 4210, "surface": "match",
+            },
+        },
     )
     if finished_match.generated_seed_id is None:
         finished_match.generated_seed = seed
@@ -154,7 +164,17 @@ async def seed_matches_for_tenant(
     disputed_seed, _ = await GeneratedSeeds.get_or_create(
         seed_url="https://alttpr.com/en/h/DevSeed1",
         tenant=tenant,
-        defaults={"seed_info": json.dumps({"logic": "Glitched", "spoilers": "mystery"})},
+        defaults={
+            "seed_info": json.dumps({"logic": "Glitched", "spoilers": "mystery"}),
+            "randomizer": "alttpr",
+            "settings_snapshot": {"glitches": "overworld_glitches", "mode": "open"},
+            # Two attempts: the shape a roll that survived a transient upstream
+            # failure leaves behind, which is exactly what a dispute wants to see.
+            "provider_meta": {
+                "provider": "alttpr", "operation": "generate_seed",
+                "attempts": 2, "latency_ms": 11840, "surface": "match",
+            },
+        },
     )
     if disputed_match.generated_seed_id is None:
         disputed_match.generated_seed = disputed_seed

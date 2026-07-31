@@ -90,6 +90,10 @@ class EventType:
     # authoring and admin grants stay audit-only (tenant-internal config).
     ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
     ASYNC_QUALIFIER_RUN_REVIEWED = 'async_qualifier.run_reviewed'
+    # A run the expiry worker forfeited. Emitted (rather than audit-only) because
+    # it changes a standing on nobody's instruction — a subscriber tracking
+    # entrants needs to hear that one just went to zero.
+    ASYNC_QUALIFIER_RUN_EXPIRED = 'async_qualifier.run_expired'
 
     # Async Qualifier live races (PR 10; mirrors AuditActions). A live race whose
     # entrants' results were captured into runs is a domain event a subscriber can
@@ -154,6 +158,7 @@ class EventType:
         DISCORD_EVENT_CREATED, DISCORD_EVENT_UPDATED, DISCORD_EVENT_CANCELLED,
         SERVICE_HEALTH_ALERT,
         ASYNC_QUALIFIER_RUN_SUBMITTED, ASYNC_QUALIFIER_RUN_REVIEWED,
+        ASYNC_QUALIFIER_RUN_EXPIRED,
         ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
         BRACKET_CREATED, BRACKET_STARTED, BRACKET_MATCH_COMPLETED,
         BRACKET_ADVANCED, BRACKET_COMPLETED, BRACKET_STAGE_ADVANCED,

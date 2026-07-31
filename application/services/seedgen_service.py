@@ -12,6 +12,7 @@ import random
 import secrets
 import time
 import urllib.parse
+from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, List, Optional, Set
 
@@ -23,6 +24,14 @@ from application.errors import MissingCredentialError
 from application.randomizer_credentials import credentials_for, spec_for
 from application.tenant_context import require_tenant_id
 from application.utils.mocks.mock_seedgen import is_mock_seedgen
+from application.utils.seed_provider import (
+    PROVIDER_MAX_ATTEMPTS,
+    PROVIDER_TIMEOUT_SECONDS,
+    ProviderCall,
+    SeedProviderBadResponse,
+    call_provider,
+    raise_for_status,
+)
 from models import Preset
 
 # DK64 Randomizer (api.dk64rando.com) — a task-queue backend: submit → poll →
@@ -33,6 +42,23 @@ DK64R_BRANCHES = {'stable', 'dev'}
 DK64R_SITE_HOSTS = {'stable': 'dk64randomizer.com', 'dev': 'dev.dk64randomizer.com'}
 DK64R_POLL_INTERVAL = 5.0        # seconds — matches the reference web client's cadence
 DK64R_GENERATION_TIMEOUT = 600.0  # seconds (10 min) worst-case queue + generation budget
+
+
+@dataclass
+class RolledSeed:
+    """What a generator produced: the permalink, and the settings that made it.
+
+    ``settings`` is the **resolved payload as sent upstream**, which is the whole
+    reason it is carried back here rather than re-derived by the caller. A
+    ``Preset`` is an editable row: without a snapshot taken at roll time, editing
+    a preset silently rewrites the apparent history of every seed rolled from it,
+    and the question a disputed result actually asks — "what settings did this
+    seed use?" — has no answer. ``None`` where the generator has no settings to
+    speak of (the test stub).
+    """
+
+    url: str
+    settings: Optional[dict] = None
 
 
 async def _read_bundled_preset(path: str) -> str:
@@ -72,6 +98,22 @@ class SeedGenerationService:
 
     # Randomizers whose generator can embed community triforce texts.
     TRIFORCE_TEXT_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr'}
+
+    # Per-provider overrides of the shared execution contract
+    # (``application.utils.seed_provider``). Anything absent takes the defaults.
+    #
+    # DK64R is the one that must differ on both axes: its upstream is a task
+    # queue whose *whole* roll (submit → poll → result) legitimately runs for
+    # minutes, so the outer budget has to exceed the poll deadline rather than
+    # cut it short — and re-running that roll would submit a second generation
+    # task, so it gets exactly one attempt. Retrying the individual requests
+    # inside it is safe and is handled within the generator.
+    PROVIDER_TIMEOUTS: ClassVar[dict] = {
+        'dk64r': DK64R_GENERATION_TIMEOUT + 60.0,
+    }
+    PROVIDER_ATTEMPTS: ClassVar[dict] = {
+        'dk64r': 1,
+    }
 
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
@@ -130,7 +172,27 @@ class SeedGenerationService:
             URL or string representing the generated seed
 
         Raises:
-            ValueError: If randomizer is not supported
+            ValueError: If randomizer is not supported, or a
+                :class:`~application.utils.seed_provider.SeedProviderError`
+                subclass naming what the upstream did.
+        """
+        call = await self.generate_seed_call(randomizer, preset)
+        return call.value.url
+
+    async def generate_seed_call(
+        self,
+        randomizer: str,
+        preset: Optional[Preset] = None,
+        *,
+        surface: Optional[str] = None,
+    ) -> ProviderCall:
+        """Roll a seed under the provider contract, returning it with its cost.
+
+        The provenance-carrying entry point: the returned
+        :class:`~application.utils.seed_provider.ProviderCall` holds the
+        :class:`RolledSeed` (permalink + settings as sent) plus the attempt count
+        and latency, which is what a ``GeneratedSeeds`` row records. Prefer this
+        over :meth:`generate_seed` anywhere the roll is persisted.
         """
         generator_map = {
             'alttpr': self._generate_alttpr,
@@ -149,26 +211,39 @@ class SeedGenerationService:
             raise ValueError(f"Unsupported randomizer: {randomizer}")
 
         if is_mock_seedgen():
-            return self._mock_seed_url(randomizer)
+            return ProviderCall(
+                value=RolledSeed(url=self._mock_seed_url(randomizer)),
+                provider=randomizer, operation='generate_seed', surface=surface,
+            )
 
+        generator = generator_map[randomizer]
         if randomizer in self.PRESET_AWARE_RANDOMIZERS:
-            return await generator_map[randomizer](preset)
-        return await generator_map[randomizer]()
+            def _run():
+                return generator(preset)
+        else:
+            def _run():
+                return generator()
+
+        return await call_provider(
+            _run,
+            provider=randomizer,
+            operation='generate_seed',
+            surface=surface,
+            timeout=self.PROVIDER_TIMEOUTS.get(randomizer, PROVIDER_TIMEOUT_SECONDS),
+            max_attempts=self.PROVIDER_ATTEMPTS.get(randomizer, PROVIDER_MAX_ATTEMPTS),
+        )
 
     @staticmethod
     def _mock_seed_url(randomizer: str) -> str:
         """A believable, unique permalink for MOCK_SEEDGEN mode."""
         return f"https://mock.seedgen.local/{randomizer}/{secrets.token_hex(8)}"
 
-    async def _generate_alttpr(self, preset: Optional[Preset] = None) -> str:
+    async def _generate_alttpr(self, preset: Optional[Preset] = None) -> RolledSeed:
         """
         Generate an A Link to the Past Randomizer seed.
 
         Uses ``preset.settings`` when a preset is supplied; otherwise falls back
         to the built-in ``casualboots`` settings (the historical default).
-
-        Returns:
-            URL to the generated seed
         """
         if preset is not None:
             settings = preset.settings
@@ -181,7 +256,7 @@ class SeedGenerationService:
             settings=settings,
             endpoint='/api/customizer',
         )
-        return seed.url
+        return RolledSeed(url=seed.url, settings=settings)
 
     async def generate_alttpr_for_tournament(
         self,
@@ -221,12 +296,12 @@ class SeedGenerationService:
         )
         return seed.url
     
-    async def _generate_ff1r(self) -> str:
+    async def _generate_ff1r(self) -> RolledSeed:
         """
         Generate a Final Fantasy 1 Randomizer seed.
-        
-        Returns:
-            URL to the generated seed
+
+        Purely local: the flag string is fixed and only the seed number varies,
+        so there is no upstream to fail.
         """
         url = 'https://4-8-6.finalfantasyrandomizer.com/?s=00000000&f=6XOcCG.geJ.YDwt9.jijRao2NoTvBlq0V2VvHuAxjtMhlVRYso0wmNtUopSO9Xzt2k8Gn7v9d6ysABeksoaTevatcw4ZKZoMV95h1NQISZlbvlK8FEwtAAT5KWQUztLnkzQuDcO36uLraMFFQpGq0YsZrZHr7YdUoUxsW5.IutAsHfjB'
         seed = ('%008x' % random.randrange(16 ** 8)).upper()
@@ -235,25 +310,23 @@ class SeedGenerationService:
         qs['s'] = seed
         newurl = urllib.parse.urlunparse((up.scheme, up.netloc, up.path, up.params,
                                           urllib.parse.urlencode(qs, doseq=True), up.fragment))
-        return newurl
-    
-    async def _generate_z1r(self) -> str:
+        return RolledSeed(url=newurl, settings={'seed': seed, 'flags': qs.get('f', [''])[0]})
+
+    async def _generate_z1r(self) -> RolledSeed:
         """
         Generate a Zelda 1 Randomizer seed.
-        
-        Returns:
-            String with seed number and flags
+
+        Returns a "seed - flags" string rather than a URL; purely local.
         """
         flags = '5K!ELDXj35eUlQNR4XAhcL18nJBPgbC4Hpw'
         seed = random.randint(0, 8999999999999999999)
-        return f"{seed} - {flags}"
-    
-    async def _generate_smmap(self) -> str:
+        return RolledSeed(
+            url=f"{seed} - {flags}", settings={'seed': str(seed), 'flags': flags},
+        )
+
+    async def _generate_smmap(self) -> RolledSeed:
         """
         Generate a Super Metroid Map Randomizer seed.
-        
-        Returns:
-            URL to the generated seed
         """
         # Never fall back to a committed default — a leaked spoiler token
         # unlocks spoiler logs for race seeds.
@@ -265,16 +338,27 @@ class SeedGenerationService:
                 mpwriter.append(spoiler_token).set_content_disposition('form-data', name='spoiler_token')
                 mpwriter.append(settings).set_content_disposition('form-data', name='settings')
             async with session.post('https://maprando.com/randomize', data=mpwriter) as resp:
+                # Read the status before the body: an error page is HTML, and
+                # parsing it as JSON would report a parse failure instead of the
+                # 503 that caused it.
+                await raise_for_status(resp, provider='smmap', operation='generate_seed')
                 data = await resp.json()
 
-        return f"https://maprando.com{data['seed_url']}"
-    
-    async def _generate_ootr(self) -> str:
+        seed_url = (data or {}).get('seed_url')
+        if not seed_url:
+            raise SeedProviderBadResponse(
+                'Map Rando returned no seed URL.',
+                provider='smmap', operation='generate_seed',
+            )
+        # The spoiler token is a credential and is deliberately not part of the
+        # snapshot — settings only.
+        return RolledSeed(
+            url=f"https://maprando.com{seed_url}", settings=json.loads(settings),
+        )
+
+    async def _generate_ootr(self) -> RolledSeed:
         """
         Generate an Ocarina of Time Randomizer seed.
-        
-        Returns:
-            URL to the generated seed
         """
         settings = json.loads(await _read_bundled_preset("presets/ootr/sgl25.json"))
 
@@ -285,7 +369,6 @@ class SeedGenerationService:
         async with aiohttp.request(
             method='post',
             url="https://ootrandomizer.com/api/sglive/seed/create",
-            raise_for_status=True,
             json=settings,
             params={
                 "key": api_key,
@@ -293,9 +376,18 @@ class SeedGenerationService:
                 "encrypt": "true"
             }
         ) as resp:
+            await raise_for_status(resp, provider='ootr', operation='generate_seed')
             result = await resp.json()
 
-        return f"https://ootrandomizer.com/seed/get?id={result['id']}"
+        seed_id = (result or {}).get('id')
+        if not seed_id:
+            raise SeedProviderBadResponse(
+                'OoT Randomizer returned no seed id.',
+                provider='ootr', operation='generate_seed',
+            )
+        return RolledSeed(
+            url=f"https://ootrandomizer.com/seed/get?id={seed_id}", settings=settings,
+        )
     
     async def _generate_mmr(self) -> str:
         """Generate a Majora's Mask Randomizer seed. Not yet implemented."""
@@ -305,7 +397,7 @@ class SeedGenerationService:
         """Generate a Super Metroid: DASH seed. Not yet implemented."""
         raise ValueError("Super Metroid: DASH seed generation is not yet implemented.")
 
-    async def _generate_dk64r(self, preset: Optional[Preset] = None) -> str:
+    async def _generate_dk64r(self, preset: Optional[Preset] = None) -> RolledSeed:
         """Generate a Donkey Kong 64 Randomizer seed via the api.dk64rando.com queue.
 
         The upstream is a task queue: convert settings (if needed), submit the
@@ -352,7 +444,10 @@ class SeedGenerationService:
         seed_number = result.get('seed_number')
         if seed_number is None:
             raise ValueError('DK64 Randomizer returned no seed identifier.')
-        return f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}"
+        return RolledSeed(
+            url=f"https://{DK64R_SITE_HOSTS[branch]}/randomizer.html?seed_id={seed_number}",
+            settings={'branch': branch, **settings_dict},
+        )
 
     async def _dk64r_convert(self, session, settings_string: str, params: dict) -> dict:
         """Expand a DK64R settings string into the full settings JSON object."""
@@ -432,12 +527,12 @@ class SeedGenerationService:
         """Generate a Wind Waker Randomizer seed. Not yet implemented."""
         raise ValueError("Wind Waker Randomizer seed generation is not yet implemented.")
 
-    async def _generate_test(self) -> str:
+    async def _generate_test(self) -> RolledSeed:
         """
         Generate a test seed (for testing purposes).
-        
-        Returns:
-            URL to a test seed
+
+        The deliberate sleep exercises the UI's in-progress state; it is not a
+        provider call and has no settings to snapshot.
         """
         await asyncio.sleep(5)  # Simulate processing time
-        return "https://example.com/test-seed-url"
+        return RolledSeed(url="https://example.com/test-seed-url")

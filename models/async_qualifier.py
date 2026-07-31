@@ -94,6 +94,14 @@ class AsyncQualifierPermalink(Model):
     pool = fields.ForeignKeyField('models.AsyncQualifierPool', related_name='permalinks', on_delete=fields.CASCADE)
     url = fields.CharField(max_length=1024)
     notes = fields.TextField(null=True)
+    # Set for a permalink Wizzrobe rolled itself (rather than one pasted in by an
+    # admin), linking to the same provenance record a match seed gets: which
+    # preset, the settings as sent, who rolled it, what it cost. SET_NULL so
+    # purging the seed record keeps the permalink playable.
+    generated_seed = fields.ForeignKeyField(
+        'models.GeneratedSeeds', related_name='async_qualifier_permalinks',
+        null=True, on_delete=fields.SET_NULL,
+    )
     live_race = fields.BooleanField(default=False)
     par_time = fields.IntField(null=True)
     par_updated_at = fields.DatetimeField(null=True)
@@ -143,6 +151,15 @@ class AsyncQualifierRun(Model):
     )
     started_at = fields.DatetimeField(null=True)
     finished_at = fields.DatetimeField(null=True)
+    # Set when the expiry worker forfeited this run because the player drew a
+    # permalink and never came back. Non-null is what distinguishes an automatic
+    # expiry from a forfeit the runner chose — both are ``FORFEIT`` (a run that
+    # did not finish), but only one of them is something the runner did, and the
+    # UI and any appeal need to tell them apart.
+    expired_at = fields.DatetimeField(null=True)
+    # Stamped when the pre-expiry warning DM was queued, so the reminder fires
+    # once per run rather than on every worker tick.
+    expiry_warned_at = fields.DatetimeField(null=True)
     # Self-reported elapsed run time in whole seconds (submitted by the player).
     elapsed_seconds = fields.IntField(null=True)
     # Wall-clock seconds from the server-stamped ``started_at`` to the moment the
@@ -187,6 +204,7 @@ class AsyncQualifierRun(Model):
             ('qualifier', 'review_status'),  # reviewer queue
             ('user',),                       # "my runs"
             ('permalink',),                  # par recompute
+            ('status', 'started_at'),        # expiry worker's cross-tenant scan
         )
 
 

@@ -675,12 +675,19 @@ Constraint: `unique_together ('user', 'match')`.
 
 #### `GeneratedSeeds`
 
-Randomizer seed generated for a match; referenced by `Match.generated_seed`. Created directly by `MatchScheduleService.generate_seed` (no repository).
+Randomizer seed generated for a match; referenced by `Match.generated_seed` and by `AsyncQualifierPermalink.generated_seed`. Created directly by `MatchScheduleService.generate_seed` and `AsyncQualifierService.roll_permalinks` (no repository).
+
+Carries the seed's **provenance**: a `Preset` is an editable row, so without a snapshot taken at roll time, editing a preset silently rewrites the apparent history of every seed rolled from it, and a disputed result has no answer to "what settings did this seed use?". No credential is ever part of the snapshot.
 
 | Field | Type | Null / default | Notes |
 |---|---|---|---|
 | `seed_url` | `CharField(255)` | not null | Link to the generated seed |
 | `seed_info` | `TextField` | null | Generator metadata |
+| `randomizer` | `CharField(32)` | null | Backend that rolled it, stamped at roll time |
+| `preset` | FK → `Preset` | null, `SET_NULL` | Which preset was selected |
+| `settings_snapshot` | `JSONField` | null | The resolved settings **as sent upstream** |
+| `rolled_by` | FK → `User` | null, `SET_NULL` | Who spent the match's single roll |
+| `provider_meta` | `JSONField` | null | `{provider, operation, attempts, latency_ms, surface}` from the seed-provider envelope |
 
 #### `Preset`
 
@@ -1247,7 +1254,9 @@ indexes on `tenant`, `qualifier`.
 
 One seed `url` in a pool (`CASCADE`), `notes`, `live_race` flag, and a maintained
 `par_time` (whole seconds, mean of the N fastest approved runs) + `par_updated_at`.
-Indexes on `tenant`, `pool`.
+Indexes on `tenant`, `pool`. A permalink Wizzrobe rolled itself (rather than one an
+admin pasted in) also carries `generated_seed` (FK → `GeneratedSeeds`, `SET_NULL`),
+so a qualifier seed answers the same provenance questions a match seed does.
 
 #### `AsyncQualifierRun`
 
@@ -1257,9 +1266,18 @@ so purging a permalink keeps run history), and nullable `reviewed_by` /
 (`started_at`, `finished_at`, `elapsed_seconds`, `measured_seconds`), `runner_vod_url`, the one-attempt
 backstop (`reattempted` + `reattempt_reason`), `score` (0–105, null until scored),
 and review attribution/claim-lock timestamps. Indexes: `tenant`, `(qualifier,
-review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute).
+review_status)` (reviewer queue), `user` ("my runs"), `permalink` (par recompute),
+`(status, started_at)` (the expiry worker's cross-tenant scan).
 The nullable `live_race` FK (`SET_NULL`) marks a run captured from a synchronous
 racetime race.
+
+`expired_at` / `expiry_warned_at` are the abandoned-run backstop. A run left open
+holds its permalink assignment and the player's pool slot indefinitely and keeps
+widening the window in which any finish time is claimable, so the expiry worker
+warns once (`expiry_warned_at`, stamped before the DM so a failure cannot re-fire
+it) and then forfeits it. An expired run is `FORFEIT` like any other — it did not
+finish — but `expired_at` records that *nobody chose it*, which is the distinction
+an appeal needs; a reviewer can still grant a reattempt.
 
 `reattempted` + `reattempt_reason` are set by **either** reattempt path;
 `reattempt_granted_by` distinguishes them — null when the runner spent their own

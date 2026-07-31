@@ -73,6 +73,26 @@ class AsyncQualifierRunRepository(TenantScopedRepository[AsyncQualifierRun]):
 
     model = AsyncQualifierRun
 
+    @staticmethod
+    async def list_in_progress_all() -> List[AsyncQualifierRun]:
+        """Every started, still-in-progress run, **across all tenants**.
+
+        Deliberately unscoped, like ``RacetimeRoomRepository.list_open_all``: the
+        expiry worker runs off a timer with no request context, so it does one
+        cross-tenant scan and then re-enters each run's own ``tenant_scope`` before
+        touching it.
+
+        Unfiltered by age on purpose. Each qualifier configures its own time
+        limit, so there is no single cutoff that is correct for every tenant, and
+        a wrong one silently skips runs. The set this returns is small and
+        self-limiting — a player may hold one active run per qualifier — and the
+        ``(status, started_at)`` index covers it.
+        """
+        return await AsyncQualifierRun.filter(
+            status=AsyncQualifierRunStatus.IN_PROGRESS,
+            started_at__isnull=False,
+        ).prefetch_related('qualifier', 'user', 'tenant').order_by('started_at')
+
     async def get_by_id(self, run_id: int) -> Optional[AsyncQualifierRun]:
         return await (
             AsyncQualifierRun.filter(id=run_id, tenant_id=current_tenant_id())

@@ -4,10 +4,17 @@
 hands a player a permalink from the pool, ``async_qualifier_scoring`` ranks the
 submitted runs, ``async_qualifier_access`` decides who may see a run before the
 window closes, and ``async_qualifier_config``/``_rules`` validate the
-per-qualifier settings. Gated by ``FeatureFlag.ASYNC_QUALIFIERS``.
+per-qualifier settings, and ``async_qualifier_worker`` forfeits runs a player
+drew and abandoned. Gated by ``FeatureFlag.ASYNC_QUALIFIERS``.
 """
 
-from application.services.async_qualifier import async_qualifier_access, async_qualifier_scoring
+from application.services.async_qualifier import (
+    async_qualifier_access,
+    async_qualifier_notifications,
+    async_qualifier_reads,
+    async_qualifier_scoring,
+    async_qualifier_worker,
+)
 from application.services.async_qualifier.async_qualifier_config import (
     AsyncQualifierConfig,
     validate_async_qualifier_config,
@@ -28,7 +35,10 @@ __all__ = [
     'AsyncQualifierLiveRaceService',
     'AsyncQualifierService',
     'async_qualifier_access',
+    'async_qualifier_notifications',
+    'async_qualifier_reads',
     'async_qualifier_scoring',
+    'async_qualifier_worker',
     'validate_async_qualifier_config',
     'validate_counts',
     'validate_window',
