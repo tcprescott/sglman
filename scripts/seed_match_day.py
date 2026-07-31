@@ -18,8 +18,8 @@ rest are scheduled. That way the day reads correctly whenever the seed is run.
 
 from datetime import date, datetime, timedelta
 
-from models import Match, MatchPlayers, StreamRoom, Tenant, Tournament, User
 from application.utils.timezone import parse_local_datetime
+from models import Match, MatchPlayers, StreamRoom, Tenant, Tournament, User
 
 #: Start of each slot on the day, and how long the stage is booked for. Five
 #: slots from the venue's opening hour, two hours apart.
@@ -49,7 +49,7 @@ async def seed_match_day_for_tenant(
 
     day_str = day.isoformat()
     created = 0
-    for slot_index, (start_hhmm, round_label) in enumerate(zip(_SLOT_TIMES, _ROUND_LABELS)):
+    for slot_index, (start_hhmm, round_label) in enumerate(zip(_SLOT_TIMES, _ROUND_LABELS, strict=False)):
         starts_at = parse_local_datetime(day_str, start_hhmm)
         # Six racers per slot, taken in order so nobody is booked onto two stages
         # at the same time (the pool is twelve, so a slot never wraps onto itself).

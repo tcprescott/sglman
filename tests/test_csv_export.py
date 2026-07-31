@@ -13,11 +13,11 @@ import pytest
 
 from application.utils import csv_export
 from application.utils.csv_export import (
+    _csv_safe_cell,
+    _stringify,
     files_to_zip_bytes,
     rows_to_csv_bytes,
     timestamped_filename,
-    _csv_safe_cell,
-    _stringify,
 )
 
 

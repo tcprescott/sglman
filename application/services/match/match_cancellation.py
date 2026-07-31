@@ -16,11 +16,10 @@ room, DMs the players and crew, and emits ``match.cancelled`` alongside the
 import logging
 from typing import Optional
 
-from application.events import match_live
-from application.events import Event, EventType, event_bus
-from application.services.discord import discord_queue
+from application.events import EventType, match_live
 from application.services.audit_service import AuditActions
 from application.services.auth_service import AuthService
+from application.services.discord import discord_queue
 from models import Match, User
 
 logger = logging.getLogger(__name__)
@@ -57,13 +56,11 @@ class CancellationMixin:
         tournament_id = match.tournament_id
         await self._release_bracket_slot(match, actor, reason)
         await self.repository.delete(match)
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor, AuditActions.MATCH_DELETED, {'match_id': match_id},
+            EventType.MATCH_DELETED, event_extra={'tournament_id': tournament_id},
         )
         match_live.publish(match_id, match_live.DELETED)
-        event_bus.publish(Event.create(EventType.MATCH_DELETED, {
-            'match_id': match_id, 'tournament_id': tournament_id,
-        }, actor))
 
     @staticmethod
     async def _release_bracket_slot(
@@ -88,7 +85,7 @@ class CancellationMixin:
             await BracketService().release_game_if_linked(
                 match, actor, reason=reason,
             )
-        except Exception:  # noqa: BLE001 - cancellation must not be blocked
+        except Exception:
             logger.exception('bracket slot release failed for match %s', match.id)
 
     async def cancel_match(
@@ -122,11 +119,11 @@ class CancellationMixin:
         ``get_by_match``.
         """
         from application.services.match.match_schedule_service import (
-            bracket_dm_context,
-            collect_match_recipients,
             _community_name,
             _match_descriptor,
             _match_embed_kwargs,
+            bracket_dm_context,
+            collect_match_recipients,
         )
         from application.utils.discord_embeds import COLOR_CANCELLED, match_embed
         from application.utils.discord_messages import cancelled_dm
@@ -184,5 +181,5 @@ class CancellationMixin:
             await RaceRoomService().cancel_room(
                 room, actor=actor, reason=reason or 'match cancelled',
             )
-        except Exception:  # noqa: BLE001 - cancellation must not be blocked
+        except Exception:
             logger.exception('race room cancel failed for match %s', match.id)

@@ -41,8 +41,15 @@ class _StandingView:
     """
 
     __slots__ = (
-        'ref', 'rank', 'points', 'wins', 'draws', 'losses', 'byes', 'tiebreakers',
+        'byes',
+        'draws',
+        'losses',
+        'points',
+        'rank',
+        'ref',
+        'tiebreakers',
         'tied_with',
+        'wins',
     )
 
     def __init__(self, row) -> None:

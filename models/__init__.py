@@ -9,7 +9,32 @@ package's namespace). Cross-model foreign keys use string references
 other — only the shared enums in :mod:`models.enums` are imported directly.
 """
 
+from .async_qualifier import (
+    AsyncQualifier,
+    AsyncQualifierLiveRace,
+    AsyncQualifierPermalink,
+    AsyncQualifierPool,
+    AsyncQualifierReviewNote,
+    AsyncQualifierRun,
+)
+from .audit import AuditLog, TelemetryEvent
+from .bracket import (
+    Bracket,
+    BracketEntrant,
+    BracketEntry,
+    BracketMatch,
+    BracketMatchGame,
+)
+from .challonge import (
+    ChallongeApiUsage,
+    ChallongeConnection,
+    ChallongeMatch,
+    ChallongeParticipant,
+)
+from .column_guards import FieldValueError, install_column_guards
+from .discord_events import DiscordScheduledEvent
 from .enums import (
+    STATION_REGEXES,
     SYSTEM_USER_DISCORD_ID,
     ApiTokenOrigin,
     AsyncQualifierLiveRaceStatus,
@@ -33,24 +58,13 @@ from .enums import (
     RaceRoomStatus,
     Role,
     RoleSource,
-    STATION_REGEXES,
     StationFormat,
     SyncStatus,
     VolunteerAvailabilityStatus,
 )
-from .tenant import Tenant, TenantJoinRequest, TenantMembership
+from .equipment import Equipment, EquipmentLoan
 from .feature_flag import FeatureFlagGroup, TenantFeatureFlag
-from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
-from .mcp import McpAuthorizationCode, McpOAuthClient
-from .tournament import (
-    GeneratedSeeds,
-    Preset,
-    RandomizerCredential,
-    Tournament,
-    TournamentNotificationPreference,
-    TournamentPlayers,
-    TriforceText,
-)
+from .feedback import Feedback
 from .match import (
     Commentator,
     Match,
@@ -61,15 +75,21 @@ from .match import (
     StreamRoom,
     Tracker,
 )
-from .bracket import (
-    Bracket,
-    BracketEntrant,
-    BracketEntry,
-    BracketMatch,
-    BracketMatchGame,
+from .mcp import McpAuthorizationCode, McpOAuthClient
+from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
+from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
+from .system import SystemConfiguration
+from .tenant import Tenant, TenantJoinRequest, TenantMembership
+from .tournament import (
+    GeneratedSeeds,
+    Preset,
+    RandomizerCredential,
+    Tournament,
+    TournamentNotificationPreference,
+    TournamentPlayers,
+    TriforceText,
 )
-from .equipment import Equipment, EquipmentLoan
-from .feedback import Feedback
+from .user import ApiToken, DiscordRoleMapping, User, UserRole, WebPushSubscription
 from .volunteer import (
     PlayerAvailability,
     VolunteerAssignment,
@@ -79,143 +99,123 @@ from .volunteer import (
     VolunteerQualification,
     VolunteerShift,
 )
-from .audit import AuditLog, TelemetryEvent
-from .system import SystemConfiguration
 from .webhook import Webhook, WebhookDelivery
-from .challonge import (
-    ChallongeApiUsage,
-    ChallongeConnection,
-    ChallongeMatch,
-    ChallongeParticipant,
-)
-from .racetime import RaceRoomProfile, RacetimeBot, RacetimeBotTenant, RacetimeRoom
-from .speedgaming import SpeedGamingEpisode, SpeedGamingEventLink
-from .discord_events import DiscordScheduledEvent
-from .async_qualifier import (
-    AsyncQualifier,
-    AsyncQualifierLiveRace,
-    AsyncQualifierPermalink,
-    AsyncQualifierPool,
-    AsyncQualifierReviewNote,
-    AsyncQualifierRun,
-)
-from .column_guards import FieldValueError, install_column_guards
 
 # Every model is imported by now, so the column-fit guards can be attached to
 # their fields. Must stay last: it walks this module's namespace for models.
 install_column_guards(globals())
 
 __all__ = [
+    'STATION_REGEXES',
     # constants
     'SYSTEM_USER_DISCORD_ID',
-    # column guards
-    'FieldValueError',
-    # enums
-    'ApiTokenOrigin',
-    'AsyncQualifierLiveRaceStatus',
-    'JoinRequestStatus',
-    'TenantJoinRequest',
-    'AsyncQualifierReviewStatus',
-    'AsyncQualifierRunStatus',
-    'BotStatus',
-    'BracketEntrantStatus',
-    'BracketEntryStatus',
-    'BracketFormat',
-    'BracketMatchGameState',
-    'BracketMatchState',
-    'BracketState',
-    'ChallongeMatchState',
-    'DiscordEventSource',
-    'EquipmentStatus',
-    'FeatureFlag',
-    'FeedbackCategory',
-    'FeedbackStatus',
-    'MatchNotificationLevel',
-    'RaceRoomStatus',
-    'Role',
-    'RoleSource',
-    'STATION_REGEXES',
-    'StationFormat',
-    'SyncStatus',
-    'VolunteerAvailabilityStatus',
-    # tenant
-    'Tenant',
-    'TenantMembership',
-    'TenantFeatureFlag',
-    'FeatureFlagGroup',
     # user / auth
     'ApiToken',
-    'DiscordRoleMapping',
-    'User',
-    'UserRole',
-    'WebPushSubscription',
-    # mcp oauth
-    'McpAuthorizationCode',
-    'McpOAuthClient',
-    # tournament
-    'GeneratedSeeds',
-    'Preset',
-    'RandomizerCredential',
-    'Tournament',
-    'TournamentNotificationPreference',
-    'TournamentPlayers',
-    'TriforceText',
-    # match / crew
-    'Commentator',
-    'Match',
-    'MatchAcknowledgment',
-    'MatchPlayers',
-    'MatchWatcher',
-    'Station',
-    'StreamRoom',
-    'Tracker',
+    # enums
+    'ApiTokenOrigin',
+    # async qualifier
+    'AsyncQualifier',
+    'AsyncQualifierLiveRace',
+    'AsyncQualifierLiveRaceStatus',
+    'AsyncQualifierPermalink',
+    'AsyncQualifierPool',
+    'AsyncQualifierReviewNote',
+    'AsyncQualifierReviewStatus',
+    'AsyncQualifierRun',
+    'AsyncQualifierRunStatus',
+    # audit / telemetry
+    'AuditLog',
+    'BotStatus',
     # brackets
     'Bracket',
     'BracketEntrant',
+    'BracketEntrantStatus',
     'BracketEntry',
+    'BracketEntryStatus',
+    'BracketFormat',
     'BracketMatch',
     'BracketMatchGame',
-    # equipment
-    'Equipment',
-    'EquipmentLoan',
-    # feedback
-    'Feedback',
-    # volunteer
-    'PlayerAvailability',
-    'VolunteerAssignment',
-    'VolunteerAvailability',
-    'VolunteerPosition',
-    'VolunteerProfile',
-    'VolunteerQualification',
-    'VolunteerShift',
-    # audit / telemetry
-    'AuditLog',
-    'TelemetryEvent',
-    # system
-    'SystemConfiguration',
-    # webhooks
-    'Webhook',
-    'WebhookDelivery',
+    'BracketMatchGameState',
+    'BracketMatchState',
+    'BracketState',
     # challonge
     'ChallongeApiUsage',
     'ChallongeConnection',
     'ChallongeMatch',
+    'ChallongeMatchState',
     'ChallongeParticipant',
+    # match / crew
+    'Commentator',
+    'DiscordEventSource',
+    'DiscordRoleMapping',
+    # discord events
+    'DiscordScheduledEvent',
+    # equipment
+    'Equipment',
+    'EquipmentLoan',
+    'EquipmentStatus',
+    'FeatureFlag',
+    'FeatureFlagGroup',
+    # feedback
+    'Feedback',
+    'FeedbackCategory',
+    'FeedbackStatus',
+    # column guards
+    'FieldValueError',
+    # tournament
+    'GeneratedSeeds',
+    'JoinRequestStatus',
+    'Match',
+    'MatchAcknowledgment',
+    'MatchNotificationLevel',
+    'MatchPlayers',
+    'MatchWatcher',
+    # mcp oauth
+    'McpAuthorizationCode',
+    'McpOAuthClient',
+    # volunteer
+    'PlayerAvailability',
+    'Preset',
     # racetime
     'RaceRoomProfile',
+    'RaceRoomStatus',
     'RacetimeBot',
     'RacetimeBotTenant',
     'RacetimeRoom',
+    'RandomizerCredential',
+    'Role',
+    'RoleSource',
     # speedgaming
     'SpeedGamingEpisode',
     'SpeedGamingEventLink',
-    # discord events
-    'DiscordScheduledEvent',
-    # async qualifier
-    'AsyncQualifier',
-    'AsyncQualifierLiveRace',
-    'AsyncQualifierPermalink',
-    'AsyncQualifierPool',
-    'AsyncQualifierReviewNote',
-    'AsyncQualifierRun',
+    'Station',
+    'StationFormat',
+    'StreamRoom',
+    'SyncStatus',
+    # system
+    'SystemConfiguration',
+    'TelemetryEvent',
+    # tenant
+    'Tenant',
+    'TenantFeatureFlag',
+    'TenantJoinRequest',
+    'TenantMembership',
+    'Tournament',
+    'TournamentNotificationPreference',
+    'TournamentPlayers',
+    'Tracker',
+    'TriforceText',
+    'User',
+    'UserRole',
+    'VolunteerAssignment',
+    'VolunteerAvailability',
+    'VolunteerAvailabilityStatus',
+    'VolunteerPosition',
+    'VolunteerProfile',
+    'VolunteerQualification',
+    'VolunteerShift',
+    'WebPushSubscription',
+    # webhooks
+    'Webhook',
+    'WebhookDelivery',
 ]

@@ -4,8 +4,8 @@ Uses the function-scoped in-memory ``db`` fixture from conftest.
 """
 
 
-from tests.api_helpers import client_for, create_user_token
 from models import Role
+from tests.api_helpers import client_for, create_user_token
 
 
 class TestWebhookApiAuth:

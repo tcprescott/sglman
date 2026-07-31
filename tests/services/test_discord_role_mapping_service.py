@@ -13,6 +13,7 @@ import pytest
 from application.services.discord import discord_role_mapping_service as drms
 from application.services.discord.discord_role_mapping_service import DiscordRoleMappingService
 from models import Role, RoleSource
+from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 
@@ -29,8 +30,7 @@ def make_service():
     svc.role_repository.add = AsyncMock()
     svc.role_repository.remove = AsyncMock()
     svc.role_repository.list_for_user_by_source = AsyncMock(return_value=[])
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 
@@ -46,9 +46,11 @@ def mapping(discord_role_id, app_role):
 def patch_deps(monkeypatch):
     """Helper to configure the module-level dependencies of sync_user_roles."""
 
-    def _apply(*, guild_id=42, member_result=(True, set()), current_roles=set()):
+    def _apply(*, guild_id=42, member_result=(True, set()), current_roles=None):
         # The guild id now lives on the tenant; login sync fans out over every
         # tenant that has one. No tenant with a guild -> "no_guild_configured".
+        if current_roles is None:
+            current_roles = set()
         tenants = [] if guild_id is None else [SimpleNamespace(id=1, discord_guild_id=guild_id)]
         monkeypatch.setattr(
             drms.TenantService, 'list_tenants', AsyncMock(return_value=tenants),

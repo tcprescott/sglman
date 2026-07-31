@@ -2,8 +2,8 @@ from nicegui import ui
 
 from application.tenant_context import get_current_tenant_id
 from application.utils.timezone import format_local_display
-from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.empty_state import no_data_slot
+from theme.tables.admin_crud import capture_render_context, scoped_background
 
 
 class UserTableView:

@@ -23,8 +23,18 @@ from application.repositories.volunteer_position_repository import VolunteerPosi
 from application.repositories.volunteer_profile_repository import VolunteerProfileRepository
 from application.tenant_context import tenant_scope
 from models import (
-    Equipment, Feedback, Match, MatchWatcher, Preset, StreamRoom, Tenant, Tournament,
-    TournamentPlayers, User, VolunteerPosition, VolunteerProfile,
+    Equipment,
+    Feedback,
+    Match,
+    MatchWatcher,
+    Preset,
+    StreamRoom,
+    Tenant,
+    Tournament,
+    TournamentPlayers,
+    User,
+    VolunteerPosition,
+    VolunteerProfile,
 )
 
 

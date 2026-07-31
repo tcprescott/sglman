@@ -16,10 +16,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 
-from application.events import match_live
-from application.events import Event, EventType
+from application.events import Event, EventType, dispatch_queue, match_live
 from application.events import bus as event_bus
-from application.events import dispatch_queue
 from middleware.error_handlers import (
     _current_user_best_effort,
     log_unhandled_error,

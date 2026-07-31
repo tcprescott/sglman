@@ -236,8 +236,8 @@ class TournamentDialog:
                     # credential is missing, so editing an existing tournament never
                     # silently drops its value.
                     if default_seed and default_seed not in seed_choices:
-                        seed_choices = seed_choices + [default_seed]
-                    randomizer_choices = ['None'] + seed_choices
+                        seed_choices = [*seed_choices, default_seed]
+                    randomizer_choices = ['None', *seed_choices]
                     seed_generator_input = ui.select(
                         randomizer_choices, label='Seed Generator', value=default_seed,
                     ).classes('input-full-width')

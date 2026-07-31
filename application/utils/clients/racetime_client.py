@@ -85,7 +85,7 @@ _MOCK_IDENTITIES = [
 class MockRacetimeClient(RacetimeClient):
     """Canned client used when MOCK_RACETIME is enabled."""
 
-    def __init__(self, *args, **kwargs):  # noqa: D401 - signature compat
+    def __init__(self, *args, **kwargs):
         super().__init__('mock', 'mock')
 
     async def exchange_code(self, code: str, redirect_uri: str) -> Dict[str, Any]:

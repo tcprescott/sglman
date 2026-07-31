@@ -42,7 +42,6 @@ from application.utils.timezone import (
 )
 from models import FeatureFlag, User, VolunteerAvailability, VolunteerAvailabilityStatus
 
-
 _STATUS_LABEL = {
     VolunteerAvailabilityStatus.PREFERRED: 'Preferred',
     VolunteerAvailabilityStatus.AVAILABLE: 'Available',

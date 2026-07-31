@@ -26,9 +26,38 @@ jobs:
       - name: Ruff (blocking)
         run: poetry run ruff check .
 
-      - name: Mypy (informational)
-        continue-on-error: true
-        run: poetry run mypy application api middleware main.py frontend.py
+      # Blocking, but as a ratchet: existing debt is baselined per file and only
+      # a file that *gains* errors fails. See scripts/mypy_ratchet.py.
+      - name: Mypy (ratchet)
+        run: poetry run python scripts/mypy_ratchet.py
+
+  guardrails:
+    # The checks in .claude/scripts/ encode the invariants CLAUDE.md states —
+    # layer boundaries, tenant scoping, async and datetime safety, feature-flag
+    # gating, audit discipline. As Claude Code hooks they only fire inside a
+    # Claude session; here they bind every commit, whoever wrote it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The runner diffs against the merge base, so it needs the history.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Stdlib only — the checks import nothing outside the standard library,
+      # so this job skips the Poetry install the other jobs need.
+      - name: Guardrails (changed files)
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="HEAD~1"
+          fi
+          python scripts/guardrails.py --changed "$base"
 
   pytest:
     runs-on: ubuntu-latest
@@ -87,6 +116,46 @@ jobs:
         env:
           BBPPAIRINGS_BIN: ${{ github.workspace }}/bbpPairings/bbpPairings.exe
         run: poetry run pytest tests/services/test_bracket_swiss_crossvalidation.py -q
+
+  postgres:
+    # The suite runs on SQLite, where some of what production relies on is a
+    # silent no-op — SELECT ... FOR UPDATE most of all. This lane re-runs the
+    # tests whose meaning depends on the real backend: the row-locking tests
+    # (which fail here if the lock is removed, and cannot on SQLite) and the
+    # tenant-isolation suite, which is the one that leans on real constraint
+    # enforcement. Serial: each test drops and recreates the schema, so parallel
+    # workers would pull the tables out from under each other.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wizzrobe
+          POSTGRES_PASSWORD: wizzrobe
+          POSTGRES_DB: wizzrobe_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wizzrobe -d wizzrobe_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Pytest (PostgreSQL backend)
+        env:
+          WIZZROBE_TEST_DB_URL: postgres://wizzrobe:wizzrobe@localhost:5432/wizzrobe_test
+        run: poetry run pytest tests/postgres tests/tenancy -q -n0
 
   migrations:
     # Prove the full aerich migration chain applies from an empty PostgreSQL

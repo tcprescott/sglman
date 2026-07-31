@@ -16,8 +16,8 @@ from models import (
     MatchPlayers,
     Role,
     TenantMembership,
-    Tracker,
     TournamentPlayers,
+    Tracker,
     UserRole,
     VolunteerAssignment,
 )

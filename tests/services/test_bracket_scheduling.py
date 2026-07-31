@@ -10,6 +10,7 @@ link, never both.
 
 import pytest
 
+from application.errors import NotFoundError
 from application.services.auth_service import AuthService
 from application.services.bracket_service import BracketService
 from application.services.challonge_service import ChallongeService
@@ -329,7 +330,7 @@ async def test_bracket_match_not_schedulable_across_tenants(service, two_tenants
     # From tenant B, the bracket match is invisible -> load-or-404.
     with tenant_scope(tenant_b.id):
         b_actor = await _staff(discord_id=4321, username='b-staff')
-        with pytest.raises(Exception):
+        with pytest.raises(NotFoundError):
             await service.schedule_bracket_match(
                 b_actor, bmatch.id,
                 scheduled_date='2026-06-12', scheduled_time='14:30',

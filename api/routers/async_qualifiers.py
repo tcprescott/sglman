@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status
 
+from api._helpers import load_user_or_404
 from api.dependencies import ServiceErrorRoute, require_api_actor, require_write_actor
 from api.schemas.async_qualifiers import (
     AdminRequest,
@@ -34,7 +35,6 @@ from api.schemas.async_qualifiers import (
     SubmitRunRequest,
 )
 from api.schemas.common import UserBase
-from api._helpers import load_user_or_404
 from application.errors import require_found
 from application.services import AsyncQualifierService
 from application.tenant_context import require_tenant_id

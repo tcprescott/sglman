@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from application.events import Event, EventType, event_bus
+from application.events import EventType
 from application.repositories import (
     MatchAcknowledgmentRepository,
     MatchRepository,
@@ -42,12 +42,12 @@ from application.repositories.racetime_room_repository import RacetimeRoomReposi
 from application.services.audit_service import AuditActions, AuditService
 from application.services.match.match_participants import MatchParticipants
 from application.services.tenant_membership_service import TenantMembershipService
-from application.utils.hashing import stable_content_hash
 from application.utils.clients.speedgaming_client import (
     SpeedGamingAPIError,
     SpeedGamingClient,
     get_speedgaming_client,
 )
+from application.utils.hashing import stable_content_hash
 from models import Match, SpeedGamingEventLink, SyncStatus, User
 
 logger = logging.getLogger(__name__)
@@ -247,15 +247,16 @@ class SpeedGamingETLService:
             payload=raw, content_hash=content_hash, scheduled_at=when,
             title=title, sync_error=None,
         )
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor, AuditActions.SG_EPISODE_IMPORTED,
             {'episode_id': episode.id, 'sg_episode_id': sg_id, 'match_id': match.id,
              'created': created, 'player_count': len(resolved_players)},
+            EventType.SG_EPISODE_IMPORTED,
+            event_details={
+                'match_id': match.id, 'tournament_id': link.tournament_id,
+                'sg_episode_id': sg_id, 'created': created,
+            },
         )
-        event_bus.publish(Event.create(EventType.SG_EPISODE_IMPORTED, {
-            'match_id': match.id, 'tournament_id': link.tournament_id,
-            'sg_episode_id': sg_id, 'created': created,
-        }, actor))
         return 'imported'
 
     # -------------------------------------------------------------- transform
@@ -391,16 +392,17 @@ class SpeedGamingETLService:
                 continue
             await self.episode_repo.update(episode, sync_status=SyncStatus.CANCELLED, synced_at=now)
             match = await MatchRepository.get_by_speedgaming_episode(episode.id)
-            await self.audit_service.write_log(
+            await self.audit_service.write_and_publish(
                 actor, AuditActions.SG_EPISODE_CANCELLED,
                 {'episode_id': episode.id, 'sg_episode_id': episode.sg_episode_id,
                  'match_id': match.id if match else None},
+                EventType.SG_EPISODE_CANCELLED,
+                event_details={
+                    'sg_episode_id': episode.sg_episode_id,
+                    'match_id': match.id if match else None,
+                    'tournament_id': link.tournament_id,
+                },
             )
-            event_bus.publish(Event.create(EventType.SG_EPISODE_CANCELLED, {
-                'sg_episode_id': episode.sg_episode_id,
-                'match_id': match.id if match else None,
-                'tournament_id': link.tournament_id,
-            }, actor))
             cancelled += 1
         return cancelled
 
@@ -415,14 +417,15 @@ class SpeedGamingETLService:
             if room is not None:
                 continue
             await MatchRepository.update(match, finished_at=now)
-            await self.audit_service.write_log(
+            await self.audit_service.write_and_publish(
                 actor, AuditActions.SG_MATCH_AUTO_FINISHED,
                 {'match_id': match.id, 'tournament_id': link.tournament_id,
                  'scheduled_at': match.scheduled_at.isoformat() if match.scheduled_at else None},
+                EventType.SG_MATCH_AUTO_FINISHED,
+                event_details={
+                    'match_id': match.id, 'tournament_id': link.tournament_id,
+                },
             )
-            event_bus.publish(Event.create(EventType.SG_MATCH_AUTO_FINISHED, {
-                'match_id': match.id, 'tournament_id': link.tournament_id,
-            }, actor))
             finished += 1
         return finished
 

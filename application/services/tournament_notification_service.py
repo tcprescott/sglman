@@ -1,9 +1,9 @@
 from typing import List, Optional
 
-from models import MatchNotificationLevel, Tournament, TournamentNotificationPreference, User
 from application.errors import require_found
 from application.repositories import TournamentNotificationRepository, TournamentRepository
 from application.tenant_context import require_tenant_id
+from models import MatchNotificationLevel, Tournament, TournamentNotificationPreference, User
 
 
 class TournamentNotificationService:

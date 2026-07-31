@@ -10,7 +10,6 @@ from typing import List, Optional
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Tournament, TriforceText, User
 
-
 # Public approval-status filter values used by callers (service + UI). The
 # repository maps these onto the underlying nullable boolean column.
 APPROVAL_STATUSES = ('pending', 'approved', 'rejected')

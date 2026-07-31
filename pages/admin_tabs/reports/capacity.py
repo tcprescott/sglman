@@ -9,11 +9,15 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.services import (
-    AuthService, ReportsService, SystemConfigService, get_user_from_discord_id,
+    AuthService,
+    ReportsService,
+    SystemConfigService,
+    get_user_from_discord_id,
 )
 from application.utils.timezone import format_local_display
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
+
 from .shared import (
     CHART_GOLD,
     CHART_GOLD_AREA,

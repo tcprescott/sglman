@@ -275,6 +275,77 @@ Two steps that land after that checklist:
 
 Every hook sources `_repo.sh` for `$REPO` rather than deriving it from the working directory, because hooks inherit the session's shell cwd, which moves whenever a Bash call `cd`s elsewhere. The executable bit lives in the git index, so a normal checkout preserves it. Full contract, the complete inventory, and the test that enforces both: [`.claude/README.md`](../.claude/README.md).
 
+### Running the suite against PostgreSQL
+
+`poetry run pytest` uses in-memory SQLite: no service to start, a fresh schema
+per test, and the whole suite in under a minute. Production is PostgreSQL, and
+some of what it relies on is a **silent no-op** on SQLite — `SELECT … FOR UPDATE`
+above all. `AsyncQualifierRepository.lock_user_for_draw` exists so two
+simultaneous draw clicks cannot both open a run; on SQLite that lock does
+nothing, so no SQLite test can tell whether it is there.
+
+Point the same suite at a real database with `WIZZROBE_TEST_DB_URL`:
+
+```bash
+WIZZROBE_TEST_DB_URL=postgres://wizzrobe:wizzrobe@localhost:5432/wizzrobe_test \
+    poetry run pytest tests/postgres tests/tenancy -q -n0
+```
+
+`-n0` is required: each test drops and recreates the schema, so xdist workers
+would pull the tables out from under one another. `tests/postgres/` holds the
+tests that *only* mean something here (they skip on SQLite); everything else
+runs on both.
+
+The `postgres` CI job runs exactly that pair on every PR — the row-locking tests
+plus tenant isolation, which is where real constraint enforcement matters. Point
+the variable at anything else locally to widen it. Adopting this surfaced one
+harness bug real Postgres catches and SQLite hides: creating the default tenant
+with an explicit `id=1` leaves the `SERIAL` sequence at 1, so the next
+auto-assigned tenant collides. The `db` fixture now advances the sequence.
+
+### Mypy is a ratchet, not a gate
+
+`poetry run python scripts/mypy_ratchet.py` is blocking in CI, but it compares
+against `scripts/mypy_baseline.json` (per-file error counts) and fails only when
+a file *gains* errors. The tree carries ~1420, the large majority Tortoise
+reverse relations and FK `*_id` attributes that mypy structurally cannot resolve
+on a dynamically-built ORM model — not defects to fix. New errors still cannot
+land.
+
+Fix errors freely; the run tells you when the baseline can shrink, and
+`--update` re-records it. Silence a genuine ORM false positive at the line with
+a targeted `# type: ignore[code]` rather than re-recording a higher count.
+
+### The same guardrails in CI
+
+As hooks, those checks fire on a Write/Edit *inside a Claude session* and nowhere
+else — a hand-written commit, a merge, or an edit from any other tool passes all
+of them. `scripts/guardrails.py` replays the same scripts against files on disk,
+so CI enforces them for everyone. It reimplements nothing: it synthesizes the
+hook payload each check already parses and reports its exit status.
+
+```bash
+python scripts/guardrails.py --changed origin/main   # what CI runs on a PR
+python scripts/guardrails.py --all                   # whole tree (~5 min)
+python scripts/guardrails.py pages/admin.py          # one file
+```
+
+Two jobs use it: `guardrails` in `test.yml` (per PR, changed files only, and
+blocking) and `guardrail-sweep.yml` (weekly, whole tree, non-blocking on merges).
+The sweep exists because a changed-files check cannot see a violation that
+entered by a route no diff covers — a rule tightened after the code was written,
+or a check added later.
+
+`scripts/guardrail_baseline.json` records accepted pre-existing hits as a
+per-(check, file) count; a run fails only when a count *grows*. Deleting an entry
+is always safe, so the baseline shrinks on its own and only grows when somebody
+deliberately runs `--all --update-baseline`.
+
+Three scripts are deliberately excluded: `run_full_tests` and `run_related_tests`
+are test runners rather than checks, `enforce_safe_commands` guards Bash tool
+calls, and `check_migration_drift` reads the working tree — which is clean in CI,
+where the `migrations` job proves the chain applies to a real PostgreSQL instead.
+
 ## Repository hygiene notes
 
 - `poetry.lock` is committed; keep it in sync with `pyproject.toml` when changing dependencies (the CI cache is keyed on its hash).

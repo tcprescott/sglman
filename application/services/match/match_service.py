@@ -5,53 +5,53 @@ Coordinates match-related operations, enforces business rules,
 and orchestrates between repositories.
 """
 
-from datetime import datetime, date
-from typing import List, Optional, Dict, Any, Tuple
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Tuple
 
-from models import (
-    STATION_REGEXES,
-    Match,
-    MatchAcknowledgment,
-    MatchPlayers,
-    Tournament,
-    User,
-    StreamRoom,
-)
-from application.events import match_live
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import Event, EventType, event_bus, match_live
 from application.repositories import (
+    CommentatorRepository,
     MatchAcknowledgmentRepository,
     MatchRepository,
     StationRepository,
     StreamRoomRepository,
     TournamentRepository,
-    UserRepository,
-    CommentatorRepository,
     TrackerRepository,
+    UserRepository,
 )
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.discord import discord_queue
 from application.services.match.bracket_result_guard import (
     assert_bracket_result_editable,
 )
-from application.services.match.match_source_guard import assert_sg_fields_unchanged
-from application.services.discord import discord_queue
 from application.services.match.match_cancellation import CancellationMixin
 from application.services.match.match_participants import MatchParticipants
 from application.services.match.match_request import MatchRequestMixin
 from application.services.match.match_review import MatchReviewMixin
 from application.services.match.match_schedule_service import MatchScheduleService
+from application.services.match.match_source_guard import assert_sg_fields_unchanged
 from application.services.stream_room_service import StreamRoomService
 from application.services.system_config_service import SystemConfigService
-from application.tenant_context import require_tenant_id
 from application.services.timezone_service import TimezoneService
+from application.tenant_context import require_tenant_id
 from application.utils.timezone import (
     local_day_bounds,
-    timezone_label,
     parse_local_datetime,
+    timezone_label,
     to_local,
 )
+from models import (
+    STATION_REGEXES,
+    Match,
+    MatchAcknowledgment,
+    MatchPlayers,
+    StreamRoom,
+    Tournament,
+    User,
+)
+
 
 class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
     """Service for match-related business operations."""
@@ -508,21 +508,18 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         was_candidate = match.is_stream_candidate
         await self.repository.update(match, is_stream_candidate=flag)
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_STREAM_CANDIDATE_SET if flag else AuditActions.MATCH_STREAM_CANDIDATE_CLEARED,
             {'match_id': match.id},
+            EventType.MATCH_STREAM_CANDIDATE_SET if flag else EventType.MATCH_STREAM_CANDIDATE_CLEARED,
+            event_extra={'tournament_id': match.tournament_id},
         )
 
         if flag and not was_candidate:
             await self.match_schedule_service.notify_stream_candidate(match)
 
         match_live.publish(match.id)
-        event_bus.publish(Event.create(
-            EventType.MATCH_STREAM_CANDIDATE_SET if flag else EventType.MATCH_STREAM_CANDIDATE_CLEARED,
-            {'match_id': match.id, 'tournament_id': match.tournament_id},
-            actor,
-        ))
 
         return match
 
@@ -543,18 +540,15 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
 
         await self.repository.update(match, stream_room_id=stream_room_id)
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_STAGE_ASSIGNED if stream_room_id is not None else AuditActions.MATCH_STAGE_CLEARED,
             {'match_id': match.id, 'stream_room_id': stream_room_id},
+            EventType.MATCH_STAGE_ASSIGNED if stream_room_id is not None else EventType.MATCH_STAGE_CLEARED,
+            event_extra={'tournament_id': match.tournament_id},
         )
 
         match_live.publish(match.id)
-        event_bus.publish(Event.create(
-            EventType.MATCH_STAGE_ASSIGNED if stream_room_id is not None else EventType.MATCH_STAGE_CLEARED,
-            {'match_id': match.id, 'tournament_id': match.tournament_id, 'stream_room_id': stream_room_id},
-            actor,
-        ))
 
         return match
 
@@ -622,21 +616,18 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
                 player.assigned_station = assignments[player.id]
                 await player.save()
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_STATIONS_ASSIGNED,
             {
                 'match_id': match.id,
                 'assignments': {str(k): v for k, v in assignments.items()},
             },
+            EventType.MATCH_STATIONS_ASSIGNED,
+            event_extra={'tournament_id': match.tournament_id},
         )
 
         match_live.publish(match.id)
-        event_bus.publish(Event.create(EventType.MATCH_STATIONS_ASSIGNED, {
-            'match_id': match.id,
-            'tournament_id': match.tournament_id,
-            'assignments': {str(k): v for k, v in assignments.items()},
-        }, actor))
 
         return match
 
@@ -715,7 +706,7 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
             await player.save()
             ranks[player.id] = player.finish_rank
 
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor,
             AuditActions.MATCH_RESULT_RECORDED,
             {
@@ -723,15 +714,11 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
                 'winner_id': winner_id,
                 'ranks': {str(k): v for k, v in ranks.items()},
             },
+            EventType.MATCH_RESULT_RECORDED,
+            event_extra={'tournament_id': match.tournament_id},
         )
 
         match_live.publish(match.id)
-        event_bus.publish(Event.create(EventType.MATCH_RESULT_RECORDED, {
-            'match_id': match.id,
-            'tournament_id': match.tournament_id,
-            'winner_id': winner_id,
-            'ranks': {str(k): v for k, v in ranks.items()},
-        }, actor))
 
         return match
 
@@ -751,15 +738,14 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
             raise ValueError("You have already acknowledged this match.")
 
         ack = await self.ack_repository.upsert(match, user, acknowledged=True, auto=False)
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             user,
             AuditActions.MATCH_ACKNOWLEDGED,
             {'match_id': match.id, 'tournament_id': match.tournament_id},
+            EventType.MATCH_ACKNOWLEDGED,
+            event_extra={'user_id': user.id},
         )
         match_live.publish(match.id)
-        event_bus.publish(Event.create(EventType.MATCH_ACKNOWLEDGED, {
-            'match_id': match.id, 'tournament_id': match.tournament_id, 'user_id': user.id,
-        }, user))
         return ack
 
     async def _seed_acknowledgments(

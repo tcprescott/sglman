@@ -5,6 +5,7 @@ import pytest
 from application.services.audit_service import AuditActions
 from application.services.feedback_service import FeedbackService
 from models import Feedback, FeedbackCategory, FeedbackStatus, User
+from tests.factories import make_audit_double
 
 
 @pytest.fixture
@@ -13,8 +14,7 @@ def service():
     svc = object.__new__(FeedbackService)
     svc.repository = MagicMock()
     svc.repository.create = AsyncMock(side_effect=lambda **kwargs: _fake_feedback(**kwargs))
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

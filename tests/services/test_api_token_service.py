@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from application.services.api_token_service import ApiTokenService, TOKEN_PREFIX, _hash_token
+from application.services.api_token_service import TOKEN_PREFIX, ApiTokenService, _hash_token
+from tests.factories import make_audit_double
 
 UTC = timezone.utc
 
@@ -20,8 +21,7 @@ UTC = timezone.utc
 def service():
     svc = object.__new__(ApiTokenService)
     svc.repository = MagicMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

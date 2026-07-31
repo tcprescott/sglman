@@ -13,7 +13,7 @@ import pytest
 
 from application.services.user_service import UserService
 from models import Role, RoleSource
-
+from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
@@ -37,8 +37,7 @@ def service(monkeypatch):
     svc.role_repository.remove = AsyncMock()
     svc.tournament_repository = MagicMock()
     svc.tournament_repository.enroll_player = AsyncMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

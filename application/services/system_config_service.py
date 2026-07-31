@@ -11,9 +11,8 @@ from typing import Dict, Optional, Tuple
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.tenant_context import require_tenant_id
-from application.utils.timezone import today_local, to_local
+from application.utils.timezone import to_local, today_local
 from models import Match, StationFormat, StreamRoom, SystemConfiguration, Tournament, User
-
 
 KEY_EVENT_START_DATE = 'event_start_date'
 KEY_EVENT_END_DATE = 'event_end_date'
@@ -219,7 +218,7 @@ class SystemConfigService:
                 open_t = time.fromisoformat(open_str)
                 close_t = time.fromisoformat(close_str)
             except ValueError:
-                raise ValueError(f"Tournament hours for {d} must be in HH:MM format.")
+                raise ValueError(f"Tournament hours for {d} must be in HH:MM format.") from None
             if close_t <= open_t:
                 raise ValueError(f"Close time must be after open time for {d}.")
             data[d.isoformat()] = {'open': open_str, 'close': close_str}

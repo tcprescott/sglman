@@ -21,10 +21,10 @@ from typing import Optional
 from starlette.requests import Request
 
 from application.services.api_token_service import ApiTokenService
-from models import ApiTokenOrigin
 from mcpserver.auth import McpActor, reset_actor, set_actor
 from mcpserver.rate_limit import check_rate_limit
 from mcpserver.wellknown import www_authenticate
+from models import ApiTokenOrigin
 
 logger = logging.getLogger(__name__)
 

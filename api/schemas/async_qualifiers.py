@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from models import AsyncQualifierReviewStatus, AsyncQualifierRunStatus
 
-
 # --- Qualifiers -----------------------------------------------------------
 
 class AsyncQualifierResponse(BaseModel):

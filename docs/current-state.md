@@ -27,7 +27,15 @@ Everything listed is **stable in production** unless marked otherwise.
 
 ## Known issues
 
-- **~22 hand-rolled `write_log` + `event_bus.publish` pairs** remain unconverted to `AuditService.write_and_publish`. Left deliberately: 17 test files stub `write_log` and assert on its call args, so converting churns assertions across all 17 for a pure-DRY win on correct code. `check_dry_regressions.py` blocks *new* pairs, so the backlog can be worked file-by-file.
+- **Three hand-rolled `write_log` + `event_bus.publish` pairs remain**, each for a
+  reason converting would break (see [event-system](features/event-system.md#the-three-remaining-hand-rolled-pairs)):
+  `CrewService.set_approval` and `CrewService.acknowledge` audit *inside* an
+  `in_transaction()` block while publishing outside it, and
+  `VolunteerScheduleService.assign` audits unconditionally but publishes only for
+  a non-draft assignment. The other 20 were converted; the test-shape problem that
+  had blocked them is fixed by `tests.factories.make_audit_double`, whose
+  `write_and_publish` runs its real body against a mocked `write_log`, so a
+  converted service still publishes under test.
 - **All mobile and dark-mode verification is emulated** (Playwright at 390×844 / 360×800 via `/ui-validation`); no physical-device pass has run. Specifically unverified on real hardware: the NiceGUI WebSocket lifecycle across screen lock / backgrounding / resume, and the native `type=date` / `type=time` pickers.
 - **Report filter changes trigger a full page reload** — `navigate_with_params` (`pages/admin_tabs/reports/shared.py`) calls `ui.navigate.to`, and all eight report pages route their filter handlers through it. Deferred: the fix means wrapping six report bodies in `@ui.refreshable` and swapping to `history.replace`, and the reward is modest against the regression risk on an admin-only surface that works. Measured (dev box, seeded `default`, one date-filter change instrumented from the change event to the row set rendering): **~1.2 s on crew and ~1.4 s on telemetry, one frame navigation, 29 HTTP requests.** It no longer costs the operator their place: `static/js/report-nav.js` records the scroll position per report and restores it on the next render of the same one (before: `scrollY 600 → 0` on both).
 
@@ -70,3 +78,12 @@ Line coverage sits around 92% across `application/`, `api/` and `middleware/`.
 Deliberately uncovered (each needs live infra): the Discord bot handlers, NiceGUI
 rendering, the OAuth flow, and the network-backed clients. See
 [development](development.md).
+
+Four checks run alongside it in CI, each covering something the suite cannot:
+
+| Check | What it catches |
+|---|---|
+| `scripts/guardrails.py` | the `.claude/scripts/` invariants — layer boundaries, tenant scoping, async/datetime safety, feature-flag gating — on **every** commit, not only ones a Claude session wrote |
+| `scripts/mypy_ratchet.py` | a file *gaining* type errors, against a per-file baseline (blocking; the ~1420 existing ones are mostly ORM shapes mypy cannot resolve) |
+| `tests/test_query_budget.py` | queries-per-render growing with row count (an N+1) or past a ceiling (a duplicate load) |
+| the `postgres` job | what SQLite silently no-ops — row locks above all — over `tests/postgres/` and `tests/tenancy/` |

@@ -1,6 +1,8 @@
 """Tests for Phase 5 writes: stream rooms, triforce, notifications, config."""
 
 
+from typing import ClassVar
+
 from models import Role, Tournament
 from tests.api_helpers import client_for, create_user_token
 
@@ -100,7 +102,7 @@ class TestConfig:
 
 
 class TestDiscordRoleMappingWrites:
-    _BODY = {
+    _BODY: ClassVar[dict] = {
         'guild_id': 1,
         'discord_role_id': 2,
         'discord_role_name': 'Mods',

@@ -62,9 +62,9 @@ def test_guard_rejects_schedule_change():
 
 async def test_update_match_rejects_etl_field_but_allows_comment(db):
     from application.repositories import UserRepository
+    from application.services.match.match_service import MatchService
     from application.services.speedgaming_etl_service import SpeedGamingETLService
     from application.utils.clients.speedgaming_client import MockSpeedGamingClient
-    from application.services.match.match_service import MatchService
     from models import Match, Role, SpeedGamingEventLink, Tournament, User, UserRole
 
     system = await UserRepository.get_or_create_system_user()

@@ -84,7 +84,7 @@ class TournamentService:
         try:
             return date.fromisoformat(str(value))
         except ValueError:
-            raise ValueError(f"{label} must be in YYYY-MM-DD format.")
+            raise ValueError(f"{label} must be in YYYY-MM-DD format.") from None
 
     def _normalize_event_dates(
         self, event_start_date: Any, event_end_date: Any,

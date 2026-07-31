@@ -55,9 +55,24 @@ target-version = "py312"
 extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
-# Start conservative: pyflakes (real bugs — unused imports/vars, undefined
-# names) plus pycodestyle runtime errors. Broaden over time.
-select = ["F", "E9"]
+# F/E9  — real bugs: unused imports/vars, undefined names, runtime syntax errors.
+# ASYNC — the "never block the event loop" rule from CLAUDE.md, enforced
+#         mechanically instead of by convention plus an editor-time hook.
+# B     — bugbear: mutable defaults, un-chained re-raises, silent zip truncation.
+# I     — import order, so it stops being a review topic.
+# RUF   — ruff's own checks: implicit Optional, mutable class defaults, dead noqa.
+#
+# Deliberately NOT enabled: UP (pyupgrade). It is ~3.7k findings of pure style
+# (`Optional[X]` → `X | None`, `Dict` → `dict`), which would rewrite most of the
+# tree for no behavioural gain and bury the next real diff.
+select = ["F", "E9", "ASYNC", "B", "I", "RUF"]
+ignore = [
+    # FastAPI's whole idiom is `x = Depends(...)` / `Query(...)` in a default.
+    "B008",
+    # The prose uses em-dashes and arrows on purpose; these flag them as
+    # confusable Unicode in strings, docstrings and comments.
+    "RUF001", "RUF002", "RUF003",
+]
 
 [tool.mypy]
 python_version = "3.12"

@@ -11,7 +11,14 @@ from application.utils.timezone import (
     parse_local_datetime,
 )
 from models import VolunteerPosition, VolunteerShift
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, native_date_input, native_time_input, submit_on_enter
+from theme.dialog._helpers import (
+    dialog_actions,
+    dialog_header,
+    mobile_sheet,
+    native_date_input,
+    native_time_input,
+    submit_on_enter,
+)
 from theme.notify import notify_error
 
 
@@ -20,7 +27,7 @@ class VolunteerShiftDialog:
         self,
         shift: VolunteerShift = None,
         position: VolunteerPosition = None,
-        default_day: str = None,
+        default_day: str | None = None,
         on_submit=None,
     ):
         self.shift = shift

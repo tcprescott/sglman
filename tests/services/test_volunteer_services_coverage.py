@@ -28,7 +28,6 @@ from models import (
     VolunteerQualification,
     VolunteerShift,
 )
-
 from tests.factories import utc
 
 UTC = timezone.utc

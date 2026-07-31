@@ -3,9 +3,7 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 import application.services.volunteer.volunteer_reminder as reminder_mod
-
 
 # ---------------------------------------------------------------------------
 # start / stop lifecycle

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from application.services.audit_service import AuditActions
-from application.services.feedback_service import FeedbackService, PAGE_URL_MAX_LENGTH
+from application.services.feedback_service import PAGE_URL_MAX_LENGTH, FeedbackService
 from application.services.system_config_service import (
     KEY_EVENT_END_DATE,
     KEY_EVENT_START_DATE,

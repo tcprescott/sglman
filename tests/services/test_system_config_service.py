@@ -7,17 +7,18 @@ Match.all, StreamRoom.filter) so the typed accessors and the
 
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from application.services.system_config_service import (
-    KEY_EVENT_START_DATE,
     KEY_EVENT_END_DATE,
+    KEY_EVENT_START_DATE,
     KEY_STATION_FORMAT,
     SystemConfigService,
 )
 from models import StationFormat
+from tests.factories import make_audit_double
 
 
 @pytest.fixture
@@ -53,8 +54,7 @@ pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
 def bypass_audit(monkeypatch):
     """Patch the AuditService class so set_raw doesn't try to write a log."""
-    mock_audit = MagicMock()
-    mock_audit.write_log = AsyncMock()
+    mock_audit = make_audit_double()
     monkeypatch.setattr(
         'application.services.system_config_service.AuditService',
         lambda: mock_audit,

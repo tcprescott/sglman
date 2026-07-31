@@ -11,7 +11,7 @@ from theme.tables.match import MatchTableView
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
 
 
-def admin_schedule_page(can_crud: bool = True, match_id: int = None) -> None:
+def admin_schedule_page(can_crud: bool = True, match_id: int | None = None) -> None:
     with ui.column().classes('page-container-wide') as page_container:
         # Header section
         with ui.row().classes('header-row'):

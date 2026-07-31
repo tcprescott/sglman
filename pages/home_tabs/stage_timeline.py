@@ -94,7 +94,7 @@ async def stage_timeline_tab():
 
             with timeline_container:
                 # Display each stream room and its matches
-                for room_id, (room, room_matches) in sorted_rooms:
+                for _room_id, (room, room_matches) in sorted_rooms:
                     with ui.card().classes('card-full-width'):
                         # Stream room header
                         with ui.row().classes('room-header'):

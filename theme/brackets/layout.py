@@ -34,9 +34,9 @@ __all__ = [
     'COL_STRIDE',
     'COL_WIDTH',
     'GUTTER',
+    'ROW_PITCH',
     'MatchNode',
     'Placement',
-    'ROW_PITCH',
     'SectionLayout',
     'Segment',
     'SlotSource',
@@ -229,8 +229,8 @@ def _build_connectors(
             segments.append(
                 Segment(x=child_right, y=cp.center_y, length=spine_x - child_right, orientation='h')
             )
-        top_y = min(child_centers + [parent.center_y])
-        bot_y = max(child_centers + [parent.center_y])
+        top_y = min([*child_centers, parent.center_y])
+        bot_y = max([*child_centers, parent.center_y])
         segments.append(Segment(x=spine_x, y=top_y, length=bot_y - top_y, orientation='v'))
         segments.append(
             Segment(x=spine_x, y=parent.center_y, length=parent.left - spine_x, orientation='h')

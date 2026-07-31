@@ -15,7 +15,6 @@ so the Vol. Roster tab and the auto-scheduler have something real to show
 from datetime import date, datetime, timedelta
 
 from application.utils.timezone import parse_local_datetime
-from scripts.seed_support import FULL_RACERS
 from models import (
     Tenant,
     User,
@@ -27,6 +26,7 @@ from models import (
     VolunteerQualification,
     VolunteerShift,
 )
+from scripts.seed_support import FULL_RACERS
 
 
 async def seed_volunteers_for_tenant(

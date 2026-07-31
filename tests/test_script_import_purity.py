@@ -58,7 +58,7 @@ def test_importing_the_seed_script_leaves_the_mock_flags_alone():
     import os
 
     before = {k: os.environ.get(k) for k in ('MOCK_SEEDGEN', 'MOCK_DISCORD')}
-    import scripts.seed_dev  # noqa: F401
+    import scripts.seed_dev
     import scripts.seed_fledgling  # noqa: F401
 
     after = {k: os.environ.get(k) for k in ('MOCK_SEEDGEN', 'MOCK_DISCORD')}

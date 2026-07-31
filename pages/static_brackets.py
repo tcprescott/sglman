@@ -47,8 +47,8 @@ from application.events import EventType, event_bus
 from application.services import BracketService
 from application.services.feature_flag_service import FeatureFlagService
 from application.services.tenant_theme_service import TenantThemeService
-from application.tenant_context import get_current_tenant_id
 from application.services.timezone_service import TimezoneService
+from application.tenant_context import get_current_tenant_id
 from application.timezone_context import tz_scope
 from application.utils.html_cache import HtmlPageCache
 from models import Bracket, BracketFormat, FeatureFlag, Tournament

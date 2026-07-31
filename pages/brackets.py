@@ -27,14 +27,13 @@ from typing import Callable, Dict, List, Optional
 
 from nicegui import app, background_tasks, context, ui
 
-from middleware.auth import public_page
-
 from application.services import AuthService, BracketService, get_user_from_discord_id
 from application.services.bracket_engines.standings import (
     compute_standings,
     standings_config_from,
 )
 from application.tenant_context import require_tenant_id, tenant_scope
+from middleware.auth import public_page
 from models import (
     Bracket,
     BracketEntry,

@@ -1,12 +1,12 @@
 """Station Assignment Dialog - Assign stations to match players"""
 
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 from nicegui import app, ui
 
-from models import Match, STATION_REGEXES
 from application.services import MatchService, StationService, get_user_from_discord_id
 from application.services.system_config_service import SystemConfigService
+from models import STATION_REGEXES, Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
 from theme.notify import notify_error
 

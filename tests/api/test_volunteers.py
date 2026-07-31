@@ -8,7 +8,6 @@ read-only token, and 400/404 where the service or router rejects input.
 
 from datetime import timezone
 
-
 from models import (
     Role,
     User,

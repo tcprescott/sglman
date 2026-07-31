@@ -21,8 +21,8 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, os.getcwd())
 
-from application.utils import discord_messages as m  # noqa: E402
-from application.utils import discord_embeds as e  # noqa: E402
+from application.utils import discord_embeds as e
+from application.utils import discord_messages as m
 
 # Representative sample data (two players → "A vs B"; a stage; an Eastern time).
 P = ["Player One", "Player Two"]

@@ -28,7 +28,8 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import EventType
+from application.feature_flags import requires_feature
 from application.repositories import (
     AsyncQualifierLiveRaceRepository,
     AsyncQualifierPermalinkRepository,
@@ -44,16 +45,15 @@ from application.services.racetime_bot_service import RacetimeBotService
 from application.services.user_service import UserService
 from application.tenant_context import require_tenant_id
 from application.utils.racetime_entrants import unmatched_handle
-from application.feature_flags import requires_feature
 from models import (
-    FeatureFlag,
     AsyncQualifier,
     AsyncQualifierLiveRace,
     AsyncQualifierLiveRaceStatus,
     AsyncQualifierPool,
-    AsyncQualifierRun,
     AsyncQualifierReviewStatus,
+    AsyncQualifierRun,
     AsyncQualifierRunStatus,
+    FeatureFlag,
     RaceRoomStatus,
     User,
 )
@@ -268,10 +268,10 @@ class AsyncQualifierLiveRaceService:
             'captured': len(captured),
             'unmatched_handles': unmatched,
         }
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor, AuditActions.ASYNC_QUALIFIER_LIVE_RACE_RECORDED, detail,
+            EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED,
         )
-        event_bus.publish(Event.create(EventType.ASYNC_QUALIFIER_LIVE_RACE_RECORDED, detail, actor))
         return captured
 
     # ============================================================= internals

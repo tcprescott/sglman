@@ -11,7 +11,6 @@ from application.repositories._base import TenantScopedRepository
 from application.repositories._tenant import current_tenant_id, scoped
 from models import VolunteerShift
 
-
 _PREFETCH = ('position', 'assignments', 'assignments__user')
 
 

@@ -11,6 +11,7 @@ service is the human-driven surface.
 from typing import Any, Dict, List, Optional
 
 from application.errors import require_found
+from application.feature_flags import requires_feature
 from application.repositories import (
     SpeedGamingEpisodeRepository,
     SpeedGamingEventLinkRepository,
@@ -19,7 +20,6 @@ from application.repositories import (
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.speedgaming_etl_service import SpeedGamingETLService, SyncResult
-from application.feature_flags import requires_feature
 from models import FeatureFlag, SpeedGamingEpisode, SpeedGamingEventLink, User
 
 

@@ -13,9 +13,9 @@ from nicegui import app, ui
 
 from application.services import TelemetryService, get_user_from_discord_id
 from application.services.telemetry_service import TelemetryCategory
-from application.utils.timezone import format_local_display
-from application.utils.timezone import timezone_label
+from application.utils.timezone import format_local_display, timezone_label
 from theme.tables.mobile_grid import enable_mobile_grid
+
 from .shared import (
     date_range_filter,
     default_date_range,
@@ -27,7 +27,6 @@ from .shared import (
     parse_int,
     report_page_shell,
 )
-
 
 PAGE_SIZE = 50
 

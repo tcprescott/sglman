@@ -12,7 +12,8 @@ import random
 import secrets
 import time
 import urllib.parse
-from typing import List, Optional, Set
+from pathlib import Path
+from typing import ClassVar, List, Optional, Set
 
 import aiohttp
 import yaml
@@ -34,11 +35,21 @@ DK64R_POLL_INTERVAL = 5.0        # seconds — matches the reference web client'
 DK64R_GENERATION_TIMEOUT = 600.0  # seconds (10 min) worst-case queue + generation budget
 
 
+async def _read_bundled_preset(path: str) -> str:
+    """Read a committed preset file without blocking the shared event loop.
+
+    These are small files that ship in the image, but every connected client
+    shares one loop — a synchronous ``open()`` on a seed roll stalls all of
+    them, so the read hops to a worker thread.
+    """
+    return await asyncio.to_thread(Path(path).read_text, encoding='utf-8')
+
+
 class SeedGenerationService:
     """Service for generating seeds for various randomizers."""
 
     # Available randomizers
-    AVAILABLE_RANDOMIZERS = [
+    AVAILABLE_RANDOMIZERS: ClassVar[List[str]] = [
         'alttpr',
         'ff1r',
         'z1r',
@@ -53,14 +64,14 @@ class SeedGenerationService:
 
     # Randomizers registered for selection but whose generator is not yet
     # wired to an upstream API — rolling one raises ``ValueError``.
-    STUB_RANDOMIZERS = {'mmr', 'smdash', 'wwr'}
+    STUB_RANDOMIZERS: ClassVar[Set[str]] = {'mmr', 'smdash', 'wwr'}
 
     # Randomizers whose generator resolves a ``Preset`` (its settings feed the
     # roll). Anything else ignores the preset and rolls hard-coded settings.
-    PRESET_AWARE_RANDOMIZERS = {'alttpr', 'dk64r'}
+    PRESET_AWARE_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr', 'dk64r'}
 
     # Randomizers whose generator can embed community triforce texts.
-    TRIFORCE_TEXT_RANDOMIZERS = {'alttpr'}
+    TRIFORCE_TEXT_RANDOMIZERS: ClassVar[Set[str]] = {'alttpr'}
 
     @classmethod
     def supports_triforce_texts(cls, generator: Optional[str]) -> bool:
@@ -162,8 +173,9 @@ class SeedGenerationService:
         if preset is not None:
             settings = preset.settings
         else:
-            with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
-                settings = yaml.safe_load(f)['settings']
+            settings = yaml.safe_load(
+                await _read_bundled_preset("presets/alttpr/casualboots.yaml")
+            )['settings']
 
         seed = await ALTTPR.generate(
             settings=settings,
@@ -189,8 +201,9 @@ class SeedGenerationService:
         if tournament is None:
             raise ValueError(f"Tournament {tournament_id} not found.")
 
-        with open("presets/alttpr/casualboots.yaml", "r", encoding="utf-8") as f:
-            preset = yaml.safe_load(f)
+        preset = yaml.safe_load(
+            await _read_bundled_preset("presets/alttpr/casualboots.yaml")
+        )
 
         service = TriforceTextService()
         text = (
@@ -245,8 +258,7 @@ class SeedGenerationService:
         # Never fall back to a committed default — a leaked spoiler token
         # unlocks spoiler logs for race seeds.
         spoiler_token = await self._credential('smmap', 'spoiler_token')
-        with open("presets/smmap/community_race_s4.json", "r", encoding="utf-8") as f:
-            settings = f.read()
+        settings = await _read_bundled_preset("presets/smmap/community_race_s4.json")
 
         async with aiohttp.ClientSession() as session:
             with aiohttp.MultipartWriter('form-data') as mpwriter:
@@ -264,8 +276,7 @@ class SeedGenerationService:
         Returns:
             URL to the generated seed
         """
-        with open("presets/ootr/sgl25.json", "r", encoding="utf-8") as f:
-            settings = json.load(f)
+        settings = json.loads(await _read_bundled_preset("presets/ootr/sgl25.json"))
 
         # The OOTR API authenticates via a ``key`` query parameter; guard
         # against silently sending key=None when it is not configured.

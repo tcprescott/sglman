@@ -23,7 +23,6 @@ from models import (
     VolunteerQualification,
     VolunteerShift,
 )
-
 from tests.factories import make_user, utc
 
 _next_discord_id = itertools.count(900000)

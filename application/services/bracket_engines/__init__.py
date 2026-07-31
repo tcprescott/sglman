@@ -9,6 +9,12 @@ The engines are pure structural code (no ORM); the service layer owns
 persistence. See :mod:`.base` for the contract.
 """
 
+# Each engine module self-registers via ``@register_strategy('bracket_format', …)``
+# at import time. Auto-import every sibling module so dropping a new engine file
+# needs no edit here (and parallel engine units never contend on this file).
+import importlib as _importlib
+import pkgutil as _pkgutil
+
 from application.services.tournament_strategies import (
     available_strategies,
     get_strategy,
@@ -24,12 +30,6 @@ from .base import (
     next_power_of_two,
     standard_seeding,
 )
-
-# Each engine module self-registers via ``@register_strategy('bracket_format', …)``
-# at import time. Auto-import every sibling module so dropping a new engine file
-# needs no edit here (and parallel engine units never contend on this file).
-import importlib as _importlib
-import pkgutil as _pkgutil
 
 for _mod in _pkgutil.iter_modules(__path__):
     if _mod.name != 'base' and not _mod.name.startswith('_'):
@@ -55,9 +55,9 @@ __all__ = [
     'PairingEngine',
     'PairingPlayer',
     'Slot',
-    'get_bracket_engine',
     'available_bracket_formats',
+    'get_bracket_engine',
     'next_power_of_two',
-    'standard_seeding',
     'register_strategy',
+    'standard_seeding',
 ]

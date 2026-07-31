@@ -35,7 +35,11 @@ from application.utils.environment import get_platform_host, host_oauth_handoff_
 from application.utils.hostname import normalize_hostname, scheme_for_host
 from application.utils.mocks.mock_discord import is_mock_discord
 from application.utils.tenant_urls import (
-    AUTH_ROUTES, safe_next, sanitize_return_path, strip_root_path, tenant_home,
+    AUTH_ROUTES,
+    safe_next,
+    sanitize_return_path,
+    strip_root_path,
+    tenant_home,
 )
 from models import Role, Tenant, User
 from theme.notice import drain_notice, stash_notice

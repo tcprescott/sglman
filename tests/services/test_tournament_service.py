@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.tournament_service import TournamentService
-
+from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture
@@ -25,8 +25,7 @@ def service():
     svc.repository.get_by_id = AsyncMock()
     svc.preset_repository = MagicMock()
     svc.preset_repository.get_by_id = AsyncMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

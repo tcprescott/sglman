@@ -8,10 +8,10 @@ see) is available AND enabled. See docs/features/feature-flags.md.
 """
 
 from nicegui import app, ui
-from theme.notify import notify_error
 
 from application.services import FeatureFlagService, get_user_from_discord_id
 from models import FeatureFlag
+from theme.notify import notify_error
 
 
 async def admin_features_page() -> None:

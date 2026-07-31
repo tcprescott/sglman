@@ -6,6 +6,7 @@ volunteer pool using qualifications, availability, no-overlap, and hour
 load-balancing. Produces ``auto_generated`` assignments the coordinator reviews.
 """
 
+import itertools
 import logging
 from collections import Counter
 from dataclasses import dataclass
@@ -28,7 +29,6 @@ from models import (
     VolunteerAvailabilityStatus,
     VolunteerQualification,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -353,7 +353,7 @@ class VolunteerAutoscheduleService:
         """How many of these blocks are worked back-to-back, at most."""
         ordered = sorted(blocks)
         longest = run = 1
-        for (_, prev_end), (next_start, _) in zip(ordered, ordered[1:]):
+        for (_, prev_end), (next_start, _) in itertools.pairwise(ordered):
             run = run + 1 if next_start - prev_end <= _CONSECUTIVE_GAP else 1
             longest = max(longest, run)
         return longest

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from application.services.crew_service import CrewService
-
+from tests.factories import make_audit_double
 
 pytestmark = pytest.mark.usefixtures("bypass_auth")
 @pytest.fixture(autouse=True)
@@ -38,8 +38,7 @@ def service(monkeypatch):
     svc.match_repository = MagicMock()
     svc.match_repository.get_by_id = AsyncMock()
     svc.match_repository.get_players = AsyncMock(return_value=[])
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     svc.audit_service.write_and_publish = AsyncMock()
     svc.discord_service = MagicMock()
     svc.discord_service.send_dm_with_crew_acknowledgment_button = AsyncMock(

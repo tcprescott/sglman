@@ -4,9 +4,6 @@ import secrets
 from urllib.parse import quote
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
-from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     AuthService,
@@ -20,7 +17,9 @@ from application.services.discord.discord_link_service import connect_redirect_u
 from application.tenant_context import get_current_tenant_id, is_host_mode
 from application.utils.mocks.mock_discord import is_mock_discord
 from models import Role
-
+from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 _ROLE_OPTIONS = {r.value: r.value.replace('_', ' ').title() for r in Role}
 

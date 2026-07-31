@@ -8,11 +8,9 @@
 
 from datetime import timedelta
 
-
 from application.utils.timezone import now_local
 from models import Match, Role, SystemConfiguration, Tournament, User
 from tests.api_helpers import client_for, create_user_token
-
 
 # ---------------------------------------------------------------------------
 # Match watchers

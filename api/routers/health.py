@@ -15,9 +15,9 @@ router = APIRouter(tags=['health'])
 async def health() -> dict:
     try:
         await connections.get('default').execute_query('SELECT 1')
-    except Exception:
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail='database unavailable',
-        )
+        ) from exc
     return {'status': 'ok'}

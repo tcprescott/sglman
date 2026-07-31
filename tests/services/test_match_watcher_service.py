@@ -6,6 +6,7 @@ import pytest
 
 from application.services.audit_service import AuditActions
 from application.services.match.match_watcher_service import MatchWatcherService
+from tests.factories import make_audit_double
 
 
 @pytest.fixture
@@ -13,8 +14,7 @@ def service():
     svc = object.__new__(MatchWatcherService)
     svc.repository = MagicMock()
     svc.match_repository = MagicMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

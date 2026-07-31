@@ -17,7 +17,6 @@ from application.utils.timezone import local_day_bounds
 from pages.admin_tabs.links import REPORTS, admin_url
 from theme.tables.mobile_grid import enable_mobile_grid
 
-
 REPORT_KEYS = ('capacity', 'match_ops', 'crew', 'stream_rooms', 'audit')
 
 # ECharts series palette. Canvas charts can't read CSS var() tokens and are

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from application.services.volunteer.volunteer_position_service import VolunteerPositionService
-
+from tests.factories import make_audit_double
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -23,8 +23,7 @@ def service():
     svc.repository.create = AsyncMock()
     svc.repository.update = AsyncMock()
     svc.repository.delete = AsyncMock()
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     return svc
 
 

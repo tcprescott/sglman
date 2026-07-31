@@ -11,9 +11,9 @@ must be fast and non-blocking — they should only *schedule* work, never await 
 the others or the mutating service call.
 """
 
-from typing import Callable, Dict
 import itertools
 import logging
+from typing import Callable, Dict
 
 logger = logging.getLogger(__name__)
 

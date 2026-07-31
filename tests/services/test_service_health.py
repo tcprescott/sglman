@@ -12,6 +12,8 @@ import pytest
 
 from application.events import EventType, event_bus
 from application.services import service_health_service as shs
+from application.services.feature_flag_service import reset_flag_cache
+from application.services.racetime_bot_service import RacetimeBotService
 from application.services.service_health_service import (
     ProbeResult,
     ServiceHealthService,
@@ -21,9 +23,7 @@ from application.services.service_health_service import (
     _tenant_challonge_status,
     _worst,
 )
-from application.services.racetime_bot_service import RacetimeBotService
 from application.tenant_context import tenant_scope
-from application.services.feature_flag_service import reset_flag_cache
 from models import (
     BotStatus,
     ChallongeConnection,

@@ -134,7 +134,7 @@ async def seed_matches_for_tenant(
         seated_players = await MatchPlayers.filter(
             match=seated_match, tenant=tenant,
         ).order_by("id")
-        for seated_player, label in zip(seated_players, labels):
+        for seated_player, label in zip(seated_players, labels, strict=False):
             if seated_player.assigned_station is None and tenant.slug == "default":
                 seated_player.assigned_station = label
                 await seated_player.save()

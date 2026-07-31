@@ -6,13 +6,14 @@ import pytest
 
 from application.services.match.match_schedule_service import MatchScheduleService
 from application.utils.discord_messages import (
+    _players_label,
     checked_in_dm,
     scheduled_dm,
     seed_dm,
     state_changed_dm,
     stream_candidate_dm,
-    _players_label,
 )
+from tests.factories import make_audit_double
 
 
 class TestPlayersLabel:
@@ -96,7 +97,7 @@ def mock_players(*names, ranks=None):
     ranks = ranks if ranks is not None else [None] * len(names)
     return [
         SimpleNamespace(user=SimpleNamespace(preferred_name=n), finish_rank=r)
-        for n, r in zip(names, ranks)
+        for n, r in zip(names, ranks, strict=False)
     ]
 
 
@@ -110,8 +111,7 @@ def service():
     svc.discord_service = MagicMock()
     svc.seedgen_service = MagicMock()
     svc._seed_locks = {}
-    svc.audit_service = MagicMock()
-    svc.audit_service.write_log = AsyncMock()
+    svc.audit_service = make_audit_double()
     svc.notify_match_participants = AsyncMock()
     return svc
 

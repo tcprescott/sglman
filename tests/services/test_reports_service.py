@@ -9,14 +9,12 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Optional
 
-
 from application.services.reports_service import (
     DEFAULT_MATCH_DURATION_MIN,
     ReportsService,
     event_day_bounds,
 )
 from application.utils.timezone import EASTERN_TZ, to_local
-
 
 # ---------------------------------------------------------------------------
 # Helpers

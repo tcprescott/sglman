@@ -15,6 +15,7 @@ import re
 import statistics
 import time
 import uuid
+from pathlib import Path
 
 import httpx
 import socketio
@@ -51,7 +52,7 @@ class VClient:
             self.sio = sio
 
             @sio.on('*')
-            async def _any(event, *args):  # noqa: ANN001
+            async def _any(event, *args):
                 self.messages += 1
                 self.last_msg_at = time.perf_counter()
 
@@ -69,14 +70,14 @@ class VClient:
             )
             self.ws_ms = (time.perf_counter() - t1) * 1000
             self.connected = True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self.error = f'{type(e).__name__}: {e}'
 
     async def stop(self) -> None:
         if self.sio is not None:
             try:
                 await self.sio.disconnect()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
 
 
@@ -92,7 +93,7 @@ async def main() -> None:
     ap.add_argument('--label', default='')
     args = ap.parse_args()
 
-    cookie = open(args.cookie_file).read().strip()
+    cookie = Path(args.cookie_file).read_text().strip()
     clients = [VClient(args.base, args.prefix, args.path, cookie) for _ in range(args.n)]
 
     limits = httpx.Limits(max_connections=args.n + 50, max_keepalive_connections=args.n + 50)

@@ -191,7 +191,7 @@ class WebPushService:
             if len(protocol.b64url_decode(auth or '')) != 16:
                 raise ValueError
         except (ValueError, TypeError):
-            raise ValueError('Push subscription keys are malformed')
+            raise ValueError('Push subscription keys are malformed') from None
         return parsed.hostname
 
     async def subscribe(

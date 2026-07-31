@@ -10,9 +10,8 @@ import zipfile
 
 from application.services.volunteer.volunteer_export_service import VolunteerExportService
 from models import Role, UserRole, VolunteerPosition, VolunteerShift
-from theme.dialog.volunteer_export_dialog import bundle_to_zip_bytes
-
 from tests.factories import make_user, utc
+from theme.dialog.volunteer_export_dialog import bundle_to_zip_bytes
 
 _next_discord_id = itertools.count(940000)
 

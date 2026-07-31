@@ -11,10 +11,10 @@ form; a blank submit is rejected and clearing is an explicit action.
 """
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
 
 from application.services import RandomizerCredentialService, get_user_from_discord_id
+from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
 
 
 async def admin_randomizer_keys_page() -> None:

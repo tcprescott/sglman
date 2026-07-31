@@ -19,14 +19,13 @@ asset page does.
 
 from nicegui import context, ui
 
-from middleware.auth import protected_page
-
 from application.services import EquipmentService, TenantService
 from application.tenant_context import get_current_tenant_id
 from application.utils.environment import get_base_url
 from application.utils.hostname import effective_request_host, normalize_hostname
 from application.utils.qrcode_util import asset_qr_data_uri
 from application.utils.tenant_urls import encoded_host_mismatch, tenant_url
+from middleware.auth import protected_page
 from models import FeatureFlag, Role
 
 _MIN_COLS, _MAX_COLS, _DEFAULT_COLS = 1, 5, 3

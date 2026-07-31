@@ -9,10 +9,14 @@ from typing import Optional
 from nicegui import app, ui
 
 from application.services import (
-    AuthService, ReportsService, SystemConfigService, get_user_from_discord_id,
+    AuthService,
+    ReportsService,
+    SystemConfigService,
+    get_user_from_discord_id,
 )
 from application.utils.timezone import format_local_date, format_local_display, timezone_label
 from models import FeatureFlag
+
 from .shared import (
     date_range_filter,
     default_date_range,
@@ -21,7 +25,6 @@ from .shared import (
     navigate_with_params,
     reports_url,
 )
-
 
 REPORT_CARDS = [
     {

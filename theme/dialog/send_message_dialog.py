@@ -1,6 +1,8 @@
 from nicegui import ui
+
 from application.services import DiscordService
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+
 
 class SendMessageDialog:
     def __init__(self, user, send_callback=None):

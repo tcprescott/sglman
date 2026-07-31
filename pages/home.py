@@ -13,10 +13,10 @@ from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.brackets import brackets_tab
 from pages.home_tabs.equipment import equipment_tab
-from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.player import render_player_dashboard
-from pages.home_tabs.stage_timeline import stage_timeline_tab
+from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.schedule import schedule
+from pages.home_tabs.stage_timeline import stage_timeline_tab
 from pages.home_tabs.triforce_texts import triforce_texts_tab
 from theme.base import BaseLayout
 
@@ -90,7 +90,7 @@ async def _render_platform_landing() -> None:
 
 
 def create() -> None:
-    async def home(section: str = None, request: Request = None):
+    async def home(section: str | None = None, request: Request = None):
         # Bare platform host (no /t/<slug>) -> community picker, not a tenant home.
         tid = get_current_tenant_id()
         if tid is None:

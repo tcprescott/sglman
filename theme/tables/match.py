@@ -3,9 +3,9 @@ from nicegui import app, background_tasks, context, ui
 from application.services import MatchDisplayService, MatchService, MatchWatcherService, UserService
 from application.tenant_context import get_current_tenant_id
 from application.utils.tenant_session import tenant_session_get, tenant_session_set
-from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
+from theme.tables.admin_crud import capture_render_context, scoped_background
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
 from theme.tables.match_slots import register_body_slots

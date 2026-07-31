@@ -11,7 +11,6 @@
 from datetime import datetime, timezone
 
 from nicegui import app, ui
-from middleware.auth import protected_page
 
 from application.services import AsyncQualifierService, AuthService, TenantService, get_user_from_discord_id
 from application.services.async_qualifier.async_qualifier_rules import (
@@ -21,6 +20,7 @@ from application.services.async_qualifier.async_qualifier_rules import (
 )
 from application.utils.duration import format_hms, parse_hms
 from application.utils.timezone import format_local_display
+from middleware.auth import protected_page
 from models import FeatureFlag
 from theme.base import BaseLayout
 from theme.dialog.confirmation_dialog import ConfirmationDialog

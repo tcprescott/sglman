@@ -17,7 +17,11 @@ from nicegui import app, ui
 from application.services import AuthService, BracketService, get_user_from_discord_id
 from models import Bracket
 from theme.brackets import (
-    format_label, stage_label, state_color, state_label, visible_stages,
+    format_label,
+    stage_label,
+    state_color,
+    state_label,
+    visible_stages,
 )
 
 

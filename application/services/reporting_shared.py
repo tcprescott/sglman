@@ -14,7 +14,6 @@ from typing import Optional
 from application.utils.timezone import to_local
 from models import Tournament
 
-
 # Fallback match length (minutes) when a match has no finish time and its
 # tournament defines no average duration.
 DEFAULT_MATCH_DURATION_MIN = 90

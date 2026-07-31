@@ -31,16 +31,30 @@ What they cover:
 from datetime import datetime, timedelta, timezone
 
 from application.randomizer_credentials import all_specs, credentials_for
-from models import (
-    User, Tenant, TenantMembership, Tournament, Match, MatchPlayers, TournamentPlayers,
-    Preset, RandomizerCredential,
-    RacetimeBot, RacetimeBotTenant, RacetimeRoom, RaceRoomProfile,
-    SpeedGamingEventLink, SpeedGamingEpisode, SyncStatus,
-    DiscordScheduledEvent, DiscordEventSource,
-    BotStatus, RaceRoomStatus,
-)
 from application.services.preset_service import PresetService
 from application.utils.timezone import now_local
+from models import (
+    BotStatus,
+    DiscordEventSource,
+    DiscordScheduledEvent,
+    Match,
+    MatchPlayers,
+    Preset,
+    RaceRoomProfile,
+    RaceRoomStatus,
+    RacetimeBot,
+    RacetimeBotTenant,
+    RacetimeRoom,
+    RandomizerCredential,
+    SpeedGamingEpisode,
+    SpeedGamingEventLink,
+    SyncStatus,
+    Tenant,
+    TenantMembership,
+    Tournament,
+    TournamentPlayers,
+    User,
+)
 from scripts.seed_qualifiers import seed_qualifiers_for_tenant
 from scripts.seed_support import backfill
 
@@ -443,7 +457,7 @@ async def _seed_rooms(
 
     for mp, secs in zip(
         await MatchPlayers.filter(match=finished).order_by("finish_rank"),
-        (5400, 5760),
+        (5400, 5760), strict=False,
     ):
         if mp.finish_time is None:
             mp.finish_time = secs

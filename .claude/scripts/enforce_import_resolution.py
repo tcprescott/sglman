@@ -25,7 +25,8 @@ import json
 import os
 import sys
 
-from _hook_paths import anchor, repo_root as _repo_root
+from _hook_paths import anchor
+from _hook_paths import repo_root as _repo_root
 
 anchor()  # hooks inherit the session's shell cwd; pin paths to the repo
 

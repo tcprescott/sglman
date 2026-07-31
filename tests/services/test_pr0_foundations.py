@@ -20,7 +20,6 @@ from application.services.tournament_strategies import (
 from application.services.user_service import UserService
 from models import SYSTEM_USER_DISCORD_ID, User
 
-
 # ---------------------------------------------------------------------------
 # validate_tournament_config
 # ---------------------------------------------------------------------------

@@ -7,15 +7,15 @@ as the system user; this surface is the human-driven half.
 """
 
 from nicegui import app, background_tasks, context, ui
-from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
-from theme.tables.mobile_grid import enable_mobile_grid
 
 from application.services import (
     SpeedGamingSyncService,
     TournamentService,
     get_user_from_discord_id,
 )
+from theme.notify import notify_error
+from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.mobile_grid import enable_mobile_grid
 
 _ROW_ACTIONS = '''
     <q-btn flat round dense icon="sync" color="primary"

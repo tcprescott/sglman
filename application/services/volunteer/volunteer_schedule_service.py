@@ -20,9 +20,9 @@ from application.repositories import (
     VolunteerPositionRepository,
     VolunteerShiftRepository,
 )
-from application.services.discord import discord_queue
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
+from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.timezone_service import TimezoneService
 from application.tenant_context import require_tenant_id
@@ -30,7 +30,6 @@ from application.utils.timezone import (
     parse_local_datetime,
 )
 from models import FeatureFlag, User, VolunteerAssignment, VolunteerPosition, VolunteerShift
-
 
 logger = logging.getLogger(__name__)
 
@@ -353,8 +352,9 @@ class VolunteerScheduleService:
         shift = assignment.shift
         user = assignment.user
         await self.assignment_repository.delete(assignment)
-        await self.audit_service.write_log(actor, AuditActions.VOLUNTEER_UNASSIGNED, details)
-        event_bus.publish(Event.create(EventType.VOLUNTEER_UNASSIGNED, details, actor))
+        await self.audit_service.write_and_publish(
+            actor, AuditActions.VOLUNTEER_UNASSIGNED, details, EventType.VOLUNTEER_UNASSIGNED,
+        )
         # An unpublished draft's removal is silent because its creation was.
         if not was_draft:
             await self._notify_removed(user, shift)
@@ -374,13 +374,11 @@ class VolunteerScheduleService:
             return assignment
         assignment.acknowledged_at = datetime.now(timezone.utc)
         await self.assignment_repository.save(assignment)
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             user, AuditActions.VOLUNTEER_ACKNOWLEDGED,
             {'assignment_id': assignment.id, 'shift_id': assignment.shift_id},
+            EventType.VOLUNTEER_ACKNOWLEDGED, event_extra={'user_id': user.id},
         )
-        event_bus.publish(Event.create(EventType.VOLUNTEER_ACKNOWLEDGED, {
-            'assignment_id': assignment.id, 'shift_id': assignment.shift_id, 'user_id': user.id,
-        }, user))
         return assignment
 
     async def release(

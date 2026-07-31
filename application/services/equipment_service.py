@@ -9,12 +9,17 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from application.errors import require_found
+from application.feature_flags import requires_feature
 from application.repositories.equipment_repository import EquipmentRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from application.feature_flags import requires_feature
 from models import (
-    SYSTEM_USER_DISCORD_ID, FeatureFlag, Equipment, EquipmentLoan, EquipmentStatus, User,
+    SYSTEM_USER_DISCORD_ID,
+    Equipment,
+    EquipmentLoan,
+    EquipmentStatus,
+    FeatureFlag,
+    User,
 )
 
 MAX_BULK_COUNT = 200

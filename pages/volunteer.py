@@ -2,9 +2,9 @@
 
 from fastapi import Request
 from nicegui import app, ui
-from middleware.auth import protected_tab_page
 
 from application.services import AuthService, TenantService, get_user_from_discord_id
+from middleware.auth import protected_tab_page
 from models import FeatureFlag, Role
 from pages.volunteer_tabs.availability import availability_tab
 from pages.volunteer_tabs.my_shifts import my_shifts_tab
@@ -15,7 +15,7 @@ from theme.base import BaseLayout
 def create() -> None:
     @protected_tab_page('/volunteer', roles=[Role.VOLUNTEER, Role.PROCTOR, Role.STAFF],
                         feature=FeatureFlag.VOLUNTEERS)
-    async def volunteer_page(section: str = None, request: Request = None) -> None:
+    async def volunteer_page(section: str | None = None, request: Request = None) -> None:
         ui.page_title(f'{await TenantService.current_community_name() or "Wizzrobe"} — Volunteer')
         discord_id = app.storage.user.get('discord_id', None)
         user = await get_user_from_discord_id(discord_id)

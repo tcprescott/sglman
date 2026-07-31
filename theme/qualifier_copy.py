@@ -8,7 +8,7 @@ surfaces must not explain the same column differently — a reviewer answering
 Presentation-only: strings, no logic.
 """
 
-__all__ = ['SCORE_EXPLAINER', 'BOARD_EXPLAINER']
+__all__ = ['BOARD_EXPLAINER', 'SCORE_EXPLAINER']
 
 # The two anchors a competitor reasons with (100 = par, 105 = the cap), not the
 # formula. Par moves because it is the mean of the fastest approved runs on a

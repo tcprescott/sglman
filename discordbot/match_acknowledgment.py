@@ -7,16 +7,15 @@ import logging
 import discord
 
 from application.utils.discord_messages import (
-    match_ack_confirmation,
     MSG_UNEXPECTED_ERROR_MATCH,
+    match_ack_confirmation,
 )
 from discordbot._ack_common import (
     DMInteractionError,
+    SendFn,
     make_acknowledged_view,
     run_dm_interaction,
-    SendFn,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ def _parse(custom_id: str) -> int:
     try:
         return int(parts[2])
     except ValueError:
-        raise DMInteractionError('Invalid match ID.')
+        raise DMInteractionError('Invalid match ID.') from None
 
 
 async def handle_match_acknowledgment_interaction(interaction: discord.Interaction) -> None:

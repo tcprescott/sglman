@@ -31,7 +31,8 @@ from typing import List, Optional, Sequence
 from tortoise.transactions import in_transaction
 
 from application.errors import NotFoundError, require_found
-from application.events import Event, EventType, event_bus
+from application.events import EventType
+from application.feature_flags import requires_feature
 from application.repositories import (
     AsyncQualifierPermalinkRepository,
     AsyncQualifierPoolRepository,
@@ -49,15 +50,14 @@ from application.services.async_qualifier.async_qualifier_reads import PlayerRea
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.seedgen_service import SeedGenerationService
-from application.feature_flags import requires_feature
 from models import (
-    FeatureFlag,
     AsyncQualifier,
     AsyncQualifierPermalink,
     AsyncQualifierPool,
     AsyncQualifierReviewStatus,
     AsyncQualifierRun,
     AsyncQualifierRunStatus,
+    FeatureFlag,
     User,
 )
 
@@ -492,14 +492,15 @@ class AsyncQualifierService(PlayerReadsMixin):
             runner_vod_url=(runner_vod_url or '').strip() or None,
             review_status=AsyncQualifierReviewStatus.PENDING,
         )
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             user, AuditActions.ASYNC_QUALIFIER_RUN_SUBMITTED,
             {'run_id': run.id, 'qualifier_id': run.qualifier_id, 'elapsed_seconds': elapsed_seconds,
              'measured_seconds': measured},
+            EventType.ASYNC_QUALIFIER_RUN_SUBMITTED,
+            event_details={
+                'run_id': run.id, 'qualifier_id': run.qualifier_id, 'user_id': user.id,
+            },
         )
-        event_bus.publish(Event.create(EventType.ASYNC_QUALIFIER_RUN_SUBMITTED, {
-            'run_id': run.id, 'qualifier_id': run.qualifier_id, 'user_id': user.id,
-        }, user))
         return run
 
     @requires_feature(FeatureFlag.ASYNC_QUALIFIERS)
@@ -651,14 +652,11 @@ class AsyncQualifierService(PlayerReadsMixin):
         if run.permalink_id is not None:
             await self.draw.recompute_par_and_scores(run.permalink_id)
             run = await self.run_repository.get_by_id(run.id) or run
-        await self.audit_service.write_log(
+        await self.audit_service.write_and_publish(
             actor, AuditActions.ASYNC_QUALIFIER_RUN_REVIEWED,
             {'run_id': run.id, 'qualifier_id': run.qualifier_id, 'approved': approved},
+            EventType.ASYNC_QUALIFIER_RUN_REVIEWED, event_extra={'user_id': run.user_id},
         )
-        event_bus.publish(Event.create(EventType.ASYNC_QUALIFIER_RUN_REVIEWED, {
-            'run_id': run.id, 'qualifier_id': run.qualifier_id,
-            'user_id': run.user_id, 'approved': approved,
-        }, actor))
         await notifications.notify_run_reviewed(run, approved, reason=note)
         return run
 

@@ -3,9 +3,9 @@
 from nicegui import app, ui
 
 from application.services import StreamRoomService, get_user_from_discord_id
+from models import StreamRoom
 from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
 from theme.notify import notify_error
-from models import StreamRoom
 
 
 class StreamRoomEditDialog:

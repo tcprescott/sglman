@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 
+from application.feature_flags import requires_feature
 from application.services.async_qualifier import async_qualifier_access as access
 from application.services.async_qualifier import async_qualifier_rules as rules
 from application.services.async_qualifier.async_qualifier_scoring import (
@@ -21,7 +22,6 @@ from application.services.async_qualifier.async_qualifier_scoring import (
     build_leaderboard,
 )
 from application.utils.timezone import format_local_display
-from application.feature_flags import requires_feature
 from models import (
     AsyncQualifier,
     AsyncQualifierPool,

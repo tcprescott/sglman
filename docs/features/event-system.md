@@ -74,6 +74,31 @@ shape.
 2. Publish it at the commit point — normally via `write_and_publish`.
 3. It is immediately selectable in the webhook admin multiselect.
 
+## The three remaining hand-rolled pairs
+
+`check_dry_regressions.py` blocks a *new* `write_log` + `event_bus.publish`
+sequence, and every site that could be converted has been. Three keep the pair,
+because collapsing them into one call would change behaviour rather than just
+shape:
+
+| Site | Why it stays |
+|---|---|
+| `CrewService.set_approval` | audits **inside** `async with in_transaction()`, publishes outside it. `write_and_publish` would move the publish inside the transaction, where a subscriber could read pre-commit state. |
+| `CrewService.acknowledge` | same transaction boundary. |
+| `VolunteerScheduleService.assign` | audits every assignment, publishes only when `not auto_generated` — an unpublished draft is deliberately silent. One call cannot express the conditional half. |
+
+If a future change moves the audit write out of the transaction, or makes the
+draft assignment publish too, convert the site then.
+
+### Converting a site without breaking its tests
+
+Service unit tests hand-build their subject and hang a double off it. A blanket
+`MagicMock()` swallows `write_and_publish` whole, so a converted service silently
+stops publishing *under test only* — which is what kept this backlog open. Use
+`tests.factories.make_audit_double()` instead: it mocks `write_log` (so existing
+call-args assertions and DB-free tests keep working) while binding the real
+`write_and_publish` body to the double, so the event still reaches the bus.
+
 ## Tests
 
 [`tests/services/test_event_bus.py`](../../tests/services/test_event_bus.py):

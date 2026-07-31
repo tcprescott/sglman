@@ -9,9 +9,8 @@ from typing import Optional, Union
 
 from tortoise.transactions import in_transaction
 
-from application.events import match_live
 from application.errors import require_found
-from application.events import Event, EventType, event_bus
+from application.events import Event, EventType, event_bus, match_live
 from application.repositories import CommentatorRepository, MatchRepository, TrackerRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
@@ -21,7 +20,6 @@ from application.services.tenant_service import TenantService
 from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CREW, notification_embed, time_field
 from application.utils.discord_messages import crew_approval_withdrawn_dm, crew_assignment_dm
 from models import Commentator, Tracker, User
-
 
 logger = logging.getLogger(__name__)
 

@@ -14,7 +14,6 @@ from models import Role, User
 from theme.dialog import AdminUserDialog
 from theme.tables.user import UserTableView
 
-
 _TA_FILTER = '_tournament_admin'
 _CC_FILTER = '_crew_coordinator'
 
