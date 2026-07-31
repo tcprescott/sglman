@@ -397,12 +397,18 @@ class TestGenerateSeed:
             assert 'No seed generator' in resp.json()['detail']
 
     async def test_generate_seed_success(self, db, app, monkeypatch):
-        async def _fake_generate_seed(self, randomizer, preset=None):
-            return 'https://example.com/generated-seed'
+        from application.services.seedgen_service import RolledSeed
+        from application.utils.seed_provider import ProviderCall
+
+        async def _fake_generate_seed_call(self, randomizer, preset=None, *, surface=None):
+            return ProviderCall(
+                value=RolledSeed(url='https://example.com/generated-seed'),
+                provider=randomizer, operation='generate_seed', surface=surface,
+            )
 
         monkeypatch.setattr(
-            'application.services.seedgen_service.SeedGenerationService.generate_seed',
-            _fake_generate_seed,
+            'application.services.seedgen_service.SeedGenerationService.generate_seed_call',
+            _fake_generate_seed_call,
         )
         _, raw = await create_user_token(username='boss', roles=[Role.STAFF])
         t, p1, p2 = await _tournament_and_players(seed_generator='test')

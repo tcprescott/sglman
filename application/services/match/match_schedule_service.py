@@ -46,6 +46,7 @@ from application.utils.discord_messages import (
     seed_dm,
     state_changed_dm,
 )
+from application.utils.seed_provider import SeedProviderError
 from models import GeneratedSeeds, Match, User
 
 logger = logging.getLogger(__name__)
@@ -370,13 +371,23 @@ class MatchScheduleService(MatchNotificationMixin):
                 # Generate the seed. A keyed randomizer resolves this community's
                 # own credential inside the generator and raises when it is not
                 # configured; that surfaces below as "Error generating seed: …".
-                seed_url = await self.seedgen_service.generate_seed(randomizer, preset)
+                call = await self.seedgen_service.generate_seed_call(
+                    randomizer, preset, surface='match',
+                )
+                seed_url = call.value.url
 
-                # Create GeneratedSeeds record
+                # Create GeneratedSeeds record. The settings are snapshotted as
+                # sent — a preset edited after this roll must not change what
+                # this seed is recorded as having used.
                 match.generated_seed = await GeneratedSeeds.create(
                     tenant_id=require_tenant_id(),
                     seed_url=seed_url,
-                    seed_info=f"Generated seed for match {match.id}"
+                    seed_info=f"Generated seed for match {match.id}",
+                    randomizer=randomizer,
+                    preset_id=preset.id if preset is not None else None,
+                    settings_snapshot=call.value.settings,
+                    rolled_by_id=actor.id if actor is not None else None,
+                    provider_meta=call.as_meta(),
                 )
                 await match.save()
 
@@ -421,6 +432,8 @@ class MatchScheduleService(MatchNotificationMixin):
                         'randomizer': randomizer,
                         'preset': preset.name if preset is not None else None,
                         'seed_url': seed_url,
+                        'attempts': call.attempts,
+                        'latency_ms': call.latency_ms,
                     },
                     EventType.MATCH_SEED_ROLLED,
                     event_details={
@@ -437,6 +450,18 @@ class MatchScheduleService(MatchNotificationMixin):
             except MissingCredentialError as e:
                 # Actionable and safe to show: it names a credential this actor
                 # can go and configure, never upstream response text.
+                return False, str(e), None
+            except SeedProviderError as e:
+                # Also actionable, and also curated rather than raw: the envelope
+                # already classified this into "the upstream is down / rate-
+                # limiting / rejected the settings" and bounded the provider's own
+                # words. Telling someone minutes before a race that alttpr.com is
+                # down — rather than "check the server logs" — is the difference
+                # between waiting a minute and calling off the match.
+                logger.warning(
+                    'Seed generation for match %s failed after %d attempt(s): %s',
+                    match_id, e.attempts, e,
+                )
                 return False, str(e), None
             except Exception:
                 # Log the full traceback (reaches logs + Sentry) and return a

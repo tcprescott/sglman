@@ -250,6 +250,9 @@ class AuditActions:
     ASYNC_QUALIFIER_RUN_STARTED = 'async_qualifier.run_started'
     ASYNC_QUALIFIER_RUN_SUBMITTED = 'async_qualifier.run_submitted'
     ASYNC_QUALIFIER_RUN_FORFEITED = 'async_qualifier.run_forfeited'
+    # The worker forfeited a run the player drew and never came back to. Distinct
+    # from a chosen forfeit because it is not something the runner did.
+    ASYNC_QUALIFIER_RUN_EXPIRED = 'async_qualifier.run_expired'
     ASYNC_QUALIFIER_RUN_REATTEMPTED = 'async_qualifier.run_reattempted'
     # A reviewer voided someone else's run: distinct from the runner spending their
     # own allowance, because it bypasses that allowance entirely.

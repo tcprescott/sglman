@@ -24,6 +24,7 @@ Errors are split into two kinds so the loop can react correctly:
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Awaitable, Callable, List, Optional
@@ -110,18 +111,32 @@ class RealRacetimeTransport(RacetimeTransport):
     ``authenticate`` performs the standard ``client_credentials`` grant against
     ``/o/token``; a 401 (or ``invalid_client``) maps to :class:`RacetimeAuthError`
     so the loop stops retrying, any other failure to :class:`RacetimeTransientError`.
-    ``run`` holds the connection with a periodic heartbeat; the per-race websocket
-    protocol is layered on top of this by the room lifecycle work.
+    ``run`` holds the connection with a periodic heartbeat, **re-authorizing before
+    the token expires**; the per-race websocket protocol is layered on top of this
+    by the room lifecycle work.
+
+    The refresh is not optional housekeeping. A racetime access token lives on the
+    order of hours while these connections are meant to live for weeks, and a race
+    room outlives its token routinely — so a transport that authenticates once at
+    connect and never again is holding a credential that is dead long before the
+    next race needs it, with nothing to say so.
     """
 
     OAUTH_EXCHANGE_URL = 'https://racetime.gg/o/token'
     HEARTBEAT_SECONDS = 30
+    # Fall back to racetime's own default lifetime when the grant omits
+    # ``expires_in``, and always refresh with this much margin to spare so a
+    # request in flight never rides an expiring token.
+    DEFAULT_TOKEN_LIFETIME_SECONDS = 36000
+    REFRESH_MARGIN_SECONDS = 600
 
     def __init__(self, *, client_id: str, client_secret: str, category: str) -> None:
         self.client_id = client_id
         self.client_secret = client_secret
         self.category = category
         self._access_token: Optional[str] = None
+        # Monotonic deadline at which the token must have been replaced.
+        self._token_expires_at: Optional[float] = None
         self._stop = False
 
     async def authenticate(self) -> None:
@@ -153,20 +168,40 @@ class RealRacetimeTransport(RacetimeTransport):
         if not token:
             raise RacetimeTransientError('racetime token response missing access_token')
         self._access_token = token
+        lifetime = payload.get('expires_in')
+        if not isinstance(lifetime, (int, float)) or lifetime <= 0:
+            lifetime = self.DEFAULT_TOKEN_LIFETIME_SECONDS
+        self._token_expires_at = time.monotonic() + max(
+            self.REFRESH_MARGIN_SECONDS, float(lifetime) - self.REFRESH_MARGIN_SECONDS,
+        )
+
+    def _token_is_stale(self) -> bool:
+        return (
+            self._token_expires_at is not None
+            and time.monotonic() >= self._token_expires_at
+        )
 
     async def run(self, on_event: EventCallback, on_heartbeat: HeartbeatCallback) -> None:
         import asyncio
 
-        # Liveness loop: prove the task is alive on each tick. Room automation
-        # over the per-race websocket attaches here in the lifecycle work; until
-        # then the connection is held open and its health kept fresh.
+        # Liveness loop: prove the task is alive on each tick, and replace the
+        # access token before it expires. Room automation over the per-race
+        # websocket attaches here in the lifecycle work; until then the connection
+        # is held open, its credential kept valid, and its health kept fresh.
         while not self._stop:
             await on_heartbeat()
+            if self._token_is_stale():
+                # An auth error here is a real credential problem (revoked, or
+                # rotated behind our back) and propagates so the loop stops
+                # retrying; anything else is transient and earns a reconnect,
+                # which re-authenticates from scratch.
+                await self.authenticate()
             await asyncio.sleep(self.HEARTBEAT_SECONDS)
 
     async def close(self) -> None:
         self._stop = True
         self._access_token = None
+        self._token_expires_at = None
 
 
 def build_transport(

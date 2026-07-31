@@ -92,7 +92,8 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 
 | Method | Behavior | Returns |
 |---|---|---|
-| `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Looks up `randomizer` in an internal dispatch map and awaits the matching private generator. For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential. |
+| `generate_seed(randomizer: str, preset: Optional[Preset] = None) -> str` | Convenience wrapper over `generate_seed_call` returning just the permalink. | Seed URL (or seed/flags string for Z1R). Raises `ValueError("Unsupported randomizer: …")` for unknown names, `MissingCredentialError` for an unconfigured credential, or a `SeedProviderError` subclass naming what the upstream did. |
+| `generate_seed_call(randomizer, preset=None, *, surface=None) -> ProviderCall` | Looks up `randomizer` in an internal dispatch map and runs the matching private generator **inside the provider envelope** (below). For `PRESET_AWARE_RANDOMIZERS` (`alttpr`, `dk64r`), a supplied `preset` provides the settings; the other backends ignore it (still hard-coded until randomizer-coverage expansion). A keyed backend resolves this tenant's credential inside its generator, i.e. after the `MOCK_SEEDGEN` short-circuit. **Use this wherever the roll is persisted** — the returned `ProviderCall` carries the `RolledSeed` (permalink + settings as sent) plus attempts and latency, which is what a `GeneratedSeeds` row records. | `ProviderCall`. |
 | `available_randomizers(configured: set[str]) -> list[str]` (classmethod) | `AVAILABLE_RANDOMIZERS` minus any randomizer not in `configured` that declares a credential. Pure and DB-free — the caller passes `RandomizerCredentialService.configured_randomizers()`. Drives the selector surfaces. | Filtered list of randomizer keys. |
 | `supports_triforce_texts(generator: Optional[str]) -> bool` (classmethod) | Membership in `TRIFORCE_TEXT_RANDOMIZERS`. Four consumers: `AuthService.can_submit_triforce_text`, `TriforceTextService` (both the submit guard and the `seed_generator__in=…` tournament filter), the home **Triforce Texts** tab, and the REST `/seeds/randomizers` response field `supports_triforce_texts`. | `bool`. |
 | `generate_alttpr_for_tournament(tournament_id: int, balanced: bool = True) -> str` | ALTTPR generation with a community triforce text embedded; see [below](#alttpr-tournament-generation-and-triforce-texts). Raises `ValueError` when the tournament does not exist. | ALTTPR permalink URL. |
@@ -112,12 +113,42 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | `_generate_wwr` | yes | **Stub** — raises `ValueError` (Wind Waker) |
 | `_generate_test` | yes | 5-second sleep, then a fixed example URL |
 
+### The provider envelope
+
+Every generator runs inside `application/utils/seed_provider.py`, one execution
+contract for all outbound randomizer calls. Randomizer upstreams are third-party
+services with no availability promise, and a seed roll is the most time-critical
+thing the app does — a race is scheduled, the players are waiting, and the roll
+happens minutes before.
+
+| Rule | Value | Why |
+|---|---|---|
+| Per-attempt timeout | 60s | Bounds a *hang*. An ALTTPR customizer roll genuinely takes tens of seconds under load |
+| Attempts | 3 | |
+| Backoff | 1s, 2s | Short — someone is waiting |
+| Retryable | timeout, connection error, 429, 5xx | The upstream's problem; it may pass |
+| Not retryable | 4xx except 429, parse/schema errors, missing credential | Our payload's problem; it will fail identically |
+
+Per-provider overrides live in `PROVIDER_TIMEOUTS` / `PROVIDER_ATTEMPTS`. DK64R
+differs on both axes: its whole roll (submit → poll → result) legitimately runs
+for minutes, so the outer budget exceeds the poll deadline rather than cutting it
+short — and re-running the roll would submit a **second generation task**, so it
+gets exactly one attempt.
+
+Failures normalize into a taxonomy that all subclasses `ValueError`, which is what
+lets the existing UI (`except ValueError` → `ui.notify`) and REST 400 mapping
+surface them unchanged:
+
+`SeedProviderTimeout`, `SeedProviderUnavailable`, `SeedProviderRateLimited`,
+`SeedProviderInvalidRequest`, `SeedProviderBadResponse` — each carrying
+`provider`, `operation`, `attempts`, `status_code` and the provider's own message.
+
 ### Error behavior
 
 `SeedGenerationService` **raises**; it never returns error tuples:
 
 - `ValueError` — unsupported randomizer name, or unknown tournament id (tournament variant). `MissingCredentialError` (a `ValueError`) when the tenant has not configured a credential the backend needs.
-- Network/HTTP failures propagate from `aiohttp` (the OOTR call sets `raise_for_status=True`) and from pyz3r.
+- A `SeedProviderError` subclass for anything the upstream did — already retried where retrying could help, and already bounded.
 
 `MatchScheduleService.generate_seed(match_id, actor)` is the boundary that converts everything into a `(success: bool, message: str, seed_url: Optional[str])` tuple for the UI:
 
@@ -128,7 +159,8 @@ To promote a stub to a real backend, replace the `ValueError("… not yet implem
 | Match already has a seed | `(False, "A seed has already been generated for this match", None)` |
 | Neither `tournament.preset` nor `tournament.seed_generator` is set | `(False, "No seed generator configured for this tournament", None)` |
 | Generator not in `AVAILABLE_RANDOMIZERS` | `(False, "Seed generator '…' not found", None)` |
-| Any exception during generation | `(False, "Error generating seed: …", None)` |
+| A `SeedProviderError` (upstream down / rate-limiting / rejected the settings) | `(False, str(e), None)` — the envelope's curated message, so the reader can tell "try again in a minute" from "this preset will never roll" |
+| Any other exception during generation | `(False, "Seed generation failed. Please check the server logs.", None)` |
 | Success | `(True, "Seed generated successfully for match ID {id}", seed_url)` |
 
 The UI maps these to `ui.notify` colors and silently skips the "already in progress" case.

@@ -156,6 +156,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from application.utils.environment import service_health_enabled
     if service_health_enabled():
         service_health_worker.start()
+    # Async-qualifier run expiry: forfeits runs a player drew and abandoned, after
+    # one warning. Ungated by an env switch — it only ever touches tenants that
+    # have the qualifier feature on, and a tenant without it has no runs to find.
+    from application.services.async_qualifier import async_qualifier_worker
+    async_qualifier_worker.start()
     discord_queue.start()
     volunteer_reminder.start()
     # Central event bus: start the async-subscriber worker and register the
@@ -177,6 +182,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await discord_event_worker.stop()
     await service_health_worker.stop()
     await close_racetime_bot()
+    await async_qualifier_worker.stop()
     await volunteer_reminder.stop()
     await event_dispatch_queue.stop()
     await discord_queue.stop()
