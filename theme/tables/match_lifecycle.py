@@ -8,8 +8,8 @@ instance of this, so their lifecycle behaviour cannot drift.
 Construction is two-phase because the dependency is circular — the view needs
 the callbacks, and the callbacks need the view to refresh a row::
 
-    handlers = MatchLifecycleHandlers(page_container, can_crud=can_crud)
-    table_view = MatchTableView(columns=..., get_query=..., **handlers.callbacks())
+    handlers = MatchLifecycleHandlers(page_container, access=access)
+    table_view = MatchTableView(columns=..., get_query=..., access=access, **handlers.callbacks())
     handlers.table_view = table_view
 
 The read-only ``Match.get(id=..., tenant_id=require_tenant_id())`` loads here are
@@ -26,6 +26,7 @@ from theme.dialog import ConfirmationDialog, MatchResultDialog, StationAssignmen
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.dialog.stream_room_dialog import StreamRoomDialog
 from theme.notify import notify_error
+from theme.tables.match_access import MatchBoardAccess
 
 
 def confirm_result_message(match: Match) -> str:
@@ -71,30 +72,37 @@ def confirm_result_message(match: Match) -> str:
 class MatchLifecycleHandlers:
     """The ``on_*`` callbacks a match table needs to run a match's lifecycle."""
 
-    def __init__(self, page_container, *, can_crud: bool):
+    def __init__(self, page_container, *, access: MatchBoardAccess):
         self.page_container = page_container
-        self.can_crud = can_crud
+        self.access = access
         self.table_view = None          # assigned by the caller after the view exists
         self.schedule_service = MatchScheduleService()
 
     def callbacks(self) -> dict:
-        """The ``on_*`` kwargs for ``MatchTableView``, gated by ``can_crud``.
+        """The ``on_*`` kwargs for ``MatchTableView``, one group per capability.
 
-        The crud-only three are omitted entirely rather than passed as ``None``:
-        ``MatchTableView`` keys its slot registration off callback presence, so
-        omission is what hides the control.
+        A callback the viewer's capability does not cover is omitted entirely
+        rather than passed as ``None``: ``MatchTableView`` keys its event wiring
+        and part of its slot registration off callback presence, so omission is
+        what stops the control from reaching a service that would refuse it.
+
+        These five groups mirror ``MatchBoardAccess`` field for field; the board
+        offering a control the service then refuses is precisely the failure this
+        replaced.
         """
-        cb = {
-            'on_generate_seed': self.on_generate_seed,
-            'on_seat': self.on_seat,
-            'on_start': self.on_start,
-            'on_finish': self.on_finish,
-            'on_assign_stations': self.on_assign_stations,
-        }
-        if self.can_crud:
+        cb: dict = {}
+        if self.access.run:
+            cb['on_generate_seed'] = self.on_generate_seed
+            cb['on_seat'] = self.on_seat
+            cb['on_start'] = self.on_start
+            cb['on_finish'] = self.on_finish
+            cb['on_assign_stations'] = self.on_assign_stations
+        if self.access.edit:
             cb['on_edit'] = self.on_edit
+        if self.access.confirm:
             cb['on_confirm'] = self.on_confirm
             cb['on_edit_result'] = self.on_edit_result
+        if self.access.assign_stream:
             cb['on_edit_stream_room'] = self.on_edit_stream_room
         return cb
 

@@ -6,6 +6,7 @@ from application.utils.tenant_session import tenant_session_get, tenant_session_
 from theme.empty_state import no_data_slot
 from theme.realtime import register_view
 from theme.tables.admin_crud import capture_render_context, scoped_background
+from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_grid import render_grid_slot
 from theme.tables.match_handlers import MatchTableHandlersMixin
 from theme.tables.match_slots import register_body_slots
@@ -29,7 +30,7 @@ class MatchTableView(MatchTableHandlersMixin):
     (``match_handlers``). Uses MatchService for all data operations.
     """
 
-    def __init__(self, columns, get_query, admin_controls=False, can_crud=True, extra_slots=None, submit_match_callback=None,
+    def __init__(self, columns, get_query, admin_controls=False, access=None, extra_slots=None, submit_match_callback=None,
                  on_edit=None, on_generate_seed=None, on_seat=None, on_start=None, on_finish=None, on_confirm=None,
                  on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
                  player_discord_id=None, grid_breakpoint='lt.md',
@@ -39,7 +40,10 @@ class MatchTableView(MatchTableHandlersMixin):
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
         self.admin_controls = admin_controls
-        self.can_crud = can_crud
+        # What this viewer may do, one field per service gate (match_access).
+        # Defaults to a spectator: the player-facing boards pass nothing, and
+        # every capability-gated control is also behind ``admin_controls``.
+        self.access = access or MatchBoardAccess()
         self.player_discord_id = player_discord_id
         # Every board gets its own filter namespace and its own default state
         # set — see _skey. Pass a distinct storage_key from each construction
@@ -312,16 +316,16 @@ class MatchTableView(MatchTableHandlersMixin):
         register_body_slots(
             self.table,
             admin_controls=self.admin_controls,
-            can_crud=self.can_crud,
+            access=self.access,
             discord_id=discord_id,
             extra_slots=self.extra_slots,
             has_edit=self.on_edit is not None,
             want_seed_slot=self.admin_controls and self.on_generate_seed is not None,
-            want_state_slot=self.admin_controls and (
-                self.on_seat is not None or self.on_start is not None
-                or self.on_finish is not None or self.on_confirm is not None
-                or self.on_edit_result is not None
-            ),
+            want_seed_readonly=self.admin_controls and self.on_generate_seed is None,
+            # Every operator's board gets the state cell, including one whose
+            # viewer can run nothing: it carries the chips and timestamps, and
+            # the capability flags inside it decide which buttons appear.
+            want_state_slot=self.admin_controls,
             want_stream_room_admin=self.admin_controls and self.on_edit_stream_room is not None,
             want_stream_room_readonly=self.on_edit_stream_room is None,
         )
@@ -329,7 +333,7 @@ class MatchTableView(MatchTableHandlersMixin):
         # Register the mobile grid slot (see match_grid).
         render_grid_slot(
             self.table, self.columns,
-            admin_controls=self.admin_controls, can_crud=self.can_crud, discord_id=discord_id,
+            admin_controls=self.admin_controls, access=self.access, discord_id=discord_id,
             has_edit=self.on_edit is not None,
             actions_first=self.actions_first,
         )

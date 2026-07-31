@@ -20,17 +20,24 @@ from models import Role
 
 class _ExistsQS:
     """A chainable fake queryset: ``.filter(...)`` is a no-op that returns self
-    (the policy now tenant-filters these reverse relations), and ``.exists()``
-    resolves the fixed result."""
+    (the policy now tenant-filters these reverse relations), ``.exists()``
+    resolves the fixed result, and awaiting it yields rows — ``tournament_scope``
+    reads the ids rather than only asking whether any exist."""
 
-    def __init__(self, result: bool):
+    def __init__(self, result: bool, ids: tuple[int, ...] = ()):
         self._result = result
+        self._ids = ids or ((1,) if result else ())
 
     def filter(self, **_kwargs):
         return self
 
     async def exists(self):
         return self._result
+
+    def __await__(self):
+        async def rows():
+            return [SimpleNamespace(id=i) for i in self._ids]
+        return rows().__await__()
 
 
 def make_user(user_id: int = 1):
@@ -483,8 +490,33 @@ class TestViewScheduleBoard:
         assert await AuthService.can_view_schedule_board(make_user()) is False
 
     async def test_proctor_alone_cannot(self, patch_roles):
+        """They run matches from the Proctor Station, not the admin board."""
         patch_roles({Role.PROCTOR})
         assert await AuthService.can_view_schedule_board(make_user()) is False
+
+    async def test_stream_manager_can(self, patch_roles):
+        """Assigning a stage is a match-board action and this is the only board
+        that offers it — the role had no surface that did its job."""
+        patch_roles({Role.STREAM_MANAGER})
+        assert await AuthService.can_view_schedule_board(make_user()) is True
+
+
+class TestTournamentScope:
+    """The id sets a non-staff operator's surfaces narrow to."""
+
+    async def test_none_user_operates_nothing(self):
+        assert await AuthService.tournament_scope(None) == (set(), set())
+
+    async def test_the_two_relations_stay_distinct(self):
+        user = make_user()
+        user.admin_tournaments = SimpleNamespace(all=lambda: _ExistsQS(True, (3, 4)))
+        user.crew_coordinated_tournaments = SimpleNamespace(all=lambda: _ExistsQS(True, (4, 9)))
+        admin_ids, cc_ids = await AuthService.tournament_scope(user)
+        assert admin_ids == {3, 4}
+        assert cc_ids == {4, 9}
+
+    async def test_an_operator_of_nothing_gets_empty_sets(self):
+        assert await AuthService.tournament_scope(make_user()) == (set(), set())
 
 
 # ---------------------------------------------------------------------------

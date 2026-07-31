@@ -8,16 +8,41 @@ from models import Match
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
 from theme.tables.match import MatchTableView
+from theme.tables.match_access import MatchBoardAccess
 from theme.tables.match_lifecycle import MatchLifecycleHandlers
 
 
-def admin_schedule_page(can_crud: bool = True, match_id: int | None = None) -> None:
+def admin_schedule_page(
+    access: MatchBoardAccess | None = None,
+    match_id: int | None = None,
+    tournament_ids: list[int] | None = None,
+) -> None:
+    """The admin Schedule board.
+
+    ``access`` is what this viewer may do (see ``match_access``); a board built
+    without one offers nothing but the read.
+
+    ``tournament_ids`` narrows the board to the tournaments the viewer operates.
+    It is set for a tournament admin or crew coordinator — whose authority *is*
+    per-tournament — and left ``None`` for staff and the stream manager, whose
+    authority is community-wide.
+    """
+    access = access or MatchBoardAccess()
     with ui.column().classes('page-container-wide') as page_container:
         # Header section
         with ui.row().classes('header-row'):
             ui.label('Schedule Management').classes('page-title')
 
         ui.separator().classes('separator-spacing')
+
+        # Same reasoning as the match_id chip below: a board showing a subset
+        # with no explanation reads as a board that lost rows.
+        if tournament_ids is not None:
+            with ui.row().classes('items-center gap-2 q-mb-sm'):
+                with ui.element('span').classes('wiz-chip wiz-chip--neutral'):
+                    ui.icon('emoji_events', size='14px')
+                    n = len(tournament_ids)
+                    ui.label(f'Showing the {n} tournament{"" if n == 1 else "s"} you run')
 
         # A report linked here naming one match. Say so and offer the way out —
         # a one-row board with no explanation reads as a broken board.
@@ -51,7 +76,10 @@ def admin_schedule_page(can_crud: bool = True, match_id: int | None = None) -> N
         ]
 
         def get_query():
-            return Match.filter(tenant_id=require_tenant_id())
+            qs = Match.filter(tenant_id=require_tenant_id())
+            if tournament_ids is not None:
+                qs = qs.filter(tournament_id__in=tournament_ids)
+            return qs
 
         # Creating a match is a scheduling action, not a lifecycle one, so it
         # stays here rather than moving into MatchLifecycleHandlers.
@@ -71,6 +99,10 @@ def admin_schedule_page(can_crud: bool = True, match_id: int | None = None) -> N
         # the local name is bound.
         @ui.refreshable
         def review_queue() -> None:
+            # The strip counts confirmation work. A viewer who cannot confirm —
+            # a crew coordinator — would be reading a queue they cannot act on.
+            if not access.confirm:
+                return
             rows = table_view.table.rows if table_view else []
             pending = [r for r in rows if r.get('state') == 'Finished']
             if not pending:
@@ -110,13 +142,13 @@ def admin_schedule_page(can_crud: bool = True, match_id: int | None = None) -> N
 
         review_queue()
 
-        handlers = MatchLifecycleHandlers(page_container, can_crud=can_crud)
+        handlers = MatchLifecycleHandlers(page_container, access=access)
         table_view = MatchTableView(
             columns=columns,
             get_query=get_query,
             admin_controls=True,
-            can_crud=can_crud,
-            submit_match_callback=submit_admin_match if can_crud else None,
+            access=access,
+            submit_match_callback=submit_admin_match if access.edit else None,
             extra_slots=extra_slots,
             storage_key='admin_schedule',
             # The admin's job *is* the Finished-not-yet-Confirmed set, so it
