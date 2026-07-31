@@ -229,7 +229,7 @@ class SeedGenerationService:
             provider=randomizer,
             operation='generate_seed',
             surface=surface,
-            timeout=self.PROVIDER_TIMEOUTS.get(randomizer, PROVIDER_TIMEOUT_SECONDS),
+            attempt_timeout=self.PROVIDER_TIMEOUTS.get(randomizer, PROVIDER_TIMEOUT_SECONDS),
             max_attempts=self.PROVIDER_ATTEMPTS.get(randomizer, PROVIDER_MAX_ATTEMPTS),
         )
 

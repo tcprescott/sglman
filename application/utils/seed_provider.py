@@ -175,7 +175,12 @@ def _status_error(
 
 
 def _classify(
-    exc: BaseException, *, provider: str, operation: str, attempts: int,
+    exc: BaseException,
+    *,
+    provider: str,
+    operation: str,
+    attempts: int,
+    attempt_timeout: float,
 ) -> Optional[_Classified]:
     """Normalize an attempt's failure — ``None`` when it is not ours to classify."""
     if isinstance(exc, SeedProviderError):
@@ -189,8 +194,11 @@ def _classify(
     if isinstance(exc, asyncio.TimeoutError):
         return _Classified(
             SeedProviderTimeout(
+                # The budget this call actually ran under, not the module default:
+                # DK64R's is minutes, and telling its user "60 seconds" would be
+                # a wrong number in the one message meant to explain the wait.
                 f'{provider} did not respond within '
-                f'{int(PROVIDER_TIMEOUT_SECONDS)} seconds.',
+                f'{int(attempt_timeout)} seconds.',
                 provider=provider, operation=operation, attempts=attempts,
             ),
             retryable=True,
@@ -240,7 +248,7 @@ async def call_provider(
     provider: str,
     operation: str,
     surface: Optional[str] = None,
-    timeout: float = PROVIDER_TIMEOUT_SECONDS,
+    attempt_timeout: float = PROVIDER_TIMEOUT_SECONDS,
     max_attempts: int = PROVIDER_MAX_ATTEMPTS,
 ) -> ProviderCall:
     """Run ``fn`` under the provider contract; return it with its cost.
@@ -260,12 +268,15 @@ async def call_provider(
     while attempts < max_attempts:
         attempts += 1
         try:
-            value = await asyncio.wait_for(fn(), timeout=timeout)
+            value = await asyncio.wait_for(fn(), timeout=attempt_timeout)
         except asyncio.CancelledError:
             raise
-        except BaseException as exc:  # noqa: BLE001 — classified, then re-raised
+        # Broad by design: every failure is classified below, and anything this
+        # contract does not recognise is re-raised untouched.
+        except BaseException as exc:
             classified = _classify(
                 exc, provider=provider, operation=operation, attempts=attempts,
+                attempt_timeout=attempt_timeout,
             )
             if classified is None:
                 # Not a failure mode this contract covers — the caller sees it raw.
@@ -315,7 +326,9 @@ async def raise_for_status(resp: aiohttp.ClientResponse, *, provider: str, opera
         return
     try:
         body = await resp.text()
-    except Exception:  # noqa: BLE001 — the status is the finding; the body is a bonus
+    # The status is the finding; the body is a bonus, so failing to read it must
+    # not replace a clear "provider returned 503" with a decoding error.
+    except Exception:
         body = ''
     raise _status_error(
         resp.status, body, provider=provider, operation=operation, attempts=1,

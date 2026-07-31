@@ -116,7 +116,7 @@ class TestRetryable:
 
         with pytest.raises(SeedProviderTimeout) as exc:
             await call_provider(
-                hangs, provider='alttpr', operation='generate_seed', timeout=0.01,
+                hangs, provider='alttpr', operation='generate_seed', attempt_timeout=0.01,
             )
 
         assert len(calls) == 3

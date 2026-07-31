@@ -6,6 +6,7 @@ is claimable (``classify_claim`` measures against the draw).
 """
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -49,33 +50,28 @@ async def _drawn_run(service, staff, player, *, age: timedelta, **config):
     return q, await AsyncQualifierRun.get(id=run.id)
 
 
+def _qualifier(config=None) -> SimpleNamespace:
+    """The only attribute the pure rule helpers read off a qualifier."""
+    return SimpleNamespace(config=config)
+
+
 class TestRules:
     def test_default_limit_is_twelve_hours(self):
-        class _Q:
-            config = None
-
-        assert rules.run_time_limit(_Q()) == timedelta(hours=12)
+        assert rules.run_time_limit(_qualifier()) == timedelta(hours=12)
 
     def test_config_overrides_the_limit(self):
-        class _Q:
-            config = {'run_time_limit_hours': 3}
-
-        assert rules.run_time_limit(_Q()) == timedelta(hours=3)
+        assert rules.run_time_limit(
+            _qualifier({'run_time_limit_hours': 3})
+        ) == timedelta(hours=3)
 
     def test_deadline_is_none_for_an_unstarted_run(self):
-        class _Q:
-            config = None
-
-        assert rules.run_deadline(_Q(), None) is None
+        assert rules.run_deadline(_qualifier(), None) is None
 
     def test_naive_started_at_is_read_as_utc(self):
-        class _Q:
-            config = {'run_time_limit_hours': 1}
-
         naive = datetime(2026, 7, 31, 12, 0, 0)
-        assert rules.run_deadline(_Q(), naive) == datetime(
-            2026, 7, 31, 13, 0, 0, tzinfo=timezone.utc,
-        )
+        assert rules.run_deadline(
+            _qualifier({'run_time_limit_hours': 1}), naive
+        ) == datetime(2026, 7, 31, 13, 0, 0, tzinfo=timezone.utc)
 
 
 class TestExpireRun:

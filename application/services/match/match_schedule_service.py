@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from typing import Callable, ClassVar, Dict, Optional, Tuple
 
 from application.errors import MissingCredentialError
-from application.utils.seed_provider import SeedProviderError
 from application.events import EventType, match_live
 from application.repositories import MatchAcknowledgmentRepository, MatchRepository
 from application.services.audit_service import AuditActions, AuditService
@@ -47,6 +46,7 @@ from application.utils.discord_messages import (
     seed_dm,
     state_changed_dm,
 )
+from application.utils.seed_provider import SeedProviderError
 from models import GeneratedSeeds, Match, User
 
 logger = logging.getLogger(__name__)
