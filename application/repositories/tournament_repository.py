@@ -93,7 +93,9 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         pressing Create and reading "Match must have at least one player" is the
         long way round.
         """
-        rows = await scoped(TournamentPlayers.all()).values_list('tournament_id', flat=True)
+        rows: list[int] = await scoped(
+            TournamentPlayers.all()
+        ).values_list('tournament_id', flat=True)  # type: ignore[assignment]
         counts: dict[int, int] = {}
         for tournament_id in rows:
             counts[tournament_id] = counts.get(tournament_id, 0) + 1

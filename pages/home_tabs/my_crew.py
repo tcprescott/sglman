@@ -15,6 +15,8 @@ sign up from the Schedule board, so anyone must be able to see what they signed
 up for.
 """
 
+from typing import Any
+
 from nicegui import app, background_tasks, context, ui
 
 from application.services import CrewService, get_user_from_discord_id
@@ -69,6 +71,7 @@ async def my_crew_tab() -> None:
 
         async def withdraw(row: dict) -> None:
             client = context.client
+            dialog: Any = None  # bound below; ConfirmationDialog.dialog exists after open()
 
             async def perform() -> None:
                 with client:

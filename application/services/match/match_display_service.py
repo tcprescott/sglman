@@ -339,11 +339,11 @@ class MatchDisplayService:
             # because an unapproved signup has not covered anything yet.
             'crew_need': {
                 'commentators': _crew_shortfall(
-                    match.commentators,
+                    match.commentators,  # type: ignore[attr-defined]
                     match.tournament.required_commentators if match.tournament else 0,
                 ),
                 'trackers': _crew_shortfall(
-                    match.trackers,
+                    match.trackers,  # type: ignore[attr-defined]
                     match.tournament.required_trackers if match.tournament else 0,
                 ),
             },

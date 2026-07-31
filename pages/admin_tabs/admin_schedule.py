@@ -1,6 +1,8 @@
 """Admin Schedule Management Page"""
 
 
+from typing import Any
+
 from nicegui import ui
 
 from application.tenant_context import require_tenant_id
@@ -91,9 +93,10 @@ def admin_schedule_page(
                 dialog = AdminMatchDialog(on_submit=after_submit)
                 await dialog.open()
 
-        extra_slots = {}
+        extra_slots: dict = {}
 
-        table_view = None
+        # Bound after the view exists (two-phase; see MatchLifecycleHandlers).
+        table_view: Any = None
 
         # Built before the view so the view can be handed a callback that
         # refreshes it; guarded because the view's first load can land before
@@ -104,7 +107,7 @@ def admin_schedule_page(
             # a crew coordinator — would be reading a queue they cannot act on.
             if not access.confirm:
                 return
-            rows = table_view.table.rows if table_view else []
+            rows: list = table_view.table.rows if table_view else []
             pending = [r for r in rows if r.get('state') == 'Finished']
             if not pending:
                 return
@@ -145,7 +148,7 @@ def admin_schedule_page(
         def crew_queue() -> None:
             if not access.approve_crew:
                 return
-            rows = table_view.table.rows if table_view else []
+            rows: list = table_view.table.rows if table_view else []
             pending = pending_crew_summary(rows)
             if not pending.total:
                 return

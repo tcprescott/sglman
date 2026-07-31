@@ -290,7 +290,9 @@ class CrewService:
             if other_start >= start + window or other_start + timedelta(
                     minutes=other_minutes) <= start:
                 continue
-            names = players_label([p.user.preferred_name for p in other.players])
+            names = players_label(
+                [p.user.preferred_name for p in other.players],  # type: ignore[attr-defined]
+            )
             when = format_local_display(other_start)
             clashes.append(f'{names or "a match"} at {when}' if names else f'a match at {when}')
         return clashes
