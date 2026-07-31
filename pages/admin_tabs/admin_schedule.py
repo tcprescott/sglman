@@ -79,6 +79,10 @@ def admin_schedule_page(
         ]
 
         def get_query():
+            # The handlers' per-row lookup. The *board's* rows come from
+            # MatchDisplayService, so the scope has to be passed to the view as
+            # well (``scope_tournament_ids``) — narrowing only here would leave
+            # the chip above claiming a scope the board never applied.
             qs = Match.filter(tenant_id=require_tenant_id())
             if tournament_ids is not None:
                 qs = qs.filter(tournament_id__in=tournament_ids)
@@ -189,6 +193,7 @@ def admin_schedule_page(
             # must be on screen without them discovering the State filter.
             default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
             match_ids=[match_id] if match_id else None,
+            scope_tournament_ids=tournament_ids,
             on_rows_changed=lambda _rows: (review_queue.refresh(), crew_queue.refresh()),
             **handlers.callbacks(),
         )

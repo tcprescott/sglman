@@ -218,3 +218,69 @@ def test_a_deep_link_suspends_the_day_filter():
     land on an empty board."""
     src = inspect.getsource(MatchTableView.refresh)
     assert 'None if self.match_ids else day_scope_window' in src
+
+
+# --- The board's tournament scope ------------------------------------------
+#
+# A TA's or crew coordinator's authority is per tournament. The scope is a hard
+# bound on the rows; the Tournament filter is their choice *within* it.
+
+def _scoped_view(scope, filter_value=None):
+    from types import SimpleNamespace
+
+    view = _view('admin_schedule', DEFAULT_STATE_FILTER)
+    view.scope_tournament_ids = scope
+    view.tournament_filter = SimpleNamespace(value=filter_value) if filter_value else None
+    return view
+
+
+def _resolved_tournament_ids(view):
+    """The `tournament_ids` `refresh()` would hand the display service."""
+    tournament_ids = None
+    if view.tournament_filter and view.tournament_filter.value:
+        tournament_ids = view.tournament_filter.value
+    if view.scope_tournament_ids is not None:
+        tournament_ids = (
+            [t for t in tournament_ids if t in view.scope_tournament_ids]
+            if tournament_ids else list(view.scope_tournament_ids)
+        )
+        if not tournament_ids:
+            from theme.tables.match import _MATCHES_NOTHING
+            tournament_ids = _MATCHES_NOTHING
+    return tournament_ids
+
+
+def test_an_unscoped_board_is_unfiltered():
+    assert _resolved_tournament_ids(_scoped_view(None)) is None
+
+
+def test_a_scoped_board_narrows_to_its_own_tournaments():
+    """The bug this pins: the scope was applied to `get_query` (which only the
+    row handlers use) while the board's rows came from MatchDisplayService — so
+    the "showing the N tournaments you run" chip claimed a scope nothing
+    enforced."""
+    assert _resolved_tournament_ids(_scoped_view([4, 7])) == [4, 7]
+
+
+def test_the_filter_narrows_within_the_scope():
+    assert _resolved_tournament_ids(_scoped_view([4, 7], filter_value=[7])) == [7]
+
+
+def test_the_filter_cannot_widen_past_the_scope():
+    assert _resolved_tournament_ids(_scoped_view([4], filter_value=[4, 9])) == [4]
+
+
+def test_a_filter_wholly_outside_the_scope_shows_nothing():
+    """`None` would mean *every* tournament, so an empty narrowing needs its own
+    spelling — otherwise a scoped board falls open to the whole community."""
+    from theme.tables.match import _MATCHES_NOTHING
+
+    assert _resolved_tournament_ids(_scoped_view([4], filter_value=[9])) == _MATCHES_NOTHING
+    assert _MATCHES_NOTHING != []
+
+
+def test_the_resolution_matches_the_one_refresh_uses():
+    """This file re-implements it; if `refresh` changes shape, say so loudly."""
+    src = inspect.getsource(MatchTableView.refresh)
+    assert 'self.scope_tournament_ids is not None' in src
+    assert '_MATCHES_NOTHING' in src

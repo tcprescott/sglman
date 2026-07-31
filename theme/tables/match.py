@@ -28,6 +28,11 @@ DEFAULT_STATE_FILTER = ['Scheduled', 'Checked In', 'Started']
 # day being run. ``ALL_DAYS`` is the default, so nothing is hidden until asked.
 ALL_DAYS = 'All dates'
 DAY_SCOPES = [ALL_DAYS, 'Today', 'Tomorrow', 'Next 7 days']
+
+#: A tournament-id list no row can match. ``tournament_ids=None`` means "every
+#: tournament", so an *empty* narrowing has to be spelled some other way or a
+#: scoped board would fall open to the whole community.
+_MATCHES_NOTHING = [0]
 #: ``scope -> (days from today for the first day, for the last day)``, inclusive.
 _DAY_OFFSETS = {'Today': (0, 0), 'Tomorrow': (1, 1), 'Next 7 days': (0, 6)}
 
@@ -63,7 +68,8 @@ class MatchTableView(MatchTableHandlersMixin):
                  on_edit_result=None, on_edit_stream_room=None, on_assign_stations=None,
                  player_discord_id=None, grid_breakpoint='lt.md',
                  row_sort=None, exclude_racetime=False, on_rows_changed=None, actions_first=False,
-                 storage_key='match', default_state_filter=None, match_ids=None):
+                 storage_key='match', default_state_filter=None, match_ids=None,
+                 scope_tournament_ids=None):
         self.columns = columns
         self.get_query = get_query
         self.grid_breakpoint = grid_breakpoint
@@ -90,6 +96,12 @@ class MatchTableView(MatchTableHandlersMixin):
         # it never writes to the stored filters, so leaving the focus restores
         # whatever the operator had chosen.
         self.match_ids = list(match_ids) if match_ids else None
+        # A hard bound on which tournaments this board may show at all — set for
+        # a viewer whose authority is per tournament. Distinct from the
+        # Tournament *filter*, which is the operator's own choice **within** the
+        # scope; ``refresh`` intersects the two, so choosing a tournament cannot
+        # widen the board past what the viewer operates.
+        self.scope_tournament_ids = list(scope_tournament_ids) if scope_tournament_ids is not None else None
         self.exclude_racetime = exclude_racetime
         self.on_rows_changed = on_rows_changed
         self.actions_first = actions_first
@@ -250,6 +262,14 @@ class MatchTableView(MatchTableHandlersMixin):
     async def _load_tournaments(self):
         """Load all tournament names for the filter using service layer."""
         self.tournaments_list = await self.display_service.get_tournaments_for_filter()
+        # A scoped board offers only its own tournaments: the filter is a choice
+        # within the scope, and listing the rest invites picking one that yields
+        # an empty board for no visible reason.
+        if self.scope_tournament_ids is not None:
+            allowed = set(self.scope_tournament_ids)
+            self.tournaments_list = {
+                tid: name for tid, name in self.tournaments_list.items() if tid in allowed
+            }
         # Set initial value from storage or default to None (All Tournaments)
         default_tournament_id = tenant_session_get(self._skey('tournament_filter'), None)
         if self.tournament_filter:
@@ -459,6 +479,15 @@ class MatchTableView(MatchTableHandlersMixin):
         tournament_ids = None
         if self.tournament_filter and self.tournament_filter.value:
             tournament_ids = self.tournament_filter.value
+        if self.scope_tournament_ids is not None:
+            # The scope wins: an empty intersection is an empty board, which is
+            # the honest answer for "the tournament you picked is not yours".
+            tournament_ids = (
+                [t for t in tournament_ids if t in self.scope_tournament_ids]
+                if tournament_ids else list(self.scope_tournament_ids)
+            )
+            if not tournament_ids:
+                tournament_ids = _MATCHES_NOTHING
 
         stream_room_ids = None
         if self.stream_room_filter and self.stream_room_filter.value:
