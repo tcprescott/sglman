@@ -209,10 +209,12 @@ class RosterImportRequest(BaseModel):
 
 
 class RoundMetadataRequest(BaseModel):
-    """Replace the per-round display metadata (``{round: {best_of, scheduled_at}}``).
+    """Replace the per-round metadata (``{round: {best_of, scheduled_at, scheduled_end}}``).
 
     Null or empty clears it. Unlike the rest of the bracket definition this is
     editable after the stage has started — round chrome never touches the graph.
+    ``scheduled_at``/``scheduled_end`` are the round's window (UTC ISO-8601, end
+    after start); match-time suggestions for the round are confined to it.
     """
 
     rounds: Optional[Dict[str, Any]] = None

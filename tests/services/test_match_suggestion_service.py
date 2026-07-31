@@ -38,6 +38,7 @@ def make_match(scheduled_hour=10, player_count=2, duration_min=90, tournament_du
 def service():
     svc = object.__new__(MatchSuggestionService)
     svc.availability_repository = MagicMock()
+    svc.bracket_repository = MagicMock()
     return svc
 
 
@@ -152,6 +153,111 @@ class TestGenerateCandidates:
         # All candidates should start on the event date
         for slot_start, _ in candidates:
             assert slot_start.date() == event_start
+
+
+class TestGenerateCandidatesHardEnd:
+    """``hard_end`` is the round window's close — a hard bound, not a preference."""
+
+    @staticmethod
+    def _generate(service, hard_end, duration=timedelta(hours=1)):
+        from datetime import date
+        event_start = event_end = date(2026, 1, 15)
+        return service._generate_candidates(
+            _local(10), None, {}, duration,
+            event_start, event_end, EASTERN_TZ, hard_end,
+        )
+
+    def test_no_slot_ends_after_the_window(self, service):
+        candidates = self._generate(service, _local(14))
+        assert candidates
+        assert all(slot_end <= _local(14) for _, slot_end in candidates)
+
+    def test_match_must_fit_wholly_inside(self, service):
+        # 10:00–11:00 window, 90-minute match: nothing fits, even though the
+        # window is open at 10:00.
+        assert self._generate(service, _local(11), timedelta(minutes=90)) == []
+
+    def test_window_end_clamps_multi_day_search(self, service):
+        from datetime import date
+        candidates = service._generate_candidates(
+            _local(10), None, {}, timedelta(hours=1),
+            date(2026, 1, 15), date(2026, 1, 20), EASTERN_TZ, _local(20, day=16),
+        )
+        assert candidates
+        assert max(s.date() for s, _ in candidates) == date(2026, 1, 16)
+
+    def test_none_leaves_search_unbounded(self, service):
+        assert len(self._generate(service, None)) > len(self._generate(service, _local(14)))
+
+
+# ---------------------------------------------------------------------------
+# _round_window
+# ---------------------------------------------------------------------------
+
+
+class TestRoundWindow:
+    @staticmethod
+    def _service_with(config, round_number=2):
+        svc = object.__new__(MatchSuggestionService)
+        svc.bracket_repository = MagicMock()
+        bracket_match = SimpleNamespace(
+            round=round_number, bracket=SimpleNamespace(config=config),
+        )
+
+        async def get_match_with_bracket(_id):
+            return bracket_match
+
+        svc.bracket_repository.get_match_with_bracket = get_match_with_bracket
+        return svc
+
+    @pytest.mark.asyncio
+    async def test_no_bracket_match_is_unbounded(self, service):
+        assert await service._round_window(None, EASTERN_TZ) == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_reads_the_matchups_own_round(self):
+        svc = self._service_with({'rounds': {
+            '1': {'scheduled_at': '2026-01-15T00:00:00+00:00'},
+            '2': {
+                'scheduled_at': '2026-01-16T15:00:00+00:00',
+                'scheduled_end': '2026-01-16T23:00:00+00:00',
+            },
+        }})
+        start, end = await svc._round_window(7, EASTERN_TZ)
+        assert start == datetime(2026, 1, 16, 10, 0, tzinfo=EASTERN_TZ)
+        assert end == datetime(2026, 1, 16, 18, 0, tzinfo=EASTERN_TZ)
+
+    @pytest.mark.asyncio
+    async def test_half_configured_windows_bound_one_side(self):
+        svc = self._service_with({'rounds': {'2': {
+            'scheduled_end': '2026-01-16T23:00:00+00:00',
+        }}})
+        start, end = await svc._round_window(7, EASTERN_TZ)
+        assert start is None
+        assert end is not None
+
+    @pytest.mark.asyncio
+    async def test_unscheduled_round_is_unbounded(self):
+        svc = self._service_with({'rounds': {'1': {'best_of': 3}}})
+        assert await svc._round_window(7, EASTERN_TZ) == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_no_config_at_all_is_unbounded(self):
+        svc = self._service_with(None)
+        assert await svc._round_window(7, EASTERN_TZ) == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_missing_bracket_match_is_unbounded(self, service):
+        async def get_match_with_bracket(_id):
+            return None
+
+        service.bracket_repository.get_match_with_bracket = get_match_with_bracket
+        assert await service._round_window(999, EASTERN_TZ) == (None, None)
+
+    @pytest.mark.asyncio
+    async def test_unparseable_stored_value_degrades_to_unbounded(self):
+        svc = self._service_with({'rounds': {'2': {'scheduled_at': 'not-a-date'}}})
+        assert await svc._round_window(7, EASTERN_TZ) == (None, None)
 
 
 # ---------------------------------------------------------------------------

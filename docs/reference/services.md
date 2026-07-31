@@ -243,7 +243,7 @@ Owns the **native bracket** lifecycle ([brackets.md](../features/brackets.md)): 
 |---|---|---|
 | `create_bracket(actor, tournament_id, name, format, stage_order=0, config=None)` | `Bracket` | Create a DRAFT stage; rejects a Challonge-linked tournament, a duplicate `stage_order`, and (via `validate_bracket_config`) a bad config. Audits/events `BRACKET_CREATED`. |
 | `update_bracket(actor, bracket_id, name=None, stage_order=None, config=None, format=None)` | `Bracket` | Edit a DRAFT stage's name / order / config / **format** — the format is safe to change precisely because a DRAFT stage has no match graph and nothing but `start_bracket` reads it. The config is validated against the stage as it will be *after* the edit, so a format change and its format-specific keys are checked together. Audits `BRACKET_UPDATED`. |
-| `set_round_metadata(actor, bracket_id, rounds)` | `Bracket` | Replace the per-round display metadata (`{round: {best_of, scheduled_at}}`), allowed in **any** state since round chrome never touches the graph. Audits `BRACKET_UPDATED`. |
+| `set_round_metadata(actor, bracket_id, rounds)` | `Bracket` | Replace the per-round metadata (`{round: {best_of, scheduled_at, scheduled_end}}`), allowed in **any** state since round chrome never touches the graph. The `scheduled_at`/`scheduled_end` window bounds match-time suggestions for that round. Audits `BRACKET_UPDATED`. |
 | `delete_bracket(actor, bracket_id)` | `None` | Delete a DRAFT stage. Audits `BRACKET_DELETED`. |
 | `get_bracket / list_brackets / list_matches / list_entries / list_entrants` | reads | Stage, stage list (by `stage_order`), match graph, per-stage entries, tournament roster. |
 | `list_all_brackets()` | `list[Bracket]` | Every stage in the tenant with its tournament prefetched, active tournaments first then name then `stage_order` — the one read behind the anonymous home **Brackets** tab, which groups the rows rather than querying per tournament. |
@@ -494,13 +494,13 @@ Collaborators: `MatchRepository`, `MatchAcknowledgmentRepository`, `TournamentRe
 
 ### match_suggestion_service.py — MatchSuggestionService
 
-Finds occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy and preferring slots all players prefer. Searches the next 4 hours within the configured tournament hours first, then the full remaining event window. A slot is ineligible if any player with declared windows is unavailable for it. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
+Finds occupancy troughs across the venue, scoring 30-minute candidate slots by combined player occupancy and preferring slots all players prefer. Searches the next 4 hours within the configured tournament hours first, then the full remaining event window. A slot is ineligible if any player with declared windows is unavailable for it. Capacity is never surfaced to callers — the suggestion appears as a neutral "best time." A bracket matchup narrows both searches to its round's `scheduled_at`/`scheduled_end` window, as a **hard bound** — only slots the match fits inside end to end are offered, and an absent or half-configured window bounds only the side that is set. Module constants: `_SLOT_INTERVAL_MIN = 30`, `_PRIMARY_WINDOW_HOURS = 4`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `suggest_match_time(tournament_id, player_ids)` | `datetime` | Best UTC start time for the match. Raises `ValueError` when no eligible slot exists within the event schedule. |
+| `suggest_match_time(tournament_id, player_ids, bracket_match_id=None)` | `datetime` | Best UTC start time for the match. `bracket_match_id` confines the search to that matchup's round window. Raises `ValueError` when no eligible slot exists within the event schedule (or, when given, the round window — the message names which). |
 
-Collaborators: `PlayerAvailabilityRepository`, `SystemConfigService` (`get_tournament_hours`, `get_event_window`), [`timezone.py`](#timezonepy), queries `Match`/`Tournament` directly.
+Collaborators: `PlayerAvailabilityRepository`, `BracketRepository` (`get_match_with_bracket`, for the round window), `SystemConfigService` (`get_tournament_hours`, `get_event_window`), [`timezone.py`](#timezonepy), queries `Match`/`Tournament` directly.
 
 ### match_watcher_service.py — MatchWatcherService
 

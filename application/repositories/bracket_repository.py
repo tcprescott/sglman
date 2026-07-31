@@ -214,6 +214,16 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         ).exclude(state=BracketMatchState.COMPLETE)
 
     # --- scheduling seam (mirrors ChallongeRepository) -------------------
+    async def get_match_with_bracket(self, bracket_match_id: int) -> Optional[BracketMatch]:
+        """One matchup with its parent stage, for readers that need the stage config.
+
+        Lighter than :meth:`get_match_with_entrants` — the suggestion path wants
+        ``bracket.config['rounds']`` and the round number, not the entry chains.
+        """
+        return await scoped(
+            BracketMatch.filter(id=bracket_match_id)
+        ).prefetch_related('bracket').first()
+
     async def get_match_with_entrants(self, bracket_match_id: int) -> Optional[BracketMatch]:
         """A bracket match with both entry slots resolved to their linked users.
 

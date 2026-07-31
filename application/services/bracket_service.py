@@ -215,13 +215,15 @@ class BracketService(
         bracket_id: int,
         rounds: Optional[Dict[str, Any]],
     ) -> Bracket:
-        """Set per-round display metadata (best-of / scheduled time), any state.
+        """Set per-round metadata (best-of / scheduled window), any state.
 
-        Round chrome is display-only (it never affects the persisted graph), so —
-        unlike :meth:`update_bracket`, which is DRAFT-only — it can be edited after
-        a stage has started. ``rounds`` is ``{round_str: {best_of, scheduled_at}}``;
-        it is merged over the existing config and revalidated by the config schema,
-        so a bad key/value surfaces as a user-facing ``ValueError``.
+        Round chrome never touches the persisted graph, so — unlike
+        :meth:`update_bracket`, which is DRAFT-only — it can be edited after a
+        stage has started. ``rounds`` is
+        ``{round_str: {best_of, scheduled_at, scheduled_end}}``; it is merged over
+        the existing config and revalidated by the config schema, so a bad
+        key/value surfaces as a user-facing ``ValueError``. Editing the window
+        retimes future suggestions only — matches already scheduled stay put.
         """
         await AuthService.ensure(
             await AuthService.is_staff(actor),

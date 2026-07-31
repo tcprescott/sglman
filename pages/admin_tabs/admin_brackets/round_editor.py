@@ -36,12 +36,17 @@ def render_round_editor(
     default_best_of = (bracket.config or {}).get('default_best_of')
     widgets: Dict[int, tuple] = {}
 
-    with ui.expansion('Round settings — best-of & scheduled time').classes('w-full q-mt-sm'):
+    with ui.expansion('Round settings — best-of & scheduled window').classes('w-full q-mt-sm'):
         ui.label(
             'Best-of is the series length the round is actually played at: it '
             'decides how many games get scheduled and how a matchup clinches, '
             f'not just what the header says. Odd numbers only; times are '
             f'{timezone_label()}.'
+        ).classes('text-caption text-grey')
+        ui.label(
+            'Opens/Closes bound when the round runs: players scheduling a '
+            'matchup in it are only suggested times that fit wholly inside the '
+            'window. Leave either blank for an open-ended side.'
         ).classes('text-caption text-grey')
         if default_best_of:
             ui.label(
@@ -58,19 +63,25 @@ def render_round_editor(
                     'Best of', value=cfg.get('best_of'), min=1, precision=0,
                 ).props('dense inputmode=numeric').classes('col-4 col-sm-3')
                 scheduled = native_datetime_input(
-                    'Scheduled', iso_to_local_input(cfg.get('scheduled_at')), dense=True,
+                    'Opens', iso_to_local_input(cfg.get('scheduled_at')), dense=True,
                 ).classes('col')
-                widgets[round_number] = (best_of, scheduled)
+                scheduled_end = native_datetime_input(
+                    'Closes', iso_to_local_input(cfg.get('scheduled_end')), dense=True,
+                ).classes('col')
+                widgets[round_number] = (best_of, scheduled, scheduled_end)
 
         async def save_rounds() -> None:
             new_rounds: Dict[str, dict] = {}
-            for round_number, (best_of, scheduled) in widgets.items():
+            for round_number, (best_of, scheduled, scheduled_end) in widgets.items():
                 entry: Dict[str, object] = {}
                 if best_of.value:
                     entry['best_of'] = int(best_of.value)
                 iso = local_input_to_iso(scheduled.value)
                 if iso:
                     entry['scheduled_at'] = iso
+                end_iso = local_input_to_iso(scheduled_end.value)
+                if end_iso:
+                    entry['scheduled_end'] = end_iso
                 if entry:
                     new_rounds[str(round_number)] = entry
             with tenant_scope(tenant_id):
