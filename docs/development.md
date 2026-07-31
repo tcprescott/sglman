@@ -275,6 +275,19 @@ Two steps that land after that checklist:
 
 Every hook sources `_repo.sh` for `$REPO` rather than deriving it from the working directory, because hooks inherit the session's shell cwd, which moves whenever a Bash call `cd`s elsewhere. The executable bit lives in the git index, so a normal checkout preserves it. Full contract, the complete inventory, and the test that enforces both: [`.claude/README.md`](../.claude/README.md).
 
+### Mypy is a ratchet, not a gate
+
+`poetry run python scripts/mypy_ratchet.py` is blocking in CI, but it compares
+against `scripts/mypy_baseline.json` (per-file error counts) and fails only when
+a file *gains* errors. The tree carries ~1420, the large majority Tortoise
+reverse relations and FK `*_id` attributes that mypy structurally cannot resolve
+on a dynamically-built ORM model — not defects to fix. New errors still cannot
+land.
+
+Fix errors freely; the run tells you when the baseline can shrink, and
+`--update` re-records it. Silence a genuine ORM false positive at the line with
+a targeted `# type: ignore[code]` rather than re-recording a higher count.
+
 ### The same guardrails in CI
 
 As hooks, those checks fire on a Write/Edit *inside a Claude session* and nowhere

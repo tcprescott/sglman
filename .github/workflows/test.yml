@@ -26,9 +26,10 @@ jobs:
       - name: Ruff (blocking)
         run: poetry run ruff check .
 
-      - name: Mypy (informational)
-        continue-on-error: true
-        run: poetry run mypy application api middleware main.py frontend.py
+      # Blocking, but as a ratchet: existing debt is baselined per file and only
+      # a file that *gains* errors fails. See scripts/mypy_ratchet.py.
+      - name: Mypy (ratchet)
+        run: poetry run python scripts/mypy_ratchet.py
 
   guardrails:
     # The checks in .claude/scripts/ encode the invariants CLAUDE.md states —
