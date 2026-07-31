@@ -162,7 +162,7 @@
   "pages/service_health_view.py": 2,
   "pages/static_brackets.py": 1,
   "pages/volunteer.py": 2,
-  "pages/volunteer_tabs/proctor_station.py": 6,
+  "pages/volunteer_tabs/proctor_station.py": 5,
   "racetimebot/manager.py": 1,
   "theme/base.py": 18,
   "theme/brackets/cards.py": 5,
@@ -186,5 +186,5 @@
   "theme/dialog/volunteer_shift_dialog.py": 2,
   "theme/error_page.py": 1,
   "theme/join_page.py": 1,
-  "theme/tables/match_lifecycle.py": 8
+  "theme/tables/match_lifecycle.py": 3
 }

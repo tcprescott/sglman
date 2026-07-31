@@ -17,6 +17,8 @@ the sanctioned presentation-layer load-or-404 shape (CLAUDE.md, entry surfaces);
 every *write* goes through a service.
 """
 
+from typing import Any
+
 from nicegui import app, ui
 
 from application.services import MatchScheduleService, MatchService, get_user_from_discord_id
@@ -76,7 +78,10 @@ class MatchLifecycleHandlers:
     def __init__(self, page_container, *, access: MatchBoardAccess):
         self.page_container = page_container
         self.access = access
-        self.table_view = None          # assigned by the caller after the view exists
+        # Assigned by the caller after the view exists (the two-phase construction
+        # above). Untyped because the view imports these handlers' module — naming
+        # ``MatchTableView`` here would close the import cycle.
+        self.table_view: Any = None
         self.schedule_service = MatchScheduleService()
         self.match_service = MatchService()
 
@@ -277,7 +282,7 @@ class MatchLifecycleHandlers:
         room_id = None if (stage is None or want_candidate) else int(stage)
         try:
             actor = await self._actor()
-            if match.stream_room_id != room_id:
+            if match.stream_room_id != room_id:  # type: ignore[attr-defined]
                 await self.match_service.assign_stage(match_id, room_id, actor=actor)
             if room_id is None and match.is_stream_candidate != want_candidate:
                 await self.match_service.set_stream_candidate(match_id, want_candidate, actor=actor)

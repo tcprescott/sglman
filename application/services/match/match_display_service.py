@@ -280,7 +280,7 @@ class MatchDisplayService:
             'stream_room': match.stream_room.name if match.stream_room else '',
             # The id, not just the name: the board's Stage cell is a select whose
             # value is the assigned room, so it needs what the service takes back.
-            'stream_room_id': match.stream_room_id,
+            'stream_room_id': match.stream_room_id,  # type: ignore[attr-defined]
             'stream_room_url': (
                 match.stream_room.stream_url
                 if match.stream_room and match.stream_room.stream_url
