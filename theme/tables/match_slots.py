@@ -36,6 +36,8 @@ def _fill(template: str, *, admin_controls: bool, access: MatchBoardAccess,
         .replace('__CREW__', _bool_js(access.approve_crew))
         .replace('__DID__', discord_id_js)
         .replace('__WANTED__', crew_wanted_js(role))
+        .replace('__SHORT__', crew_short_js(role))
+        .replace('__KEY__', role)
         .replace('__SING__', singular)
     )
 
@@ -389,8 +391,28 @@ PLAYERS_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash
 # name that opens the user (the same split players already have — a name reads as
 # a name, not as a control that mutates approval); everyone else a plain name.
 # Non-admins get signup/undo + self-ack.
+# Vue test for "this role still needs people on this row". Built from the row's
+# ``crew_need`` (MatchDisplayService), so the board's idea of coverage and the
+# report's are one computation. Only meaningful while signup is still open — a
+# match that has started cannot be staffed.
+def crew_short_js(role: str) -> str:
+    if not role:
+        return 'false'
+    return (f"(((props.row.crew_need || {{}}).{role} || 0) > 0"
+            f" && props.row.crew_signup_open)")
+
+
 CREW_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <div class="wrap">
+        <!-- What this row still wants. Coverage used to exist only as a
+             report-time computation, so a stream-candidate match with no
+             commentators looked exactly like a non-streamed one with none, and
+             a fully covered match still offered Sign up to everybody. -->
+        <div v-if="__SHORT__" style="margin-bottom: 4px;">
+            <span class="wiz-chip wiz-chip--pending">
+                <q-icon name="person_add" size="14px" />Needs {{ (props.row.crew_need || {}).__KEY__ }} more
+            </span>
+        </div>
         <div v-if="!__IA__" style="margin-bottom: 6px;">
             <q-btn v-if="props.value && props.value.some(item => item.discord_id == __DID__)"
                    icon="undo" color="negative" size="sm" no-caps dense label="Withdraw"

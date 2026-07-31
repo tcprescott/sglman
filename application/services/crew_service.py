@@ -202,6 +202,49 @@ class CrewService:
         else:
             raise ValueError(f"Invalid crew_type: {crew_type}. Must be 'commentator' or 'tracker'")
 
+    async def list_my_commitments(
+        self, user: User, upcoming_only: bool = True,
+    ) -> list[dict]:
+        """Everything ``user`` has signed up to crew, both roles, soonest first.
+
+        The volunteer's side of the loop had no surface at all: the Player tab
+        is players-only, there was no My Commitments anywhere, and after signing
+        up the only handle on the commitment was a Withdraw button in one row of
+        a 17-row shared board. Volunteers who work *shifts* have had exactly this
+        page (My Shifts) the whole time; commentators and trackers are the same
+        people doing the same kind of work through a different door.
+
+        Returns plain dicts — the presentation layer needs a merged, sorted view
+        across two models, and merging ORM rows of different types in the page
+        would put the join in the wrong layer.
+        """
+        since = datetime.now(timezone.utc) if upcoming_only else None
+        rows = []
+        for role, repository in (
+            ('commentator', self.commentator_repository),
+            ('tracker', self.tracker_repository),
+        ):
+            for entry in await repository.get_for_user(user, since=since):
+                match = entry.match
+                rows.append({
+                    'id': entry.id,
+                    'role': role,
+                    'match_id': match.id,
+                    'scheduled_at': match.scheduled_at,
+                    'tournament': match.tournament.name if match.tournament else '',
+                    'stream_room': match.stream_room.name if match.stream_room else '',
+                    'players': [p.user.preferred_name for p in match.players],
+                    'approved': bool(entry.approved),
+                    'acknowledged': entry.acknowledged_at is not None,
+                    # The state of the *match*, so a commitment to something
+                    # already played reads as history rather than as a duty.
+                    'started': match.started_at is not None,
+                    'finished': match.finished_at is not None,
+                })
+        # A match with no time sorts last: it is real, but it is not "next".
+        rows.sort(key=lambda r: (r['scheduled_at'] is None, r['scheduled_at']))
+        return rows
+
     #: How long a match occupies its crew when the tournament says nothing.
     #: Same default ``MatchSuggestionService`` uses for player availability.
     DEFAULT_MATCH_MINUTES = 90

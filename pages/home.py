@@ -13,6 +13,7 @@ from models import FeatureFlag
 from pages.home_tabs.availability import availability_tab
 from pages.home_tabs.brackets import brackets_tab
 from pages.home_tabs.equipment import equipment_tab
+from pages.home_tabs.my_crew import my_crew_tab
 from pages.home_tabs.player import render_player_dashboard
 from pages.home_tabs.player_edit_info import render_edit_info_tab
 from pages.home_tabs.schedule import schedule
@@ -152,6 +153,11 @@ def create() -> None:
             # signup too, not only volunteer scheduling. Triforce Texts and
             # Equipment are hidden unless the tenant has that feature enabled.
             tabs.append({'label': 'My Availability', 'icon': 'event_available', 'content': availability_tab})
+            # Ungated for the same reason My Availability is: crew signup is
+            # open to any member from the Schedule tab, behind no role and no
+            # feature flag, so the record of what they signed up for has to be
+            # too. Volunteers who work shifts have had My Shifts all along.
+            tabs.append({'label': 'My Crew', 'icon': 'record_voice_over', 'content': my_crew_tab})
             if FeatureFlag.TRIFORCE_TEXTS in live:
                 tabs.append({'label': 'Triforce Texts', 'icon': 'svguse:/static/triforce.svg#triforce|0 0 512 512', 'content': triforce_texts_tab})
             if FeatureFlag.EQUIPMENT in live:

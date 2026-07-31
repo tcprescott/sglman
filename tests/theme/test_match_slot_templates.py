@@ -419,3 +419,36 @@ def test_the_two_scheduled_variants_differ_only_in_their_scheduled_branch():
     plain = state_readonly_slot(scheduled_detailed=False)
     marker = '<!-- Scheduled state -->'
     assert detailed[:detailed.index(marker)] == plain[:plain.index(marker)]
+
+
+# --- Coverage: what a match still wants ------------------------------------
+
+def test_both_layouts_say_when_a_role_is_still_short():
+    """Coverage existed only as a report-time computation, so a stream-candidate
+    match with no commentators looked exactly like a non-streamed one with none,
+    and a fully covered match still offered Sign up to everybody."""
+    cells, card = _players_and_crew(STAFF)
+    for template in (cells['body-cell-commentators'], cells['body-cell-trackers'], card):
+        assert 'crew_need' in template
+        assert 'Needs' in template
+
+
+def test_the_shortfall_is_per_role_not_a_single_number():
+    """The two roles are staffed by different people."""
+    cells, card = _players_and_crew(STAFF)
+    assert 'crew_need || {}).commentators' in cells['body-cell-commentators']
+    assert 'crew_need || {}).trackers' in cells['body-cell-trackers']
+    assert 'crew_need || {}).commentators' in card
+    assert 'crew_need || {}).trackers' in card
+
+
+def test_a_started_match_is_not_advertised_as_short():
+    """It cannot be staffed any more — CrewService refuses the signup — so
+    asking for help there is asking for a refusal."""
+    from theme.tables.match_slots import crew_short_js
+    assert 'crew_signup_open' in crew_short_js('commentators')
+
+
+def test_a_role_the_tournament_does_not_use_is_never_short():
+    from theme.tables.match_slots import crew_short_js
+    assert crew_short_js('') == 'false'

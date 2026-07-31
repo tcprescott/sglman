@@ -40,6 +40,24 @@ class CrewRepository(Generic[T]):
         return await cls.model.get_or_none(match=match, user=user, tenant_id=current_tenant_id())
 
     @classmethod
+    async def get_for_user(cls, user: User, since: Optional[datetime] = None) -> List[T]:
+        """This person's own crew commitments, soonest first.
+
+        The query behind My Crew. Nothing anywhere listed a volunteer's own
+        signups: after signing up, their only handle on the commitment was a
+        Withdraw button in one row of a shared, chronologically-sorted board.
+        ``since`` drops matches that finished before it, so the page can default
+        to what is still ahead.
+        """
+        query = scoped(cls.model.filter(user=user))
+        if since is not None:
+            query = query.filter(match__scheduled_at__gte=since)
+        return await query.prefetch_related(
+            'match', 'match__tournament', 'match__stream_room',
+            'match__players', 'match__players__user',
+        ).order_by('match__scheduled_at')
+
+    @classmethod
     async def create(cls, match: Match, user: User, approved: bool = False) -> T:
         """Create a new crew entry."""
         return await cls.model.create(tenant_id=current_tenant_id(), match=match, user=user, approved=approved)

@@ -28,6 +28,19 @@ from application.utils.timezone import (
 from models import Match, MatchAcknowledgment
 
 
+def _crew_shortfall(crew, required: int) -> int:
+    """How many more *approved* crew this role still needs; never negative.
+
+    Approved, not merely signed-up: an unapproved signup has not covered
+    anything yet, and counting it would mark a match staffed while the decision
+    that staffs it is still outstanding.
+    """
+    if not required:
+        return 0
+    approved = sum(1 for c in crew if getattr(c, 'approved', False))
+    return max(0, required - approved)
+
+
 class MatchDisplayService:
     """Service for reading and formatting matches for table display."""
 
@@ -315,6 +328,23 @@ class MatchDisplayService:
                 ),
                 'trackers': (
                     match.tournament.required_trackers > 0 if match.tournament else True
+                ),
+            },
+            # How far this match is from staffed, per role. Coverage existed
+            # only as a *report-time* computation, which is why the only surface
+            # that knew about gaps was the one that could not act on them: a
+            # stream-candidate match with no commentators looked identical to a
+            # non-streamed one with none, and a fully covered match still
+            # offered Sign up. Counting approved (not merely signed-up) crew,
+            # because an unapproved signup has not covered anything yet.
+            'crew_need': {
+                'commentators': _crew_shortfall(
+                    match.commentators,
+                    match.tournament.required_commentators if match.tournament else 0,
+                ),
+                'trackers': _crew_shortfall(
+                    match.trackers,
+                    match.tournament.required_trackers if match.tournament else 0,
                 ),
             },
             'commentators': [

@@ -42,7 +42,12 @@ depend on — do not change):
 """
 
 from theme.tables.match_access import MatchBoardAccess
-from theme.tables.match_slots import SEED_ROLLABLE, _bool_js, crew_wanted_js
+from theme.tables.match_slots import (
+    SEED_ROLLABLE,
+    _bool_js,
+    crew_short_js,
+    crew_wanted_js,
+)
 
 # --- Headline: scheduled time (large) + compact state chip -----------------
 
@@ -122,6 +127,10 @@ _CREW_DETAIL = '''
         <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (__WANTED__ && props.row.crew_signup_open && !__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
+                <!-- Mirrors the desktop cell's shortfall chip; see match_slots. -->
+                <span v-if="__SHORT__" class="wiz-chip wiz-chip--pending">
+                    <q-icon name="person_add" size="14px" />Needs {{ (props.row.crew_need || {}).__KEY__ }} more
+                </span>
                 <template v-for="(item, idx) in props.row.__KEY__">
                     <span class="mgc-crew-item">
                         <q-btn v-if="__CREW__" dense flat size="xs" class="wiz-crew-approve"
@@ -349,6 +358,7 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
             details += (
                 _CREW_DETAIL
                 .replace('__WANTED__', crew_wanted_js(role))
+                .replace('__SHORT__', crew_short_js(role))
                 .replace('__KEY__', role)
                 .replace('__SING__', role[:-1])
                 .replace('__LABEL__', labels.get(role, role))
