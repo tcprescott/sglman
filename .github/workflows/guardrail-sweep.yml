@@ -1,0 +1,27 @@
+name: Guardrail sweep
+
+# The per-PR `guardrails` job in test.yml only inspects changed files, so a
+# violation can enter the tree by a route no diff covers — a rule tightened
+# after the code was written, or a check added later. This sweeps everything.
+#
+# Whole-tree is ~5 minutes and, unlike the PR job, will fail on debt nobody
+# introduced this week, so it runs on a schedule rather than blocking merges.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # weekly, Monday 07:00 UTC
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Guardrails (whole tree)
+        run: python scripts/guardrails.py --all

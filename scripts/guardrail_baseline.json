@@ -1,0 +1,6 @@
+{
+  "check_file_length": {
+    "scripts/seed_dev.py": 1,
+    "tests/services/test_match_schedule_coverage.py": 1
+  }
+}

@@ -275,6 +275,36 @@ Two steps that land after that checklist:
 
 Every hook sources `_repo.sh` for `$REPO` rather than deriving it from the working directory, because hooks inherit the session's shell cwd, which moves whenever a Bash call `cd`s elsewhere. The executable bit lives in the git index, so a normal checkout preserves it. Full contract, the complete inventory, and the test that enforces both: [`.claude/README.md`](../.claude/README.md).
 
+### The same guardrails in CI
+
+As hooks, those checks fire on a Write/Edit *inside a Claude session* and nowhere
+else — a hand-written commit, a merge, or an edit from any other tool passes all
+of them. `scripts/guardrails.py` replays the same scripts against files on disk,
+so CI enforces them for everyone. It reimplements nothing: it synthesizes the
+hook payload each check already parses and reports its exit status.
+
+```bash
+python scripts/guardrails.py --changed origin/main   # what CI runs on a PR
+python scripts/guardrails.py --all                   # whole tree (~5 min)
+python scripts/guardrails.py pages/admin.py          # one file
+```
+
+Two jobs use it: `guardrails` in `test.yml` (per PR, changed files only, and
+blocking) and `guardrail-sweep.yml` (weekly, whole tree, non-blocking on merges).
+The sweep exists because a changed-files check cannot see a violation that
+entered by a route no diff covers — a rule tightened after the code was written,
+or a check added later.
+
+`scripts/guardrail_baseline.json` records accepted pre-existing hits as a
+per-(check, file) count; a run fails only when a count *grows*. Deleting an entry
+is always safe, so the baseline shrinks on its own and only grows when somebody
+deliberately runs `--all --update-baseline`.
+
+Three scripts are deliberately excluded: `run_full_tests` and `run_related_tests`
+are test runners rather than checks, `enforce_safe_commands` guards Bash tool
+calls, and `check_migration_drift` reads the working tree — which is clean in CI,
+where the `migrations` job proves the chain applies to a real PostgreSQL instead.
+
 ## Repository hygiene notes
 
 - `poetry.lock` is committed; keep it in sync with `pyproject.toml` when changing dependencies (the CI cache is keyed on its hash).

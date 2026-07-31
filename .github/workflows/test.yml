@@ -30,6 +30,34 @@ jobs:
         continue-on-error: true
         run: poetry run mypy application api middleware main.py frontend.py
 
+  guardrails:
+    # The checks in .claude/scripts/ encode the invariants CLAUDE.md states —
+    # layer boundaries, tenant scoping, async and datetime safety, feature-flag
+    # gating, audit discipline. As Claude Code hooks they only fire inside a
+    # Claude session; here they bind every commit, whoever wrote it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The runner diffs against the merge base, so it needs the history.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Stdlib only — the checks import nothing outside the standard library,
+      # so this job skips the Poetry install the other jobs need.
+      - name: Guardrails (changed files)
+        run: |
+          if [ -n "${{ github.base_ref }}" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="HEAD~1"
+          fi
+          python scripts/guardrails.py --changed "$base"
+
   pytest:
     runs-on: ubuntu-latest
     strategy:
