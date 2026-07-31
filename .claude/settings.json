@@ -21,6 +21,11 @@
           },
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/check_native_datetime_inputs.py\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/enforce_migration_safety.py\"",
             "timeout": 10
           },

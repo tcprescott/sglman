@@ -11,7 +11,7 @@ from application.utils.timezone import (
     parse_local_datetime,
 )
 from models import VolunteerPosition, VolunteerShift
-from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, submit_on_enter
+from theme.dialog._helpers import dialog_actions, dialog_header, mobile_sheet, native_date_input, native_time_input, submit_on_enter
 from theme.notify import notify_error
 
 
@@ -66,14 +66,14 @@ class VolunteerShiftDialog:
                     position_options, value=default_position, label='Position',
                 ).classes('input-full-width')
                 with ui.row().classes('gap-2 items-center full-width'):
-                    start_date_input = ui.input('Start date', value=default_start_date).props('type=date')
-                    start_time_input = ui.input('Start time', value=default_start_time).props('type=time')
+                    start_date_input = native_date_input('Start date', default_start_date)
+                    start_time_input = native_time_input('Start time', default_start_time)
                 # Keep the end date aligned with the start date until the user edits it.
                 end_date_edited = {'value': editing}
 
                 with ui.row().classes('gap-2 items-center full-width'):
-                    end_date_input = ui.input('End date', value=default_end_date).props('type=date')
-                    end_time_input = ui.input('End time', value=default_end_time).props('type=time')
+                    end_date_input = native_date_input('End date', default_end_date)
+                    end_time_input = native_time_input('End time', default_end_time)
                 end_date_input.on('change', lambda: end_date_edited.update(value=True))
 
                 def _sync_end_date(e):

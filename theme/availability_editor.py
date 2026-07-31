@@ -14,13 +14,14 @@ from nicegui import app, ui
 
 from application.services import SystemConfigService, get_user_from_discord_id
 from application.utils.timezone import (
-    timezone_label,
     format_local_date,
     format_local_time,
     parse_local_datetime,
+    timezone_label,
     to_local,
 )
 from models import VolunteerAvailabilityStatus
+from theme.dialog._helpers import native_date_input, native_time_input
 
 
 _STATUS_OPTIONS = {
@@ -105,14 +106,14 @@ async def render_availability_editor(service, *, help_text: str) -> None:
                 ui.label('No availability windows yet. Add one below.').classes('italic-note')
             for row in rows:
                 with ui.row().classes('items-center gap-2 q-mb-xs'):
-                    ui.input('Date', value=row['date']) \
-                        .props('type=date dense').bind_value(row, 'date') \
+                    native_date_input('Date', row['date'], dense=True) \
+                        .bind_value(row, 'date') \
                         .on_value_change(effective_graph.refresh)
-                    ui.input('Start', value=row['start']) \
-                        .props('type=time dense').bind_value(row, 'start') \
+                    native_time_input('Start', row['start'], dense=True) \
+                        .bind_value(row, 'start') \
                         .on_value_change(effective_graph.refresh)
-                    ui.input('End', value=row['end']) \
-                        .props('type=time dense').bind_value(row, 'end') \
+                    native_time_input('End', row['end'], dense=True) \
+                        .bind_value(row, 'end') \
                         .on_value_change(effective_graph.refresh)
                     ui.select(_STATUS_OPTIONS, value=row['status']) \
                         .props('dense').bind_value(row, 'status').classes('w-40') \

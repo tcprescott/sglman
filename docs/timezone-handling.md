@@ -127,6 +127,26 @@ embeds and DMs use native `<t:unix:F>` markup (`discord_embeds.time_field`),
 which each recipient's own client renders in their own zone. Never format a
 literal time string into Discord output.
 
+## Time inputs say which clock they mean
+
+Every native date/time control comes from `theme/dialog/_helpers.py`
+(`native_date_input` / `native_time_input` / `native_datetime_input`), and the
+time ones carry the zone in their label — `Time (EDT)`. A bare "Time" field was
+unambiguous only while the whole app ran on one clock.
+
+`tz=None` labels it with the viewer's own zone, matching the `parse_local_datetime`
+that will read it. Pass an explicit `tz` where the field is **not** read on the
+viewer's clock — tournament operating hours are the community's rule, so
+`admin_system_config` captions that grid with the tenant's zone instead.
+`show_timezone=False` opts out where nearby copy already says it.
+
+Four fields used to hand-roll the `props('type=time …')` string. Not by intent:
+the helper could not express `dense`, so anything wanting a compact inline row
+wrote its own — and a hand-rolled field is one the zone label can never reach.
+The helpers now take `dense`/`stack_label`, and
+`.claude/scripts/check_native_datetime_inputs.py` blocks a raw `type=date`/`time`/
+`datetime-local` props string anywhere in `pages/` or `theme/`.
+
 ## REST and webhooks stay UTC
 
 Timezone is presentation; a programmatic client gets one canonical instant.

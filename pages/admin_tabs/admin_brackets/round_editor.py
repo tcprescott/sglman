@@ -14,6 +14,7 @@ from application.utils.timezone import timezone_label
 from models import BracketMatch
 from theme.dialog._helpers import dialog_actions  # noqa: F401  (kept for parity)
 from theme.notify import notify_error
+from theme.dialog._helpers import native_datetime_input
 
 from .shared import iso_to_local_input, local_input_to_iso, round_display_names
 
@@ -56,10 +57,9 @@ def render_round_editor(
                 best_of = ui.number(
                     'Best of', value=cfg.get('best_of'), min=1, precision=0,
                 ).props('dense inputmode=numeric').classes('col-4 col-sm-3')
-                scheduled = ui.input(
-                    f'Scheduled ({timezone_label()})',
-                    value=iso_to_local_input(cfg.get('scheduled_at')),
-                ).props('type=datetime-local dense').classes('col')
+                scheduled = native_datetime_input(
+                    'Scheduled', iso_to_local_input(cfg.get('scheduled_at')), dense=True,
+                ).classes('col')
                 widgets[round_number] = (best_of, scheduled)
 
         async def save_rounds() -> None:
