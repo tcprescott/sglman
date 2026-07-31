@@ -5,7 +5,7 @@ Handles crew (commentator and tracker) related operations.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
 from tortoise.transactions import in_transaction
@@ -25,7 +25,7 @@ from application.utils.discord_messages import (
     crew_withdrawn_dm,
 )
 from application.utils.match_labels import players_label
-from application.utils.timezone import to_utc_aware
+from application.utils.timezone import format_local_display, to_utc_aware
 from models import Commentator, Tracker, User
 
 logger = logging.getLogger(__name__)
@@ -201,6 +201,56 @@ class CrewService:
             return await self.tracker_repository.get_by_id(crew_id)
         else:
             raise ValueError(f"Invalid crew_type: {crew_type}. Must be 'commentator' or 'tracker'")
+
+    #: How long a match occupies its crew when the tournament says nothing.
+    #: Same default ``MatchSuggestionService`` uses for player availability.
+    DEFAULT_MATCH_MINUTES = 90
+
+    async def find_scheduling_conflicts(
+        self, user: User, match, role: str = 'commentator',
+    ) -> list[str]:
+        """What else ``user`` is committed to while ``match`` is running.
+
+        No conflict check existed anywhere in the crew path — the only
+        overlap-aware code in the codebase was player availability — so a
+        coordinator staffing a stream day approved N people from a dialog that
+        told them nothing they needed in order to decide. Being a *player* in
+        the overlapping match counts: someone racing at 19:00 cannot commentate
+        at 19:00 either.
+
+        Returns one human sentence per clash, ready to print; an empty list is
+        the common answer and costs one query.
+        """
+        if match is None or not getattr(match, 'scheduled_at', None):
+            return []
+        start = to_utc_aware(match.scheduled_at)
+        await match.fetch_related('tournament')
+        minutes = (
+            getattr(match.tournament, 'average_match_duration', None)
+            or self.DEFAULT_MATCH_MINUTES
+        )
+        window = timedelta(minutes=minutes)
+        # Widened both ways so a match starting shortly *before* this one, and
+        # still running, is caught — a window anchored only forward would miss
+        # the overlap that matters most.
+        others = await self.match_repository.commitments_for_user(
+            user.id, start - window, start + window, exclude_match_id=match.id,
+        )
+
+        clashes = []
+        for other in others:
+            other_start = to_utc_aware(other.scheduled_at)
+            other_minutes = (
+                getattr(other.tournament, 'average_match_duration', None)
+                or self.DEFAULT_MATCH_MINUTES
+            )
+            if other_start >= start + window or other_start + timedelta(
+                    minutes=other_minutes) <= start:
+                continue
+            names = players_label([p.user.preferred_name for p in other.players])
+            when = format_local_display(other_start)
+            clashes.append(f'{names or "a match"} at {when}' if names else f'a match at {when}')
+        return clashes
 
     async def update_crew_approval(
         self,

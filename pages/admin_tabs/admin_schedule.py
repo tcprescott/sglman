@@ -4,6 +4,7 @@
 from nicegui import ui
 
 from application.tenant_context import require_tenant_id
+from application.utils.crew_queue import pending_crew_summary
 from models import Match
 from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.dialog.match_dialog import AdminMatchDialog
@@ -135,6 +136,36 @@ def admin_schedule_page(
                     'Show only these', icon='filter_alt', on_click=lambda: _only_finished(),
                 ).props('flat dense color=primary')
 
+        # The crew half of the same idea. A pending signup was communicated to
+        # staff by text colour and nothing else: the words "pending", "awaiting
+        # approval" and "to approve" appeared nowhere on this page, and
+        # `.st-pending` is the same class the overdue-timestamp cell uses, so
+        # most elements carrying it on a given board were not crew at all.
+        @ui.refreshable
+        def crew_queue() -> None:
+            if not access.approve_crew:
+                return
+            rows = table_view.table.rows if table_view else []
+            pending = pending_crew_summary(rows)
+            if not pending.total:
+                return
+            with ui.row().classes('items-center gap-2 q-mb-sm'):
+                with ui.element('span').classes('wiz-chip wiz-chip--pending'):
+                    ui.icon('assignment_ind', size='14px')
+                    ui.label(pending.label)
+                ui.button(
+                    'Show only these', icon='filter_alt',
+                    on_click=lambda: table_view._bg(
+                        table_view.focus_matches(pending.match_ids)),
+                ).props('flat dense color=primary')
+                if table_view is not None and table_view.match_ids:
+                    ui.button(
+                        'Show all matches', icon='clear',
+                        on_click=lambda: table_view._bg(table_view.focus_matches(None)),
+                    ).props('flat dense color=primary')
+
+        crew_queue()
+
         def _only_finished() -> None:
             # Assigning the select's value fires _on_state_filter_change, which
             # stores the choice and reloads the table.
@@ -155,7 +186,7 @@ def admin_schedule_page(
             # must be on screen without them discovering the State filter.
             default_state_filter=['Scheduled', 'Checked In', 'Started', 'Finished'],
             match_ids=[match_id] if match_id else None,
-            on_rows_changed=lambda _rows: review_queue.refresh(),
+            on_rows_changed=lambda _rows: (review_queue.refresh(), crew_queue.refresh()),
             **handlers.callbacks(),
         )
         handlers.table_view = table_view

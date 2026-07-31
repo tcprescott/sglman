@@ -8,6 +8,8 @@ Returns domain objects (Match, MatchPlayers, etc.) without business logic.
 from datetime import datetime
 from typing import List, Optional
 
+from tortoise.expressions import Q
+
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Match, MatchPlayers, User
 
@@ -341,6 +343,32 @@ class MatchRepository:
             'tournament', 'stream_room', 'players', 'players__user',
             'commentators', 'commentators__user', 'trackers', 'trackers__user'
         ).order_by('scheduled_at')
+
+    @staticmethod
+    async def commitments_for_user(
+        user_id: int, start: datetime, end: datetime, exclude_match_id: Optional[int] = None,
+    ) -> List[Match]:
+        """Every match in ``[start, end)`` this user is already committed to.
+
+        Committed means any of the three roles — a commentator cannot cover two
+        streams at once *and* cannot commentate a match they are racing in. One
+        query per role would be three; a single OR'd filter is one, deduped by id
+        because a person could hold two roles on the same match.
+        """
+        query = scoped(Match.filter(
+            Q(players__user_id=user_id)
+            | Q(commentators__user_id=user_id)
+            | Q(trackers__user_id=user_id),
+            scheduled_at__gte=start,
+            scheduled_at__lt=end,
+        ))
+        if exclude_match_id is not None:
+            query = query.exclude(id=exclude_match_id)
+        matches = await query.prefetch_related('tournament', 'players', 'players__user').distinct()
+        seen: dict = {}
+        for match in matches:
+            seen.setdefault(match.id, match)
+        return sorted(seen.values(), key=lambda m: m.scheduled_at)
 
     @staticmethod
     async def get_for_player(discord_id: str) -> List[Match]:
