@@ -176,15 +176,15 @@ class GeneratedSeeds(Model):
     # Which backend actually rolled it — ``Tournament.seed_generator`` and the
     # preset FK can both change afterwards, so the name is stamped here.
     randomizer = fields.CharField(max_length=32, null=True)
-    preset = fields.ForeignKeyField(
+    preset = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.Preset', related_name='generated_seeds', null=True, on_delete=fields.SET_NULL
     )
-    settings_snapshot = fields.JSONField(null=True)
+    settings_snapshot = fields.JSONField(null=True)  # type: ignore[var-annotated]
     # SET_NULL: deleting the roller must not delete the seed record.
-    rolled_by = fields.ForeignKeyField(
+    rolled_by = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.User', related_name='rolled_seeds', null=True, on_delete=fields.SET_NULL
     )
-    provider_meta = fields.JSONField(null=True)
+    provider_meta = fields.JSONField(null=True)  # type: ignore[var-annotated]
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

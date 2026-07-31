@@ -13,7 +13,6 @@ the Discord service.
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 from application.utils.discord_embeds import time_field
 from application.utils.discord_messages import (
@@ -106,5 +105,7 @@ async def notify_run_expired(run: AsyncQualifierRun, limit_hours: int) -> None:
         logger.debug("Failed to DM run-expired notification", exc_info=True)
 
 
-def _qualifier_url(run: AsyncQualifierRun) -> Optional[str]:
-    return tenant_url(run.tenant, f'/qualifiers/{run.qualifier_id}') if run.tenant else ''
+def _qualifier_url(run: AsyncQualifierRun) -> str:
+    # Always a string: ``tenant_url`` returns one, and a run with no tenant gets
+    # '' so the message builders simply omit the link.
+    return tenant_url(run.tenant, f'/qualifiers/{run.qualifier_id}') if run.tenant else ''  # type: ignore[attr-defined]

@@ -59,7 +59,8 @@ async def _tick() -> None:
     await for_each_tenant_scoped(
         candidates,
         _handle,
-        tenant_id_of=lambda run: run.tenant_id,
+        # ``tenant_id`` is Tortoise's generated FK column, invisible to mypy.
+        tenant_id_of=lambda run: run.tenant_id,  # type: ignore[attr-defined]
         logger=logger,
         describe=lambda run: f'qualifier run {getattr(run, "id", None)}',
     )

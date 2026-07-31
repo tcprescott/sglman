@@ -98,7 +98,7 @@ class AsyncQualifierPermalink(Model):
     # admin), linking to the same provenance record a match seed gets: which
     # preset, the settings as sent, who rolled it, what it cost. SET_NULL so
     # purging the seed record keeps the permalink playable.
-    generated_seed = fields.ForeignKeyField(
+    generated_seed = fields.ForeignKeyField(  # type: ignore[var-annotated]
         'models.GeneratedSeeds', related_name='async_qualifier_permalinks',
         null=True, on_delete=fields.SET_NULL,
     )

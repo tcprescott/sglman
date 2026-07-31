@@ -394,7 +394,7 @@ class AsyncQualifierService(PlayerReadsMixin, RunExpiryMixin):
                 seed_url=call.value.url,
                 seed_info=f"Rolled for qualifier pool {pool_id}",
                 randomizer=pool.preset.randomizer,
-                preset_id=pool.preset_id,
+                preset_id=pool.preset_id,  # type: ignore[attr-defined]
                 settings_snapshot=call.value.settings,
                 rolled_by_id=actor.id if actor is not None else None,
                 provider_meta=call.as_meta(),
