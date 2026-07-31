@@ -155,10 +155,36 @@ class TournamentNotificationPreference(Model):
 
 
 class GeneratedSeeds(Model):
+    """One rolled seed, with the provenance a disputed result asks for.
+
+    ``seed_url`` alone cannot answer "what settings produced this?" — a
+    :class:`Preset` is an editable row, so editing one silently rewrites the
+    apparent history of every seed rolled from it. ``settings_snapshot`` is
+    therefore the resolved payload **as sent upstream**, captured at roll time and
+    never updated; ``preset`` records which preset was selected, and the two
+    together survive any later edit. ``provider_meta`` carries what the roll cost
+    (attempts, latency, surface) from the seed-provider envelope.
+
+    No credential is ever part of the snapshot: randomizer keys are resolved
+    separately and never merged into a settings payload.
+    """
+
     id = fields.IntField(pk=True)
     tenant = fields.ForeignKeyField('models.Tenant', related_name='generated_seeds', on_delete=fields.CASCADE)
     seed_url = fields.CharField(max_length=255)
     seed_info = fields.TextField(null=True)
+    # Which backend actually rolled it — ``Tournament.seed_generator`` and the
+    # preset FK can both change afterwards, so the name is stamped here.
+    randomizer = fields.CharField(max_length=32, null=True)
+    preset = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.Preset', related_name='generated_seeds', null=True, on_delete=fields.SET_NULL
+    )
+    settings_snapshot = fields.JSONField(null=True)  # type: ignore[var-annotated]
+    # SET_NULL: deleting the roller must not delete the seed record.
+    rolled_by = fields.ForeignKeyField(  # type: ignore[var-annotated]
+        'models.User', related_name='rolled_seeds', null=True, on_delete=fields.SET_NULL
+    )
+    provider_meta = fields.JSONField(null=True)  # type: ignore[var-annotated]
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

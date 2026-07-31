@@ -69,8 +69,12 @@ FILE_CHECKS = [
     "enforce_nicegui_client_api",
 ]
 
-# Only meaningful against a diff: "you edited a migration that already exists"
-# is a violation, but every migration in the tree trivially matches it.
+# Only meaningful against a diff, and only against files the diff *modified*:
+# "you edited a migration that already exists" is a violation, but every migration
+# in the tree trivially matches it, and a newly added one is not an edit at all —
+# adding a migration is how schema changes ship. Skipped for added paths (see
+# ``added_files``), mirroring the hook's own allowance for a Write to a path that
+# does not yet exist.
 CHANGED_ONLY_CHECKS = {"enforce_migration_safety"}
 
 # Whole-repo checks: run once, with no file payload.
@@ -97,6 +101,18 @@ def changed_files(base: str) -> list[str]:
     merge_base = git("merge-base", "HEAD", base).strip() or base
     names = git("diff", "--name-only", "--diff-filter=d", merge_base, "HEAD")
     return [p for p in names.splitlines() if p.strip()]
+
+
+def added_files(base: str) -> set[str]:
+    """Paths this diff *created*, as opposed to modified.
+
+    The distinction matters for :data:`CHANGED_ONLY_CHECKS`: a check that means
+    "you changed a file you were not supposed to change" must not fire on a file
+    that did not exist before, or adding one becomes impossible.
+    """
+    merge_base = git("merge-base", "HEAD", base).strip() or base
+    names = git("diff", "--name-only", "--diff-filter=A", merge_base, "HEAD")
+    return {p for p in names.splitlines() if p.strip()}
 
 
 def tracked_files() -> list[str]:
@@ -181,9 +197,11 @@ def main() -> int:
     args = ap.parse_args()
 
     base: str | None = None
+    added: set[str] = set()
     if args.changed:
         base = args.changed
         paths = changed_files(args.changed)
+        added = added_files(args.changed)
     elif args.all:
         paths = tracked_files()
     elif args.paths:
@@ -207,7 +225,12 @@ def main() -> int:
     for path in paths:
         base_content(path, base)
 
-    grid = [(name, path) for name in checks for path in paths]
+    grid = [
+        (name, path)
+        for name in checks
+        for path in paths
+        if not (name in CHANGED_ONLY_CHECKS and path in added)
+    ]
     workers = min(32, (os.cpu_count() or 4) * 4)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = pool.map(lambda job: check_file(job[0], job[1], base), grid)

@@ -86,13 +86,32 @@ def service():
     return svc
 
 
+def _rolled(url: str, settings=None):
+    """A ``ProviderCall`` stand-in for the seam ``generate_seed`` now goes through.
+
+    ``MatchScheduleService`` calls ``generate_seed_call`` (not ``generate_seed``)
+    so it can record the seed's provenance — the permalink *and* the settings as
+    sent, plus what the roll cost.
+    """
+    from application.services.seedgen_service import RolledSeed
+    from application.utils.seed_provider import ProviderCall
+
+    return ProviderCall(
+        value=RolledSeed(url=url, settings=settings),
+        provider='alttpr', operation='generate_seed', attempts=1, latency_ms=5,
+    )
+
+
+
 class TestGenerateSeed:
     async def test_success_creates_seed_writes_audit_and_returns_url(self, service, db):
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
         await MatchPlayers.create(match=m, user=await make_user(1, name="alice"))
-        service.seedgen_service.generate_seed = AsyncMock(return_value="https://alttpr.com/h/xyz")
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
+        )
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
@@ -116,7 +135,9 @@ class TestGenerateSeed:
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t, scheduled_at=utc(2025, 1, 15, 19, 30))
         await MatchPlayers.create(match=m, user=await make_user(3, name="alice"))
-        service.seedgen_service.generate_seed = AsyncMock(return_value="https://alttpr.com/h/xyz")
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
+        )
 
         passed = {}
         stamped_create = GeneratedSeeds.create
@@ -141,41 +162,41 @@ class TestGenerateSeed:
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t)
-        service.seedgen_service.generate_seed = AsyncMock(return_value="url")
+        service.seedgen_service.generate_seed_call = AsyncMock(return_value=_rolled("url"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
         assert ok is False
         assert url is None
         assert "no players yet" in message
-        service.seedgen_service.generate_seed.assert_not_awaited()
+        service.seedgen_service.generate_seed_call.assert_not_awaited()
         assert await GeneratedSeeds.all().count() == 0
 
     async def test_returns_permission_error_for_non_privileged_actor(self, service, db):
         actor = await make_user(2, name="nobody")
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t)
-        service.seedgen_service.generate_seed = AsyncMock(return_value="url")
+        service.seedgen_service.generate_seed_call = AsyncMock(return_value=_rolled("url"))
 
         ok, message, url = await service.generate_seed(m.id, actor)
 
         assert ok is False
         assert url is None
         assert "do not have permission" in message
-        service.seedgen_service.generate_seed.assert_not_awaited()
+        service.seedgen_service.generate_seed_call.assert_not_awaited()
 
     async def test_returns_error_when_seed_already_exists(self, service, db):
         staff = await make_staff()
         t = await Tournament.create(name="T", seed_generator="alttpr")
         seed = await GeneratedSeeds.create(seed_url="https://existing")
         m = await Match.create(tournament=t, generated_seed=seed)
-        service.seedgen_service.generate_seed = AsyncMock(return_value="url")
+        service.seedgen_service.generate_seed_call = AsyncMock(return_value=_rolled("url"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
         assert ok is False
         assert "already been generated" in message
-        service.seedgen_service.generate_seed.assert_not_awaited()
+        service.seedgen_service.generate_seed_call.assert_not_awaited()
 
     async def test_returns_error_when_no_generator_configured(self, service, db):
         staff = await make_staff()
@@ -222,15 +243,15 @@ class TestGenerateSeed:
         t = await Tournament.create(name="T", seed_generator="dk64r")
         m = await Match.create(tournament=t)
         await MatchPlayers.create(match=m, user=await make_user(21, name="p"))
-        service.seedgen_service.generate_seed = AsyncMock(
-            return_value="https://dk64randomizer.com/randomizer.html?seed_id=42"
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled("https://dk64randomizer.com/randomizer.html?seed_id=42")
         )
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
         assert ok is True
         assert url.endswith("seed_id=42")
-        service.seedgen_service.generate_seed.assert_awaited_once()
+        service.seedgen_service.generate_seed_call.assert_awaited_once()
 
     async def test_returns_in_progress_when_lock_held(self, service, db):
         staff = await make_staff()
@@ -252,7 +273,7 @@ class TestGenerateSeed:
         t = await Tournament.create(name="T", seed_generator="alttpr")
         m = await Match.create(tournament=t)
         await MatchPlayers.create(match=m, user=await make_user(5, name="alice"))
-        service.seedgen_service.generate_seed = AsyncMock(side_effect=RuntimeError("boom"))
+        service.seedgen_service.generate_seed_call = AsyncMock(side_effect=RuntimeError("boom"))
 
         ok, message, url = await service.generate_seed(m.id, staff)
 
@@ -680,7 +701,9 @@ class TestSeedDmDispatch:
         await MatchPlayers.create(match=m, user=await make_user(1, name="alice"))
         await MatchPlayers.create(match=m, user=await make_user(2, name="bob", dm=False))
         await MatchPlayers.create(match=m, user=await make_user(3, name="carol"))
-        service.seedgen_service.generate_seed = AsyncMock(return_value="https://alttpr.com/h/xyz")
+        service.seedgen_service.generate_seed_call = AsyncMock(
+            return_value=_rolled("https://alttpr.com/h/xyz", {"mode": "open"})
+        )
         # First recipient succeeds, second fails (exercises the warning branch).
         service.discord_service.send_dm = AsyncMock(side_effect=[(True, "ok"), (False, "blocked")])
 

@@ -566,6 +566,53 @@ def qualifier_run_reviewed_dm(
     return "\n\n".join(blocks)
 
 
+def qualifier_run_expiring_dm(
+    qualifier_name: str,
+    *,
+    deadline_display: str,
+    qualifier_url: str = '',
+) -> str:
+    """One warning that an in-progress run is about to be forfeited automatically.
+
+    The runner drew a seed and has not submitted. Usually they finished and
+    forgot; occasionally they abandoned it. Either way the only thing that
+    salvages the attempt is submitting or forfeiting *before* the deadline, so the
+    message leads with the deadline and says what happens if it passes.
+    """
+    blocks = [
+        f"Your **{qualifier_name}** run is still open, and will be forfeited "
+        f"automatically {deadline_display}.",
+        "Submit your finish time before then to have it count — or forfeit it "
+        "yourself if you are not going to finish.",
+    ]
+    if qualifier_url:
+        blocks.append(f"[Submit or forfeit your run]({qualifier_url})")
+    return "\n\n".join(blocks)
+
+
+def qualifier_run_expired_dm(
+    qualifier_name: str,
+    *,
+    hours: int,
+    qualifier_url: str = '',
+) -> str:
+    """A run was forfeited automatically after sitting open past its limit.
+
+    Names the limit rather than just the outcome: the runner needs to know this
+    was a time rule and not a decision anyone made about them, and an organiser
+    can grant a reattempt if it was wrong.
+    """
+    blocks = [
+        f"Your **{qualifier_name}** run was open for more than {hours} hours "
+        f"without a finish time, so it has been forfeited.",
+        "If that is not right, ask an organiser — they can grant you another "
+        "attempt without spending your own.",
+    ]
+    if qualifier_url:
+        blocks.append(f"[Your runs and the leaderboard]({qualifier_url})")
+    return "\n\n".join(blocks)
+
+
 def qualifier_reattempt_granted_dm(
     qualifier_name: str,
     pool_name: str,

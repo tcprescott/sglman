@@ -31,11 +31,22 @@ class StreamRoomBase(BaseModel):
 
 
 class GeneratedSeedBase(BaseModel):
+    """A rolled seed and its provenance.
+
+    ``settings_snapshot`` is the settings as sent to the randomizer at roll time,
+    which is what answers "what settings did this seed use?" after the preset has
+    since been edited. Exposed on the authenticated match read only — a
+    spoiler-adjacent setting is precisely what a viewer must not see mid-race.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     seed_url: str
     seed_info: Optional[str] = None
+    randomizer: Optional[str] = None
+    settings_snapshot: Optional[dict] = None
+    provider_meta: Optional[dict] = None
     created_at: datetime
 
 

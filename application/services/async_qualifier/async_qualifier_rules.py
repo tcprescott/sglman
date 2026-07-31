@@ -7,7 +7,7 @@ sibling helpers.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional, Sequence, Tuple
 
@@ -16,6 +16,14 @@ from application.utils.duration import format_hms
 from models import AsyncQualifier, User
 
 DEFAULT_IMBALANCE_THRESHOLD = 2
+
+# How long a drawn run may stay in progress before it is forfeited automatically.
+# Twelve hours is SahasrahBot's production-tested value: comfortably longer than
+# any real run plus a meal break, short enough that an abandoned run frees its
+# pool slot the same day.
+DEFAULT_RUN_TIME_LIMIT_HOURS = 12
+# How long before that deadline the runner gets one warning DM.
+DEFAULT_EXPIRY_WARNING_MINUTES = 60
 
 # Clock skew between the browser's submit and the server's ``now``, plus request
 # latency. A claim inside this much of the measured duration is not a discrepancy.
@@ -46,6 +54,37 @@ def par_sample_size(qualifier: Optional[AsyncQualifier]) -> int:
         if isinstance(value, int) and value >= 1:
             return value
     return DEFAULT_PAR_SAMPLE_SIZE
+
+
+def run_time_limit(qualifier: Optional[AsyncQualifier]) -> timedelta:
+    """How long a run of this qualifier may stay in progress."""
+    if qualifier and isinstance(qualifier.config, dict):
+        value = qualifier.config.get('run_time_limit_hours')
+        if isinstance(value, int) and value >= 1:
+            return timedelta(hours=value)
+    return timedelta(hours=DEFAULT_RUN_TIME_LIMIT_HOURS)
+
+
+def expiry_warning_lead(qualifier: Optional[AsyncQualifier]) -> timedelta:
+    """How long before the deadline the runner is warned."""
+    if qualifier and isinstance(qualifier.config, dict):
+        value = qualifier.config.get('expiry_warning_minutes')
+        if isinstance(value, int) and value >= 1:
+            return timedelta(minutes=value)
+    return timedelta(minutes=DEFAULT_EXPIRY_WARNING_MINUTES)
+
+
+def run_deadline(qualifier: AsyncQualifier, started_at: Optional[datetime]) -> Optional[datetime]:
+    """When a run started at ``started_at`` expires — ``None`` if never started.
+
+    Naive values are read as UTC, matching :func:`measure_elapsed` and the
+    storage convention.
+    """
+    if started_at is None:
+        return None
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    return started_at + run_time_limit(qualifier)
 
 
 def imbalance_threshold(qualifier: AsyncQualifier) -> int:

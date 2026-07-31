@@ -206,7 +206,7 @@ class TestMockSeedgen:
 
 class TestGenerateFf1r:
     async def test_returns_url_with_seed_param(self, service):
-        result = await service._generate_ff1r()
+        result = (await service._generate_ff1r()).url
         assert '?s=' in result or '&s=' in result
         # Seed is 8 hex chars upper-cased
         from urllib.parse import parse_qs, urlparse
@@ -219,7 +219,7 @@ class TestGenerateFf1r:
         from urllib.parse import parse_qs, urlparse
 
         seeds = {
-            parse_qs(urlparse(await service._generate_ff1r()).query)['s'][0]
+            parse_qs(urlparse((await service._generate_ff1r()).url).query)['s'][0]
             for _ in range(5)
         }
         assert len(seeds) > 1
@@ -232,7 +232,7 @@ class TestGenerateFf1r:
 
 class TestGenerateZ1r:
     async def test_returns_string_with_flags(self, service):
-        result = await service._generate_z1r()
+        result = (await service._generate_z1r()).url
         assert ' - ' in result
         # Left side is the seed integer, right side is the flags string
         parts = result.split(' - ', 1)
@@ -392,7 +392,7 @@ class TestGenerateDk64r:
         monkeypatch.setattr('asyncio.sleep', _noop_sleep)
 
         preset = _preset({'settings_string': 'abc123'})
-        url = await service._generate_dk64r(preset)
+        url = (await service._generate_dk64r(preset)).url
 
         assert url == 'https://dk64randomizer.com/randomizer.html?seed_id=90210'
         # The API key travels as X-API-Key on the session.
@@ -417,7 +417,7 @@ class TestGenerateDk64r:
         monkeypatch.setattr('asyncio.sleep', _noop_sleep)
 
         preset = _preset({'level_randomization': 'level_order', 'krool_phases': 5})
-        url = await service._generate_dk64r(preset)
+        url = (await service._generate_dk64r(preset)).url
 
         assert url.endswith('seed_id=5')
         # First (and only POST) call is submit — no convert step.
@@ -437,7 +437,7 @@ class TestGenerateDk64r:
         monkeypatch.setattr('asyncio.sleep', _noop_sleep)
 
         preset = _preset({'_branch': 'dev', 'krool_phases': 3})
-        url = await service._generate_dk64r(preset)
+        url = (await service._generate_dk64r(preset)).url
 
         assert url == 'https://dev.dk64randomizer.com/randomizer.html?seed_id=77'
         # Every call carries branch=dev...
@@ -461,7 +461,7 @@ class TestGenerateDk64r:
         monkeypatch.setattr(aiohttp, 'ClientSession', stub)
         monkeypatch.setattr('asyncio.sleep', _noop_sleep)
 
-        url = await service._generate_dk64r(None)
+        url = (await service._generate_dk64r(None)).url
         assert url.endswith('seed_id=1')
         # The committed builtin is a settings-string preset → convert runs first.
         assert stub.calls[0][1].endswith('/convert_settings')

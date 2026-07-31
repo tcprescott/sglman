@@ -124,6 +124,34 @@ class TournamentService:
             raise ValueError(f"Required {role} cannot be negative")
         return count
 
+    @staticmethod
+    def _check_automation_prerequisites(
+        *,
+        racetime_auto_create_rooms: bool,
+        racetime_bot_id: Optional[int],
+    ) -> None:
+        """Refuse automation that has been switched on without what it needs.
+
+        A tournament could previously be saved with ``racetime_auto_create_rooms``
+        on and no bot to host the rooms with. Nothing rejected it — the worker
+        simply returned ``None`` on every tick, and the setting read as enabled on
+        the admin page right up until the moment a race needed a room that was
+        never going to be created. That is the class of failure SahasrahBot's
+        reliability audit asks to move to save time: an unsatisfiable
+        configuration should fail while someone is looking at it, not during a
+        live race-setup window.
+
+        Scoped to what is genuinely unsatisfiable. A tournament with no preset and
+        no ``seed_generator`` is **not** one of those: ``_attach_seed`` skips
+        quietly and the room opens without a seed, which is a real way to run a
+        race (the seed comes from somewhere else, or the goal is the settings).
+        """
+        if racetime_auto_create_rooms and racetime_bot_id is None:
+            raise ValueError(
+                'Automatic race rooms need a racetime bot — pick one, or turn '
+                'automatic rooms off.'
+            )
+
     async def create_tournament(
         self,
         name: str,
@@ -174,6 +202,10 @@ class TournamentService:
         preset_id = await self._resolve_preset_id(preset_id)
         racetime_bot_id = await self._resolve_racetime_bot_id(racetime_bot_id)
         race_room_profile_id = await self._resolve_race_room_profile_id(race_room_profile_id)
+        self._check_automation_prerequisites(
+            racetime_auto_create_rooms=racetime_auto_create_rooms,
+            racetime_bot_id=racetime_bot_id,
+        )
 
         tournament = await self.repository.create(
             name=name.strip(),
@@ -325,6 +357,20 @@ class TournamentService:
                 update_data['event_end_date'] = norm_end
         if tournament_hours is not _UNSET:
             update_data['tournament_hours'] = self._normalize_tournament_hours(tournament_hours)
+
+        # Checked against the *post-update* shape, falling back to what is stored
+        # for every field this call left alone: clearing the bot on a tournament
+        # that already has automatic rooms on is the same broken state as
+        # switching rooms on without one, and must be refused the same way.
+        def _after(key: str, default=None):
+            if key in update_data:
+                return update_data[key]
+            return getattr(tournament, key, default)
+
+        self._check_automation_prerequisites(
+            racetime_auto_create_rooms=_after('racetime_auto_create_rooms', False),
+            racetime_bot_id=_after('racetime_bot_id'),
+        )
 
         result = await self.repository.update(tournament, **update_data)
 
