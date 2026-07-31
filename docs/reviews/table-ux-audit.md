@@ -367,9 +367,18 @@ get paid off. If only part of this ships, ship 0–3.
 
 ---
 
-## 8. Open questions
+## 8. Decisions
 
-1. **Global or per-tenant preferences?** Recommendation: global, per §4.3. Reversing later costs a migration.
-2. **Feature flag?** Recommendation: no, per §4.8 — asked because CLAUDE.md requires it to be asked.
-3. **Scope of Wave 4.** Sorting, search, pagination and sticky headers are separate findings that happen to touch the same files. They can ship as their own audit-response instead of riding along.
-4. **Row selection + bulk actions** — the other half of the console table pattern, deliberately excluded here. Worth its own decision.
+Settled with the maintainer; the execution plan is
+[`docs/plans/table-customization/`](../plans/table-customization/README.md).
+
+| Question | Decision |
+|---|---|
+| Preference scope | **Global per user** — no tenant FK, per §4.3 |
+| Feature flag | **None**, per §4.8 |
+| Build scope | **Customization plus the table findings it touches** — sorting, search, pagination and sticky headers ship in the same waves rather than a separate PR, because they live in the same files |
+| Modal contents | Visible columns + reorder, page size, density, wrap lines |
+
+**Row selection and bulk actions remain out of scope** — the other half of the
+console table pattern, deliberately excluded. The mechanism does not foreclose
+it; it is worth its own decision.
