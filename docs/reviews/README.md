@@ -11,6 +11,7 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
+| [table-ux-audit.md](table-ux-audit.md) | Every `ui.table` in the app, and the plan for user-controlled columns | Five ways to build a table, none of which remembers anything; the boards people work all day are the least sortable surfaces in the app |
 
 Shipped and deleted: the match-operations audit — its findings became
 `MatchBoardAccess` (one field per service gate, replacing the `can_crud`
