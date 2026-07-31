@@ -34,7 +34,6 @@ from models import (
     ApiToken,
     ApiTokenOrigin,
     AuditLog,
-    Commentator,
     DiscordRoleMapping,
     FeatureFlag,
     FeatureFlagGroup,
@@ -56,7 +55,6 @@ from models import (
     TenantMembership,
     Tournament,
     TournamentPlayers,
-    Tracker,
     TriforceText,
     User,
     UserRole,
@@ -64,6 +62,7 @@ from models import (
 )
 from scripts.seed_brackets import seed_brackets_for_tenant
 from scripts.seed_challonge import seed_challonge_for_tenant
+from scripts.seed_crew import seed_crew_for_tenant
 from scripts.seed_equipment import seed_equipment_for_tenant
 from scripts.seed_fledgling import seed_fledgling_tenant
 from scripts.seed_match_day import seed_match_day_for_tenant
@@ -450,11 +449,7 @@ async def seed_for_tenant(
             tenant, tournament, staff, players,
             {"stage1": stage1, "stage2": stage2, "stage3": stage3}, now,
         )
-        checked_in_match = fixtures["checked_in"]
-        in_progress_match = fixtures["in_progress"]
         finished_match = fixtures["finished"]
-        stage3_match = fixtures["stage3"]
-        future_match = fixtures["future"]
         disputed_match = fixtures["disputed"]
         seed = fixtures["seed"]
 
@@ -486,47 +481,11 @@ async def seed_for_tenant(
             tenant, tournament, racers, [stage1, stage2, stage3], today, now,
         )
 
-        # --- Crew signups (commentators / trackers) -------------------------
+        # --- Crew signups (scripts/seed_crew.py) ----------------------------
         sm = users["sm_user"]
         proctor = users["proctor_user"]
-        await Commentator.get_or_create(
-            match=in_progress_match, user=sm, tenant=tenant,
-            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
-        )
-        await Tracker.get_or_create(
-            match=in_progress_match, user=proctor, tenant=tenant,
-            defaults={"approved": False},
-        )
-        await Commentator.get_or_create(
-            match=finished_match, user=proctor, tenant=tenant,
-            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now - timedelta(hours=3)},
-        )
-        await Commentator.get_or_create(
-            match=future_match, user=sm, tenant=tenant,
-            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
-        )
-        await Commentator.get_or_create(
-            match=future_match, user=proctor, tenant=tenant,
-            defaults={"approved": False},
-        )
-        await Tracker.get_or_create(
-            match=stage3_match, user=sm, tenant=tenant,
-            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
-        )
-        # A **fully crewed** restream: two approved commentators and an approved
-        # tracker on one match, which is what a stage match actually goes live
-        # with. Every other seeded match is partly crewed, so the coverage
-        # surfaces (and the crew card's full state) had nothing complete to show.
-        # The crew here are the two players who are *not* in this match — which
-        # is also how a community really staffs a restream.
-        for commentator in (players[2], sm):
-            await Commentator.get_or_create(
-                match=checked_in_match, user=commentator, tenant=tenant,
-                defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
-            )
-        await Tracker.get_or_create(
-            match=checked_in_match, user=players[3], tenant=tenant,
-            defaults={"approved": True, "approved_by": staff, "acknowledged_at": now},
+        await seed_crew_for_tenant(
+            tenant, staff, sm, proctor, players, fixtures, now,
         )
         print(f"    [{tenant.slug}] crew ok")
 

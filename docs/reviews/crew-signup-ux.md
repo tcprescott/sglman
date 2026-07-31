@@ -297,7 +297,16 @@ the acknowledgment-clearing side effect that came with it.
 
 The control now reads **Acknowledge** in both the table cell and the mobile
 card, with the tooltip demoted to the explanation ("Confirm you can cover this
-commentator slot") rather than the only label.
+commentator slot") rather than the only label. Driving the phone layout turned
+up the same defect one control over — the mobile **Withdraw** was an icon-only
+round `undo` button, tooltip-only, on the surface where a tooltip never opens —
+so it is labelled too.
+
+The state was also unreachable in a dev database: every seeded crew row was
+approved *and* acknowledged, so nothing rendered the control or the "Approved,
+awaiting acknowledgment" marker. `scripts/seed_crew.py` now seeds it. That is
+the [cross-cutting seed theme](README.md#cross-cutting-themes) again: a state
+the fixtures cannot produce is a state nobody reviews.
 
 Measured buttons on an approved crew row: `undo Withdraw`, **`check`**,
 `assignment_ind Sign up`, `notifications_none`. The acknowledge control is a bare

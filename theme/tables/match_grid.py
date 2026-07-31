@@ -152,10 +152,14 @@ _CREW_DETAIL = '''
                     </span>
                 </template>
                 <template v-if="!__IA__">
+                    <!-- Labelled for the same reason Acknowledge is: this is the
+                         phone layout, where a tooltip is the one explanation that
+                         never opens, and a bare `undo` circle beside a name does
+                         not read as "drop this commitment". -->
                     <q-btn v-if="props.row.__KEY__ && props.row.__KEY__.some(item => item.discord_id == __DID__)"
-                           icon="undo" color="negative" size="sm" dense flat round
+                           icon="undo" color="negative" size="sm" dense flat no-caps label="Withdraw"
                            @click="$parent.$emit('undo___SING__', props.row)">
-                        <q-tooltip>Remove yourself</q-tooltip>
+                        <q-tooltip>Remove yourself as __SING__</q-tooltip>
                     </q-btn>
                     <q-btn v-if="__WANTED__ && props.row.crew_signup_open && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
                            icon="assignment" color="primary" size="sm" dense outline
