@@ -1,4 +1,5 @@
 import functools
+import os
 
 import pytest
 from tortoise import Tortoise, connections
@@ -14,14 +15,23 @@ from application.tenant_context import require_tenant_id, reset_tenant_id, set_t
 DEFAULT_TEST_TENANT_ID = 1
 
 
+# The suite runs on in-memory SQLite: no service to start, and a fresh schema
+# per test. Set WIZZROBE_TEST_DB_URL to a postgres:// URL to run the same tests
+# against the real backend — see docs/development.md on what only Postgres can
+# prove (row locks are a no-op on SQLite, and the DDL itself is never exercised).
+TEST_DB_URL = os.environ.get('WIZZROBE_TEST_DB_URL', 'sqlite://:memory:')
+ON_POSTGRES = TEST_DB_URL.startswith(('postgres://', 'postgresql://', 'asyncpg://'))
+
+
 @functools.cache
-def _schema_sql() -> str:
+def _schema_sql(_dialect: str) -> str:
     """The CREATE TABLE script for every model, rendered once per process.
 
     ``Tortoise.generate_schemas()`` re-derives this DDL from model metadata on
     every call (~18ms). The output only depends on the models, which do not
     change during a run, so the ``db`` fixture renders it once and replays the
-    script instead — the same tables, roughly a third of the cost.
+    script instead — the same tables, roughly a third of the cost. Keyed by
+    dialect because the rendered DDL is backend-specific.
     """
     return get_schema_sql(connections.get('default'), safe=True)
 
@@ -137,14 +147,30 @@ async def db(monkeypatch):
     pass ``tenant_id`` explicitly, which the wrapper leaves untouched.
     """
     await Tortoise.init(
-        db_url="sqlite://:memory:",
+        db_url=TEST_DB_URL,
         modules={"models": ["models"]},
     )
-    await connections.get('default').execute_script(_schema_sql())
+    conn = connections.get('default')
+    if ON_POSTGRES:
+        # A real database persists between tests, so hand each one an empty
+        # schema. Dropping and recreating is slower than truncating but cannot
+        # leave a stale column behind when the models move underneath it.
+        await conn.execute_script(
+            'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+        )
+    await conn.execute_script(_schema_sql('postgres' if ON_POSTGRES else 'sqlite'))
 
     await _models.Tenant.create(
         id=DEFAULT_TEST_TENANT_ID, name='Default', slug='default',
     )
+    if ON_POSTGRES:
+        # An explicit id does not advance the SERIAL sequence, so the next
+        # auto-assigned Tenant id would collide with the one just forced above.
+        # (SQLite hides this: its rowid counter is max(id) + 1 either way.)
+        await conn.execute_script(
+            "SELECT setval(pg_get_serial_sequence('tenant', 'id'), "
+            "(SELECT MAX(id) FROM tenant));"
+        )
 
     # Feature flags default OFF (available AND enabled), which would make every
     # flag-gated service guard raise for the ~all-features-on legacy test suite.

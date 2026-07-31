@@ -147,14 +147,17 @@ class TestCachesAreIntact:
         )
 
     async def test_schema_sql_is_cached(self, db):
-        from tests.conftest import _schema_sql
+        from tests.conftest import ON_POSTGRES, _schema_sql
 
         assert hasattr(_schema_sql, 'cache_info'), (
             '_schema_sql() lost its @functools.cache (tests/conftest.py). The '
             'CREATE TABLE script is a pure function of the models, so re-deriving '
             'it on each of the ~1450 DB-backed setups is wasted work.'
         )
-        assert _schema_sql() is _schema_sql(), (
+        # Keyed by dialect since the suite can also run against PostgreSQL,
+        # where the rendered DDL differs.
+        dialect = 'postgres' if ON_POSTGRES else 'sqlite'
+        assert _schema_sql(dialect) is _schema_sql(dialect), (
             '_schema_sql() re-rendered the schema instead of returning the cached '
             'script. Restore the @functools.cache in tests/conftest.py.'
         )

@@ -275,6 +275,34 @@ Two steps that land after that checklist:
 
 Every hook sources `_repo.sh` for `$REPO` rather than deriving it from the working directory, because hooks inherit the session's shell cwd, which moves whenever a Bash call `cd`s elsewhere. The executable bit lives in the git index, so a normal checkout preserves it. Full contract, the complete inventory, and the test that enforces both: [`.claude/README.md`](../.claude/README.md).
 
+### Running the suite against PostgreSQL
+
+`poetry run pytest` uses in-memory SQLite: no service to start, a fresh schema
+per test, and the whole suite in under a minute. Production is PostgreSQL, and
+some of what it relies on is a **silent no-op** on SQLite — `SELECT … FOR UPDATE`
+above all. `AsyncQualifierRepository.lock_user_for_draw` exists so two
+simultaneous draw clicks cannot both open a run; on SQLite that lock does
+nothing, so no SQLite test can tell whether it is there.
+
+Point the same suite at a real database with `WIZZROBE_TEST_DB_URL`:
+
+```bash
+WIZZROBE_TEST_DB_URL=postgres://wizzrobe:wizzrobe@localhost:5432/wizzrobe_test \
+    poetry run pytest tests/postgres tests/tenancy -q -n0
+```
+
+`-n0` is required: each test drops and recreates the schema, so xdist workers
+would pull the tables out from under one another. `tests/postgres/` holds the
+tests that *only* mean something here (they skip on SQLite); everything else
+runs on both.
+
+The `postgres` CI job runs exactly that pair on every PR — the row-locking tests
+plus tenant isolation, which is where real constraint enforcement matters. Point
+the variable at anything else locally to widen it. Adopting this surfaced one
+harness bug real Postgres catches and SQLite hides: creating the default tenant
+with an explicit `id=1` leaves the `SERIAL` sequence at 1, so the next
+auto-assigned tenant collides. The `db` fixture now advances the sequence.
+
 ### Mypy is a ratchet, not a gate
 
 `poetry run python scripts/mypy_ratchet.py` is blocking in CI, but it compares

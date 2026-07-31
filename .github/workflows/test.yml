@@ -117,6 +117,46 @@ jobs:
           BBPPAIRINGS_BIN: ${{ github.workspace }}/bbpPairings/bbpPairings.exe
         run: poetry run pytest tests/services/test_bracket_swiss_crossvalidation.py -q
 
+  postgres:
+    # The suite runs on SQLite, where some of what production relies on is a
+    # silent no-op — SELECT ... FOR UPDATE most of all. This lane re-runs the
+    # tests whose meaning depends on the real backend: the row-locking tests
+    # (which fail here if the lock is removed, and cannot on SQLite) and the
+    # tenant-isolation suite, which is the one that leans on real constraint
+    # enforcement. Serial: each test drops and recreates the schema, so parallel
+    # workers would pull the tables out from under each other.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wizzrobe
+          POSTGRES_PASSWORD: wizzrobe
+          POSTGRES_DB: wizzrobe_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wizzrobe"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Pytest (PostgreSQL backend)
+        env:
+          WIZZROBE_TEST_DB_URL: postgres://wizzrobe:wizzrobe@localhost:5432/wizzrobe_test
+        run: poetry run pytest tests/postgres tests/tenancy -q -n0
+
   migrations:
     # Prove the full aerich migration chain applies from an empty PostgreSQL
     # database — the tests run on SQLite and never exercise the migrations.
