@@ -89,6 +89,34 @@ legitimate exception is `/platform`'s Service Health board, whose loader probes
 the whole install and takes no tenant; it opts out with a
 `# refresh-context: exempt` comment, the same idiom as `# mobile-grid: exempt`.
 
+#### 1b. The same cause, one layer over: My Crew's two buttons
+
+Having found the shape, the audit clicked every *other* `background_tasks.create`
+handler in `pages/` and watched the log. One more was dead, and it is the worse
+one because it is a volunteer's, not an admin's.
+
+`my_crew.py`'s `acknowledge` and `withdraw` both opened with
+`client = context.client` — *inside* the coroutine. In a detached task the slot
+stack is empty and that line **raises** rather than returning `None`, so both
+handlers died on their first statement. **Confirm I can cover this** and
+**Withdraw** did nothing: no notification, no 500, nothing on screen. My Crew
+exists because [the crew audit](README.md) found the volunteer had no surface of
+their own; its two actions had never worked from it.
+
+The client now arrives from the call site, and `acknowledge` does its scoped
+service call and refresh *inside* the block rather than only the `ui.notify` —
+the tenant fallback reads the client stash, which only exists in there.
+
+`check_slot_context.py` catches the related shape (a `ui.*` call in a background
+task with no slot) but not this one, because the offending line looks like an
+ordinary capture. `test_no_background_coroutine_reads_context_client_itself`
+closes that gap by AST: any coroutine handed to `background_tasks.create` that
+reads `context.client` from inside is a hit.
+
+The other handlers clicked and found sound: the randomizer-key Save and Clear,
+the profile timezone select, SpeedGaming's delete and sync-now, and the preset
+import — all of which already take `context.client` as a parameter.
+
 ### 2. SpeedGaming could not be configured at all
 
 `open_link_dialog` is `async` (it loads the tournament options), so both entry

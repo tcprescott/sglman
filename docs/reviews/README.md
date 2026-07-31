@@ -147,6 +147,11 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   screenshot sweep passes all eleven. `refresh_button` and
   `test_no_tab_hand_rolls_a_refresh_button` close it
   ([admin-toolbar](admin-toolbar-ux.md#1-a-refresh-button-spawned-from-a-click-loses-its-tenant-11-of-15-tabs)).
+  The generalisation is worth more than the fix: **once you find a broken
+  wiring shape, click every other instance of it before you stop.** Doing that
+  turned up My Crew's `acknowledge` and `withdraw`, which read `context.client`
+  from *inside* the task — where it raises — so a volunteer's Confirm and
+  Withdraw had never worked from the page built to give them one.
 - **A convention only half the app honours.** `{'hidden': True}` on a column is
   this repo's own invention. The mobile-card renderer honoured it; Quasar, which
   has no such property, painted the column anyway — so seven admin tables led
