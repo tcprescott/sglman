@@ -78,6 +78,7 @@ Services are the business-logic layer of the [three-layer architecture](../refac
 | `TenantMembershipService` | [tenant_membership_service.py](../../application/services/tenant_membership_service.py) | Community membership: list, add, remove, and the role-implies-membership hook | [multitenancy.md](../features/multitenancy.md#identity-roles-and-membership) |
 | `TenantSetupService` | [tenant_setup_service.py](../../application/services/tenant_setup_service.py) | The derived new-community setup checklist (`SetupStep`); nothing stored | [multitenancy.md](../features/multitenancy.md#provisioning-a-community) |
 | `TenantThemeService` | [tenant_theme_service.py](../../application/services/tenant_theme_service.py) | Per-tenant brand palette (STAFF-editable colours on `Tenant.config['theme']`) | [frontend.md](../reference/frontend.md#per-tenant-theme-colours) |
+| `TimezoneService` | [timezone_service.py](../../application/services/timezone_service.py) | Per-tenant display-timezone policy (pin vs. follow-the-viewer) and per-viewer resolution | [timezone-handling.md](../timezone-handling.md) |
 | `TournamentNotificationService` | [tournament_notification_service.py](../../application/services/tournament_notification_service.py) | Per-tournament notification preferences | [match-participation.md](../features/match-participation.md) |
 | `TournamentService` | [tournament_service.py](../../application/services/tournament_service.py) | Tournament CRUD, TA/CC membership | — |
 | `TriforceTextService` | [triforce_text_service.py](../../application/services/triforce_text_service.py) | Triforce text submission and moderation | [triforce-texts.md](../features/triforce-texts.md) |
@@ -728,6 +729,25 @@ The per-tenant **brand palette**. The app ships a fixed "Phoenix" palette (gold/
 | `contrast_warnings(colors)` | `list[str]` | Human-readable warnings for colours below the 4.5:1 AA target. |
 
 Contrast math lives in [`application/utils/color_contrast.py`](../../application/utils/color_contrast.py) (pure WCAG relative-luminance / contrast-ratio). Presets are held to the same bar the shipped defaults meet — `tests/test_color_contrast.py` asserts every preset field passes, so a preset can never ship failing AA. Collaborators: `TenantRepository`, `AuthService`, `AuditService`, `color_contrast`.
+
+### timezone_service.py — TimezoneService
+
+Which wall clock each viewer reads times on. Datetimes are stored UTC everywhere; this service owns the **policy** and the **resolution**, and [`application/timezone_context.py`](../../application/timezone_context.py) owns the request-scoped plumbing (contextvar + NiceGUI client stash, same two-tier shape as `tenant_context.py`).
+
+Two tiers. `Tenant.config['timezone']` holds `{'mode': 'pinned'|'user', 'name': '<IANA>'}`: a **pinned** community renders one clock for everybody (right for an on-site event, where "14:30" means 14:30 at the venue); a **user** community defers to each viewer — their `User.timezone`, else the zone their browser reported via the `wiz_tz` cookie, else the community's own. `name` matters in both modes: pinned uses it as *the* clock, `user` mode as the floor everything falls back to. Writes are STAFF-gated and audited `timezone.updated`; the per-user preference is self-service and audited `user.timezone_updated`. `Tenant` is the tenancy discriminator (never tenant-scoped), so this goes through the cross-tenant `TenantRepository`. Full rules: [timezone-handling.md](../timezone-handling.md).
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_settings(tenant_id=None)` | `dict` | The community's `{mode, name}`, defaults applied. Defaults to the in-scope tenant. |
+| `tenant_timezone_name(tenant_id=None)` | `str` | The community's **own** clock — the zone for anything not viewer-specific (cached spectator pages, tournament hours, workers, MCP/REST date params). Never raises. |
+| `set_settings(actor, mode, name)` | `dict` | STAFF-gated; validates the mode and that the zone loads; persists to `Tenant.config['timezone']`; audits. |
+| `set_user_timezone(actor, name)` | `str \| None` | Save or clear (`None`/blank) the actor's own preference. Self-service — the actor is the subject, so no role check. |
+| `pick(settings, user=None, browser_timezone=None)` | `str` | Pure, sync resolution given already-loaded settings: pinned short-circuits, else profile → browser → community default. Lets the page builder re-resolve after the user loads without a second tenant read. |
+| `resolve(user=None, browser_timezone=None, tenant_id=None)` | `str` | `get_settings` + `pick`. Never raises. |
+
+Every read path is **total**: an unknown mode, a missing key, or a zone this system's tzdata cannot load degrades to the defaults rather than raising, because the settings are read on every page build and a hand-edited blob must not be able to take the app down. Module constants: `MODE_PINNED`/`MODE_USER`, `DEFAULT_MODE` (`user` — new communities follow the viewer; existing ones were migrated to an explicit Eastern pin), `COMMON_TIMEZONES` (the picker shortlist; both pickers still accept any IANA name), `CONFIG_KEY`.
+
+Collaborators: `TenantRepository`, `UserRepository`, `AuthService`, `AuditService`, `timezone_context`. Bound at the edges by `middleware/auth.py` (`bind_display_timezone`, page build), `middleware/tenant.py` (the cookie), `api/dependencies.py`, `mcpserver/registry.py`, and `application/utils/background_loop.py` (worker ticks).
 
 ### tournament_notification_service.py — TournamentNotificationService
 
