@@ -449,6 +449,26 @@ class TournamentService:
     async def get_tournament_by_id(self, tournament_id: int) -> Optional[Tournament]:
         return await self.repository.get_by_id(tournament_id)
 
+    async def list_schedulable(
+        self, keep_id: Optional[int] = None,
+    ) -> tuple[list[Tournament], dict[int, int]]:
+        """The admin match dialog's Tournament options, and their entrant counts.
+
+        Two thirds of the unfiltered list could not be scheduled into, and the
+        dialog said so only after Create was pressed: an *inactive* tournament
+        was offered on equal footing with a live one, and six of ten options
+        opened an empty player menu with no message. Inactive ones are dropped
+        (``keep_id`` spares the one an existing match already points at, so
+        editing it does not blank its own chip); the counts let the dialog
+        label the rest.
+        """
+        tournaments = await self.repository.get_all(active_only=True)
+        if keep_id is not None and not any(t.id == keep_id for t in tournaments):
+            current = await self.repository.get_by_id(keep_id)
+            if current is not None:
+                tournaments = sorted([*tournaments, current], key=lambda t: t.name)
+        return tournaments, await self.repository.enrolment_counts()
+
     async def list_player_requestable(
         self, user: Optional[User] = None,
     ) -> list[Tournament]:

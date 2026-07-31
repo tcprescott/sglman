@@ -49,6 +49,39 @@ def enrolment_preview(names: list, tournament_name: str) -> str:
     return f'{listed} will be enrolled in {tournament_name}.'
 
 
+#: Semantic tone (``match_status.STATUS_TONES``) → the chip class ``styles.css``
+#: already defines. One mapping so the dialog's chip and the board's cell cannot
+#: colour the same state differently.
+_TONE_CHIP = {
+    'neutral': 'wiz-chip--neutral',
+    'info': 'wiz-chip--neutral',
+    'imminent': 'wiz-chip--candidate',
+    'live': 'wiz-chip--live',
+    'done': 'wiz-chip--pending',
+    'settled': 'wiz-chip--ok',
+    'cancelled': 'wiz-chip--cancelled',
+    'attention': 'wiz-chip--pending',
+}
+
+
+def acknowledgment_empty_state(player_count: int, sg_sourced: bool) -> str:
+    """What to say when a match has no acknowledgment rows.
+
+    The old copy said "No players assigned." for a match with two players and
+    zero rows — describing the wrong thing entirely, and on the exact matches a
+    SpeedGaming sync produced. Distinguish the two states, and on a sourced
+    match name the cause rather than leaving the operator to guess.
+    """
+    if player_count == 0:
+        return 'No players assigned yet.'
+    plural = 'player is' if player_count == 1 else 'players are'
+    base = (f'{player_count} {plural} assigned, but nobody has been asked to '
+            f'confirm — there are no acknowledgment rows on this match.')
+    if sg_sourced:
+        return base + ' Re-syncing this episode from SpeedGaming creates them.'
+    return base
+
+
 def enrolment_report(names: list, tournament_name: str) -> str:
     """The same fact in the past tense, for the success notification."""
     if not names:
@@ -98,10 +131,27 @@ class BaseMatchDialog:
                 'stream_room': None,
             }
 
-    def _render_tournament_select(self, tournaments, default_value, empty_hint):
+    def _render_tournament_select(
+        self, tournaments, default_value, empty_hint, entrant_counts=None,
+    ):
+        """The Tournament select, optionally labelled with each entrant count.
+
+        ``entrant_counts`` turns *"why is the Players menu empty?"* into a fact
+        readable before the choice is made — the admin dialog passes it, the
+        player's request dialog has no use for it (its own list is already
+        enrolment-scoped).
+        """
+        def option_label(t) -> str:
+            if entrant_counts is None:
+                return t.name
+            n = entrant_counts.get(t.id, 0)
+            if n == 0:
+                return f'{t.name} — nobody enrolled'
+            return f'{t.name} — {n} entrant{"" if n == 1 else "s"}'
+
         select = ui.select(
             label='Tournament *',
-            options={t.id: t.name for t in tournaments},
+            options={t.id: option_label(t) for t in tournaments},
             value=default_value,
             with_input=True,
         ).props('required').classes('input-full-width')
@@ -156,30 +206,121 @@ class BaseMatchDialog:
 
         ui.button('Suggest a time', icon='lightbulb', on_click=suggest_time).props('flat color=secondary').classes('mt-1')
 
+    def _render_state_summary(self, players) -> None:
+        """Where this match currently stands, at the top of the edit dialog.
+
+        The dialog used to read none of it: opening a Finished, disputed match
+        with a winner already recorded showed a Comment field, five Clear
+        buttons and the sentence "No players assigned." The four facts that
+        explain why the match is in front of you — its state, the recorded
+        winner, the proctor's dispute flag and note — all lived on the board
+        behind it, and the dispute note lived in a hover tooltip at that.
+        """
+        from application.services.match.match_status import (
+            LEGACY_STATE_LABELS,
+            STATUS_LABELS,
+            STATUS_TONES,
+            resolve,
+        )
+
+        status = resolve(match=self.match)
+        text = LEGACY_STATE_LABELS.get(status) or STATUS_LABELS.get(status, '')
+        chip = _TONE_CHIP.get(STATUS_TONES.get(status, 'neutral'), 'wiz-chip--neutral')
+        winner = next((p for p in players if getattr(p, 'finish_rank', None) == 1), None)
+
+        with ui.row().classes('items-center gap-2 flex-wrap'):
+            with ui.element('span').classes(f'wiz-chip {chip}'):
+                ui.label(text)
+            if winner is not None:
+                with ui.element('span').classes('wiz-chip wiz-chip--ok'):
+                    ui.icon('emoji_events', size='14px')
+                    ui.label(f'Winner: {winner.user.preferred_name}')
+            if getattr(self.match, 'needs_review', False):
+                with ui.element('span').classes('wiz-chip wiz-chip--cancelled'):
+                    ui.icon('report_problem', size='14px')
+                    ui.label('Needs review')
+        # As text, not a tooltip: this is the one fact that explains why the
+        # match was flagged, and the board already hides it behind a hover.
+        if getattr(self.match, 'needs_review', False):
+            note = getattr(self.match, 'review_note', None)
+            ui.label(
+                f'Flagged by the proctor: {note}' if note
+                else 'Flagged by the proctor, with no note.'
+            ).classes('text-caption st-pending')
+
     def _render_clear_buttons(self):
-        def make_clear_button(label, icon, attr_flag, match_attr, is_relation=False):
-            def clear():
-                setattr(self, attr_flag, True)
-                btn.disable()
-                btn.props('outline')
+        """The five buttons that rewind a match's lifecycle on Save.
 
+        They arm rather than act, which is right — the change belongs in the one
+        transaction the Save runs. What was missing was every other half of an
+        arming mechanism: nothing said the buttons rolled the lifecycle
+        backwards, a click only greyed the button out, there was no way to
+        change your mind short of closing the dialog and losing every other
+        edit, and Save never summarised what it was about to undo. All three are
+        here now; the buttons toggle, and ``_clear_summary`` is the sentence the
+        Save confirmation reads back.
+        """
+        armed: dict = {}
+
+        def make_clear_button(label, noun, icon, attr_flag, match_attr, is_relation=False):
             if is_relation:
-                btn_disabled = getattr(self.match, f'{match_attr}_id', None) is None
+                unavailable = getattr(self.match, f'{match_attr}_id', None) is None
             else:
-                btn_disabled = getattr(self.match, match_attr) is None
+                unavailable = getattr(self.match, match_attr) is None
 
-            btn_color = 'gray' if btn_disabled else 'negative'
-            btn = ui.button(label, icon=icon, on_click=clear).props(f'outline color={btn_color}').classes('ml-1')
-            if btn_disabled:
+            def toggle():
+                now_armed = not getattr(self, attr_flag)
+                setattr(self, attr_flag, now_armed)
+                armed[noun] = now_armed
+                if now_armed:
+                    btn.props(remove='outline')
+                    btn.props('color=negative')
+                    btn.set_text(f'{label} — armed')
+                else:
+                    btn.props('outline color=negative')
+                    btn.set_text(label)
+                refresh_summary()
+
+            btn = ui.button(label, icon=icon, on_click=toggle).props(
+                f"outline color={'grey-7' if unavailable else 'negative'}",
+            ).classes('ml-1')
+            if unavailable:
                 btn.disable()
+                btn.tooltip(f'{noun} is not set on this match')
             return btn
 
-        with ui.row().classes('items-center flex-wrap gap-1'):
-            make_clear_button('Clear Check In', 'chair', '_clear_seated', 'seated_at')
-            make_clear_button('Clear Started', 'play_arrow', '_clear_started', 'started_at')
-            make_clear_button('Clear Finish', 'sports_score', '_clear_finished', 'finished_at')
-            make_clear_button('Clear Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
-            make_clear_button('Clear Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
+        def refresh_summary() -> None:
+            summary.text = self._clear_summary(armed)
+            summary.set_visibility(bool(summary.text))
+
+        with ui.column().classes('gap-1'):
+            ui.label('Rewind the lifecycle').classes('text-bold')
+            ui.label(
+                'Each button arms a step to be undone when you press Save. '
+                'Click it again to change your mind.'
+            ).classes('text-caption text-grey')
+            with ui.row().classes('items-center flex-wrap gap-1'):
+                make_clear_button('Clear Check In', 'Check In', 'chair', '_clear_seated', 'seated_at')
+                make_clear_button('Clear Started', 'Started', 'play_arrow', '_clear_started', 'started_at')
+                make_clear_button('Clear Finish', 'Finish', 'sports_score', '_clear_finished', 'finished_at')
+                make_clear_button('Clear Confirmed', 'Confirmed', 'verified', '_clear_confirmed', 'confirmed_at')
+                make_clear_button('Clear Seed', 'Seed', 'casino', '_clear_seed', 'generated_seed', is_relation=True)
+            summary = ui.label('').classes('text-caption st-pending')
+            summary.set_visibility(False)
+
+    @staticmethod
+    def _clear_summary(armed: dict) -> str:
+        """"Save will undo: X and Y." — empty when nothing is armed.
+
+        Static and dict-driven so the sentence is testable without a browser;
+        the five buttons above and the Save confirmation both read it, so they
+        cannot describe the same arming differently.
+        """
+        names = [noun for noun, is_armed in armed.items() if is_armed]
+        if not names:
+            return ''
+        listed = names[0] if len(names) == 1 else ', '.join(names[:-1]) + f' and {names[-1]}'
+        return f'Save will undo: {listed}.'
 
     async def _render_watch_switch(self, user):
         if not self.match:

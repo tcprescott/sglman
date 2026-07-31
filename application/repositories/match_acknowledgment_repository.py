@@ -53,6 +53,38 @@ class MatchAcknowledgmentRepository:
         return ack
 
     @staticmethod
+    async def reconcile(match: Match, users: List[User]) -> tuple[int, int]:
+        """Make the rows match ``users`` without rewriting the answers already given.
+
+        The non-destructive counterpart to ``upsert`` + ``delete_for_match``,
+        which together restart the question: this creates a row for a player who
+        has none and drops rows for people no longer in the match, and touches
+        nothing else. Returns ``(created, removed)``.
+        """
+        by_id = {u.id: u for u in users}
+        existing = set(await scoped(
+            MatchAcknowledgment.filter(match=match),
+        ).values_list('user_id', flat=True))
+
+        created = 0
+        for uid, user in by_id.items():
+            if uid in existing:
+                continue
+            await MatchAcknowledgment.create(
+                tenant_id=current_tenant_id(), match=match, user=user,
+                acknowledged_at=None, auto_acknowledged=False,
+            )
+            created += 1
+
+        stale = existing - set(by_id)
+        removed = 0
+        if stale:
+            removed = await scoped(
+                MatchAcknowledgment.filter(match=match, user_id__in=list(stale)),
+            ).delete()
+        return created, removed
+
+    @staticmethod
     async def delete_for_match(match: Match) -> int:
         return await scoped(MatchAcknowledgment.filter(match=match)).delete()
 

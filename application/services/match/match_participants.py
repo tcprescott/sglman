@@ -110,12 +110,34 @@ class MatchParticipants:
         for uid in existing_ids - new_ids_set:
             await repository.delete(existing_map[uid])
 
+    async def reconcile_acknowledgments(
+        self, match: Match, player_ids: List[int],
+    ) -> tuple[int, int]:
+        """Give every current player a row, drop the rest, keep the answers.
+
+        The non-destructive counterpart to :meth:`seed_acknowledgments`, for
+        callers that run repeatedly over a match whose players may already have
+        replied — the SpeedGaming sync above all. Without a row a player is
+        invisible to the whole acknowledgment surface: the board's cell renders
+        neither the confirmed nor the pending icon, their own Acknowledge button
+        is gated on the row existing, and the admin dialog reports nobody
+        assigned.
+
+        Returns ``(created, removed)``.
+        """
+        users_by_id = await self.user_repository.get_by_ids(player_ids)
+        users = [users_by_id[pid] for pid in player_ids if pid in users_by_id]
+        return await self.ack_repository.reconcile(match, users)
+
     async def seed_acknowledgments(
         self, match: Match, player_ids: List[int], actor
     ) -> None:
         """Reset and re-create acknowledgment rows for all current players.
 
-        The actor (if present among players) is auto-acknowledged.
+        The actor (if present among players) is auto-acknowledged. Destructive
+        by design — an admin rewriting the roster is restarting the question.
+        A caller that must not discard existing answers wants
+        :meth:`ensure_acknowledgments` instead.
         """
         await self.ack_repository.delete_for_match(match)
         actor_id = actor.id if actor is not None else None

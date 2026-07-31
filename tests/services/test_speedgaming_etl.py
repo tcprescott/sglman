@@ -15,6 +15,7 @@ from application.services.speedgaming_etl_service import SpeedGamingETLService
 from application.utils.clients.speedgaming_client import MockSpeedGamingClient
 from models import (
     Match,
+    MatchAcknowledgment,
     MatchPlayers,
     RacetimeRoom,
     SpeedGamingEpisode,
@@ -179,3 +180,77 @@ async def test_auto_finishes_stale_match(db):
     assert result.auto_finished == 1
     match = await Match.filter(speedgaming_episode__sg_episode_id='110').first()
     assert match.finished_at is not None
+
+
+# --- Acknowledgment rows on a sourced match --------------------------------
+#
+# The ETL used to sync players and no acknowledgment rows, which made a synced
+# match's players invisible to the entire acknowledgment surface: no confirmed
+# or pending icon in the board's players cell, no Acknowledge button for the
+# player (it is gated on the row existing), and an admin dialog that reported
+# "No players assigned." for a match with two of them.
+
+async def test_import_gives_every_synced_player_an_acknowledgment_row(db):
+    system, _tourn, link, etl = await _setup(db)
+    await User.create(discord_id=111, username='playerone')
+    raw = _episode(60, '2026-07-20T18:00:00+00:00', [
+        {'id': 1, 'displayName': 'PlayerOne', 'discordId': '111', 'discordTag': 'playerone'},
+        {'id': 2, 'displayName': 'SG Only', 'discordId': None, 'discordTag': 'sgonly'},
+    ])
+
+    await etl.import_episode(link, raw, actor=system)
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='60').first()
+    acks = await MatchAcknowledgment.filter(match=match)
+    assert len(acks) == 2
+    # Created un-answered: the sync assigns people, it does not speak for them.
+    assert all(a.acknowledged_at is None for a in acks)
+    assert all(a.auto_acknowledged is False for a in acks)
+
+
+async def test_a_resync_does_not_discard_an_answer_a_player_already_gave(db):
+    """The reason this reconciles rather than re-seeds.
+
+    ``seed_acknowledgments`` deletes every row first, so calling it from a poll
+    that runs every few minutes would erase each confirmation moments after it
+    arrived.
+    """
+    system, _tourn, link, etl = await _setup(db)
+    await User.create(discord_id=111, username='playerone')
+    raw = _episode(61, '2026-07-20T18:00:00+00:00', [
+        {'id': 1, 'displayName': 'PlayerOne', 'discordId': '111', 'discordTag': 'playerone'},
+    ])
+    await etl.import_episode(link, raw, actor=system)
+    match = await Match.filter(speedgaming_episode__sg_episode_id='61').first()
+
+    ack = await MatchAcknowledgment.filter(match=match).first()
+    answered = datetime(2026, 7, 19, 12, 0, tzinfo=timezone.utc)
+    ack.acknowledged_at = answered
+    await ack.save()
+
+    await etl.import_episode(link, raw, actor=system)
+
+    rows = await MatchAcknowledgment.filter(match=match)
+    assert len(rows) == 1
+    assert rows[0].acknowledged_at == answered
+
+
+async def test_a_player_dropped_upstream_loses_their_acknowledgment_row(db):
+    """The roster is a full replace, so a stale row would outlive its player."""
+    system, _tourn, link, etl = await _setup(db)
+    await User.create(discord_id=111, username='playerone')
+    two = _episode(62, '2026-07-20T18:00:00+00:00', [
+        {'id': 1, 'displayName': 'PlayerOne', 'discordId': '111', 'discordTag': 'playerone'},
+        {'id': 2, 'displayName': 'SG Only', 'discordId': None, 'discordTag': 'sgonly'},
+    ])
+    await etl.import_episode(link, two, actor=system)
+    match = await Match.filter(speedgaming_episode__sg_episode_id='62').first()
+    assert await MatchAcknowledgment.filter(match=match).count() == 2
+
+    one = _episode(62, '2026-07-20T18:00:00+00:00', [
+        {'id': 1, 'displayName': 'PlayerOne', 'discordId': '111', 'discordTag': 'playerone'},
+    ])
+    await etl.import_episode(link, one, actor=system)
+
+    assert await MatchPlayers.filter(match=match).count() == 1
+    assert await MatchAcknowledgment.filter(match=match).count() == 1
