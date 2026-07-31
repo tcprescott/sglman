@@ -123,12 +123,22 @@ async def _single_elim(
         return
     bracket = await service.create_bracket(
         actor, tournament.id, "Championship", BracketFormat.SINGLE_ELIM,
-        # Per-round display chrome: best-of and a scheduled time per round, so the
-        # redesigned round headers have metadata to render.
+        # Per-round chrome: best-of and the window each round runs in, so the
+        # round headers have metadata to render and the schedule dialog has a
+        # window to confine its suggestion to. Round 3 is left open-ended to
+        # exercise the half-configured case.
         config={
             "rounds": {
-                "1": {"best_of": 1, "scheduled_at": "2026-08-01T18:00:00+00:00"},
-                "2": {"best_of": 3, "scheduled_at": "2026-08-01T20:00:00+00:00"},
+                "1": {
+                    "best_of": 1,
+                    "scheduled_at": "2026-08-01T18:00:00+00:00",
+                    "scheduled_end": "2026-08-01T23:00:00+00:00",
+                },
+                "2": {
+                    "best_of": 3,
+                    "scheduled_at": "2026-08-01T20:00:00+00:00",
+                    "scheduled_end": "2026-08-02T02:00:00+00:00",
+                },
                 "3": {"best_of": 5, "scheduled_at": "2026-08-02T18:00:00+00:00"},
             },
         },

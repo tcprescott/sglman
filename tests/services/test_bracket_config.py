@@ -46,6 +46,55 @@ class TestRoundsConfig:
         with pytest.raises(ValueError, match="ISO-8601"):
             validate_bracket_config({"rounds": {"1": {"scheduled_at": "not-a-date"}}})
 
+    def test_bad_scheduled_end_rejected(self):
+        with pytest.raises(ValueError, match="ISO-8601"):
+            validate_bracket_config({"rounds": {"1": {"scheduled_end": "not-a-date"}}})
+
+    def test_round_window_round_trips(self):
+        normalized = validate_bracket_config(
+            {
+                "rounds": {
+                    "1": {
+                        "scheduled_at": "2026-08-01T18:00:00+00:00",
+                        "scheduled_end": "2026-08-02T02:00:00+00:00",
+                    }
+                }
+            }
+        )
+        assert normalized["rounds"]["1"]["scheduled_end"] == "2026-08-02T02:00:00+00:00"
+
+    def test_either_half_of_the_window_may_stand_alone(self):
+        normalized = validate_bracket_config(
+            {"rounds": {"1": {"scheduled_end": "2026-08-02T02:00:00+00:00"}}}
+        )
+        assert normalized["rounds"]["1"]["scheduled_end"] == "2026-08-02T02:00:00+00:00"
+
+    def test_end_before_start_rejected(self):
+        with pytest.raises(ValueError, match="scheduled_end must be after"):
+            validate_bracket_config(
+                {
+                    "rounds": {
+                        "1": {
+                            "scheduled_at": "2026-08-02T02:00:00+00:00",
+                            "scheduled_end": "2026-08-01T18:00:00+00:00",
+                        }
+                    }
+                }
+            )
+
+    def test_zero_length_window_rejected(self):
+        with pytest.raises(ValueError, match="scheduled_end must be after"):
+            validate_bracket_config(
+                {
+                    "rounds": {
+                        "1": {
+                            "scheduled_at": "2026-08-01T18:00:00+00:00",
+                            "scheduled_end": "2026-08-01T18:00:00+00:00",
+                        }
+                    }
+                }
+            )
+
     def test_unknown_round_key_field_rejected(self):
         with pytest.raises(ValueError, match="Invalid bracket config"):
             validate_bracket_config({"rounds": {"1": {"bogus": 1}}})

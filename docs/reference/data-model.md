@@ -1310,7 +1310,7 @@ a group→playoff tournament has several, ordered by `stage_order`).
 | `format` | `CharEnumField(BracketFormat)` | not null | Selects the pairing engine |
 | `state` | `CharEnumField(BracketState)` | default `DRAFT` | Stage lifecycle |
 | `stage_order` | `IntField` | default 0 | 0-based chain position; `(tournament, stage_order)` unique |
-| `config` | `JSONField` | null | Schema-validated by `validate_bracket_config` (reset toggle, Swiss rounds, group count/points, tiebreakers, advancement rule, and a per-round display-metadata map `rounds["<n>"] = {best_of, scheduled_at}`) |
+| `config` | `JSONField` | null | Schema-validated by `validate_bracket_config` (reset toggle, Swiss rounds, group count/points, tiebreakers, advancement rule, and a per-round metadata map `rounds["<n>"] = {best_of, scheduled_at, scheduled_end}`, the latter two bounding match-time suggestions for the round) |
 
 Unique `(tournament, stage_order)`; index on `tournament`.
 

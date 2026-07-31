@@ -499,10 +499,20 @@ The bracket-domain rules that renderer enforces:
   subscriber is sync and non-blocking (it runs inside `publish`), so it filters on
   the `tournament_id` every `MATCH_*` payload does carry. The wider net is absorbed
   by the page's debounce — the alternative is a query in a sync callback.
-- **Round time vs game time.** `Bracket.config['rounds'][N]['scheduled_at']` is the
-  *planned* time for a round; `Match.scheduled_at` is when a specific game happens.
-  They may differ, so the round header reads "Round time: …" while the card and
-  dialog carry the game's own time.
+- **Round window vs game time.** `Bracket.config['rounds'][N]` carries
+  `scheduled_at`/`scheduled_end` — the window the *round* runs in; `Match.scheduled_at`
+  is when a specific game happens. They may differ, so the round header reads
+  "Round time: …" while the card and dialog carry the game's own time.
+- **The round window is a hard bound on suggestions.** `BracketScheduleDialog`
+  passes its `bracket_match_id` to `MatchSuggestionService.suggest_match_time`,
+  which loads the matchup's round entry and only offers slots the match fits
+  inside **end to end** — the occupancy/availability search runs *within* the
+  window rather than against it. Nothing fitting raises a `ValueError` naming the
+  round window, and the dialog falls back to "now" as it always has. Either half
+  may stand alone (a start alone is a floor, an end alone a deadline), and an
+  unscheduled round is unbounded, so rounds configured before `scheduled_end`
+  existed behave exactly as before. This bounds the *suggestion* only —
+  `schedule_bracket_match` still accepts any time staff or players type in.
 - **Exactly one view renders at a time.** The 2-D bracket and the per-round
   accordion draw the same graph, so CSS shows one or the other: the 2-D view from
   `md` up, the accordion below it with a **List / Bracket** toggle opting into the

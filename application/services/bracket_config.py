@@ -15,7 +15,7 @@ implementing it now.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from application.services.bracket_engines.standings import KNOWN_TIEBREAKERS
 from application.utils.config_validation import validate_config_blob
@@ -71,36 +71,55 @@ class AdvancementConfig(BaseModel):
 
 
 class RoundConfig(BaseModel):
-    """Per-round display metadata (best-of, scheduled time) for one round.
+    """Per-round metadata (best-of, the window the round runs in) for one round.
 
     ``best_of`` is **semantic**: it is the default series length for every match
     in the round (a per-matchup ``BracketMatch.best_of`` overrides it), and the
-    scheduler and clinch logic both read it. ``scheduled_at`` stays display-only,
-    rendered through ``format_local_display``. It is a UTC ISO-8601 string (all
-    stored datetimes are UTC — see docs/timezone-handling.md); it is accepted as
-    a ``datetime`` and normalized back to an ISO string so the blob stays JSON.
+    scheduler and clinch logic both read it.
+
+    ``scheduled_at``/``scheduled_end`` are the round's window. They render through
+    ``format_local_display``, and they **bound match-time suggestions**: a matchup
+    in this round is only ever suggested a slot that fits wholly inside the window
+    (see :class:`~application.services.match.match_suggestion_service.MatchSuggestionService`).
+    Either half may stand alone — a start with no end is an "no earlier than"
+    floor, an end with no start a deadline. Both are UTC ISO-8601 strings (all
+    stored datetimes are UTC — see docs/timezone-handling.md).
     """
 
     model_config = ConfigDict(extra='forbid')
 
     best_of: Optional[int] = None
     scheduled_at: Optional[str] = None
+    scheduled_end: Optional[str] = None
 
     @field_validator('best_of')
     @classmethod
     def _best_of_positive_odd(cls, v: Optional[int]) -> Optional[int]:
         return validate_best_of(v)
 
-    @field_validator('scheduled_at')
+    @field_validator('scheduled_at', 'scheduled_end')
     @classmethod
-    def _scheduled_at_iso(cls, v: Optional[str]) -> Optional[str]:
+    def _scheduled_iso(cls, v: Optional[str], info) -> Optional[str]:
         if v is None:
             return v
         try:
             datetime.fromisoformat(v)
         except (TypeError, ValueError) as exc:
-            raise ValueError("scheduled_at must be an ISO-8601 datetime string") from exc
+            raise ValueError(
+                f"{info.field_name} must be an ISO-8601 datetime string"
+            ) from exc
         return v
+
+    @model_validator(mode='after')
+    def _window_ordered(self) -> 'RoundConfig':
+        if self.scheduled_at and self.scheduled_end:
+            start = datetime.fromisoformat(self.scheduled_at)
+            end = datetime.fromisoformat(self.scheduled_end)
+            if end <= start:
+                raise ValueError(
+                    "scheduled_end must be after scheduled_at"
+                )
+        return self
 
 
 class BracketConfig(BaseModel):

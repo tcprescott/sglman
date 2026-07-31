@@ -1,6 +1,6 @@
 """Tournament write endpoints (create/update/delete, admin & crew-coordinator membership)."""
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -73,9 +73,18 @@ async def delete_tournament(tournament_id: int, actor: User = Depends(require_wr
 async def suggest_match_time(
     tournament_id: int,
     player_ids: List[int] = Query(..., description="User IDs of the players"),
+    bracket_match_id: Optional[int] = Query(
+        None,
+        description=(
+            "Bracket matchup being scheduled. When given, the suggestion is "
+            "confined to that round's configured window."
+        ),
+    ),
     actor: User = Depends(require_api_actor),
 ):
-    suggested_at = await MatchSuggestionService().suggest_match_time(tournament_id, player_ids)
+    suggested_at = await MatchSuggestionService().suggest_match_time(
+        tournament_id, player_ids, bracket_match_id=bracket_match_id,
+    )
     return MatchSuggestionResponse(suggested_at=suggested_at)
 
 

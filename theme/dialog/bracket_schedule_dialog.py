@@ -87,6 +87,7 @@ class BracketScheduleDialog:
             with self._scope():
                 suggested = await MatchSuggestionService().suggest_match_time(
                     tournament_id=self.tournament_id, player_ids=self.player_ids,
+                    bracket_match_id=self.bracket_match_id,
                 )
         except ValueError:
             return fallback
