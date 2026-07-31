@@ -58,6 +58,9 @@ AUTO_FINISH_HOURS = 4
 # Small backfill grace on the lower bound so a just-passed episode is still
 # pulled (e.g. after a brief worker outage).
 BACKFILL_GRACE_HOURS = 1
+# Width of ``Match.title`` / ``SpeedGamingEpisode.title``. SG's titles are
+# unbounded free text, so an over-long one would fail the whole episode.
+TITLE_MAX_LENGTH = 255
 
 
 @dataclass
@@ -177,8 +180,8 @@ class SpeedGamingETLService:
         now = now or datetime.now(timezone.utc)
         sg_id = self._episode_id(raw)
         when = self._parse_when(raw.get('when'))
-        title = (raw.get('title') or self._match_title(raw) or None)
-        content_hash = stable_content_hash(raw)
+        title = self._episode_title(raw)
+        content_hash = stable_content_hash(self._sync_fingerprint(raw))
 
         episode = await self.episode_repo.get_by_sg_id(sg_id)
         if episode is None:
@@ -209,13 +212,16 @@ class SpeedGamingETLService:
                 )
                 return 'skipped'
 
-        # Unchanged shortcut: identical payload and already materialized+synced.
+        # Unchanged shortcut: nothing the loader reads moved, and the Match is
+        # already materialized. The raw snapshot is still refreshed — the
+        # fingerprint deliberately ignores crew churn, so without this the
+        # stored payload would freeze at whatever the last import happened to see.
         if (
             match is not None
             and episode.content_hash == content_hash
             and episode.sync_status == SyncStatus.SYNCED
         ):
-            await self.episode_repo.update(episode, synced_at=now)
+            await self.episode_repo.update(episode, synced_at=now, payload=raw)
             return 'unchanged'
 
         if when is None:
@@ -281,14 +287,20 @@ class SpeedGamingETLService:
         → create a placeholder. When a ``discord_id`` appears for a player that
         previously only had a placeholder, the placeholder is **upgraded in
         place** instead of forking a second row.
+
+        SG expresses "no value" as ``''`` rather than ``null`` on every one of
+        these fields, and serves ``discordId`` as a string, so each is read for
+        truthiness and the snowflake is only parsed once it looks like one — a
+        malformed id degrades to tag/placeholder resolution instead of failing
+        the whole episode.
         """
         sg_id = self._opt_str(player.get('id'))
-        discord_id = player.get('discordId')
-        discord_tag = self._opt_str(player.get('discordTag'))
-        display = self._opt_str(player.get('displayName')) or discord_tag or (f'sg_{sg_id}' if sg_id else 'sg_unknown')
+        discord_id = (self._opt_str(player.get('discordId')) or '').strip()
+        discord_tag = (self._opt_str(player.get('discordTag')) or '').strip() or None
+        display = (self._opt_str(player.get('displayName')) or '').strip() or discord_tag or (f'sg_{sg_id}' if sg_id else 'sg_unknown')
 
         # 1. Resolve by discord id (and upgrade a matching placeholder in place).
-        if discord_id:
+        if discord_id.isdigit():
             did = int(discord_id)
             existing = await UserRepository.get_by_discord_id(did)
             if existing is not None:
@@ -458,10 +470,49 @@ class SpeedGamingETLService:
                     players.append(player)
         return players
 
-    @staticmethod
-    def _match_title(raw: Dict[str, Any]) -> Optional[str]:
-        side = raw.get('match1') or {}
-        return side.get('title') or None
+    @classmethod
+    def _episode_title(cls, raw: Dict[str, Any]) -> Optional[str]:
+        """Best human label for an episode, in SG's own order of specificity.
+
+        SG does serve an episode-level ``title``, but the live feed leaves it
+        empty on every episode — the matchup name lives at ``match1.title``.
+        When that is empty too (a TBD matchup, or a doubleheader where the label
+        is on the slot rather than the pairing), the side's free-text ``note`` is
+        the only descriptor left: "Swiss Round 5", "Game 2", "Showcase Race 5 &
+        6". Preferring a note over nothing is what keeps those matches from
+        showing up on the board as untitled rows.
+        """
+        candidates = [raw.get('title')]
+        sides = [raw.get(key) or {} for key in ('match1', 'match2')]
+        candidates.extend(side.get('title') for side in sides)
+        candidates.extend(side.get('note') for side in sides)
+        for candidate in candidates:
+            cleaned = (candidate or '').strip()
+            if cleaned:
+                # SG's titles are unbounded free text; the column is not.
+                return cleaned[:TITLE_MAX_LENGTH]
+        return None
+
+    @classmethod
+    def _sync_fingerprint(cls, raw: Dict[str, Any]) -> Dict[str, Any]:
+        """The subset of an episode the loader actually consumes.
+
+        Hashing the whole payload made ``unchanged`` almost unreachable: crew
+        signups carry ``approved`` and ``ready`` flags that flip as people sign
+        up and staff approve them, so nearly every poll saw a "new" payload and
+        re-materialized the match — a fresh audit row and a published event for
+        a change the ETL does not even read. Widen this the moment the loader
+        starts reading another field.
+        """
+        return {
+            'when': raw.get('when'),
+            'title': cls._episode_title(raw),
+            'players': [
+                {key: player.get(key)
+                 for key in ('id', 'displayName', 'discordId', 'discordTag')}
+                for player in cls._extract_players(raw)
+            ],
+        }
 
     @staticmethod
     def _parse_when(when: Any) -> Optional[datetime]:

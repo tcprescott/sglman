@@ -26,12 +26,20 @@ from models import (
 )
 
 
-def _episode(sg_id, when, players, title='R1'):
+def _episode(sg_id, when, players, title='R1', note='', match2=None, **extra):
+    """A live-shaped episode.
+
+    SG serves an episode-level ``title`` but leaves it empty on every episode —
+    the matchup name lives on ``match1.title``, with ``note`` as the side's
+    free-text slot.
+    """
     return {
         'id': sg_id,
         'when': when,
-        'title': title,
-        'match1': {'players': players},
+        'title': '',
+        'match1': {'id': sg_id * 10, 'title': title, 'note': note, 'players': players},
+        'match2': match2,
+        **extra,
     }
 
 
@@ -254,3 +262,157 @@ async def test_a_player_dropped_upstream_loses_their_acknowledgment_row(db):
 
     assert await MatchPlayers.filter(match=match).count() == 1
     assert await MatchAcknowledgment.filter(match=match).count() == 1
+
+
+# --- The live wire shape ---------------------------------------------------
+#
+# Captured from GET https://speedgaming.org/api/schedule/ — the conventions
+# below are what the real feed does, not what a simplified reading assumes.
+
+async def test_a_tbd_matchup_is_labelled_by_its_note(db):
+    """The episode and matchup titles are empty far more often than not.
+
+    SG leaves the episode title empty on every episode, and a matchup that has
+    not been drawn yet has an empty ``match1.title`` too. The side's ``note`` —
+    "Swiss Round 5", "Game 2" — is then the only descriptor, and without it the
+    match reaches the board as an untitled row.
+    """
+    system, _tourn, link, etl = await _setup(db)
+    raw = _episode(200, '2026-07-20T18:00:00+00:00',
+                   [{'id': 20, 'discordTag': 'p'}], title='', note='Swiss Round 5')
+
+    await etl.import_episode(link, raw, actor=system)
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='200').first()
+    assert match.title == 'Swiss Round 5'
+    episode = await SpeedGamingEpisode.get(sg_episode_id='200')
+    assert episode.title == 'Swiss Round 5'
+
+
+async def test_a_real_title_wins_over_a_note(db):
+    system, _tourn, link, etl = await _setup(db)
+    raw = _episode(201, '2026-07-20T18:00:00+00:00', [{'id': 21, 'discordTag': 'p'}],
+                   title='Lower Quarterfinals', note='inertia:f7kyc6i6hth7')
+
+    await etl.import_episode(link, raw, actor=system)
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='201').first()
+    assert match.title == 'Lower Quarterfinals'
+
+
+async def test_an_over_long_title_is_truncated_rather_than_failing_the_episode(db):
+    """SG's titles are unbounded free text; ``Match.title`` is a CharField(255)."""
+    system, _tourn, link, etl = await _setup(db)
+    raw = _episode(202, '2026-07-20T18:00:00+00:00', [{'id': 22, 'discordTag': 'p'}],
+                   title='x' * 400)
+
+    await etl.import_episode(link, raw, actor=system)
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='202').first()
+    assert len(match.title) == 255
+
+
+async def test_crew_churn_does_not_force_a_re_import(db):
+    """Crew ``ready``/``approved`` flags flip constantly and the ETL reads neither.
+
+    Hashing the whole payload made ``unchanged`` almost unreachable: every crew
+    signup or approval upstream re-materialized the match, writing an audit row
+    and publishing an event for a change nothing here consumes.
+    """
+    system, _tourn, link, etl = await _setup(db)
+    crew = [{'id': 30, 'displayName': 'CasterOne', 'discordId': '', 'discordTag': 'casterone',
+             'publicStream': 'casterone', 'approved': False, 'ready': False,
+             'partner': '', 'language': 'en'}]
+    raw = _episode(210, '2026-07-20T18:00:00+00:00', [{'id': 23, 'discordTag': 'p'}],
+                   commentators=crew, trackers=[], broadcasters=[], helpers=[])
+    assert await etl.import_episode(link, raw, actor=system) == 'imported'
+
+    churned = _episode(210, '2026-07-20T18:00:00+00:00', [{'id': 23, 'discordTag': 'p'}],
+                       commentators=[{**crew[0], 'approved': True, 'ready': True}],
+                       trackers=[], broadcasters=[], helpers=[])
+
+    assert await etl.import_episode(link, churned, actor=system) == 'unchanged'
+    # The raw snapshot still tracks upstream — only re-materialization is skipped.
+    episode = await SpeedGamingEpisode.get(sg_episode_id='210')
+    assert episode.payload['commentators'][0]['ready'] is True
+
+
+async def test_a_change_the_etl_reads_still_re_imports(db):
+    """The narrowed fingerprint must not swallow a real schedule change."""
+    system, _tourn, link, etl = await _setup(db)
+    raw = _episode(211, '2026-07-20T18:00:00+00:00', [{'id': 24, 'discordTag': 'p'}])
+    await etl.import_episode(link, raw, actor=system)
+
+    moved = _episode(211, '2026-07-20T21:00:00+00:00', [{'id': 24, 'discordTag': 'p'}])
+    assert await etl.import_episode(link, moved, actor=system) == 'imported'
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='211').first()
+    assert match.scheduled_at == datetime(2026, 7, 20, 21, 0, tzinfo=timezone.utc)
+
+
+async def test_a_doubleheader_unions_both_sides_players(db):
+    """``match2`` is the one genuinely nullable field, and it is sometimes set."""
+    system, _tourn, link, etl = await _setup(db)
+    raw = _episode(
+        220, '2026-07-20T18:00:00+00:00',
+        [{'id': 25, 'displayName': 'Player 1', 'discordId': '', 'discordTag': 'p1'}],
+        title='', note='Showcase Race 5 & 6',
+        match2={'id': 2201, 'title': '', 'note': 'Showcase Race 5 & 6', 'players': [
+            {'id': 26, 'displayName': 'Player 2', 'discordId': '', 'discordTag': 'p2'},
+        ]},
+    )
+
+    await etl.import_episode(link, raw, actor=system)
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='220').first()
+    assert await MatchPlayers.filter(match=match).count() == 2
+    assert match.title == 'Showcase Race 5 & 6'
+
+
+async def test_an_episode_with_no_players_yet_still_materializes(db):
+    """SG publishes the airtime before the matchup is drawn."""
+    system, _tourn, link, etl = await _setup(db)
+    raw = _episode(230, '2026-07-20T18:00:00+00:00', [], title='Blitz')
+
+    assert await etl.import_episode(link, raw, actor=system) == 'imported'
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='230').first()
+    assert match is not None and match.title == 'Blitz'
+    assert await MatchPlayers.filter(match=match).count() == 0
+
+
+async def test_absent_identity_is_an_empty_string_not_null(db):
+    """Every SG scalar is a string that is empty when unset, ``null`` never."""
+    system, _tourn, link, etl = await _setup(db)
+    existing = await User.create(discord_id=333, username='bytag')
+    raw = _episode(240, '2026-07-20T18:00:00+00:00', [
+        {'id': 27, 'displayName': 'By Tag', 'discordId': '', 'discordTag': 'bytag',
+         'publicStream': '', 'streamingFrom': ''},
+        {'id': 28, 'displayName': 'Nobody', 'discordId': '', 'discordTag': '',
+         'publicStream': '', 'streamingFrom': ''},
+    ])
+
+    await etl.import_episode(link, raw, actor=system)
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='240').first()
+    players = await MatchPlayers.filter(match=match).prefetch_related('user')
+    by_id = {p.user.id: p.user for p in players}
+    assert existing.id in by_id
+    placeholder = await UserRepository.get_placeholder_by_speedgaming_id('28')
+    assert placeholder is not None and placeholder.id in by_id
+
+
+async def test_a_malformed_discord_id_degrades_instead_of_failing_the_episode(db):
+    """``discordId`` is a string field upstream, so it can hold a non-snowflake."""
+    system, _tourn, link, etl = await _setup(db)
+    existing = await User.create(discord_id=444, username='fallback')
+    raw = _episode(250, '2026-07-20T18:00:00+00:00', [
+        {'id': 29, 'displayName': 'Odd', 'discordId': 'not-a-snowflake',
+         'discordTag': 'fallback'},
+    ])
+
+    assert await etl.import_episode(link, raw, actor=system) == 'imported'
+
+    match = await Match.filter(speedgaming_episode__sg_episode_id='250').first()
+    players = await MatchPlayers.filter(match=match)
+    assert [p.user_id for p in players] == [existing.id]
