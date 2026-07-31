@@ -455,8 +455,7 @@ class SchedulingMixin:
         url = getattr(stream_room, 'stream_url', None)
         if url and url.lower().startswith(('http://', 'https://')):
             return url
-        slug = getattr(room, 'slug', None)
-        return f'https://racetime.gg/{slug}' if slug else ''
+        return getattr(room, 'url', '') or ''
 
     async def release_game_if_linked(
         self, match: Match, actor: Optional[User], *, reason: str = ''

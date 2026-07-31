@@ -125,3 +125,14 @@ class RacetimeRoom(Model):
     class Meta:
         table = 'racetimeroom'
         indexes = (('match',),)
+
+    @property
+    def url(self) -> str:
+        """Where a human opens this room. Derived, not stored.
+
+        The slug is the room's address on racetime.gg, and every surface that
+        shows one wants it clickable — the match dialog printed the bare slug as
+        dead text for a while precisely because building the URL was left to
+        each caller.
+        """
+        return f'https://racetime.gg/{self.slug}' if self.slug else ''
