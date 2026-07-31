@@ -8,7 +8,7 @@ from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 # Event-type options for the multiselect. '*' (all events) is offered first.
@@ -282,9 +282,7 @@ async def admin_webhooks_page() -> None:
             with ui.row().classes('full-width'):
                 ui.button('Add Webhook', icon='add', on_click=lambda: open_webhook_dialog()).props('color=primary')
                 ui.space()
-                ui.button(
-                    icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
-                ).props('flat color=primary').tooltip('Refresh table')
+                refresh_button(refresh_table)
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 

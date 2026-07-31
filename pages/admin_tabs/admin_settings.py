@@ -9,6 +9,7 @@ from models import Tournament
 from theme.dialog import TournamentDialog
 from theme.dialog.stream_room_edit_dialog import StreamRoomEditDialog
 from theme.empty_state import no_data_slot
+from theme.tables.admin_crud import refresh_button
 from theme.tables.tournament import TournamentTableView
 
 
@@ -76,11 +77,13 @@ async def admin_stream_rooms_page() -> None:
 
         ui.label(
             'The stages matches can be assigned to. Each maps to a stream URL used '
-            'across the schedule and On Air views.'
+            'across the schedule and On Air views. Click a name to edit it.'
         ).classes('text-caption text-grey')
 
         columns = [
-            {'name': 'id', 'label': 'ID', 'field': 'id', 'sortable': True, 'clickable': True},
+            # No id column: the primary key was this table's only edit affordance
+            # ("click the 1 to rename Stage 1"), which is both a database value on
+            # screen and an unguessable control. The name carries the link now.
             {'name': 'name', 'label': 'Name', 'field': 'name', 'sortable': True},
             {'name': 'stream_url', 'label': 'Stream URL', 'field': 'stream_url'},
             {'name': 'is_active', 'label': 'Active', 'field': 'is_active'},
@@ -132,7 +135,7 @@ async def admin_stream_rooms_page() -> None:
                 if can_manage:
                     ui.button('Add Stream Room', icon='add', on_click=add_stream_room).props('color=primary')
                 ui.space()
-                ui.button(icon='refresh', on_click=lambda: background_tasks.create(refresh_table())).props('flat color=primary').tooltip('Refresh table')
+                refresh_button(refresh_table)
 
             table = ui.table(
                 columns=columns,
@@ -162,8 +165,8 @@ async def admin_stream_rooms_page() -> None:
             table.add_slot('body', '''
                 <q-tr :props="props">
                     <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                        <template v-if="col.name === 'id'">
-                            <a href="javascript:void(0)" @click="$parent.$emit('edit', props.row)" 
+                        <template v-if="col.name === 'name'">
+                            <a href="javascript:void(0)" @click="$parent.$emit('edit', props.row)"
                                style="color: var(--wiz-link); text-decoration: underline; cursor: pointer;">
                                 {{ col.value }}
                             </a>
@@ -206,7 +209,6 @@ async def admin_stream_rooms_page() -> None:
                                     <q-tooltip>Edit</q-tooltip>
                                 </q-btn>
                             </div>
-                            <div class="text-caption text-grey">ID: {{ props.row.id }}</div>
                         </q-card-section>
                         <q-card-section class="q-pa-sm" v-if="props.row.stream_url">
                             <div class="text-caption text-grey-7">Stream URL:</div>

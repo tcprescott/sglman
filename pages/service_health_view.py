@@ -112,6 +112,10 @@ def build_refreshable_board(
                 ui.notify('Health refreshed', color='positive')
 
     if refresh_loader is not None:
+        # refresh-context: exempt — this board is the platform's, not a tenant's.
+        # Its loader probes every dependency across the install and takes no
+        # tenant, so the rebind theme.tables.admin_crud.refresh_button exists to
+        # do would bind nothing. The admin tab passes no refresh_loader at all.
         ui.button('Refresh now', icon='refresh',
                   on_click=lambda: background_tasks.create(_load(refresh_loader, notify=True)))
 

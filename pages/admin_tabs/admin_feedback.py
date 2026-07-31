@@ -1,11 +1,12 @@
 """Admin Feedback Review Page"""
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.notify import notify_error
+from theme.tables.admin_crud import refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 
 _CATEGORY_LABELS = {
@@ -45,10 +46,9 @@ async def admin_feedback_page() -> None:
         with ui.row().classes('header-row items-center full-width no-wrap'):
             ui.label('Feedback').classes('page-title')
             ui.space()
-            ui.button(
-                icon='refresh',
-                on_click=lambda: background_tasks.create(_render_table.refresh()),
-            ).props('flat color=primary').tooltip('Refresh')
+            # Lambda, not a direct reference: the toolbar is built before
+            # _render_table exists.
+            refresh_button(lambda: _render_table.refresh(), tooltip='Refresh')
 
         ui.separator().classes('separator-spacing')
 

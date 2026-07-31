@@ -6,6 +6,7 @@ from application.services import EquipmentService, TenantService, get_user_from_
 from theme.connection import REQUIRES_SOCKET_CLASS
 from theme.dialog import ConfirmationDialog, EquipmentDialog, QrLabelDialog, open_checkout, quick_checkin
 from theme.notify import notify_error
+from theme.tables.admin_crud import refresh_button
 
 _STATUS_LABELS = {
     'available': 'Available',
@@ -125,10 +126,10 @@ async def admin_equipment_page() -> None:
             ui.button('Print QR labels', icon='qr_code_2', on_click=print_labels).props(
                 'flat color=primary').classes(REQUIRES_SOCKET_CLASS)
             ui.space()
-            ui.button(
-                icon='refresh',
-                on_click=lambda: background_tasks.create(_render_table.refresh()),
-            ).props('flat color=primary').classes(REQUIRES_SOCKET_CLASS).tooltip('Refresh')
+            # Lambda, not a direct reference: the toolbar is built before
+            # _render_table exists.
+            refresh_button(lambda: _render_table.refresh(), tooltip='Refresh') \
+                .classes(REQUIRES_SOCKET_CLASS)
 
         @ui.refreshable
         async def _render_table() -> None:
