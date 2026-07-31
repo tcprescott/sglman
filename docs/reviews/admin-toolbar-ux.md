@@ -239,6 +239,36 @@ leading with the number the operator is looking for. One aggregate query for the
 whole list, not one per row. `seed_dev.py` now creates the failing state so it
 is visible in a dev environment.
 
+## `/platform`, driven and found sound
+
+The one substantial surface no audit had covered end to end. Driven as
+`super_admin` at 1500 px and 390 px, every dialog's error path probed, every
+click watched in the server log. **Nothing worth shipping a fix for**, which is
+worth writing down rather than manufacturing a change for:
+
+- **No `background_tasks.create` anywhere in `pages/platform.py`**, so the class
+  of defect that cost eleven admin refresh buttons cannot exist here.
+- **Every row action is labelled.** The tenant table's three icon-only buttons
+  carry `Edit` / `Features` / `Admins` tooltips, and the mobile cards render
+  them as text buttons.
+- **Error paths refuse precisely and keep the dialog open**: "Tenant name is
+  required.", "A racetime category is required", "A group name is required".
+- **No layout defect.** No body overflow at either width; the two wide tables
+  (bots, feature groups) scroll inside their own container — 1112 px and 1503 px
+  in a 976 px container — which is the documented rule, and no cell is clipped.
+  The phone view renders full cards for all four tables, feature lists wrapped.
+- **The id columns here stay**, per the note above: this is the platform
+  operator's surface, not a community's.
+
+Two things noted and deliberately not changed:
+
+- The bots' Health chip reads `CONNECTED — CONNECTED (MOCK TRANSPORT)` — the
+  status and the message repeat, because the message begins with the status
+  word. Cosmetic, and the text is the upstream client's, not ours.
+- The board opens with twelve rows of *Unknown — Not yet probed* until you press
+  **Refresh now**, because it renders the cached snapshot and the monitor worker
+  is off in dev. Correct by design where the worker runs; only a dev artifact.
+
 ## What the audit checked and found sound
 
 Recorded so a later pass does not re-derive it:

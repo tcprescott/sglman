@@ -11,7 +11,7 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
-| [admin-toolbar-ux.md](admin-toolbar-ux.md) | The admin tabs no earlier audit covered (Online play, Webhooks, Discord, Feedback, Service Health, System Config) | Eleven of fifteen Refresh buttons did nothing, silently — and SpeedGaming could not be configured at all |
+| [admin-toolbar-ux.md](admin-toolbar-ux.md) | The admin tabs no earlier audit covered (Online play, Webhooks, Discord, Feedback, Service Health, System Config), plus `/platform` | Eleven of fifteen Refresh buttons did nothing, silently — and SpeedGaming could not be configured at all |
 
 Shipped and deleted: the match-operations audit — its findings became
 `MatchBoardAccess` (one field per service gate, replacing the `can_crud`
