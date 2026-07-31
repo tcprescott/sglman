@@ -5,6 +5,7 @@ Handles crew (commentator and tracker) related operations.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional, Union
 
 from tortoise.transactions import in_transaction
@@ -18,7 +19,13 @@ from application.services.discord import discord_queue
 from application.services.discord.discord_service import DiscordService
 from application.services.tenant_service import TenantService
 from application.utils.discord_embeds import COLOR_CANCELLED, COLOR_CREW, notification_embed, time_field
-from application.utils.discord_messages import crew_approval_withdrawn_dm, crew_assignment_dm
+from application.utils.discord_messages import (
+    crew_approval_withdrawn_dm,
+    crew_assignment_dm,
+    crew_withdrawn_dm,
+)
+from application.utils.match_labels import players_label
+from application.utils.timezone import to_utc_aware
 from models import Commentator, Tracker, User
 
 logger = logging.getLogger(__name__)
@@ -71,10 +78,17 @@ class CrewService:
             f"Match {match_id}",
         )
 
-        # Crew signup closes once the match is finished. Enforced here (not in a
+        # Crew signup closes once the match is under way. Enforced here (not in a
         # single caller) so the web UI, REST API, and Discord button all honor it.
+        # The audit measured signups accepted on matches already in progress, on
+        # which "awaiting approval" describes a match that will be over before
+        # anyone reads it. Seated-but-not-started stays open on purpose: that is
+        # exactly when a stream discovers it still needs a commentator.
+        # Withdrawing stays open in either state.
         if match.finished_at is not None:
             raise ValueError("This match has already finished. Crew signup is closed.")
+        if match.started_at is not None:
+            raise ValueError("This match has already started. Crew signup is closed.")
 
         # A tournament that requires none of a role does not staff it, and the
         # schedule hides its Sign up control — but UI-only hiding is not a rule,
@@ -156,17 +170,25 @@ class CrewService:
         if not crew_member:
             raise ValueError(f"User is not signed up as {role}")
 
+        # Read before the delete: the row is the only place the approver is
+        # recorded, and the notification below needs it.
+        was_approved = bool(crew_member.approved)
+        approved_by_id = crew_member.approved_by_id
+
         # Delete crew entry
         await crew_member.delete()
 
         await self.audit_service.write_and_publish(
             user,
             AuditActions.CREW_SIGNUP_REMOVED,
-            {'match_id': match_id, 'role': role},
+            {'match_id': match_id, 'role': role, 'was_approved': was_approved},
             EventType.CREW_SIGNUP_REMOVED,
             event_extra={'user_id': user.id},
         )
         match_live.publish(match_id)
+
+        if was_approved:
+            await self._notify_crew_withdrawal(match, user, role, approved_by_id)
 
     async def get_crew_member_by_id(
         self,
@@ -301,14 +323,13 @@ class CrewService:
 
         return crew_member
 
-    async def _crew_dm_parts(self, crew_member: Union[Commentator, Tracker]):
-        """Shared DM ingredients for the approve / withdraw crew notifications.
+    async def _crew_dm_parts(self, match):
+        """Shared DM ingredients for every crew notification.
 
-        Returns the message-builder kwargs and the embed field list — both
+        Returns the message-builder kwargs and the embed field list — all three
         notifications describe the same assignment, so they identify it from the
         same fields.
         """
-        match = crew_member.match
         players = await match.players.all().prefetch_related('user')
         player_names = [p.user.preferred_name for p in players] if players else []
         message_kwargs = {
@@ -318,9 +339,7 @@ class CrewService:
             'player_names': player_names or None,
         }
 
-        players_str = (
-            ' vs '.join(player_names) if len(player_names) == 2 else ', '.join(player_names)
-        )
+        players_str = players_label(player_names)
         fields = [('Match', match.title or players_str, False)]
         if match.title and players_str:
             fields.append(('Players', players_str, True))
@@ -344,7 +363,7 @@ class CrewService:
         if not discord_id:
             return
 
-        message_kwargs, fields = await self._crew_dm_parts(crew_member)
+        message_kwargs, fields = await self._crew_dm_parts(crew_member.match)
         message = crew_assignment_dm(crew_type=crew_type, **message_kwargs)
         embed = notification_embed(
             title=f'🎙️ {crew_type.capitalize()} assignment',
@@ -376,7 +395,7 @@ class CrewService:
         if not discord_id:
             return
 
-        message_kwargs, fields = await self._crew_dm_parts(crew_member)
+        message_kwargs, fields = await self._crew_dm_parts(crew_member.match)
         message = crew_approval_withdrawn_dm(crew_type=crew_type, **message_kwargs)
         embed = notification_embed(
             title=f'🎙️ {crew_type.capitalize()} assignment withdrawn',
@@ -389,3 +408,70 @@ class CrewService:
         discord_queue.enqueue(
             self.discord_service.send_dm(int(discord_id), message, embed=embed)
         )
+
+    async def _notify_crew_withdrawal(
+        self,
+        match,
+        volunteer: User,
+        crew_type: str,
+        approved_by_id: Optional[int],
+    ) -> None:
+        """Tell whoever owns this match's crew that an approved member dropped it.
+
+        The mirror of :meth:`_notify_crew_approval_withdrawn`, and the shape
+        ``VolunteerScheduleService._notify_coordinators_of_release`` established:
+        a schedule still showing someone who has already gone is worse than one
+        showing an open slot, so the people who can fill it are told.
+
+        Only for an *approved* signup. An unapproved one was never announced to
+        anybody, so its removal has nothing to correct — the same reason a
+        cleared volunteer draft stays silent.
+
+        Best-effort: a failed DM never blocks the withdrawal.
+        """
+        from application.repositories import TournamentRepository
+
+        recipients: dict[int, User] = {}
+        if match.tournament_id:
+            for owner in await TournamentRepository.get_crew_owners(match.tournament_id):
+                recipients[owner.id] = owner
+        if approved_by_id and approved_by_id not in recipients:
+            # The approver is the one person who acted on this signup, and may be
+            # community STAFF rather than one of the tournament's own people.
+            approver = await User.get_or_none(id=approved_by_id)
+            if approver:
+                recipients[approver.id] = approver
+        recipients.pop(volunteer.id, None)
+        if not recipients:
+            return
+
+        message_kwargs, fields = await self._crew_dm_parts(match)
+        hours_notice = None
+        if match.scheduled_at:
+            hours_notice = round(
+                (to_utc_aware(match.scheduled_at) - datetime.now(timezone.utc)).total_seconds()
+                / 3600.0,
+                1,
+            )
+        message = crew_withdrawn_dm(
+            crew_type=crew_type,
+            volunteer_name=volunteer.preferred_name,
+            hours_notice=hours_notice,
+            **message_kwargs,
+        )
+        embed = notification_embed(
+            title=f'🎙️ {crew_type.capitalize()} withdrew',
+            color=COLOR_CANCELLED,
+            community_name=await TenantService.current_community_name(),
+            description=f'**{volunteer.preferred_name}** is no longer covering this '
+                        f'as {crew_type}. The slot is open again.',
+            fields=fields,
+        )
+
+        for recipient in recipients.values():
+            discord_id = getattr(recipient, 'discord_id', None)
+            if not discord_id or not getattr(recipient, 'dm_notifications', True):
+                continue
+            discord_queue.enqueue(
+                self.discord_service.send_dm(int(discord_id), message, embed=embed)
+            )

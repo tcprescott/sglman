@@ -289,8 +289,8 @@ Crew (commentator/tracker) self-signup, the approval workflow, and crew-side ack
 
 | Method | Returns | Description |
 |---|---|---|
-| `signup_crew(match_id, user, role)` | `None` | Self-signup as `'commentator'` or `'tracker'`, unapproved by default; rejects an invalid role, a finished match, a duplicate signup, and a user who is a player in the match; audits `crew.signup_created`. |
-| `undo_crew_signup(match_id, user, role)` | `None` | Remove one's own crew signup; audits `crew.signup_removed`. |
+| `signup_crew(match_id, user, role)` | `None` | Self-signup as `'commentator'` or `'tracker'`, unapproved by default; rejects an invalid role, a **started or finished** match, a role the tournament does not use, a duplicate signup, and a user who is a player in the match; audits `crew.signup_created`. Seated-but-not-started stays open — that is when a stream discovers it needs a commentator. |
+| `undo_crew_signup(match_id, user, role)` | `None` | Remove one's own crew signup; audits `crew.signup_removed` with `was_approved`. Withdrawing an **approved** commitment DMs the tournament's crew owners (admins + crew coordinators, plus the approver) with how long until the match starts; an unapproved one stays silent, because nobody was told it existed. Never gated on match state — a signup must always be removable. |
 | `get_crew_member_by_id(crew_id, crew_type)` | `Commentator \| Tracker \| None` | Fetch by row id; `crew_type` must be `'commentator'` or `'tracker'` (else `ValueError`). |
 | `update_crew_approval(crew_member, crew_type, approved, actor=None)` | `Commentator \| Tracker` | Approve/unapprove. Gated by `can_approve_crew`; refreshes from DB to narrow approval races; no-ops (no audit, no DM) when state already matches; unapproval clears `acknowledged_at`; approval enqueues an acknowledgment-request DM. |
 | `approve_crew_member(crew_member, crew_type, actor=None)` | `Commentator \| Tracker` | Convenience wrapper for `update_crew_approval(..., approved=True)`. |

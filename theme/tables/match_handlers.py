@@ -9,6 +9,7 @@ view's injected instances / lazy imports, never repositories.
 
 from nicegui import app, ui
 
+from application.utils.match_labels import match_row_label
 from theme.dialog import ConfirmationDialog, UserDialog
 from theme.notify import notify_error
 
@@ -40,7 +41,7 @@ class MatchTableHandlersMixin:
             match_id = row['id']
             try:
                 await self.service.acknowledge_match(match_id, user)
-                ui.notify(f'You acknowledged match ID {match_id}.', color='positive')
+                ui.notify(f'You acknowledged {match_row_label(row, with_context=False)}.', color='positive')
                 await self.update_row_by_id(match_id)
             except ValueError as e:
                 ui.notify(str(e), color='warning')
@@ -112,7 +113,8 @@ class MatchTableHandlersMixin:
                     actor=actor,
                 )
                 ui.notify(
-                    f'{name} {"approved as" if approving else "un-approved as"} {role} for match ID {match_id}.',
+                    f'{name} {"approved as" if approving else "un-approved as"} {role} '
+                    f'for {match_row_label(row, with_context=False)}.',
                     color='positive',
                 )
                 await self.update_row_by_id(match_id)
@@ -122,11 +124,11 @@ class MatchTableHandlersMixin:
                 dialog.dialog.close()
 
         if approving:
-            message = (f'Approve {name} as {role} for match ID {match_id}?\n\n'
+            message = (f'Approve {name} as {role} for {match_row_label(row)}?\n\n'
                        "They'll get a Discord message asking them to acknowledge the assignment.")
             title, confirm_text, tone = f'Approve {role}', 'Approve', 'primary'
         else:
-            message = (f'Remove approval for {name} as {role} for match ID {match_id}?\n\n'
+            message = (f'Remove approval for {name} as {role} for {match_row_label(row)}?\n\n'
                        "This also clears their acknowledgment. They'll get a Discord message "
                        'letting them know.')
             title, confirm_text, tone = f'Un-approve {role}', 'Un-approve', 'negative'
@@ -160,21 +162,43 @@ class MatchTableHandlersMixin:
         crew_service = CrewService()
 
         if action == 'undo':
+            # Withdrawing an *approved* commitment is not the same act as
+            # dropping one nobody has looked at yet: staff put this person on the
+            # match, and the service now tells them it came off. The dialog says
+            # so rather than reusing the neutral copy.
+            mine = next(
+                (c for c in (row.get(f'{role}s') or [])
+                 if isinstance(c, dict) and c.get('discord_id') == str(discord_id)),
+                None,
+            )
+            was_approved = bool(mine and mine.get('approved'))
+
             async def perform_undo():
                 try:
                     await crew_service.undo_crew_signup(match_id, user, role)
-                    ui.notify(f'You have been removed as a {role} for match ID {match_id}.', color='positive')
+                    ui.notify(
+                        f'You have been removed as a {role} for '
+                        f'{match_row_label(row, with_context=False)}.',
+                        color='positive',
+                    )
                     await self.update_row_by_id(match_id)
                     dialog.dialog.close()
                 except ValueError as e:
                     ui.notify(str(e), color='warning')
                     dialog.dialog.close()
 
+            message = f'Remove yourself as a {role} for {match_row_label(row)}?'
+            if was_approved:
+                message += ('\n\nStaff approved you for this slot — they will be told '
+                            'you have withdrawn so they can find cover.')
+
             dialog = ConfirmationDialog(
-                f'Are you sure you want to remove yourself as a {role} for match ID {match_id}?',
-                confirm_text='Yes',
-                cancel_text='No',
-                on_confirm=perform_undo
+                message,
+                title=f'Withdraw as {role}',
+                confirm_text='Withdraw',
+                cancel_text='Cancel',
+                tone='negative' if was_approved else 'primary',
+                on_confirm=perform_undo,
             )
             dialog.open()
 
@@ -182,7 +206,11 @@ class MatchTableHandlersMixin:
             async def update_role_signup():
                 try:
                     await crew_service.signup_crew(match_id, user, role)
-                    ui.notify(f'Successfully signed up as a {role} for match ID {match_id}. Awaiting approval.', color='positive')
+                    ui.notify(
+                        f'Signed up as a {role} for '
+                        f'{match_row_label(row, with_context=False)}. Awaiting approval.',
+                        color='positive',
+                    )
                     await self.update_row_by_id(match_id)
                     dialog.dialog.close()
                 except ValueError as e:
@@ -190,10 +218,11 @@ class MatchTableHandlersMixin:
                     dialog.dialog.close()
 
             dialog = ConfirmationDialog(
-                f'Do you want to sign up as a {role} for match ID {match_id}?',
-                confirm_text='Yes',
-                cancel_text='No',
-                on_confirm=update_role_signup
+                f'Sign up as a {role} for {match_row_label(row)}?',
+                title=f'Sign up as {role}',
+                confirm_text='Sign up',
+                cancel_text='Cancel',
+                on_confirm=update_role_signup,
             )
             dialog.open()
 
@@ -218,7 +247,11 @@ class MatchTableHandlersMixin:
                 return
             try:
                 await CrewService().acknowledge_crew_assignment(crew_id, role, user)
-                ui.notify(f'You acknowledged your {role} assignment for match ID {match_id}.', color='positive')
+                ui.notify(
+                    f'You acknowledged your {role} assignment for '
+                    f'{match_row_label(row, with_context=False)}.',
+                    color='positive',
+                )
                 await self.update_row_by_id(match_id)
             except ValueError as e:
                 ui.notify(str(e), color='warning')
@@ -301,10 +334,14 @@ class MatchTableHandlersMixin:
         try:
             if currently_watching:
                 await self.watcher_service.unwatch(match_id, user)
-                ui.notify(f'No longer watching match ID {match_id}.', color='positive')
+                ui.notify(f'No longer watching {match_row_label(row, with_context=False)}.', color='positive')
             else:
                 await self.watcher_service.watch(match_id, user)
-                ui.notify(f'Now watching match ID {match_id}. You will receive Discord DMs on updates.', color='positive')
+                ui.notify(
+                    f'Now watching {match_row_label(row, with_context=False)}. '
+                    'You will receive Discord DMs on updates.',
+                    color='positive',
+                )
         except ValueError as e:
             ui.notify(str(e), color='warning')
             return

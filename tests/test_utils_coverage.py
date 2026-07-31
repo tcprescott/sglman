@@ -329,6 +329,37 @@ class TestCrewAssignmentDm:
         assert '**Stage:**' not in msg
 
 
+class TestCrewWithdrawnDm:
+    """The DM to whoever owns the crew when an approved member drops out."""
+
+    def test_names_the_person_and_the_match(self):
+        msg = dm.crew_withdrawn_dm(
+            'commentator', 'Player Three', 'Grand Final', 'noon', 'Stage 2', ['A', 'B'],
+        )
+        assert '**Player Three** has withdrawn as commentator.' in msg
+        assert '**Match:** Grand Final' in msg
+        assert '**Players:** A vs B' in msg
+        assert msg.endswith('The slot is open again — the match needs someone else on it.')
+
+    def test_hours_notice_reads_as_urgency(self):
+        def notice(hours):
+            return dm.crew_withdrawn_dm(
+                'tracker', 'Ann', None, '', None, None, hours_notice=hours,
+            ).splitlines()[0]
+
+        assert notice(0.5).endswith('in under an hour.')
+        assert notice(1.2).endswith('in about 1 hour.')
+        assert notice(5.0).endswith('in about 5 hours.')
+        # Far out enough that the countdown says nothing useful.
+        assert notice(96.0).endswith('withdrawn as tracker.')
+        # A match already past its scheduled time must not read as "in under an hour".
+        assert notice(-2.0).endswith('already past its scheduled time.')
+
+    def test_no_notice_when_the_match_is_unscheduled(self):
+        msg = dm.crew_withdrawn_dm('tracker', 'Ann', None, '', None, None)
+        assert msg.splitlines()[0] == '**Ann** has withdrawn as tracker.'
+
+
 class TestVolunteerDms:
     def test_shift_lines_with_label(self):
         lines = dm._volunteer_shift_lines('Runner', 'Booth A', 'start', 'end')

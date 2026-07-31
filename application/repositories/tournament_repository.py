@@ -257,6 +257,24 @@ class TournamentRepository(TenantScopedRepository[Tournament]):
         return await scoped(TournamentPlayers.filter(tournament=tournament)).prefetch_related('user')
     
     @staticmethod
+    async def get_crew_owners(tournament_id: int) -> List:
+        """The people responsible for a tournament's crew: its admins and its
+        crew coordinators, deduplicated.
+
+        The same two groups ``AuthService.can_approve_crew`` admits (minus
+        community STAFF, who are not per-tournament) — so a notification
+        addressed to them reaches exactly the people who could act on it.
+        """
+        tournament = await scoped(
+            Tournament.filter(id=tournament_id)
+        ).prefetch_related('admins', 'crew_coordinators').first()
+        if not tournament:
+            return []
+        by_id = {u.id: u for u in tournament.admins}
+        by_id.update({u.id: u for u in tournament.crew_coordinators})
+        return list(by_id.values())
+
+    @staticmethod
     async def get_enrolled_players_by_user(user) -> List:
         """
         Get all tournament enrollments for a specific user.

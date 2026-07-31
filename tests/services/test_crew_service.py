@@ -52,7 +52,11 @@ def make_signup_match(**overrides):
     """A lightweight match stand-in for crew signup/undo tests."""
     defaults = dict(
         id=1,
+        started_at=None,
         finished_at=None,
+        scheduled_at=None,
+        stream_room=None,
+        title=None,
         commentators=[],
         trackers=[],
         # A tournament that staffs both roles, so a test opts *out* by passing
@@ -61,6 +65,17 @@ def make_signup_match(**overrides):
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
+
+
+def make_signup(user_id=42, *, approved=False, approved_by_id=None):
+    """A crew row as ``undo_crew_signup`` reads it: who, whether it was approved,
+    and who approved it (the withdrawal DM's recipient)."""
+    return SimpleNamespace(
+        user_id=user_id,
+        approved=approved,
+        approved_by_id=approved_by_id,
+        delete=AsyncMock(),
+    )
 
 
 def make_user(user_id=1, discord_id='12345'):
@@ -257,6 +272,23 @@ class TestSignupCrew:
         with pytest.raises(ValueError, match="already finished"):
             await service.signup_crew(match_id=1, user=SimpleNamespace(id=42), role="commentator")
 
+    async def test_raises_when_match_started(self, service):
+        # "Awaiting approval" about a match already under way describes something
+        # that will be over before anyone reads it.
+        match = make_signup_match(started_at=datetime(2025, 1, 16, 20, 0))
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        with pytest.raises(ValueError, match="already started"):
+            await service.signup_crew(match_id=1, user=SimpleNamespace(id=42), role="commentator")
+
+    async def test_allows_signup_on_a_seated_match(self, service):
+        # Checked In is not Started: that is exactly when a stream discovers it
+        # still needs a commentator.
+        match = make_signup_match(seated_at=datetime(2025, 1, 16, 20, 0))
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+        service.commentator_repository.create = AsyncMock()
+        await service.signup_crew(match_id=1, user=SimpleNamespace(id=42), role="commentator")
+        service.commentator_repository.create.assert_awaited_once()
+
     async def test_raises_when_commentator_already_signed_up(self, service):
         user = SimpleNamespace(id=42)
         match = make_signup_match(commentators=[SimpleNamespace(user_id=42)])
@@ -330,7 +362,7 @@ class TestSignupCrew:
         # A signup made before the requirement was set to 0 must still be
         # removable, or it is stuck on the match forever.
         user = SimpleNamespace(id=42)
-        signup = SimpleNamespace(user_id=42, delete=AsyncMock())
+        signup = make_signup()
         match = make_signup_match(
             trackers=[signup],
             tournament=SimpleNamespace(required_commentators=1, required_trackers=0),
@@ -371,7 +403,7 @@ class TestUndoCrewSignup:
 
     async def test_deletes_commentator_when_found(self, service):
         user = SimpleNamespace(id=42)
-        crew_member = SimpleNamespace(user_id=42, delete=AsyncMock())
+        crew_member = make_signup()
         match = make_signup_match(commentators=[crew_member])
         service.match_repository.get_by_id = AsyncMock(return_value=match)
         await service.undo_crew_signup(match_id=1, user=user, role="commentator")
@@ -379,7 +411,7 @@ class TestUndoCrewSignup:
 
     async def test_deletes_tracker_when_found(self, service):
         user = SimpleNamespace(id=42)
-        crew_member = SimpleNamespace(user_id=42, delete=AsyncMock())
+        crew_member = make_signup()
         match = make_signup_match(trackers=[crew_member])
         service.match_repository.get_by_id = AsyncMock(return_value=match)
         await service.undo_crew_signup(match_id=1, user=user, role="tracker")
@@ -390,3 +422,78 @@ class TestUndoCrewSignup:
         with pytest.raises(ValueError, match="Invalid role"):
             await service.undo_crew_signup(match_id=1, user=MagicMock(), role="judge")
         service.match_repository.get_by_id.assert_not_awaited()
+
+
+class TestWithdrawalNotifiesCrewOwners:
+    """Dropping an *approved* commitment tells the people who can refill it.
+
+    The half of the audit's one-directional-notification finding that the
+    volunteer side already fixed: approval DMs the crew member, so the reverse
+    has to reach someone too.
+    """
+
+    @pytest.fixture
+    def notifying(self, service, monkeypatch):
+        owner = make_user(user_id=7, discord_id='555')
+        owner.preferred_name = 'Coordinator'
+        monkeypatch.setattr(
+            'application.repositories.TournamentRepository.get_crew_owners',
+            AsyncMock(return_value=[owner]),
+        )
+        monkeypatch.setattr(
+            'application.services.tenant_service.TenantService.current_community_name',
+            AsyncMock(return_value='Test Community'),
+        )
+        return service, owner
+
+    @staticmethod
+    def _match_with_players(**overrides):
+        match = make_signup_match(tournament_id=3, **overrides)
+        match.players = MagicMock()
+        match.players.all.return_value.prefetch_related = AsyncMock(return_value=[])
+        return match
+
+    async def test_approved_withdrawal_dms_the_crew_owners(self, notifying):
+        service, owner = notifying
+        user = make_user(user_id=42, discord_id='111')
+        match = self._match_with_players(commentators=[make_signup(approved=True)])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+
+        await service.undo_crew_signup(match_id=1, user=user, role="commentator")
+
+        service.discord_service.send_dm.assert_called_once()
+        recipient_id, message = service.discord_service.send_dm.call_args.args[:2]
+        assert recipient_id == int(owner.discord_id)
+        assert 'Alice' in message and 'withdrawn as commentator' in message
+
+    async def test_unapproved_withdrawal_is_silent(self, notifying):
+        # Nobody was told the signup existed, so its removal corrects nothing.
+        service, _ = notifying
+        user = make_user(user_id=42, discord_id='111')
+        match = self._match_with_players(commentators=[make_signup(approved=False)])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+
+        await service.undo_crew_signup(match_id=1, user=user, role="commentator")
+
+        service.discord_service.send_dm.assert_not_called()
+
+    async def test_the_withdrawer_is_not_told_about_their_own_withdrawal(self, notifying):
+        service, owner = notifying
+        # The person leaving is also one of the tournament's admins.
+        match = self._match_with_players(commentators=[make_signup(user_id=owner.id, approved=True)])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+
+        await service.undo_crew_signup(match_id=1, user=owner, role="commentator")
+
+        service.discord_service.send_dm.assert_not_called()
+
+    async def test_owner_who_opted_out_of_dms_gets_none(self, notifying):
+        service, owner = notifying
+        owner.dm_notifications = False
+        user = make_user(user_id=42, discord_id='111')
+        match = self._match_with_players(trackers=[make_signup(approved=True)])
+        service.match_repository.get_by_id = AsyncMock(return_value=match)
+
+        await service.undo_crew_signup(match_id=1, user=user, role="tracker")
+
+        service.discord_service.send_dm.assert_not_called()

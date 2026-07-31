@@ -19,6 +19,7 @@ def make_match(**overrides):
     defaults = dict(
         id=1,
         tournament_id=1,
+        title=None,
         seated_at=None,
         started_at=None,
         finished_at=None,

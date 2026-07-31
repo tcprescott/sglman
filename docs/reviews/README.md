@@ -11,7 +11,7 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [match-operations-ux.md](match-operations-ux.md) | Admin Schedule board + match dialog, across five roles | Four service-level authorization gates compressed into one `can_crud` boolean: a crew coordinator gets 37 controls that all refuse |
-| [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it |
+| [crew-signup-ux.md](crew-signup-ux.md) | Commentator/tracker signup → approval → acknowledge → withdrawal | A pending signup is communicated to staff by text colour alone; the report that can find it cannot act on it. **Wave 1 shipped** — RC3/F3/F4/F8/F9 closed and F6 halved; F1, F2, F5 and the demand model (RC2) remain |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
 
 Shipped and deleted: the proctor workflow audit (PR #145 → #146) — its findings
@@ -50,14 +50,16 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   hides the crew coordinator's approval link and offers them 37 lifecycle controls
   the services refuse. The services' own gates are correct and more granular than
   the UI's.
-- **Notification is one-directional** — *half fixed.* Assignment/approval DMs the
+- **Notification is one-directional** — *discharged.* Assignment/approval DMs the
   person; the reverse transitions were silent to everyone
-  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional)). The
-  volunteer half now speaks in both directions: un-assignment and a moved shift DM
-  the volunteer, a volunteer's release DMs the coordinators, and a cleared draft
-  stays silent on purpose because its creation was. **Crew withdrawal and crew
-  un-approval are still silent** — the same fix, not yet applied, and
-  `VolunteerScheduleService`'s notification matrix is the worked example.
+  ([crew RC3](crew-signup-ux.md#rc3--notification-is-one-directional--closed)).
+  Both halves now speak in both directions. Volunteers: un-assignment and a moved
+  shift DM the volunteer, a release DMs the coordinators. Crew: un-approval DMs
+  the crew member, and withdrawing an *approved* commitment DMs the tournament's
+  crew owners with the hours of notice they have. The shape that recurs in both
+  is worth copying — the *creation* of a thing decides whether its removal is
+  worth announcing, which is why an unapproved crew withdrawal and a cleared
+  volunteer draft stay silent on purpose.
 - **Capabilities nobody wired are invisible.** `update_bracket`,
   `state_readonly_slot()` — each exists, is tested, and is reachable from no
   surface. (`reattempt_run` and `review_run`'s `note` were the same finding and are
@@ -69,6 +71,17 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   had only read the source. Now fixed, with
   `test_every_link_section_config_field_is_rendered` as the guard; that test is
   the shape worth copying elsewhere.
+- **Copy that names the database, not the thing.** Every crew, acknowledgment and
+  watch string on the schedule board quoted a primary key — *"sign up as a
+  commentator for match ID 17"* — while the DM built by the same service named the
+  players, the time and the stage
+  ([crew F4](crew-signup-ux.md#f4--major--every-message-names-a-database-id-not-a-match--fixed)).
+  The rule already existed, written down in `discord_messages`' module docstring;
+  only one of the two surfaces had read it. Fixed by
+  [`match_labels.py`](../../application/utils/match_labels.py), which both now
+  share. Worth grepping for elsewhere: an id in a sentence is a defect wherever
+  a user can read it.
+
 - **A message written is not a message delivered.** Twenty-one failure strings
   across the linking and login pages were queued with `ui.notify` and then
   discarded by the `ui.navigate.to` on the next line — every one of them written
@@ -96,8 +109,9 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   (VOLUNTEER_COORDINATOR only) and `cc_user` (crew coordinator, no role row at
   all) — but a stream-manager-only user still does not.
 - **Confirmation is spent on the reversible actions.** Crew signup gets a modal;
-  revoking an approval and arming five lifecycle-clear buttons get none. (The
-  qualifier forfeit was the worst case and now confirms.)
+  arming five lifecycle-clear buttons gets none. (The qualifier forfeit was the
+  worst case and now confirms; so do revoking a crew approval and withdrawing an
+  approved commitment, each with copy naming what the other party will be told.)
 
 ## Method
 

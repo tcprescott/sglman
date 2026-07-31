@@ -117,7 +117,7 @@ _REVIEW_DETAIL = '''
 # but a volunteer can still sign up. Emits props.row for signup/undo and
 # { row, idx } for view/toggle/acknowledge.
 _CREW_DETAIL = '''
-        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (__WANTED__ && !__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
+        <div class="mgc-detail" v-if="(props.row.__KEY__ && props.row.__KEY__.length) || (__WANTED__ && props.row.crew_signup_open && !__IA__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__))">
             <span class="mgc-label">__LABEL__</span>
             <span class="mgc-detail-value">
                 <template v-for="(item, idx) in props.row.__KEY__">
@@ -145,19 +145,23 @@ _CREW_DETAIL = '''
                         </q-icon>
                         <span v-if="__IA__ && __CC__ && idx < props.row.__KEY__.length - 1">,</span>
                         <q-btn v-if="!__IA__ && item.approved && !item.acknowledged && item.discord_id == __DID__"
-                               icon="check" color="primary" size="xs" dense flat
+                               icon="check" color="primary" size="sm" dense flat no-caps label="Acknowledge"
                                @click="$parent.$emit('acknowledge___SING__', { row: props.row, idx })">
-                            <q-tooltip>Acknowledge</q-tooltip>
+                            <q-tooltip>Confirm you can cover this __SING__ slot</q-tooltip>
                         </q-btn>
                     </span>
                 </template>
                 <template v-if="!__IA__">
+                    <!-- Labelled for the same reason Acknowledge is: this is the
+                         phone layout, where a tooltip is the one explanation that
+                         never opens, and a bare `undo` circle beside a name does
+                         not read as "drop this commitment". -->
                     <q-btn v-if="props.row.__KEY__ && props.row.__KEY__.some(item => item.discord_id == __DID__)"
-                           icon="undo" color="negative" size="sm" dense flat round
+                           icon="undo" color="negative" size="sm" dense flat no-caps label="Withdraw"
                            @click="$parent.$emit('undo___SING__', props.row)">
-                        <q-tooltip>Remove yourself</q-tooltip>
+                        <q-tooltip>Remove yourself as __SING__</q-tooltip>
                     </q-btn>
-                    <q-btn v-if="__WANTED__ && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
+                    <q-btn v-if="__WANTED__ && props.row.crew_signup_open && props.row.__KEY__ && !props.row.__KEY__.some(item => item.discord_id == __DID__) && !props.row.players.some(p => p.discord_id == __DID__)"
                            icon="assignment" color="primary" size="sm" dense outline
                            @click="$parent.$emit('signup___SING__', props.row)">
                         Sign Up
