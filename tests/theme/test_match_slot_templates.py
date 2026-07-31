@@ -9,6 +9,7 @@ screenshot only shows the damage if that branch happens to be on screen — so t
 guard has to be mechanical.
 """
 
+import pathlib
 import re
 
 import pytest
@@ -385,3 +386,36 @@ def test_a_viewer_who_can_run_nothing_still_reads_the_state():
     assert 'Needs review' in state_cell
     assert "$parent.$emit('seat'" not in state_cell or 'false' in _own_guard(
         state_cell, "$parent.$emit('seat'")
+
+
+# --- One read-only state cell, not three -----------------------------------
+
+def test_the_read_only_cells_have_callers():
+    """``state_readonly_slot`` and ``SEED_SLOT_READONLY`` were written *"so pages
+    can drop their inline templates"* and then had zero callers, while the home
+    schedule and the player dashboard each kept their own copy — three
+    divergent copies of one cell, in a layer with no render coverage."""
+    from theme.tables.match_slots import SEED_SLOT_READONLY, state_readonly_slot
+
+    for path in ('pages/home_tabs/schedule.py', 'pages/home_tabs/player.py'):
+        src = pathlib.Path(path).read_text()
+        assert 'state_readonly_slot(' in src, path
+        assert 'SEED_SLOT_READONLY' in src, path
+        # And no hand-rolled replacement crept back in beside it.
+        assert "'body-cell-state': '''" not in src, path
+        assert "'body-cell-generated_seed': '''" not in src, path
+
+    assert state_readonly_slot(scheduled_detailed=True) != state_readonly_slot(
+        scheduled_detailed=False), 'the two variants must still differ'
+    assert SEED_SLOT_READONLY.count('<q-btn') == 0, 'the read-only cell rolls nothing'
+
+
+def test_the_two_scheduled_variants_differ_only_in_their_scheduled_branch():
+    """Everything above ``Scheduled`` must match byte for byte, which is the
+    whole reason one function serves both boards."""
+    from theme.tables.match_slots import state_readonly_slot
+
+    detailed = state_readonly_slot(scheduled_detailed=True)
+    plain = state_readonly_slot(scheduled_detailed=False)
+    marker = '<!-- Scheduled state -->'
+    assert detailed[:detailed.index(marker)] == plain[:plain.index(marker)]

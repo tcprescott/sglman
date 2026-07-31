@@ -27,6 +27,7 @@ from application.utils.timezone import (
 from models import Match
 from theme.dialog._helpers import (
     dialog_actions,
+    dialog_header,
     native_date_input,
     native_time_input,
     submit_on_enter,
@@ -412,6 +413,70 @@ class BaseMatchDialog:
         tournament = await self.tournament_service.get_tournament_by_id(tournament_id)
         return tournament.name if tournament else 'this tournament'
 
+    @staticmethod
+    def stale_edit_message(base: str, latest) -> str:
+        """The refusal, plus what the other admin actually changed.
+
+        Naming the fields turns "someone got there first" into a decision the
+        operator can make: overwriting a comment is not the same as overwriting
+        a result somebody just confirmed.
+        """
+        changed = [
+            label for label, value in (
+                ('checked it in', getattr(latest, 'seated_at', None)),
+                ('started it', getattr(latest, 'started_at', None)),
+                ('finished it', getattr(latest, 'finished_at', None)),
+                ('confirmed the result', getattr(latest, 'confirmed_at', None)),
+                ('cancelled it', getattr(latest, 'cancelled_at', None)),
+            ) if value is not None
+        ]
+        lines = [base]
+        if changed:
+            listed = (changed[0] if len(changed) == 1
+                      else ', '.join(changed[:-1]) + f' and {changed[-1]}')
+            lines.append(f'The match has since been {listed}.')
+        return '\n\n'.join(lines)
+
+    def _offer_stale_resolution(self, dialog, latest, stale_message: str, *, overwrite) -> None:
+        """A way out of the optimistic lock, instead of a refusal on a loop.
+
+        The lock is right; the recovery was missing. Saving over a match another
+        admin had already saved answered "modified by another admin — reload and
+        try again" with no reload, discard or overwrite anywhere in the dialog,
+        and every subsequent Save repeated it forever. The only way forward was
+        to select the typed text by hand, copy it out, close, reopen and retype.
+
+        Two named exits: keep this edit (re-baseline against what is now stored
+        and save over it) or drop it (close, their version stands).
+        """
+        async def take_mine() -> None:
+            choice.close()
+            # Re-baseline: the operator has now been told what they are
+            # overwriting, so the guard has done its job and must not fire again.
+            self._initial_updated_at = latest.updated_at
+            await overwrite()
+
+        def take_theirs() -> None:
+            # Their version stands, so this dialog has nothing left to show —
+            # every input in it is the losing copy.
+            choice.close()
+            dialog.close()
+
+        # Built inline rather than through ConfirmationDialog: both exits act,
+        # and its cancel button only closes itself.
+        with ui.dialog() as choice, ui.card().classes('dialog-card'):
+            dialog_header('Someone else saved this match first', choice)
+            with ui.column().classes('q-pa-md'):
+                ui.label(self.stale_edit_message(stale_message, latest)).style(
+                    'white-space: pre-line')
+            with dialog_actions().classes('justify-end'):
+                ui.button('Discard mine', on_click=take_theirs).props('flat')
+                ui.button(
+                    'Save mine anyway',
+                    on_click=lambda: background_tasks.create(take_mine()),
+                ).props('color=negative')
+        choice.open()
+
     async def _run_submit(
         self,
         dialog,
@@ -450,22 +515,27 @@ class BaseMatchDialog:
             return
 
         if self.match:
+            async def save() -> None:
+                try:
+                    await do_update()
+                    with self.dialog:
+                        ui.notify('Match updated successfully', color='positive')
+                        dialog.close()
+                    if self.on_submit:
+                        await self.on_submit(self.match)
+                except (ValueError, PermissionError) as e:
+                    with self.dialog:
+                        notify_error(e)
+
             latest_match = await self.match_service.get_match_by_id(self.match.id)
             if latest_match and latest_match.updated_at != self._initial_updated_at:
                 with self.dialog:
-                    ui.notify(stale_message, color='warning')
+                    self._offer_stale_resolution(
+                        dialog, latest_match, stale_message, overwrite=save,
+                    )
                 return
 
-            try:
-                await do_update()
-                with self.dialog:
-                    ui.notify('Match updated successfully', color='positive')
-                    dialog.close()
-                if self.on_submit:
-                    await self.on_submit(self.match)
-            except (ValueError, PermissionError) as e:
-                with self.dialog:
-                    notify_error(e)
+            await save()
         else:
             try:
                 await do_create()
