@@ -107,11 +107,14 @@ The client now arrives from the call site, and `acknowledge` does its scoped
 service call and refresh *inside* the block rather than only the `ui.notify` —
 the tenant fallback reads the client stash, which only exists in there.
 
-`check_slot_context.py` catches the related shape (a `ui.*` call in a background
+`check_slot_context.py` caught the related shape (a `ui.*` call in a background
 task with no slot) but not this one, because the offending line looks like an
-ordinary capture. `test_no_background_coroutine_reads_context_client_itself`
-closes that gap by AST: any coroutine handed to `background_tasks.create` that
-reads `context.client` from inside is a hit.
+ordinary capture — and in this case was followed by a correct `with client:`
+that satisfied the existing check completely. The hook now carries a second
+check for it: any coroutine handed to `background_tasks.create` that reads
+`context.client` from inside is a hit, with no guarded position available,
+because the value is not in the task at all. Tests in
+`tests/test_hook_background_client.py`.
 
 The other handlers clicked and found sound: the randomizer-key Save and Clear,
 the profile timezone select, SpeedGaming's delete and sync-now, and the preset
