@@ -34,13 +34,22 @@ async def seed_observability_for_tenant(
         },
     )
     if not await WebhookDelivery.filter(webhook=webhook, tenant=tenant).exists():
+        payload = json.dumps({"match_id": finished_match.id}, sort_keys=True)
         await WebhookDelivery.create(
             tenant=tenant, webhook=webhook, event_type="match.created",
-            payload=json.dumps({"match_id": finished_match.id}, sort_keys=True),
-            response_status=200, attempt_count=1, success=True,
+            payload=payload, response_status=200, attempt_count=1, success=True,
             delivered_at=now_utc,
         )
-    print(f"    [{tenant.slug}] webhooks ok")
+        # Two failures alongside the success, so the list's 24h health column
+        # has a webhook to paint red — the state the audit added it for. Both
+        # are inside the window ``WebhookService.HEALTH_WINDOW`` reads.
+        for event_type, status in (("match.started", 500), ("match.finished", 502)):
+            await WebhookDelivery.create(
+                tenant=tenant, webhook=webhook, event_type=event_type,
+                payload=payload, response_status=status, attempt_count=3,
+                success=False, error=f"HTTP {status} from receiver",
+            )
+    print(f"    [{tenant.slug}] webhooks ok (1 delivered, 2 failed in the health window)")
 
     # --- Telemetry -------------------------------------------------------
     # One row per category (page / interaction / domain) so the admin

@@ -41,8 +41,10 @@ What was broken was the wiring behind them.
    seen by every viewer and one a proctor has to act on.
 5. A **cancelled bracket stage kept handing out games**.
 6. The match dialog's **Racetime Room section was a dead end**.
+7. **Service Health named a problem with no route to it**, and a webhook's
+   delivery health was invisible from its row.
 
-All six are fixed on this branch. What follows is what each one was.
+All seven are fixed on this branch. What follows is what each one was.
 
 ---
 
@@ -184,6 +186,28 @@ open on racetime.gg.
 
 ---
 
+### 7. Two boards that reported a problem and offered nothing to do about it
+
+**Service Health** reported Challonge · *Credential warning* · "Token expiring
+soon", under a blurb telling the reader to "reconnect before it becomes an
+outage" — with no link to the tab where reconnecting happens. This is the
+per-row-route-out finding the admin-reports audit shipped a fix for, in a place
+that audit did not reach. The row now offers **Reconnect on the Challonge tab**.
+The rule is deliberately narrow: a racetime bot is platform-managed and granted
+by a super-admin, so a community's staff can do nothing about an unhealthy one
+and get no link — a link that lands somewhere unable to help costs the reader
+the trip before they learn that. (The `Category` column also stopped printing
+the probe's machine slug: `racetime` → `Racetime`.)
+
+**Webhooks** carried an Active toggle and nothing else, so a webhook whose last
+twenty deliveries all 5xx'd looked exactly like a healthy one — the failures
+recorded, and two clicks away behind the per-row history dialog. The list now
+carries a **Last 24h** column: blank when nothing was sent (a quiet community is
+not a problem), `N delivered` when everything landed, and `2 of 3 failed`
+leading with the number the operator is looking for. One aggregate query for the
+whole list, not one per row. `seed_dev.py` now creates the failing state so it
+is visible in a dev environment.
+
 ## What the audit checked and found sound
 
 Recorded so a later pass does not re-derive it:
@@ -228,13 +252,5 @@ Recorded so a later pass does not re-derive it:
   [notification-is-one-directional](README.md#cross-cutting-themes) theme in its
   purest form, but closing it is a feature (a reply channel, or at minimum a
   "your feedback was read" DM and a list of your own submissions), not a defect
-  fix, so it is recorded rather than shipped.
-- **Service Health names a problem with no route to it.** The board reports
-  Challonge · *Credential warning* · "Token expiring soon" and the blurb says
-  "reconnect before it becomes an outage" — with no link to the Challonge tab
-  where reconnecting happens. This is exactly the per-row-route-out finding the
-  admin-reports audit shipped, in a place that audit did not reach. Small, and
-  worth doing next.
-- **A webhook's health is invisible from its row.** Delivery history is behind a
-  per-row icon; a webhook whose last twenty deliveries all failed looks identical
-  to a healthy one in the list.
+  fix, so it is recorded rather than shipped — and it wants a decision on scope
+  before anyone builds it.

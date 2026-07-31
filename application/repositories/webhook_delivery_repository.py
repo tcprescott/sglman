@@ -7,6 +7,8 @@ Handles database operations for the outbound-webhook delivery log.
 from datetime import datetime
 from typing import Any, List
 
+from tortoise.functions import Count, Max
+
 from application.repositories._tenant import current_tenant_id, scoped
 from models import Webhook, WebhookDelivery
 
@@ -27,6 +29,21 @@ class WebhookDeliveryRepository:
             .offset(offset)
             .limit(limit)
         )
+
+    async def outcome_counts_since(self, cutoff: datetime) -> List[dict]:
+        """``{webhook_id, success, n, last}`` per outcome since ``cutoff``.
+
+        Aggregated in the database rather than by walking the rows: the health
+        summary on the webhooks list must not cost one query per webhook, nor
+        grow with a busy tenant's delivery volume.
+        """
+        rows = await (
+            scoped(WebhookDelivery.filter(created_at__gte=cutoff))
+            .annotate(n=Count('id'), last=Max('created_at'))
+            .group_by('webhook_id', 'success')
+            .values('webhook_id', 'success', 'n', 'last')
+        )
+        return list(rows)
 
     async def prune_older_than(self, cutoff: datetime) -> int:
         """Delete delivery rows created before ``cutoff``; returns the count removed."""

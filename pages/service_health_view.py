@@ -28,42 +28,74 @@ _STATUS_LABEL = {
     ServiceStatus.UNKNOWN: 'Unknown',
 }
 
+# The probe's own ``category`` is a machine slug ('racetime', 'integrations');
+# unknown values fall through title-cased rather than being dropped.
+_CATEGORY_LABEL = {
+    'racetime': 'Racetime',
+    'integrations': 'Integrations',
+    'infrastructure': 'Infrastructure',
+    'discord': 'Discord',
+}
+
 _COLUMNS = [
     {'name': 'label', 'label': 'Dependency', 'field': 'label', 'align': 'left', 'sortable': True},
     {'name': 'category', 'label': 'Category', 'field': 'category', 'align': 'left', 'sortable': True},
     {'name': 'status', 'label': 'Status', 'field': 'status', 'align': 'left'},
     {'name': 'message', 'label': 'Detail', 'field': 'message', 'align': 'left'},
     {'name': 'checked_at', 'label': 'Checked', 'field': 'checked_at', 'align': 'left'},
+    {'name': 'action', 'label': '', 'field': 'action', 'align': 'right'},
 ]
 
+# ``action_for`` maps a result to ``(link text, url)`` — the route out of the
+# problem the row just named. A board that reports "Token expiring soon" and
+# says "reconnect before it becomes an outage" without offering the page where
+# reconnecting happens is the finding the admin-reports audit shipped a fix for;
+# this board had the same shape.
+ActionFor = Callable[[ProbeResult], Optional[tuple]]
 
-def _rows(results: List[ProbeResult]) -> List[dict]:
-    return [
-        {
+_ACTION_SLOT = '''
+    <q-td :props="props">
+        <a v-if="props.row.action_url" :href="props.row.action_url" class="text-link">
+            {{ props.row.action }}
+        </a>
+    </q-td>
+'''
+
+
+def _rows(results: List[ProbeResult], action_for: Optional[ActionFor] = None) -> List[dict]:
+    rows = []
+    for r in results:
+        action = action_for(r) if action_for else None
+        rows.append({
             'label': r.label,
-            'category': r.category,
+            'category': _CATEGORY_LABEL.get(r.category, r.category.replace('_', ' ').title()),
             'status': _STATUS_LABEL[r.status],
             'status_color': _STATUS_COLOR[r.status],
             'message': r.message,
             # App-wide convention: display on the viewer's clock, never raw UTC.
             'checked_at': format_local_display(r.checked_at),
-        }
-        for r in results
-    ]
+            'action': action[0] if action else '',
+            'action_url': action[1] if action else '',
+        })
+    return rows
 
 
-def render_health_table(results: List[ProbeResult]) -> None:
+def render_health_table(
+    results: List[ProbeResult], action_for: Optional[ActionFor] = None,
+) -> None:
     """Render the status table for a set of probe results (no controls)."""
     if not results:
         ui.label('No dependencies to report.').classes('text-caption text-grey')
         return
-    table = ui.table(columns=_COLUMNS, rows=_rows(results), row_key='label').classes(
-        'w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
+    table = ui.table(
+        columns=_COLUMNS, rows=_rows(results, action_for), row_key='label',
+    ).classes('w-full wiz-table').props(':grid="Quasar.Screen.lt.md"')
     table.add_slot('body-cell-status', '''
         <q-td :props="props">
             <q-badge :color="props.row.status_color" :label="props.value" />
         </q-td>
     ''')
+    table.add_slot('body-cell-action', _ACTION_SLOT)
     # Mobile card (below Quasar's lt.md breakpoint) — the desktop columns overflow
     # a phone viewport, so each dependency renders as a stacked card instead.
     table.add_slot('item', '''
@@ -76,6 +108,8 @@ def render_health_table(results: List[ProbeResult]) -> None:
                 <div class="text-caption text-grey-7 q-mb-xs">{{ props.row.category }}</div>
                 <div v-if="props.row.message" class="q-mb-xs" style="overflow-wrap:anywhere">{{ props.row.message }}</div>
                 <div class="text-caption text-grey-7">Checked {{ props.row.checked_at }}</div>
+                <a v-if="props.row.action_url" :href="props.row.action_url"
+                   class="text-link">{{ props.row.action }}</a>
             </q-card>
         </div>
     ''')
@@ -85,6 +119,7 @@ def build_refreshable_board(
     initial_loader: Callable[[], 'object'],
     *,
     refresh_loader: Optional[Callable[[], 'object']] = None,
+    action_for: Optional[ActionFor] = None,
 ) -> None:
     """Render a health board that loads its rows in the background.
 
@@ -93,6 +128,9 @@ def build_refreshable_board(
     ``refresh_loader`` is given, a "Refresh now" button re-runs it (a live re-probe)
     and repaints. Both are called off the render path so a slow probe never blocks
     the page.
+
+    ``action_for`` is the caller's map from a result to the page that fixes it —
+    per board, because the platform's route out of a problem is not a tenant's.
     """
     state: dict = {'results': []}
     # Captured at render time (valid slot context); restored inside the background
@@ -101,7 +139,7 @@ def build_refreshable_board(
 
     @ui.refreshable
     def board() -> None:
-        render_health_table(state['results'])
+        render_health_table(state['results'], action_for)
 
     async def _load(loader: Callable[[], 'object'], *, notify: bool) -> None:
         results = list(await loader())

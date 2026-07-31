@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -243,3 +244,90 @@ class TestFormatReference:
             assert header['name'] in sent
         assert sent['Content-Type'] == 'application/json'
         assert sent['User-Agent'] == 'wizzrobe-webhook'
+
+
+# ---------------------------------------------------------------------------
+# Delivery health on the list
+# ---------------------------------------------------------------------------
+
+
+class TestRecentHealth:
+    """The 24h summary the webhooks list shows beside Active.
+
+    The list used to carry the Active toggle and nothing else, so a webhook
+    whose recent deliveries all failed looked exactly like a healthy one — the
+    failures were recorded, and two clicks away behind the per-row history.
+    """
+
+    async def _webhook(self, name='hook'):
+        return await Webhook.create(
+            name=name, url='https://example.com/h', secret='s', event_types=['*'],
+        )
+
+    async def _delivery(self, webhook, *, success: bool, age=timedelta(0)):
+        row = await WebhookDelivery.create(
+            webhook=webhook, event_type='match.created', payload='{}',
+            response_status=200 if success else 500, attempt_count=1, success=success,
+        )
+        if age:
+            # auto_now_add ignores a passed value, so age the row after the fact.
+            await WebhookDelivery.filter(id=row.id).update(
+                created_at=datetime.now(timezone.utc) - age,
+            )
+        return row
+
+    async def test_counts_both_outcomes_per_webhook(self, db):
+        actor = await _staff()
+        a, b = await self._webhook('a'), await self._webhook('b')
+        await self._delivery(a, success=True)
+        await self._delivery(a, success=False)
+        await self._delivery(a, success=False)
+        await self._delivery(b, success=True)
+
+        health = await WebhookService().recent_health(actor)
+
+        assert health[a.id]['ok'] == 1
+        assert health[a.id]['failed'] == 2
+        assert health[b.id] == {'ok': 1, 'failed': 0, 'last': health[b.id]['last']}
+
+    async def test_a_webhook_with_no_recent_deliveries_is_absent(self, db):
+        # Absent, not zeroed: the row renders "—" rather than claiming health.
+        actor = await _staff()
+        quiet = await self._webhook('quiet')
+        assert quiet.id not in await WebhookService().recent_health(actor)
+
+    async def test_deliveries_outside_the_window_do_not_count(self, db):
+        """A webhook that broke last month must not wear a red badge forever."""
+        actor = await _staff()
+        hook = await self._webhook()
+        await self._delivery(hook, success=False, age=WebhookService.HEALTH_WINDOW * 2)
+        assert hook.id not in await WebhookService().recent_health(actor)
+
+    async def test_non_staff_refused(self, db):
+        with pytest.raises(PermissionError):
+            await WebhookService().recent_health(await _plain())
+
+
+class TestHealthCell:
+    """The chip the row paints, from one webhook's counts."""
+
+    def test_no_entry_is_blank_not_a_zero(self):
+        from pages.admin_tabs.admin_webhooks import _health_cell
+
+        assert _health_cell(None) == {'health': '', 'health_chip': ''}
+        assert _health_cell({'ok': 0, 'failed': 0, 'last': None})['health'] == ''
+
+    def test_all_delivered_reads_positive(self):
+        from pages.admin_tabs.admin_webhooks import _health_cell
+
+        cell = _health_cell({'ok': 3, 'failed': 0, 'last': None})
+        assert cell['health'] == '3 delivered'
+        assert cell['health_chip'] == 'wiz-chip--ok'
+
+    def test_any_failure_leads_with_the_failure_count(self):
+        from pages.admin_tabs.admin_webhooks import _health_cell
+
+        # The number the operator is looking for goes first.
+        cell = _health_cell({'ok': 1, 'failed': 2, 'last': None})
+        assert cell['health'] == '2 of 3 failed'
+        assert cell['health_chip'] == 'wiz-chip--cancelled'
