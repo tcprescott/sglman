@@ -78,3 +78,12 @@ Line coverage sits around 92% across `application/`, `api/` and `middleware/`.
 Deliberately uncovered (each needs live infra): the Discord bot handlers, NiceGUI
 rendering, the OAuth flow, and the network-backed clients. See
 [development](development.md).
+
+Four checks run alongside it in CI, each covering something the suite cannot:
+
+| Check | What it catches |
+|---|---|
+| `scripts/guardrails.py` | the `.claude/scripts/` invariants — layer boundaries, tenant scoping, async/datetime safety, feature-flag gating — on **every** commit, not only ones a Claude session wrote |
+| `scripts/mypy_ratchet.py` | a file *gaining* type errors, against a per-file baseline (blocking; the ~1420 existing ones are mostly ORM shapes mypy cannot resolve) |
+| `tests/test_query_budget.py` | queries-per-render growing with row count (an N+1) or past a ceiling (a duplicate load) |
+| the `postgres` job | what SQLite silently no-ops — row locks above all — over `tests/postgres/` and `tests/tenancy/` |
