@@ -8,6 +8,7 @@ from nicegui import app, ui
 from application.services import AuthService, MatchService, get_user_from_discord_id
 from application.utils.timezone import format_local_time, today_local
 from models import Match, User
+from pages.admin_tabs.links import SCHEDULE, admin_url
 from theme.empty_state import empty_state
 from theme.realtime import register_view
 
@@ -132,11 +133,14 @@ async def stage_timeline_tab():
 
                     ui.space()
 
-                    # Match ID (clickable for admins)
+                    # An admin's route to the board, filtered to this match.
+                    # Everyone else got the primary key and nothing to do with
+                    # it — the card already names the match by time, tournament
+                    # and players, which is how the DMs identify one too.
                     if show_admin_link:
-                        ui.link(f'Match #{match.id}', '/admin/schedule').classes('text-link')
-                    else:
-                        ui.label(f'Match #{match.id}').classes('text-gray')
+                        ui.link(
+                            'Open in Schedule', admin_url(SCHEDULE, match_id=match.id),
+                        ).classes('text-link')
 
                 # Players
                 with ui.row().classes('match-details'):

@@ -295,6 +295,20 @@ class MatchRepository:
         return {r['assigned_station']: r['match_id'] for r in rows if r['assigned_station']}
 
     @staticmethod
+    async def get_by_ids_with_players(match_ids) -> List[Match]:
+        """The named matches with the relations a human-readable label needs.
+
+        One query for a set of ids, so a caller labelling several matches at
+        once (the station picker's occupied options) does not do it per row.
+        """
+        ids = list(match_ids)
+        if not ids:
+            return []
+        return await scoped(Match.filter(id__in=ids)).prefetch_related(
+            'tournament', 'players', 'players__user'
+        )
+
+    @staticmethod
     async def get_all_for_schedule() -> List[Match]:
         """
         Get all matches for the public schedule view, ordered by scheduled time.

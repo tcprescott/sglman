@@ -27,9 +27,18 @@ class TestPurposeCopy:
             assert set(copy) == {'title', 'lead', 'submit'}
             assert all(copy.values())
 
-    def test_titles_carry_the_match_id_placeholder(self):
+    def test_titles_name_the_match_rather_than_its_id(self):
+        """The rule ``application.utils.match_labels`` was written down for.
+
+        These titles used to interpolate the primary key ("Check in — Match
+        #11"), which is the one thing a proctor standing at a station cannot
+        use. They take a rendered label now, so the placeholder is ``{match}``
+        and no ``#`` survives the format.
+        """
         for copy in _PURPOSE_COPY.values():
-            assert copy['title'].format(id=11).endswith('#11')
+            rendered = copy['title'].format(match='Alice vs Bob')
+            assert rendered.endswith('Alice vs Bob')
+            assert '#' not in rendered
 
 
 class TestPurposeSelection:
