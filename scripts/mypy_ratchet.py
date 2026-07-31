@@ -18,6 +18,11 @@ Usage::
 
     python scripts/mypy_ratchet.py            # check (what CI runs)
     python scripts/mypy_ratchet.py --update   # re-record after fixing errors
+
+Record the baseline from a **cold** ``.mypy_cache``, which is what CI always has.
+A warm cache reports a couple fewer errors in the files it has already seen; that
+direction is harmless (the ratchet only fails on an increase) but a baseline
+recorded warm would fail the first CI run.
 """
 
 from __future__ import annotations
