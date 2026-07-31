@@ -59,7 +59,7 @@
   "application/services/match/match_service.py": 35,
   "application/services/match/match_suggestion_service.py": 6,
   "application/services/player_availability_service.py": 1,
-  "application/services/preset_service.py": 4,
+  "application/services/preset_service.py": 5,
   "application/services/race_room_profile_service.py": 3,
   "application/services/race_room_service.py": 15,
   "application/services/race_room_worker.py": 1,
