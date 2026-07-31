@@ -5,6 +5,7 @@ from typing import Callable, Optional
 from nicegui import app, ui
 
 from application.services import MatchService, get_user_from_discord_id
+from application.utils.match_labels import match_model_label
 from models import Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
 from theme.notify import notify_error
@@ -126,8 +127,12 @@ class MatchResultDialog:
         with ui.dialog() as self.dialog, ui.card().classes('dialog-card').style('max-width: 500px; width: 100%;'):
             mobile_sheet(self.dialog)
             with ui.row().classes('dialog-header'):
-                title = (f'Change result — Match #{self.match.id}' if self.is_edit
-                         else f'Enter Match Results - Match #{self.match.id}')
+                # Named by its players, not its primary key — the dialog body
+                # already repeats the tournament, so with_context=False keeps
+                # the heading to the matchup.
+                label = match_model_label(self.match, with_context=False)
+                title = (f'Change result — {label}' if self.is_edit
+                         else f'Enter match results — {label}')
                 ui.label(title).classes('dialog-title')
                 ui.space()
                 ui.button(icon='close', on_click=self.dialog.close).props('flat round dense').tooltip('Close')

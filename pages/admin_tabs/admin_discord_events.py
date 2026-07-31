@@ -14,7 +14,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 _ENABLED_ICON = '''
@@ -181,9 +181,7 @@ async def admin_discord_events_page() -> None:
                     on_click=lambda: background_tasks.create(sync_now(context.client)),
                 ).props('color=primary')
                 ui.space()
-                ui.button(
-                    icon='refresh', on_click=lambda: background_tasks.create(refresh_tables()),
-                ).props('flat color=primary').tooltip('Refresh')
+                refresh_button(refresh_tables, tooltip='Refresh')
 
             tournament_table = ui.table(columns=tournament_columns, rows=[], row_key='id').classes('w-full wiz-table')
             tournament_table.add_slot('body-cell-enabled', f'<q-td :props="props">{_ENABLED_ICON}</q-td>')

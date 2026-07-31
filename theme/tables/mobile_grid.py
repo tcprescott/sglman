@@ -10,6 +10,12 @@ admin/report/player table should get its responsive card from this one helper so
 the pattern stays uniform — and so the ``check_table_grid`` guardrail can prove a
 new table has one.
 
+The same ``columns`` list also decides what the *desktop* table paints:
+``apply_column_visibility`` turns this app's ``{'hidden': True}`` convention into
+Quasar's ``visible-columns`` prop, which is the only thing QTable actually reads.
+``enable_mobile_grid`` applies it for you; a bespoke table that wires its own
+``:grid`` prop calls it directly.
+
 ``enable_mobile_grid`` is column-driven (the same technique
 ``match_grid.render_grid_slot`` uses): it walks the ``columns`` list the desktop
 table already uses, skips ``hidden`` and the ``actions`` column, and emits a
@@ -28,12 +34,38 @@ from typing import Mapping, Optional, Sequence
 
 from nicegui import ui
 
-__all__ = ['MOBILE_GRID_BREAKPOINT', 'enable_mobile_grid']
+__all__ = ['MOBILE_GRID_BREAKPOINT', 'apply_column_visibility', 'enable_mobile_grid',
+           'visible_column_names']
 
 # Quasar Screen breakpoint below which the table switches to card/grid mode.
 # ``lt.md`` (<1024px) is the app default; the match table lets callers widen it
 # to ``lt.lg`` on its densest pages.
 MOBILE_GRID_BREAKPOINT = 'lt.md'
+
+
+def visible_column_names(columns: Sequence[Mapping]) -> list[str]:
+    """The column names a ``hidden``-aware table should actually paint."""
+    return [c.get('name', '') for c in columns if not c.get('hidden')]
+
+
+def apply_column_visibility(table: ui.table, columns: Sequence[Mapping]) -> ui.table:
+    """Make ``{'hidden': True}`` real on the desktop table, not just on the card.
+
+    ``hidden`` is this app's own convention, and for a long time only half of it
+    worked: the card body above skips a hidden column, while Quasar's ``QTable``
+    has no such column property at all and painted it regardless. Six admin
+    tables carried an id column marked hidden purely so the row dict would keep
+    the primary key for the row-action handlers — and every one of them printed
+    that key as the first column on desktop while correctly hiding it on a
+    phone.
+
+    Quasar's actual mechanism is the ``visible-columns`` prop, so that is what
+    this sets. The row dicts are untouched, which is the point: ``props.row.id``
+    stays available to every slot template and ``row_key='id'`` keeps working.
+    """
+    table._props['visible-columns'] = visible_column_names(columns)
+    table.update()
+    return table
 
 
 def _value_html(name: str, field: str, field_slots: Mapping[str, str]) -> str:
@@ -82,6 +114,7 @@ def enable_mobile_grid(
     """
     field_slots = field_slots or {}
     table.props(f':grid="Quasar.Screen.{breakpoint}"')
+    apply_column_visibility(table, columns)
 
     rows: list[str] = []
     for col in columns:

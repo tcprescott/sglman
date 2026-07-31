@@ -23,6 +23,7 @@ from application.repositories import (
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
 from application.services.discord import discord_queue
+from application.services.match import _station_copy
 from application.services.match.bracket_result_guard import (
     assert_bracket_result_editable,
 )
@@ -605,11 +606,12 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
                 raise ValueError(
                     f"'{station}' is not one of this community's stations."
                 )
-            # 4. Not already in use by another match in play.
+            # 4. Not already in use by another match in play. Named rather than
+            #    numbered, and resolved only here so the happy path keeps its
+            #    query count.
             if station in occupied:
-                raise ValueError(
-                    f"Station {station} is in use by match #{occupied[station]}."
-                )
+                name = await _station_copy.name_one(self.repository, occupied[station])
+                raise ValueError(f"Station {station} is in use by {name}.")
 
         for player in match.players:
             if player.id in assignments:
@@ -632,13 +634,16 @@ class MatchService(CancellationMixin, MatchRequestMixin, MatchReviewMixin):
         return match
 
     async def occupied_stations_for_dialog(self, match_id: int) -> dict:
-        """``{label: match id}`` for stations in play, excluding this match.
+        """``{station: the match sitting at it}`` — a *name*, not an id.
 
         The read-through the station picker needs: presentation must not reach a
         repository directly, and the dialog has to label an occupied station
         without offering this match's own stations as taken.
         """
-        return await self.repository.occupied_stations(exclude_match_id=match_id)
+        return await _station_copy.label_occupied(
+            self.repository,
+            await self.repository.occupied_stations(exclude_match_id=match_id),
+        )
 
     async def ensure_players_enrolled(
         self,

@@ -1,16 +1,28 @@
 """
 Feedback Service - Business Logic Layer
 
-Records in-app feedback from logged-in attendees and lets staff review it.
+Records in-app feedback from logged-in attendees, lets staff review it, and lets
+the person who sent it see what happened to it.
+
+That last part is the loop closing. For a long time the only thing staff could
+do was **Mark reviewed**: it was one-way, and the submitter — who might have
+asked an actual question through the form — had no way to learn anything had
+happened at all. Review is reversible now (a mis-click is a mis-click), and a
+person's own submissions carry their status on their profile.
+
+Gated by :attr:`~models.FeatureFlag.FEEDBACK`: a community can turn the whole
+subsystem off, and when they do the service refuses it rather than relying on
+the sidebar entry being hidden.
 """
 
 from typing import List
 
 from application.errors import require_found
+from application.feature_flags import requires_feature
 from application.repositories.feedback_repository import FeedbackRepository
 from application.services.audit_service import AuditActions, AuditService
 from application.services.auth_service import AuthService
-from models import Feedback, FeedbackCategory, FeedbackStatus, User
+from models import FeatureFlag, Feedback, FeedbackCategory, FeedbackStatus, User
 
 PAGE_URL_MAX_LENGTH = 512
 
@@ -30,6 +42,7 @@ class FeedbackService:
         except ValueError:
             return FeedbackCategory.OTHER
 
+    @requires_feature(FeatureFlag.FEEDBACK)
     async def submit(
         self,
         actor: User,
@@ -59,21 +72,44 @@ class FeedbackService:
         )
         return feedback
 
+    @requires_feature(FeatureFlag.FEEDBACK)
     async def list_recent(self, limit: int = 200) -> List[Feedback]:
         return await self.repository.list_recent(limit)
 
-    async def mark_reviewed(self, actor: User, feedback_id: int) -> Feedback:
-        """Mark a submission reviewed. Admin-only."""
+    @requires_feature(FeatureFlag.FEEDBACK)
+    async def list_mine(self, actor: User, limit: int = 25) -> List[Feedback]:
+        """What ``actor`` has sent, and what has happened to it.
+
+        No authorization check beyond being the actor: this reads a person's own
+        submissions and nobody else's, which is the point of it.
+        """
+        return await self.repository.list_for_user(actor, limit)
+
+    @requires_feature(FeatureFlag.FEEDBACK)
+    async def set_reviewed(
+        self, actor: User, feedback_id: int, reviewed: bool = True,
+    ) -> Feedback:
+        """Mark a submission reviewed, or put it back in the queue. Admin-only.
+
+        Reversible on purpose. Marking reviewed used to be terminal, so a
+        mis-click quietly dropped a submission out of the only queue anyone
+        looks at, with no way to retrieve it short of the database.
+        """
         await AuthService.ensure(
             await AuthService.can_view_admin(actor),
             "Only admins can review feedback.",
         )
         feedback = require_found(await self.repository.get_by_id(feedback_id), "Feedback")
 
-        await self.repository.set_status(feedback, FeedbackStatus.REVIEWED)
+        status = FeedbackStatus.REVIEWED if reviewed else FeedbackStatus.NEW
+        await self.repository.set_status(feedback, status)
         await self.audit_service.write_log(
             actor,
-            AuditActions.FEEDBACK_REVIEWED,
+            AuditActions.FEEDBACK_REVIEWED if reviewed else AuditActions.FEEDBACK_REOPENED,
             {'feedback_id': feedback.id},
         )
         return feedback
+
+    async def mark_reviewed(self, actor: User, feedback_id: int) -> Feedback:
+        """Back-compat alias for :meth:`set_reviewed`."""
+        return await self.set_reviewed(actor, feedback_id, reviewed=True)

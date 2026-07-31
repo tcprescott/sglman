@@ -45,7 +45,7 @@ async def _flag(tenant_id: int, flag: FeatureFlag, *, available: bool, enabled: 
 # --- registry ---------------------------------------------------------------
 
 def test_registry_covers_every_flag():
-    assert len(FEATURE_FLAG_REGISTRY) == 8
+    assert len(FEATURE_FLAG_REGISTRY) == 9
     assert set(FEATURE_FLAG_REGISTRY) == set(FeatureFlag)
 
 
@@ -53,6 +53,9 @@ def test_established_flags_are_the_in_use_features():
     assert set(established_flags()) == {
         FeatureFlag.CHALLONGE, FeatureFlag.EQUIPMENT,
         FeatureFlag.VOLUNTEERS, FeatureFlag.TRIFORCE_TEXTS,
+        # Gated after the fact (migration 51), so it backfills rather than
+        # disappearing for communities already collecting feedback.
+        FeatureFlag.FEEDBACK,
     }
     # New/unreleased features ship dark (not established).
     assert FeatureFlag.ASYNC_QUALIFIERS not in established_flags()

@@ -6,6 +6,7 @@ from theme.dialog import TournamentDialog
 from theme.dialog.tournament_players_dialog import TournamentPlayersDialog
 from theme.empty_state import no_data_slot
 from theme.tables.admin_crud import capture_render_context, scoped_background
+from theme.tables.mobile_grid import apply_column_visibility
 
 
 class TournamentTableView:
@@ -43,6 +44,9 @@ class TournamentTableView:
                 row_key='id',
                 # pagination={'rowsPerPage': 20, 'page': 1}
             ).classes('tournament-table tournament-table-container').props(':grid="Quasar.Screen.lt.md"')
+        # This table wires its own :grid prop rather than going through
+        # enable_mobile_grid, so it has to honour `hidden` itself.
+        apply_column_visibility(self.table, self.columns)
         self.table.add_slot('no-data', no_data_slot('No tournaments yet.'))
         self.table.on('update:pagination', self._on_page_change)
         # Add slot for clickable tournament name

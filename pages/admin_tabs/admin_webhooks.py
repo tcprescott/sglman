@@ -8,7 +8,7 @@ from application.events import EventType
 from application.services import WebhookService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 # Event-type options for the multiselect. '*' (all events) is offered first.
@@ -25,6 +25,14 @@ assert hmac.compare_digest(expected, request.headers["X-Wizzrobe-Signature"])'''
 _IS_ACTIVE_ICON = '''
     <q-icon :name="props.row.is_active_raw ? 'check_circle' : 'cancel'"
             :color="props.row.is_active_raw ? 'positive' : 'negative'" size="sm" />
+'''
+
+# Whether the receiver is actually accepting what we send. The row used to show
+# only the Active toggle, so a webhook whose last twenty deliveries all 5xx'd
+# looked exactly like a healthy one — the failures recorded and two clicks away.
+_HEALTH_CHIP = '''
+    <span v-if="!props.row.health" class="text-grey-7">—</span>
+    <span v-else class="wiz-chip" :class="props.row.health_chip">{{ props.row.health }}</span>
 '''
 
 _ROW_ACTIONS = '''
@@ -45,6 +53,28 @@ _ROW_ACTIONS = '''
         <q-tooltip>Delete</q-tooltip>
     </q-btn>
 '''
+
+
+def _health_cell(entry: dict | None) -> dict:
+    """The row's delivery-health chip, from one webhook's 24h counts.
+
+    Three states worth distinguishing, and no more: nothing sent (the common
+    case for a quiet community — not a problem), everything landed, and some
+    did not. The failure count leads when there are failures, because that is
+    the number the operator is looking for.
+    """
+    if not entry or not (entry['ok'] or entry['failed']):
+        return {'health': '', 'health_chip': ''}
+    total = entry['ok'] + entry['failed']
+    if entry['failed']:
+        return {
+            'health': f"{entry['failed']} of {total} failed",
+            'health_chip': 'wiz-chip--cancelled',
+        }
+    return {
+        'health': f'{total} delivered',
+        'health_chip': 'wiz-chip--ok',
+    }
 
 
 def _render_format_reference() -> None:
@@ -126,13 +156,16 @@ async def admin_webhooks_page() -> None:
             {'name': 'url', 'label': 'URL', 'field': 'url'},
             {'name': 'events', 'label': 'Events', 'field': 'events'},
             {'name': 'is_active', 'label': 'Active', 'field': 'is_active', 'sortable': True},
+            {'name': 'health', 'label': 'Last 24h', 'field': 'health'},
             {'name': 'actions', 'label': '', 'field': 'actions'},
         ]
 
         table_container = ui.column().classes('w-full')
 
         async def refresh_table():
-            webhooks = await service.list_webhooks(await _current())
+            actor = await _current()
+            webhooks = await service.list_webhooks(actor)
+            health = await service.recent_health(actor)
             table.rows = [
                 {
                     'id': w.id,
@@ -142,6 +175,7 @@ async def admin_webhooks_page() -> None:
                     'is_active': 'Yes' if w.is_active else 'No',
                     'event_types': w.event_types,
                     'is_active_raw': w.is_active,
+                    **_health_cell(health.get(w.id)),
                 }
                 for w in webhooks
             ]
@@ -282,13 +316,12 @@ async def admin_webhooks_page() -> None:
             with ui.row().classes('full-width'):
                 ui.button('Add Webhook', icon='add', on_click=lambda: open_webhook_dialog()).props('color=primary')
                 ui.space()
-                ui.button(
-                    icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
-                ).props('flat color=primary').tooltip('Refresh table')
+                refresh_button(refresh_table)
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
             table.add_slot('body-cell-is_active', f'<q-td :props="props">{_IS_ACTIVE_ICON}</q-td>')
+            table.add_slot('body-cell-health', f'<q-td :props="props">{_HEALTH_CHIP}</q-td>')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')
 
             table.on('edit', lambda e: open_webhook_dialog(e.args))
@@ -297,7 +330,8 @@ async def admin_webhooks_page() -> None:
             table.on('delete', lambda e: background_tasks.create(delete_webhook(e.args, context.client)))
 
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
-                               field_slots={'is_active': _IS_ACTIVE_ICON})
+                               field_slots={'is_active': _IS_ACTIVE_ICON,
+                                            'health': _HEALTH_CHIP})
 
         wire_tab_refresh('Webhooks', refresh_table)
         background_tasks.create(refresh_table())

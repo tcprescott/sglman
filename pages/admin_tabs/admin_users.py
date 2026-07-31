@@ -12,6 +12,7 @@ from application.services import (
 from application.tenant_context import require_tenant_id
 from models import Role, User
 from theme.dialog import AdminUserDialog
+from theme.tables.admin_crud import refresh_button
 from theme.tables.user import UserTableView
 
 _TA_FILTER = '_tournament_admin'
@@ -187,7 +188,9 @@ async def admin_users_page() -> None:
             ui.button('Add Member', icon='person_add', on_click=add_member).props('color=primary')
             ui.button('Add User', icon='add', on_click=add_user).props('flat color=primary')
             ui.space()
-            ui.button(icon='refresh', on_click=lambda: background_tasks.create(table_view.refresh())).props('flat color=primary').tooltip('Refresh table')
+            # Lambda, not a direct reference: the toolbar is built before
+            # table_view exists.
+            refresh_button(lambda: table_view.refresh())
 
         # Filter card — between toolbar and table, matching match-filters-card pattern
         with ui.card().classes('match-filters-card'):
@@ -217,7 +220,9 @@ async def admin_users_page() -> None:
             lambda e: background_tasks.create(remove_member(e.args, context.client)),
         )
 
-        role_select.on('update:model-value', lambda *_: background_tasks.create(table_view.refresh()))
+        # Same rebind as the tab-switch below: an 'update:model-value' handler
+        # is a client event, so a bare background task loses the tenant.
+        role_select.on('update:model-value', lambda *_: table_view._bg(table_view.refresh()))
 
         # Route through the view's _bg so refresh rebinds the tenant captured at
         # build — the selected_tab handler runs detached, and _format_user_row

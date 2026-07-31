@@ -14,13 +14,24 @@ than the split buys.
 
 import json
 
-from models import Match, TelemetryEvent, Tenant, User, Webhook, WebhookDelivery
+from models import (
+    Feedback,
+    FeedbackCategory,
+    FeedbackStatus,
+    Match,
+    TelemetryEvent,
+    Tenant,
+    User,
+    Webhook,
+    WebhookDelivery,
+)
 
 
 async def seed_observability_for_tenant(
     tenant: Tenant, staff: User, finished_match: Match, now_utc,
+    users: dict[str, User] | None = None,
 ) -> None:
-    """Seed the inactive dev webhook (plus one delivery row) and telemetry rows."""
+    """Seed the dev webhook + deliveries, the feedback queue, and telemetry rows."""
     # --- Webhooks ---------------------------------------------------------
     # Inactive so a dev session never attempts outbound deliveries; the one
     # seeded delivery row makes the admin delivery log render regardless.
@@ -34,13 +45,50 @@ async def seed_observability_for_tenant(
         },
     )
     if not await WebhookDelivery.filter(webhook=webhook, tenant=tenant).exists():
+        payload = json.dumps({"match_id": finished_match.id}, sort_keys=True)
         await WebhookDelivery.create(
             tenant=tenant, webhook=webhook, event_type="match.created",
-            payload=json.dumps({"match_id": finished_match.id}, sort_keys=True),
-            response_status=200, attempt_count=1, success=True,
+            payload=payload, response_status=200, attempt_count=1, success=True,
             delivered_at=now_utc,
         )
-    print(f"    [{tenant.slug}] webhooks ok")
+        # Two failures alongside the success, so the list's 24h health column
+        # has a webhook to paint red — the state the audit added it for. Both
+        # are inside the window ``WebhookService.HEALTH_WINDOW`` reads.
+        for event_type, status in (("match.started", 500), ("match.finished", 502)):
+            await WebhookDelivery.create(
+                tenant=tenant, webhook=webhook, event_type=event_type,
+                payload=payload, response_status=status, attempt_count=3,
+                success=False, error=f"HTTP {status} from receiver",
+            )
+    print(f"    [{tenant.slug}] webhooks ok (1 delivered, 2 failed in the health window)")
+
+    # --- Feedback --------------------------------------------------------
+    # Two states across two people, and both states on one person (player_one),
+    # so the staff queue and the submitter's own profile card each have
+    # something to show without anyone submitting by hand.
+    feedback_specs = [] if not users else [
+        ("player_one", FeedbackCategory.BUG, FeedbackStatus.NEW,
+         "Schedule times looked off on mobile.", "/home/schedule"),
+        ("player_two", FeedbackCategory.SUGGESTION, FeedbackStatus.REVIEWED,
+         "Would love a dark mode toggle.", "/"),
+        ("sm_user", FeedbackCategory.PRAISE, FeedbackStatus.NEW,
+         "The new crew view is great, thanks!", "/admin/schedule"),
+        ("player_three", FeedbackCategory.OTHER, FeedbackStatus.REVIEWED,
+         "Who do I ask about getting my racetime name fixed?", "/home/profile"),
+        # A second one for player_one, already read, so their profile's
+        # "Your feedback" card shows both chips at once — the state the
+        # card exists to communicate.
+        ("player_one", FeedbackCategory.SUGGESTION, FeedbackStatus.REVIEWED,
+         "Could the bracket view remember my zoom level?", "/brackets/1"),
+    ]
+    for uname, category, status, message, page_url in feedback_specs:
+        if not await Feedback.filter(user=users[uname], message=message, tenant=tenant).exists():
+            await Feedback.create(
+                user=users[uname], category=category, status=status,
+                message=message, page_url=page_url, tenant=tenant,
+            )
+    if feedback_specs:
+        print(f"    [{tenant.slug}] feedback ok (new + reviewed, both states on player_one)")
 
     # --- Telemetry -------------------------------------------------------
     # One row per category (page / interaction / domain) so the admin

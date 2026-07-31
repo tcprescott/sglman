@@ -4,8 +4,29 @@ import pytest
 
 from application.services.audit_service import AuditActions
 from application.services.feedback_service import FeedbackService
-from models import Feedback, FeedbackCategory, FeedbackStatus, User
+from models import AuditLog, Feedback, FeedbackCategory, FeedbackStatus, Role, User, UserRole
 from tests.factories import make_audit_double
+
+# The repository stays mocked — these are unit tests of the service's own logic —
+# but the feature guard on each entry method reads TenantFeatureFlag, and the
+# ``db`` fixture is what turns every flag on for the default test tenant.
+pytestmark = pytest.mark.usefixtures("db")
+
+
+@pytest.fixture
+def make_staff():
+    async def _make(discord_id: int = 101, username: str = 'staff'):
+        user = await User.create(discord_id=discord_id, username=username)
+        await UserRole.create(user=user, role=Role.STAFF)
+        return user
+    return _make
+
+
+@pytest.fixture
+def make_player():
+    async def _make(discord_id: int = 202, username: str = 'player'):
+        return await User.create(discord_id=discord_id, username=username)
+    return _make
 
 
 @pytest.fixture
@@ -80,3 +101,76 @@ class TestSubmitWithDb:
         assert stored.status == FeedbackStatus.NEW
         assert stored.message == 'great event!'
         assert stored.page_url == '/volunteer'
+
+
+class TestSetReviewed:
+    """Review is reversible, and each direction audits its own action.
+
+    It used to be one-way: a mis-click dropped a submission out of the only
+    queue anyone looks at, with no way back short of the database.
+    """
+
+    async def _submission(self, submitter):
+        return await Feedback.create(
+            user=submitter, category=FeedbackCategory.BUG,
+            message='the thing is broken', page_url='/home',
+        )
+
+    async def test_marking_reviewed_sets_the_status_and_audits(self, db, make_staff, make_player):
+        staff, player = await make_staff(), await make_player()
+        feedback = await self._submission(player)
+
+        await FeedbackService().set_reviewed(staff, feedback.id)
+
+        await feedback.refresh_from_db()
+        assert feedback.status == FeedbackStatus.REVIEWED
+        assert await AuditLog.filter(action=AuditActions.FEEDBACK_REVIEWED).exists()
+
+    async def test_reopening_puts_it_back_and_audits_the_reverse(self, db, make_staff, make_player):
+        staff, player = await make_staff(), await make_player()
+        feedback = await self._submission(player)
+        await FeedbackService().set_reviewed(staff, feedback.id)
+
+        await FeedbackService().set_reviewed(staff, feedback.id, reviewed=False)
+
+        await feedback.refresh_from_db()
+        assert feedback.status == FeedbackStatus.NEW
+        # Its own action, not a second FEEDBACK_REVIEWED — the log has to be
+        # readable as a sequence.
+        assert await AuditLog.filter(action=AuditActions.FEEDBACK_REOPENED).exists()
+
+    async def test_a_non_admin_cannot_review_or_reopen(self, db, make_player):
+        player = await make_player()
+        feedback = await self._submission(player)
+        with pytest.raises(PermissionError):
+            await FeedbackService().set_reviewed(player, feedback.id)
+        with pytest.raises(PermissionError):
+            await FeedbackService().set_reviewed(player, feedback.id, reviewed=False)
+
+    async def test_mark_reviewed_still_works_for_existing_callers(self, db, make_staff, make_player):
+        staff, player = await make_staff(), await make_player()
+        feedback = await self._submission(player)
+        await FeedbackService().mark_reviewed(staff, feedback.id)
+        await feedback.refresh_from_db()
+        assert feedback.status == FeedbackStatus.REVIEWED
+
+
+class TestListMine:
+    """A person sees their own submissions and nobody else's."""
+
+    async def test_returns_only_the_actors_own_newest_first(self, db, make_player):
+        mine, theirs = await make_player(), await make_player(discord_id=999, username='other')
+        for text in ('first', 'second'):
+            await Feedback.create(
+                user=mine, category=FeedbackCategory.OTHER, message=text, page_url='/',
+            )
+        await Feedback.create(
+            user=theirs, category=FeedbackCategory.OTHER, message='not mine', page_url='/',
+        )
+
+        rows = await FeedbackService().list_mine(mine)
+
+        assert [r.message for r in rows] == ['second', 'first']
+
+    async def test_someone_who_sent_nothing_gets_an_empty_list(self, db, make_player):
+        assert await FeedbackService().list_mine(await make_player()) == []

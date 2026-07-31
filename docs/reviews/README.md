@@ -11,6 +11,7 @@ the truth and git history keeps the rationale.
 |---|---|---|
 | [bracket-creation-ux.md](bracket-creation-ux.md) | Authoring a native bracket stage | The page is a thin RPC console over two-thirds of `BracketService`; ~39 interactions for an 8-player stage |
 | [sahasrahbot-lessons.md](sahasrahbot-lessons.md) | Wizzrobe vs the maintainer's seven-year-old production race bot | Seed generation has no timeout, retry or provenance — the one contract SahasrahBot wrote down after paying for it |
+| [admin-toolbar-ux.md](admin-toolbar-ux.md) | The admin tabs no earlier audit covered (Online play, Webhooks, Discord, Feedback, Service Health, System Config), plus `/platform` | Eleven of fifteen Refresh buttons did nothing, silently — and SpeedGaming could not be configured at all |
 
 Shipped and deleted: the match-operations audit — its findings became
 `MatchBoardAccess` (one field per service gate, replacing the `can_crud`
@@ -132,6 +133,32 @@ Findings that recur across the audits, worth fixing once rather than nine times:
   withdrawing an approved commitment, each naming what the other party will be
   told. The five rewind buttons now say what they do, toggle instead of arming
   one-way, and summarise at Save what they are about to undo.
+
+- **A control that fails silently is worse than one that fails loudly, and the
+  screen cannot tell you which you have.** Eleven of the fifteen admin Refresh
+  buttons were dead: a task spawned from a *click* has neither the tenant
+  contextvar nor the client stash, so the first scoped read inside raises and
+  NiceGUI swallows it. Every one of them rendered, enabled, and did nothing. The
+  errors reaching the log were the reverse of helpful — a staff member's click
+  logged *"Only Staff can view webhooks"*, and a community with the feature on
+  logged *"SpeedGaming … is not enabled for this community"*, because the actor
+  and the flags both resolve against no tenant. The method that finds this is
+  reading the **server log across a click**, not screenshotting the page; a
+  screenshot sweep passes all eleven. `refresh_button` and
+  `test_no_tab_hand_rolls_a_refresh_button` close it
+  ([admin-toolbar](admin-toolbar-ux.md#1-a-refresh-button-spawned-from-a-click-loses-its-tenant-11-of-15-tabs)).
+  The generalisation is worth more than the fix: **once you find a broken
+  wiring shape, click every other instance of it before you stop.** Doing that
+  turned up My Crew's `acknowledge` and `withdraw`, which read `context.client`
+  from *inside* the task — where it raises — so a volunteer's Confirm and
+  Withdraw had never worked from the page built to give them one.
+- **A convention only half the app honours.** `{'hidden': True}` on a column is
+  this repo's own invention. The mobile-card renderer honoured it; Quasar, which
+  has no such property, painted the column anyway — so seven admin tables led
+  with a primary key on desktop and hid it correctly on a phone. Worth
+  generalising: when you invent a flag that a third-party component is also
+  expected to read, prove the third party reads it. The fix made the convention
+  real (`apply_column_visibility` → `visible-columns`) rather than deleting it.
 
 - **An arming mechanism needs every one of its halves.** The five Clear buttons
   set a flag and greyed themselves out: no label saying they roll a match's

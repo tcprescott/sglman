@@ -69,11 +69,17 @@ async def my_crew_tab() -> None:
 
         ui.separator().classes('separator-spacing')
 
-        async def withdraw(row: dict) -> None:
-            client = context.client
+        # ``client`` arrives from the call site, never read in here: both of
+        # these run as detached background tasks, where the slot stack is empty
+        # and ``context.client`` *raises* rather than returning None. Reading it
+        # on the first line meant both buttons died before doing anything —
+        # the volunteer's Confirm and Withdraw were dead controls.
+        async def withdraw(row: dict, client) -> None:
             dialog: Any = None  # bound below; ConfirmationDialog.dialog exists after open()
 
             async def perform() -> None:
+                # The confirm handler is itself a detached task, so it needs the
+                # same client the opener was handed.
                 with client:
                     try:
                         await service.undo_crew_signup(row['match_id'], user, row['role'])
@@ -108,16 +114,17 @@ async def my_crew_tab() -> None:
                 )
                 dialog.open()
 
-        async def acknowledge(row: dict) -> None:
-            client = context.client
-            try:
-                await service.acknowledge_crew_assignment(row['id'], row['role'], user)
-                with client:
+        async def acknowledge(row: dict, client) -> None:
+            # Everything inside the client, not just the notify: the service
+            # call and the refresh are both tenant-scoped reads, and the stash
+            # the tenant fallback reads only exists within this block.
+            with client:
+                try:
+                    await service.acknowledge_crew_assignment(row['id'], row['role'], user)
                     ui.notify('Thanks — your slot is confirmed.', color='positive')
-            except (ValueError, PermissionError) as e:
-                with client:
+                except (ValueError, PermissionError) as e:
                     notify_error(e)
-            await commitments.refresh()
+                await commitments.refresh()
 
         @ui.refreshable
         async def commitments() -> None:
@@ -149,12 +156,14 @@ async def my_crew_tab() -> None:
                         if row['approved'] and not row['acknowledged'] and not row['finished']:
                             ui.button(
                                 'Confirm I can cover this', icon='check',
-                                on_click=lambda _e, r=row: background_tasks.create(acknowledge(r)),
+                                on_click=lambda _e, r=row: background_tasks.create(
+                                    acknowledge(r, context.client)),
                             ).props('color=primary dense no-caps')
                         if not row['finished']:
                             ui.button(
                                 'Withdraw', icon='undo',
-                                on_click=lambda _e, r=row: background_tasks.create(withdraw(r)),
+                                on_click=lambda _e, r=row: background_tasks.create(
+                                    withdraw(r, context.client)),
                             ).props('flat color=negative dense no-caps')
 
         async def toggle_scope(event) -> None:

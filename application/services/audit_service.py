@@ -121,6 +121,7 @@ class AuditActions:
     # In-app feedback
     FEEDBACK_SUBMITTED = 'feedback.submitted'
     FEEDBACK_REVIEWED = 'feedback.reviewed'
+    FEEDBACK_REOPENED = 'feedback.reopened'
 
     # Equipment lending
     EQUIPMENT_CREATED = 'equipment.created'

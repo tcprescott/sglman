@@ -38,7 +38,7 @@ from theme.brackets import (
 from theme.dialog._helpers import dialog_actions, form_dialog
 from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.notify import notify_error
-from theme.tables.admin_crud import current_actor, wire_tab_refresh
+from theme.tables.admin_crud import current_actor, refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 from .manage import open_manage
@@ -441,9 +441,7 @@ async def admin_brackets_page() -> None:
                     ui.notify('Select a tournament first', color='warning'),
                 ).props('color=primary')
                 ui.space()
-                ui.button(
-                    icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
-                ).props('flat color=primary').tooltip('Refresh table')
+                refresh_button(refresh_table)
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
             table.add_slot('body-cell-actions', f'<q-td :props="props">{_ROW_ACTIONS}</q-td>')

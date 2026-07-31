@@ -265,12 +265,16 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         tournament. ``games`` is prefetched so the service can drop the ones whose
         series has no free slot left — that filter needs the resolved ``best_of``,
         which is business logic and so cannot live here.
+
+        Excludes matchups in a **cancelled** stage. Cancelling a stage flips only
+        the bracket's own state; its matchups stay OPEN, so without this the
+        abandoned stage kept inviting both players to schedule a game in it.
         """
-        from models import BracketMatchState
+        from models import BracketMatchState, BracketState
         qs = scoped(BracketMatch.filter(
             Q(entry1__entrant__user_id=user_id) | Q(entry2__entrant__user_id=user_id),
             state=BracketMatchState.OPEN,
-        ))
+        )).exclude(bracket__state=BracketState.CANCELLED)
         if tournament_id is not None:
             qs = qs.filter(bracket__tournament_id=tournament_id)
         return await qs.prefetch_related(
@@ -284,13 +288,14 @@ class BracketRepository(TenantScopedRepository[Bracket]):
         """Every OPEN matchup across a tournament's stages, entrants resolved.
 
         Backs the admin editor's "link this match to a matchup" picker, so it
-        prefetches the same relations ``open_matches_for_user`` does.
+        prefetches the same relations ``open_matches_for_user`` does — and
+        excludes a cancelled stage's matchups for the same reason it does.
         """
-        from models import BracketMatchState
+        from models import BracketMatchState, BracketState
         return await scoped(BracketMatch.filter(
             bracket__tournament_id=tournament_id,
             state=BracketMatchState.OPEN,
-        )).prefetch_related(
+        )).exclude(bracket__state=BracketState.CANCELLED).prefetch_related(
             'bracket', 'entry1__entrant__user', 'entry2__entrant__user', 'games',
         ).order_by('bracket__stage_order', 'round', 'position')
 

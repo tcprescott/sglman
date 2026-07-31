@@ -11,7 +11,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 _ROW_ACTIONS = '''
@@ -177,9 +177,7 @@ async def admin_presets_page() -> None:
                     on_click=lambda: background_tasks.create(import_builtins(context.client)),
                 ).props('flat color=primary')
                 ui.space()
-                ui.button(
-                    icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
-                ).props('flat color=primary').tooltip('Refresh table')
+                refresh_button(refresh_table)
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 

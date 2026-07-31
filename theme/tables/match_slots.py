@@ -55,6 +55,17 @@ def crew_wanted_js(role: str) -> str:
 
 # --- Static pass-through slots (flash-aware) -------------------------------
 
+# The board's edit affordance. It used to be the primary key rendered as a link
+# — "click the 17 to edit this match" — which is both a database value on screen
+# and a control nobody can guess is a control. A labelled pencil in the same
+# first-column slot costs the same width and says what it does.
+EDIT_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
+    <q-btn flat round dense icon="edit" color="primary"
+           @click="$parent.$emit('edit_match', props)">
+        <q-tooltip>Edit this match</q-tooltip>
+    </q-btn>
+</q-td>'''
+
 ID_SLOT = '''<q-td :props="props" :class="props.row._flash ? 'wiz-row-flash' : ''">
     <a href="#" @click="$parent.$emit('edit_match', props)" class="table-link cell-id">{{ props.value }}</a>
 </q-td>'''
@@ -482,12 +493,20 @@ def register_body_slots(table, *, admin_controls: bool, access: MatchBoardAccess
     availability so the seed/state/stream-room slots register as the board needs
     them; ``has_edit`` does the same for the id cell's edit link.
 
+    Two different first cells, because two boards want different things. A board
+    that can edit declares an ``edit`` column and gets the pencil; the proctor's
+    board declares ``id`` and gets the number read-only, because a proctor calls
+    a match out by its number across a room and that is the one place the id is
+    doing a job for a human. Registering both slots is harmless — Quasar only
+    uses the ones whose columns exist.
+
     An operator's board that cannot roll a seed still gets a seed *cell*
     (``want_seed_readonly``): with no slot at all Quasar prints the raw column
     value, which for a seed is an untruncated URL.
     """
     discord_id_js = f"'{discord_id}'" if discord_id else 'null'
 
+    table.add_slot('body-cell-edit', EDIT_SLOT)
     table.add_slot('body-cell-id', ID_SLOT if has_edit else ID_SLOT_READONLY)
     table.add_slot('body-cell-tournament', TOURNAMENT_SLOT)
     table.add_slot('body-cell-scheduled_at', SCHEDULED_AT_SLOT)

@@ -177,6 +177,18 @@ the coroutine, and restore it with `with client:`). `Client` is sync-only —
 NiceGUI 3.x (see the `enforce_nicegui_client_api.py` hook below). An httpx-style
 `async with httpx.AsyncClient() as c:` is a `Call`, not a bare `Name`, so it does
 not mask a missing slot guard.
+
+The same hook carries a **second check** over the same coroutines: a read of
+`context.client` from *inside* one. The empty slot stack makes that expression
+**raise** rather than return `None`, so a handler opening with
+`client = context.client` dies on its first statement — silently, with nothing on
+screen. There is no guarded position for it (the value is not in the task at all),
+so the fix is always to capture it at the call site and pass it in. A UX audit
+found the shape live in My Crew, where it had left the volunteer's *Confirm I can
+cover this* and *Withdraw* buttons dead; check 1 could not see it, because the
+line looks like an ordinary capture and is usually followed by a correct
+`with client:`. Tests: `tests/test_hook_background_client.py`.
+
 **Deliberately misses** (precision over recall): coroutines imported from another
 module (body not visible) and UI calls reached indirectly through a helper.
 

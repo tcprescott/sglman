@@ -18,6 +18,7 @@ from models import FeatureFlag
 from pages.home_tabs._link_section import render_connected_accounts_section
 from pages.home_tabs.api_tokens_section import render_api_tokens_section
 from pages.home_tabs.challonge_link_section import CONFIG as CHALLONGE_CONFIG
+from pages.home_tabs.my_feedback_section import render_my_feedback_section
 from pages.home_tabs.racetime_link_section import CONFIG as RACETIME_CONFIG
 from pages.home_tabs.twitch_link_section import CONFIG as TWITCH_CONFIG
 from pages.home_tabs.web_push_section import render_web_push_section
@@ -483,6 +484,11 @@ async def render_edit_info_tab():
         if challonge_live:
             link_configs.insert(0, CHALLONGE_CONFIG)
         await render_connected_accounts_section(user, link_configs)
+
+        # What you sent through the feedback form and whether it was read.
+        # Draws nothing when you have sent none, or when the community has the
+        # feature off.
+        await render_my_feedback_section(user)
 
         # API token management (self-contained; collapsed developer surface).
         await render_api_tokens_section(user)

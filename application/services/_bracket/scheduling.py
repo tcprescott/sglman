@@ -17,6 +17,7 @@ from models import (
     BracketMatch,
     BracketMatchGameState,
     BracketMatchState,
+    BracketState,
     Match,
     User,
 )
@@ -130,6 +131,13 @@ class SchedulingMixin:
             raise ValueError("This series is already decided.")
         if bracket_match.state != BracketMatchState.OPEN:
             raise ValueError("This bracket match isn't ready to schedule yet.")
+        if bracket_match.bracket.state == BracketState.CANCELLED:
+            # Cancelling a stage flips the bracket's state and leaves its
+            # matchups OPEN, so the matchup check above passes on a stage that
+            # is terminal and cannot be advanced from. Hiding it from the
+            # listings is not enough — a stale dialog, the REST route and the
+            # admin's link picker all arrive here too.
+            raise ValueError("This stage was cancelled — its matches can no longer be scheduled.")
         if not self._both_entrants_linked(bracket_match):
             raise ValueError("Both players must be linked to schedule this match.")
 
@@ -447,8 +455,7 @@ class SchedulingMixin:
         url = getattr(stream_room, 'stream_url', None)
         if url and url.lower().startswith(('http://', 'https://')):
             return url
-        slug = getattr(room, 'slug', None)
-        return f'https://racetime.gg/{slug}' if slug else ''
+        return getattr(room, 'url', '') or ''
 
     async def release_game_if_linked(
         self, match: Match, actor: Optional[User], *, reason: str = ''

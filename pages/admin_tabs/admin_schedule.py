@@ -60,7 +60,11 @@ def admin_schedule_page(
                 ).props('flat dense color=primary')
 
         columns = [
-            {'name': 'id', 'label': 'ID', 'field': 'id'},
+            # A pencil, not the primary key. The id was this board's only edit
+            # affordance and the last database value on a community-facing
+            # screen; the proctor board keeps its '#' because a proctor really
+            # does call a match out by number.
+            {'name': 'edit', 'label': '', 'field': 'id'},
             {'name': 'tournament', 'label': 'Tournament',
                 'field': 'tournament', 'sortable': True, 'filterable': True},
             {'name': 'scheduled_at', 'label': 'Scheduled At',

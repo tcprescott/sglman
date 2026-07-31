@@ -120,6 +120,22 @@ class TestScheduleBracketMatch:
                 scheduled_date='2026-06-12', scheduled_time='14:30',
             )
 
+    async def test_cancelled_stage_rejected(self, service):
+        """Hiding it from the listings is not the whole gate.
+
+        A stale dialog, the REST route and the admin's link picker all reach
+        this method directly, and the matchup's own state is still OPEN.
+        """
+        actor = await _staff()
+        _, bracket, _, bmatch = await _linked_bracket(service, actor)
+        await service.cancel_stage(actor, bracket.id)
+        with pytest.raises(ValueError, match='cancelled'):
+            await service.schedule_bracket_match(
+                actor, bmatch.id,
+                scheduled_date='2026-06-12', scheduled_time='14:30',
+            )
+        assert await BracketMatchGame.filter(bracket_match_id=bmatch.id).count() == 0
+
     async def test_already_scheduled_rejected(self, service):
         actor = await _staff()
         t, _, _, bmatch = await _linked_bracket(service, actor)
@@ -218,6 +234,26 @@ class TestListOpenMatchesForUser:
             actor, bmatch.id, scheduled_date='2026-06-12', scheduled_time='14:30',
         )
         assert await service.list_open_matches_for_user(users[0].id) == []
+
+    async def test_a_cancelled_stages_matchups_drop_off(self, service):
+        """Cancelling a stage leaves its matchups OPEN — the listing must not.
+
+        ``cancel_stage`` flips only the bracket's own state, by design: the
+        played results stay as history. Without a bracket-state filter here the
+        abandoned stage kept inviting both of its players to schedule a game in
+        it, from the player dashboard's "Upcoming matches to schedule".
+        """
+        actor = await _staff()
+        _, bracket, users, bmatch = await _linked_bracket(service, actor)
+        assert await service.list_open_matches_for_user(users[0].id) == [bmatch]
+
+        await service.cancel_stage(actor, bracket.id)
+
+        assert (await service.get_bracket(bracket.id)).state == BracketState.CANCELLED
+        assert await bmatch.__class__.get(id=bmatch.id) is not None
+        assert await service.list_open_matches_for_user(users[0].id) == []
+        # The admin's "link a match to a matchup" picker reads the sibling query.
+        assert await service.list_linkable_matches(bracket.tournament_id) == []
 
 
 # ---------------------------------------------------------------------------

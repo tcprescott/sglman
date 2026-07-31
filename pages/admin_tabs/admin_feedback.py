@@ -1,11 +1,12 @@
 """Admin Feedback Review Page"""
 
-from nicegui import app, background_tasks, ui
+from nicegui import app, ui
 
 from application.services import FeedbackService, get_user_from_discord_id
 from application.utils.timezone import format_local_display
 from theme.empty_state import no_data_slot
 from theme.notify import notify_error
+from theme.tables.admin_crud import refresh_button
 from theme.tables.mobile_grid import enable_mobile_grid
 
 _CATEGORY_LABELS = {
@@ -25,16 +26,23 @@ _COLUMNS = [
     {'name': 'actions', 'label': '', 'field': 'actions', 'align': 'right'},
 ]
 
+# The stored value is a machine key; the badge says it the way a person would.
 _STATUS_BADGE = '''
     <q-badge :color="props.row.status === 'reviewed' ? 'positive' : 'warning'">
-        {{ props.row.status }}
+        {{ props.row.status === 'reviewed' ? 'Reviewed' : 'New' }}
     </q-badge>
 '''
 
+# Reversible: marking reviewed used to be one-way, so a mis-click dropped a
+# submission out of the only queue anyone looks at with no way back.
 _ROW_ACTIONS = '''
     <q-btn v-if="props.row.status !== 'reviewed'" dense flat color="primary"
            label="Mark reviewed"
-           @click="$parent.$emit('mark_reviewed', props.row)" />
+           @click="$parent.$emit('set_reviewed', props.row)" />
+    <q-btn v-else dense flat color="grey" icon="undo" label="Reopen"
+           @click="$parent.$emit('reopen', props.row)">
+        <q-tooltip>Put this back in the queue</q-tooltip>
+    </q-btn>
 '''
 
 
@@ -45,10 +53,9 @@ async def admin_feedback_page() -> None:
         with ui.row().classes('header-row items-center full-width no-wrap'):
             ui.label('Feedback').classes('page-title')
             ui.space()
-            ui.button(
-                icon='refresh',
-                on_click=lambda: background_tasks.create(_render_table.refresh()),
-            ).props('flat color=primary').tooltip('Refresh')
+            # Lambda, not a direct reference: the toolbar is built before
+            # _render_table exists.
+            refresh_button(lambda: _render_table.refresh(), tooltip='Refresh')
 
         ui.separator().classes('separator-spacing')
 
@@ -82,17 +89,21 @@ async def admin_feedback_page() -> None:
             enable_mobile_grid(table, _COLUMNS, actions=_ROW_ACTIONS,
                                field_slots={'status': _STATUS_BADGE})
 
-            async def handle_mark_reviewed(event):
+            async def set_reviewed(event, reviewed: bool):
                 row = event.args
                 actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
                 try:
-                    await service.mark_reviewed(actor, row['id'])
+                    await service.set_reviewed(actor, row['id'], reviewed=reviewed)
                 except (ValueError, PermissionError) as e:
                     notify_error(e)
                     return
-                ui.notify('Marked as reviewed.', color='positive')
+                ui.notify(
+                    'Marked as reviewed.' if reviewed else 'Back in the queue.',
+                    color='positive',
+                )
                 await _render_table.refresh()
 
-            table.on('mark_reviewed', handle_mark_reviewed)
+            table.on('set_reviewed', lambda e: set_reviewed(e, True))
+            table.on('reopen', lambda e: set_reviewed(e, False))
 
         await _render_table()

@@ -159,7 +159,7 @@ def build_admin_tabs(
         tabs.append({'label': 'Vol. Schedule', 'icon': 'event_available', 'group': 'Community', 'content': (admin_volunteers_page, (), {'day': day})})
     if (is_staff or access.is_equipment_manager) and FeatureFlag.EQUIPMENT in live:
         tabs.append({'label': 'Equipment', 'icon': 'inventory_2', 'group': 'Community', 'content': admin_equipment_page})
-    if is_staff:
+    if is_staff and FeatureFlag.FEEDBACK in live:
         tabs.append({'label': 'Feedback', 'icon': 'feedback', 'group': 'Community', 'content': admin_feedback_page})
     if is_staff or access.is_sync_admin:
         tabs.append({'label': 'Discord Events', 'icon': 'event', 'group': 'Integrations', 'content': admin_discord_events_page})

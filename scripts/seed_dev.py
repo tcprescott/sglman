@@ -37,9 +37,6 @@ from models import (
     DiscordRoleMapping,
     FeatureFlag,
     FeatureFlagGroup,
-    Feedback,
-    FeedbackCategory,
-    FeedbackStatus,
     JoinRequestStatus,
     McpOAuthClient,
     PlayerAvailability,
@@ -539,24 +536,6 @@ async def seed_for_tenant(
             )
         print(f"    [{tenant.slug}] api tokens ok (dev bearer: {dev_bearer})")
 
-        # --- Feedback --------------------------------------------------------
-        feedback_specs = [
-            ("player_one", FeedbackCategory.BUG, FeedbackStatus.NEW,
-             "Schedule times looked off on mobile.", "/home/schedule"),
-            ("player_two", FeedbackCategory.SUGGESTION, FeedbackStatus.REVIEWED,
-             "Would love a dark mode toggle.", "/"),
-            ("sm_user", FeedbackCategory.PRAISE, FeedbackStatus.NEW,
-             "The new crew view is great, thanks!", "/admin/schedule"),
-            ("player_three", FeedbackCategory.OTHER, FeedbackStatus.REVIEWED,
-             "Who do I ask about getting my racetime name fixed?", "/home/profile"),
-        ]
-        for uname, category, status, message, page_url in feedback_specs:
-            if not await Feedback.filter(user=users[uname], message=message, tenant=tenant).exists():
-                await Feedback.create(
-                    user=users[uname], category=category, status=status,
-                    message=message, page_url=page_url, tenant=tenant,
-                )
-        print(f"    [{tenant.slug}] feedback ok")
 
         # --- Triforce texts --------------------------------------------------
         triforce_specs = [
@@ -611,7 +590,7 @@ async def seed_for_tenant(
 
 
         # --- Webhooks + telemetry (scripts/seed_observability.py) -------------
-        await seed_observability_for_tenant(tenant, staff, finished_match, now_utc)
+        await seed_observability_for_tenant(tenant, staff, finished_match, now_utc, users)
 
         # --- Audit log -------------------------------------------------------
         # One row per action a staff member actually takes on a match day, so the

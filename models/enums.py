@@ -49,6 +49,7 @@ class FeatureFlag(str, Enum):
     VOLUNTEERS = 'volunteers'
     TRIFORCE_TEXTS = 'triforce_texts'
     BRACKETS = 'brackets'
+    FEEDBACK = 'feedback'
 
 
 class BracketFormat(str, Enum):

@@ -341,6 +341,15 @@ def render_grid_slot(table, columns, *, admin_controls: bool, access: MatchBoard
             '<template v-if="props.row.bracket.standing"> · {{ props.row.bracket.standing }}</template>'
             '</a>'
         )
+    # The card's edit affordance mirrors the desktop first cell: a pencil where
+    # the board declares an `edit` column, the plain number where it declares
+    # `id` (the proctor's, who calls matches out by number).
+    if 'edit' in present and has_edit:
+        caption_inner += (
+            '<q-btn flat round dense icon="edit" color="primary" size="sm" class="q-ml-xs"'
+            ' @click="$parent.$emit(\'edit_match\', { row: props.row })">'
+            '<q-tooltip>Edit this match</q-tooltip></q-btn>'
+        )
     if 'id' in present:
         if has_edit:
             caption_inner += (

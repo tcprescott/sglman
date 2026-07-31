@@ -133,7 +133,7 @@
   "pages/admin_tabs/admin_racetime.py": 2,
   "pages/admin_tabs/admin_settings.py": 1,
   "pages/admin_tabs/admin_speedgaming.py": 2,
-  "pages/admin_tabs/admin_users.py": 7,
+  "pages/admin_tabs/admin_users.py": 4,
   "pages/admin_tabs/admin_volunteer_roster.py": 3,
   "pages/admin_tabs/admin_volunteers.py": 49,
   "pages/admin_tabs/admin_webhooks.py": 2,

@@ -84,12 +84,17 @@ the key is set, and rolling without one raises. See
 | `equipment` | Community | **yes** | `/equipment`, home + admin Equipment tabs (no REST router exists) | `equipment_service.py` |
 | `volunteers` | Community | **yes** | `/volunteer` + its nav link, admin Vol. Roster/Schedule, `/volunteers` API | `volunteer/` (reminder worker skips) |
 | `triforce_texts` | Community | **yes** | home + admin Triforce tabs, `/triforce-texts` API | `triforce_text_service.py`; the seed-roll text embed soft-returns `None` |
+| `feedback` | Community | **yes** | the drawer's Feedback item (`theme/base.py`), admin Feedback tab, the profile's "Your feedback" card (no REST router exists) | `feedback_service.py` |
 
 `established=True` marks a feature that was **already in live use** when its flag
 was added. [Migration 30](../../migrations/models/30_20260715000000_feature_flags.py)
-pinned those flags `available+enabled` for every existing tenant so gating them
-didn't make them vanish; new/unreleased features (the four online ones) ship
-dark.
+pinned the first four `available+enabled` for every existing tenant so gating
+them didn't make them vanish, and
+[migration 51](../../migrations/models/51_20260731190000_gate_feedback.py) does
+the same for `feedback`, gated later; new/unreleased features (the four online
+ones) ship dark. Gating something already live always needs that backfill —
+without it the flag defaults off and the feature disappears from under the
+communities using it.
 
 ## Groups (tiers)
 

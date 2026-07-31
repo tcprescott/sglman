@@ -1,4 +1,4 @@
-from nicegui import app, background_tasks, ui
+from nicegui import app, background_tasks, context, ui
 
 from application.services import (
     AuthService,
@@ -9,13 +9,14 @@ from application.services import (
 )
 from application.tenant_context import require_tenant_id, tenant_scope
 from application.utils.timezone import format_local_display
-from models import FeatureFlag
+from models import FeatureFlag, RaceRoomStatus
 from theme.dialog import _match_bracket_link as bracket_link
 from theme.dialog._helpers import (
     dialog_actions,
     dialog_header,
     mobile_sheet,
 )
+from theme.dialog.confirmation_dialog import ConfirmationDialog
 from theme.dialog.match_dialog_base import (
     BaseMatchDialog,
     acknowledgment_empty_state,
@@ -26,6 +27,23 @@ from theme.dialog.match_dialog_base import (
 # player requesting a match cannot.
 _ADMIN_NO_TOURNAMENTS_HINT = 'No tournaments yet — create one on the Tournaments tab.'
 _PLAYER_NO_TOURNAMENTS_HINT = 'No tournaments are open for requests right now.'
+
+# A race room's cached status, read by a human rather than by the bot that wrote
+# it — the section used to render the bare enum value ("in_progress").
+_ROOM_STATUS_LABEL = {
+    RaceRoomStatus.OPEN: 'Open',
+    RaceRoomStatus.IN_PROGRESS: 'Racing',
+    RaceRoomStatus.FINISHED: 'Finished',
+    RaceRoomStatus.CANCELLED: 'Cancelled',
+}
+_ROOM_STATUS_CHIP = {
+    RaceRoomStatus.OPEN: 'wiz-chip--pending',
+    RaceRoomStatus.IN_PROGRESS: 'wiz-chip--live',
+    RaceRoomStatus.FINISHED: 'wiz-chip--ok',
+    RaceRoomStatus.CANCELLED: 'wiz-chip--cancelled',
+}
+# The two states there is still something to call off in.
+_CANCELLABLE_ROOM_STATUSES = (RaceRoomStatus.OPEN, RaceRoomStatus.IN_PROGRESS)
 
 
 class AdminMatchDialog(BaseMatchDialog):
@@ -40,6 +58,11 @@ class AdminMatchDialog(BaseMatchDialog):
         Manual creation is gated on ``can_manage_sync`` (STAFF / SYNC_ADMIN) and
         works regardless of the tournament's auto-open toggle. The section is
         omitted entirely when the tournament has no racetime bot configured.
+
+        An *existing* room used to be a dead end: the slug rendered as plain
+        text, the status as its raw enum value, and ``cancel_room`` — reachable
+        over REST and tested — had no web surface at all, so calling off a room
+        opened by mistake meant the API or racetime.gg itself.
         """
         tournament = await self.tournament_service.get_tournament_by_id(self.match.tournament_id)
         if tournament is None or tournament.racetime_bot_id is None:
@@ -50,7 +73,7 @@ class AdminMatchDialog(BaseMatchDialog):
         with ui.column().classes('gap-1'):
             ui.label('Racetime Room').classes('text-bold')
             if existing is not None:
-                ui.label(f'{existing.slug} — {existing.status.value}').classes('text-grey-7')
+                self._render_existing_room(existing, can_sync)
                 return
             if not can_sync:
                 ui.label('No room yet.').classes('text-grey-6')
@@ -71,6 +94,52 @@ class AdminMatchDialog(BaseMatchDialog):
             ui.button(
                 'Create racetime room', icon='sports_esports', on_click=create_room,
             ).props('outline color=secondary')
+
+    def _render_existing_room(self, room, can_sync: bool) -> None:
+        """The room a match already has: where it is, how it is, and the way out."""
+        with ui.row().classes('items-center gap-2'):
+            ui.link(room.slug, room.url, new_tab=True).classes('text-link')
+            with ui.element('span').classes(f'wiz-chip {_ROOM_STATUS_CHIP[room.status]}'):
+                ui.label(_ROOM_STATUS_LABEL[room.status])
+        # Only a live room can be called off; a finished or already-cancelled one
+        # has nothing left to stop.
+        if not (can_sync and room.status in _CANCELLABLE_ROOM_STATUSES):
+            return
+
+        async def do_cancel(client) -> None:
+            with client:
+                actor = await get_user_from_discord_id(app.storage.user.get('discord_id'))
+                try:
+                    await AuthService.ensure(
+                        await AuthService.can_manage_sync(actor),
+                        'You do not have permission to cancel a racetime room.',
+                    )
+                    await RaceRoomService().cancel_room(room, actor=actor)
+                except (ValueError, PermissionError) as e:
+                    ui.notify(str(e), color='warning')
+                    return
+                ui.notify(f'Race room {room.slug} cancelled', color='positive')
+                # Set in open() before this section renders; mypy only sees the
+                # `= None` in __init__.
+                self.dialog.close()  # type: ignore[attr-defined]
+                if self.on_submit:
+                    await self.on_submit(self.match)
+
+        ui.button(
+            'Cancel race room', icon='cancel',
+            on_click=lambda: ConfirmationDialog(
+                title='Cancel race room',
+                message=(
+                    f'Cancel {room.slug}?\n\n'
+                    'Wizzrobe stops treating the room as live and the match keeps '
+                    'its schedule. The room itself stays open on racetime.gg — '
+                    'close it there too if nobody should race in it.'
+                ),
+                confirm_text='Cancel the room',
+                cancel_text='Leave it open',
+                on_confirm=lambda: background_tasks.create(do_cancel(context.client)),
+            ).open(),
+        ).props('outline color=negative')
 
     async def open(self):
         # include_inactive: a SpeedGaming placeholder entrant is inactive by

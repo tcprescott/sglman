@@ -14,7 +14,7 @@ from application.services import (
     get_user_from_discord_id,
 )
 from theme.notify import notify_error
-from theme.tables.admin_crud import wire_tab_refresh
+from theme.tables.admin_crud import refresh_button, wire_tab_refresh
 from theme.tables.mobile_grid import enable_mobile_grid
 
 _ROW_ACTIONS = '''
@@ -133,9 +133,19 @@ async def admin_speedgaming_page() -> None:
                     )
                 await refresh_table()
 
-        async def open_link_dialog(existing=None) -> None:
-            is_edit = existing is not None
-            options = await _tournament_options()
+        async def open_link_dialog(client, existing=None) -> None:
+            # Both entry points spawn this as a background task, where the slot
+            # stack is empty and with it the client stash the tenant fallback
+            # reads — so `_tournament_options` raised "No tenant in context",
+            # NiceGUI swallowed it, and Add/Edit did nothing at all on screen.
+            # Restoring the captured client is what the row handlers below
+            # already do for delete and sync.
+            with client:
+                is_edit = existing is not None
+                options = await _tournament_options()
+                await _build_link_dialog(existing, is_edit, options)
+
+        async def _build_link_dialog(existing, is_edit: bool, options) -> None:
             with table_container:
                 with ui.dialog() as dialog, ui.card().classes('w-[32rem]'):
                     ui.label('Edit Event Link' if is_edit else 'Add Event Link').classes('text-h6')
@@ -209,12 +219,11 @@ async def admin_speedgaming_page() -> None:
             with ui.row().classes('full-width'):
                 ui.button(
                     'Add Event Link', icon='add',
-                    on_click=lambda: background_tasks.create(open_link_dialog()),
+                    on_click=lambda: background_tasks.create(
+                        open_link_dialog(context.client)),
                 ).props('color=primary')
                 ui.space()
-                ui.button(
-                    icon='refresh', on_click=lambda: background_tasks.create(refresh_table()),
-                ).props('flat color=primary').tooltip('Refresh table')
+                refresh_button(refresh_table)
 
             table = ui.table(columns=columns, rows=[], row_key='id').classes('w-full wiz-table')
 
@@ -224,7 +233,8 @@ async def admin_speedgaming_page() -> None:
             enable_mobile_grid(table, columns, actions=_ROW_ACTIONS,
                                field_slots={'active': _ACTIVE_ICON, 'last_status': _LAST_STATUS_CHIP})
 
-            table.on('edit', lambda e: background_tasks.create(open_link_dialog(e.args)))
+            table.on('edit', lambda e: background_tasks.create(
+                open_link_dialog(context.client, e.args)))
             table.on('delete', lambda e: background_tasks.create(delete_link(e.args, context.client)))
             table.on('sync_now', lambda e: background_tasks.create(sync_now(e.args, context.client)))
 

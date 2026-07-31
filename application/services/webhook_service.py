@@ -18,7 +18,7 @@ import json
 import logging
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 from urllib.parse import urlparse
 
@@ -220,6 +220,35 @@ class WebhookService:
         await AuthService.ensure(await AuthService.is_staff(actor), "Only Staff can view webhook deliveries")
         webhook = await self._require(webhook_id)
         return await self.delivery_repository.list_for_webhook(webhook, limit=limit, offset=offset)
+
+    # How far back the list's health summary looks. A day is the window an
+    # operator actually asks about ("is it working *now*"), and it keeps a
+    # webhook that broke last month from wearing a red badge forever.
+    HEALTH_WINDOW = timedelta(hours=24)
+
+    async def recent_health(self, actor: User) -> dict:
+        """``{webhook id: {'ok': n, 'failed': n, 'last': datetime|None}}``.
+
+        The webhooks list showed an Active toggle and nothing else, so a webhook
+        whose last twenty deliveries all 5xx'd looked exactly like a healthy one
+        — the failures were real, recorded, and two clicks away behind the
+        per-row history dialog. This is the summary that belongs on the row.
+
+        One aggregate query for every webhook, so the list does not gain a query
+        per row (see ``tests/test_query_budget.py`` for why that matters).
+        """
+        await AuthService.ensure(await AuthService.is_staff(actor), "Only Staff can view webhooks")
+        cutoff = datetime.now(timezone.utc) - self.HEALTH_WINDOW
+        summary: dict = {}
+        for row in await self.delivery_repository.outcome_counts_since(cutoff):
+            entry = summary.setdefault(
+                row['webhook_id'], {'ok': 0, 'failed': 0, 'last': None},
+            )
+            entry['ok' if row['success'] else 'failed'] += row['n']
+            last = row['last']
+            if last is not None and (entry['last'] is None or last > entry['last']):
+                entry['last'] = last
+        return summary
 
     # ------------------------------------------------------------- delivery
 

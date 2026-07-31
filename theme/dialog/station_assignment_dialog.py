@@ -6,6 +6,7 @@ from nicegui import app, ui
 
 from application.services import MatchService, StationService, get_user_from_discord_id
 from application.services.system_config_service import SystemConfigService
+from application.utils.match_labels import match_model_label
 from models import STATION_REGEXES, Match
 from theme.dialog._helpers import dialog_actions, mobile_sheet
 from theme.notify import notify_error
@@ -15,12 +16,12 @@ from theme.notify import notify_error
 # correcting the seating of a match that is already checked in.
 _PURPOSE_COPY = {
     'checkin': {
-        'title': 'Check in — Match #{id}',
+        'title': 'Check in — {match}',
         'lead': 'Seat each player at a station, then check the match in.',
         'submit': 'Check in & seat',
     },
     'stations': {
-        'title': 'Assign stations — Match #{id}',
+        'title': 'Assign stations — {match}',
         'lead': 'Update the station each player is sitting at.',
         'submit': 'Save stations',
     },
@@ -71,7 +72,11 @@ class StationAssignmentDialog:
             mobile_sheet(self.dialog)
             # Header
             with ui.row().classes('dialog-header'):
-                ui.label(copy['title'].format(id=self.match.id)).classes('dialog-title')
+                ui.label(
+                    copy['title'].format(
+                        match=match_model_label(self.match, with_context=False),
+                    )
+                ).classes('dialog-title')
                 ui.space()
                 ui.button(icon='close', on_click=self.dialog.close).props('flat round dense').tooltip('Close')
             
@@ -104,9 +109,13 @@ class StationAssignmentDialog:
                             # ``occupied`` excludes this match, so a player's own
                             # current station never shows as taken.
                             if stations:
+                                # An occupied station names the match sitting at
+                                # it, not its id: the proctor's next move is to
+                                # go and find those players, and "match #23"
+                                # tells them nothing about who to look for.
                                 options = {
                                     s.name: (
-                                        f'{s.name} — in use (match #{occupied[s.name]})'
+                                        f'{s.name} — in use ({occupied[s.name]})'
                                         if s.name in occupied
                                         else (f'{s.name} · {s.section}' if s.section else s.name)
                                     )
@@ -161,7 +170,11 @@ class StationAssignmentDialog:
             # In 'checkin' mode the caller still has to seat the match, so it
             # owns the success toast — saying "done" here would be premature.
             if self.purpose == 'stations':
-                ui.notify(f'Stations updated for match #{self.match.id}.', color='positive')
+                ui.notify(
+                    f'Stations updated for '
+                    f'{match_model_label(self.match, with_context=False)}.',
+                    color='positive',
+                )
 
             if self.on_submit:
                 await self.on_submit(self.match)

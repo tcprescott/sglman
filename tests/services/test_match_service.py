@@ -672,13 +672,22 @@ class TestStationAssignmentValidation:
         assert players[0].assigned_station == 'anything'
 
     async def test_rejects_station_in_use_by_a_live_match(self, db, actor):
+        """And names the match sitting there, rather than quoting its id.
+
+        The proctor's next move is to go and find those players; "match #23"
+        is the one thing that does not help them do it.
+        """
         from models import Station
 
         await Station.create(name='4')
-        other, _ = await _make_onsite_match(seated=True, stations=('4',))
+        other, other_players = await _make_onsite_match(seated=True, stations=('4',))
         match, players = await _make_onsite_match()
-        with pytest.raises(ValueError, match=f'match #{other.id}'):
+        with pytest.raises(ValueError) as exc:
             await MatchService().assign_stations(match.id, {players[0].id: '4'}, actor=actor)
+        message = str(exc.value)
+        assert f'#{other.id}' not in message
+        for player in other_players:
+            assert (await player.user).preferred_name in message
 
     async def test_frees_the_station_once_the_other_match_finishes(self, db, actor):
         from models import Station
